@@ -96,6 +96,9 @@ WORKLOAD_IDENTITY_CLIENT_ID="${WORKLOAD_IDENTITY_CLIENT_ID:-}"
 WORKLOAD_IDENTITY_ROLE_ARN="${WORKLOAD_IDENTITY_ROLE_ARN:-}"
 NO_GPU="${NO_GPU:-0}"
 ENABLE_MICROK8S_GPU=false
+LIST_CHART_VERSIONS=false
+FIND_GPU_REGION_SKU=""
+FIND_GPU_REGION_COUNT=""
 
 # Output files
 OUTPUTS_FILE=""
@@ -176,16 +179,44 @@ AWS-specific Options:
   --postgres-password PW PostgreSQL admin password
   --environment ENV      Environment name (default: dev)
 
+Discovery (provider-less, exit after running):
+  --list-chart-versions  List all available chart versions in OSMO_HELM_REPO_URL
+                         (including prereleases — passes --devel). Run this
+                         before picking an OSMO_CHART_VERSION pin so you can
+                         see what's published.
+  --find-gpu-region SKU COUNT
+                         Print the first Azure region (from
+                         TF_REGION_CANDIDATES, default eastus2 swedencentral
+                         westus3 southcentralus westeurope) with sufficient
+                         quota for COUNT x SKU. Exits non-zero if none
+                         qualify. Used by agent-driven setup flows when the
+                         user doesn't know which region to target.
+
 Environment Variables:
   OSMO_IMAGE_REGISTRY    OSMO image registry (default: nvcr.io/nvidia/osmo)
-  OSMO_IMAGE_TAG         OSMO image tag (default: latest)
-  OSMO_CHART_VERSION     Pin OSMO Helm chart version (default: latest in repo)
-                         Required for prerelease channels — chart RCs are not
-                         tagged "latest" and helm install will fail without it.
+  OSMO_IMAGE_TAG         OSMO image tag (default: latest = current GA)
+  OSMO_CHART_VERSION     Pin OSMO Helm chart version (default: latest stable
+                         in repo). REQUIRED for prerelease channels — chart
+                         RCs are not tagged "latest" and helm search hides
+                         them unless --devel is passed (handled internally
+                         when this var is set).
+  OSMO_CLI_REF           Pin osmo CLI to a release tag from
+                         github.com/NVIDIA/OSMO/releases. Required when
+                         deploying a channel that doesn't match the latest
+                         GA. Default "main" pipes install.sh which always
+                         resolves to the latest GA — pin this when you
+                         pin OSMO_CHART_VERSION/OSMO_IMAGE_TAG. Pinned ref
+                         installs without sudo to OSMO_CLI_TARGET
+                         ($HOME/.local/bin by default). Discover available
+                         tags with --list-chart-versions.
+  OSMO_CLI_TARGET        Install dir for the osmo CLI binary (default:
+                         $HOME/.local/bin). Override to /usr/local/bin for
+                         system-wide install — requires sudo.
   OSMO_HELM_REPO_URL     OSMO Helm chart repo URL
-                         (default: https://helm.ngc.nvidia.com/nvidia/osmo)
-                         Override to https://helm.ngc.nvidia.com/nvstaging/osmo
-                         for prerelease testing.
+                         (default: https://helm.ngc.nvidia.com/nvidia/osmo).
+                         Both stable and prerelease chart versions are
+                         published here; pass --devel to `helm search`
+                         (or use --list-chart-versions) to surface RCs.
   BACKEND_TOKEN_EXPIRY   Backend token expiry date (default: 2027-01-01)
   NGC_API_KEY            NGC API key (alternative to --ngc-api-key flag)
   NGC_SECRET_NAME        K8s docker-registry secret name (alternative to
@@ -312,11 +343,72 @@ while [[ $# -gt 0 ]]; do
             NO_GPU=1; shift ;;
         --gpu)
             ENABLE_MICROK8S_GPU=true; shift ;;
+        --list-chart-versions)
+            LIST_CHART_VERSIONS=true; shift ;;
+        --find-gpu-region)
+            # Provider-less helper: print the first Azure region (from
+            # TF_REGION_CANDIDATES) with sufficient quota for <count> x <sku>,
+            # or exit non-zero if none qualifies. Used by the osmo-deploy
+            # skill's interactive flow when the user answers "idk" to the
+            # region prompt.
+            if [[ $# -lt 3 ]]; then
+                echo "ERROR: --find-gpu-region requires 2 arguments: <SKU> <COUNT>" >&2
+                echo "Example: $0 --find-gpu-region Standard_NC40ads_H100_v5 3" >&2
+                exit 2
+            fi
+            FIND_GPU_REGION_SKU="$2"; FIND_GPU_REGION_COUNT="$3"; shift 3 ;;
         *)
             shift
             ;;
     esac
 done
+
+###############################################################################
+# Provider-less actions (run before --provider validation)
+###############################################################################
+
+list_chart_versions() {
+    local repo_name="${OSMO_HELM_REPO_NAME:-osmo-deploy}"
+    local repo_url="${OSMO_HELM_REPO_URL:-https://helm.ngc.nvidia.com/nvidia/osmo}"
+    # Override OSMO_CHART_NAMES to add new charts (e.g. when the repo ships
+    # more than service + backend-operator).
+    local chart_names="${OSMO_CHART_NAMES:-service backend-operator}"
+    if ! command -v helm &>/dev/null; then
+        log_error "helm not found on PATH"
+        return 1
+    fi
+    log_info "Listing chart versions from $repo_url (including prereleases)"
+    local auth_args=()
+    if [[ -n "${NGC_API_KEY:-}" ]]; then
+        auth_args=(--username '$oauthtoken' --password "$NGC_API_KEY")
+    fi
+    helm repo add "$repo_name" "$repo_url" --force-update ${auth_args[@]+"${auth_args[@]}"} >/dev/null
+    helm repo update "$repo_name" >/dev/null
+    local chart
+    for chart in $chart_names; do
+        echo ""
+        echo "${chart} chart:"
+        helm search repo "$repo_name/$chart" --versions --devel
+    done
+}
+
+if [[ "$LIST_CHART_VERSIONS" == "true" ]]; then
+    list_chart_versions
+    exit $?
+fi
+
+if [[ -n "${FIND_GPU_REGION_SKU:-}" ]]; then
+    # Delegate to the azure provider's helper.
+    source "$SCRIPT_DIR/azure/terraform.sh"
+    region=$(azure_find_region_with_gpu_quota "$FIND_GPU_REGION_SKU" "$FIND_GPU_REGION_COUNT" "$(az account show --query id -o tsv 2>/dev/null)")
+    if [[ -n "$region" ]]; then
+        echo "$region"
+        exit 0
+    fi
+    log_error "No candidate region had quota for $FIND_GPU_REGION_COUNT x $FIND_GPU_REGION_SKU"
+    log_error "Override TF_REGION_CANDIDATES (space-separated) to expand the search."
+    exit 1
+fi
 
 ###############################################################################
 # Validate Arguments
