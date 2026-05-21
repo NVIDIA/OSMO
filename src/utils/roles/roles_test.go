@@ -19,7 +19,10 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"testing"
 )
 
@@ -1209,6 +1212,177 @@ func TestRoleActions_RoundTrip(t *testing.T) {
 		if roundTripped[i] != original[i] {
 			t.Errorf("roundTripped[%d] = %+v, want %+v", i, roundTripped[i], original[i])
 		}
+	}
+}
+
+// TestGetRoles_EmptyRoleNames verifies the early-return branch when no role
+// names are provided: the function returns an empty (non-nil) slice and never
+// touches the database, so a nil *postgres.PostgresClient is safe.
+func TestGetRoles_EmptyRoleNames(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	roles, err := GetRoles(context.Background(), nil, []string{}, logger)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if roles == nil {
+		t.Errorf("roles should be a non-nil empty slice")
+	}
+	if len(roles) != 0 {
+		t.Errorf("len(roles) = %d, want 0", len(roles))
+	}
+}
+
+// TestGetRoles_NilRoleNames mirrors the empty-slice case with a nil slice —
+// len(nil) == 0 so the same early-return branch fires.
+func TestGetRoles_NilRoleNames(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	roles, err := GetRoles(context.Background(), nil, nil, logger)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if roles == nil {
+		t.Errorf("roles should be a non-nil empty slice")
+	}
+	if len(roles) != 0 {
+		t.Errorf("len(roles) = %d, want 0", len(roles))
+	}
+}
+
+// TestPolicyEffect_Constants pins the string values of EffectAllow/EffectDeny
+// since they're persisted to JSON and consumers compare against the literals.
+func TestPolicyEffect_Constants(t *testing.T) {
+	if string(EffectAllow) != "Allow" {
+		t.Errorf("EffectAllow = %q, want %q", string(EffectAllow), "Allow")
+	}
+	if string(EffectDeny) != "Deny" {
+		t.Errorf("EffectDeny = %q, want %q", string(EffectDeny), "Deny")
+	}
+}
+
+// TestRolePolicy_EffectAllowOmittedWhenEmpty verifies the JSON tag
+// `effect,omitempty` drops the field when Effect is the zero value, while
+// keeping it when explicitly Allow or Deny — important for roundtripping
+// older policies that didn't carry an Effect.
+func TestRolePolicy_EffectOmitemptyBehaviour(t *testing.T) {
+	tests := []struct {
+		name     string
+		policy   RolePolicy
+		contains string // substring that must appear (or empty if must NOT appear)
+		absent   string // substring that must NOT appear (when contains is empty)
+	}{
+		{
+			name: "zero effect is omitted",
+			policy: RolePolicy{
+				Actions: RoleActions{{Action: "workflow:Read"}},
+			},
+			absent: `"effect"`,
+		},
+		{
+			name: "Allow effect is preserved",
+			policy: RolePolicy{
+				Effect:  EffectAllow,
+				Actions: RoleActions{{Action: "workflow:Read"}},
+			},
+			contains: `"effect":"Allow"`,
+		},
+		{
+			name: "Deny effect is preserved",
+			policy: RolePolicy{
+				Effect:  EffectDeny,
+				Actions: RoleActions{{Action: "workflow:Delete"}},
+			},
+			contains: `"effect":"Deny"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.policy)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			s := string(data)
+			if tt.contains != "" && !contains(s, tt.contains) {
+				t.Errorf("JSON %s should contain %s", s, tt.contains)
+			}
+			if tt.contains == "" && tt.absent != "" && contains(s, tt.absent) {
+				t.Errorf("JSON %s should not contain %s", s, tt.absent)
+			}
+		})
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_DirectEmptyArray invokes UnmarshalJSON
+// directly on a RoleActions value (rather than via json.Unmarshal) to confirm
+// it handles the empty-array short-circuit and produces a non-nil slice.
+func TestRoleActions_UnmarshalJSON_DirectEmptyArray(t *testing.T) {
+	var ra RoleActions
+	if err := ra.UnmarshalJSON([]byte(`[]`)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ra == nil {
+		t.Errorf("ra should be a non-nil empty slice")
+	}
+	if len(ra) != 0 {
+		t.Errorf("len(ra) = %d, want 0", len(ra))
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_OverwritesExistingSlice verifies that
+// unmarshaling into a non-empty slice replaces (not appends to) the prior
+// contents — *ra = result on the final line of UnmarshalJSON.
+func TestRoleActions_UnmarshalJSON_OverwritesExistingSlice(t *testing.T) {
+	ra := RoleActions{
+		{Action: "stale:Action"},
+		{Action: "another:Stale"},
+	}
+	if err := json.Unmarshal([]byte(`["fresh:Action"]`), &ra); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ra) != 1 {
+		t.Fatalf("len(ra) = %d, want 1", len(ra))
+	}
+	if ra[0].Action != "fresh:Action" {
+		t.Errorf("ra[0].Action = %q, want %q", ra[0].Action, "fresh:Action")
+	}
+}
+
+// TestRoleActions_MarshalJSON_NilSliceProducesEmptyArray verifies that a nil
+// RoleActions marshals as `[]` rather than `null`, since make() with len 0 is
+// used internally.
+func TestRoleActions_MarshalJSON_NilSliceProducesEmptyArray(t *testing.T) {
+	var ra RoleActions // nil
+	data, err := json.Marshal(ra)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(data) != `[]` {
+		t.Errorf("data = %s, want []", string(data))
+	}
+}
+
+// TestRoleAction_LegacyAndSemanticAreMutuallyExclusive verifies that the two
+// predicates can never both return true for the same RoleAction — the
+// IsLegacyAction guard requires Action == "".
+func TestRoleAction_LegacyAndSemanticAreMutuallyExclusive(t *testing.T) {
+	cases := []RoleAction{
+		{Action: "workflow:Create"},
+		{Action: "workflow:Create", Base: "http", Path: "/x", Method: "GET"},
+		{Base: "http", Path: "/x", Method: "GET"},
+		{Path: "/only-path"},
+		{Method: "GET"},
+		{Base: "http"},
+		{},
+	}
+	for _, ra := range cases {
+		ra := ra
+		t.Run(ra.Action+"|"+ra.Base+"|"+ra.Path+"|"+ra.Method, func(t *testing.T) {
+			if ra.IsSemanticAction() && ra.IsLegacyAction() {
+				t.Errorf("RoleAction %+v reports both semantic and legacy", ra)
+			}
+		})
 	}
 }
 
