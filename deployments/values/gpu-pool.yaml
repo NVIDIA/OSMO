@@ -3,15 +3,13 @@
 #
 # Opt-in fragment that registers a GPU platform on the default OSMO pool.
 # Layered by deploy-osmo-minimal.sh when GPU nodes are detected
-# (`kubectl get nodes -l nvidia.com/gpu=present`).
+# (`kubectl get nodes -l nvidia.com/gpu.present=true`).
 #
-# Replaces the 6.2-era `osmo config update POD_TEMPLATE` + `osmo config update
-# POOL` CLI dance — in 6.3 ConfigMap mode the pool definition lives in values.
-#
-# Taint matches the NVIDIA-standard GPU pool taint set by the TF resources in
-# terraform/{azure,aws}/example/ (`nvidia.com/gpu=present:NoSchedule`). If you
-# customize the taint, override here AND update GPU Operator + NFD + every
-# downstream NVIDIA-stack daemonset's tolerations to match.
+# Toleration matches the taint set by terraform/{azure,aws}/example/
+# (`nvidia.com/gpu=present:NoSchedule`). nodeSelector matches the label set
+# by GPU Operator NFD (`nvidia.com/gpu.present=true`). default_platform=gpu
+# routes workflow pods to GPU nodes — where the NVIDIA container runtime
+# (RuntimeClass `nvidia`) is registered.
 
 services:
   configs:
@@ -24,9 +22,10 @@ services:
               operator: Exists
               effect: NoSchedule
           nodeSelector:
-            nvidia.com/gpu: "present"
+            nvidia.com/gpu.present: "true"
     pools:
       default:
+        default_platform: gpu
         platforms:
           system: {}
           gpu:

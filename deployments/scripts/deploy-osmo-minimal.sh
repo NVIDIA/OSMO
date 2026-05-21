@@ -867,8 +867,14 @@ main() {
 
         local skip_gpu=0
         [[ "$NO_GPU" == "1" ]] && skip_gpu=1
-        SKIP_GPU="$skip_gpu" OSMO_NAMESPACE="$osmo_ns" \
-            bash "$SCRIPT_DIR/verify.sh" || log_warning "Smoke tests reported failures"
+        if ! SKIP_GPU="$skip_gpu" OSMO_NAMESPACE="$osmo_ns" bash "$SCRIPT_DIR/verify.sh"; then
+            if [[ "${OSMO_TOLERATE_VERIFY_FAILURE:-0}" == "1" ]]; then
+                log_warning "Smoke tests failed but OSMO_TOLERATE_VERIFY_FAILURE=1 — continuing"
+            else
+                log_error "Smoke tests failed. Set OSMO_TOLERATE_VERIFY_FAILURE=1 to continue anyway, or SKIP_VERIFY=1 to skip the phase."
+                exit 1
+            fi
+        fi
 
         # Bring up the UI watchdog too for convenience
         bash "$SCRIPT_DIR/port-forward.sh" --watchdog osmo-ui 3000 "$osmo_ns" || true

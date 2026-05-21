@@ -138,6 +138,13 @@ RUN_KUBECTL_APPLY_STDIN=""
 RUN_HELM="helm"
 RUN_HELM_WITH_VALUES=""
 
+# Populated by create_database() from the in-pod psql probe. Used by
+# create_secrets() to refuse a fresh MEK against a populated DB. Values:
+#   ""        — probe didn't run (in-cluster DB mode, or BYO without PG creds)
+#   <int>     — number of user tables in public schema (0 = empty DB)
+#   "UNKNOWN" — probe ran but result couldn't be parsed (treat as unsafe)
+DB_TABLE_COUNT=""
+
 ###############################################################################
 # Parse Arguments
 ###############################################################################
@@ -350,6 +357,8 @@ spec:
           psql -h \$PGHOST -U \$PGUSER -d postgres -c 'CREATE DATABASE \"${POSTGRES_DB_NAME:-osmo}\";' 2>&1 || echo 'Database may already exist (this is OK)'
           echo 'Verifying database connection...'
           psql -h \$PGHOST -U \$PGUSER -d ${POSTGRES_DB_NAME:-osmo} -c 'SELECT 1 as connected;' && echo 'SUCCESS: Database ${POSTGRES_DB_NAME:-osmo} is ready!'
+          COUNT=\$(psql -h \$PGHOST -U \$PGUSER -d ${POSTGRES_DB_NAME:-osmo} -tAc \"SELECT count(*) FROM information_schema.tables WHERE table_schema='public';\")
+          echo \"OSMO_DB_TABLE_COUNT=\$COUNT\"
   restartPolicy: Never"
 
     log_info "Creating database initialization pod..."
@@ -366,14 +375,21 @@ spec:
         if [[ "$status" == "Succeeded" ]]; then
             log_success "Database created successfully"
             echo "--- Database creation logs ---"
-            $RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true
+            local pod_logs
+            pod_logs=$($RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true)
+            echo "$pod_logs"
             echo "---"
+            DB_TABLE_COUNT=$(echo "$pod_logs" | sed -n 's/^OSMO_DB_TABLE_COUNT=\([0-9][0-9]*\)$/\1/p' | tail -1)
+            if [[ -z "$DB_TABLE_COUNT" ]]; then
+                DB_TABLE_COUNT="UNKNOWN"
+            fi
             $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
             return 0
         elif [[ "$status" == "Failed" ]]; then
             log_warning "Database creation pod failed, checking logs..."
             $RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true
             $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+            DB_TABLE_COUNT="UNKNOWN"
             return 0
         fi
 
@@ -385,6 +401,7 @@ spec:
 
     log_warning "Timeout waiting for database creation, continuing anyway..."
     $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+    DB_TABLE_COUNT="UNKNOWN"
 }
 
 ###############################################################################
@@ -446,9 +463,26 @@ create_secrets() {
         log_info "MEK ConfigMap already present in $OSMO_NAMESPACE — preserving (re-using existing key)"
         log_info "  Pass RESET_MEK=true (or --reset-mek) to force a fresh key — DESTRUCTIVE if DB has encrypted data"
     else
-        if [[ "$mek_exists" == "true" && "$RESET_MEK" == "true" ]]; then
-            log_warning "RESET_MEK=true — replacing existing MEK. Data encrypted with the previous key will be unreadable."
+        if [[ "$RESET_MEK" == "true" ]]; then
+            log_warning "RESET_MEK=true — minting a fresh MEK. Data encrypted with any previous key will be unreadable."
         else
+            # Refuse to mint a new MEK if the DB still has encrypted data from a
+            # previous install. $DB_TABLE_COUNT is populated by create_database.
+            if [[ "$DB_TABLE_COUNT" == "UNKNOWN" ]]; then
+                log_error "Could not verify whether '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST has existing data (db-ops probe failed or timed out)."
+                log_error "Refusing to mint a fresh MEK without confirmation — minting against a populated DB silently orphans encrypted columns."
+                log_error "Retry once Postgres connectivity is healthy, or pass RESET_MEK=true to acknowledge data loss and proceed."
+                exit 1
+            elif [[ -n "$DB_TABLE_COUNT" && "$DB_TABLE_COUNT" -gt 0 ]]; then
+                log_error "MEK ConfigMap 'mek-config' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has $DB_TABLE_COUNT user table(s)."
+                log_error "Generating a new MEK now would orphan every encrypted column (service_auth.private_key, workflow secrets, ...). To resolve:"
+                log_error "  - Restore the previous 'mek-config' ConfigMap from backup, OR"
+                log_error "  - Wipe the database before re-running:"
+                log_error "      psql -h $POSTGRES_HOST -U ${POSTGRES_USERNAME} -d postgres \\"
+                log_error "        -c 'DROP DATABASE IF EXISTS ${POSTGRES_DB_NAME:-osmo}; CREATE DATABASE ${POSTGRES_DB_NAME:-osmo};'"
+                log_error "  - Pass RESET_MEK=true to acknowledge data loss and proceed."
+                exit 1
+            fi
             log_info "Generating Master Encryption Key (MEK) — first install"
         fi
         local random_key=$(openssl rand -base64 32 | tr -d '\n')
@@ -632,10 +666,8 @@ service_set_flags() {
     # No kubectl-existence probe — that path caused stale-secret confusion
     # where a pre-existing nvcr-secret in the namespace silently re-engaged
     # plumbing the caller hadn't asked for.
-    local has_pull_secret=false
     if [[ -n "$NGC_SECRET_NAME" ]]; then
         sets+=" --set global.imagePullSecret=${NGC_SECRET_NAME}"
-        has_pull_secret=true
     fi
 
     sets+=" --set services.postgres.serviceName=${POSTGRES_HOST}"
@@ -698,15 +730,6 @@ service_set_flags() {
     sets+=" --set services.configs.workflow.backend_images.init=${OSMO_IMAGE_REGISTRY}/init-container:${OSMO_IMAGE_TAG}"
     sets+=" --set services.configs.workflow.backend_images.client=${OSMO_IMAGE_REGISTRY}/client:${OSMO_IMAGE_TAG}"
 
-    # NGC pull-secret plumbing in the rendered configmap. Gated on
-    # has_pull_secret (= NGC_SECRET_NAME non-empty); service.yaml ships
-    # without these defaults so the no-opt-in path leaves both empty and
-    # the chart's secretRefs range iterates nothing.
-    if [[ "$has_pull_secret" == "true" ]]; then
-        sets+=" --set services.configs.secretRefs[0].secretName=${NGC_SECRET_NAME}"
-        sets+=" --set services.configs.workflow.backend_images.credential.secretName=${NGC_SECRET_NAME}"
-        sets+=" --set services.configs.workflow.backend_images.credential.secretKey=.dockerconfigjson"
-    fi
 
     echo "$sets"
 }
@@ -863,13 +886,8 @@ render_gpu_pool_values() {
 
     local force="${OSMO_GPU_POOL_ENABLED:-auto}"
     local detected="false"
-    # GPU Operator labels GPU nodes with `nvidia.com/gpu=present` (key/value),
-    # not `nvidia.com/gpu.present` (which doesn't exist as a label name). Use
-    # the value-bearing label selector and count rows — `kubectl get nodes -l`
-    # output doesn't include the label NAME in any column, so grepping the
-    # output for the selector string would always return no match. Route
-    # through $RUN_KUBECTL so private/provider-routed flows honor the wrapper.
-    if [ "$($RUN_KUBECTL "get nodes -l nvidia.com/gpu=present --no-headers" 2>/dev/null | wc -l)" -gt 0 ]; then
+    # GPU Operator NFD labels GPU nodes with `nvidia.com/gpu.present=true`.
+    if [ "$($RUN_KUBECTL "get nodes -l nvidia.com/gpu.present=true --no-headers" 2>/dev/null | wc -l)" -gt 0 ]; then
         detected="true"
     fi
 
