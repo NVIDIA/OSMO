@@ -500,6 +500,11 @@ gpu_max               = ${TF_GPU_COUNT:-0}
 # Triggered by --storage-backend azure-blob on deploy-osmo-minimal.sh
 # (the storage backend script reads storage_account/storage_account_key TF outputs)
 storage_account_enabled = ${TF_STORAGE_ACCOUNT_ENABLED:-false}
+
+# Optional NFS Premium FileStorage account for downstream RWX consumers (e.g.
+# NIM Operator). osmo provisions just the SA + role assignments here; the
+# StorageClass manifest + default-SC swap are owned by the consumer skill.
+nfs_storage_account_enabled = ${TF_NFS_STORAGE_ACCOUNT_ENABLED:-false}
 EOF
 
     log_success "terraform.tfvars generated successfully"

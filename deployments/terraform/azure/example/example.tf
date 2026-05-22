@@ -26,7 +26,20 @@ terraform {
       source  = "azure/azapi"
       version = ">= 1.4.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.5.0"
+    }
   }
+}
+
+# 5-char lowercase alphanumeric suffix for resources whose names must be
+# globally unique (e.g. storage accounts). Only consumed by gated optional
+# resources today; kept top-level so additional resources can reuse it.
+resource "random_string" "suffix" {
+  length  = 5
+  special = false
+  upper   = false
 }
 
 provider "azurerm" {
@@ -80,6 +93,14 @@ resource "azurerm_subnet" "private" {
   resource_group_name  = data.azurerm_resource_group.main.name
   virtual_network_name = module.vnet.name
   address_prefixes     = [var.private_subnets[count.index]]
+
+  # Microsoft.Storage service endpoint is required when the optional NFS
+  # Storage Account (gated on var.nfs_storage_account_enabled) is enabled — NFS
+  # Azure Files shares are reachable only over VNet endpoints when the SA has
+  # `public_network_access_enabled = false`. Declared unconditionally so the
+  # subnet doesn't churn on toggle and so additional VNet-restricted SAs
+  # (logs, datasets, etc.) can attach without further subnet changes.
+  service_endpoints = ["Microsoft.Storage"]
 }
 
 resource "azurerm_subnet" "database" {
@@ -482,4 +503,109 @@ resource "azurerm_subnet_network_security_group_association" "database" {
   count                     = length(var.database_subnets)
   subnet_id                 = azurerm_subnet.database[count.index].id
   network_security_group_id = azurerm_network_security_group.database.id
+}
+
+################################################################################
+# Optional NFS Premium FileStorage SA (gated on var.nfs_storage_account_enabled)
+#
+# Enabled via `--with-nfs-storage` on deploy-osmo-minimal.sh, which exports
+# TF_NFS_STORAGE_ACCOUNT_ENABLED=true so the heredoc in azure/terraform.sh
+# flips this var. Provides a Premium FileStorage SA + the 4 AKS role
+# assignments file.csi.azure.com needs to dynamically provision NFS shares.
+#
+# Scope boundary: osmo only owns the SA + role grants. The StorageClass
+# manifest (with protocol: nfs + nconnect=4 etc.) and the default-SC swap
+# belong to the downstream consumer skill (e.g. NIM Operator), which reads
+# the SA name from `terraform output -raw nfs_storage_account` and renders
+# its own StorageClass against it.
+#
+# Required when the cluster hosts RWX workloads (e.g. NIM Operator multi-node
+# inference: https://docs.nvidia.com/nim-operator/latest/multi-node.html).
+# Without the consumer's SC, RWX PVCs created later sit Pending forever
+# because Azure's stock `managed-csi` / `default` classes only support RWO.
+################################################################################
+
+# NFS-backed Premium FileStorage SA hosting dynamic PVCs from
+# `file.csi.azure.com`. Pre-created so TF owns the lifecycle end-to-end;
+# `terraform destroy` removes it (and all shares inside). Without a
+# pre-created SA the driver auto-provisions one with prefix `f<hex>` in
+# whatever RG the StorageClass points at — that SA is outside TF state and
+# blocks RG deletion.
+#   Driver default-account behavior:
+#     https://github.com/kubernetes-sigs/azurefile-csi-driver/blob/master/docs/driver-parameters.md
+#   NFS on Azure Files requires Premium + FileStorage:
+#     https://learn.microsoft.com/en-us/azure/storage/files/storage-files-how-to-mount-nfs-shares
+resource "azurerm_storage_account" "nfs" {
+  count = var.nfs_storage_account_enabled ? 1 : 0
+  # Azure storage account names: 3-24 chars, lowercase alphanumeric only.
+  # Defensively normalize cluster_name (lower + strip non-alphanumerics) before
+  # clamping to a 19-char prefix budget so the trailing 5-char random suffix
+  # keeps the total at <=24. environment intentionally omitted from the name
+  # (still carried in tags) so overrides can't blow the budget.
+  name                          = "${substr(lower(replace("stnfs${var.cluster_name}", "/[^0-9a-z]/", "")), 0, 19)}${random_string.suffix.result}"
+  location                      = data.azurerm_resource_group.main.location
+  resource_group_name           = data.azurerm_resource_group.main.name
+  account_tier                  = "Premium"     # FileStorage requires Premium
+  account_kind                  = "FileStorage" # NFS shares require FileStorage kind
+  account_replication_type      = "LRS"
+  # Azure Files NFS over service endpoints requires the SA's public endpoint to
+  # remain reachable; with PNA=false the public endpoint is blocked and NFS
+  # mounts fail. Keep PNA enabled and rely on the VNet-scoped network_rules
+  # below to restrict access. Consumers wanting fully-private access can layer
+  # an azurerm_private_endpoint + privatelink.file.core.windows.net DNS zone
+  # in their own skill and flip PNA to false there.
+  public_network_access_enabled = true
+  https_traffic_only_enabled    = false # NFS does not use HTTPS; enabling blocks NFS mounts
+  tags                          = local.tags
+
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+    virtual_network_subnet_ids = azurerm_subnet.private[*].id
+  }
+}
+
+# AKS CP identity roles so the Azure File CSI driver can:
+#   1. Network Contributor on the VNet — add Microsoft.Storage service
+#      endpoint to the subnet (NFS shares are private-VNet-only).
+#   2. Storage Account Contributor scoped to stnfs*  — create file shares
+#      inside the pre-provisioned NFS SA via ARM. Scoped to this SA only; does
+#      NOT grant rights to create new SAs in the RG.
+#   3. Network Contributor on each NSG — `subnets/write` (granted by #1) is
+#      not enough when the target subnet has an NSG attached: the ARM call
+#      validates `Microsoft.Network/networkSecurityGroups/join/action` on
+#      the linked NSG too, and that's a separate scope from the VNet. The
+#      file.csi.azure.com driver iterates ALL VNet subnets to add the
+#      Microsoft.Storage service endpoint when provisioning a PVC, so it
+#      needs join on every NSG attached to a sibling subnet, not just the
+#      one its own pods land in. Without these grants, PVC provisioning
+#      fails with `LinkedAuthorizationFailed: ...does not have permission
+#      to perform action(s) Microsoft.Network/networkSecurityGroups/
+#      join/action on the linked scope...`.
+resource "azurerm_role_assignment" "aks_vnet_net_contrib" {
+  count                = var.nfs_storage_account_enabled ? 1 : 0
+  scope                = module.vnet.resource_id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.main.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "aks_nsg_aks_net_contrib" {
+  count                = var.nfs_storage_account_enabled ? 1 : 0
+  scope                = azurerm_network_security_group.aks.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.main.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "aks_nsg_database_net_contrib" {
+  count                = var.nfs_storage_account_enabled ? 1 : 0
+  scope                = azurerm_network_security_group.database.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.main.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "aks_nfs_sa_contrib" {
+  count                = var.nfs_storage_account_enabled ? 1 : 0
+  scope                = azurerm_storage_account.nfs[0].id
+  role_definition_name = "Storage Account Contributor"
+  principal_id         = azurerm_kubernetes_cluster.main.identity[0].principal_id
 }

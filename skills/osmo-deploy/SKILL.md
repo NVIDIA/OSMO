@@ -196,6 +196,18 @@ aws eks describe-cluster --name <cluster> --query "cluster.identity.oidc.issuer"
   --workload-identity-role-arn arn:aws:iam::<acct>:role/osmo-data-access
 ```
 
+## NFS storage account (`--with-nfs-storage`, azure only)
+
+Pass `--with-nfs-storage` on Azure when a downstream skill on the cluster needs an Azure Files Premium NFS-backed `ReadWriteMany` StorageClass. The canonical consumer is NIM Operator multi-node inference (its NIMCache + shared-model volumes are RWX-only per https://docs.nvidia.com/nim-operator/latest/multi-node.html); other RWX users (shared dataset caches, KServe RWX models) need it too.
+
+What osmo provisions: a Premium FileStorage Azure Storage Account (VNet-restricted, output as `nfs_storage_account`) and the four AKS role assignments `file.csi.azure.com` needs to dynamically provision NFS file shares against it — Network Contributor on the VNet, on the AKS NSG, and on the database NSG, plus Storage Account Contributor scoped to the NFS SA. Without all four, dynamic PVC provisioning fails with `LinkedAuthorizationFailed`.
+
+What osmo does NOT provision: the StorageClass manifest, the default-SC swap, or any consumer-specific PVC. Those belong to the consumer skill (per separation of concerns — osmo doesn't own RWX, the consumers do). The consumer reads `terraform output -raw nfs_storage_account` to learn the SA name and uses it to render its own StorageClass against `file.csi.azure.com` with `protocol: nfs`.
+
+Cost note: Premium FileStorage SAs bill on provisioned capacity (~$0.16/GiB-month, 100 GiB minimum). Opt in only when a downstream consumer needs RWX.
+
+Without the flag (default): no NFS SA is created. RWX PVCs created later sit `Pending` forever — the AKS default `managed-csi` / `default` classes only support RWO. The error is the consumer's to surface.
+
 ## Customizing values
 
 Hand-editable static values live in [deployments/values/](../../deployments/values/):

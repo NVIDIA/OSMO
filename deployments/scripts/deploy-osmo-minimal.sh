@@ -90,6 +90,7 @@ declare -a OSMO_BACKEND_OPERATOR_HELM_SET_VALUES=()
 
 # New flags (cluster-agnostic OSMO deploy)
 GPU_NODE_POOL=false
+WITH_NFS_STORAGE=false
 STORAGE_BACKEND="${STORAGE_BACKEND:-auto}"
 AUTH_METHOD="${AUTH_METHOD:-static}"
 WORKLOAD_IDENTITY_CLIENT_ID="${WORKLOAD_IDENTITY_CLIENT_ID:-}"
@@ -145,6 +146,13 @@ General Options:
   --workload-identity-role-arn ARN
                          AWS IAM role ARN (required for byo + WI / IRSA)
   --gpu-node-pool        Provision a GPU node pool (azure/aws only; requires TF variables)
+  --with-nfs-storage     (azure) Provision a Premium FileStorage Azure
+                         Storage Account + the 4 AKS role assignments
+                         file.csi.azure.com needs to dynamically provision
+                         NFS shares against it. Output: nfs_storage_account.
+                         The downstream consumer skill (e.g. NIM Operator)
+                         owns the StorageClass manifest and the default-SC
+                         swap. Extra cost: Premium FileStorage billing.
   --no-gpu               Skip GPU Operator install + GPU smoke test
   --gpu                  microk8s only: enable the nvidia addon during bootstrap
   --helm-values FILE     Extra Helm values file for both OSMO charts (repeatable)
@@ -331,6 +339,8 @@ while [[ $# -gt 0 ]]; do
         # Cluster-agnostic OSMO deploy flags
         --gpu-node-pool)
             GPU_NODE_POOL=true; shift ;;
+        --with-nfs-storage)
+            WITH_NFS_STORAGE=true; shift ;;
         --storage-backend)
             STORAGE_BACKEND="$2"; shift 2 ;;
         --auth-method)
@@ -483,6 +493,16 @@ setup_provider_env() {
     # TF variables.
     if [[ "$GPU_NODE_POOL" == true ]]; then
         export TF_GPU_NODE_POOL_ENABLED=true
+    fi
+    # --with-nfs-storage: azure-only. Flips var.nfs_storage_account_enabled so
+    # TF provisions the Premium FileStorage SA + 4 role assignments needed by
+    # the azurefile-csi-driver for dynamic NFS PVC provisioning. The
+    # StorageClass manifest itself + default-SC swap are owned by the
+    # downstream consumer skill (e.g. NIM Operator), not by osmo.
+    if [[ "$PROVIDER" == "azure" && "$WITH_NFS_STORAGE" == true ]]; then
+        export TF_NFS_STORAGE_ACCOUNT_ENABLED=true
+    elif [[ "$PROVIDER" != "azure" && "$WITH_NFS_STORAGE" == true ]]; then
+        log_warning "--with-nfs-storage is currently azure-only; ignoring for provider=$PROVIDER"
     fi
     # The Azure Blob storage backend reads SA credentials from TF outputs when
     # STORAGE_ACCOUNT/STORAGE_KEY env aren't set, so auto-provision the SA when
