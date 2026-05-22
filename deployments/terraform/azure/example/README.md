@@ -6,7 +6,7 @@ This Terraform configuration creates a complete Azure infrastructure using Azure
 - **Virtual Network (VNet)** with private and database subnets using Azure Verified Module
 - **AKS cluster** with auto-scaling node pools and Container Insights monitoring
 - **PostgreSQL Flexible Server** in private subnets with delegation
-- **Azure Cache for Redis** (Standard tier)
+- **Azure Managed Redis** (Redis 7+, `ComputeOptimized_X3` default)
 - **Log Analytics Workspace** with Container Insights solution for AKS monitoring
 
 All resources are deployed in the same VNet and properly networked together.
@@ -80,9 +80,7 @@ All resources are deployed in the same VNet and properly networked together.
 | `aks_dns_service_ip` | Kubernetes DNS service IP | `192.168.0.10` | Must be within service CIDR |
 | `node_instance_type` | AKS node VM size | `Standard_D2s_v3` | `Standard_D4s_v3+` |
 | `postgres_sku_name` | PostgreSQL SKU | `GP_Standard_D2s_v3` | `GP_Standard_D4s_v3+` |
-| `redis_sku_name` | Redis SKU | `Standard` | Basic, Standard, or Premium |
-| `redis_family` | Redis family | `C` | C for Basic/Standard, P for Premium |
-| `redis_capacity` | Redis capacity | `1` | 0-6 for C family, 1-5 for P family |
+| `redis_sku_name` | Azure Managed Redis SKU | `ComputeOptimized_X3` | `Balanced_B*` / `ComputeOptimized_X*` / `MemoryOptimized_M*` / `FlashOptimized_A*` (X3 is the validated default; `Balanced_B0/B1/B3` have hit AllocationFailed in busy regions) |
 
 ### Security Considerations
 
@@ -182,13 +180,13 @@ This configuration uses the following components:
 ### Development Environment
 - Use `Standard_D2s_v3` for AKS nodes
 - Use `GP_Standard_D2s_v3` for PostgreSQL
-- Use `Standard` Redis with capacity 1 (C1)
+- Use `ComputeOptimized_X3` Managed Redis (the validated default — see `variables.tf` for why `Balanced_B0/B1/B3` are not recommended despite being nominally cheaper)
 - Set `node_group_desired_size = 1`
 
 ### Production Environment
 - Use larger VM sizes (`Standard_D4s_v3+`, `GP_Standard_D4s_v3+`)
 - Enable geo-redundant backup for PostgreSQL
-- Use `Premium` Redis (P family) with higher capacity
+- Bump Managed Redis to `MemoryOptimized_M*` or larger `ComputeOptimized_X*` for higher throughput / RAM
 - Scale node pools based on workload
 - Enable availability zones
 
