@@ -548,6 +548,86 @@ azure_preflight_checks() {
     log_success "Azure pre-flight checks passed"
 }
 
+# Fail fast on SKU/region/quota mismatches that would otherwise only surface
+# 15-25 min into `terraform apply`. Hard-fails on:
+#   - AKS Kubernetes version not GA in the target region
+#   - Postgres Flexible Server SKU not offered in the target region
+# Warns (does not fail) on:
+#   - vCPU quota for the AKS node + GPU SKU families (reads `az vm list-usage`
+#     and prints the relevant rows; Azure quota requests are async + per-family
+#     so a strict comparison here has too many corner cases)
+#   - Balanced_B0/B1/B3 Managed Redis SKUs (no per-region CLI; empirical
+#     guidance from variables.tf: these have hit AllocationFailed in busy
+#     regions)
+azure_preflight_sku_quota() {
+    log_info "Pre-flight: SKU availability + vCPU quota..."
+
+    # Normalize region — accept either slug ("eastus2") or display name ("East US 2").
+    local region
+    region=$(echo "${TF_REGION:-eastus2}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+
+    local k8s_version="${TF_K8S_VERSION:-1.33.11}"
+    # postgres_sku_name is hardcoded in azure_generate_tfvars today; this var
+    # lets a future flag override it without rewriting the preflight.
+    local postgres_sku="${TF_POSTGRES_SKU:-GP_Standard_D2s_v3}"
+    local redis_sku="${TF_REDIS_SKU_NAME:-ComputeOptimized_X3}"
+    local gpu_enabled="${TF_GPU_NODE_POOL_ENABLED:-false}"
+    local gpu_sku="${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
+
+    # 1. AKS k8s version GA in this region. Azure rolls supported versions
+    #    forward and prunes old ones — terraform.tfvars.example's default
+    #    silently goes stale.
+    if ! az aks get-versions -l "$region" --query "values[?version=='$k8s_version']" -o tsv 2>/dev/null | grep -q .; then
+        log_error "AKS Kubernetes version $k8s_version is not in $region's supported list."
+        log_error "  See: az aks get-versions -l $region -o table"
+        return 1
+    fi
+    log_info "  ✓ AKS $k8s_version is GA in $region"
+
+    # 2. Postgres Flexible Server SKU offered in this region. Available SKUs
+    #    vary by region; capacity-constrained regions ship fewer.
+    if ! az postgres flexible-server list-skus -l "$region" --query "[].sku" -o tsv 2>/dev/null | grep -qx "$postgres_sku"; then
+        log_error "Postgres Flexible Server SKU '$postgres_sku' is not available in $region."
+        log_error "  See: az postgres flexible-server list-skus -l $region -o table"
+        return 1
+    fi
+    log_info "  ✓ Postgres SKU $postgres_sku available in $region"
+
+    # 3. vCPU quota for the SKU families we'll consume. Informational only —
+    #    the family-name regex below covers the common cases but quota row
+    #    naming has edge cases. Compare manually if the deploy fails later.
+    #
+    #    AKS system pool uses node_instance_type (default Standard_D2s_v3 →
+    #    "Standard DSv3 Family vCPUs"). GPU pool uses gpu_vm_size when
+    #    --gpu-node-pool is on (default Standard_NC40ads_H100_v5 →
+    #    "Standard NCadsH100v5 Family vCPUs"). Postgres + Managed Redis bill
+    #    against separate provider quotas, not Microsoft.Compute.
+    local family_filter="contains(name.value, 'standardDSv3')"
+    if [[ "$gpu_enabled" == "true" ]]; then
+        family_filter="$family_filter || contains(name.value, 'NCadsH100v5')"
+    fi
+    log_info "  vCPU usage in $region (informational):"
+    az vm list-usage -l "$region" -o table \
+        --query "[?$family_filter].{name:name.localizedValue, used:currentValue, limit:limit}" \
+        2>/dev/null || log_warning "    (vm list-usage failed — check quota manually if apply errors)"
+
+    # 4. Managed Redis SKU. No per-region CLI list today; rely on the SKU regex
+    #    validator in variables.tf + the empirical-allocation note documented
+    #    inline there. Warn loudly on the Balanced_B0/B1/B3 tier — these
+    #    consistently hit AllocationFailed in busy regions (eastus2, 2026-05-01).
+    case "$redis_sku" in
+        Balanced_B0|Balanced_B1|Balanced_B3)
+            log_warning "  redis_sku_name='$redis_sku' has hit AllocationFailed in capacity-constrained regions."
+            log_warning "  Consider ComputeOptimized_X3 (variables.tf empirically validated default)."
+            ;;
+        *)
+            log_info "  Managed Redis SKU: $redis_sku (no per-region CLI check available; trust variables.tf regex validator)"
+            ;;
+    esac
+
+    log_success "Pre-flight SKU + quota checks passed"
+}
+
 azure_terraform_init() {
     local terraform_dir="$1"
     log_info "Initializing Terraform..."
@@ -710,6 +790,7 @@ azure_configure_kubectl() {
 }
 
 # Export functions for use by other scripts
+export -f azure_preflight_sku_quota
 export -f azure_run_kubectl
 export -f azure_run_kubectl_apply_stdin
 export -f azure_run_helm

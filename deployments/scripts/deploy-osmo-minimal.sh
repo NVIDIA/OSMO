@@ -552,6 +552,7 @@ preflight_checks() {
     case "$PROVIDER" in
         azure)
             azure_preflight_checks
+            azure_preflight_sku_quota
             ;;
         aws)
             aws_preflight_checks
