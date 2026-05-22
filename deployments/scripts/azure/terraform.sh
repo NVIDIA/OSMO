@@ -639,10 +639,17 @@ azure_preflight_sku_quota() {
     # 1. AKS k8s version GA in this region. Azure rolls supported versions
     #    forward and prunes old ones — terraform.tfvars.example's default
     #    silently goes stale.
+    #
+    #    The `values[].version` field is principal-only ("1.33", "1.36", ...)
+    #    in every region. Full patch versions ("1.33.11") live as keys under
+    #    `patchVersions`. Terraform azurerm requires a full x.y.z patch
+    #    string in `kubernetes_version`, so flatten all patchVersions keys
+    #    across all principal entries and exact-match against TF_K8S_VERSION.
     if ! az aks get-versions -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
-            --query "values[?version=='$k8s_version']" -o tsv 2>/dev/null | grep -q .; then
-        log_error "AKS Kubernetes version $k8s_version is not in $region's supported list."
-        log_error "  See: az aks get-versions -l $region -o table"
+            --query "values[].patchVersions.keys(@) | []" -o tsv 2>/dev/null \
+            | grep -Fqx "$k8s_version"; then
+        log_error "AKS Kubernetes version $k8s_version is not in $region's supported patch list."
+        log_error "  See: az aks get-versions -l $region --query 'values[].patchVersions.keys(@) | []' -o tsv"
         exit 1
     fi
     log_info "  ✓ AKS $k8s_version is GA in $region"
