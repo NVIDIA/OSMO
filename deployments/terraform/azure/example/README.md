@@ -80,7 +80,7 @@ All resources are deployed in the same VNet and properly networked together.
 | `aks_dns_service_ip` | Kubernetes DNS service IP | `192.168.0.10` | Must be within service CIDR |
 | `node_instance_type` | AKS node VM size | `Standard_D2s_v3` | `Standard_D4s_v3+` |
 | `postgres_sku_name` | PostgreSQL SKU | `GP_Standard_D2s_v3` | `GP_Standard_D4s_v3+` |
-| `redis_sku_name` | Azure Managed Redis SKU | `Balanced_B0` | `Balanced_B*` / `ComputeOptimized_X*` / `MemoryOptimized_M*` / `FlashOptimized_A*` |
+| `redis_sku_name` | Azure Managed Redis SKU | `ComputeOptimized_X3` | `Balanced_B*` / `ComputeOptimized_X*` / `MemoryOptimized_M*` / `FlashOptimized_A*` (X3 is the validated default; `Balanced_B0/B1/B3` have hit AllocationFailed in busy regions) |
 
 ### Security Considerations
 

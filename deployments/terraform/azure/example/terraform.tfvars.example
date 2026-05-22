@@ -49,8 +49,10 @@ postgres_extensions                   = ["hstore", "uuid-ossp", "pg_stat_stateme
 # available via azurerm_managed_redis (classic azurerm_redis_cache caps at
 # Redis 6; azurerm_redis_enterprise_cluster is retired). Valid SKU
 # families: Balanced_B*, ComputeOptimized_X*, MemoryOptimized_M*,
-# FlashOptimized_A*. Balanced_B0 is the smallest tier — bump up for prod.
-redis_sku_name = "Balanced_B0"
+# FlashOptimized_A*. ComputeOptimized_X3 is the validated default — see
+# variables.tf for the empirical-allocation rationale; Balanced_B0/B1/B3
+# have hit AllocationFailed in capacity-constrained regions.
+redis_sku_name = "ComputeOptimized_X3"
 
 # Log Analytics Configuration
 log_analytics_sku            = "PerGB2018"  # Standard pricing tier
