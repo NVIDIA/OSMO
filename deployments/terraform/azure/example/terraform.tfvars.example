@@ -41,10 +41,13 @@ postgres_backup_retention_days        = 7
 postgres_geo_redundant_backup_enabled = false  # Set to true for production
 postgres_extensions                   = ["hstore", "uuid-ossp", "pg_stat_statements"]  # Extensions to enable
 
-# Redis Cache Configuration
-redis_sku_name = "Standard"  # Basic, Standard, or Premium
-redis_family   = "C"         # C for Basic/Standard, P for Premium
-redis_capacity = 1           # 0-6 for C family, 1-5 for P family
+# Redis Configuration
+# Azure Managed Redis SKU. OSMO requires Redis 7+, which on Azure is only
+# available via azurerm_managed_redis (classic azurerm_redis_cache caps at
+# Redis 6; azurerm_redis_enterprise_cluster is retired). Valid SKU
+# families: Balanced_B*, ComputeOptimized_X*, MemoryOptimized_M*,
+# FlashOptimized_A*. Balanced_B0 is the smallest tier — bump up for prod.
+redis_sku_name = "Balanced_B0"
 
 # Log Analytics Configuration
 log_analytics_sku            = "PerGB2018"  # Standard pricing tier
