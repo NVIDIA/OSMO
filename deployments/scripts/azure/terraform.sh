@@ -582,10 +582,19 @@ azure_preflight_sku_quota() {
         exit 1
     fi
 
+    # Pass --subscription on every az call when TF_SUBSCRIPTION_ID is set so
+    # the preflight reflects the same subscription the deploy will run against
+    # (not whatever `az account show` defaults to).
+    local sub_args=()
+    if [[ -n "${TF_SUBSCRIPTION_ID:-}" ]]; then
+        sub_args+=(--subscription "$TF_SUBSCRIPTION_ID")
+    fi
+
     # 1. AKS k8s version GA in this region. Azure rolls supported versions
     #    forward and prunes old ones — terraform.tfvars.example's default
     #    silently goes stale.
-    if ! az aks get-versions -l "$region" --query "values[?version=='$k8s_version']" -o tsv 2>/dev/null | grep -q .; then
+    if ! az aks get-versions -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
+            --query "values[?version=='$k8s_version']" -o tsv 2>/dev/null | grep -q .; then
         log_error "AKS Kubernetes version $k8s_version is not in $region's supported list."
         log_error "  See: az aks get-versions -l $region -o table"
         exit 1
@@ -606,9 +615,11 @@ azure_preflight_sku_quota() {
     local postgres_sku_name="${postgres_sku#GP_}"
     postgres_sku_name="${postgres_sku_name#MO_}"
     postgres_sku_name="${postgres_sku_name#B_}"
-    if ! az postgres flexible-server list-skus -l "$region" \
+    # `grep -F` for fixed-string match: SKU names contain `.` etc. that would
+    # otherwise be regex metacharacters and risk false-positives.
+    if ! az postgres flexible-server list-skus -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
             --query "[].supportedServerEditions[].supportedServerSkus[].name" -o tsv 2>/dev/null \
-            | grep -qx "$postgres_sku_name"; then
+            | grep -Fqx "$postgres_sku_name"; then
         log_error "Postgres Flexible Server SKU '$postgres_sku' (resolves to '$postgres_sku_name') is not available in $region."
         log_error "  See: az postgres flexible-server list-skus -l $region \\"
         log_error "         --query '[].supportedServerEditions[].supportedServerSkus[].name' -o tsv"
@@ -617,20 +628,31 @@ azure_preflight_sku_quota() {
     log_info "  ✓ Postgres SKU $postgres_sku available in $region"
 
     # 3. vCPU quota for the SKU families we'll consume. Informational only —
-    #    the family-name regex below covers the common cases but quota row
-    #    naming has edge cases. Compare manually if the deploy fails later.
+    #    quota row naming has edge cases (Azure's `name.value` is camelCased
+    #    inconsistently across families), so this prints what we can find and
+    #    lets the user eyeball the relevant rows.
     #
     #    AKS system pool uses node_instance_type (default Standard_D2s_v3 →
-    #    "Standard DSv3 Family vCPUs"). GPU pool uses gpu_vm_size when
+    #    "Standard DSv3 Family vCPUs"). GPU pool uses TF_GPU_VM_SIZE when
     #    --gpu-node-pool is on (default Standard_NC40ads_H100_v5 →
     #    "Standard NCadsH100v5 Family vCPUs"). Postgres + Managed Redis bill
     #    against separate provider quotas, not Microsoft.Compute.
     local family_filter="contains(name.value, 'standardDSv3')"
     if [[ "$gpu_enabled" == "true" ]]; then
-        family_filter="$family_filter || contains(name.value, 'NCadsH100v5')"
+        # Best-effort derivation of the GPU family substring from the configured
+        # SKU. Strip 'Standard_' and the leading numeric size (e.g.,
+        # NC40ads → NCads), then drop underscores. Matches Azure's name.value
+        # naming for common families (NCadsH100v5, NVadsA10v5, NDA100v4, ...);
+        # exotic SKUs may not match exactly and the GPU row will be missing —
+        # informational output only, deploy still proceeds.
+        local gpu_family
+        gpu_family=$(echo "$gpu_sku" | sed -E 's/^Standard_//; s/^([A-Za-z]+)[0-9]+/\1/; s/_//g')
+        if [[ -n "$gpu_family" ]]; then
+            family_filter="$family_filter || contains(name.value, '$gpu_family')"
+        fi
     fi
     log_info "  vCPU usage in $region (informational):"
-    az vm list-usage -l "$region" -o table \
+    az vm list-usage -l "$region" ${sub_args[@]+"${sub_args[@]}"} -o table \
         --query "[?$family_filter].{name:name.localizedValue, used:currentValue, limit:limit}" \
         2>/dev/null || log_warning "    (vm list-usage failed — check quota manually if apply errors)"
 
