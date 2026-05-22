@@ -83,9 +83,9 @@ variable "availability_zones" {
 
 # AKS Variables
 variable "kubernetes_version" {
-  description = "Kubernetes version"
+  description = "Kubernetes version. Azure rolls AKS-supported versions forward and prunes older ones; if apply fails with 'version not found' check `az aks get-versions -l <region>` for the current GA list."
   type        = string
-  default     = "1.31.1"
+  default     = "1.33.11"
 }
 
 variable "node_instance_type" {

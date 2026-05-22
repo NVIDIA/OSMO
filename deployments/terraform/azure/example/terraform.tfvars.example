@@ -18,7 +18,10 @@ database_subnets = ["10.0.201.0/24", "10.0.202.0/24"]
 availability_zones = ["1", "2"]
 
 # AKS Configuration
-kubernetes_version              = "1.31.1"
+# Azure rolls AKS-supported Kubernetes versions forward and prunes older
+# ones — if `terraform apply` errors with "version not found", check
+# `az aks get-versions -l <region> -o table` for the current GA list.
+kubernetes_version              = "1.33.11"
 node_instance_type             = "Standard_D2s_v3"  # Use Standard_D4s_v3 or higher for production
 node_group_min_size            = 1
 node_group_max_size            = 5
