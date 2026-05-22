@@ -574,22 +574,45 @@ azure_preflight_sku_quota() {
     local gpu_enabled="${TF_GPU_NODE_POOL_ENABLED:-false}"
     local gpu_sku="${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
 
+    # Validate TF_K8S_VERSION format before interpolating into a JMESPath
+    # query. Defense-in-depth against shell injection / JMESPath parse errors
+    # if the env is set to something unexpected (a quote, a backtick, ...).
+    if [[ ! "$k8s_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "TF_K8S_VERSION='$k8s_version' is not in expected x.y.z format (e.g. 1.33.11)"
+        exit 1
+    fi
+
     # 1. AKS k8s version GA in this region. Azure rolls supported versions
     #    forward and prunes old ones — terraform.tfvars.example's default
     #    silently goes stale.
     if ! az aks get-versions -l "$region" --query "values[?version=='$k8s_version']" -o tsv 2>/dev/null | grep -q .; then
         log_error "AKS Kubernetes version $k8s_version is not in $region's supported list."
         log_error "  See: az aks get-versions -l $region -o table"
-        return 1
+        exit 1
     fi
     log_info "  ✓ AKS $k8s_version is GA in $region"
 
     # 2. Postgres Flexible Server SKU offered in this region. Available SKUs
     #    vary by region; capacity-constrained regions ship fewer.
-    if ! az postgres flexible-server list-skus -l "$region" --query "[].sku" -o tsv 2>/dev/null | grep -qx "$postgres_sku"; then
-        log_error "Postgres Flexible Server SKU '$postgres_sku' is not available in $region."
-        log_error "  See: az postgres flexible-server list-skus -l $region -o table"
-        return 1
+    #
+    #    Note: `TF_POSTGRES_SKU` follows the Terraform azurerm convention
+    #    (`GP_Standard_D2s_v3`, `MO_Standard_E2s_v3`, `B_Standard_B1ms`)
+    #    where the tier prefix maps to an edition; the upstream
+    #    `az postgres flexible-server list-skus` JSON has the tier in a
+    #    separate `supportedServerEditions[].name` field
+    #    (`GeneralPurpose`/`MemoryOptimized`/`Burstable`) and the SKU under
+    #    `supportedServerSkus[].name` *without* the prefix. Strip the prefix
+    #    before comparing.
+    local postgres_sku_name="${postgres_sku#GP_}"
+    postgres_sku_name="${postgres_sku_name#MO_}"
+    postgres_sku_name="${postgres_sku_name#B_}"
+    if ! az postgres flexible-server list-skus -l "$region" \
+            --query "[].supportedServerEditions[].supportedServerSkus[].name" -o tsv 2>/dev/null \
+            | grep -qx "$postgres_sku_name"; then
+        log_error "Postgres Flexible Server SKU '$postgres_sku' (resolves to '$postgres_sku_name') is not available in $region."
+        log_error "  See: az postgres flexible-server list-skus -l $region \\"
+        log_error "         --query '[].supportedServerEditions[].supportedServerSkus[].name' -o tsv"
+        exit 1
     fi
     log_info "  ✓ Postgres SKU $postgres_sku available in $region"
 
