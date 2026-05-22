@@ -548,25 +548,17 @@ azure_preflight_checks() {
     log_success "Azure pre-flight checks passed"
 }
 
-# Compare requested vCPU count against the available (limit - used) for a
-# Microsoft.Compute family in the target region. Returns 0 when OK, 1 when
-# the request exceeds available — caller decides whether to `exit 1`.
-# Args:
-#   $1 = region (normalized slug, e.g. "eastus2")
-#   $2 = family substring to match against name.value (e.g. "NCadsH100v5")
-#   $3 = vCPUs needed (integer)
-#   $4 = human label for the pool (e.g. "AKS system pool", for log messages)
-#   $5 = human label for the math (e.g. "5 × Standard_D2s_v3 (2 vCPUs each)")
-# Reads `${sub_args[@]}` from caller scope (subscription pass-through).
+# Compare requested vCPU count against (limit - used) for a Microsoft.Compute
+# family. Returns 0 when OK or when quota data is unavailable; 1 when the
+# request exceeds available. Reads `${sub_args[@]}` from caller scope.
+# Args: region family need pool_label math_label
 _azure_check_vcpu_quota() {
     local region="$1" family="$2" need="$3" pool_label="$4" math_label="$5"
     local row limit used available
-    # One az call: project [limit, currentValue] onto a 2-element array,
-    # `-o tsv` flattens to tab-separated.
     row=$(az vm list-usage -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
         --query "[?contains(name.value, '$family')] | [0].[limit, currentValue]" -o tsv 2>/dev/null)
     if [[ -z "$row" ]]; then
-        log_warning "  vCPU quota: no usage row matching family '$family' in $region — Azure may not have published quota for this family yet; skipping math."
+        log_warning "  vCPU quota: no usage row matching family '$family' in $region — skipping math."
         return 0
     fi
     read -r limit used <<<"$row"
@@ -587,64 +579,36 @@ _azure_check_vcpu_quota() {
 }
 
 # Fail fast on SKU/region/quota mismatches that would otherwise only surface
-# 15-25 min into `terraform apply`. Hard-fails on:
-#   - AKS Kubernetes version not GA in the target region
-#   - Postgres Flexible Server SKU not offered in the target region
-#   - AKS node-pool VM SKU not available in the target region
-#   - AKS GPU-pool VM SKU not available in the target region (when --gpu-node-pool)
-#   - vCPU quota shortfall for the node-pool family (max nodes × vCPUs/node > available)
-#   - vCPU quota shortfall for the GPU family (gpu_max × vCPUs/node > available)
-# Warns (does not fail) on:
-#   - Balanced_B0/B1/B3 Managed Redis SKUs (no per-region CLI; empirical
-#     guidance from variables.tf: these have hit AllocationFailed in busy
-#     regions)
-# Skips gracefully when Azure API doesn't return SKU capability data (e.g.,
-# `az vm list-skus` row is missing the `vCPUs` field for a transitional SKU).
+# 15-25 min into `terraform apply`.
 azure_preflight_sku_quota() {
     log_info "Pre-flight: SKU availability + vCPU quota..."
 
-    # Normalize region — accept either slug ("eastus2") or display name ("East US 2").
     local region
     region=$(echo "${TF_REGION:-eastus2}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
 
     local k8s_version="${TF_K8S_VERSION:-1.33.11}"
-    # postgres_sku_name is hardcoded in azure_generate_tfvars today; this var
-    # lets a future flag override it without rewriting the preflight.
     local postgres_sku="${TF_POSTGRES_SKU:-GP_Standard_D2s_v3}"
     local redis_sku="${TF_REDIS_SKU_NAME:-ComputeOptimized_X3}"
-    # AKS system pool. Defaults match the azure_generate_tfvars heredoc above.
     local node_sku="${TF_NODE_INSTANCE_TYPE:-Standard_D2s_v3}"
     local node_max="${TF_NODE_GROUP_MAX_SIZE:-5}"
-    # GPU pool. gpu_max defaults to 0 (= disabled even when the flag is set).
     local gpu_enabled="${TF_GPU_NODE_POOL_ENABLED:-false}"
     local gpu_sku="${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
     local gpu_max="${TF_GPU_COUNT:-0}"
 
-    # Validate TF_K8S_VERSION format before interpolating into a JMESPath
-    # query. Defense-in-depth against shell injection / JMESPath parse errors
-    # if the env is set to something unexpected (a quote, a backtick, ...).
+    # Defense-in-depth before interpolating into JMESPath / az args.
     if [[ ! "$k8s_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         log_error "TF_K8S_VERSION='$k8s_version' is not in expected x.y.z format (e.g. 1.33.11)"
         exit 1
     fi
 
-    # Pass --subscription on every az call when TF_SUBSCRIPTION_ID is set so
-    # the preflight reflects the same subscription the deploy will run against
-    # (not whatever `az account show` defaults to).
     local sub_args=()
     if [[ -n "${TF_SUBSCRIPTION_ID:-}" ]]; then
         sub_args+=(--subscription "$TF_SUBSCRIPTION_ID")
     fi
 
-    # 1. AKS k8s version GA in this region. Azure rolls supported versions
-    #    forward and prunes old ones — terraform.tfvars.example's default
-    #    silently goes stale.
-    #
-    #    The `values[].version` field is principal-only ("1.33", "1.36", ...)
-    #    in every region. Full patch versions ("1.33.11") live as keys under
-    #    `patchVersions`. Terraform azurerm requires a full x.y.z patch
-    #    string in `kubernetes_version`, so flatten all patchVersions keys
-    #    across all principal entries and exact-match against TF_K8S_VERSION.
+    # `values[].version` is principal-only ("1.33") in every region; full
+    # patches ("1.33.11") live as keys under `patchVersions`. TF azurerm
+    # requires a full x.y.z, so match against the flattened key list.
     if ! az aks get-versions -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
             --query "values[].patchVersions.keys(@) | []" -o tsv 2>/dev/null \
             | grep -Fqx "$k8s_version"; then
@@ -654,22 +618,13 @@ azure_preflight_sku_quota() {
     fi
     log_info "  ✓ AKS $k8s_version is GA in $region"
 
-    # 2. Postgres Flexible Server SKU offered in this region. Available SKUs
-    #    vary by region; capacity-constrained regions ship fewer.
-    #
-    #    Note: `TF_POSTGRES_SKU` follows the Terraform azurerm convention
-    #    (`GP_Standard_D2s_v3`, `MO_Standard_E2s_v3`, `B_Standard_B1ms`)
-    #    where the tier prefix maps to an edition; the upstream
-    #    `az postgres flexible-server list-skus` JSON has the tier in a
-    #    separate `supportedServerEditions[].name` field
-    #    (`GeneralPurpose`/`MemoryOptimized`/`Burstable`) and the SKU under
-    #    `supportedServerSkus[].name` *without* the prefix. Strip the prefix
-    #    before comparing.
+    # `TF_POSTGRES_SKU` carries the azurerm tier prefix (GP_/MO_/B_) which
+    # maps to `supportedServerEditions[].name` upstream; the SKU under
+    # `supportedServerSkus[].name` does not carry the prefix.
     local postgres_sku_name="${postgres_sku#GP_}"
     postgres_sku_name="${postgres_sku_name#MO_}"
     postgres_sku_name="${postgres_sku_name#B_}"
-    # `grep -F` for fixed-string match: SKU names contain `.` etc. that would
-    # otherwise be regex metacharacters and risk false-positives.
+    # `grep -F`: SKU names contain `.` which would otherwise be a regex metachar.
     if ! az postgres flexible-server list-skus -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
             --query "[].supportedServerEditions[].supportedServerSkus[].name" -o tsv 2>/dev/null \
             | grep -Fqx "$postgres_sku_name"; then
@@ -680,14 +635,6 @@ azure_preflight_sku_quota() {
     fi
     log_info "  ✓ Postgres SKU $postgres_sku available in $region"
 
-    # 3. AKS system pool — VM SKU availability + vCPU quota math.
-    #
-    #    `az vm list-skus` returns the SKU only if it's offered in the region;
-    #    capability `vCPUs` gives us cores-per-node so we can compute the
-    #    quota requirement (node_max × vCPUs/node). The family substring for
-    #    `az vm list-usage` is derived from the SKU name (strip 'Standard_'
-    #    prefix and leading numeric size, drop underscores) — matches the
-    #    common Azure name.value naming (DSv3, DDSv5, NCadsH100v5, ...).
     if ! az vm list-skus -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
             --query "[?name=='$node_sku'].name | [0]" -o tsv 2>/dev/null | grep -Fqx "$node_sku"; then
         log_error "AKS node-pool VM SKU '$node_sku' is not available in $region."
@@ -696,11 +643,8 @@ azure_preflight_sku_quota() {
     fi
     log_info "  ✓ Node-pool SKU $node_sku available in $region"
 
-    # Pull family + vCPUs from the existing azure_describe_vm_sku helper
-    # (single `az vm list-skus --size <sku>` returning Azure's authoritative
-    # `family` field, e.g. "standardDSv3Family"). The sed approach used previously
-    # could produce a family substring that wouldn't match `name.value` in
-    # `az vm list-usage`, which silently skipped the quota math.
+    # azure_describe_vm_sku returns Azure's authoritative `family` field so
+    # the contains() filter in _azure_check_vcpu_quota matches name.value.
     local node_family node_vcpus
     read -r node_family node_vcpus <<<"$(azure_describe_vm_sku "$node_sku")"
     if [[ -n "$node_family" && "$node_vcpus" =~ ^[0-9]+$ && "$node_max" =~ ^[0-9]+$ ]]; then
@@ -712,7 +656,6 @@ azure_preflight_sku_quota() {
         log_warning "  vCPU quota: couldn't read family/vCPU data for $node_sku — skipping quota math"
     fi
 
-    # 4. AKS GPU pool — same flow, only when --gpu-node-pool is on.
     if [[ "$gpu_enabled" == "true" ]]; then
         if ! az vm list-skus -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
                 --query "[?name=='$gpu_sku'].name | [0]" -o tsv 2>/dev/null | grep -Fqx "$gpu_sku"; then
@@ -722,9 +665,6 @@ azure_preflight_sku_quota() {
         fi
         log_info "  ✓ GPU-pool SKU $gpu_sku available in $region"
 
-        # Same pattern as the node pool above: Azure-reported family from
-        # azure_describe_vm_sku so the contains() filter matches name.value
-        # in `az vm list-usage`.
         local gpu_family gpu_vcpus
         read -r gpu_family gpu_vcpus <<<"$(azure_describe_vm_sku "$gpu_sku")"
         if [[ -n "$gpu_family" && "$gpu_vcpus" =~ ^[0-9]+$ && "$gpu_max" =~ ^[0-9]+$ && "$gpu_max" -gt 0 ]]; then
@@ -733,17 +673,14 @@ azure_preflight_sku_quota() {
                 exit 1
             fi
         elif [[ "$gpu_max" -eq 0 ]]; then
-            log_info "  GPU pool: gpu_max=0 (autoscaler disabled at provision time) — skipping quota math"
+            log_info "  GPU pool: gpu_max=0 — skipping quota math"
         else
             log_warning "  vCPU quota: couldn't read family/vCPU data for $gpu_sku — skipping quota math"
         fi
     fi
 
-    # 5. Print full vCPU usage rows for the families above as a visibility aid.
-    #    The hard-fail checks above use precise math; this table shows the
-    #    operator what other usage exists in the family for context. Skip if
-    #    azure_describe_vm_sku returned no family (otherwise an empty
-    #    `contains(..., '')` would match every row).
+    # Informational usage table. Skip when no family resolved so we don't
+    # emit `contains(name.value, '')` which would match every row.
     local family_filter=""
     if [[ -n "$node_family" ]]; then
         family_filter="contains(name.value, '$node_family')"
@@ -762,17 +699,15 @@ azure_preflight_sku_quota() {
             2>/dev/null || log_warning "    (vm list-usage failed — check quota manually if apply errors)"
     fi
 
-    # 4. Managed Redis SKU. No per-region CLI list today; rely on the SKU regex
-    #    validator in variables.tf + the empirical-allocation note documented
-    #    inline there. Warn loudly on the Balanced_B0/B1/B3 tier — these
-    #    consistently hit AllocationFailed in busy regions (eastus2, 2026-05-01).
+    # No `az redis-managed list-skus` per region today; warn on the
+    # AllocationFailed-prone tiers (see variables.tf for the empirical note).
     case "$redis_sku" in
         Balanced_B0|Balanced_B1|Balanced_B3)
             log_warning "  redis_sku_name='$redis_sku' has hit AllocationFailed in capacity-constrained regions."
             log_warning "  Consider ComputeOptimized_X3 (variables.tf empirically validated default)."
             ;;
         *)
-            log_info "  Managed Redis SKU: $redis_sku (no per-region CLI check available; trust variables.tf regex validator)"
+            log_info "  Managed Redis SKU: $redis_sku"
             ;;
     esac
 

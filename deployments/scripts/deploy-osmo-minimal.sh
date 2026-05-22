@@ -552,11 +552,8 @@ preflight_checks() {
     case "$PROVIDER" in
         azure)
             azure_preflight_checks
-            # azure_preflight_sku_quota intentionally runs LATER, in the TF
-            # apply branch, so the user-visible config (resolved by
-            # handle_configuration) is what's validated — not stale defaults.
-            # Also avoids firing on --destroy / --skip-terraform paths where
-            # the SKU/quota check would be moot.
+            # SKU/quota preflight runs later in the TF-apply branch, after
+            # handle_configuration resolves the user's actual config.
             ;;
         aws)
             aws_preflight_checks
