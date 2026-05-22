@@ -196,15 +196,17 @@ aws eks describe-cluster --name <cluster> --query "cluster.identity.oidc.issuer"
   --workload-identity-role-arn arn:aws:iam::<acct>:role/osmo-data-access
 ```
 
-## RWX StorageClass (`--rwx-storage-class`, azure only)
+## NFS storage account (`--with-nfs-storage`, azure only)
 
-Pass `--rwx-storage-class` on Azure when the cluster will host workloads with `ReadWriteMany` PVCs — the canonical case is NIM Operator multi-node inference (its NIMCache + shared-model volumes are RWX-only, see https://docs.nvidia.com/nim-operator/latest/multi-node.html). Other RWX consumers (shared dataset caches, KServe RWX models) need it too.
+Pass `--with-nfs-storage` on Azure when a downstream skill on the cluster needs an Azure Files Premium NFS-backed `ReadWriteMany` StorageClass. The canonical consumer is NIM Operator multi-node inference (its NIMCache + shared-model volumes are RWX-only per https://docs.nvidia.com/nim-operator/latest/multi-node.html); other RWX users (shared dataset caches, KServe RWX models) need it too.
 
-What it provisions: an extra Premium FileStorage Azure Storage Account (`stnfs<cluster><env><suffix>`, private-VNet-only) plus four AKS role assignments needed by `file.csi.azure.com` (Network Contributor on the VNet + on the AKS NSG + on the database NSG, Storage Account Contributor on the NFS SA — without all four, dynamic PVC provisioning fails with `LinkedAuthorizationFailed`). The post-apply step then installs `azurefile-nfs-premium` as the cluster's default StorageClass and demotes whatever was previously default.
+What osmo provisions: a Premium FileStorage Azure Storage Account (VNet-restricted, output as `nfs_storage_account`) and the four AKS role assignments `file.csi.azure.com` needs to dynamically provision NFS file shares against it — Network Contributor on the VNet, on the AKS NSG, and on the database NSG, plus Storage Account Contributor scoped to the NFS SA. Without all four, dynamic PVC provisioning fails with `LinkedAuthorizationFailed`.
 
-Cost note: Premium FileStorage SAs bill on provisioned capacity (~$0.16/GiB-month, 100 GiB minimum) — opt in only when you have an RWX workload. Without the flag, RWX PVCs created later (e.g. by NIM Operator) sit `Pending` forever because the AKS default `managed-csi` / `default` classes only support RWO.
+What osmo does NOT provision: the StorageClass manifest, the default-SC swap, or any consumer-specific PVC. Those belong to the consumer skill (per separation of concerns — osmo doesn't own RWX, the consumers do). The consumer reads `terraform output -raw nfs_storage_account` to learn the SA name and uses it to render its own StorageClass against `file.csi.azure.com` with `protocol: nfs`.
 
-Pattern in production use: this is the same wiring `skills/orion-cluster-azure` ships downstream.
+Cost note: Premium FileStorage SAs bill on provisioned capacity (~$0.16/GiB-month, 100 GiB minimum). Opt in only when a downstream consumer needs RWX.
+
+Without the flag (default): no NFS SA is created. RWX PVCs created later sit `Pending` forever — the AKS default `managed-csi` / `default` classes only support RWO. The error is the consumer's to surface.
 
 ## Customizing values
 

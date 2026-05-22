@@ -240,11 +240,12 @@ output "storage_container_name" {
   value       = var.storage_account_enabled ? azurerm_storage_container.osmo_workflows[0].name : ""
 }
 
-# Optional NFS Premium FileStorage account for RWX workloads.
-# Read by scripts/azure/terraform.sh post-apply to envsubst into
-# scripts/azure/storage-class-nfs.yaml. Null when disabled so callers can
-# `terraform output -raw nfs_storage_account` and detect the empty case.
+# Optional NFS Premium FileStorage account for downstream RWX workload
+# consumers (e.g. NIM Operator's StorageClass + default-SC swap). Empty
+# (rather than null) when disabled so `terraform output -raw nfs_storage_account`
+# returns a usable value the consumer can detect — terraform omits null
+# outputs entirely from -raw.
 output "nfs_storage_account" {
-  description = "Name of the NFS Premium FileStorage account (null when disabled)"
-  value       = var.nfs_storage_class_enabled ? azurerm_storage_account.nfs[0].name : null
+  description = "Name of the NFS Premium FileStorage account (empty when disabled)"
+  value       = var.nfs_storage_account_enabled ? azurerm_storage_account.nfs[0].name : ""
 }
