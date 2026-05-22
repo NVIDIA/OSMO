@@ -689,17 +689,20 @@ azure_preflight_sku_quota() {
     fi
     log_info "  ✓ Node-pool SKU $node_sku available in $region"
 
-    local node_vcpus node_family
-    node_vcpus=$(az vm list-skus -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
-        --query "[?name=='$node_sku'].capabilities[?name=='vCPUs'].value | [0]" -o tsv 2>/dev/null)
-    node_family=$(echo "$node_sku" | sed -E 's/^Standard_//; s/^([A-Za-z]+)[0-9]+/\1/; s/_//g')
-    if [[ "$node_vcpus" =~ ^[0-9]+$ && "$node_max" =~ ^[0-9]+$ ]]; then
+    # Pull family + vCPUs from the existing azure_describe_vm_sku helper
+    # (single `az vm list-skus --size <sku>` returning Azure's authoritative
+    # `family` field, e.g. "standardDSv3Family"). The sed approach used previously
+    # could produce a family substring that wouldn't match `name.value` in
+    # `az vm list-usage`, which silently skipped the quota math.
+    local node_family node_vcpus
+    read -r node_family node_vcpus <<<"$(azure_describe_vm_sku "$node_sku")"
+    if [[ -n "$node_family" && "$node_vcpus" =~ ^[0-9]+$ && "$node_max" =~ ^[0-9]+$ ]]; then
         local node_need=$(( node_max * node_vcpus ))
         if ! _azure_check_vcpu_quota "$region" "$node_family" "$node_need" "AKS system pool" "$node_max × $node_sku ($node_vcpus vCPUs each)"; then
             exit 1
         fi
     else
-        log_warning "  vCPU quota: couldn't read capability data for $node_sku — skipping quota math"
+        log_warning "  vCPU quota: couldn't read family/vCPU data for $node_sku — skipping quota math"
     fi
 
     # 4. AKS GPU pool — same flow, only when --gpu-node-pool is on.
@@ -712,11 +715,12 @@ azure_preflight_sku_quota() {
         fi
         log_info "  ✓ GPU-pool SKU $gpu_sku available in $region"
 
-        local gpu_vcpus gpu_family
-        gpu_vcpus=$(az vm list-skus -l "$region" ${sub_args[@]+"${sub_args[@]}"} \
-            --query "[?name=='$gpu_sku'].capabilities[?name=='vCPUs'].value | [0]" -o tsv 2>/dev/null)
-        gpu_family=$(echo "$gpu_sku" | sed -E 's/^Standard_//; s/^([A-Za-z]+)[0-9]+/\1/; s/_//g')
-        if [[ "$gpu_vcpus" =~ ^[0-9]+$ && "$gpu_max" =~ ^[0-9]+$ && "$gpu_max" -gt 0 ]]; then
+        # Same pattern as the node pool above: Azure-reported family from
+        # azure_describe_vm_sku so the contains() filter matches name.value
+        # in `az vm list-usage`.
+        local gpu_family gpu_vcpus
+        read -r gpu_family gpu_vcpus <<<"$(azure_describe_vm_sku "$gpu_sku")"
+        if [[ -n "$gpu_family" && "$gpu_vcpus" =~ ^[0-9]+$ && "$gpu_max" =~ ^[0-9]+$ && "$gpu_max" -gt 0 ]]; then
             local gpu_need=$(( gpu_max * gpu_vcpus ))
             if ! _azure_check_vcpu_quota "$region" "$gpu_family" "$gpu_need" "GPU pool" "$gpu_max × $gpu_sku ($gpu_vcpus vCPUs each)"; then
                 exit 1
@@ -724,21 +728,32 @@ azure_preflight_sku_quota() {
         elif [[ "$gpu_max" -eq 0 ]]; then
             log_info "  GPU pool: gpu_max=0 (autoscaler disabled at provision time) — skipping quota math"
         else
-            log_warning "  vCPU quota: couldn't read capability data for $gpu_sku — skipping quota math"
+            log_warning "  vCPU quota: couldn't read family/vCPU data for $gpu_sku — skipping quota math"
         fi
     fi
 
     # 5. Print full vCPU usage rows for the families above as a visibility aid.
     #    The hard-fail checks above use precise math; this table shows the
-    #    operator what other usage exists in the family for context.
-    local family_filter="contains(name.value, '$node_family')"
-    if [[ "$gpu_enabled" == "true" && -n "${gpu_family:-}" ]]; then
-        family_filter="$family_filter || contains(name.value, '$gpu_family')"
+    #    operator what other usage exists in the family for context. Skip if
+    #    azure_describe_vm_sku returned no family (otherwise an empty
+    #    `contains(..., '')` would match every row).
+    local family_filter=""
+    if [[ -n "$node_family" ]]; then
+        family_filter="contains(name.value, '$node_family')"
     fi
-    log_info "  vCPU usage in $region (informational):"
-    az vm list-usage -l "$region" ${sub_args[@]+"${sub_args[@]}"} -o table \
-        --query "[?$family_filter].{name:name.localizedValue, used:currentValue, limit:limit}" \
-        2>/dev/null || log_warning "    (vm list-usage failed — check quota manually if apply errors)"
+    if [[ "$gpu_enabled" == "true" && -n "${gpu_family:-}" ]]; then
+        if [[ -n "$family_filter" ]]; then
+            family_filter="$family_filter || contains(name.value, '$gpu_family')"
+        else
+            family_filter="contains(name.value, '$gpu_family')"
+        fi
+    fi
+    if [[ -n "$family_filter" ]]; then
+        log_info "  vCPU usage in $region (informational):"
+        az vm list-usage -l "$region" ${sub_args[@]+"${sub_args[@]}"} -o table \
+            --query "[?$family_filter].{name:name.localizedValue, used:currentValue, limit:limit}" \
+            2>/dev/null || log_warning "    (vm list-usage failed — check quota manually if apply errors)"
+    fi
 
     # 4. Managed Redis SKU. No per-region CLI list today; rely on the SKU regex
     #    validator in variables.tf + the empirical-allocation note documented
