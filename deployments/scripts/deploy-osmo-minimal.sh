@@ -90,6 +90,7 @@ declare -a OSMO_BACKEND_OPERATOR_HELM_SET_VALUES=()
 
 # New flags (cluster-agnostic OSMO deploy)
 GPU_NODE_POOL=false
+RWX_STORAGE_CLASS=false
 STORAGE_BACKEND="${STORAGE_BACKEND:-auto}"
 AUTH_METHOD="${AUTH_METHOD:-static}"
 WORKLOAD_IDENTITY_CLIENT_ID="${WORKLOAD_IDENTITY_CLIENT_ID:-}"
@@ -145,6 +146,11 @@ General Options:
   --workload-identity-role-arn ARN
                          AWS IAM role ARN (required for byo + WI / IRSA)
   --gpu-node-pool        Provision a GPU node pool (azure/aws only; requires TF variables)
+  --rwx-storage-class    (azure) Provision a Premium FileStorage account and
+                         install azurefile-nfs-premium as the cluster's
+                         default StorageClass. Required for RWX workloads
+                         (NIM Operator multi-node, etc.); without it RWX PVCs
+                         sit Pending forever. Extra cost for the Premium SA.
   --no-gpu               Skip GPU Operator install + GPU smoke test
   --gpu                  microk8s only: enable the nvidia addon during bootstrap
   --helm-values FILE     Extra Helm values file for both OSMO charts (repeatable)
@@ -331,6 +337,8 @@ while [[ $# -gt 0 ]]; do
         # Cluster-agnostic OSMO deploy flags
         --gpu-node-pool)
             GPU_NODE_POOL=true; shift ;;
+        --rwx-storage-class)
+            RWX_STORAGE_CLASS=true; shift ;;
         --storage-backend)
             STORAGE_BACKEND="$2"; shift 2 ;;
         --auth-method)
@@ -483,6 +491,16 @@ setup_provider_env() {
     # TF variables.
     if [[ "$GPU_NODE_POOL" == true ]]; then
         export TF_GPU_NODE_POOL_ENABLED=true
+    fi
+    # --rwx-storage-class: azure-only. Flips var.nfs_storage_class_enabled so
+    # TF provisions the Premium FileStorage SA + 4 role assignments needed by
+    # the azurefile-csi-driver for dynamic NFS PVC provisioning. The actual
+    # StorageClass manifest apply happens post-kubectl-configure via
+    # azure_install_nfs_storage_class.
+    if [[ "$PROVIDER" == "azure" && "$RWX_STORAGE_CLASS" == true ]]; then
+        export TF_NFS_STORAGE_CLASS_ENABLED=true
+    elif [[ "$PROVIDER" != "azure" && "$RWX_STORAGE_CLASS" == true ]]; then
+        log_warning "--rwx-storage-class is currently azure-only; ignoring for provider=$PROVIDER"
     fi
     # The Azure Blob storage backend reads SA credentials from TF outputs when
     # STORAGE_ACCOUNT/STORAGE_KEY env aren't set, so auto-provision the SA when
@@ -916,6 +934,11 @@ main() {
             get_terraform_outputs
             verify_provider_config
             configure_kubectl
+            # Optional: install NFS RWX StorageClass when --rwx-storage-class
+            # was passed. No-ops when TF_NFS_STORAGE_CLASS_ENABLED is unset.
+            if [[ "$PROVIDER" == "azure" ]]; then
+                azure_install_nfs_storage_class
+            fi
             ;;
         microk8s)
             bootstrap_microk8s

@@ -500,6 +500,12 @@ gpu_max               = ${TF_GPU_COUNT:-0}
 # Triggered by --storage-backend azure-blob on deploy-osmo-minimal.sh
 # (the storage backend script reads storage_account/storage_account_key TF outputs)
 storage_account_enabled = ${TF_STORAGE_ACCOUNT_ENABLED:-false}
+
+# Optional NFS-backed RWX StorageClass
+# Triggered by --rwx-storage-class on deploy-osmo-minimal.sh. Provisions a
+# Premium FileStorage account; storage-class-nfs.yaml is applied post-apply
+# by azure_install_nfs_storage_class.
+nfs_storage_class_enabled = ${TF_NFS_STORAGE_CLASS_ENABLED:-false}
 EOF
 
     log_success "terraform.tfvars generated successfully"
@@ -663,6 +669,71 @@ azure_verify_postgres_config() {
     fi
 }
 
+# Render scripts/azure/storage-class-nfs.yaml against the TF-managed NFS
+# Storage Account, kubectl apply it, then promote it as the default
+# StorageClass (demoting any other current default). Idempotent — re-applying
+# yields the same SC + annotations. Skipped when TF_NFS_STORAGE_CLASS_ENABLED
+# is not "true". Ported from skills/orion-cluster-azure/scripts/setup.sh.
+azure_install_nfs_storage_class() {
+    if [[ "${TF_NFS_STORAGE_CLASS_ENABLED:-false}" != "true" ]]; then
+        return 0
+    fi
+
+    log_info "Installing NFS RWX StorageClass (azurefile-nfs-premium)..."
+    check_command "envsubst"
+
+    local terraform_dir="${AZURE_TERRAFORM_DIR:-$AZURE_SCRIPT_DIR/../../terraform/azure/example}"
+    local sc_manifest="$AZURE_SCRIPT_DIR/storage-class-nfs.yaml"
+
+    if [[ ! -f "$sc_manifest" ]]; then
+        log_error "StorageClass manifest not found: $sc_manifest"
+        return 1
+    fi
+
+    # Read TF outputs directly so this can be re-run independently of the
+    # in-memory env from azure_get_terraform_outputs.
+    local nfs_sa
+    nfs_sa=$(terraform -chdir="$terraform_dir" output -raw nfs_storage_account 2>/dev/null || true)
+    if [[ -z "$nfs_sa" || "$nfs_sa" == "null" ]]; then
+        log_error "nfs_storage_account TF output missing — was nfs_storage_class_enabled=true on apply?"
+        return 1
+    fi
+
+    export NFS_RESOURCE_GROUP="$RESOURCE_GROUP_NAME"
+    export NFS_STORAGE_ACCOUNT="$nfs_sa"
+
+    log_info "  NFS_RESOURCE_GROUP=$NFS_RESOURCE_GROUP"
+    log_info "  NFS_STORAGE_ACCOUNT=$NFS_STORAGE_ACCOUNT"
+
+    local rendered
+    rendered=$(envsubst <"$sc_manifest")
+    azure_run_kubectl_apply_stdin "$rendered"
+
+    # Swap the default StorageClass: demote whoever is currently default,
+    # promote azurefile-nfs-premium. The applied manifest already carries
+    # is-default-class=true, but other classes (e.g. AKS-managed `default`)
+    # may also be flagged — there can only be one effective default.
+    local desired_default_sc="azurefile-nfs-premium"
+    local current_default_sc
+    current_default_sc=$(azure_run_kubectl "get sc -o jsonpath={.items[?(@.metadata.annotations.storageclass\\.kubernetes\\.io/is-default-class==\"true\")].metadata.name}" | tr -d '\r')
+
+    if [[ "$current_default_sc" != "$desired_default_sc" ]]; then
+        log_info "  Default StorageClass: ${current_default_sc:-<none>} -> ${desired_default_sc}"
+        # Demote every currently-defaulted SC (there can only be one by
+        # convention, but be defensive).
+        local sc
+        for sc in $current_default_sc; do
+            [[ "$sc" == "$desired_default_sc" ]] && continue
+            azure_run_kubectl "annotate sc $sc storageclass.kubernetes.io/is-default-class- --overwrite"
+        done
+        azure_run_kubectl "annotate sc $desired_default_sc storageclass.kubernetes.io/is-default-class=true --overwrite"
+    else
+        log_info "  Default StorageClass already $desired_default_sc"
+    fi
+
+    log_success "NFS RWX StorageClass installed"
+}
+
 azure_configure_kubectl() {
     log_info "Configuring kubectl for AKS cluster..."
 
@@ -712,4 +783,5 @@ export -f azure_run_helm_with_values
 export -f azure_check_cluster_type
 export -f azure_configure_kubectl
 export -f azure_verify_postgres_config
+export -f azure_install_nfs_storage_class
 

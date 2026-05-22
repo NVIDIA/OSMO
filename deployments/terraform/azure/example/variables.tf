@@ -304,3 +304,15 @@ variable "storage_account_enabled" {
   type        = bool
   default     = false
 }
+
+# Optional NFS-backed RWX StorageClass — disabled by default.
+# When true, provisions a Premium FileStorage account (private VNet-only)
+# wired up as a default `azurefile-nfs-premium` StorageClass via
+# scripts/azure/storage-class-nfs.yaml. Required for RWX workloads like NIM
+# Operator multi-node inference; without it RWX PVCs sit in Pending. Set via
+# --rwx-storage-class on deploy-osmo-minimal.sh.
+variable "nfs_storage_class_enabled" {
+  description = "Provision an Azure Files Premium NFS StorageClass for RWX workloads (NIM Operator multi-node, etc.)"
+  type        = bool
+  default     = false
+}

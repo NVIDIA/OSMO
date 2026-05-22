@@ -196,6 +196,16 @@ aws eks describe-cluster --name <cluster> --query "cluster.identity.oidc.issuer"
   --workload-identity-role-arn arn:aws:iam::<acct>:role/osmo-data-access
 ```
 
+## RWX StorageClass (`--rwx-storage-class`, azure only)
+
+Pass `--rwx-storage-class` on Azure when the cluster will host workloads with `ReadWriteMany` PVCs — the canonical case is NIM Operator multi-node inference (its NIMCache + shared-model volumes are RWX-only, see https://docs.nvidia.com/nim-operator/latest/multi-node.html). Other RWX consumers (shared dataset caches, KServe RWX models) need it too.
+
+What it provisions: an extra Premium FileStorage Azure Storage Account (`stnfs<cluster><env><suffix>`, private-VNet-only) plus four AKS role assignments needed by `file.csi.azure.com` (Network Contributor on the VNet + on the AKS NSG + on the database NSG, Storage Account Contributor on the NFS SA — without all four, dynamic PVC provisioning fails with `LinkedAuthorizationFailed`). The post-apply step then installs `azurefile-nfs-premium` as the cluster's default StorageClass and demotes whatever was previously default.
+
+Cost note: Premium FileStorage SAs bill on provisioned capacity (~$0.16/GiB-month, 100 GiB minimum) — opt in only when you have an RWX workload. Without the flag, RWX PVCs created later (e.g. by NIM Operator) sit `Pending` forever because the AKS default `managed-csi` / `default` classes only support RWO.
+
+Pattern in production use: this is the same wiring `skills/orion-cluster-azure` ships downstream.
+
 ## Customizing values
 
 Hand-editable static values live in [deployments/values/](../../deployments/values/):
