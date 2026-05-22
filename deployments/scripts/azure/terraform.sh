@@ -699,6 +699,10 @@ azure_install_nfs_storage_class() {
         return 1
     fi
 
+    if [[ -z "${RESOURCE_GROUP_NAME:-}" ]]; then
+        log_error "RESOURCE_GROUP_NAME unset — source the outputs file or run azure_get_terraform_outputs first"
+        return 1
+    fi
     export NFS_RESOURCE_GROUP="$RESOURCE_GROUP_NAME"
     export NFS_STORAGE_ACCOUNT="$nfs_sa"
 

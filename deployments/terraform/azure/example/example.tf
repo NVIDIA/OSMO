@@ -532,8 +532,10 @@ resource "azurerm_subnet_network_security_group_association" "database" {
 #     https://learn.microsoft.com/en-us/azure/storage/files/storage-files-how-to-mount-nfs-shares
 resource "azurerm_storage_account" "nfs" {
   count = var.nfs_storage_class_enabled ? 1 : 0
-  # Azure storage account names must be lowercase letters+digits only (3-24 chars) — strip hyphens from cluster_name.
-  name                          = "stnfs${replace(var.cluster_name, "-", "")}${var.environment}${random_string.suffix.result}"
+  # Azure storage account names must be lowercase letters+digits only (3-24 chars).
+  # Budget: stnfs(5) + <=14 from cluster_name + 5-char random suffix = <=24. environment intentionally
+  # omitted from the name (still in tags) so longer cluster_names don't push us over the limit.
+  name                          = "stnfs${substr(replace(var.cluster_name, "-", ""), 0, 14)}${random_string.suffix.result}"
   location                      = data.azurerm_resource_group.main.location
   resource_group_name           = data.azurerm_resource_group.main.name
   account_tier                  = "Premium"     # FileStorage requires Premium
