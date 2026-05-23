@@ -193,12 +193,14 @@ Discovery (provider-less, exit after running):
                          before picking an OSMO_CHART_VERSION pin so you can
                          see what's published.
   --find-gpu-region SKU COUNT
-                         Print the first Azure region (from
+                         Find the first Azure region (from
                          TF_REGION_CANDIDATES, default eastus2 swedencentral
                          westus3 southcentralus westeurope) with sufficient
                          quota for COUNT x SKU. Exits non-zero if none
-                         qualify. Used by agent-driven setup flows when the
-                         user doesn't know which region to target.
+                         qualify. When combined with --provider, sets
+                         TF_REGION inline and continues the deploy; when
+                         used standalone (no --provider), prints the region
+                         and exits (query-only).
 
 Environment Variables:
   OSMO_IMAGE_REGISTRY    OSMO image registry (default: nvcr.io/nvidia/osmo)
@@ -408,16 +410,21 @@ if [[ "$LIST_CHART_VERSIONS" == "true" ]]; then
 fi
 
 if [[ -n "${FIND_GPU_REGION_SKU:-}" ]]; then
-    # Delegate to the azure provider's helper.
     source "$SCRIPT_DIR/azure/terraform.sh"
     region=$(azure_find_region_with_gpu_quota "$FIND_GPU_REGION_SKU" "$FIND_GPU_REGION_COUNT" "$(az account show --query id -o tsv 2>/dev/null)")
-    if [[ -n "$region" ]]; then
+    if [[ -z "$region" ]]; then
+        log_error "No candidate region had quota for $FIND_GPU_REGION_COUNT x $FIND_GPU_REGION_SKU"
+        log_error "Override TF_REGION_CANDIDATES (space-separated) to expand the search."
+        exit 1
+    fi
+    # Standalone (no --provider) = query-only: print region, exit.
+    # Combined with --provider = set TF_REGION inline and continue the deploy.
+    if [[ -z "$PROVIDER" ]]; then
         echo "$region"
         exit 0
     fi
-    log_error "No candidate region had quota for $FIND_GPU_REGION_COUNT x $FIND_GPU_REGION_SKU"
-    log_error "Override TF_REGION_CANDIDATES (space-separated) to expand the search."
-    exit 1
+    log_info "Auto-picked region for GPU pool: $region"
+    export TF_REGION="$region"
 fi
 
 ###############################################################################
