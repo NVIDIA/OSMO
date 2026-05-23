@@ -875,7 +875,7 @@ extra_values_flags() {
 # was passed via NO_GPU=0 + force). Replaces the 6.2-era `osmo config update`
 # CLI dance — in 6.3 ConfigMap mode the pool definition lives in Helm values.
 #
-# To force-enable on a cluster without the gpu.present label, set
+# To force-enable on a cluster without the `nvidia.com/gpu=present` label, set
 # OSMO_GPU_POOL_ENABLED=true. To force-disable, set NO_GPU=1.
 render_gpu_pool_values() {
     GPU_POOL_VALUES_FILE=""
@@ -886,8 +886,12 @@ render_gpu_pool_values() {
 
     local force="${OSMO_GPU_POOL_ENABLED:-auto}"
     local detected="false"
-    # GPU Operator NFD labels GPU nodes with `nvidia.com/gpu.present=true`.
-    if [ "$($RUN_KUBECTL "get nodes -l nvidia.com/gpu.present=true --no-headers" 2>/dev/null | wc -l)" -gt 0 ]; then
+    # terraform/{azure,aws}/example/ labels GPU nodes with `nvidia.com/gpu=present`
+    # at provisioning time. Keying on the TF-provided label (rather than NFD's
+    # `nvidia.com/gpu.present=true`, which only appears after the GPU Operator
+    # finishes installing) means gpu-pool.yaml is layered as soon as the GPU
+    # node pool exists.
+    if [ "$($RUN_KUBECTL "get nodes -l nvidia.com/gpu=present --no-headers" 2>/dev/null | wc -l)" -gt 0 ]; then
         detected="true"
     fi
 

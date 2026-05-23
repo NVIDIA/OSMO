@@ -3,13 +3,19 @@
 #
 # Opt-in fragment that registers a GPU platform on the default OSMO pool.
 # Layered by deploy-osmo-minimal.sh when GPU nodes are detected
-# (`kubectl get nodes -l nvidia.com/gpu.present=true`).
+# (`kubectl get nodes -l nvidia.com/gpu=present`).
 #
-# Toleration matches the taint set by terraform/{azure,aws}/example/
-# (`nvidia.com/gpu=present:NoSchedule`). nodeSelector matches the label set
-# by GPU Operator NFD (`nvidia.com/gpu.present=true`). default_platform=gpu
-# routes workflow pods to GPU nodes — where the NVIDIA container runtime
-# (RuntimeClass `nvidia`) is registered.
+# Both the toleration and the nodeSelector key on the taint+label set by
+# terraform/{azure,aws}/example/ on the GPU node pool itself:
+#   taint:  nvidia.com/gpu=present:NoSchedule
+#   label:  nvidia.com/gpu=present
+# Using the TF-provided label (rather than NFD's `nvidia.com/gpu.present=true`,
+# which only appears after the GPU Operator finishes installing) avoids a race
+# where workflow pods are submitted before NFD has labelled the node and stay
+# stuck in scheduling. BYO clusters whose GPU nodes use a different label
+# should override `nodeSelector` here via a deployment-specific values file.
+# default_platform=gpu routes workflow pods to GPU nodes — where the NVIDIA
+# container runtime (RuntimeClass `nvidia`) is registered.
 
 services:
   configs:
@@ -22,7 +28,7 @@ services:
               operator: Exists
               effect: NoSchedule
           nodeSelector:
-            nvidia.com/gpu.present: "true"
+            nvidia.com/gpu: "present"
     pools:
       default:
         default_platform: gpu

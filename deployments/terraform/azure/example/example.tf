@@ -260,8 +260,8 @@ resource "azurerm_kubernetes_cluster" "main" {
 #
 # Adds a separate AKS node pool with `sku=gpu:NoSchedule` taint so non-GPU
 # workloads don't schedule there. deploy-k8s.sh detects nodes labeled
-# `nvidia.com/gpu.present` (set by the NVIDIA GPU Operator's device plugin)
-# and renders a matching toleration into Helm values for the OSMO pool.
+# `nvidia.com/gpu=present` (set below via `node_labels`) and renders a matching
+# nodeSelector + toleration into Helm values for the OSMO pool.
 ################################################################################
 
 resource "azurerm_kubernetes_cluster_node_pool" "gpu" {

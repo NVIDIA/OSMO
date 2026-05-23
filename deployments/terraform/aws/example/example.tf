@@ -139,8 +139,10 @@ module "eks" {
       }
     },
     # Optional GPU node group (gated on var.gpu_node_pool_enabled).
-    # Tainted with sku=gpu:NoSchedule so non-GPU pods don't schedule here;
-    # deploy-k8s.sh detects GPU nodes and renders a matching toleration.
+    # Labeled `nvidia.com/gpu=present` and tainted `nvidia.com/gpu=present:NoSchedule`
+    # (see `labels` / `taints` below) so non-GPU pods don't schedule here.
+    # deploy-k8s.sh detects the label and renders a matching nodeSelector +
+    # toleration into Helm values for the OSMO pool.
     var.gpu_node_pool_enabled ? {
       gpu = {
         name = "${local.name}-gpu"
