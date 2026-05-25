@@ -49,26 +49,44 @@ PORT="${2:?usage: $0 [--watchdog] <svc> <port> [namespace]}"
 NS="${3:-osmo-minimal}"
 TARGET_PORT="${TARGET_PORT:-80}"
 URL="http://localhost:${PORT}"
+WATCHDOG_HEALTH_TIMEOUT_SECONDS="${OSMO_PF_HEALTH_TIMEOUT_SECONDS:-300}"
 
 KUBECTL="${KUBECTL:-kubectl}"
 
 WATCHDOG_TAG="osmo-pf-watchdog:${SVC}"
 PGREP_ONESHOT="${KUBECTL} port-forward svc/${SVC} ${PORT}:.* -n ${NS}"
+PGREP_WATCHDOG_PORT_FORWARD="port-forward svc/[^ ]+ ${PORT}:.* -n ${NS}"
+
+kill_processes_matching() {
+    local pattern="$1"
+    local pid
+    local current_bash_pid="${BASHPID:-}"
+    while read -r pid; do
+        [[ -n "$pid" ]] || continue
+        [[ "$pid" != "$$" && "$pid" != "$current_bash_pid" ]] || continue
+        kill "$pid" 2>/dev/null || true
+    done < <(pgrep -f "$pattern" 2>/dev/null || true)
+}
+
+stop_watchdog_port_forwards_on_port() {
+    # A re-run may resolve a different service name for the same local API port
+    # (for example osmo-service before osmo-gateway appears). Replace by local
+    # port, not just watchdog tag, so stale watchdogs cannot race for :9000.
+    kill_processes_matching "$PGREP_WATCHDOG_PORT_FORWARD"
+    sleep 1
+    kill_processes_matching "$PGREP_WATCHDOG_PORT_FORWARD"
+}
 
 ###############################################################################
 # Watchdog mode — spawn a detached respawn loop and exit
 ###############################################################################
 if [[ "$WATCHDOG" == "1" ]]; then
-    # Replace any existing watchdog for this svc so re-runs are idempotent.
+    # Replace any existing watchdog on this local port so re-runs are idempotent.
     # Kill the bash loop AND any kubectl child it may have spawned — the
     # WATCHDOG_TAG only appears in the bash loop's argv, so the child kubectl
     # port-forward survives a naive `pkill -f WATCHDOG_TAG` and keeps the
     # local port bound, leaving the next watchdog pointed at a stale tunnel.
-    if pgrep -f "$WATCHDOG_TAG" >/dev/null; then
-        pkill -f "$WATCHDOG_TAG" || true
-        pkill -f "${KUBECTL} port-forward svc/${SVC} ${PORT}:.* -n ${NS}" || true
-        sleep 1
-    fi
+    stop_watchdog_port_forwards_on_port
 
     # The watchdog tag is embedded as a literal env-var assignment so it shows
     # up in `ps -eo args` / `pgrep -fl`. A leading `#` comment inside `bash -c`
@@ -98,17 +116,19 @@ if [[ "$WATCHDOG" == "1" ]]; then
     disown "$WATCHDOG_PID" 2>/dev/null || true
 
     # Wait for the PF to become healthy before returning so callers can rely on
-    # it. Generous deadline because kube-proxy can take 10-30s to program a new
-    # Service's endpoints right after a fresh install — the kubectl spawned by
-    # the watchdog will exit and respawn until the endpoint is reachable.
-    for _ in $(seq 1 90); do
+    # it. Keep the deadline generous for AKS cold-starts, where newly installed
+    # Service endpoints and load-balancer plumbing can lag well past 90s. The
+    # kubectl spawned by the watchdog exits and respawns until the endpoint is
+    # reachable.
+    for _ in $(seq 1 "$WATCHDOG_HEALTH_TIMEOUT_SECONDS"); do
         if curl -so /dev/null --max-time 1 "$URL/"; then
             echo "Watchdog $WATCHDOG_TAG started; PF healthy on localhost:$PORT"
             exit 0
         fi
         sleep 1
     done
-    echo "ERROR: watchdog started but PF on $PORT did not become healthy in 90s" >&2
+    echo "ERROR: watchdog started but PF on $PORT did not become healthy in ${WATCHDOG_HEALTH_TIMEOUT_SECONDS}s" >&2
+    stop_watchdog_port_forwards_on_port
     exit 1
 fi
 

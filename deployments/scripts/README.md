@@ -206,7 +206,7 @@ Each is idempotent — safe to invoke on a cluster where the target component al
 | `install-gpu-operator.sh` | NVIDIA GPU Operator (drivers + container toolkit) | microk8s `nvidia` addon, helm release in any ns, `clusterpolicies.nvidia.com` CR (covers NVAIE), or `nvidia-device-plugin` DaemonSet |
 | `install-minio.sh` | Bitnami MinIO chart | microk8s `minio` addon or existing `minio` service in `minio-operator` ns |
 | `configure-storage.sh` | 6.3 storage wiring: K8s Secrets + helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`. Dispatcher → `storage/{minio,azure-blob,s3,byo}.sh`. | n/a — backend chosen via `--backend` |
-| `port-forward.sh` | One-shot or `--watchdog` PF, tagged `osmo-pf-watchdog:<svc>` for cleanup with `pkill -f 'osmo-pf-watchdog:'` | Reuses live PF if context+namespace match |
+| `port-forward.sh` | One-shot or `--watchdog` PF, tagged `osmo-pf-watchdog:<svc>` for cleanup with `pkill -f 'osmo-pf-watchdog:'`. Watchdog readiness waits up to `OSMO_PF_HEALTH_TIMEOUT_SECONDS` (default 300). | Reuses live PF if context+namespace match |
 | `verify.sh` | Submits `workflows/verify-hello.yaml` + `verify-gpu.yaml`; polls until terminal state, dumps logs on failure. `SKIP_GPU=1` to skip GPU test. | n/a |
 
 ### `microk8s/install.sh`
@@ -375,7 +375,7 @@ osmo workflow submit ../workflows/verify-hello.yaml
 osmo workflow list
 ```
 
-To stop the watchdogs: `pkill -f 'osmo-pf-watchdog:'`. They're restarted by re-running `deploy-osmo-minimal.sh`.
+To stop the watchdogs: `pkill -f 'osmo-pf-watchdog:'`. They're restarted by re-running `deploy-osmo-minimal.sh`, which also replaces stale watchdogs on the same local port.
 
 ## Troubleshooting
 
