@@ -41,6 +41,8 @@ POOL="${POOL:-default}"
 OSMO_USERNAME="${OSMO_USERNAME:-admin}"
 OSMO_LOGIN_METHOD="${OSMO_LOGIN_METHOD:-dev}"
 WORKFLOWS_DIR="${WORKFLOWS_DIR:-$SCRIPT_DIR/../workflows}"
+OSMO_REACHABILITY_PATH="${OSMO_REACHABILITY_PATH:-/api/version}"
+OSMO_REACHABILITY_TIMEOUT_SECONDS="${OSMO_REACHABILITY_TIMEOUT_SECONDS:-5}"
 
 # Per-workflow poll timeouts (seconds). Should comfortably exceed each spec's
 # queue_timeout + exec_timeout. Override via env if your cluster needs longer.
@@ -52,9 +54,17 @@ check_command osmo
 check_command jq
 check_command curl
 
-# Probe URL — fail fast if no PF / ingress is reachable
-if ! curl -so /dev/null --max-time 2 "$OSMO_URL/"; then
+reachability_url_path="$OSMO_REACHABILITY_PATH"
+if [[ "$reachability_url_path" != /* ]]; then
+    reachability_url_path="/$reachability_url_path"
+fi
+reachability_url="${OSMO_URL%/}${reachability_url_path}"
+
+# Probe a lightweight unauthenticated API endpoint. The UI root serves the full
+# React app and can brush tight curl timeouts on a freshly spawned port-forward.
+if ! curl -fsS -o /dev/null --max-time "$OSMO_REACHABILITY_TIMEOUT_SECONDS" "$reachability_url"; then
     log_error "OSMO not reachable at $OSMO_URL"
+    log_error "Reachability probe failed: $reachability_url"
     log_error "Ensure port-forward is running (./port-forward.sh --watchdog osmo-service 9000)"
     log_error "or set OSMO_URL to a reachable endpoint."
     exit 1
