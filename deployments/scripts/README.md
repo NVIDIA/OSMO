@@ -322,6 +322,8 @@ Pre-create the IAM role with the OSMO service-account trust, then:
 | `OSMO_HELM_REPO_URL` | OSMO Helm chart repo URL. Override to `https://helm.ngc.nvidia.com/nvstaging/osmo` for prerelease testing. | `https://helm.ngc.nvidia.com/nvidia/osmo` |
 | `OSMO_HELM_REPO_NAME` | Local helm repo alias | `osmo` |
 | `BACKEND_TOKEN_EXPIRY` | Backend operator token expiry | `2027-01-01` |
+| `OSMO_REACHABILITY_PATH` | Lightweight unauthenticated path used by `verify.sh` for the pre-login reachability probe | `/api/version` |
+| `OSMO_REACHABILITY_TIMEOUT_SECONDS` | Curl timeout for the `verify.sh` reachability probe | `5` |
 | `NGC_API_KEY` | NGC API key for `nvcr.io` images and chart pulls | — |
 | `AZURE_ENDPOINT_SUFFIX` | Azure Storage endpoint suffix (sovereign clouds) | `core.windows.net` |
 | `TF_SUBSCRIPTION_ID` | Azure subscription ID | — |
