@@ -120,12 +120,32 @@ if [[ "$WATCHDOG" == "1" ]]; then
     # Service endpoints and load-balancer plumbing can lag well past 90s. The
     # kubectl spawned by the watchdog exits and respawns until the endpoint is
     # reachable.
-    for _ in $(seq 1 "$WATCHDOG_HEALTH_TIMEOUT_SECONDS"); do
-        if curl -so /dev/null --max-time 1 "$URL/"; then
+    watchdog_health_start_time=$(date +%s)
+    watchdog_health_end_time=$((watchdog_health_start_time + WATCHDOG_HEALTH_TIMEOUT_SECONDS))
+    while true; do
+        watchdog_health_now=$(date +%s)
+        watchdog_health_remaining_seconds=$((watchdog_health_end_time - watchdog_health_now))
+        if (( watchdog_health_remaining_seconds <= 0 )); then
+            break
+        fi
+        curl_max_time="$watchdog_health_remaining_seconds"
+        if (( curl_max_time > 1 )); then
+            curl_max_time=1
+        fi
+        if curl -so /dev/null --max-time "$curl_max_time" "$URL/"; then
             echo "Watchdog $WATCHDOG_TAG started; PF healthy on localhost:$PORT"
             exit 0
         fi
-        sleep 1
+        watchdog_health_now=$(date +%s)
+        watchdog_health_remaining_seconds=$((watchdog_health_end_time - watchdog_health_now))
+        if (( watchdog_health_remaining_seconds <= 0 )); then
+            break
+        fi
+        sleep_seconds="$watchdog_health_remaining_seconds"
+        if (( sleep_seconds > 1 )); then
+            sleep_seconds=1
+        fi
+        sleep "$sleep_seconds"
     done
     echo "ERROR: watchdog started but PF on $PORT did not become healthy in ${WATCHDOG_HEALTH_TIMEOUT_SECONDS}s" >&2
     stop_watchdog_port_forwards_on_port
