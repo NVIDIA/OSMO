@@ -159,10 +159,10 @@ class TestClientCreate(unittest.TestCase):
         client = client_module.Client.create(
             storage_uri='s3://bucket/key',
             data_credential=_make_static_credential('s3://bucket'),
-            metrics_dir='/tmp/metrics',
+            metrics_dir='/local/metrics',
         )
 
-        self.assertEqual(client.metrics_dir, '/tmp/metrics')
+        self.assertEqual(client.metrics_dir, '/local/metrics')
 
 
 class TestValidateRemotePath(unittest.TestCase):
@@ -410,7 +410,7 @@ class TestUploadWithWorkerInputs(unittest.TestCase):
     def test_upload_with_worker_inputs_list_passes_list_param(self):
         """list source -> upload_worker_inputs is set on the params."""
         worker_input = uploading.UploadWorkerInput(
-            source='/tmp/source',
+            source='/local/source',
             container='bucket',
             destination='sub/dest',
             size=0,
@@ -429,7 +429,7 @@ class TestUploadWithWorkerInputs(unittest.TestCase):
     def test_upload_with_worker_inputs_generator_passes_generator_param(self):
         """generator source -> upload_worker_inputs_generator is set on params."""
         worker_input = uploading.UploadWorkerInput(
-            source='/tmp/source',
+            source='/local/source',
             container='bucket',
             destination='sub/dest',
             size=0,
@@ -631,7 +631,7 @@ class TestDownloadWithWorkerInputs(unittest.TestCase):
         worker_input = downloading.DownloadWorkerInput(
             container='bucket',
             source='sub/file',
-            destination='/tmp/file',
+            destination='/local/file',
             size=0,
         )
         with mock.patch.object(
@@ -650,7 +650,7 @@ class TestDownloadWithWorkerInputs(unittest.TestCase):
         worker_input = downloading.DownloadWorkerInput(
             container='bucket',
             source='sub/file',
-            destination='/tmp/file',
+            destination='/local/file',
             size=0,
         )
 
