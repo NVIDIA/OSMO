@@ -34,3 +34,14 @@ osmo_py_test(
         ":executor_test_helpers",
     ],
 )
+
+osmo_py_test(
+    name = "test_client",
+    srcs = ["test_client.py"],
+    deps = [
+        "//src/lib/data/storage",
+        "//src/lib/data/storage/backends",
+        "//src/lib/data/storage/credentials",
+        "//src/lib/utils:osmo_errors",
+    ],
+)
