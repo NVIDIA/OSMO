@@ -129,8 +129,8 @@ if [[ "$WATCHDOG" == "1" ]]; then
             break
         fi
         curl_max_time="$watchdog_health_remaining_seconds"
-        if (( curl_max_time > 1 )); then
-            curl_max_time=1
+        if (( curl_max_time > 10 )); then
+            curl_max_time=10
         fi
         if curl -so /dev/null --max-time "$curl_max_time" "$URL/"; then
             echo "Watchdog $WATCHDOG_TAG started; PF healthy on localhost:$PORT"
