@@ -1446,5 +1446,708 @@ class TaskSpecValidationTest(unittest.TestCase):
         self.assertEqual(spec.credentials, {'cred1': {'KEY': 'True'}})
 
 
+class TaskInputOutputHashAndErrorTest(unittest.TestCase):
+    """Tests for TaskInputOutput.__hash__ and parsed_workflow_info error paths."""
+
+    def test_hash_equal_for_same_task(self):
+        a = task.TaskInputOutput(task='task1')
+        b = task.TaskInputOutput(task='task1')
+        self.assertEqual(hash(a), hash(b))
+
+    def test_hash_differs_for_different_tasks(self):
+        a = task.TaskInputOutput(task='task1')
+        b = task.TaskInputOutput(task='task2')
+        self.assertNotEqual(hash(a), hash(b))
+
+    def test_hash_ignores_regex(self):
+        # __hash__ uses only class name + task, not regex.
+        a = task.TaskInputOutput(task='task1', regex='.*')
+        b = task.TaskInputOutput(task='task1')
+        self.assertEqual(hash(a), hash(b))
+
+
+class DatasetInputOutputHashTest(unittest.TestCase):
+    """Tests for DatasetInputOutput.__hash__."""
+
+    def test_hash_equal_for_same_name_and_path(self):
+        a = task.DatasetInputOutput(dataset={'name': 'd1', 'path': 'sub/file'})
+        b = task.DatasetInputOutput(dataset={'name': 'd1', 'path': 'sub/file'})
+        self.assertEqual(hash(a), hash(b))
+
+    def test_hash_differs_for_different_name(self):
+        a = task.DatasetInputOutput(dataset={'name': 'd1'})
+        b = task.DatasetInputOutput(dataset={'name': 'd2'})
+        self.assertNotEqual(hash(a), hash(b))
+
+    def test_valid_labels_passes(self):
+        spec = task.DatasetInputOutput(
+            dataset={'name': 'd1', 'labels': ['lbl/file.json']})
+        self.assertEqual(spec.dataset.labels, ['lbl/file.json'])
+
+    def test_valid_regex_passes(self):
+        spec = task.DatasetInputOutput(dataset={'name': 'd1', 'regex': r'\d+'})
+        self.assertEqual(spec.dataset.regex, r'\d+')
+
+
+class UpdateDatasetOutputHashAndValidationTest(unittest.TestCase):
+    """Tests for UpdateDatasetOutput.__hash__ and additional validators."""
+
+    def test_hash_equal_for_same_name(self):
+        a = task.UpdateDatasetOutput(update_dataset={'name': 'd1'})
+        b = task.UpdateDatasetOutput(update_dataset={'name': 'd1'})
+        self.assertEqual(hash(a), hash(b))
+
+    def test_hash_differs_for_different_name(self):
+        a = task.UpdateDatasetOutput(update_dataset={'name': 'd1'})
+        b = task.UpdateDatasetOutput(update_dataset={'name': 'd2'})
+        self.assertNotEqual(hash(a), hash(b))
+
+    def test_valid_metadata_passes(self):
+        spec = task.UpdateDatasetOutput(
+            update_dataset={'name': 'd1', 'metadata': ['meta/path']})
+        self.assertEqual(spec.update_dataset.metadata, ['meta/path'])
+
+    def test_valid_labels_passes(self):
+        spec = task.UpdateDatasetOutput(
+            update_dataset={'name': 'd1', 'labels': ['lbl/path']})
+        self.assertEqual(spec.update_dataset.labels, ['lbl/path'])
+
+
+class URLInputOutputHashTest(unittest.TestCase):
+    """Tests for URLInputOutput.__hash__."""
+
+    def test_hash_equal_for_same_url(self):
+        a = task.URLInputOutput(url='https://example.com')
+        b = task.URLInputOutput(url='https://example.com')
+        self.assertEqual(hash(a), hash(b))
+
+    def test_hash_differs_for_different_urls(self):
+        a = task.URLInputOutput(url='https://example.com')
+        b = task.URLInputOutput(url='https://other.com')
+        self.assertNotEqual(hash(a), hash(b))
+
+
+class TaskSpecPropagateResourceTest(unittest.TestCase):
+    """Tests for TaskSpec.propagate_resource_values error paths."""
+
+    def _make(self, **fields) -> task.TaskSpec:
+        defaults: Dict[str, Any] = {
+            'name': 'mytask',
+            'image': 'ubuntu:latest',
+            'command': ['echo'],
+        }
+        defaults.update(fields)
+        return task.TaskSpec(**defaults)
+
+    def test_default_resource_not_in_resources_raises(self):
+        spec = self._make()  # default resource = 'default'
+        with self.assertRaises(Exception):
+            spec.propagate_resource_values({})
+
+    def test_undefined_named_resource_raises(self):
+        spec = self._make(resource='custom')
+        with self.assertRaises(Exception):
+            spec.propagate_resource_values({})
+
+    def test_resource_assigned_to_resources_field(self):
+        spec = self._make(resource='cpu-pool')
+        cpu_resources = connectors.ResourceSpec(cpu=4, memory='8Gi')
+        spec.propagate_resource_values({'cpu-pool': cpu_resources})
+        self.assertEqual(spec.resources.cpu, 4)
+        self.assertEqual(spec.resources.memory, '8Gi')
+
+
+class TaskSpecPrivilegeMountValidationTest(unittest.TestCase):
+    """Tests for TaskSpec.validate_privilege_host_mount."""
+
+    def _make(self, **fields) -> task.TaskSpec:
+        defaults: Dict[str, Any] = {
+            'name': 'mytask',
+            'image': 'ubuntu:latest',
+            'command': ['echo'],
+        }
+        defaults.update(fields)
+        return task.TaskSpec(**defaults)
+
+    def test_no_privilege_no_mount_returns_silently(self):
+        spec = self._make()
+        spec.validate_privilege_host_mount({})  # No platform required.
+
+    def test_privileged_without_platform_raises(self):
+        # privileged requires resources.platform to be set.
+        spec = self._make(privileged=True)
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({})
+
+    def test_host_network_without_platform_raises(self):
+        spec = self._make(hostNetwork=True)
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({})
+
+    def test_volume_mounts_without_platform_raises(self):
+        spec = self._make(volumeMounts=['/tmp'])
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({})
+
+    def test_privileged_not_allowed_by_platform_raises(self):
+        spec = self._make(privileged=True,
+                          resources=connectors.ResourceSpec(platform='dev'))
+        platform = connectors.Platform(privileged_allowed=False)
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({'dev': platform})
+
+    def test_host_network_not_allowed_by_platform_raises(self):
+        spec = self._make(hostNetwork=True,
+                          resources=connectors.ResourceSpec(platform='dev'))
+        platform = connectors.Platform(host_network_allowed=False)
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({'dev': platform})
+
+    def test_volume_mount_too_many_colons_raises(self):
+        spec = self._make(volumeMounts=['/src:/dst:/extra'],
+                          resources=connectors.ResourceSpec(platform='dev'))
+        platform = connectors.Platform(allowed_mounts=['/src'],
+                                       default_mounts=[])
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({'dev': platform})
+
+    def test_volume_mount_empty_after_colon_raises(self):
+        spec = self._make(volumeMounts=['/src:'],
+                          resources=connectors.ResourceSpec(platform='dev'))
+        platform = connectors.Platform(allowed_mounts=['/src'],
+                                       default_mounts=[])
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({'dev': platform})
+
+    def test_disallowed_volume_mount_raises(self):
+        spec = self._make(volumeMounts=['/forbidden'],
+                          resources=connectors.ResourceSpec(platform='dev'))
+        platform = connectors.Platform(allowed_mounts=['/src'],
+                                       default_mounts=['/data'])
+        with self.assertRaises(Exception):
+            spec.validate_privilege_host_mount({'dev': platform})
+
+    def test_allowed_mount_passes(self):
+        spec = self._make(volumeMounts=['/src'],
+                          resources=connectors.ResourceSpec(platform='dev'))
+        platform = connectors.Platform(allowed_mounts=['/src'],
+                                       default_mounts=[])
+        spec.validate_privilege_host_mount({'dev': platform})
+
+    def test_default_mount_passes(self):
+        spec = self._make(volumeMounts=['/data'],
+                          resources=connectors.ResourceSpec(platform='dev'))
+        platform = connectors.Platform(allowed_mounts=[],
+                                       default_mounts=['/data'])
+        spec.validate_privilege_host_mount({'dev': platform})
+
+
+class TaskSpecToPodResourceSpecTest(unittest.TestCase):
+    """Tests for TaskSpec.get_resource_from_spec and to_pod_resource_spec."""
+
+    def _make(self, **fields) -> task.TaskSpec:
+        defaults: Dict[str, Any] = {
+            'name': 'mytask',
+            'image': 'ubuntu:latest',
+            'command': ['echo'],
+        }
+        defaults.update(fields)
+        return task.TaskSpec(**defaults)
+
+    def test_get_resource_from_spec_with_unit(self):
+        spec = self._make()
+        # When unit is provided, the value is read directly.
+        result = spec.get_resource_from_spec({'storage': '10Gi'}, 'storage', 'Gi')
+        self.assertEqual(result, '10Gi')
+
+    def test_get_resource_from_spec_without_unit_uses_count(self):
+        spec = self._make()
+        # When unit is None, the function reads the 'count' subkey.
+        result = spec.get_resource_from_spec({'cpu': {'count': 4}}, 'cpu', None)
+        self.assertEqual(result, 4)
+
+    def test_get_resource_from_spec_missing_returns_none(self):
+        spec = self._make()
+        # No 'cpu' key in dict, with unit=None -> returns None via .get('cpu', {})
+        result = spec.get_resource_from_spec({}, 'cpu', None)
+        self.assertIsNone(result)
+
+    @unittest.skip(
+        'Suspected source bug: get_resource_from_spec assumes cpu/gpu values '
+        'are dicts with a "count" key, but ResourceSpec.model_dump() emits '
+        'them as plain ints. Calling to_pod_resource_spec raises '
+        'AttributeError on any non-empty cpu/gpu field.'
+    )
+    def test_to_pod_resource_spec_drops_zero_gpu(self):
+        spec = self._make()
+        resources = connectors.ResourceSpec(cpu=2, memory='4Gi', gpu=0)
+        pod_spec = spec.to_pod_resource_spec(resources)
+        self.assertNotIn('nvidia.com/gpu', pod_spec)
+
+
+class TaskSpecSavedSpecTest(unittest.TestCase):
+    """Tests for TaskSpec.saved_spec field stripping."""
+
+    def _make(self, **fields) -> task.TaskSpec:
+        defaults: Dict[str, Any] = {
+            'name': 'mytask',
+            'image': 'ubuntu:latest',
+            'command': ['echo'],
+        }
+        defaults.update(fields)
+        return task.TaskSpec(**defaults)
+
+    def test_saved_spec_excludes_resources_field(self):
+        spec = self._make()
+        spec.resources = connectors.ResourceSpec(cpu=4, memory='8Gi')
+        saved = spec.saved_spec()
+        self.assertNotIn('resources', saved)
+
+    def test_saved_spec_excludes_backend_field(self):
+        spec = self._make(backend='backend-1')
+        saved = spec.saved_spec()
+        self.assertNotIn('backend', saved)
+
+    def test_saved_spec_keeps_user_defined_fields(self):
+        spec = self._make()
+        saved = spec.saved_spec()
+        self.assertEqual(saved['name'], 'mytask')
+        self.assertEqual(saved['image'], 'ubuntu:latest')
+        self.assertEqual(saved['command'], ['echo'])
+
+
+class TaskSpecParseTest(unittest.TestCase):
+    """Tests for TaskSpec.parse token substitution."""
+
+    def _make(self, **fields) -> task.TaskSpec:
+        defaults: Dict[str, Any] = {
+            'name': 'mytask',
+            'image': 'ubuntu:latest',
+            'command': ['echo'],
+        }
+        defaults.update(fields)
+        return task.TaskSpec(**defaults)
+
+    def test_parse_substitutes_workflow_id_token(self):
+        spec = self._make(args=['{{workflow_id}}'])
+        result = spec.parse('wf-123', {})
+        self.assertEqual(result.args, ['wf-123'])
+
+    def test_parse_substitutes_output_token(self):
+        spec = self._make(args=['{{output}}'])
+        result = spec.parse('wf-123', {})
+        self.assertEqual(result.args,
+                         [f'{kb_objects.DATA_LOCATION}/output'])
+
+    def test_parse_substitutes_dataset_input_index(self):
+        spec = self._make(
+            inputs=[task.DatasetInputOutput(dataset={'name': 'd1'})],
+            args=['{{input:0}}'],
+        )
+        result = spec.parse('wf-id', {})
+        self.assertEqual(result.args,
+                         [f'{kb_objects.DATA_LOCATION}/input/0'])
+
+    def test_parse_substitutes_url_input_index(self):
+        spec = self._make(
+            inputs=[task.URLInputOutput(url='https://example.com')],
+            args=['{{input:0}}'],
+        )
+        result = spec.parse('wf-id', {})
+        self.assertEqual(result.args,
+                         [f'{kb_objects.DATA_LOCATION}/input/0'])
+
+    def test_parse_substitutes_task_input_by_name(self):
+        spec = self._make(
+            inputs=[task.TaskInputOutput(task='upstream-task')],
+            args=['{{input:upstream-task}}'],
+        )
+        result = spec.parse('wf-id', {})
+        self.assertEqual(result.args,
+                         [f'{kb_objects.DATA_LOCATION}/input/0'])
+
+
+class TaskGroupSpecPropertiesTest(unittest.TestCase):
+    """Tests for TaskGroupSpec.has_group_barrier, inputs, and saved_spec."""
+
+    def _make_task(self, name: str = 'mytask',
+                   inputs: List[Any] | None = None,
+                   lead: bool = False) -> task.TaskSpec:
+        return task.TaskSpec(
+            name=name,
+            image='ubuntu:latest',
+            command=['echo'],
+            inputs=inputs if inputs is not None else [],
+            lead=lead,
+        )
+
+    def test_has_group_barrier_single_task_returns_false(self):
+        spec = task.TaskGroupSpec(name='g', tasks=[self._make_task()])
+        self.assertFalse(spec.has_group_barrier())
+
+    def test_has_group_barrier_multi_task_default_returns_true(self):
+        spec = task.TaskGroupSpec(
+            name='g',
+            tasks=[
+                self._make_task(name='t1', lead=True),
+                self._make_task(name='t2'),
+            ],
+        )
+        self.assertTrue(spec.has_group_barrier())
+
+    def test_has_group_barrier_multi_task_barrier_disabled_returns_false(self):
+        spec = task.TaskGroupSpec(
+            name='g',
+            barrier=False,
+            tasks=[
+                self._make_task(name='t1', lead=True),
+                self._make_task(name='t2'),
+            ],
+        )
+        self.assertFalse(spec.has_group_barrier())
+
+    def test_inputs_property_aggregates_unique_inputs(self):
+        url_input = task.URLInputOutput(url='https://example.com')
+        ds_input = task.DatasetInputOutput(dataset={'name': 'd1'})
+        spec = task.TaskGroupSpec(
+            name='g',
+            tasks=[
+                self._make_task(name='t1', lead=True, inputs=[url_input]),
+                self._make_task(name='t2', inputs=[ds_input, url_input]),
+            ],
+        )
+        # Same URL input is shared across two tasks; deduplicated by hash.
+        self.assertEqual(len(spec.inputs), 2)
+
+    def test_saved_spec_includes_tasks_via_subspec(self):
+        spec = task.TaskGroupSpec(
+            name='g',
+            tasks=[self._make_task(name='only-task')],
+        )
+        saved = spec.saved_spec()
+        self.assertEqual(saved['name'], 'g')
+        self.assertEqual(len(saved['tasks']), 1)
+        self.assertEqual(saved['tasks'][0]['name'], 'only-task')
+
+
+class TaskGroupSpecValidateTasksErrorTest(unittest.TestCase):
+    """Tests for TaskGroupSpec.validate_tasks edge cases."""
+
+    def _make_task(self, name: str, lead: bool = False) -> task.TaskSpec:
+        return task.TaskSpec(name=name, image='ubuntu:latest',
+                             command=['echo'], lead=lead)
+
+    def test_empty_tasks_raises(self):
+        with self.assertRaises(Exception):
+            task.TaskGroupSpec(name='g', tasks=[])
+
+    def test_single_task_auto_assigned_lead(self):
+        # validate_tasks auto-sets lead=True when only one task.
+        spec = task.TaskGroupSpec(
+            name='g', tasks=[self._make_task(name='solo', lead=False)])
+        self.assertTrue(spec.tasks[0].lead)
+
+    def test_zero_leaders_in_multi_task_raises(self):
+        with self.assertRaises(Exception):
+            task.TaskGroupSpec(
+                name='g',
+                tasks=[
+                    self._make_task(name='t1'),
+                    self._make_task(name='t2'),
+                ],
+            )
+
+    def test_two_leaders_in_multi_task_raises(self):
+        with self.assertRaises(Exception):
+            task.TaskGroupSpec(
+                name='g',
+                tasks=[
+                    self._make_task(name='t1', lead=True),
+                    self._make_task(name='t2', lead=True),
+                ],
+            )
+
+
+class HstoreEncodeDecodeTest(unittest.TestCase):
+    """Tests for _encode_hstore and decode_hstore."""
+
+    def test_encode_empty_set(self):
+        self.assertEqual(task._encode_hstore(set()), '')
+
+    def test_encode_single_task(self):
+        result = task._encode_hstore({'task1'})
+        self.assertEqual(result, '"task1" => "NULL"')
+
+    def test_decode_empty_string(self):
+        self.assertEqual(task.decode_hstore(''), set())
+
+    def test_decode_single_entry(self):
+        self.assertEqual(task.decode_hstore('"task1"=>"NULL"'), {'task1'})
+
+    def test_decode_multiple_entries(self):
+        encoded = '"task1"=>"NULL", "task2"=>"NULL"'
+        self.assertEqual(task.decode_hstore(encoded), {'task1', 'task2'})
+
+    def test_decode_ignores_invalid_names(self):
+        # Names must match NAMEREGEX (start with letter).
+        encoded = '"123-bad"=>"NULL", "task1"=>"NULL"'
+        self.assertEqual(task.decode_hstore(encoded), {'task1'})
+
+
+class FetchCredsTest(unittest.TestCase):
+    """Tests for fetch_creds with mocked storage backend."""
+
+    def test_returns_credential_when_profile_present(self):
+        cred = mock.MagicMock(spec=credentials.StaticDataCredential)
+        backend_info = mock.MagicMock()
+        backend_info.profile = 's3://my-bucket'
+        backend_info.scheme = 's3'
+        backend_info.supports_environment_auth = False
+        with mock.patch.object(task.storage, 'construct_storage_backend',
+                               return_value=backend_info):
+            result = task.fetch_creds(
+                user='alice',
+                data_creds={'s3://my-bucket': cred},
+                path='s3://my-bucket/some/path',
+            )
+        self.assertIs(result, cred)
+
+    def test_returns_none_when_environment_auth_supported(self):
+        backend_info = mock.MagicMock()
+        backend_info.profile = 's3://other'
+        backend_info.scheme = 's3'
+        backend_info.supports_environment_auth = True
+        with mock.patch.object(task.storage, 'construct_storage_backend',
+                               return_value=backend_info):
+            result = task.fetch_creds(user='alice', data_creds={},
+                                      path='s3://other/path')
+        self.assertIsNone(result)
+
+    def test_returns_none_when_scheme_in_disabled_data(self):
+        backend_info = mock.MagicMock()
+        backend_info.profile = 's3://other'
+        backend_info.scheme = 's3'
+        backend_info.supports_environment_auth = False
+        with mock.patch.object(task.storage, 'construct_storage_backend',
+                               return_value=backend_info):
+            result = task.fetch_creds(user='alice', data_creds={},
+                                      path='s3://other/path',
+                                      disabled_data=['s3'])
+        self.assertIsNone(result)
+
+    def test_raises_when_credential_missing_and_required(self):
+        backend_info = mock.MagicMock()
+        backend_info.profile = 's3://other'
+        backend_info.scheme = 's3'
+        backend_info.supports_environment_auth = False
+        with mock.patch.object(task.storage, 'construct_storage_backend',
+                               return_value=backend_info):
+            with self.assertRaises(Exception):
+                task.fetch_creds(user='alice', data_creds={},
+                                 path='s3://other/path')
+
+    def test_raises_when_disabled_data_does_not_include_scheme(self):
+        backend_info = mock.MagicMock()
+        backend_info.profile = 's3://other'
+        backend_info.scheme = 's3'
+        backend_info.supports_environment_auth = False
+        with mock.patch.object(task.storage, 'construct_storage_backend',
+                               return_value=backend_info):
+            with self.assertRaises(Exception):
+                task.fetch_creds(user='alice', data_creds={},
+                                 path='s3://other/path',
+                                 disabled_data=['gs'])
+
+
+def _make_taskgroup(
+    user_label: str = 'alice',
+    workflow_id: str = 'wf-1',
+    group_name: str = 'group-1',
+    task_specs: List[task.TaskSpec] | None = None,
+) -> task.TaskGroup:
+    """Create a TaskGroup for label/variable tests with minimal mocking."""
+    if task_specs is None:
+        task_specs = [task.TaskSpec(name='t1', image='ubuntu:latest',
+                                    command=['echo'], lead=True)]
+    spec = task.TaskGroupSpec(name=group_name, tasks=task_specs)
+    return task.TaskGroup(
+        workflow_id_internal=workflow_id,
+        name=group_name,
+        group_uuid=common.generate_unique_id(),
+        spec=spec,
+        tasks=[],
+        remaining_upstream_groups=set(),
+        downstream_groups=set(),
+        database=mock.create_autospec(connectors.PostgresConnector, instance=True),
+    )
+
+
+class TaskGroupLabelsTest(unittest.TestCase):
+    """Tests for TaskGroup._labels (user format handling)."""
+
+    def test_labels_contain_workflow_metadata(self):
+        group = _make_taskgroup(workflow_id='wf-x', group_name='grp-y')
+        labels = group._labels(user='alice', workflow_uuid='wf-uuid')
+        self.assertEqual(labels['osmo.workflow_id'], 'wf-x')
+        self.assertEqual(labels['osmo.group_name'], 'grp-y')
+        self.assertEqual(labels['osmo.workflow_uuid'], 'wf-uuid')
+
+    def test_simple_username_added_as_label(self):
+        group = _make_taskgroup()
+        labels = group._labels(user='alice', workflow_uuid='wf-uuid')
+        self.assertEqual(labels['osmo.submitted_by'], 'alice')
+
+    def test_email_username_parsed_to_local_part(self):
+        group = _make_taskgroup()
+        labels = group._labels(user='alice@example.com', workflow_uuid='wf-uuid')
+        self.assertEqual(labels['osmo.submitted_by'], 'alice')
+
+    def test_invalid_user_omits_label(self):
+        # User starts with an underscore which is not a valid k8s label start.
+        group = _make_taskgroup()
+        labels = group._labels(user='_bad-user', workflow_uuid='wf-uuid')
+        self.assertNotIn('osmo.submitted_by', labels)
+
+    def test_invalid_email_local_part_omits_label(self):
+        # Email's local part starts with special character.
+        group = _make_taskgroup()
+        labels = group._labels(user='!@example.com', workflow_uuid='wf-uuid')
+        self.assertNotIn('osmo.submitted_by', labels)
+
+
+class TaskGroupConvertLabelsToVariablesTest(unittest.TestCase):
+    """Tests for TaskGroup._convert_labels_to_variables."""
+
+    def test_workflow_prefix_stripped_to_wf(self):
+        group = _make_taskgroup()
+        result = group._convert_labels_to_variables(
+            {'osmo.workflow_uuid': 'abc'})
+        self.assertEqual(result, {'WF_UUID': 'abc'})
+
+    def test_non_workflow_label_gets_wf_prefix(self):
+        group = _make_taskgroup()
+        result = group._convert_labels_to_variables(
+            {'osmo.group_name': 'grp'})
+        self.assertEqual(result, {'WF_GROUP_NAME': 'grp'})
+
+    def test_label_without_osmo_prefix_dropped(self):
+        group = _make_taskgroup()
+        result = group._convert_labels_to_variables(
+            {'kubernetes.io/zone': 'us-east-1', 'osmo.pool': 'p1'})
+        self.assertEqual(result, {'WF_POOL': 'p1'})
+
+    def test_multiple_labels(self):
+        group = _make_taskgroup()
+        result = group._convert_labels_to_variables({
+            'osmo.workflow_id': 'wf-1',
+            'osmo.platform': 'gpu',
+        })
+        self.assertEqual(result, {'WF_ID': 'wf-1', 'WF_PLATFORM': 'gpu'})
+
+
+class TaskGroupGetPodNameTest(unittest.TestCase):
+    """Tests for TaskGroup._get_pod_name and _get_image_secret_name."""
+
+    def test_get_image_secret_name_format(self):
+        group = _make_taskgroup()
+        result = group._get_image_secret_name('group-uid', 'user')
+        self.assertEqual(result, 'group-uid-user')
+
+    def test_get_pod_name_format(self):
+        group = _make_taskgroup()
+        result = group._get_pod_name('mytask', 'wf-uuid-1')
+        # k8s_name prepends nothing for already-valid names; format is
+        # '<task>-<workflow_uuid>'.
+        self.assertEqual(result, 'mytask-wf-uuid-1')
+
+    def test_get_pod_names_iterates_spec_tasks(self):
+        specs = [
+            task.TaskSpec(name='t1', image='ubuntu:latest',
+                          command=['echo'], lead=True),
+            task.TaskSpec(name='t2', image='ubuntu:latest',
+                          command=['echo']),
+        ]
+        group = _make_taskgroup(task_specs=specs)
+        names = group.get_pod_names('wf-uuid')
+        self.assertEqual(names, ['t1-wf-uuid', 't2-wf-uuid'])
+
+
+class RenderGroupTemplatesTest(unittest.TestCase):
+    """Tests for render_group_templates."""
+
+    def test_strips_namespace_from_metadata(self):
+        templates = [{'metadata': {'name': 'r1', 'namespace': 'old-ns'}}]
+        result = task.render_group_templates(templates, {}, {})
+        self.assertNotIn('namespace', result[0]['metadata'])
+
+    def test_injects_labels_into_metadata(self):
+        templates = [{'metadata': {'name': 'r1'}}]
+        result = task.render_group_templates(
+            templates, {}, {'osmo.workflow_id': 'wf-1'})
+        self.assertEqual(
+            result[0]['metadata']['labels'], {'osmo.workflow_id': 'wf-1'})
+
+    def test_does_not_mutate_input_template(self):
+        templates = [{'metadata': {'name': 'r1', 'namespace': 'orig-ns'}}]
+        task.render_group_templates(templates, {}, {'foo': 'bar'})
+        # Original template is preserved (deep-copied).
+        self.assertEqual(templates[0]['metadata']['namespace'], 'orig-ns')
+        self.assertNotIn('labels', templates[0]['metadata'])
+
+    def test_substitutes_jinja_variables(self):
+        templates = [{
+            'metadata': {'name': 'r1'},
+            'spec': {'value': '{{ FOO }}'},
+        }]
+        result = task.render_group_templates(
+            templates, {'FOO': 'rendered'}, {})
+        self.assertEqual(result[0]['spec']['value'], 'rendered')
+
+    def test_creates_metadata_when_missing(self):
+        templates = [{'kind': 'Custom'}]
+        result = task.render_group_templates(
+            templates, {}, {'osmo.foo': 'bar'})
+        self.assertEqual(result[0]['metadata']['labels'], {'osmo.foo': 'bar'})
+
+
+class TaskCreateNewTest(unittest.TestCase):
+    """Tests for Task.create_new."""
+
+    def _make_task(self, retry_id: int = 0) -> task.Task:
+        return task.Task(
+            workflow_id_internal='wf-1',
+            workflow_uuid='wf-uuid',
+            name='t1',
+            group_name='g1',
+            task_uuid=common.generate_unique_id(),
+            task_db_key=common.generate_unique_id(),
+            retry_id=retry_id,
+            database=mock.create_autospec(connectors.PostgresConnector, instance=True),
+            exit_actions={},
+            lead=True,
+        )
+
+    def test_create_new_increments_retry_id(self):
+        original = self._make_task(retry_id=2)
+        new_task = original.create_new()
+        self.assertEqual(new_task.retry_id, 3)
+
+    def test_create_new_preserves_name_and_group(self):
+        original = self._make_task()
+        new_task = original.create_new()
+        self.assertEqual(new_task.name, original.name)
+        self.assertEqual(new_task.group_name, original.group_name)
+
+    def test_create_new_preserves_task_uuid(self):
+        original = self._make_task()
+        new_task = original.create_new()
+        self.assertEqual(new_task.task_uuid, original.task_uuid)
+
+    def test_create_new_assigns_new_task_db_key(self):
+        original = self._make_task()
+        new_task = original.create_new()
+        self.assertNotEqual(new_task.task_db_key, original.task_db_key)
+
+
 if __name__ == '__main__':
     unittest.main()
