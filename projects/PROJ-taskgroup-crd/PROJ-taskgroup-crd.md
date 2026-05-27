@@ -26,7 +26,15 @@ SPDX-License-Identifier: Apache-2.0
 
 OSMO today generates full Kubernetes Pod and PodGroup specs inside the Python API server and pushes them to backend clusters through an operator. This tight coupling means every new workload runtime — NIM, Dynamo, Ray, Grove, future things we haven't seen yet — requires changes to the API server, the backend worker, and the gRPC protocol between them. It also makes multi-cluster and edge scenarios hard: a workflow that spans two clusters can't be expressed cleanly because the API server is the one rendering pod specs targeted at a specific cluster.
 
-This project replaces that pattern with a **Kubernetes CRD (`OSMOTaskGroup`)** as the contract between OSMO and the cluster. The API server writes CRs; a per-cluster controller reconciles them into whatever Kubernetes objects the chosen runtime requires. The CR is the extension point: adding a new runtime is ~200 LOC of Go in the controller, not a cross-cutting change across Python, Go, and SQL. Multi-cluster dispatch is a first-class property of the design — the API server chooses the target cluster at CR write time, and cross-cluster service references resolve through the deployment's configured cluster mesh.
+This project replaces that pattern with **three Kubernetes CRDs** as the contract between OSMO and the cluster:
+
+- **`OSMOWorkflow`** — the user-submitted DAG. Lives in the control cluster only. Owns DAG resolution, status rollup, finalizer-based cross-cluster cleanup, TTL-based auto-deletion.
+- **`OSMOTaskGroup`** — one DAG node, materialized wherever it runs. Carries the runtime discriminator (`runtimeType`) and opaque `runtimeConfig`. The extension point for new runtimes (NIM, Ray, Dynamo, Grove): adding one is a ~200 LOC Go plugin under `controller/runtimes/`.
+- **`OSMOCluster`** — registry of backend clusters with status (connection, last seen, supported runtimes, capacity).
+
+Multi-cluster dispatch is first-class via a **phone-home gRPC session**: each backend cluster's controller dials the control cluster's Operator Service, authenticates with a per-cluster bearer token, and stays connected for both inbound commands (CreateOTG, DeleteOTG, ResyncRequest) and outbound status events. This works for NAT'd / edge / customer-managed backends that can't be reached from the control cluster — no KubeFed-style federation required.
+
+**The architecture has no relational database and no Redis.** Live state lives in etcd via the CRDs. Cross-cluster status flows over the gRPC session, into an in-memory `RemoteStatusCache`, and is folded into `OSMOWorkflow.status` by the workflow controller (single-writer pattern, no conflicts). Workflow history after TTL goes to structured logs (Loki / CloudWatch) + S3 archive. Accounting goes to Prometheus.
 
 ### Motivation
 
@@ -63,7 +71,7 @@ This project replaces that pattern with a **Kubernetes CRD (`OSMOTaskGroup`)** a
 |---|---|---|
 | Runtime extensibility | OSMO shall support adding a new workload runtime (e.g. Ray, Grove) by implementing a Go reconciler + status mapper, without changes to the API server or gRPC protocol | Functional |
 | Multi-cluster task routing | A workflow shall be able to declare per-task-group cluster targeting, and OSMO shall dispatch CRs to the correct cluster's controller | Functional |
-| PostgreSQL as source of truth | Task group lifecycle state in PostgreSQL shall always converge with the state observed in the cluster's CR. Divergence shall be resolved by periodic reconciliation | Reliability |
+| Etcd as source of truth | Live workflow + task group state shall live in etcd via CRDs in their owning cluster. Cross-cluster status shall converge via the gRPC session's status events + the operator service's `ResyncRequest` on every reconnect. No relational database in the hot path. | Reliability |
 | Graceful runtime failure | If a controller cannot reach the API server temporarily, it shall continue reconciling CRs it already has and resume status push when connectivity returns | Reliability |
 | CR schema is stable | The `OSMOTaskGroup` CR schema shall be versioned; breaking changes shall be introduced via a new CRD version with a conversion webhook | Compatibility |
 | etcd size safety | A single `OSMOTaskGroup` CR shall not exceed 500 KB, well below etcd's 1.5 MB object limit | KPI |
@@ -511,16 +519,17 @@ The API server's workflow submission path evaluates each task group's target clu
 
 A workflow with task groups in three different clusters produces three CR writes, one per cluster. No cluster sees CRs that aren't its own.
 
-#### Periodic PostgreSQL reconciliation
+#### Cross-cluster status convergence (no PostgreSQL)
 
-A new goroutine in the API server (or a dedicated small service) runs every 60s:
+There is no PostgreSQL to reconcile against. The convergence story is built entirely on the gRPC session + controller-runtime patterns:
 
-1. Read workflow rows from PostgreSQL where state = Running.
-2. For each, query the Operator Service for the current CR status.
-3. If CR state differs from PostgreSQL, update PostgreSQL.
-4. If CR doesn't exist but PostgreSQL says Running, this is a divergence → recreate the CR from the workflow definition.
+1. **Steady state.** A backend's TaskGroup Controller emits `OTGStatusEvent` to the session on every reconcile. The Operator Service publishes to an in-process `StatusBus`. A `RemoteStatusSource` subscribes, writes events to a `RemoteStatusCache`, and enqueues a reconcile of the parent `OSMOWorkflow`. The Workflow Controller reads the cache and folds the latest status into `wf.Status.Groups[g]` — single-writer, no `Status().Update()` conflicts.
 
-This is the multi-cluster safety net: if a single cluster's gRPC push fails, the reconciler pulls the missing state.
+2. **Reconnect recovery.** On every successful Hello, the Operator Service sends `ResyncRequest` to the backend. The backend lists every OTG it owns and re-pushes current status. Whatever the operator missed during the disconnect window gets replayed.
+
+3. **Periodic safety net.** The Workflow Controller's `PeriodicReconcileInterval` (30s) re-walks the DAG and refreshes statuses from the cache, catching anything that fell through.
+
+If a backend cluster is unreachable past the staleness threshold (~60s), the workflow's affected groups freeze at their last known state. When the session reconnects, ResyncRequest brings them current. There is no relational database to "diverge from."
 
 #### Workflow spec language changes
 
@@ -1171,19 +1180,23 @@ Adds the first two runtimes beyond KAI, exercising the Generic CRD Reconciler pa
 
 ### Phase 4: Service consolidation + Redis elimination
 
-With the CRD path proven for multiple runtimes, eliminate Worker, Delayed Job Monitor, and Redis. Each Redis call site is its own migration; this phase enumerates them.
+With the CRD path proven for multiple runtimes, eliminate Worker, Delayed Job Monitor, Redis, **and PostgreSQL**. Each call site is its own migration; this phase enumerates them.
 
-- Implement gRPC `BarrierService` on the Operator Service with Postgres-backed state
-- Migrate the per-task action queue (currently Redis `brpop` from `osmo_ctrl` for restart/cancel signals) to gRPC streaming. Note: this requires a coordinated change in the Go `osmo_ctrl` runtime container.
-- Migrate the workflow event XSTREAM (consumed by UI/CLI for workflow log timeline) to a Postgres-backed event log + gRPC streaming
-- Migrate Logger from Redis-buffered logs to in-memory + periodic object-storage flush
+- Implement gRPC `BarrierService` on the Operator Service backed by a small CRD (`OSMOBarrier`), not Postgres
+- Migrate the per-task action queue (currently Redis `brpop` from `osmo_ctrl` for restart/cancel signals) to gRPC streaming. Coordinated change in the Go `osmo_ctrl` runtime container.
+- Migrate the workflow event XSTREAM (consumed by UI/CLI for workflow log timeline) to the structured-log pipeline (Loki / CloudWatch) — query path replaces the per-event SQL
+- Migrate Logger from Redis-buffered logs to direct object-storage flush
 - Wire `osmo workflow logs -f` to gRPC streaming through the Logger
 - Add API server retry/backoff wrapper around `CreateOTG` (replaces Worker's role)
-- Move workflow-level timeouts (`CheckQueueTimeout`, `CheckRunTimeout`, `CleanupWorkflow` delay — currently Delayed Job Monitor concerns) into a small in-API-server scheduler reading `next_run_at` from Postgres
+- Move workflow-level timeouts (`CheckQueueTimeout`, `CheckRunTimeout`, `CleanupWorkflow` delay — currently Delayed Job Monitor concerns) onto `OSMOWorkflow.spec.timeout` + the controller's TTL path (`ttlSecondsAfterFinished`)
+- Move workflow history queries to the log aggregator + S3 archive; remove the Postgres `workflow`, `task_group`, `task_execution` tables
+- Move credential storage from Postgres (JWE-encrypted) to K8s Secrets
+- Move accounting from Postgres tables to Prometheus + recording rules
 - Remove `service/worker/` and `service/delayed_job_monitor/` Python code
 - Remove Redis Helm chart, secrets, Prometheus exporter from staging then production deployments
+- Remove PostgreSQL Helm chart, secrets, RDS instances after the last consumer migrates
 
-**Exit criteria:** Production deployment has no Redis StatefulSet. All barrier, log-tail, action-queue, and event-stream features work via the new primitives.
+**Exit criteria:** Production deployment has no Redis StatefulSet and no PostgreSQL / RDS dependency. All barrier, log-tail, action-queue, event-stream, history, credential, and accounting features work via K8s primitives + the log aggregator + Prometheus + S3.
 
 ### Phase 5: Dynamo + Grove + additional meshes
 
