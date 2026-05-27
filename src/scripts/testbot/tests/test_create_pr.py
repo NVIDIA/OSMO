@@ -297,6 +297,24 @@ class TestSlackReviewRequest(unittest.TestCase):
         mock_urlopen.assert_not_called()
 
     @patch("src.scripts.testbot.create_pr.urllib.request.urlopen")
+    def test_post_slack_review_request_skips_when_channel_empty(
+        self,
+        mock_urlopen,
+    ):
+        # Empty channel is the workflow_dispatch "no notification"
+        # signal. We must short-circuit BEFORE any HTTP call so an
+        # ad-hoc run never accidentally posts.
+        self.assertFalse(
+            _post_slack_review_request(
+                bot_token="token",
+                channel="",
+                pr_url="https://github.com/NVIDIA/OSMO/pull/123",
+                pr_title="[testbot] Add tests for foo.py",
+            ),
+        )
+        mock_urlopen.assert_not_called()
+
+    @patch("src.scripts.testbot.create_pr.urllib.request.urlopen")
     def test_post_slack_review_request_returns_false_on_api_error(
         self,
         mock_urlopen,

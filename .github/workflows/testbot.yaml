@@ -42,6 +42,9 @@ on:
         description: 'Generate but do not create PR'
         type: boolean
         default: false
+      slack_channel:
+        description: 'Slack channel for review request (empty = no notification)'
+        default: '#osmo-slack-test'
 
 permissions:
   contents: write
@@ -327,4 +330,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          TESTBOT_SLACK_CHANNEL: ${{ vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test' }}
+          # workflow_dispatch override wins when present (including
+          # the empty string, which means "skip notification"). For
+          # schedule triggers inputs.slack_channel is null, so we fall
+          # back to the org/repo var and the literal default.
+          TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test') || inputs.slack_channel }}
