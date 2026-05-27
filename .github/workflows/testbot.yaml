@@ -333,8 +333,9 @@ jobs:
           # workflow_dispatch override wins when present (including
           # the empty string, which means "skip notification"). For
           # schedule triggers inputs.slack_channel is null, so we fall
-          # back to the org/repo var and the literal default. Prod has
-          # vars.TESTBOT_SLACK_CHANNEL set to #osmo-code-reviews; the
-          # literal here matches so a forked/dev repo with no var still
-          # targets the canonical review channel.
-          TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-code-reviews') || inputs.slack_channel }}
+          # back to the org/repo var. The literal #osmo-slack-test is
+          # the safety-net default for forks / dev repos where the var
+          # isn't set — prod has vars.TESTBOT_SLACK_CHANNEL configured
+          # to #osmo-code-reviews and the workflow_dispatch input
+          # default mirrors that.
+          TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test') || inputs.slack_channel }}

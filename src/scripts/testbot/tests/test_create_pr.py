@@ -209,23 +209,10 @@ class TestPrCreationHelpers(unittest.TestCase):
 class TestSlackReviewRequest(unittest.TestCase):
     """Tests for Slack review request helpers."""
 
-    def test_resolve_known_slack_channel_name_to_id(self):
-        # _SLACK_CHANNEL_IDS still has the legacy #osmo-slack-test entry
-        # because operators can still target it via workflow_dispatch.
-        # The default channel (now #osmo-code-reviews) intentionally has
-        # no ID mapping yet — Slack's API accepts the # form, so the
-        # pass-through branch is the supported path for it.
-        self.assertEqual(
-            _resolve_slack_channel("#osmo-slack-test"),
-            "C0A8RJ738KZ",
-        )
-
-    def test_resolve_default_slack_channel_passes_through_name(self):
-        # No ID mapping for the new default; the resolver should
-        # return the channel name unchanged so Slack receives "#name".
+    def test_resolve_default_slack_channel_to_id(self):
         self.assertEqual(
             _resolve_slack_channel(TESTBOT_SLACK_CHANNEL_DEFAULT),
-            TESTBOT_SLACK_CHANNEL_DEFAULT,
+            "C0A8RJ738KZ",
         )
 
     def test_resolve_unknown_slack_channel_passthrough(self):
