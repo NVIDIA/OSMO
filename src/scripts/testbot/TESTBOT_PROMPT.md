@@ -125,6 +125,18 @@ shame you for.
     forever — if you've iterated twice and the gap won't close, write up
     *why* in your summary so the human can decide.
 
+    **Coverage-tooling escape hatch.** If `verify_coverage.py` reports
+    `lcov_seen: false` for the target *or* every `DA:` line for the
+    target source file in `bazel-out/_coverage/_coverage_report.dat`
+    has `hits == 0` even after `bazel test` showed the new tests
+    exercising the code, the local coverage instrumentation is broken
+    (e.g., Python interpreter mismatch with the pinned coverage wheel).
+    Stop debugging it after one diagnostic attempt — note "coverage
+    tooling unavailable, see harness verification" in your final
+    summary and finish. The independent harness step will measure
+    against the production environment and the truth will land in
+    the PR body either way.
+
 ### 5. Final summary
 
 13. Emit a summary block that lists each target and the final
