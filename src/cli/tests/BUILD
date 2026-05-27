@@ -87,3 +87,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_resources",
+    srcs = [
+        "test_resources.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
