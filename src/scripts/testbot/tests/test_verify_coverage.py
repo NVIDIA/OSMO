@@ -3,6 +3,7 @@
 """Tests for verify_coverage.py."""
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -102,6 +103,21 @@ class TestParseLCOV(unittest.TestCase):
 
     def test_missing_file_returns_empty(self):
         coverage = parse_lcov(Path("/nonexistent/lcov.dat"))
+        self.assertEqual(coverage, {})
+
+    def test_unreadable_file_returns_empty_and_does_not_raise(self):
+        # Existing path that we can't open (chmod 000): the parser is
+        # fail-soft and must not raise so the harness verification step
+        # still produces a (degenerate) report instead of crashing the
+        # workflow run.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = _write(Path(tmpdir) / "report.dat", "SF:foo\nDA:1,1\n")
+            os.chmod(path, 0o000)
+            try:
+                coverage = parse_lcov(path)
+            finally:
+                # Restore mode so the tmpdir cleanup can rm the file.
+                os.chmod(path, 0o644)
         self.assertEqual(coverage, {})
 
 

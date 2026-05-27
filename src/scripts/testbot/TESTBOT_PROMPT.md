@@ -129,7 +129,7 @@ shame you for.
 
 13. Emit a summary block that lists each target and the final
     `hit_fraction`, mirroring the JSON report:
-    ```
+    ```text
     COVERAGE REPORT
     - src/utils/roles/roles.go: 87/121 listed lines hit (72%) — pass
       still uncovered: lines 88-89 (defensive — `_ = err` after constant

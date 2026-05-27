@@ -117,7 +117,16 @@ def parse_lcov(lcov_path: Path) -> dict[str, dict[int, int]]:
 
     coverage: dict[str, dict[int, int]] = {}
     current_file: str | None = None
-    with open(lcov_path, encoding="utf-8", errors="replace") as fh:
+    # Fail-soft on unreadable LCOV (permissions, partial write, broken
+    # symlink): warn and return whatever we got. The harness step is
+    # already `continue-on-error`, but an uncaught OSError here would
+    # still surface a workflow failure annotation.
+    try:
+        fh = open(lcov_path, encoding="utf-8", errors="replace")
+    except OSError as exc:
+        logger.warning("Could not open LCOV report %s: %s", lcov_path, exc)
+        return {}
+    try:
         for raw_line in fh:
             line = raw_line.strip()
             if line.startswith("SF:"):
@@ -142,6 +151,14 @@ def parse_lcov(lcov_path: Path) -> dict[str, dict[int, int]]:
                 coverage[current_file][line_no] = max(existing, hits)
             elif line == "end_of_record":
                 current_file = None
+    except OSError as exc:
+        # Mid-read I/O failure (e.g., NFS truncation) — keep what we
+        # parsed so far so partial coverage data still flows to the PR.
+        logger.warning(
+            "Error reading LCOV report %s mid-stream: %s", lcov_path, exc,
+        )
+    finally:
+        fh.close()
     return coverage
 
 

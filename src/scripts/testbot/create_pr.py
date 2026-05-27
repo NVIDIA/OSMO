@@ -171,8 +171,17 @@ def _build_coverage_section(path: str) -> str:
         file_path = entry.get("file_path", "")
         if not file_path:
             continue
-        listed = int(entry.get("listed_lines", 0) or 0)
-        hit = int(entry.get("hit_lines", 0) or 0)
+        # Fail-soft on malformed values so a stray string in one field can't
+        # abort PR creation — we'd rather show 0 and let the reviewer see the
+        # gap than block the whole pipeline on a typo upstream.
+        try:
+            listed = int(entry.get("listed_lines", 0) or 0)
+        except (TypeError, ValueError):
+            listed = 0
+        try:
+            hit = int(entry.get("hit_lines", 0) or 0)
+        except (TypeError, ValueError):
+            hit = 0
         try:
             hit_fraction = float(entry.get("hit_fraction", 0.0) or 0.0)
         except (TypeError, ValueError):

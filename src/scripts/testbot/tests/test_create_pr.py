@@ -742,6 +742,29 @@ class TestBuildCoverageSection(unittest.TestCase):
         self.assertIn("❔", section)
         self.assertIn("file not found in LCOV", section)
 
+    def test_renders_with_malformed_numeric_fields(self):
+        # A stray non-numeric value (e.g., upstream tool wrote a string)
+        # must not abort PR creation. Defaults to 0 so the row still shows.
+        path = self._write_report([
+            {
+                "file_path": "src/lib/foo.py",
+                "listed_lines": "not-a-number",
+                "hit_lines": None,
+                "hit_fraction": "bogus",
+                "passed": False,
+                "lcov_seen": True,
+                "ranges": [],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("src/lib/foo.py", section)
+        self.assertIn("0/0", section)
+        self.assertIn("0%", section)
+
     def test_single_line_range_renders_singular_form(self):
         # Reviewers find "lines 5-5" jarring; verify we say "line 5"
         # when start == end.

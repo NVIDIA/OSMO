@@ -22,7 +22,7 @@ filesystem ───┘                                                         
 | **Coverage verifier** | `verify_coverage.py` | Parses the LCOV report, computes per-range hits against the picker's listed uncovered ranges, emits a JSON sidecar + Markdown PR snippet. Used by both the generator (self-iteration) and the harness (independent verification before PR). |
 | **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, enables auto-merge, renders the picker's target rationale and the coverage-gain report (with ✅/⚠️/❔ markers per target), and sends a brief Slack review request when Slack credentials are configured |
 
-Claude Code is sandboxed: it can only read files, edit test files, and run test commands (`bazel test`, `bazel coverage`, `bazel query`, `pnpm test`). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
+Claude Code is sandboxed: it can only read files, edit test files, and run test/build commands (`bazel test`, `bazel coverage`, `bazel query`, `pnpm test`, and `python`/`python3` — the latter so the generator can invoke `verify_coverage.py` during its self-iteration loop). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
 
 ### Review Response (`testbot-respond.yaml`)
 
