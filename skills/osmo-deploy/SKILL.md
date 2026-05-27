@@ -37,6 +37,44 @@ Do **not** activate for general OSMO usage questions (running workflows, CLI usa
 
 **This skill requires OSMO >= 6.3 (ConfigMap mode).** Earlier 6.2 CLI-write mode is not supported — the chart's HTTP 409 on `osmo config update` is the runtime signal that the cluster landed on 6.2. If the default `latest` channel still resolves to a 6.2 release, the deploy with no env-var pins lands on the unsupported variant. You MUST set the three version pins to a 6.3.x release before invoking the script — see "Picking chart, image, and CLI versions" below. Run `--list-chart-versions` to discover the latest available tags.
 
+## 🛑 STOP — gather inputs before invoking the script
+
+**Before any `deploy-osmo-minimal.sh` invocation, the agent MUST have collected every item below that applies. Skipping this gate and invoking with defaults silently lands the user in the wrong region / SKU / billing scope, or worse, fails ~15 min into TF apply.**
+
+This applies whenever the user says "deploy OSMO" / "set up OSMO" / "stand up an OSMO cluster" without already supplying every flag/env. Map answers to env vars (or `--flag` equivalents) and invoke the script in `--non-interactive` mode so it doesn't re-ask.
+
+### Provider (ask first)
+
+**"Which cluster target?"** — `azure | aws | microk8s | byo`. See [§ Picking a provider](#picking-a-provider) for the trade-offs. The remaining prompts are gated on this answer.
+
+### GPU prompts (every provider)
+
+1. **"Do you need GPUs?"** (yes/no)
+   - **No** → pass `--no-gpu` (skips both the GPU node pool and the GPU Operator install + smoke test); skip to provider-specific prompts.
+   - **Yes** → pass `--gpu-node-pool` and continue. Count + SKU are env-var only (no `--gpu-count` / `--gpu-vm-size` flags exist).
+2. **"How many GPUs?"** — positive integer → `TF_GPU_COUNT=<n>`.
+3. **"What kind of GPU?"** — canonical Azure VM SKU (e.g. `Standard_NC40ads_H100_v5`) or AWS instance type (e.g. `p4d.24xlarge`). Translate informal names: `H100 → Standard_NC40ads_H100_v5`, `A10 → Standard_NV36ads_A10_v5`, `T4 → Standard_NC4as_T4_v3` on Azure. Default to `Standard_NC40ads_H100_v5` (Azure) / `p4d.24xlarge` (AWS) if left blank. → `TF_GPU_VM_SIZE=<sku>`.
+4. **"What region do you have availability?"** — specific region OR `idk`. Set via `--region <region>` (Azure) / `--aws-region <region>` (AWS), or `TF_REGION`.
+   - `idk` → pass `--find-gpu-region "$TF_GPU_VM_SIZE" "$TF_GPU_COUNT"` alongside `--provider azure --gpu-node-pool` on the SAME invocation. The script iterates `TF_REGION_CANDIDATES` (default covers H100-likely Azure regions: `eastus2 swedencentral westus3 southcentralus westeurope`), picks the first region whose quota fits, sets `TF_REGION` inline, and continues the deploy. Non-zero exit = no candidate has quota — surface to the user, suggest expanding `TF_REGION_CANDIDATES`. (Standalone `--find-gpu-region` without `--provider` is the query-only form that just prints the region.)
+   - Specific region → set `--region` / `TF_REGION` directly. The script's preflight will hard-fail before TF apply if the SKU isn't offered there or quota is insufficient.
+
+### Azure-only prompts (provider=azure)
+
+- **Azure subscription ID** — if not set via `--subscription-id` or `TF_SUBSCRIPTION_ID`, default to `$(az account show --query id -o tsv)` and confirm with the user.
+- **Resource group name** — if not set via `--resource-group` or `TF_RESOURCE_GROUP`. The deploy preflight auto-creates the group (tagged `osmo-deploy-managed=true`) when `TF_RESOURCE_GROUP` is set and the group doesn't already exist — pass the chosen name and let the script handle creation. Check pre-existence with `az group show -n <rg>` only if you need the group to outlive future `terraform destroy` runs (then create manually with `az group create -n <rg> -l <region>`).
+
+### AWS-only prompts (provider=aws)
+
+- **AWS region** (`--aws-region`) and **profile** (`--aws-profile`) — defaults `us-west-2` / `default` usually fine; re-prompt only if the user hasn't picked a region.
+
+### BYO-only prerequisites (provider=byo)
+
+The script skips bootstrap + TF entirely. Caller must export DB/Redis env vars **before** invoking: `POSTGRES_HOST POSTGRES_USERNAME POSTGRES_PASSWORD POSTGRES_DB_NAME REDIS_HOST REDIS_PORT REDIS_PASSWORD` (`IS_PRIVATE_CLUSTER` optional, defaults to false).
+
+---
+
+Once all applicable items above are collected, proceed to [§ Workflow](#workflow) for the script phases, then to [§ Common invocations](#common-invocations) for copy-pasteable command lines. Invoking the script with any of the GPU/region answers unset will either land in defaults the user didn't choose (Azure: `eastus2`, `Standard_NC40ads_H100_v5`, count=0) or trigger the script's own interactive prompts (defeats the point of having an agent).
+
 ## Workflow
 
 The canonical entry point is [scripts/deploy-osmo-minimal.sh](../../deployments/scripts/deploy-osmo-minimal.sh) under `osmo/external/deployments/`. Run from inside that directory:
@@ -64,30 +102,6 @@ The script orchestrates these phases:
 | `aws` | Cloud install on AWS EKS with RDS + ElastiCache. Optional GPU node group via `--gpu-node-pool`. |
 | `microk8s` | Single-node K8s on a Brev/local Ubuntu box. The script bootstraps MicroK8s itself (snapd, addons, optional NVIDIA addon). |
 | `byo` | A cluster you already have. Skips bootstrap and TF entirely. Required env vars: `POSTGRES_HOST POSTGRES_USERNAME POSTGRES_PASSWORD POSTGRES_DB_NAME REDIS_HOST REDIS_PORT REDIS_PASSWORD` (`IS_PRIVATE_CLUSTER` optional, defaults to false). |
-
-## Required user inputs (ask these BEFORE invoking the script)
-
-When the user asks to deploy OSMO without supplying every flag/env, prompt for these inputs first. Map answers to env vars (or `--flag` equivalents) and only then invoke `deploy-osmo-minimal.sh`.
-
-**Universal prompts (every provider):**
-
-1. **"Do you need GPUs?"** (yes/no)
-   - If **no** → set `TF_GPU_NODE_POOL_ENABLED=false`, skip prompts 2-4.
-   - If **yes** → continue.
-2. **"How many GPUs?"** — expect a positive integer. Set `TF_GPU_COUNT=<n>` and `TF_GPU_NODE_POOL_ENABLED=true`.
-3. **"What kind of GPU?"** — expect an Azure VM SKU (e.g. `Standard_NC40ads_H100_v5`) or AWS instance type (e.g. `p4d.24xlarge`). If the user gives an informal name (`H100`, `A10`, `T4`), translate to the canonical SKU: `H100 → Standard_NC40ads_H100_v5`, `A10 → Standard_NV36ads_A10_v5`, `T4 → Standard_NC4as_T4_v3` on Azure. Set `TF_GPU_VM_SIZE=<sku>`. Default to `Standard_NC40ads_H100_v5` on Azure / `p4d.24xlarge` on AWS if the user leaves it blank.
-4. **"What region do you have availability?"** — accept a specific region OR `idk`.
-   - If `idk` → call `./scripts/deploy-osmo-minimal.sh --find-gpu-region "$TF_GPU_VM_SIZE" "$TF_GPU_COUNT"`. The script iterates `TF_REGION_CANDIDATES` (env-overridable; default covers H100-likely Azure regions: `eastus2 swedencentral westus3 southcentralus westeurope`) and prints the first region whose quota fits. Set `TF_REGION` to that. Exits non-zero if no candidate has quota — surface the error to the user with a suggestion to expand `TF_REGION_CANDIDATES`.
-   - If user names a region → set `TF_REGION` to it directly.
-
-**Azure-only prompts (provider=azure, when not already supplied via flags/env):**
-
-4. **"Azure subscription ID?"** — if not set via `--subscription-id` or `TF_SUBSCRIPTION_ID`, default to `$(az account show --query id -o tsv)` and ask the user to confirm or override.
-5. **"Resource group name?"** — if not set via `--resource-group` or `TF_RESOURCE_GROUP`. The deploy preflight auto-creates the group (tagged `osmo-deploy-managed=true`) when `TF_RESOURCE_GROUP` is set and the group doesn't already exist — so the agent should pass the chosen name and let the script handle creation. Check with `az group show -n <rg>` if you want to see whether it pre-exists; create manually with `az group create -n <rg> -l <region>` only if you want the group to outlive future `terraform destroy` runs.
-
-**AWS-only prompts:** AWS region (`--aws-region`) and profile (`--aws-profile`) — defaults `us-west-2` / `default` are usually fine; only re-prompt if the user explicitly didn't pick a region.
-
-Once these are collected, invoke the script in `--non-interactive` mode with the answers passed as env vars (or `--flag` equivalents) — that avoids the script re-asking the same questions and keeps the agent's prompts as the single source of truth.
 
 ## Picking chart, image, and CLI versions
 
