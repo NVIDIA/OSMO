@@ -117,48 +117,40 @@ def parse_lcov(lcov_path: Path) -> dict[str, dict[int, int]]:
 
     coverage: dict[str, dict[int, int]] = {}
     current_file: str | None = None
-    # Fail-soft on unreadable LCOV (permissions, partial write, broken
-    # symlink): warn and return whatever we got. The harness step is
-    # already `continue-on-error`, but an uncaught OSError here would
-    # still surface a workflow failure annotation.
+    # Fail-soft on unreadable LCOV (permissions, partial write, NFS
+    # truncation, target path is a directory): warn and return whatever
+    # we parsed so far. The harness step is already `continue-on-error`,
+    # but an uncaught OSError here would still surface a workflow
+    # failure annotation.
     try:
-        fh = open(lcov_path, encoding="utf-8", errors="replace")
+        with open(lcov_path, encoding="utf-8", errors="replace") as fh:
+            for raw_line in fh:
+                line = raw_line.strip()
+                if line.startswith("SF:"):
+                    current_file = line[len("SF:"):].strip()
+                    # `bazel coverage` emits workspace-relative paths;
+                    # the picker metadata uses the same convention so we
+                    # don't normalize further.
+                    coverage.setdefault(current_file, {})
+                elif line.startswith("DA:") and current_file is not None:
+                    # DA:<line>,<hits>[,<checksum>]
+                    payload = line[len("DA:"):].split(",")
+                    if len(payload) < 2:
+                        continue
+                    try:
+                        line_no = int(payload[0])
+                        hits = int(payload[1])
+                    except ValueError:
+                        continue
+                    # Take the max if the line shows up twice (e.g., the
+                    # same source file participates in multiple test
+                    # targets).
+                    existing = coverage[current_file].get(line_no, 0)
+                    coverage[current_file][line_no] = max(existing, hits)
+                elif line == "end_of_record":
+                    current_file = None
     except OSError as exc:
-        logger.warning("Could not open LCOV report %s: %s", lcov_path, exc)
-        return {}
-    try:
-        for raw_line in fh:
-            line = raw_line.strip()
-            if line.startswith("SF:"):
-                current_file = line[len("SF:"):].strip()
-                # `bazel coverage` emits workspace-relative paths; the
-                # picker metadata uses the same convention so we don't
-                # normalize further.
-                coverage.setdefault(current_file, {})
-            elif line.startswith("DA:") and current_file is not None:
-                # DA:<line>,<hits>[,<checksum>]
-                payload = line[len("DA:"):].split(",")
-                if len(payload) < 2:
-                    continue
-                try:
-                    line_no = int(payload[0])
-                    hits = int(payload[1])
-                except ValueError:
-                    continue
-                # Take the max if the line shows up twice (e.g., the same
-                # source file participates in multiple test targets).
-                existing = coverage[current_file].get(line_no, 0)
-                coverage[current_file][line_no] = max(existing, hits)
-            elif line == "end_of_record":
-                current_file = None
-    except OSError as exc:
-        # Mid-read I/O failure (e.g., NFS truncation) — keep what we
-        # parsed so far so partial coverage data still flows to the PR.
-        logger.warning(
-            "Error reading LCOV report %s mid-stream: %s", lcov_path, exc,
-        )
-    finally:
-        fh.close()
+        logger.warning("Could not read LCOV report %s: %s", lcov_path, exc)
     return coverage
 
 
