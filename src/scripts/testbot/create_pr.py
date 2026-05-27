@@ -100,7 +100,33 @@ def _enable_auto_merge(pr_url: str) -> bool:
     return True
 
 
-_SUSPECTED_BUG_RE = re.compile(r"(?:#|//)\s*SUSPECTED BUG:\s*(.+)")
+# Match SUSPECTED BUG markers Claude leaves on skipped tests. Accepts
+# both forms the convention has produced in practice:
+#   - canonical sibling comment:
+#       # SUSPECTED BUG: foo.py:fn — desc
+#       // SUSPECTED BUG: foo.go:Fn — desc
+#   - the marker inlined as the skip-decorator reason string:
+#       @unittest.skip('Suspected source bug: foo assumes X but receives Y')
+#       t.Skip("Suspected library bug: ...")
+# The second form is what surfaced on PR #1046 — Claude wrote the marker
+# as the skip reason and never added the sibling comment, so the original
+# strict regex missed it and the PR body's "Suspected bugs" section
+# silently dropped a real signal. Stay anchored to a comment prefix or
+# an opening quote so generic prose mentions ("# this is a suspected
+# bug in the code") are still excluded.
+_SUSPECTED_BUG_RE = re.compile(
+    r"""(?xi)               # verbose, case-insensitive
+    (?:\#|//|['\"])         # comment marker, or opening quote of a string literal
+    \s*
+    Suspected               # always starts with this word
+    (?:\s+\w+)?             # optional adjective ("source", "library", ...)
+    \s+
+    bug                     # always ends with "bug"
+    \s*:?\s*                # optional colon
+    (.+)                    # the description; trailing quotes/parens
+                            # are stripped in _scan_suspected_bugs
+    """
+)
 
 # Map a generated test file back to the source file it covers, so the
 # Stage-2 picker rationale (keyed on source path) can be attached to the
@@ -276,8 +302,12 @@ def _scan_suspected_bugs(files: list[str]) -> list[str]:
                 for line in fh:
                     match = _SUSPECTED_BUG_RE.search(line)
                     if match:
-                        description = match.group(1).strip()
-                        if description not in seen:
+                        # Strip trailing characters left over from
+                        # string-literal markers: closing quote,
+                        # closing paren, comma, backslash for line
+                        # continuation, plus surrounding whitespace.
+                        description = match.group(1).strip(" \t\r\n'\"),\\")
+                        if description and description not in seen:
                             seen.add(description)
                             bugs.append(description)
         except OSError:

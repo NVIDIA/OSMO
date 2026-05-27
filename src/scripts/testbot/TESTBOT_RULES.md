@@ -35,10 +35,28 @@ When a test fails:
   output differs. If your expectation was wrong, update the assertion.
   If the output contradicts the function's docstring/name/comments,
   do NOT change the assertion to match — this is likely a source bug.
-  Skip the test with a reason (`@unittest.skip`, `t.Skip`, `it.skip`)
-  and add a comment above the skipped test using the language's comment
-  syntax: `# SUSPECTED BUG: <file>:<function> — <description>` (Python)
-  or `// SUSPECTED BUG: <file>:<function> — <description>` (Go/TypeScript).
+  Skip the test AND add a sibling `SUSPECTED BUG` comment above it so
+  the harness can lift the description into the PR body's "Suspected
+  bugs" section. The comment is what the PR-builder scans for; the
+  skip reason alone is not enough.
+
+  **Python:**
+
+  ```python
+  # SUSPECTED BUG: task.py:get_resource_from_spec — assumes cpu/gpu
+  # are dicts with a "count" key, but ResourceSpec.model_dump emits ints.
+  @unittest.skip('source bug — see comment above')
+  def test_to_pod_resource_spec_drops_zero_gpu(self):
+      ...
+  ```
+
+  **Go / TypeScript:** same idea, using `//` for the comment:
+
+  ```go
+  // SUSPECTED BUG: pool.go:Acquire — never returns on closed pool.
+  t.Skip("source bug — see comment above")
+  ```
+
   Never blindly match assertions to actual output.
 
 ## Verification

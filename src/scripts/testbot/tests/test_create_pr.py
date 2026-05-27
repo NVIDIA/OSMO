@@ -466,6 +466,52 @@ class TestScanSuspectedBugs(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertIn("off-by-one month", result[0])
 
+    def test_unittest_skip_reason_string_detected(self):
+        # PR #1046 regression: Claude wrote the marker as the skip
+        # decorator's reason string instead of a sibling comment. The
+        # scanner must catch this form so the PR body's "Suspected
+        # bugs" section reflects the signal.
+        path = self._write_temp(
+            "    @unittest.skip(\n"
+            "        'Suspected source bug: get_resource_from_spec "
+            "assumes cpu/gpu values are dicts'\n"
+            "    )\n"
+            "    def test_to_pod_resource_spec_drops_zero_gpu(self):\n"
+        )
+        result = _scan_suspected_bugs([path])
+        self.assertEqual(len(result), 1)
+        self.assertIn("get_resource_from_spec", result[0])
+        # Trailing closing quote on the captured string must be trimmed.
+        self.assertFalse(result[0].endswith("'"))
+        self.assertFalse(result[0].endswith('"'))
+
+    def test_go_t_skip_reason_string_detected(self):
+        # Mirror of the Python case for Go-style integration tests
+        # where the bot leaves the marker in the t.Skip(...) argument.
+        path = self._write_temp(
+            "func TestThing(t *testing.T) {\n"
+            "    t.Skip(\"Suspected library bug: pool.Acquire never "
+            "returns on closed pool\")\n"
+            "}\n"
+        )
+        result = _scan_suspected_bugs([path])
+        self.assertEqual(len(result), 1)
+        self.assertIn("pool.Acquire", result[0])
+        self.assertFalse(result[0].endswith('"'))
+
+    def test_prose_mention_inside_comment_still_ignored(self):
+        # Don't regress the existing safety: free-form prose that
+        # happens to contain the words "suspected" and "bug" must not
+        # trigger a section. Anchor stays on the comment/quote prefix
+        # immediately preceding "Suspected ... bug".
+        path = self._write_temp(
+            "# We chased a suspected bug here for a week — turned out\n"
+            "# to be a flaky test. Leaving the note for posterity.\n"
+            "def test_unrelated_thing(self):\n"
+            "    self.assertTrue(True)\n"
+        )
+        self.assertEqual(_scan_suspected_bugs([path]), [])
+
 
 class TestTestToSourcePath(unittest.TestCase):
     """Tests for mapping a generated test file back to its source path."""
