@@ -314,16 +314,20 @@ SKIP_MESSAGE = (
 
 
 def _build_meta(merged: list[dict]) -> list[dict]:
-    """Project the merged picks down to the fields create_pr.py uses.
+    """Project the merged picks down to the downstream fields.
 
-    Strips score breakdowns and uncovered_ranges — those belong in the
-    workflow log, not in the PR description.
+    Strips score breakdowns (workflow-log noise) but **keeps**
+    ``uncovered_ranges``: ``verify_coverage.py`` needs them to compute
+    per-range hits after ``bazel coverage`` runs. ``create_pr.py``
+    ignores fields it doesn't recognize, so carrying the ranges through
+    doesn't bloat the PR description.
     """
     return [
         {
             "file_path": entry["file_path"],
             "coverage_pct": entry["coverage_pct"],
             "uncovered_lines": entry["uncovered_lines"],
+            "uncovered_ranges": entry.get("uncovered_ranges", []),
             "reason": entry.get("reason", ""),
         }
         for entry in merged

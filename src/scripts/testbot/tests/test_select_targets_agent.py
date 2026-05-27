@@ -153,7 +153,11 @@ class TestFormatTargetsMarkdown(unittest.TestCase):
 class TestBuildMeta(unittest.TestCase):
     """Tests for the picker's PR-description sidecar shape."""
 
-    def test_projects_only_pr_relevant_fields(self):
+    def test_projects_downstream_fields_including_uncovered_ranges(self):
+        # uncovered_ranges must survive the projection so
+        # verify_coverage.py (consumed via --targets-meta) can compute
+        # per-range hits. Score breakdowns are correctly stripped — they
+        # are only useful in the workflow log.
         merged = [{
             "file_path": "src/lib/foo.py",
             "coverage_pct": 25.0,
@@ -172,6 +176,7 @@ class TestBuildMeta(unittest.TestCase):
             "file_path": "src/lib/foo.py",
             "coverage_pct": 25.0,
             "uncovered_lines": 50,
+            "uncovered_ranges": [(10, 20), (30, 40)],
             "reason": "central API",
         }])
 
@@ -184,7 +189,11 @@ class TestBuildMeta(unittest.TestCase):
             "coverage_pct": 10.0,
             "uncovered_lines": 5,
         }]
-        self.assertEqual(_build_meta(merged)[0]["reason"], "")
+        entry = _build_meta(merged)[0]
+        self.assertEqual(entry["reason"], "")
+        # And uncovered_ranges defaults to [] so verify_coverage.py
+        # doesn't KeyError when the picker output omits the field.
+        self.assertEqual(entry["uncovered_ranges"], [])
 
 
 class TestStreamNpxTimeout(unittest.TestCase):
