@@ -69,6 +69,12 @@ When a test fails:
 > returns stdout and stderr separately, auto-truncates very long output
 > before handing it to you, and reports the exit code separately so you
 > see both the failure and the output. Just run the command directly.
+>
+> To inspect a bazel test log or any large text file, use the `Read`
+> tool with `limit` and `offset` instead of `cat … | head`. `cat` is
+> not in the workflow allowlist and the pipe will be denied — that
+> wasted turns on run/26536045087. `Read` accepts absolute paths under
+> `bazel-out/` and `bazel-testlogs/`.
 
 1. **Run the test**:
    - Python/Go: `bazel test <target>` (derive the Bazel target from the BUILD file).

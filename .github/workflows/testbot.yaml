@@ -31,7 +31,12 @@ on:
         default: '500'
       max_turns:
         description: 'Max Claude Code agent turns'
-        default: '100'
+        # Matches the schedule-trigger fallback below. Large picks
+        # (e.g., utils/job/jobs.py at 500 uncovered lines) need the
+        # extra headroom — runs/26536045087 hit max_turns at 101/100
+        # after Claude's 200K context window auto-compacted, wiping
+        # most of the exploration state mid-run.
+        default: '200'
       timeout_minutes:
         description: 'Workflow timeout in minutes'
         default: '30'
@@ -288,8 +293,14 @@ jobs:
       # the source of truth in case the LLM skipped the loop.
       # Fail-soft: a non-zero exit here would block PR creation, so we
       # log and continue — the PR body will note the missing report.
+      # always() so the verifier still runs when Generate fails (e.g.,
+      # max_turns hit, transient API error). Even partial test files
+      # produce a useful coverage number for the workflow log —
+      # diagnosing run/26536045087 was harder than it needed to be
+      # because this step was skipped. Create PR stays gated on
+      # success so half-written tests don't open a PR.
       - name: Verify coverage
-        if: inputs.dry_run != true
+        if: always() && inputs.dry_run != true
         continue-on-error: true
         run: |
           set +e
