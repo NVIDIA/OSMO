@@ -429,6 +429,58 @@
       }
     },
     {
+      "name": "test_out_of_cpu_admission_rejection",
+      "description": "Pod rejected by kubelet at admit time because the node ran out of CPU (typical OutOfcpu pattern emitted by kubelet predicates).",
+      "input": {
+        "phase": "Failed",
+        "reason": "OutOfcpu",
+        "message": "Pod was rejected: Node didn't have enough resource: cpu, requested: 9000, used: 118020, capacity: 127000"
+      },
+      "expected": {
+        "status": "FAILED_BACKEND_ERROR",
+        "exit_code": 3001
+      }
+    },
+    {
+      "name": "test_out_of_memory_admission_rejection",
+      "description": "Pod rejected by kubelet at admit time because the node ran out of memory.",
+      "input": {
+        "phase": "Failed",
+        "reason": "OutOfmemory",
+        "message": "Pod was rejected: Node didn't have enough resource: memory, requested: 65000000000, used: 980000000000, capacity: 1037488000000"
+      },
+      "expected": {
+        "status": "FAILED_BACKEND_ERROR",
+        "exit_code": 3001
+      }
+    },
+    {
+      "name": "test_out_of_extended_resource_admission_rejection",
+      "description": "Pod rejected by kubelet at admit time because the node ran out of an extended resource (e.g., GPU).",
+      "input": {
+        "phase": "Failed",
+        "reason": "OutOfnvidia.com/gpu",
+        "message": "Pod was rejected: Node didn't have enough resource: nvidia.com/gpu, requested: 1, used: 8, capacity: 8"
+      },
+      "expected": {
+        "status": "FAILED_BACKEND_ERROR",
+        "exit_code": 3001
+      }
+    },
+    {
+      "name": "test_node_resource_rejection_message_only",
+      "description": "Pod rejected by kubelet with the 'Node didn't have enough resource' message but no structured reason field. Exercises the message-substring fallback.",
+      "input": {
+        "phase": "Failed",
+        "reason": null,
+        "message": "Pod was rejected: Node didn't have enough resource: cpu, requested: 9000, used: 118020, capacity: 127000"
+      },
+      "expected": {
+        "status": "FAILED_BACKEND_ERROR",
+        "exit_code": 3001
+      }
+    },
+    {
       "name": "test_disruption_target_condition",
       "description": "Pod with DisruptionTarget condition",
       "input": {

@@ -975,6 +975,28 @@ def calculate_pod_status(pod: Any) -> Tuple[task.TaskGroupStatus, str, Optional[
         # e.g. GPU drops
         status = task.TaskGroupStatus.FAILED_BACKEND_ERROR
         exit_code = task.ExitCode.FAILED_BACKEND_ERROR.value
+    elif (
+        (pod.status.reason and pod.status.reason.startswith('OutOf'))
+        or (
+            pod.status.message
+            and "Node didn't have enough resource" in pod.status.message
+        )
+    ):
+        # The kubelet admit predicates rejected the pod after the scheduler had
+        # already bound it to a node, because the node's actual available
+        # resources were insufficient at admit time (the scheduler decided
+        # against a slightly stale snapshot). Kubernetes sets ``reason`` to
+        # one of ``OutOfcpu`` / ``OutOfmemory`` / ``OutOfephemeral-storage`` /
+        # ``OutOf<extended-resource>`` (for example ``OutOfnvidia.com/gpu``)
+        # and writes ``"Pod was rejected: Node didn't have enough resource:
+        # <resource>, requested: ..., used: ..., capacity: ..."`` into
+        # ``pod.status.message``. The message-substring fallback also catches
+        # K8s variants that may not populate ``reason`` consistently.
+        # Semantically this matches ``UnexpectedAdmissionError`` (admission-
+        # time backend failure that the workload owner cannot fix) and is
+        # best handled by rescheduling the task onto a different node.
+        status = task.TaskGroupStatus.FAILED_BACKEND_ERROR
+        exit_code = task.ExitCode.FAILED_BACKEND_ERROR.value
     else:
         # Check if the pod conditions indicate a failure
         failure_found, failure_status, failure_exit_code = check_failure_pod_conditions(pod)
