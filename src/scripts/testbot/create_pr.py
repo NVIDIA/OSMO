@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SLACK_API_URL = "https://slack.com/api/chat.postMessage"
-TESTBOT_SLACK_CHANNEL_DEFAULT = "#osmo-slack-test"
+TESTBOT_SLACK_CHANNEL_DEFAULT = "#osmo-code-reviews"
 _SLACK_CHANNEL_IDS = {
     "#osmo-slack-test": "C0A8RJ738KZ",
 }

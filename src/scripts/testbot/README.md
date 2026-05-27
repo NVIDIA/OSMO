@@ -116,7 +116,9 @@ Then post a new `/testbot` comment with clearer instructions.
 
 After `create_pr.py` opens a PR, it posts a short review request to Slack when
 `TESTBOT_SLACK_BOT_TOKEN` is set. `TESTBOT_SLACK_CHANNEL` defaults to
-`#osmo-slack-test`; direct channel IDs are also accepted.
+`#osmo-code-reviews` (overridable per-run via the `slack_channel`
+workflow_dispatch input; pass an empty string to skip the notification).
+Direct channel IDs are also accepted.
 
 ### Review response (CLI args in `testbot-respond.yaml`)
 
