@@ -578,13 +578,14 @@ class StandaloneExecutor:
                 logger.warning(
                     'Task "%s" requests %d GPU(s) but no GPUs are available — running without GPU support',
                     node.name, gpu_count)
-            elif gpu_count > available:
-                logger.warning(
-                    'Task "%s" requests %d GPU(s) but only %d available — running with %d GPU(s)',
-                    node.name, gpu_count, available, available)
-                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(available))}']
+            elif gpu_count >= available:
+                if gpu_count > available:
+                    logger.warning(
+                        'Task "%s" requests %d GPU(s) but only %d available — running with %d GPU(s)',
+                        node.name, gpu_count, available, available)
+                docker_args += ['--gpus', 'all']
             else:
-                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(gpu_count))}']
+                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
             logger.info('Task "%s" requesting %d GPU(s), using %d', node.name, gpu_count, min(gpu_count, available))
 
             docker_args += ['--shm-size', self._shm_size or self.DEFAULT_SHM_SIZE]
