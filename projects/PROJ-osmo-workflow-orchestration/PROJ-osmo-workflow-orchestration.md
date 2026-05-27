@@ -16,10 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OSMOTaskGroup CRD — Heterogeneous Workload Runtimes
+# OSMO Workflow Orchestration — Kubernetes-native rewrite of the OSMO orchestration plane
 
-**Author**: [Vivian Pan](https://github.com/vivian-nvidia)<br>
-**PIC**: [Vivian Pan](https://github.com/vivian-nvidia)<br>
+**Author**: [Vivian Pan](https://github.com/vvnpn-nv)<br>
+**PIC**: [Vivian Pan](https://github.com/vvnpn-nv)<br>
 **Proposal Issue**: _TBD_
 
 ## Overview
@@ -109,24 +109,44 @@ flowchart LR
 ### Proposed architecture
 
 ```mermaid
-flowchart LR
-    APIServer["API Server<br/>(Python FastAPI)"]
-    OperatorSvc["Operator Service<br/>(Go gRPC)<br/>[PROJ-147]"]
-    Controller["TaskGroup Controller<br/>(Go, per cluster)"]
-    K8s["Kubernetes<br/>(backend cluster)"]
-    Runtimes["Runtime primitives<br/>(Pod, NIMService,<br/>DynamoGraphDeployment,<br/>RayCluster, PodClique)"]
+flowchart TB
+    subgraph Control["Control cluster"]
+        APIServer["API Server<br/>(Go HTTP, stateless)"]
+        WfCtrl["Workflow Controller<br/>(controller-runtime)"]
+        OpSvc["Operator Service<br/>(in-proc gRPC server)"]
+        ControlEtcd[("control etcd<br/>OSMOWorkflow<br/>OSMOCluster")]
+        APIServer -->|"write OSMOWorkflow CR"| ControlEtcd
+        WfCtrl -->|"watch + DAG + dispatch"| ControlEtcd
+        WfCtrl -->|"CreateOTG /<br/>DeleteOTG /<br/>ResyncRequest"| OpSvc
+        OpSvc -->|"status events →<br/>RemoteStatusCache →<br/>reconcile"| WfCtrl
+    end
 
-    APIServer -->|gRPC: CreateOTG / DeleteOTG| OperatorSvc
-    OperatorSvc -->|K8s API: write CR| K8s
-    Controller -->|K8s API: watch CRs| K8s
-    Controller -->|reconcile into| Runtimes
-    Runtimes -->|.status| Controller
-    Controller -->|gRPC: normalized status| OperatorSvc
-    OperatorSvc -->|Postgres update| APIServer
+    subgraph BackendA["Backend cluster A"]
+        BSession_A["session client"]
+        BCtrl_A["TaskGroup Controller<br/>+ runtime plugins"]
+        BEtcd_A[("backend etcd<br/>OSMOTaskGroup")]
+        BCtrl_A -->|"watch + reconcile"| BEtcd_A
+        BCtrl_A -->|"create Pod /<br/>PodGroup /<br/>NIMService /<br/>RayCluster..."| BRuntimes_A["runtime primitives"]
+        BSession_A -.-> BCtrl_A
+    end
+
+    subgraph BackendB["Backend cluster B"]
+        BSession_B["session client"]
+        BCtrl_B["TaskGroup Controller"]
+        BEtcd_B[("backend etcd")]
+        BSession_B -.-> BCtrl_B
+    end
+
+    BSession_A == "phone-home<br/>gRPC ClusterSession<br/>(bidirectional stream)" ==> OpSvc
+    BSession_B == "phone-home<br/>gRPC ClusterSession" ==> OpSvc
 ```
 
-- API server writes `OSMOTaskGroup` CRs via the Operator Service (PROJ-147 gRPC)
-- Per-cluster Controller watches CRs it owns, reconciles each into runtime-native Kubernetes objects
+- **apiserver** (Go, stateless) accepts user submissions, writes `OSMOWorkflow` CRs to the control cluster's etcd.
+- **Workflow Controller** resolves the DAG, dispatches each ready group's `OSMOTaskGroup` CR to the right cluster via the Operator Service.
+- **Operator Service** terminates the gRPC ClusterSession from each backend. **Backends dial in** (phone-home); the control cluster never dials out. Works for NAT'd / edge / customer-managed backends.
+- **TaskGroup Controller** on each backend watches its local OSMOTaskGroup CRs and reconciles them via the appropriate runtime plugin into Pods / PodGroups / NIMServices / RayClusters / etc.
+- **Status events** flow back over the same session, into an in-memory `RemoteStatusCache`, and trigger a Workflow Controller reconcile that updates `OSMOWorkflow.status.Groups[g]` — single-writer pattern, no `Status().Update()` conflicts.
+- **No PostgreSQL.** Etcd is the source of truth for live state.
 - Controller normalizes per-runtime status back into the CR's `.status` field and pushes summaries via gRPC
 - API server reconciles PostgreSQL state against CR status (primary: Postgres, secondary: CR)
 

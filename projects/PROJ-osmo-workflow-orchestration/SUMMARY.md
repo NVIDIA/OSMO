@@ -3,11 +3,11 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OSMOTaskGroup CRD — Summary
+# OSMO Workflow Orchestration — Summary
 
 **TL;DR**: Replace OSMO's Python pod-spec rendering + Worker + Redis + PostgreSQL with a Kubernetes-native control plane: three CRDs (`OSMOWorkflow`, `OSMOTaskGroup`, `OSMOCluster`) reconciled by Go controllers, with cross-cluster dispatch over a phone-home gRPC session. Adding new workload runtimes (NIM, Ray, Dynamo, Grove) becomes ~200 LOC of Go instead of cross-cutting Python+Go+SQL changes. Multi-cluster workflows become a first-class capability. **Worker, Delayed Job Monitor, Redis, and PostgreSQL all go away** — live state lives in etcd; history goes to structured logs + S3; accounting goes to Prometheus.
 
-Full design: [PROJ-taskgroup-crd.md](./PROJ-taskgroup-crd.md)
+Full design: [PROJ-osmo-workflow-orchestration.md](./PROJ-osmo-workflow-orchestration.md)
 
 ## Why we're doing this
 
