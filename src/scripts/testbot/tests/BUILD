@@ -40,6 +40,12 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_verify_coverage",
+    srcs = ["test_verify_coverage.py"],
+    deps = ["//src/scripts/testbot"],
+)
+
+osmo_py_test(
     name = "test_workflow_python_version",
     srcs = ["test_workflow_python_version.py"],
     data = [

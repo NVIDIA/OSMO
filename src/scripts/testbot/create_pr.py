@@ -145,6 +145,75 @@ def _load_targets_meta(path: str) -> dict[str, dict]:
     }
 
 
+def _build_coverage_section(path: str) -> str:
+    """Render the coverage-gain section from verify_coverage.py's JSON.
+
+    The verifier writes one entry per picker target with the listed-line
+    hit count and per-range outcome. Missing / unreadable reports yield
+    an empty string so the PR opens unchanged. Below-threshold files get
+    a ⚠️ marker so reviewers can scan the gap at a glance — for example
+    ``2/121 lines (2%)`` should jump out the way the roles.go PR did.
+    """
+    if not path:
+        return ""
+    try:
+        reports = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Could not read coverage report %s: %s", path, exc)
+        return ""
+    if not isinstance(reports, list) or not reports:
+        return ""
+
+    lines: list[str] = ["## Coverage gain on listed uncovered ranges", ""]
+    for entry in reports:
+        if not isinstance(entry, dict):
+            continue
+        file_path = entry.get("file_path", "")
+        if not file_path:
+            continue
+        listed = int(entry.get("listed_lines", 0) or 0)
+        hit = int(entry.get("hit_lines", 0) or 0)
+        try:
+            hit_fraction = float(entry.get("hit_fraction", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            hit_fraction = 0.0
+        passed = bool(entry.get("passed", False))
+        lcov_seen = bool(entry.get("lcov_seen", True))
+        if not lcov_seen:
+            marker = "❔"
+            note = (
+                " — file not found in LCOV (test target may not have run; "
+                "the harness ran `bazel coverage` over //... after generation)"
+            )
+        else:
+            marker = "✅" if passed else "⚠️"
+            note = ""
+        lines.append(
+            f"{marker} **`{file_path}`** — "
+            f"{hit}/{listed} listed lines hit ({hit_fraction * 100:.0f}%)"
+            f"{note}"
+        )
+        # Detail per range so reviewers can spot which specific blocks
+        # the bot missed without leaving the PR view.
+        for r in entry.get("ranges", []) or []:
+            if not isinstance(r, dict):
+                continue
+            start = r.get("start")
+            end = r.get("end")
+            hit_lines = r.get("hit_lines", 0)
+            total_lines = r.get("total_lines", 0)
+            covered = bool(r.get("covered", False))
+            if start is None or end is None:
+                continue
+            span = f"line {start}" if start == end else f"lines {start}-{end}"
+            check = "✅" if covered else "❌"
+            lines.append(
+                f"  - {check} {span} — {hit_lines}/{total_lines} hit"
+            )
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def _build_rationale_section(
     changed_files: list[str],
     meta: dict[str, dict],
@@ -326,6 +395,13 @@ def main() -> None:
         help="Optional path to the picker's JSON metadata; when provided, "
              "the PR body includes the 'Why this file was targeted' section",
     )
+    parser.add_argument(
+        "--coverage-report", default="",
+        help="Optional path to verify_coverage.py's JSON report; when "
+             "provided, the PR body includes a 'Coverage gain on listed "
+             "uncovered ranges' section so reviewers can see how many of "
+             "the picker's listed lines the generated tests actually hit",
+    )
     args = parser.parse_args()
 
     if has_unapproved_testbot_pr():
@@ -381,6 +457,10 @@ def main() -> None:
     if rationale_section:
         rationale_section = "\n" + rationale_section
 
+    coverage_section = _build_coverage_section(args.coverage_report)
+    if coverage_section:
+        coverage_section = "\n" + coverage_section
+
     pr_title = f"[testbot] Add tests for {files_summary}"
     pr_body = f"""## Summary
 AI-generated tests targeting file(s) with low coverage.
@@ -389,7 +469,7 @@ Issue - None
 
 ## Files tested
 {files_list}
-{rationale_section}{bugs_section}
+{rationale_section}{coverage_section}{bugs_section}
 ## Checklist
 - [x] I am familiar with the Contributing Guidelines
 - [x] New or existing tests cover these changes

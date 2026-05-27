@@ -6,61 +6,150 @@ naming conventions, type annotations, assertion style).
 Read `src/scripts/testbot/TESTBOT_RULES.md` for test quality rules, language
 conventions, and verification steps.
 
+## Primary Objective
+
+Cover the specific uncovered source lines listed for each target. A run that
+adds passing tests which fail to move the *listed* uncovered lines is a
+**failed run**, even when every test passes — past runs have written 20
+tests and moved Codecov by 3 lines because the tests landed on already-
+covered behavior.
+
+Treat `Uncovered ranges:` as the work queue. Every test you add must
+actually execute lines in one of the listed ranges, and you must prove it
+with `bazel coverage` before declaring done.
+
 ## Coverage Targets
 
 The targets are appended below this prompt. For each target you receive:
+
 - The source file path
 - Current coverage percentage
-- Uncovered line ranges (focus your tests here)
+- Uncovered line ranges (your work queue)
 
-## Process (repeat for each target)
+## Process (per target)
+
+### 1. Plan
 
 1. Read the source file.
 2. Identify existing tests:
    - Python: `<dir>/tests/test_<name>.py`
    - Go: `<dir>/<name>_test.go`
    - TypeScript: `<dir>/<name>.test.ts` or `<name>.test.tsx`
-3. If a test file exists, read it so you can extend it without duplicating.
-4. Analyze the uncovered line ranges before writing tests:
-   - Read the function's docstring/comments to understand intended behavior.
-   - Read the conditional (`if`/`except`/`match`) that gates each uncovered block.
-   - Identify what input or state would trigger that branch.
-   - Check callers of the function for real-world input patterns.
-   - Target: boundary values, empty/None inputs, error paths, off-by-one.
-5. Write (or extend) the test file targeting the uncovered line ranges.
-   Place new test files in the same location convention as step 2.
-6. **BUILD file** (Python and Go — TypeScript uses Vitest discovery, no BUILD edit):
-   - **Python**: check the `BUILD` file in the test directory for an existing
-     `py_test()` entry. If missing, add a `py_test()` rule. Infer `deps` from
-     other `py_test` entries in the same BUILD file. Do NOT guess target names.
-   - **Go**: the test file lives next to the source (`<name>_test.go`), so
-     check the source package's `BUILD` for an existing `go_test()` entry. If
-     the BUILD only has `go_library` and you added a `_test.go`, you MUST also
-     add a `go_test` rule referencing it. Without the rule the test file is
-     invisible to Bazel and `bazel coverage` will not run it. Pattern (verified
-     against `src/runtime/pkg/data/BUILD`):
+3. If a test file exists, read it so you can extend rather than duplicate.
+4. For every listed uncovered range, locate the exact branch/function
+   containing it. Note:
+   - The conditional (`if`/`except`/`match`/`switch`) or return path that
+     gates the block.
+   - The input or state required to execute it.
+   - Whether existing tests cover nearby lines but miss the listed range.
+5. Group the ranges by the public function/contract that reaches them so
+   you can cover multiple ranges with a single well-chosen test.
+
+### 2. Write tests
+
+6. Place new test files in the same location convention as step 2. Each
+   new test method must be traceable to at least one listed uncovered
+   range. Do not add round-trip / constant / constructor / happy-path
+   tests unless they execute one of the listed branches.
+7. **BUILD wiring** (Python and Go — TypeScript uses Vitest discovery, no
+   BUILD edit):
+   - **Python**: check the `BUILD` file in the test directory for an
+     existing `py_test()` entry. If missing, add a `py_test()` rule.
+     Infer `deps` from other `py_test` entries in the same BUILD file.
+     Do NOT guess target names.
+   - **Go**: the test file lives next to the source (`<name>_test.go`),
+     so check the source package's `BUILD` for an existing `go_test()`
+     entry. If the BUILD only has `go_library` and you added a
+     `_test.go`, you MUST also add a `go_test` rule referencing it. A
+     `go_library`-only BUILD silently drops adjacent `_test.go` files on
+     the floor and `bazel coverage` will report zero gain.
+     Pattern (verified against `src/runtime/pkg/data/BUILD`):
      ```bzl
      load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
      go_test(
          name = "<pkg>_test",
          srcs = ["<name>_test.go"],
          embed = [":<pkg>"],   # the existing go_library target name
-         # add deps only if your test imports something the library doesn't
      )
      ```
-     Confirm the rule is loaded by running `bazel test <target>`; if you get
-     `ERROR: No test targets were found, yet testing was requested`, the
-     `go_test` rule is missing or misnamed.
-7. Run the test and verify code style per TESTBOT_RULES.md.
-   If the test fails, follow the bug detection steps in TESTBOT_RULES.md.
-8. Move to the next target.
+     Confirm the rule is loaded by running `bazel test <target>`; if you
+     get `ERROR: No test targets were found, yet testing was requested`,
+     the `go_test` rule is missing or misnamed.
+
+### 3. Verify locally
+
+8. Run the test and verify code style per TESTBOT_RULES.md. If the test
+   fails, follow the bug-detection steps in TESTBOT_RULES.md.
+
+### 4. Coverage self-check loop (MANDATORY — do not skip)
+
+This is the step previous runs have routinely skipped. The harness will
+run the same check independently after you finish, and the PR description
+will show whichever number is real. Don't ship work the harness will
+shame you for.
+
+9. Run `bazel coverage` for the test target(s) you touched. Use a
+   package-level roll-up so multiple test targets on the same package
+   are aggregated:
+   ```bash
+   bazel coverage //src/<package>:all
+   ```
+   The combined LCOV report lands at
+   `bazel-out/_coverage/_coverage_report.dat`. Whichever target you ran,
+   confirm the file exists (`Read` it) before moving on — a missing file
+   usually means `bazel coverage` reported no test targets.
+
+10. Compute coverage gain against the listed uncovered ranges. The picker
+    persists its per-target metadata for this exact purpose:
+    ```bash
+    python src/scripts/testbot/verify_coverage.py \
+      --targets-meta "$RUNNER_TEMP/targets_meta.json" \
+      --lcov bazel-out/_coverage/_coverage_report.dat \
+      --json-output "$RUNNER_TEMP/coverage_self_check.json" \
+      --markdown-output "$RUNNER_TEMP/coverage_self_check.md"
+    ```
+    Then `Read "$RUNNER_TEMP/coverage_self_check.json"`. Each target has
+    a `hit_fraction` (0.0–1.0) and a `still_uncovered_ranges` list.
+
+11. **Iterate until the gap closes.** A target passes when
+    `hit_fraction >= 0.70`. If you're below, return to step 5 and add
+    tests for the ranges in `still_uncovered_ranges`. For each range you
+    leave uncovered, you must either:
+    - Add a test that exercises it, or
+    - Document in your final summary that it is genuinely unreachable
+      (defensive branches around stdlib calls that cannot fail, dead
+      code behind a build tag) — name the range and the reason.
+
+12. Repeat 9–11 until every target's `hit_fraction >= 0.70` or every
+    still-uncovered range is explained as unreachable. Don't churn
+    forever — if you've iterated twice and the gap won't close, write up
+    *why* in your summary so the human can decide.
+
+### 5. Final summary
+
+13. Emit a summary block that lists each target and the final
+    `hit_fraction`, mirroring the JSON report:
+    ```
+    COVERAGE REPORT
+    - src/utils/roles/roles.go: 87/121 listed lines hit (72%) — pass
+      still uncovered: lines 88-89 (defensive — `_ = err` after constant
+      string compile)
+    ```
+    This is what the human will read first when the PR opens.
+
+14. Move to the next target.
 
 ## Guardrails
 
-- **Test files only**: You may ONLY create or modify test files (`test_*.py`,
-  `*_test.go`, `*.test.ts`, `*.test.tsx`) and `BUILD` files (for `py_test`
-  and `go_test` entries). Do NOT modify source code, configuration, or other
-  non-test files.
+- **Test files only**: You may ONLY create or modify test files
+  (`test_*.py`, `*_test.go`, `*.test.ts`, `*.test.tsx`) and `BUILD` files
+  (for `py_test` and `go_test` entries). Do NOT modify source code,
+  configuration, or other non-test files. The harness `guardrails.py`
+  filters anything else before commit.
 - **No git or gh commands**: Do NOT run `git`, `gh`, or any commands that
-  modify version control state. The harness script handles branch creation,
-  committing, pushing, and PR creation.
+  modify version control state. The harness script handles branch
+  creation, committing, pushing, and PR creation.
+- **No gaming the verifier**: don't change the picker's
+  `uncovered_ranges` list to shrink the gap, and don't paste a fake
+  `/tmp/targets_meta.json`. The harness re-runs the verifier against the
+  unmodified meta and posts the truth to the PR.

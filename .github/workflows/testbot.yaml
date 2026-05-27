@@ -221,7 +221,7 @@ jobs:
           npx @anthropic-ai/claude-code@2.1.116 --print \
             --model "$ANTHROPIC_MODEL" \
             --output-format stream-json --verbose \
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(rm *),Bash(bazel test *),Bash(bazel build *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(rm *),Bash(bazel test *),Bash(bazel build *),Bash(bazel coverage *),Bash(bazel query *),Bash(python *),Bash(python3 *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
             --max-turns "$MAX_TURNS" \
             "$PROMPT" | tee "$STREAM_LOG"
           # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
@@ -277,11 +277,53 @@ jobs:
           DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
 
+      # Independently measure how many of the picker's listed uncovered
+      # lines were actually exercised by the new tests, then attach the
+      # report to the PR. The generator is expected to have already
+      # self-iterated against this same script (see TESTBOT_PROMPT.md);
+      # this step gives the human reviewer the same numbers and acts as
+      # the source of truth in case the LLM skipped the loop.
+      # Fail-soft: a non-zero exit here would block PR creation, so we
+      # log and continue — the PR body will note the missing report.
+      - name: Verify coverage
+        if: inputs.dry_run != true
+        continue-on-error: true
+        run: |
+          set +e
+          # bazel coverage prints the LCOV path on success; the
+          # combined_report=lcov setting in .bazelrc routes it to
+          # bazel-out/_coverage/_coverage_report.dat. We only need
+          # //... — the previous test runs are still cached, so this is
+          # cheap. requires-network targets that can't reach Docker will
+          # warn but not abort.
+          echo "::group::bazel coverage //..."
+          bazel coverage --config=ci //... 2>&1 | tail -50
+          coverage_status=${PIPESTATUS[0]}
+          echo "::endgroup::"
+          echo "bazel coverage exit_status: $coverage_status"
+
+          PYTHONPATH=. python src/scripts/testbot/verify_coverage.py \
+            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
+            --lcov bazel-out/_coverage/_coverage_report.dat \
+            --json-output "$RUNNER_TEMP/coverage_report.json" \
+            --markdown-output "$RUNNER_TEMP/coverage_report.md"
+
+          echo "::group::Coverage report (markdown)"
+          cat "$RUNNER_TEMP/coverage_report.md" || true
+          echo "::endgroup::"
+
       - name: Create PR
         if: inputs.dry_run != true
         run: |
+          # Pass --coverage-report when the verify step produced one;
+          # missing report is non-fatal so the PR still opens.
+          coverage_flag=""
+          if [[ -s "$RUNNER_TEMP/coverage_report.json" ]]; then
+            coverage_flag="--coverage-report $RUNNER_TEMP/coverage_report.json"
+          fi
           PYTHONPATH=src/scripts python -m testbot.create_pr \
-            --targets-meta "$RUNNER_TEMP/targets_meta.json"
+            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
+            $coverage_flag
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}

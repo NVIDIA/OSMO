@@ -13,6 +13,7 @@ from unittest.mock import patch
 from src.scripts.testbot.create_pr import (
     SLACK_API_URL,
     TESTBOT_SLACK_CHANNEL_DEFAULT,
+    _build_coverage_section,
     _build_rationale_section,
     _build_slack_review_payload,
     _enable_auto_merge,
@@ -637,6 +638,134 @@ class TestBuildRationaleSection(unittest.TestCase):
         )
         self.assertIn("**`src/lib/foo.py`**", section)
         self.assertNotIn("> ", section)
+
+
+class TestBuildCoverageSection(unittest.TestCase):
+    """Tests for the verify_coverage.py JSON → PR body renderer."""
+
+    def _write_report(self, payload: list) -> str:
+        """Helper: dump ``payload`` to a tempfile and return its path."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8",
+        ) as fh:
+            json.dump(payload, fh)
+            return fh.name
+
+    def test_empty_path_returns_empty(self):
+        self.assertEqual(_build_coverage_section(""), "")
+
+    def test_missing_file_returns_empty(self):
+        # A non-existent path is treated as "no report yet" — the PR
+        # still opens; only the section is omitted.
+        self.assertEqual(_build_coverage_section("/nonexistent.json"), "")
+
+    def test_malformed_json_returns_empty(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8",
+        ) as fh:
+            fh.write("not json")
+            path = fh.name
+        try:
+            self.assertEqual(_build_coverage_section(path), "")
+        finally:
+            os.unlink(path)
+
+    def test_renders_pass_target_with_check_marker(self):
+        path = self._write_report([
+            {
+                "file_path": "src/utils/roles/roles.go",
+                "listed_lines": 10,
+                "hit_lines": 8,
+                "hit_fraction": 0.80,
+                "passed": True,
+                "lcov_seen": True,
+                "ranges": [
+                    {"start": 90, "end": 99,
+                     "hit_lines": 8, "total_lines": 10, "covered": True},
+                ],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("## Coverage gain on listed uncovered ranges", section)
+        self.assertIn("src/utils/roles/roles.go", section)
+        self.assertIn("8/10", section)
+        self.assertIn("80%", section)
+        self.assertIn("✅", section)
+        # Per-range detail should be in the body so reviewers can scan
+        # which blocks were missed without leaving the PR.
+        self.assertIn("lines 90-99", section)
+
+    def test_below_threshold_target_gets_warning_marker(self):
+        path = self._write_report([
+            {
+                "file_path": "src/utils/roles/roles.go",
+                "listed_lines": 121,
+                "hit_lines": 3,
+                "hit_fraction": 0.025,
+                "passed": False,
+                "lcov_seen": True,
+                "ranges": [],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        # The PR #1033 failure mode (3/121 = 2%) should be loud and
+        # scannable, so the reviewer doesn't need to compute it.
+        self.assertIn("⚠️", section)
+        self.assertIn("3/121", section)
+        self.assertIn("2%", section)
+
+    def test_lcov_miss_target_gets_question_marker(self):
+        path = self._write_report([
+            {
+                "file_path": "src/lib/foo.py",
+                "listed_lines": 5,
+                "hit_lines": 0,
+                "hit_fraction": 0.0,
+                "passed": False,
+                "lcov_seen": False,
+                "ranges": [],
+                "still_uncovered_ranges": [[1, 5]],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("❔", section)
+        self.assertIn("file not found in LCOV", section)
+
+    def test_single_line_range_renders_singular_form(self):
+        # Reviewers find "lines 5-5" jarring; verify we say "line 5"
+        # when start == end.
+        path = self._write_report([
+            {
+                "file_path": "src/lib/foo.py",
+                "listed_lines": 1,
+                "hit_lines": 1,
+                "hit_fraction": 1.0,
+                "passed": True,
+                "lcov_seen": True,
+                "ranges": [
+                    {"start": 5, "end": 5,
+                     "hit_lines": 1, "total_lines": 1, "covered": True},
+                ],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("line 5", section)
+        self.assertNotIn("lines 5-5", section)
 
 
 if __name__ == "__main__":
