@@ -926,7 +926,7 @@ def get_workflow_spec(name: str, use_template: bool = False) -> Any:
     cred_allowlist = frozenset(row.name for row in rows)
     return fastapi.responses.StreamingResponse(
         redact_secrets(download_workflow_spec(name, use_template), cred_allowlist),
-        media_type='application/yaml'
+        media_type='text/plain; charset=utf-8',
     )
 
 @router.post('/api/workflow/{name}/tag')
