@@ -124,7 +124,7 @@ read as "added entries for new commits" — not as a wholesale rewrite.
 
 ### Helm Charts and Containers
 
-Helm charts and container images are available on [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/osmo/containers/osmo).
+Helm charts and container images are available on [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/osmo/collections/osmo/artifacts).
 
 ### CLI Client
 
