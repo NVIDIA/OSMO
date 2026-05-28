@@ -36,6 +36,15 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_executor",
+    srcs = ["test_executor.py"],
+    deps = [
+        "//src/lib/data/storage",
+        ":executor_test_helpers",
+    ],
+)
+
+osmo_py_test(
     name = "test_client",
     srcs = ["test_client.py"],
     deps = [
