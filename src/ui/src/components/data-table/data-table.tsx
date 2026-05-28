@@ -21,6 +21,7 @@ import { useSyncedRef, usePrevious } from "@react-hookz/web";
 import {
   useReactTable,
   getCoreRowModel,
+  flexRender,
   type ColumnDef,
   type SortingState,
   type OnChangeFn,
@@ -484,7 +485,14 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                         const onSort = () => handleHeaderSort(header.id, isSortable, isSorted);
                         const isResizable = header.column.getCanResize();
 
-                        const cellContent = (
+                        const colIndex = headerIndex + 1;
+
+                        const headerClassName = header.column.columnDef.meta?.headerClassName;
+                        const useCustomHeader = header.column.columnDef.meta?.useCustomHeader;
+
+                        const cellContent = useCustomHeader ? (
+                          flexRender(header.column.columnDef.header, header.getContext())
+                        ) : (
                           <>
                             <SortButton
                               label={String(header.column.columnDef.header ?? header.id)}
@@ -510,10 +518,6 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                             )}
                           </>
                         );
-
-                        const colIndex = headerIndex + 1;
-
-                        const headerClassName = header.column.columnDef.meta?.headerClassName;
 
                         if (isFixed) {
                           return (

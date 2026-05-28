@@ -159,6 +159,75 @@ test.describe("Workflow Row Interaction", () => {
   });
 });
 
+test.describe("Workflow Bulk Cancel", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await setupDefaultMocks(page);
+    await setupProfile(page);
+  });
+
+  test("shows selected, cancelable, skipped counts and a cancel dialog with reason and force controls", async ({
+    page,
+  }) => {
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "bulk-running", status: WorkflowStatus.RUNNING, user: "test-user" },
+        { name: "bulk-completed", status: WorkflowStatus.COMPLETED, user: "test-user" },
+        { name: "bulk-waiting", status: WorkflowStatus.WAITING, user: "test-user" },
+      ]),
+    );
+
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("checkbox", { name: "Select workflow bulk-running" }).check();
+    await page.getByRole("checkbox", { name: "Select workflow bulk-completed" }).check();
+    await page.getByRole("checkbox", { name: "Select workflow bulk-waiting" }).check();
+
+    await expect(page.getByText("3 selected")).toBeVisible();
+    await expect(page.getByText("2 cancelable")).toBeVisible();
+    await expect(page.getByText("1 skipped: terminal state")).toBeVisible();
+
+    await page.getByRole("button", { name: "Cancel selected" }).click();
+
+    await expect(page.getByRole("dialog", { name: "Cancel selected workflows?" })).toBeVisible();
+    await expect(page.getByText("OSMO will send cancel requests for 2 running or queued workflows.")).toBeVisible();
+    await expect(page.getByLabel(/reason/i)).toBeVisible();
+    await page.getByLabel(/reason/i).fill("Bad submission parameters");
+
+    const forceCheckbox = page.getByRole("checkbox", { name: /force cancel/i });
+    await expect(forceCheckbox).toBeVisible();
+    await forceCheckbox.check();
+    await expect(forceCheckbox).toBeChecked();
+
+    await expect(page.getByRole("button", { name: "Cancel 2 workflows" })).toBeVisible();
+  });
+
+  test("shows a partial completion summary after bulk cancel finishes", async ({ page }) => {
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "bulk-success", status: WorkflowStatus.RUNNING, user: "test-user" },
+        { name: "bulk-denied", status: WorkflowStatus.WAITING, user: "test-user" },
+      ]),
+    );
+
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("checkbox", { name: "Select workflow bulk-success" }).check();
+    await page.getByRole("checkbox", { name: "Select workflow bulk-denied" }).check();
+    await page.getByRole("button", { name: "Cancel selected" }).click();
+    await page.getByLabel(/reason/i).fill("Bad submission parameters");
+    await page.getByRole("checkbox", { name: /force cancel/i }).check();
+    await page.getByRole("button", { name: "Cancel 2 workflows" }).click();
+
+    await expect(page.getByText("Bulk cancel partially completed")).toBeVisible();
+    await expect(page.getByText(/1 accepted. 1 failed: Access forbidden/)).toBeVisible();
+  });
+});
+
 test.describe("Workflows Toolbar", () => {
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

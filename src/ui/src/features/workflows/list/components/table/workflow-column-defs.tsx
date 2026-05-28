@@ -32,13 +32,70 @@ import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { formatDuration } from "@/lib/format-date";
 import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 
+export interface WorkflowSelectionOptions {
+  selectedWorkflowNames: ReadonlySet<string>;
+  onToggleWorkflow: (workflowName: string, selected: boolean) => void;
+  onToggleVisibleWorkflows: (workflowNames: string[], selected: boolean) => void;
+}
+
 function getMinSize(id: WorkflowColumnId): number {
   const col = WORKFLOW_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
 }
 
-export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[] {
+export function createWorkflowColumns(selection?: WorkflowSelectionOptions): ColumnDef<WorkflowListEntry, unknown>[] {
   return [
+    {
+      id: "_select",
+      header: ({ table }) => {
+        if (!selection) return null;
+
+        const workflowNames = table.getRowModel().rows.map((row) => row.original.name);
+        const selectedCount = workflowNames.filter((workflowName) =>
+          selection.selectedWorkflowNames.has(workflowName),
+        ).length;
+        const allSelected = workflowNames.length > 0 && selectedCount === workflowNames.length;
+        const someSelected = selectedCount > 0 && !allSelected;
+
+        return (
+          <input
+            ref={(element) => {
+              if (element) element.indeterminate = someSelected;
+            }}
+            type="checkbox"
+            aria-label="Select all workflows"
+            checked={allSelected}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => selection.onToggleVisibleWorkflows(workflowNames, event.target.checked)}
+            className="border-input size-4 rounded border"
+          />
+        );
+      },
+      minSize: getMinSize("_select"),
+      size: getMinSize("_select"),
+      enableSorting: false,
+      enableResizing: false,
+      meta: {
+        useCustomHeader: true,
+        headerClassName: "px-3 py-3 justify-center",
+        cellClassName: "px-3 py-0 justify-center",
+      },
+      cell: ({ row }) => {
+        if (!selection) return null;
+
+        const workflowName = row.original.name;
+        return (
+          <input
+            type="checkbox"
+            aria-label={`Select workflow ${workflowName}`}
+            checked={selection.selectedWorkflowNames.has(workflowName)}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => selection.onToggleWorkflow(workflowName, event.target.checked)}
+            className="border-input size-4 rounded border"
+          />
+        );
+      },
+    },
     {
       id: "name",
       accessorKey: "name",

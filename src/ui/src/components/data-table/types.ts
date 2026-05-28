@@ -195,6 +195,9 @@ export interface DataTableColumnMeta {
    */
   headerClassName?: string;
 
+  /** Render the column header directly instead of wrapping it in the standard sort control. */
+  useCustomHeader?: boolean;
+
   /**
    * Text alignment for the column.
    * Used by column headers and cells for consistent alignment.

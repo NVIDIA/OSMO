@@ -79,13 +79,31 @@ const byBucketName = new Map([
 ]);
 
 const server = http.createServer((req, res) => {
-  if (!req.url || req.method !== "GET") {
+  if (!req.url) {
     res.writeHead(404).end();
     return;
   }
   let pathname = req.url;
   const q = pathname.indexOf("?");
   if (q !== -1) pathname = pathname.slice(0, q);
+
+  const cancelMatch = pathname.match(/^\/api\/workflow\/([^/]+)\/cancel$/);
+  if (req.method === "POST" && cancelMatch) {
+    const name = decodeURIComponent(cancelMatch[1]);
+    if (name === "bulk-denied") {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ detail: "Access forbidden" }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ name }));
+    return;
+  }
+
+  if (req.method !== "GET") {
+    res.writeHead(404).end();
+    return;
+  }
 
   const m = pathname.match(/^\/api\/bucket\/([^/]+)\/dataset\/([^/]+)\/manifest$/);
   if (!m) {
