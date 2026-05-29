@@ -14,16 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from "@playwright/test";
-import {
-  createWorkflowsResponse,
-  WorkflowStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupWorkflows,
-} from "@/e2e/utils/mock-setup";
+import { test, expect, type Page } from "@playwright/test";
+import { createWorkflowsResponse, WorkflowStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupProfile, setupWorkflows } from "@/e2e/utils/mock-setup";
 
 /**
  * Workflows Page Journey Tests
@@ -141,9 +134,7 @@ test.describe("Workflow Row Interaction", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "clickable-workflow", status: WorkflowStatus.RUNNING, user: "test-user" },
-      ]),
+      createWorkflowsResponse([{ name: "clickable-workflow", status: WorkflowStatus.RUNNING, user: "test-user" }]),
     );
 
     // ACT
@@ -159,6 +150,175 @@ test.describe("Workflow Row Interaction", () => {
   });
 });
 
+test.describe("Workflow Bulk Cancel", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await setupDefaultMocks(page);
+    await setupProfile(page);
+  });
+
+  async function openWorkflows(page: Page) {
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+  }
+
+  test("shows selected, cancelable, skipped counts and a cancel dialog with reason and force controls", async ({
+    page,
+  }) => {
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "bulk-running", status: WorkflowStatus.RUNNING, user: "test-user" },
+        { name: "bulk-completed", status: WorkflowStatus.COMPLETED, user: "test-user" },
+        { name: "bulk-waiting", status: WorkflowStatus.WAITING, user: "test-user" },
+      ]),
+    );
+
+    await openWorkflows(page);
+
+    await expect(page.getByRole("checkbox", { name: "Select all workflows" })).toHaveCount(0);
+    const tableContainer = page.locator(".table-container");
+    const tableBoxBeforeSelection = await tableContainer.boundingBox();
+    expect(tableBoxBeforeSelection).not.toBeNull();
+
+    const bulkRunningCheckbox = page.getByRole("checkbox", { name: "Select workflow bulk-running" });
+    await bulkRunningCheckbox.check();
+    await page.getByRole("checkbox", { name: "Select workflow bulk-completed" }).check();
+    await page.getByRole("checkbox", { name: "Select workflow bulk-waiting" }).check();
+
+    await expect
+      .poll(async () => {
+        const box = await tableContainer.boundingBox();
+        return box?.height ?? 0;
+      })
+      .toBeLessThan(tableBoxBeforeSelection!.height - 40);
+    const tableBoxAfterSelection = await tableContainer.boundingBox();
+    expect(tableBoxAfterSelection).not.toBeNull();
+    expect(Math.abs(tableBoxAfterSelection!.y - tableBoxBeforeSelection!.y)).toBeLessThanOrEqual(1);
+    expect(tableBoxAfterSelection!.height).toBeLessThan(tableBoxBeforeSelection!.height - 40);
+    const actionBar = page
+      .locator("div")
+      .filter({ hasText: "3 selected" })
+      .filter({ has: page.getByRole("button", { name: "Cancel selected" }) })
+      .last();
+    const actionBarBox = await actionBar.boundingBox();
+    expect(actionBarBox).not.toBeNull();
+    const tableBottom = tableBoxAfterSelection!.y + tableBoxAfterSelection!.height;
+    expect(actionBarBox!.y).toBeGreaterThanOrEqual(tableBottom - 1);
+
+    await expect(page.getByText("3 selected")).toBeVisible();
+    await expect(page.getByText("2 cancelable")).toBeVisible();
+    await expect(page.getByText("1 skipped: terminal state")).toBeVisible();
+
+    await page.getByRole("button", { name: "Cancel selected" }).click();
+
+    await expect(page.getByRole("dialog", { name: "Cancel selected workflows?" })).toBeVisible();
+    await expect(page.getByText("OSMO will send cancel requests for 2 running or queued workflows.")).toBeVisible();
+    await expect(page.getByLabel(/reason/i)).toBeVisible();
+    await page.getByLabel(/reason/i).fill("Bad submission parameters");
+
+    const forceCheckbox = page.getByRole("checkbox", { name: /force cancel/i });
+    await expect(forceCheckbox).toBeVisible();
+    await forceCheckbox.check();
+    await expect(forceCheckbox).toBeChecked();
+
+    await expect(page.getByRole("button", { name: "Cancel 2 workflows" })).toBeVisible();
+  });
+
+  test("shows a partial completion summary after bulk cancel finishes", async ({ page }) => {
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "bulk-success", status: WorkflowStatus.RUNNING, user: "test-user" },
+        { name: "bulk-denied", status: WorkflowStatus.WAITING, user: "test-user" },
+      ]),
+    );
+
+    await openWorkflows(page);
+
+    await page.getByRole("checkbox", { name: "Select workflow bulk-success" }).check();
+    await page.getByRole("checkbox", { name: "Select workflow bulk-denied" }).check();
+    await page.getByRole("button", { name: "Cancel selected" }).click();
+    await page.getByLabel(/reason/i).fill("Bad submission parameters");
+    await page.getByRole("checkbox", { name: /force cancel/i }).check();
+    await page.getByRole("button", { name: "Cancel 2 workflows" }).click();
+
+    await expect(page.getByText("Bulk cancel partially completed")).toBeVisible();
+    await expect(page.getByText(/1 accepted. 1 failed: Access forbidden/)).toBeVisible();
+  });
+
+  test("clears selected workflows without opening the dialog", async ({ page }) => {
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "bulk-clear-running", status: WorkflowStatus.RUNNING, user: "test-user" },
+        { name: "bulk-clear-waiting", status: WorkflowStatus.WAITING, user: "test-user" },
+      ]),
+    );
+
+    await openWorkflows(page);
+
+    const runningCheckbox = page.getByRole("checkbox", { name: "Select workflow bulk-clear-running" });
+    const waitingCheckbox = page.getByRole("checkbox", { name: "Select workflow bulk-clear-waiting" });
+    await runningCheckbox.check();
+    await waitingCheckbox.check();
+    await expect(page.getByText("2 selected")).toBeVisible();
+
+    await page.getByRole("button", { name: "Clear" }).click();
+
+    await expect(page.getByRole("button", { name: "Cancel selected" })).toHaveCount(0);
+    await expect(runningCheckbox).not.toBeChecked();
+    await expect(waitingCheckbox).not.toBeChecked();
+  });
+
+  test("closes the dialog and clears selection after a single workflow cancel succeeds", async ({ page }) => {
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([{ name: "bulk-single-success", status: WorkflowStatus.RUNNING, user: "test-user" }]),
+    );
+
+    await openWorkflows(page);
+
+    const singleCheckbox = page.getByRole("checkbox", { name: "Select workflow bulk-single-success" });
+    await singleCheckbox.check();
+    await page.getByRole("button", { name: "Cancel selected" }).click();
+    await expect(page.getByRole("button", { name: "Cancel 1 workflow" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel 1 workflow" }).click();
+
+    await expect(page.getByText("Bulk cancel complete")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Cancel selected workflows?" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Cancel selected" })).toHaveCount(0);
+    await expect(singleCheckbox).not.toBeChecked();
+  });
+
+  test("keeps failed workflows selected after every cancellation request fails", async ({ page }) => {
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "bulk-denied-one", status: WorkflowStatus.RUNNING, user: "test-user" },
+        { name: "bulk-denied-two", status: WorkflowStatus.WAITING, user: "test-user" },
+      ]),
+    );
+
+    await openWorkflows(page);
+
+    await page.getByRole("checkbox", { name: "Select workflow bulk-denied-one" }).check();
+    await page.getByRole("checkbox", { name: "Select workflow bulk-denied-two" }).check();
+    await page.getByRole("button", { name: "Cancel selected" }).click();
+    await page.getByRole("button", { name: "Cancel 2 workflows" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Cancel selected workflows?" });
+    await expect(dialog).toBeVisible();
+    await expect(page.getByText("Bulk cancel partially completed")).toBeVisible();
+    await expect(dialog.getByText(/0 accepted. 2 failed: Access forbidden/)).toBeVisible();
+    await page.getByRole("button", { name: "Keep Running" }).click();
+
+    await expect(page.getByText("2 selected")).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Select workflow bulk-denied-one" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "Select workflow bulk-denied-two" })).toBeChecked();
+  });
+});
+
 test.describe("Workflows Toolbar", () => {
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -170,9 +330,7 @@ test.describe("Workflows Toolbar", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "toolbar-workflow", status: WorkflowStatus.RUNNING, user: "test-user" },
-      ]),
+      createWorkflowsResponse([{ name: "toolbar-workflow", status: WorkflowStatus.RUNNING, user: "test-user" }]),
     );
 
     // ACT
@@ -245,9 +403,7 @@ test.describe("Workflows Toolbar", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "col-workflow", status: WorkflowStatus.RUNNING, user: "test-user" },
-      ]),
+      createWorkflowsResponse([{ name: "col-workflow", status: WorkflowStatus.RUNNING, user: "test-user" }]),
     );
 
     // ACT

@@ -22,6 +22,7 @@ import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM } from "@/components
 // =============================================================================
 
 export type WorkflowColumnId =
+  | "_select"
   | "name"
   | "status"
   | "user"
@@ -40,6 +41,7 @@ export type WorkflowColumnId =
 
 const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
   columns: [
+    "_select",
     "name",
     "status",
     "user",
@@ -53,6 +55,7 @@ const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
     "app_name",
   ] as const,
   labels: {
+    _select: "",
     name: "Name",
     status: "Status",
     user: "User",
@@ -65,9 +68,10 @@ const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
     priority: "Priority",
     app_name: "App",
   },
-  mandatory: ["name"],
-  defaultVisible: ["name", "status", "user", "submit_time", "duration", "pool", "priority"],
+  mandatory: ["_select", "name"],
+  defaultVisible: ["_select", "name", "status", "user", "submit_time", "duration", "pool", "priority"],
   defaultOrder: [
+    "_select",
     "name",
     "status",
     "user",
@@ -81,6 +85,11 @@ const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
     "app_name",
   ],
   sizeConfig: [
+    {
+      id: "_select",
+      minWidthRem: 2.75,
+      preferredWidthRem: 2.75,
+    },
     {
       id: "name",
       minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
