@@ -90,7 +90,7 @@ const server = http.createServer((req, res) => {
   const cancelMatch = pathname.match(/^\/api\/workflow\/([^/]+)\/cancel$/);
   if (req.method === "POST" && cancelMatch) {
     const name = decodeURIComponent(cancelMatch[1]);
-    if (name === "bulk-denied") {
+    if (name.startsWith("bulk-denied")) {
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ detail: "Access forbidden" }));
       return;

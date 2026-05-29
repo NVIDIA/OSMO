@@ -44,32 +44,36 @@ function getMinSize(id: WorkflowColumnId): number {
 }
 
 export function createWorkflowColumns(selection?: WorkflowSelectionOptions): ColumnDef<WorkflowListEntry, unknown>[] {
-  return [
-    {
-      id: "_select",
-      header: () => null,
-      minSize: getMinSize("_select"),
-      size: getMinSize("_select"),
-      enableSorting: false,
-      enableResizing: false,
-      meta: {
-        useCustomHeader: true,
-        headerClassName: "px-3 py-3 justify-center",
-        cellClassName: "px-3 py-0 justify-center",
-      },
-      cell: ({ row }) => {
-        if (!selection) return null;
+  const selectionColumns: ColumnDef<WorkflowListEntry, unknown>[] = selection
+    ? [
+        {
+          id: "_select",
+          header: () => null,
+          minSize: getMinSize("_select"),
+          size: getMinSize("_select"),
+          enableSorting: false,
+          enableResizing: false,
+          meta: {
+            useCustomHeader: true,
+            headerClassName: "px-3 py-3 justify-center",
+            cellClassName: "px-3 py-0 justify-center",
+          },
+          cell: ({ row }) => {
+            const workflowName = row.original.name;
+            return (
+              <BrandCheckbox
+                aria-label={`Select workflow ${workflowName}`}
+                checked={selection.selectedWorkflowNames.has(workflowName)}
+                onCheckedChange={(checked) => selection.onToggleWorkflow(workflowName, checked)}
+              />
+            );
+          },
+        },
+      ]
+    : [];
 
-        const workflowName = row.original.name;
-        return (
-          <BrandCheckbox
-            aria-label={`Select workflow ${workflowName}`}
-            checked={selection.selectedWorkflowNames.has(workflowName)}
-            onCheckedChange={(checked) => selection.onToggleWorkflow(workflowName, checked)}
-          />
-        );
-      },
-    },
+  return [
+    ...selectionColumns,
     {
       id: "name",
       accessorKey: "name",

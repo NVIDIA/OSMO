@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { BulkCancelWorkflowResult } from "@/features/workflows/list/lib/actions";
 import { bulkCancelWorkflows } from "@/features/workflows/list/lib/actions";
+import { useMounted } from "@/hooks/use-mounted";
 import { cn } from "@/lib/utils";
 
 interface BulkCancelWorkflowsDialogProps {
@@ -50,6 +51,7 @@ export const BulkCancelWorkflowsDialog = memo(function BulkCancelWorkflowsDialog
   const [isPending, startTransition] = useTransition();
   const isMountedRef = useRef(true);
   const cancelableCount = workflowNames.length;
+  const mounted = useMounted();
 
   useEffect(() => {
     return () => {
@@ -81,33 +83,43 @@ export const BulkCancelWorkflowsDialog = memo(function BulkCancelWorkflowsDialog
   const handleConfirm = useCallback(() => {
     setError(null);
     startTransition(async () => {
-      const result = await bulkCancelWorkflows(workflowNames, {
-        message: message.trim() || undefined,
-        force,
-      });
-
-      if (!isMountedRef.current) return;
-
-      onComplete(result);
-      if (result.failureCount === 0) {
-        toast.success("Bulk cancel complete", {
-          description: `${result.successCount} cancellation request${result.successCount === 1 ? "" : "s"} accepted.`,
+      try {
+        const result = await bulkCancelWorkflows(workflowNames, {
+          message: message.trim() || undefined,
+          force,
         });
-        onOpenChange(false);
-        return;
-      }
 
-      const firstFailure = result.results.find((entry) => !entry.success);
-      const description = `${result.successCount} accepted. ${result.failureCount} failed${
-        firstFailure?.error ? `: ${firstFailure.error}` : "."
-      }`;
-      toast.warning("Bulk cancel partially completed", { description });
-      setError(description);
-      if (result.successCount > 0) {
-        onOpenChange(false);
+        if (!isMountedRef.current) return;
+
+        onComplete(result);
+        if (result.failureCount === 0) {
+          toast.success("Bulk cancel complete", {
+            description: `${result.successCount} cancellation request${result.successCount === 1 ? "" : "s"} accepted.`,
+          });
+          onOpenChange(false);
+          return;
+        }
+
+        const firstFailure = result.results.find((entry) => !entry.success);
+        const description = `${result.successCount} accepted. ${result.failureCount} failed${
+          firstFailure?.error ? `: ${firstFailure.error}` : "."
+        }`;
+        toast.warning("Bulk cancel partially completed", { description });
+        setError(description);
+        if (result.successCount > 0) {
+          onOpenChange(false);
+        }
+      } catch (error) {
+        if (!isMountedRef.current) return;
+        const description = error instanceof Error ? error.message : String(error);
+        const errorMessage = description || "Unexpected error";
+        setError(errorMessage);
+        toast.error("Bulk cancel failed", { description: errorMessage });
       }
     });
   }, [force, message, onComplete, onOpenChange, workflowNames]);
+
+  if (!mounted) return null;
 
   return (
     <Dialog
