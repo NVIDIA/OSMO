@@ -135,7 +135,11 @@ func validateGraph(wf *v1alpha1.OSMOWorkflow) error {
 func rollupPhase(wf *v1alpha1.OSMOWorkflow) v1alpha1.Phase {
 	total := len(wf.Spec.Groups)
 	if total == 0 {
-		return v1alpha1.PhaseSucceeded
+		// A workflow with no groups isn't "successfully done" — it had nothing to do.
+		// Return Pending so the operator notices and either edits the spec or deletes
+		// the workflow explicitly. Critically, this prevents an auto-TTL from instantly
+		// vacuuming an empty workflow before the operator notices it exists.
+		return v1alpha1.PhasePending
 	}
 	succeeded := 0
 	failed := 0

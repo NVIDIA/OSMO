@@ -16,8 +16,10 @@ import (
 	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
 	"github.com/nvidia/osmo/taskgroup/apiserver"
 	"github.com/nvidia/osmo/taskgroup/internal/k8s"
 	osmolog "github.com/nvidia/osmo/taskgroup/internal/log"
@@ -25,26 +27,68 @@ import (
 
 func main() {
 	var (
-		kubeconfig string
-		bind       string
-		namespace  string
+		bind      string
+		namespace string
+		qps       float64
+		burst     int
 	)
-	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig. Empty = in-cluster.")
+	// --kubeconfig is registered by controller-runtime's pkg/client/config; we just
+	// consume it via ctrl.GetConfigOrDie() below. In-cluster auth is the default.
 	flag.StringVar(&bind, "bind", ":8088", "HTTP bind address.")
 	flag.StringVar(&namespace, "workflow-namespace", "osmo-workflows", "K8s namespace where OSMOWorkflow CRs live.")
+	flag.Float64Var(&qps, "k8s-qps", 50, "Sustained QPS limit for outbound K8s API calls. client-go default is 5, which is far too low for an apiserver.")
+	flag.IntVar(&burst, "k8s-burst", 100, "Burst limit for outbound K8s API calls. client-go default is 10.")
 	flag.Parse()
 
 	ctrl.SetLogger(osmolog.New())
 	logger := ctrl.Log.WithName("taskgroup-apiserver")
 
-	cfg, err := k8s.Config(kubeconfig)
+	cfg := ctrl.GetConfigOrDie()
+	cfg.QPS = float32(qps)
+	cfg.Burst = burst
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	// Read path: an informer-backed cache. GET /v1/workflows{,/name} reads from
+	// memory; the cache is kept current by a watch on OSMOWorkflow.
+	readCache, err := cache.New(cfg, cache.Options{
+		Scheme: k8s.Scheme(),
+		DefaultNamespaces: map[string]cache.Config{
+			namespace: {},
+		},
+	})
 	if err != nil {
-		logger.Error(err, "loading kubeconfig")
+		logger.Error(err, "constructing read cache")
 		os.Exit(1)
 	}
-	c, err := client.New(cfg, client.Options{Scheme: k8s.Scheme()})
+	go func() {
+		if err := readCache.Start(ctx); err != nil {
+			logger.Error(err, "cache exited")
+		}
+	}()
+	// Pre-warm the OSMOWorkflow informer. cache.New is lazy: WaitForCacheSync below
+	// returns immediately when no informer exists, so without this call the first
+	// GET would block on the initial list right when traffic arrives.
+	if _, err := readCache.GetInformer(ctx, &v1alpha1.OSMOWorkflow{}); err != nil {
+		logger.Error(err, "registering OSMOWorkflow informer")
+		os.Exit(1)
+	}
+	if !readCache.WaitForCacheSync(ctx) {
+		logger.Error(fmt.Errorf("cache did not sync"), "aborting startup")
+		os.Exit(1)
+	}
+
+	// Delegating client: reads from cache, writes go straight to the K8s API. Status
+	// subresource writes also go direct.
+	c, err := client.New(cfg, client.Options{
+		Scheme: k8s.Scheme(),
+		Cache: &client.CacheOptions{
+			Reader: readCache,
+		},
+	})
 	if err != nil {
-		logger.Error(err, "constructing K8s client")
+		logger.Error(err, "constructing delegating client")
 		os.Exit(1)
 	}
 
@@ -65,9 +109,6 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Graceful shutdown wiring.
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -75,7 +116,12 @@ func main() {
 		_ = httpServer.Shutdown(shutdownCtx)
 	}()
 
-	logger.Info("api server listening", "bind", bind, "namespace", namespace)
+	logger.Info("api server listening",
+		"bind", bind,
+		"namespace", namespace,
+		"k8s_qps", qps,
+		"k8s_burst", burst,
+	)
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

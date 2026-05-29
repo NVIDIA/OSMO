@@ -41,6 +41,7 @@ func (m *StatusMapper) Map(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (v1
 	leadSeen := false
 	anyRunning := false
 	anyFailed := false
+	allSucceeded := len(pods.Items) > 0
 
 	for i := range pods.Items {
 		p := &pods.Items[i]
@@ -67,8 +68,14 @@ func (m *StatusMapper) Map(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (v1
 		switch p.Status.Phase {
 		case corev1.PodRunning:
 			anyRunning = true
+			allSucceeded = false
 		case corev1.PodFailed:
 			anyFailed = true
+			allSucceeded = false
+		case corev1.PodSucceeded:
+			// keep allSucceeded as is
+		default:
+			allSucceeded = false
 		}
 		if p.Labels["workflow.osmo.nvidia.com/lead"] == "true" {
 			leadSeen = true
@@ -78,6 +85,9 @@ func (m *StatusMapper) Map(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (v1
 
 	out := v1alpha1.OSMOTaskGroupStatus{Tasks: tasks}
 
+	// Phase resolution. When a lead pod is marked, its terminal state is authoritative
+	// (the design treats the lead exit as the group exit). Otherwise — single-task and
+	// equal-weight multi-task groups — derive from the pod set as a whole.
 	switch {
 	case leadSeen && leadState == corev1.PodSucceeded:
 		out.Phase = v1alpha1.PhaseSucceeded
@@ -85,6 +95,8 @@ func (m *StatusMapper) Map(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (v1
 		out.Phase = v1alpha1.PhaseFailed
 	case anyFailed:
 		out.Phase = v1alpha1.PhaseFailed
+	case allSucceeded:
+		out.Phase = v1alpha1.PhaseSucceeded
 	case anyRunning:
 		out.Phase = v1alpha1.PhaseRunning
 	default:

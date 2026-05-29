@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	crcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -44,6 +45,11 @@ type Reconciler struct {
 	// status to the Operator Service. Nil is allowed for testing and headless mode; in
 	// that case status only lives in the CR.
 	StatusReporter runtimes.StatusReporter
+
+	// MaxConcurrentReconciles bounds parallel reconciles. 0 = controller-runtime default
+	// (1). Bump on a backend that handles bursty OTG create/delete to keep K8s API
+	// writes pipelined.
+	MaxConcurrentReconciles int
 }
 
 // SetupWithManager registers the Reconciler with a controller-runtime Manager. Each
@@ -56,6 +62,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		if rt.Watches != nil {
 			b = rt.Watches(b)
 		}
+	}
+	if r.MaxConcurrentReconciles > 0 {
+		b = b.WithOptions(crcontroller.Options{MaxConcurrentReconciles: r.MaxConcurrentReconciles})
 	}
 	return b.Complete(r)
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,10 +16,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	crcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
 )
@@ -41,19 +45,45 @@ type Reconciler struct {
 	// Phase 2 wires this to the Operator Service's session registry. Nil in Phase 1
 	// (only LocalDispatcher is used).
 	RemoteResolver func(clusterID string) (Dispatcher, error)
+
+	// RemoteStatus is the in-memory cache of the latest status events received from
+	// remote clusters via the Operator Service. Populated by RemoteStatusSource; read
+	// during reconcile to populate Status.Groups[g] for remote groups. Optional in
+	// single-cluster mode.
+	RemoteStatus *RemoteStatusCache
+
+	// RemoteStatusEvents, when non-nil, is attached as a controller-runtime
+	// source.Channel — events on it trigger a reconcile of the named workflow. Wired
+	// together with RemoteStatus so a remote status push triggers a write here, in the
+	// same goroutine, with no second writer to OSMOWorkflow.Status.
+	RemoteStatusEvents <-chan event.GenericEvent
+
+	// MaxConcurrentReconciles bounds parallel reconciles. 0 = controller-runtime default
+	// (1). Bump under bursty submit/delete workloads.
+	MaxConcurrentReconciles int
+
+	// DefaultTTLAfterFinished is applied when a workflow's Spec.TTLSecondsAfterFinished
+	// is nil. 0 = no auto-delete by default; users still opt in via the spec field.
+	DefaultTTLAfterFinished time.Duration
 }
 
-// SetupWithManager registers the Reconciler with a controller-runtime Manager. The
-// controller watches both OSMOWorkflow CRs (primary) and OSMOTaskGroup CRs (so status
-// changes on children trigger a parent reconcile).
+// SetupWithManager registers the Reconciler with a controller-runtime Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.OSMOWorkflow{}).
 		Watches(
 			&v1alpha1.OSMOTaskGroup{},
 			handler.EnqueueRequestsFromMapFunc(r.taskGroupToWorkflow),
-		).
-		Complete(r)
+		)
+	if r.RemoteStatusEvents != nil {
+		b = b.WatchesRawSource(
+			source.Channel(r.RemoteStatusEvents, handler.EnqueueRequestsFromMapFunc(MapWorkflow)),
+		)
+	}
+	if r.MaxConcurrentReconciles > 0 {
+		b = b.WithOptions(crcontroller.Options{MaxConcurrentReconciles: r.MaxConcurrentReconciles})
+	}
+	return b.Complete(r)
 }
 
 // taskGroupToWorkflow maps a child OSMOTaskGroup event back to its parent OSMOWorkflow,
@@ -141,15 +171,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		logger.Info("dispatched group", "group", groupName, "cluster", group.Cluster, "ref", ref.Name)
 	}
 
-	// Refresh per-group statuses from local OSMOTaskGroups. Remote group statuses are
-	// populated by the operator-service session loop (Phase 2) and arrive via separate
-	// status update events; we simply trust whatever is in status.Groups here.
+	// Refresh per-group statuses. Local groups: read OSMOTaskGroup directly. Remote
+	// groups: read the RemoteStatusCache populated by RemoteStatusSource (which is fed
+	// by the Operator Service's StatusBus). Either way the reconciler is the sole
+	// writer of wf.Status.Groups.
 	if err := r.refreshLocalStatuses(ctx, &wf); err != nil {
 		logger.Error(err, "refreshing local statuses")
 	}
+	r.refreshRemoteStatuses(&wf)
 
 	// Roll up phase + counters.
 	wf.Status.Phase = rollupPhase(&wf)
+	switch {
+	case isTerminal(wf.Status.Phase) && wf.Status.CompletionTime == nil:
+		now := metav1.Now()
+		wf.Status.CompletionTime = &now
+	case !isTerminal(wf.Status.Phase) && wf.Status.CompletionTime != nil:
+		// Phase rolled back to non-terminal (e.g., a remote status event downgraded a
+		// group from Succeeded to Running). Drop the stale completion timestamp so TTL
+		// doesn't auto-delete a workflow that's no longer actually done.
+		wf.Status.CompletionTime = nil
+	}
 	wf.Status.GroupsTotal = int32(len(wf.Spec.Groups))
 	succeeded, failed := int32(0), int32(0)
 	for _, g := range wf.Spec.Groups {
@@ -178,7 +220,43 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 	}
 
+	// TTL: schedule auto-delete N seconds after the workflow reaches terminal state.
+	// Spec field wins; otherwise the controller default applies. Delete cascades via
+	// the existing reconcileDelete path (FinalizerRemoteCleanup → DeleteOTG). Re-check
+	// isTerminal so a transient phase that already cleared CompletionTime never
+	// triggers deletion on the next reconcile.
+	if isTerminal(wf.Status.Phase) && wf.Status.CompletionTime != nil {
+		if ttl, hasTTL := r.effectiveTTL(&wf); hasTTL {
+			deadline := wf.Status.CompletionTime.Add(ttl)
+			now := time.Now()
+			if !now.Before(deadline) {
+				if err := r.Client.Delete(ctx, &wf); err != nil && !apierrors.IsNotFound(err) {
+					return reconcile.Result{RequeueAfter: 5 * time.Second}, fmt.Errorf("ttl delete: %w", err)
+				}
+				return reconcile.Result{}, nil
+			}
+			return reconcile.Result{RequeueAfter: deadline.Sub(now)}, nil
+		}
+	}
+
 	return reconcile.Result{RequeueAfter: PeriodicReconcileInterval}, nil
+}
+
+// effectiveTTL returns the TTL the workflow should be deleted after, preferring the
+// per-workflow Spec.TTLSecondsAfterFinished and falling back to the controller's
+// DefaultTTLAfterFinished. Returns (0, false) when no TTL applies.
+func (r *Reconciler) effectiveTTL(wf *v1alpha1.OSMOWorkflow) (time.Duration, bool) {
+	if wf.Spec.TTLSecondsAfterFinished != nil {
+		return time.Duration(*wf.Spec.TTLSecondsAfterFinished) * time.Second, true
+	}
+	if r.DefaultTTLAfterFinished > 0 {
+		return r.DefaultTTLAfterFinished, true
+	}
+	return 0, false
+}
+
+func isTerminal(p v1alpha1.Phase) bool {
+	return p == v1alpha1.PhaseSucceeded || p == v1alpha1.PhaseFailed
 }
 
 // dispatcherFor picks the right Dispatcher implementation for a group's cluster target.
@@ -224,6 +302,41 @@ func (r *Reconciler) refreshLocalStatuses(ctx context.Context, wf *v1alpha1.OSMO
 	return nil
 }
 
+// refreshRemoteStatuses pulls the latest cached status for each remote group from
+// RemoteStatus. No K8s calls. Idempotent: if the cache has no entry for a group, the
+// previous status.Groups entry is left untouched (so a stale-but-known state survives
+// a transient resync gap until the next event arrives).
+func (r *Reconciler) refreshRemoteStatuses(wf *v1alpha1.OSMOWorkflow) {
+	if r.RemoteStatus == nil {
+		return
+	}
+	for _, g := range wf.Spec.Groups {
+		if g.Cluster == "" {
+			continue
+		}
+		ev := r.RemoteStatus.Get(g.Cluster, wf.Namespace, otgName(wf.Name, g.Name))
+		if ev == nil || ev.GetStatus() == nil {
+			continue
+		}
+		if wf.Status.Groups == nil {
+			wf.Status.Groups = map[string]v1alpha1.WorkflowGroupStatus{}
+		}
+		prev := wf.Status.Groups[g.Name]
+		now := metav1.Now()
+		wf.Status.Groups[g.Name] = v1alpha1.WorkflowGroupStatus{
+			Phase: coercePhase(ev.GetStatus().GetPhase()),
+			TaskGroupRef: v1alpha1.TaskGroupRef{
+				Cluster:   g.Cluster,
+				Namespace: ev.GetNamespace(),
+				Name:      ev.GetName(),
+				UID:       prev.TaskGroupRef.UID,
+			},
+			LastUpdated: &now,
+			Message:     ev.GetStatus().GetMessage(),
+		}
+	}
+}
+
 // reconcileDelete runs the finalizer logic before the OSMOWorkflow can be garbage-
 // collected. Local OSMOTaskGroup children are cleaned up by K8s owner-ref cascade.
 // Remote children (cross-cluster) need an explicit DeleteOTG via the Operator Service.
@@ -248,11 +361,20 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, wf *v1alpha1.OSMOWorkf
 			// log and continue. The remote OTG is cleaned up by its own controller's
 			// workflow-ID label garbage collection when present.
 			logger.Info("remote cluster unreachable; skipping cleanup", "cluster", t.Cluster, "group", t.Group, "error", err.Error())
+			// Drop any cached remote status for this OTG — its workflow is gone, no
+			// one will read it again, and leaving it consumes memory indefinitely.
+			if r.RemoteStatus != nil {
+				r.RemoteStatus.Forget(t.Cluster, t.Ref.Namespace, t.Ref.Name)
+			}
 			continue
 		}
 		if err := dispatcher.Delete(ctx, t.Ref); err != nil {
 			logger.Info("remote delete failed; will retry", "cluster", t.Cluster, "group", t.Group, "error", err.Error())
 			remaining++
+			continue
+		}
+		if r.RemoteStatus != nil {
+			r.RemoteStatus.Forget(t.Cluster, t.Ref.Namespace, t.Ref.Name)
 		}
 	}
 	if remaining > 0 {

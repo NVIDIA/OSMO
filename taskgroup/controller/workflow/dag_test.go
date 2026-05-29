@@ -168,9 +168,12 @@ func TestRollupPhase(t *testing.T) {
 		want   v1alpha1.Phase
 	}{
 		{
-			name:   "empty workflow → Succeeded",
+			// "Nothing to do" isn't "successfully done." Returning Pending here keeps
+			// auto-TTL from instantly deleting a workflow whose spec.Groups is empty
+			// (e.g., a hand-edited CR that bypassed the apiserver's validation).
+			name:   "empty workflow → Pending",
 			groups: nil,
-			want:   v1alpha1.PhaseSucceeded,
+			want:   v1alpha1.PhasePending,
 		},
 		{
 			name:   "all succeeded",

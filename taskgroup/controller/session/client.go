@@ -5,13 +5,14 @@ package session
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,12 +90,18 @@ func (c *Client) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		err := c.runOnce(ctx)
+		established, err := c.runOnce(ctx)
 		if ctx.Err() != nil {
 			return nil
 		}
 		if err != nil {
 			logger.Info("session terminated, reconnecting", "error", err.Error(), "backoff", backoff.String())
+		}
+		// Once we had a healthy session, drop the backoff back to the floor. Otherwise
+		// a brief disconnect hours into a stable run would inherit the cold-start tail
+		// and reconnect slowly.
+		if established {
+			backoff = c.cfg.MinBackoff
 		}
 		select {
 		case <-ctx.Done():
@@ -109,25 +116,30 @@ func (c *Client) Run(ctx context.Context) error {
 }
 
 // runOnce dials, says Hello, runs reader and writer loops until either fails.
-func (c *Client) runOnce(ctx context.Context) error {
+// Returns (established, error). `established=true` means the session was successfully
+// open at some point (HelloAck received); the caller uses that to reset backoff.
+func (c *Client) runOnce(ctx context.Context) (bool, error) {
 	logger := log.FromContext(ctx).WithName("session-client")
 
 	dial := c.cfg.Dial
 	if dial == nil {
-		// Phase 2 MVP: insecure transport (plain HTTP/2). Production should require TLS.
+		// Default: dial with TLS using the system CA bundle. Production endpoints (ALB
+		// with ACM cert, ingress-nginx with Let's Encrypt, etc.) terminate TLS at :443.
+		// Tests inject c.cfg.Dial to skip TLS via bufconn.
+		creds := credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})
 		dial = func(ctx context.Context, ep string) (*grpc.ClientConn, error) {
-			return grpc.DialContext(ctx, ep, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			return grpc.DialContext(ctx, ep, grpc.WithTransportCredentials(creds))
 		}
 	}
 	conn, err := dial(ctx, c.cfg.OperatorEndpoint)
 	if err != nil {
-		return fmt.Errorf("dial: %w", err)
+		return false, fmt.Errorf("dial: %w", err)
 	}
 	defer conn.Close()
 
 	stream, err := operatorpb.NewClusterSessionClient(conn).Connect(ctx)
 	if err != nil {
-		return fmt.Errorf("opening stream: %w", err)
+		return false, fmt.Errorf("opening stream: %w", err)
 	}
 
 	if err := stream.Send(&operatorpb.ControllerEnvelope{
@@ -138,15 +150,15 @@ func (c *Client) runOnce(ctx context.Context) error {
 			SupportedRuntimes: c.cfg.SupportedRuntimes,
 		}},
 	}); err != nil {
-		return fmt.Errorf("send Hello: %w", err)
+		return false, fmt.Errorf("send Hello: %w", err)
 	}
 
 	ack, err := stream.Recv()
 	if err != nil {
-		return fmt.Errorf("recv HelloAck: %w", err)
+		return false, fmt.Errorf("recv HelloAck: %w", err)
 	}
 	if ack.GetHelloAck() == nil {
-		return fmt.Errorf("expected HelloAck, got %T", ack.Body)
+		return false, fmt.Errorf("expected HelloAck, got %T", ack.Body)
 	}
 	logger.Info("session established")
 
@@ -162,7 +174,7 @@ func (c *Client) runOnce(ctx context.Context) error {
 	cancel()
 	<-errCh
 	<-errCh
-	return err
+	return true, err
 }
 
 func (c *Client) heartbeatLoop(ctx context.Context) error {

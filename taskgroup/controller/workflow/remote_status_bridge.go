@@ -9,19 +9,34 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
 	"github.com/nvidia/osmo/taskgroup/operator"
 )
 
-// StartRemoteStatusBridge subscribes to the operator's StatusBus and projects every
-// OTGStatusEvent into the corresponding OSMOWorkflow.Status.Groups[name] entry. Returns
-// immediately after starting a background goroutine that runs until ctx is cancelled.
+// RemoteStatusSource ties together (a) the operator-service StatusBus, (b) the
+// RemoteStatusCache the Workflow Controller reads on reconcile, and (c) the
+// controller-runtime event channel that triggers a reconcile for the affected workflow.
 //
-// Without this subscriber, remote groups stay Pending forever — only the local-watch
-// path in refreshLocalStatuses sees state changes for local groups.
-func StartRemoteStatusBridge(ctx context.Context, c client.Client, bus *operator.StatusBus) {
+// One goroutine subscribes to the bus, writes events to the cache, and emits a
+// reconcile.Request for the matching workflow. The Workflow Controller's
+// SetupWithManager attaches `Events` via .WatchesRawSource(source.Channel{...}).
+type RemoteStatusSource struct {
+	Cache  *RemoteStatusCache
+	Events chan event.GenericEvent
+}
+
+// StartRemoteStatusBridge wires the bus → cache → reconcile.Request channel. Returns
+// the source for the Workflow Controller's SetupWithManager. The goroutine runs until
+// ctx is cancelled.
+func StartRemoteStatusBridge(ctx context.Context, c client.Client, bus *operator.StatusBus, cache *RemoteStatusCache) *RemoteStatusSource {
+	src := &RemoteStatusSource{
+		Cache:  cache,
+		Events: make(chan event.GenericEvent, 64),
+	}
 	logger := log.FromContext(ctx).WithName("remote-status-bridge")
 	events := make(chan operator.StatusEvent, 64)
 	cancel := bus.Subscribe(events)
@@ -33,71 +48,73 @@ func StartRemoteStatusBridge(ctx context.Context, c client.Client, bus *operator
 			case <-ctx.Done():
 				return
 			case ev := <-events:
-				if err := applyRemoteStatus(ctx, c, ev); err != nil {
-					logger.Info("apply remote status failed", "error", err.Error(),
+				if ev.Event == nil {
+					continue
+				}
+				src.Cache.Put(ev.ClusterID, ev.Event)
+				wfName, ok := findWorkflowForOTG(ctx, c, ev.Event.GetNamespace(), ev.Event.GetName(), ev.ClusterID)
+				if !ok {
+					logger.V(1).Info("event dropped: no matching workflow",
 						"cluster", ev.ClusterID, "otg", ev.Event.GetName())
+					continue
+				}
+				// Generic event drives a reconcile of the parent workflow. The
+				// reconciler reads the cache as its single source of remote truth, so
+				// dropping the eager trigger is safe — the cache write already happened
+				// above, and the periodic reconcile will pick the state up. Never block
+				// here, otherwise a slow workflow reconciler could backpressure the bus.
+				select {
+				case src.Events <- event.GenericEvent{
+					Object: &v1alpha1.OSMOWorkflow{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      wfName,
+							Namespace: ev.Event.GetNamespace(),
+						},
+					},
+				}:
+				case <-ctx.Done():
+					return
+				default:
+					logger.V(1).Info("dropped reconcile trigger; events channel full",
+						"workflow", wfName, "namespace", ev.Event.GetNamespace())
 				}
 			}
 		}
 	}()
+	return src
 }
 
-// applyRemoteStatus locates the parent OSMOWorkflow for one remote OTG and updates its
-// Status.Groups entry. The lookup matches OTG name + cluster against each workflow's
-// group definitions; mismatches are dropped silently (cross-namespace traffic, foreign
-// workflow, etc.).
-func applyRemoteStatus(ctx context.Context, c client.Client, ev operator.StatusEvent) error {
-	if ev.Event == nil || ev.Event.GetStatus() == nil {
-		return nil
-	}
-	otgName := ev.Event.GetName()
-	otgNamespace := ev.Event.GetNamespace()
-
+// findWorkflowForOTG resolves a remote OTG (cluster, namespace, name) to its parent
+// workflow's name. We list workflows in the namespace and match (otgName + cluster)
+// against each group. Returns "", false if no match — could be cross-tenant traffic
+// or an OTG from a workflow already deleted.
+func findWorkflowForOTG(ctx context.Context, c client.Client, namespace, name, clusterID string) (string, bool) {
 	var wfs v1alpha1.OSMOWorkflowList
-	if err := c.List(ctx, &wfs, client.InNamespace(otgNamespace)); err != nil {
-		return err
+	if err := c.List(ctx, &wfs, client.InNamespace(namespace)); err != nil {
+		return "", false
 	}
-	var wf *v1alpha1.OSMOWorkflow
-	var matchedGroup string
 	for i := range wfs.Items {
 		w := &wfs.Items[i]
 		for _, g := range w.Spec.Groups {
-			if otgName == otgNameFor(w.Name, g.Name) && g.Cluster == ev.ClusterID {
-				wf = w
-				matchedGroup = g.Name
-				break
+			if name == otgName(w.Name, g.Name) && g.Cluster == clusterID {
+				return w.Name, true
 			}
 		}
-		if wf != nil {
-			break
-		}
 	}
-	if wf == nil {
-		return nil
-	}
+	return "", false
+}
 
-	// Re-fetch the workflow so the status update lands on the latest resourceVersion. A
-	// conflict here is benign — the next event re-attempts.
-	wfFresh := &v1alpha1.OSMOWorkflow{}
-	if err := c.Get(ctx, types.NamespacedName{Name: wf.Name, Namespace: wf.Namespace}, wfFresh); err != nil {
-		return err
-	}
-	if wfFresh.Status.Groups == nil {
-		wfFresh.Status.Groups = map[string]v1alpha1.WorkflowGroupStatus{}
-	}
-	prev := wfFresh.Status.Groups[matchedGroup]
-	now := metav1.Now()
-	wfFresh.Status.Groups[matchedGroup] = v1alpha1.WorkflowGroupStatus{
-		Phase:        coercePhase(ev.Event.GetStatus().GetPhase()),
-		TaskGroupRef: prev.TaskGroupRef,
-		LastUpdated:  &now,
-		Message:      ev.Event.GetStatus().GetMessage(),
-	}
-	return c.Status().Update(ctx, wfFresh)
+// MapWorkflow translates a GenericEvent (carrying a sentinel OSMOWorkflow shell) into
+// the reconcile.Request the Workflow Controller wants. Wired via
+// handler.EnqueueRequestsFromMapFunc in SetupWithManager.
+func MapWorkflow(_ context.Context, obj client.Object) []reconcile.Request {
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()},
+	}}
 }
 
 // coercePhase maps a wire-side phase string to a known v1alpha1.Phase. Unknown values
-// fall back to PhasePending — the next event from the controller will overwrite.
+// fall back to PhasePending; the next event overwrites.
 func coercePhase(s string) v1alpha1.Phase {
 	switch v1alpha1.Phase(s) {
 	case v1alpha1.PhasePending,
@@ -110,8 +127,3 @@ func coercePhase(s string) v1alpha1.Phase {
 	return v1alpha1.PhasePending
 }
 
-// otgNameFor matches the naming dispatcher.go uses. Re-declared here to avoid a circular
-// import — kept in sync by convention.
-func otgNameFor(workflowName, groupName string) string {
-	return workflowName + "-" + groupName
-}
