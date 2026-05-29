@@ -482,6 +482,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
+        timeout-minutes: 5
         working-directory: src/ui
         run: pnpm exec playwright install chromium
 
