@@ -1,0 +1,40 @@
+# Golden-file fixture: simplest possible NIM TaskGroup. Renders to a NIMService CR
+# (apps.nvidia.com/v1alpha1) on the cluster running NVIDIA NIM Operator.
+#
+# Test plan:
+#   kubectl apply -f nim_basic.yaml
+#   kubectl get nimservice nim-llama-test -o yaml      # check rendered NIMService
+#   kubectl get osmotaskgroup nim-llama-test -o yaml   # check OTG status rollup
+#
+# Requires:
+#   - NVIDIA NIM Operator installed on the target cluster
+#   - A Secret named ngc-credentials in the namespace with key NGC_API_KEY
+apiVersion: workflow.osmo.nvidia.com/v1alpha1
+kind: OSMOTaskGroup
+metadata:
+  name: nim-llama-test
+  namespace: default
+spec:
+  workflowId: nim-llama-test
+  groupIndex: 0
+  groupName: serve
+  runtimeType: nim
+  runtimeConfig:
+    image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.0.0
+    imagePullPolicy: IfNotPresent
+    authSecret: ngc-image-pull        # Required. docker-registry Secret for nvcr.io + NGC artifacts.
+    replicas: 1
+    resources:
+      cpu: "8"
+      memory: 32Gi
+      gpu: "1"
+    storageClass: standard
+    storageSize: 100Gi
+    credentials:
+      - secretName: ngc-credentials
+        keyMap:
+          NGC_API_KEY: NGC_API_KEY
+    env:
+      - name: NIM_LOG_LEVEL
+        value: INFO
+    exposedPort: 8000

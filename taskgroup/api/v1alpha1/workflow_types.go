@@ -46,6 +46,14 @@ type OSMOWorkflowSpec struct {
 	// authenticated JWT; immutable after creation. Used for audit and quota.
 	// +optional
 	Owner string `json:"owner,omitempty"`
+
+	// TTLSecondsAfterFinished, when set, schedules the workflow (and all its child
+	// OSMOTaskGroups via the normal delete cascade) for deletion this many seconds
+	// after it reaches a terminal phase (Succeeded or Failed). 0 = delete immediately
+	// on terminal. nil = never auto-delete (the controller's --default-ttl-after-finished
+	// flag still applies). Mirrors batch/v1 Job's field of the same name.
+	// +optional
+	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 }
 
 // WorkflowGroup is one node of the workflow DAG. The Workflow Controller materializes
@@ -94,6 +102,12 @@ type OSMOWorkflowStatus struct {
 	GroupsFailed    int32 `json:"groupsFailed,omitempty"`
 
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// CompletionTime is stamped the first time Phase reaches a terminal state (Succeeded
+	// or Failed). Used together with Spec.TTLSecondsAfterFinished to schedule auto-
+	// deletion. Never cleared once set.
+	// +optional
+	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
 
 	// Message holds the most recent human-readable error or status note.
 	Message string `json:"message,omitempty"`

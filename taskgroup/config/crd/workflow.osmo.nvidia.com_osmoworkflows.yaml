@@ -48,6 +48,7 @@ spec:
                         x-kubernetes-preserve-unknown-fields: true
                 timeout: { type: string }
                 owner:   { type: string }
+                ttlSecondsAfterFinished: { type: integer, format: int32 }
             status:
               type: object
               properties:
@@ -69,4 +70,5 @@ spec:
                 groupsSucceeded: { type: integer }
                 groupsFailed:    { type: integer }
                 observedGeneration: { type: integer }
+                completionTime:  { type: string, format: date-time }
                 message:         { type: string }

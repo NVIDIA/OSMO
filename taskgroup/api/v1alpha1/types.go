@@ -16,6 +16,8 @@ type RuntimeType string
 
 const (
 	RuntimeKAI RuntimeType = "kai"
+	RuntimeNIM RuntimeType = "nim"
+	RuntimeRay RuntimeType = "ray"
 )
 
 // OSMOTaskGroupSpec is the desired state of an OSMOTaskGroup.
@@ -30,7 +32,7 @@ type OSMOTaskGroupSpec struct {
 	GroupName string `json:"groupName"`
 
 	// RuntimeType selects which runtime reconciler interprets RuntimeConfig.
-	// +kubebuilder:validation:Enum=kai
+	// +kubebuilder:validation:Enum=kai;nim;ray
 	RuntimeType RuntimeType `json:"runtimeType"`
 
 	// RuntimeConfig holds the runtime-specific configuration. The shape depends on

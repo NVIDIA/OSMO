@@ -29,3 +29,7 @@ docs/**/domain_config.js
 .ruff_cache
 
 .lycheecache
+
+# Local scheduling design scratch (not for upstream)
+taskgroup/SCHEDULING_DESIGN.md
+taskgroup/SCHEDULING_FUTURE.md

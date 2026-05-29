@@ -1,0 +1,45 @@
+# Golden-file fixture: simplest possible Ray TaskGroup. Renders to a RayJob CR
+# (ray.io/v1) on the cluster running KubeRay.
+#
+# Test plan:
+#   kubectl apply -f ray_basic.yaml
+#   kubectl get rayjob ray-train-test -o yaml         # check rendered RayJob
+#   kubectl get raycluster -l ray.io/originated-from-cr-name=ray-train-test
+#   kubectl get osmotaskgroup ray-train-test -o yaml  # check OTG status rollup
+#
+# Requires:
+#   - KubeRay operator installed on the target cluster
+#   - A node pool with at least 1× A100 GPU available
+apiVersion: workflow.osmo.nvidia.com/v1alpha1
+kind: OSMOTaskGroup
+metadata:
+  name: ray-train-test
+  namespace: default
+spec:
+  workflowId: ray-train-test
+  groupIndex: 0
+  groupName: train
+  runtimeType: ray
+  runtimeConfig:
+    entrypoint: "python -c 'import ray; ray.init(); print(ray.cluster_resources())'"
+    rayVersion: "2.9.0"
+    shutdownAfterJobFinishes: true
+    headGroup:
+      replicas: 1
+      image: rayproject/ray:2.9.0-py310
+      resources:
+        cpu: "2"
+        memory: 4Gi
+      rayStartParams:
+        num-cpus: "0"  # head doesn't run workloads in this fixture
+    workerGroups:
+      - groupName: gpu-workers
+        replicas: 2
+        image: rayproject/ray:2.9.0-py310-gpu
+        resources:
+          cpu: "4"
+          memory: 16Gi
+          gpu: "1"
+        rayStartParams:
+          num-cpus: "4"
+          num-gpus: "1"

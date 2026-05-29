@@ -28,15 +28,20 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"google.golang.org/grpc"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
 	"github.com/nvidia/osmo/taskgroup/controller/runtimes"
 	"github.com/nvidia/osmo/taskgroup/controller/runtimes/kai"
+	"github.com/nvidia/osmo/taskgroup/controller/runtimes/nim"
+	"github.com/nvidia/osmo/taskgroup/controller/runtimes/ray"
 	"github.com/nvidia/osmo/taskgroup/controller/session"
 	"github.com/nvidia/osmo/taskgroup/controller/taskgroup"
 	"github.com/nvidia/osmo/taskgroup/controller/workflow"
@@ -56,11 +61,11 @@ func main() {
 	ctrl.SetLogger(osmolog.New())
 	logger := ctrl.Log.WithName("taskgroup-controller")
 
-	restCfg, err := k8s.Config(cfg.kubeconfig)
-	if err != nil {
-		logger.Error(err, "loading kubeconfig")
-		os.Exit(1)
-	}
+	// --kubeconfig is registered by controller-runtime's pkg/client/config; the
+	// GetConfigOrDie helper respects it (and falls back to KUBECONFIG / in-cluster).
+	restCfg := ctrl.GetConfigOrDie()
+	restCfg.QPS = float32(cfg.k8sQPS)
+	restCfg.Burst = cfg.k8sBurst
 
 	mgr, err := ctrl.NewManager(restCfg, manager.Options{
 		Scheme:                 k8s.Scheme(),
@@ -71,6 +76,14 @@ func main() {
 	})
 	if err != nil {
 		logger.Error(err, "creating manager")
+		os.Exit(1)
+	}
+	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
+		logger.Error(err, "adding healthz check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
+		logger.Error(err, "adding readyz check")
 		os.Exit(1)
 	}
 
@@ -89,9 +102,17 @@ func main() {
 			OperatorEndpoint:  cfg.operatorEndpoint,
 			ClusterID:         cfg.clusterID,
 			Token:             string(token),
-			SupportedRuntimes: []string{string(v1alpha1.RuntimeKAI)},
+			SupportedRuntimes: []string{
+				string(v1alpha1.RuntimeKAI),
+				string(v1alpha1.RuntimeNIM),
+				string(v1alpha1.RuntimeRay),
+			},
 			ControllerVersion: ControllerVersion,
 			Namespace:         cfg.taskGroupNamespace,
+			MinBackoff:        cfg.sessionMinBackoff,
+			MaxBackoff:        cfg.sessionMaxBackoff,
+			HeartbeatInterval: cfg.sessionHeartbeatInterval,
+			SendBuffer:        cfg.sessionSendBuffer,
 		}, mgr.GetClient())
 		if err != nil {
 			logger.Error(err, "constructing session client")
@@ -106,9 +127,10 @@ func main() {
 			os.Exit(1)
 		}
 		tgr := &taskgroup.Reconciler{
-			Client:     mgr.GetClient(),
-			Scheme:     mgr.GetScheme(),
-			Dispatcher: dispatcher,
+			Client:                  mgr.GetClient(),
+			Scheme:                  mgr.GetScheme(),
+			Dispatcher:              dispatcher,
+			MaxConcurrentReconciles: cfg.maxConcurrentReconciles,
 		}
 		if sessionClient != nil {
 			tgr.StatusReporter = sessionClient
@@ -156,6 +178,18 @@ func main() {
 		}()
 	}
 
+	// Build a fresh in-memory RemoteStatusCache + event channel up front so the
+	// Workflow Reconciler and the status bridge share the same instance.
+	remoteStatusCache := workflow.NewRemoteStatusCache()
+
+	mgrCtx := ctrl.SetupSignalHandler()
+	var remoteStatusEvents <-chan event.GenericEvent
+	if statusBus != nil {
+		bridge := workflow.StartRemoteStatusBridge(mgrCtx, mgr.GetClient(), statusBus, remoteStatusCache)
+		remoteStatusEvents = bridge.Events
+		logger.Info("remote status bridge started")
+	}
+
 	if cfg.enableWorkflow {
 		wfr := &workflow.Reconciler{
 			Client: mgr.GetClient(),
@@ -164,6 +198,10 @@ func main() {
 				Client:    mgr.GetClient(),
 				Namespace: cfg.taskGroupNamespace,
 			},
+			RemoteStatus:            remoteStatusCache,
+			RemoteStatusEvents:      remoteStatusEvents,
+			MaxConcurrentReconciles: cfg.maxConcurrentReconciles,
+			DefaultTTLAfterFinished: cfg.defaultTTLAfterFinished,
 		}
 		if commandBus != nil {
 			wfr.RemoteResolver = workflow.NewRemoteResolver(mgr.GetClient(), commandBus, cfg.taskGroupNamespace)
@@ -175,7 +213,6 @@ func main() {
 		logger.Info("Workflow controller enabled", "taskgroup_namespace", cfg.taskGroupNamespace, "remote_dispatch", commandBus != nil)
 	}
 
-	mgrCtx := ctrl.SetupSignalHandler()
 	if sessionClient != nil {
 		go func() {
 			if err := sessionClient.Run(mgrCtx); err != nil {
@@ -188,11 +225,6 @@ func main() {
 		)
 	}
 
-	if statusBus != nil {
-		workflow.StartRemoteStatusBridge(mgrCtx, mgr.GetClient(), statusBus)
-		logger.Info("remote status bridge started")
-	}
-
 	if err := mgr.Start(mgrCtx); err != nil {
 		logger.Error(err, "manager exited with error")
 		os.Exit(1)
@@ -200,22 +232,29 @@ func main() {
 }
 
 type flags struct {
-	kubeconfig         string
-	taskGroupNamespace string
-	metricsAddr        string
-	probeAddr          string
-	leaderElect        bool
-	enableWorkflow     bool
-	enableTaskGroup    bool
-	operatorEndpoint   string
-	operatorServeBind  string
-	clusterID          string
-	clusterTokenFile   string
+	taskGroupNamespace       string
+	metricsAddr              string
+	probeAddr                string
+	leaderElect              bool
+	enableWorkflow           bool
+	enableTaskGroup          bool
+	operatorEndpoint         string
+	operatorServeBind        string
+	clusterID                string
+	clusterTokenFile         string
+	sessionMinBackoff        time.Duration
+	sessionMaxBackoff        time.Duration
+	sessionHeartbeatInterval time.Duration
+	sessionSendBuffer        int
+	maxConcurrentReconciles  int
+	k8sQPS                   float64
+	k8sBurst                 int
+	defaultTTLAfterFinished  time.Duration
 }
 
 func parseFlags() flags {
 	var f flags
-	flag.StringVar(&f.kubeconfig, "kubeconfig", "", "Path to kubeconfig. Empty = in-cluster or default.")
+	// --kubeconfig is registered by controller-runtime's pkg/client/config.
 	flag.StringVar(&f.taskGroupNamespace, "taskgroup-namespace", "osmo-workflows", "Namespace where dispatched OSMOTaskGroup CRs are created (used by Workflow Controller).")
 	flag.StringVar(&f.metricsAddr, "metrics-bind-address", ":8080", "Bind address for Prometheus metrics.")
 	flag.StringVar(&f.probeAddr, "health-probe-bind-address", ":8081", "Bind address for /healthz and /readyz.")
@@ -226,16 +265,38 @@ func parseFlags() flags {
 	flag.StringVar(&f.operatorServeBind, "operator-serve-bind", "", "If non-empty, also run the Operator Service gRPC server in-process on this address. Used by the control cluster binary so the Workflow Controller can share its CommandBus.")
 	flag.StringVar(&f.clusterID, "cluster-id", "", "This cluster's identifier. Must match an OSMOCluster.metadata.name in the control cluster. Required if --operator-endpoint is set.")
 	flag.StringVar(&f.clusterTokenFile, "cluster-token-file", "", "Path to a file containing the cluster's plaintext bearer token. Required if --operator-endpoint is set.")
+	flag.DurationVar(&f.sessionMinBackoff, "session-min-backoff", 200*time.Millisecond, "Initial wait between session reconnect attempts. Doubles on each failure up to --session-max-backoff. Accepts Go duration syntax (e.g. 100ms, 1s).")
+	flag.DurationVar(&f.sessionMaxBackoff, "session-max-backoff", 5*time.Second, "Maximum wait between session reconnect attempts.")
+	flag.DurationVar(&f.sessionHeartbeatInterval, "session-heartbeat-interval", 30*time.Second, "Interval between gRPC keepalive heartbeats from the backend session client.")
+	flag.IntVar(&f.sessionSendBuffer, "session-send-buffer", 64, "Outbound envelope queue depth on the session client (per cluster). Raise under bursty status / command throughput.")
+	flag.IntVar(&f.maxConcurrentReconciles, "max-concurrent-reconciles", 1, "Maximum parallel reconciles per controller (Workflow and TaskGroup). controller-runtime default is 1.")
+	flag.Float64Var(&f.k8sQPS, "k8s-qps", 50, "Sustained QPS limit for outbound K8s API calls. client-go default is 5.")
+	flag.IntVar(&f.k8sBurst, "k8s-burst", 100, "Burst limit for outbound K8s API calls. client-go default is 10.")
+	flag.DurationVar(&f.defaultTTLAfterFinished, "default-ttl-after-finished", 0, "Default auto-delete TTL applied to workflows that don't set Spec.TTLSecondsAfterFinished. 0 = disabled (today's behavior).")
 	flag.Parse()
 	return f
 }
 
 func registerRuntimes(d *taskgroup.Dispatcher, mgr ctrl.Manager) error {
 	deps := runtimes.Dependencies{Client: mgr.GetClient()}
-	rt, err := kai.New(deps)
+
+	kaiRT, err := kai.New(deps)
 	if err != nil {
 		return fmt.Errorf("constructing kai runtime: %w", err)
 	}
-	d.Register(v1alpha1.RuntimeKAI, rt)
+	d.Register(v1alpha1.RuntimeKAI, kaiRT)
+
+	nimRT, err := nim.New(deps)
+	if err != nil {
+		return fmt.Errorf("constructing nim runtime: %w", err)
+	}
+	d.Register(v1alpha1.RuntimeNIM, nimRT)
+
+	rayRT, err := ray.New(deps)
+	if err != nil {
+		return fmt.Errorf("constructing ray runtime: %w", err)
+	}
+	d.Register(v1alpha1.RuntimeRay, rayRT)
+
 	return nil
 }

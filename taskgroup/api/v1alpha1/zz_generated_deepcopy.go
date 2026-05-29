@@ -131,6 +131,10 @@ func (in *OSMOWorkflowSpec) DeepCopyInto(out *OSMOWorkflowSpec) {
 		out.Timeout = new(metav1.Duration)
 		*out.Timeout = *in.Timeout
 	}
+	if in.TTLSecondsAfterFinished != nil {
+		out.TTLSecondsAfterFinished = new(int32)
+		*out.TTLSecondsAfterFinished = *in.TTLSecondsAfterFinished
+	}
 }
 
 func (in *WorkflowGroup) DeepCopyInto(out *WorkflowGroup) {
@@ -156,6 +160,9 @@ func (in *OSMOWorkflowStatus) DeepCopyInto(out *OSMOWorkflowStatus) {
 			v.DeepCopyInto(&copied)
 			out.Groups[k] = copied
 		}
+	}
+	if in.CompletionTime != nil {
+		out.CompletionTime = in.CompletionTime.DeepCopy()
 	}
 }
 
