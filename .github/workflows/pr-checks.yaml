@@ -483,7 +483,7 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: src/ui
-        run: pnpm exec playwright install chromium
+        run: pnpm exec playwright install --only-shell chromium
 
       - name: Validate UI with Coverage
         working-directory: src/ui
