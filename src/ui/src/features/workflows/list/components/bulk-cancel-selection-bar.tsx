@@ -37,13 +37,13 @@ export const BulkCancelSelectionBar = memo(function BulkCancelSelectionBar({
   if (selectedCount === 0) return null;
 
   return (
-    <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-blue-200 bg-white px-3 py-2.5 shadow-sm dark:border-blue-900/60 dark:bg-zinc-950">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-blue-900 dark:text-blue-200">
+    <div className="flex w-full flex-col gap-2 rounded-md border border-[var(--nvidia-green)]/35 bg-[var(--nvidia-green-bg)] px-3 py-1.5 shadow-xs sm:flex-row sm:items-center sm:justify-between dark:border-[var(--nvidia-green)]/40 dark:bg-[var(--nvidia-green-bg-dark)]">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-900 sm:gap-x-3 sm:text-sm dark:text-zinc-100">
         <strong>{selectedCount} selected</strong>
         <span>{cancelableCount} cancelable</span>
         {skippedCount > 0 && <span>{skippedCount} skipped: terminal state</span>}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center justify-end gap-2">
         <Button
           type="button"
           variant="outline"

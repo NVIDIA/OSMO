@@ -186,13 +186,21 @@ test.describe("Workflow Bulk Cancel", () => {
     const tableBoxBeforeSelection = await tableContainer.boundingBox();
     expect(tableBoxBeforeSelection).not.toBeNull();
 
-    await page.getByRole("checkbox", { name: "Select workflow bulk-running" }).check();
+    const bulkRunningCheckbox = page.getByRole("checkbox", { name: "Select workflow bulk-running" });
+    await bulkRunningCheckbox.check();
     await page.getByRole("checkbox", { name: "Select workflow bulk-completed" }).check();
     await page.getByRole("checkbox", { name: "Select workflow bulk-waiting" }).check();
 
+    await expect
+      .poll(async () => {
+        const box = await tableContainer.boundingBox();
+        return box?.height ?? 0;
+      })
+      .toBeLessThan(tableBoxBeforeSelection!.height - 40);
     const tableBoxAfterSelection = await tableContainer.boundingBox();
     expect(tableBoxAfterSelection).not.toBeNull();
     expect(Math.abs(tableBoxAfterSelection!.y - tableBoxBeforeSelection!.y)).toBeLessThanOrEqual(1);
+    expect(tableBoxAfterSelection!.height).toBeLessThan(tableBoxBeforeSelection!.height - 40);
     const actionBar = page
       .locator("div")
       .filter({ hasText: "3 selected" })

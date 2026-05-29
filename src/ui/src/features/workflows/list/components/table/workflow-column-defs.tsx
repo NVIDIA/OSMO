@@ -17,6 +17,7 @@
 // NOTE: Only submit_time is sortable (backend limitation)
 
 import type { ColumnDef } from "@tanstack/react-table";
+import { BrandCheckbox } from "@/components/brand-checkbox";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
@@ -61,13 +62,10 @@ export function createWorkflowColumns(selection?: WorkflowSelectionOptions): Col
 
         const workflowName = row.original.name;
         return (
-          <input
-            type="checkbox"
+          <BrandCheckbox
             aria-label={`Select workflow ${workflowName}`}
             checked={selection.selectedWorkflowNames.has(workflowName)}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => selection.onToggleWorkflow(workflowName, event.target.checked)}
-            className="border-input size-4 rounded border"
+            onCheckedChange={(checked) => selection.onToggleWorkflow(workflowName, checked)}
           />
         );
       },

@@ -19,6 +19,7 @@
 import { memo, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Info, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { BrandCheckbox } from "@/components/brand-checkbox";
 import { Button } from "@/components/shadcn/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -173,13 +174,11 @@ export const BulkCancelWorkflowsDialog = memo(function BulkCancelWorkflowsDialog
 
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <BrandCheckbox
                 id="bulk-force-cancel"
                 checked={force}
-                onChange={(event) => setForce(event.target.checked)}
+                onCheckedChange={setForce}
                 disabled={isPending}
-                className="border-input size-4 rounded border"
               />
               <label
                 htmlFor="bulk-force-cancel"

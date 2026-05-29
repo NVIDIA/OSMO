@@ -175,7 +175,7 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
         "workflows-row",
         `workflows-row--${category}`,
         zebraClass,
-        isSelected && "bg-blue-50 shadow-[inset_3px_0_0_rgb(37_99_235)] dark:bg-blue-950/30",
+        isSelected && "bg-[var(--nvidia-green-bg)] shadow-[inset_3px_0_0_var(--nvidia-green)]",
       );
     },
     [selectedWorkflowNames],

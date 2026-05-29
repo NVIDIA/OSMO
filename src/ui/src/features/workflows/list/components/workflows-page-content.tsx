@@ -32,6 +32,7 @@ import { getBulkCancelSelection } from "@/features/workflows/list/lib/bulk-cance
 import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { useWorkflowsAutoRefresh } from "@/features/workflows/list/hooks/use-workflows-auto-refresh";
 import { useUser } from "@/lib/auth/user-context";
+import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 
 interface WorkflowsPageContentProps {
@@ -103,6 +104,7 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
     () => getBulkCancelSelection(workflows, selectedWorkflowNames),
     [workflows, selectedWorkflowNames],
   );
+  const hasBulkSelection = bulkCancelSelection.selected.length > 0;
 
   const handleBulkCancelComplete = useCallback(
     (result: BulkCancelWorkflowResult) => {
@@ -129,7 +131,12 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
   );
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6 pb-20 sm:pb-6">
+    <div
+      className={cn(
+        "flex h-full flex-col p-6 transition-[padding-bottom] duration-200 ease-out",
+        hasBulkSelection ? "pb-16 sm:pb-6" : "pb-6",
+      )}
+    >
       <div className="shrink-0">
         <InlineErrorBoundary
           title="Toolbar error"
@@ -146,7 +153,7 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
         </InlineErrorBoundary>
       </div>
 
-      <div className="min-h-0 flex-1">
+      <div className="mt-4 min-h-0 flex-1 transition-[height] duration-200 ease-out">
         <InlineErrorBoundary
           title="Unable to display workflows table"
           resetKeys={[workflows.length]}
@@ -167,7 +174,12 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
         </InlineErrorBoundary>
       </div>
 
-      <div className="flex h-28 shrink-0 items-center sm:h-16">
+      <div
+        className={cn(
+          "flex shrink-0 items-center overflow-hidden transition-[height,margin-top,opacity] duration-200 ease-out",
+          hasBulkSelection ? "mt-2 h-20 opacity-100 sm:h-12" : "mt-0 h-0 opacity-0",
+        )}
+      >
         <BulkCancelSelectionBar
           selectedCount={bulkCancelSelection.selected.length}
           cancelableCount={bulkCancelSelection.cancelable.length}
