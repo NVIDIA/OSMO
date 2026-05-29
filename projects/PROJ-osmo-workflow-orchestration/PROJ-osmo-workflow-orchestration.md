@@ -20,1225 +20,723 @@ SPDX-License-Identifier: Apache-2.0
 
 **Author**: [Vivian Pan](https://github.com/vvnpn-nv)<br>
 **PIC**: [Vivian Pan](https://github.com/vvnpn-nv)<br>
-**Proposal Issue**: _TBD_
+**Status**: Phase 1 + Phase 2 implemented on staging; phases 3-8 in design.
 
-## Overview
+This is the umbrella design doc. Detailed designs per workstream live in
+sibling docs in this directory (`01-crd-model.md`, `02-multicluster-transport.md`,
+etc., listed under [Detailed designs](#detailed-designs)).
 
-OSMO today generates full Kubernetes Pod and PodGroup specs inside the Python API server and pushes them to backend clusters through an operator. This tight coupling means every new workload runtime — NIM, Dynamo, Ray, Grove, future things we haven't seen yet — requires changes to the API server, the backend worker, and the gRPC protocol between them. It also makes multi-cluster and edge scenarios hard: a workflow that spans two clusters can't be expressed cleanly because the API server is the one rendering pod specs targeted at a specific cluster.
+## 1. Goal
 
-This project replaces that pattern with **three Kubernetes CRDs** as the contract between OSMO and the cluster:
+**OSMO orchestrates ML/AI workflows across the heterogeneous Kubernetes
+clusters a team or organization owns — some on AWS, some on Nebius or
+CoreWeave, some on-prem, some at the edge — so the combined compute
+capacity is used efficiently.** Each cluster carries its own GPU SKUs,
+CPU/memory/disk capacity, security posture, networking model, and cost
+profile. Users describe what their workflow needs (e.g. 8× H100, a NIM
+inference service, a Ray training job); OSMO decides which cluster runs
+each workload based on live capacity, admin policy, and workflow-internal
+constraints like group co-location. If no cluster has capacity right now,
+the workflow queues until one does. Capacity that frees up gets reused by
+the next eligible workflow without human routing decisions.
 
-- **`OSMOWorkflow`** — the user-submitted DAG. Lives in the control cluster only. Owns DAG resolution, status rollup, finalizer-based cross-cluster cleanup, TTL-based auto-deletion.
-- **`OSMOTaskGroup`** — one DAG node, materialized wherever it runs. Carries the runtime discriminator (`runtimeType`) and opaque `runtimeConfig`. The extension point for new runtimes (NIM, Ray, Dynamo, Grove): adding one is a ~200 LOC Go plugin under `controller/runtimes/`.
-- **`OSMOCluster`** — registry of backend clusters with status (connection, last seen, supported runtimes, capacity).
+Delivering that requires replacing OSMO's Python state-machine workflow
+engine with a Kubernetes-native control plane shaped around CRDs and
+standard controller-runtime patterns. The rewrite gives us three things
+existing OSMO doesn't:
 
-Multi-cluster dispatch is first-class via a **phone-home gRPC session**: each backend cluster's controller dials the control cluster's Operator Service, authenticates with a per-cluster bearer token, and stays connected for both inbound commands (CreateOTG, DeleteOTG, ResyncRequest) and outbound status events. This works for NAT'd / edge / customer-managed backends that can't be reached from the control cluster — no KubeFed-style federation required.
+1. **Workflows that span multiple clusters as a first-class concept** — one
+   DAG, multiple backends, with the platform deciding which cluster runs
+   each node based on live capacity and admin policy.
+2. **A runtime-pluggable workload model** — KAI today, NIM / Ray / JobSet /
+   Dynamo / Grove tomorrow, behind one CRD shape. Adding a runtime is ~200
+   LOC of Go, not a cross-cutting Python+gRPC+SQL change.
+3. **A no-credentials-on-the-hub multi-cluster transport** — backends dial
+   home; the control plane never holds backend K8s credentials. Required
+   for on-prem clusters with sensitive data, NAT'd edges, and
+   customer-managed clusters.
 
-**The architecture has no relational database and no Redis.** Live state lives in etcd via the CRDs. Cross-cluster status flows over the gRPC session, into an in-memory `RemoteStatusCache`, and is folded into `OSMOWorkflow.status` by the workflow controller (single-writer pattern, no conflicts). Workflow history after TTL goes to structured logs (Loki / CloudWatch) + S3 archive. Accounting goes to Prometheus.
+By doing the above we drop a stack of components existing OSMO carries
+today: the Kombu / Celery **Worker** pool, the **Delayed Job Monitor**,
+**Redis** (job queue + barriers + event streams), and **most of PostgreSQL**
+(workflow + task state, custom RBAC tables, accounting tables, pool tables).
+What stays of PostgreSQL is one **history table** purpose-built for fast
+queries over millions of workflows.
 
-### Motivation
+### What "done" looks like
 
-1. **Runtime extensibility is load-bearing.** Physical AI workloads increasingly want NIMs for inference, Dynamo for disaggregated serving, Ray for distributed compute, Grove for gang-scheduled heterogeneous pods. The current architecture forces each of these into ad-hoc code paths in the API server. A declarative CRD lets each runtime be a first-class plugin instead of a branch in the job-spec generator.
-2. **Multi-cluster is a real constraint.** OSMO already runs across AKS, AWS, GCP, on-prem clusters, neoclouds (Nebius, CoreWeave), and will increasingly span edge devices (Jetson, Orin). A workflow may legitimately span clusters — training in one, inference in another, edge data collection in a third. The current architecture has no clean way to express that.
-3. **Separation of concerns.** The API server today knows Kubernetes details (security contexts, pod affinity, topology spread, toleration merging). Moving pod-spec generation into a controller that runs in the cluster aligns responsibility with locality: the cluster's controller knows what works in its cluster; the API server knows what the user asked for.
-4. **Operational surface.** Today a schema change to Pod spec generation means an API server rollout, which is a shared-blast-radius event. A controller rollout affects only one cluster at a time.
+- A user can submit a workflow that has one node running KAI on cluster A,
+  one running NIM on cluster B, and one running RayJob on cluster C — and
+  the platform picks the clusters automatically based on the resources
+  requested.
+- The platform handles ~10 million historical workflows with sub-second
+  query latency on common filters (by user, by GPU type, by time range, by
+  pool).
+- Backend clusters connect to the control plane without issuing any
+  inbound credentials; the control plane never sees a backend kubeconfig.
+- Adding a new runtime type (e.g. when SIG-Scheduling ships a new K8s-native
+  workload CRD) is a single ~200 LOC plugin under `controller/runtimes/`,
+  not a cross-cutting change.
+- The Worker, Delayed Job Monitor, Redis, and most of PostgreSQL are
+  removed from the production deployment.
 
-### Problem
+### Non-goals
 
-**Tight coupling to Kubernetes primitives.** `K8sObjectFactory` (`utils/job/kb_objects.py`) and `KaiK8sObjectFactory` render full Pod + PodGroup specs in Python, embedding cluster-specific knowledge. Every runtime change touches these files.
+- **Not a service mesh.** Cross-cluster networking (Submariner / WireGuard /
+  Headscale) is an infrastructure dependency the deployment picks; OSMO
+  integrates but doesn't ship a mesh.
+- **Not a federated K8s control plane.** We do not federate kubectl or
+  arbitrary CRD propagation across clusters (no KubeFed / Karmada role).
+  OSMO federates *its own workflow concept* over a purpose-built transport.
+- **Not a multi-runtime registry.** Per-runtime operators (KubeRay, NIM
+  Operator, etc.) stay independent K8s components. We integrate with them;
+  we don't replace them.
+- **Not a replacement for cluster-local schedulers.** KAI keeps doing gang
+  scheduling and node placement.
 
-**Backend worker is a bottleneck.** All job creation goes through the backend worker process. It's a single-threaded Python component that frequently needs to be aware of specific runtime details (KAI gang scheduling, PodGroup minAvailable computation). Adding a NIM runtime today means adding NIM-specific code here.
+## 2. Architecture
 
-**gRPC protocol is leaky.** The current protocol sends rendered Pod specs over gRPC. Any change in what we send (e.g., adding a new env var field, a new volume mount pattern) is a protocol-level change.
+### 2.1 Overview
 
-**No multi-cluster workflow support.** The API server has no concept of "task group that runs in cluster X." Workflows are cluster-scoped at submission, and cross-cluster orchestration is out of reach.
-
-**Heterogeneous backend support is implicit.** Edge devices, neocloud bare-metal, and hyperscaler VMs all look like "Kubernetes clusters" to OSMO, but their operational characteristics (intermittent connectivity, outbound-only networking, ARM64, different CNIs) aren't surfaced in any design contract.
-
-## Use Cases
-
-| Use Case | Description |
-|---|---|
-| Submit a multi-runtime workflow | A user submits a workflow where one task group is a KAI batch job (training), another is a NIMService (inference endpoint), and a third is a Ray cluster (preprocessing). Each task group uses its native Kubernetes primitives; OSMO does not re-implement them |
-| Span clusters in a single workflow | A user submits a workflow that runs Cosmos augmentation on an on-prem H100 cluster and downstream pseudo-labeling on a neocloud (CoreWeave). OSMO routes each task group to the designated cluster; data moves through Swift, services resolve via the configured cluster mesh |
-| Deploy to an edge cluster | A user registers a Jetson Orin cluster as an OSMO backend. The same workflow YAML syntax works, but the cluster's `network.type` routes service references through a WireGuard overlay since the Jetson is NAT'd |
-| Add a new runtime type | A platform team ships a new VLM-serving runtime (e.g., Grove PodClique). They write a Go reconciler + status mapper (~200 LOC) and register it with the controller. No API server change, no gRPC protocol change, no Python code |
-| Migrate a workflow between runtimes | A user moves an inference task from in-group raw vLLM to an external NIMService by changing `runtimeType` in the workflow spec. No other workflow changes needed |
-
-## Requirements
-
-| Title | Description | Type |
-|---|---|---|
-| Runtime extensibility | OSMO shall support adding a new workload runtime (e.g. Ray, Grove) by implementing a Go reconciler + status mapper, without changes to the API server or gRPC protocol | Functional |
-| Multi-cluster task routing | A workflow shall be able to declare per-task-group cluster targeting, and OSMO shall dispatch CRs to the correct cluster's controller | Functional |
-| Etcd as source of truth | Live workflow + task group state shall live in etcd via CRDs in their owning cluster. Cross-cluster status shall converge via the gRPC session's status events + the operator service's `ResyncRequest` on every reconnect. No relational database in the hot path. | Reliability |
-| Graceful runtime failure | If a controller cannot reach the API server temporarily, it shall continue reconciling CRs it already has and resume status push when connectivity returns | Reliability |
-| CR schema is stable | The `OSMOTaskGroup` CR schema shall be versioned; breaking changes shall be introduced via a new CRD version with a conversion webhook | Compatibility |
-| etcd size safety | A single `OSMOTaskGroup` CR shall not exceed 500 KB, well below etcd's 1.5 MB object limit | KPI |
-| Status push latency | The controller shall push terminal state changes (Succeeded, Failed) to the API server within 5 seconds under nominal conditions | Performance |
-| Cross-cluster service discovery | A task group shall be able to reference a service exposed by a task group in a different cluster using a stable DNS name resolved by the cluster mesh | Functional |
-| Backwards compatibility | Existing workflows using KAI task groups shall continue to work without modification during the transition | Compatibility |
-| Observability | The controller shall emit Prometheus metrics for reconcile duration, status push failures, and per-runtime CR counts | Observability |
-| Secure credential handoff | Task-level credentials (HF tokens, NGC keys, Swift secrets) shall be injected via Kubernetes Secrets in the target cluster, not carried in the CR body | Security |
-
-## Architectural Details
-
-### Current architecture
-
-```mermaid
-flowchart LR
-    APIServer["API Server<br/>(Python FastAPI)"]
-    BackendWorker["Backend Worker<br/>(Python)"]
-    Operator["Backend Operator<br/>(Python, per cluster)"]
-    K8s["Kubernetes<br/>(backend cluster)"]
-
-    APIServer -->|Redis job queue| BackendWorker
-    BackendWorker -->|gRPC: rendered Pod specs| Operator
-    Operator -->|K8s API: Create Pod, PodGroup| K8s
-    K8s -->|WebSocket events| Operator
-    Operator -->|gRPC: status + events| APIServer
-```
-
-- API server renders full Pod/PodGroup specs via `K8sObjectFactory`
-- Backend worker deduplicates and forwards to the cluster's operator
-- Operator writes Pods directly to the cluster's K8s API
-- Status propagates back via WebSocket listeners
-
-**Limitations**: runtime-specific knowledge (NIM, Dynamo, Ray) must live in `K8sObjectFactory`; gRPC protocol carries rendered pod specs (leaky); single-cluster assumption baked in.
-
-### Proposed architecture
-
-```mermaid
-flowchart TB
-    subgraph Control["Control cluster"]
-        APIServer["API Server<br/>(Go HTTP, stateless)"]
-        WfCtrl["Workflow Controller<br/>(controller-runtime)"]
-        OpSvc["Operator Service<br/>(in-proc gRPC server)"]
-        ControlEtcd[("control etcd<br/>OSMOWorkflow<br/>OSMOCluster")]
-        APIServer -->|"write OSMOWorkflow CR"| ControlEtcd
-        WfCtrl -->|"watch + DAG + dispatch"| ControlEtcd
-        WfCtrl -->|"CreateOTG /<br/>DeleteOTG /<br/>ResyncRequest"| OpSvc
-        OpSvc -->|"status events →<br/>RemoteStatusCache →<br/>reconcile"| WfCtrl
-    end
-
-    subgraph BackendA["Backend cluster A"]
-        BSession_A["session client"]
-        BCtrl_A["TaskGroup Controller<br/>+ runtime plugins"]
-        BEtcd_A[("backend etcd<br/>OSMOTaskGroup")]
-        BCtrl_A -->|"watch + reconcile"| BEtcd_A
-        BCtrl_A -->|"create Pod /<br/>PodGroup /<br/>NIMService /<br/>RayCluster..."| BRuntimes_A["runtime primitives"]
-        BSession_A -.-> BCtrl_A
-    end
-
-    subgraph BackendB["Backend cluster B"]
-        BSession_B["session client"]
-        BCtrl_B["TaskGroup Controller"]
-        BEtcd_B[("backend etcd")]
-        BSession_B -.-> BCtrl_B
-    end
-
-    BSession_A == "phone-home<br/>gRPC ClusterSession<br/>(bidirectional stream)" ==> OpSvc
-    BSession_B == "phone-home<br/>gRPC ClusterSession" ==> OpSvc
-```
-
-- **apiserver** (Go, stateless) accepts user submissions, writes `OSMOWorkflow` CRs to the control cluster's etcd.
-- **Workflow Controller** resolves the DAG, dispatches each ready group's `OSMOTaskGroup` CR to the right cluster via the Operator Service.
-- **Operator Service** terminates the gRPC ClusterSession from each backend. **Backends dial in** (phone-home); the control cluster never dials out. Works for NAT'd / edge / customer-managed backends.
-- **TaskGroup Controller** on each backend watches its local OSMOTaskGroup CRs and reconciles them via the appropriate runtime plugin into Pods / PodGroups / NIMServices / RayClusters / etc.
-- **Status events** flow back over the same session, into an in-memory `RemoteStatusCache`, and trigger a Workflow Controller reconcile that updates `OSMOWorkflow.status.Groups[g]` — single-writer pattern, no `Status().Update()` conflicts.
-- **No PostgreSQL.** Etcd is the source of truth for live state.
-- Controller normalizes per-runtime status back into the CR's `.status` field and pushes summaries via gRPC
-- API server reconciles PostgreSQL state against CR status (primary: Postgres, secondary: CR)
-
-### Key design principles
-
-1. **CR-first.** The CR is the declarative contract. Every side — API server, Operator Service, Controller — reads and writes the CR. No side channel.
-2. **OSMO routes workload, not packets.** The API server decides *which cluster* runs what. It does not get involved in pod-to-pod data flow. Networking between clusters is infra, resolved by stable DNS names.
-3. **PostgreSQL is the source of truth across clusters.** When a single workflow spans multiple clusters, no cluster has the full picture. Postgres aggregates. Periodic reconciliation (60s) backstops the gRPC push so state never drifts permanently.
-4. **Controller owns Kubernetes-native primitives.** Rendering Pod spec from a TaskGroup's compact template is the controller's job. The API server never sees a full Pod spec.
-5. **Runtime is pluggable.** Adding a runtime means adding a `Reconciler` and a `StatusMapper` in Go. The CR schema has a generic `runtimeConfig` that each runtime interprets.
-6. **Multi-cluster is first-class.** A single-cluster deployment works with one Controller. A multi-cluster deployment adds more Controllers and a cluster mesh; no API server code changes between the two.
-7. **Fewer moving parts.** The CRD makes several services and the entire Redis dependency redundant. Removing them is in scope for this project.
-
-## Service consolidation
-
-The CRD-based design eliminates the need for several services and the Redis dependency entirely. This is in scope for this project, not a follow-up.
-
-### Services removed
-
-| Service | Role today | After CRD |
-|---|---|---|
-| **Worker** | Kombu Redis consumer; runs `FrontendJob`s (CreateGroup, UpdateGroup, BackendCleanupGroup) with dedup + retry + backoff | **Eliminated.** Group lifecycle is a single gRPC call to Operator Service. Retry/backoff moves to the gRPC client wrapper in the API server. Dedup is intrinsic — CR names are idempotent (Create returns AlreadyExists, which is a no-op). |
-| **Delayed Job Monitor** | Polls Redis ZSET for scheduled jobs | **Eliminated.** Workflow-level retry backoff moves into the Controller's reconcile loop (standard controller-runtime backoff). If cron-style scheduled workflows are introduced later, the API server reads `next_run_at` from Postgres directly. |
-| **Python Agent / Backend Listener / Backend Operator** | WebSocket from each cluster to ship events; runs jobs | **Eliminated** by PROJ-147 (Go Operator Service + listeners). Out of scope for this design doc but worth noting alongside. |
-
-### Services that stay
-
-| Service | Why |
-|---|---|
-| **API Server** | Auth, RBAC, workflow CRUD, UI backend, multi-cluster dispatch, Postgres ↔ CR reconciliation. Slimmer (no `K8sObjectFactory`) but core. |
-| **Router** | User-initiated pod interactions (`exec`, `portforward`, `rsync`) — unchanged by the CRD design. |
-| **Logger** | Continues to ingest container logs + task metrics. Internal data path changes (see [Workflow logs without Redis](#workflow-logs-without-redis)). |
-
-### Redis elimination
-
-Every current use of Redis has a replacement:
-
-| Redis use today | Replacement |
-|---|---|
-| Kombu job queue (Worker) | Gone with Worker |
-| Backend event streams (Agent → API server) | gRPC streaming (PROJ-147) |
-| Delayed jobs ZSET (scheduled retries) | Controller reconcile backoff (in-cluster) |
-| In-group task barriers | Already TCP between pods via `osmo_barrier.py` — Redis was never involved here |
-| Workflow-wide barriers (Logger-mediated) | gRPC barrier service on Operator Service, state in Postgres ([see below](#barriers-without-redis)) |
-| Real-time log tail | gRPC streaming from Logger to API server to client ([see below](#workflow-logs-without-redis)) |
-| API server caching | In-process LRU cache (optional; current Redis cache patterns are not hot paths) |
-
-After these moves there is no Redis user left. The Redis StatefulSet, its Helm chart, its Prometheus exporter, and its operator-side credentials all go away.
-
-### Barriers without Redis
-
-**In-group task barriers** (used by `osmo_barrier.py` in current workflows): unchanged. Workers already TCP-connect to the lead pod via in-group DNS:
-
-```bash
-LEAD_HOST="{{host:cosmos_augmentation_worker_0}}"
-uv run python /tmp/osmo_barrier.py --num_nodes 2 --connect ${LEAD_HOST} --rank 0
-```
-
-Redis was never on this path.
-
-**Workflow-wide barriers** (Logger-mediated cross-group sync): replaced by a small gRPC barrier service on the Operator Service.
-
-```proto
-service BarrierService {
-  // Register an expected barrier. Idempotent on barrier_id.
-  rpc RegisterBarrier(RegisterBarrierRequest) returns (BarrierHandle);
-
-  // A participant arrives. Returns count of remaining arrivals.
-  rpc Arrive(ArriveRequest) returns (ArriveResponse);
-
-  // Block until all expected arrivals. Streaming RPC pushes BarrierComplete
-  // when count is reached. Times out per WaitForCompletionRequest.timeout.
-  rpc WaitForCompletion(WaitForCompletionRequest) returns (stream BarrierEvent);
-}
-
-message RegisterBarrierRequest {
-  string workflow_id = 1;
-  string barrier_id  = 2;
-  int32  expected    = 3;
-  google.protobuf.Duration ttl = 4;
-}
-
-message ArriveRequest {
-  string workflow_id = 1;
-  string barrier_id  = 2;
-  string participant = 3;
-}
-```
-
-State lives in Postgres (one row per barrier with `workflow_id`, `barrier_id`, `expected_count`, `current_arrivals`, `participants[]`, `ttl`). The Operator Service writes to Postgres atomically and notifies streaming subscribers when count is met. No new process — just an endpoint on the existing Operator Service.
-
-Tradeoff vs Redis: Postgres adds a few ms of latency per Arrive vs Redis's sub-millisecond. Barriers block for seconds-to-minutes, so the latency increase is in the noise. Eliminating an entire data-store dependency is worth it.
-
-### Workflow logs without Redis
-
-Today's Logger uses Redis to buffer log lines between osmo-ctrl ingestion and Postgres persistence, and to support real-time tail (`osmo workflow logs -f`).
-
-The replacement uses **object storage as the persistent layer** and **gRPC streaming for the live tail**:
+OSMO splits into two planes that communicate only through a phone-home
+gRPC stream. The control plane never holds backend K8s credentials.
 
 ```
-osmo-ctrl ──gRPC stream──▶ Logger ──memory buffer──┐
-                              │                     │
-                              │                     │ periodic flush (30s or 10 MB)
-                              │                     ▼
-                              │              ┌──────────────────┐
-                              │              │ Object Storage   │
-                              │              │ swift://logs/    │
-                              │              │   {workflow_id}/ │
-                              │              │   {task_id}/     │
-                              │              │   chunk-N.log    │
-                              │              └──────────────────┘
-                              │
-                              │ live tail (gRPC stream)
-                              ▼
-                       API Server  ──▶ client (osmo workflow logs -f)
+control cluster                                  backend cluster (one of N)
+─────────────────                                ──────────────────────────
+
+apiserver (Go)                                   TaskGroup Controller
+  ├ submit / list / query                          │ reconciles OSMOTaskGroup
+  ├ Postgres (history)                             │ invokes runtime plugin
+  └ etcd (live CRDs)                               │
+                                                   ▼
+       │                                       runtime plugin
+       ▼                                         (KAI today; NIM/Ray/etc next)
+  Workflow Controller                              │ renders runtime-native
+  ├ DAG resolution                                 │ K8s objects
+  ├ scheduler (cluster picker)                     ▼
+  ├ status rollup                                Kueue (admission/quota/queue)
+  └ TTL + finalizer cleanup                        │ admits Workload
+       │                                           ▼
+       │                                       KAI Scheduler (placement only)
+       ▼                                           │ gang-schedules onto nodes
+  Operator Service (gRPC server)                   ▼
+       ▲                                       Pods running
+       │                                           │
+       │   long-lived bidi gRPC                    │ status events
+       │ ◄──── phone-home from each ────────       │
+       │       backend cluster                     ▼
+       │                                       Backend Session Client
+       │                                       (dials home, executes commands,
+       │                                        streams status, sends
+       │                                        capacity reports + heartbeats)
+       │                                           ▲
+       └───────────────────────────────────────────┘
+                  commands ─►   (CreateOTG, DeleteOTG, ResyncRequest)
+                  status events ◄─ (StatusEvent, CapacityReport, Heartbeat)
 ```
 
-**Path-by-path:**
-
-- **Ingestion.** osmo-ctrl sends log lines to the Logger over a gRPC stream (same pattern PROJ-147 uses for events; no Redis intermediary).
-- **Buffering.** Logger holds an in-memory ring buffer per task, bounded (default 10 MB). On buffer-full or 30-second timer, the buffer is flushed to object storage.
-- **Persistence.** Logs land in the workflow's existing storage backend (Swift, S3, Azure Blob, etc.) at a stable per-task prefix. Lifecycle / retention policies live with the storage backend, same as workflow output artifacts.
-- **Final flush.** The Controller's log-collection finalizer (already in the design) catches container termination and ensures the Logger flushes any remaining buffer before the Pod is deleted.
-- **Real-time tail.** `osmo workflow logs -f` opens a gRPC stream against the API server, which proxies to the Logger. The Logger pushes from its in-memory buffer to the subscriber. No persistence layer is involved on the live path.
-- **Historical logs.** `osmo workflow logs` (no `-f`) reads chunks directly from object storage. The API server signs URLs / streams content as appropriate.
-- **Task metrics** (timing, byte counters, retry counts): continue to write to Postgres directly. Small structured data, low frequency, well-suited to RDBMS.
-
-**Why object storage instead of Postgres for logs:**
-
-- Logs are append-only, write-heavy, and large — Postgres is the wrong tool
-- Object storage is already a hard dependency (workflow inputs/outputs)
-- TB-scale retention is trivial via lifecycle rules
-- Cross-cluster compatible — logs land in the same bucket regardless of which cluster ran the task
-
-**Why not keep using Postgres tables for logs (as some systems do):**
-
-- High write amplification kills Postgres performance at scale
-- Indexing/retention becomes operationally expensive
-- Already using object storage for everything else; one less primitive
-
-### Updated dependency map
-
-After the cuts:
-
-```
-┌─────────────────────────────────────────────────────┐
-│  Required services                                   │
-│  • API Server   (Python FastAPI)                    │
-│  • Operator Service   (Go gRPC, per PROJ-147)       │
-│  • Controller   (Go, per backend cluster)           │
-│  • Router       (existing, unchanged)               │
-│  • Logger       (existing, internal path changed)   │
-└─────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────┐
-│  Required data stores                                │
-│  • PostgreSQL   (state, history, workflow metadata, │
-│                  barrier state, task metrics)        │
-│  • Object Storage  (Swift/S3 — workflow data + logs)│
-└─────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────┐
-│  Eliminated                                          │
-│  • Worker                                            │
-│  • Delayed Job Monitor                               │
-│  • Redis (in all uses)                              │
-│  • Python Agent / Backend Listener / Backend         │
-│    Operator   (per PROJ-147)                        │
-└─────────────────────────────────────────────────────┘
-```
-
-## Detailed Design
-
-### OSMOTaskGroup CRD schema
-
-```yaml
-apiVersion: workflow.osmo.nvidia.com/v1alpha1
-kind: OSMOTaskGroup
-metadata:
-  name: cosmos-aug-workflow-abc-group-2
-  namespace: osmo-workflows
-  labels:
-    osmo.nvidia.com/workflow-id: "workflow-abc"
-    osmo.nvidia.com/cluster-id: "aks-osmo-eastus"
-spec:
-  workflowId: workflow-abc
-  groupIndex: 2
-  groupName: cosmos_augmentation_group
-  runtimeType: kai   # one of: kai, nim, dynamo, ray, grove
-  runtimeConfig:
-    # Shape depends on runtimeType; see "Runtime types catalog" below
-    gangScheduling: true
-    minAvailable: 2
-    schedulerName: kai-scheduler
-    tasks:
-    - name: cosmos_augmentation_worker_0
-      lead: true
-      image: nvcr.io/.../cosmos-augmentation:0.1.0
-      resources:
-        cpu: "11"
-        memory: 100Gi
-        nvidia.com/gpu: "1"
-      env:
-        - name: WORKER_ID
-          value: "0"
-      command: ["bash", "-c"]
-      args: [...]
-      inputs:
-      - task: config_generation
-      - url: swift://.../input-videos
-      outputs:
-      - url: swift://.../cosmos-augmented
-      credentials:
-      - secretName: hf-token-secret
-        keyMap: {HF_TOKEN: HF_TOKEN}
-    - name: cosmos_augmentation_worker_1
-      lead: false
-      # ...
-  timeout: 24h
-  maxRetries: 3
-status:
-  phase: Running    # Pending, Running, Succeeded, Failed, Terminating
-  conditions:
-  - type: Ready
-    status: "True"
-    lastTransitionTime: "2026-04-23T12:00:00Z"
-  - type: Progressing
-    status: "True"
-    lastTransitionTime: "2026-04-23T12:00:00Z"
-  runtimeStatus:
-    # Runtime-specific payload, shape varies by runtimeType
-    tasks:
-    - name: cosmos_augmentation_worker_0
-      podName: cosmos-aug-workflow-abc-group-2-worker-0-xyz
-      state: Running
-      startTime: "2026-04-23T12:00:00Z"
-      conditions: [...]
-  observedGeneration: 3
-  retries: 0
-  message: ""
-```
-
-**Key design choices:**
-
-- **Compact task templates, not full Pod specs.** A `tasks[].image` + `resources` + `env` + `command` + inputs/outputs is enough for the controller to render a Pod. The controller adds security context, volume mounts, topology spread, affinity — all cluster-local knowledge. This keeps CRs under 500 KB even for 100-task groups (etcd limit is 1.5 MB).
-- **`runtimeType` + `runtimeConfig` split.** The top-level fields (workflowId, timeout, retries) are universal. The runtime-specific shape lives in `runtimeConfig`. This mirrors the Kubernetes `Object.spec.<discriminator>` pattern (e.g., `Service.spec.type` + type-specific config).
-- **`.status.runtimeStatus` is also runtime-specific.** But `.status.phase` and `.status.conditions` are normalized across runtimes so the API server has a stable interpretation surface.
-- **`observedGeneration`** — standard K8s pattern to detect reconciliation lag.
-
-### Controller design
-
-Single controller binary per cluster, with pluggable reconcilers by `runtimeType`.
-
-```mermaid
-flowchart TB
-    CR["OSMOTaskGroup CR<br/>(watched)"]
-    Dispatcher["Runtime Dispatcher"]
-    KAIReconciler["KAI Reconciler<br/>(Pod + PodGroup)"]
-    NIMReconciler["NIM Reconciler<br/>(NIMService + PVC + Job)"]
-    DynamoReconciler["Dynamo Reconciler<br/>(DynamoGraphDeployment)"]
-    RayReconciler["Ray Reconciler<br/>(RayCluster / RayJob)"]
-    GenericReconciler["Generic CRD Reconciler<br/>(unstructured)"]
-    StatusMapper["Status Mapper<br/>(per-runtime)"]
-    FinalizerMgr["Finalizer Manager<br/>(log collection)"]
-    GRPCClient["gRPC client<br/>(to Operator Service)"]
-
-    CR --> Dispatcher
-    Dispatcher --> KAIReconciler
-    Dispatcher --> NIMReconciler
-    Dispatcher --> DynamoReconciler
-    Dispatcher --> RayReconciler
-    Dispatcher --> GenericReconciler
-    KAIReconciler --> StatusMapper
-    NIMReconciler --> StatusMapper
-    DynamoReconciler --> StatusMapper
-    RayReconciler --> StatusMapper
-    GenericReconciler --> StatusMapper
-    StatusMapper --> GRPCClient
-    FinalizerMgr --> CR
-```
-
-#### The dispatcher
-
-A thin switch over `spec.runtimeType`:
-
-```go
-type Reconciler interface {
-    Reconcile(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (ctrl.Result, error)
-}
-
-type StatusMapper interface {
-    Map(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (v1alpha1.OSMOTaskGroupStatus, error)
-}
-
-type Runtime struct {
-    Reconciler   Reconciler
-    StatusMapper StatusMapper
-}
-
-var runtimes = map[string]Runtime{
-    "kai":     {KAIReconciler{}, KAIStatusMapper{}},
-    "nim":     {NIMReconciler{}, NIMStatusMapper{}},
-    "dynamo":  {DynamoReconciler{}, DynamoStatusMapper{}},
-    "ray":     {RayReconciler{}, RayStatusMapper{}},
-    "grove":   {GroveReconciler{}, GroveStatusMapper{}},
-}
-```
-
-Adding a runtime is registering in the map. No other change.
-
-#### KAI reconciler
-
-Replaces the current `K8sObjectFactory` path. Given an `OSMOTaskGroup` with `runtimeType: kai`:
-
-1. For each task in `runtimeConfig.tasks`, render a full `corev1.Pod` (container security context, volume mounts, topology spread, affinity, tolerations — all from cluster-local policy).
-2. Create a `scheduling.kai.run.ai/v2alpha2 PodGroup` with `minAvailable = len(tasks)` for gang scheduling (or the overridden value from `runtimeConfig.minAvailable`).
-3. Set the PodGroup as controller-owner of each Pod (for cascade delete).
-4. Create the Pods, treating an already-existing Pod as a no-op (idempotent reconcile).
-5. Status mapper reads Pod phases, aggregates per-task states, rolls up to `phase` (Running if any task Running, Succeeded if all Succeeded, Failed if any Failed that exceeds retry budget).
-
-#### Generic CRD reconciler
-
-For runtimes that target an existing third-party CRD (NIMService, DynamoGraphDeployment, RayCluster, PodClique):
-
-1. Use `dynamic.Interface` to create/get/watch the target CRD as `unstructured.Unstructured`.
-2. Translate `spec.runtimeConfig` → target CRD's `spec` via a per-runtime template.
-3. Set an owner reference from the OSMOTaskGroup to the target CR so cascade delete works automatically.
-4. Status mapper reads the target's `.status`, extracts the runtime-specific ready/failed signals, normalizes to OSMOTaskGroup's `.status.phase`.
-
-This means NIM, Dynamo, Ray, Grove, and future CRDs share ~80% of reconciler code — only the translator and status mapper differ per runtime.
-
-#### Periodic reconciliation (drift detection)
-
-Controller runs a periodic sweep (default 60s) over all `OSMOTaskGroup` CRs it owns:
-
-1. List all CRs with the cluster label
-2. For each, recompute desired state and compare against observed
-3. If divergence, re-enqueue for reconciliation
-4. Also: push a full status summary to the Operator Service via gRPC (covers gaps if a prior push failed)
-
-This is the backstop against gRPC-push failures. PostgreSQL eventually converges with the CR state regardless of push reliability.
-
-#### Finalizer: log collection before delete
-
-When a task group is deleted (either by user or by workflow cancellation), the Pods' container logs are only readable while Pods exist. Cascade delete removes Pods immediately.
-
-To collect logs before cascade delete:
-
-1. Controller adds finalizer `workflow.osmo.nvidia.com/log-collection` to every OSMOTaskGroup on create.
-2. On delete: the finalizer blocks cascade delete. Controller:
-   - Iterates Pods in the group
-   - Streams `kubectl logs`-equivalent via K8s API
-   - Uploads logs to the workflow's Swift output path
-   - Removes the finalizer
-3. Kubernetes completes cascade delete as normal.
-
-If log collection fails (Swift unreachable, pod already gone), the controller still removes the finalizer after a timeout (5 min) and emits a Prometheus counter. Better to lose logs than block delete forever.
-
-### API Server changes
-
-#### CR create/delete via Operator Service (no direct K8s access)
-
-The Python API server does not have K8s credentials for every backend cluster. All CR operations go through the PROJ-147 Operator Service gRPC:
-
-```proto
-service OperatorService {
-  rpc CreateOTG(CreateOTGRequest) returns (CreateOTGResponse);
-  rpc DeleteOTG(DeleteOTGRequest) returns (DeleteOTGResponse);
-  rpc GetOTGStatus(GetOTGStatusRequest) returns (OTGStatusResponse);
-  rpc StreamOTGStatus(StreamOTGStatusRequest) returns (stream OTGStatusEvent);
-}
-
-message CreateOTGRequest {
-  string cluster_id = 1;
-  bytes otg_yaml = 2;  // serialized OSMOTaskGroup
-}
-```
-
-The API server serializes the CR, picks the target cluster, and sends via Operator Service. The Operator Service uses its kubeconfig to write to the cluster's K8s API.
-
-#### Multi-cluster dispatch
-
-The API server's workflow submission path evaluates each task group's target cluster before writing CRs:
-
-1. Each group in the workflow spec has a `cluster:` selector (explicit cluster id, or pool-based dynamic routing).
-2. The API server resolves the selector to a concrete `cluster_id` using the `backend_cluster` table and current pool assignments.
-3. For each group, the API server calls `CreateOTG(cluster_id, serialized_cr)`.
-4. The Operator Service writes the CR into that cluster's K8s API.
-5. Each cluster's Controller watches for CRs labeled with its own `cluster_id` and reconciles them.
-
-A workflow with task groups in three different clusters produces three CR writes, one per cluster. No cluster sees CRs that aren't its own.
-
-#### Cross-cluster status convergence (no PostgreSQL)
-
-There is no PostgreSQL to reconcile against. The convergence story is built entirely on the gRPC session + controller-runtime patterns:
-
-1. **Steady state.** A backend's TaskGroup Controller emits `OTGStatusEvent` to the session on every reconcile. The Operator Service publishes to an in-process `StatusBus`. A `RemoteStatusSource` subscribes, writes events to a `RemoteStatusCache`, and enqueues a reconcile of the parent `OSMOWorkflow`. The Workflow Controller reads the cache and folds the latest status into `wf.Status.Groups[g]` — single-writer, no `Status().Update()` conflicts.
-
-2. **Reconnect recovery.** On every successful Hello, the Operator Service sends `ResyncRequest` to the backend. The backend lists every OTG it owns and re-pushes current status. Whatever the operator missed during the disconnect window gets replayed.
-
-3. **Periodic safety net.** The Workflow Controller's `PeriodicReconcileInterval` (30s) re-walks the DAG and refreshes statuses from the cache, catching anything that fell through.
-
-If a backend cluster is unreachable past the staleness threshold (~60s), the workflow's affected groups freeze at their last known state. When the session reconnects, ResyncRequest brings them current. There is no relational database to "diverge from."
-
-#### Workflow spec language changes
-
-A small, additive change to the workflow YAML DSL:
-
-```yaml
-groups:
-- name: cosmos_augmentation_group
-  runtimeType: kai    # defaults to "kai" for back-compat
-  cluster: aks-osmo-eastus   # new: per-group cluster routing
-  # For runtimeType: kai, existing fields (tasks, resources, ...) work unchanged
-  tasks:
-  - name: worker_0
-    image: ...
-    # ...
-
-- name: vlm_inference_group
-  runtimeType: nim
-  cluster: coreweave-h100
-  runtimeConfig:
-    nimService:
-      image: nvcr.io/nim/nvidia/model-free-nim:2.0.2
-      model: hf://Qwen/Qwen3-VL-30B-A3B-Instruct
-      env:
-        NIM_SERVED_MODEL_NAME: Qwen/Qwen3-VL-30B-A3B-Instruct
-      resources:
-        gpu: 2
-        memory: 180Gi
-  # A NIM group is a persistent service, not a batch task.
-  # Lifecycle: persistent until explicitly torn down or workflow completes.
-```
-
-`runtimeType: kai` is the implicit default to preserve existing workflows. `cluster:` defaults to the workflow's submission pool's default cluster.
-
-#### Cluster registration with network config
-
-Backend cluster records in PostgreSQL get a new `network_config` JSONB column:
-
-```json
-{
-  "type": "submariner",
-  "config": {
-    "cluster_set_id": "osmo-production"
-  }
-}
-```
-
-Or:
-
-```json
-{
-  "type": "tailnet",
-  "config": {
-    "tailnet_domain": "osmo-private.ts.net",
-    "login_server": "https://headscale.internal.nvidia.com"
-  }
-}
-```
-
-Used by the API server's service-name resolver at workflow render time (see [Cross-cluster networking](#cross-cluster-networking)).
-
-### Runtime types catalog
-
-#### `runtimeType: kai` — KAI Scheduler batch
-
-Direct replacement of the current path. Gang-scheduled Pods via KAI's PodGroup CRD.
-
-**`runtimeConfig`:**
-```yaml
-gangScheduling: true
-minAvailable: 2
-schedulerName: kai-scheduler
-queue: default
-tasks: [...]    # compact task templates
-```
-
-**Creates:** `Pod` + `scheduling.kai.run.ai/v2alpha2 PodGroup`
-
-**Status source:** Pod phases aggregated into `.status.phase`
-
-#### `runtimeType: nim` — NVIDIA Inference Microservice
-
-Renders a NIMService CR + required storage.
-
-**`runtimeConfig`:**
-```yaml
-nimService:
-  image: nvcr.io/nim/nvidia/model-free-nim:2.0.2
-  authSecretName: ngc-api-secret
-  model:
-    source: hf       # hf | ngc | local
-    modelName: Qwen/Qwen3-VL-30B-A3B-Instruct
-  env: {...}
-  storage:
-    pvcTemplate:
-      storageClass: default
-      size: 100Gi
-    preDownloadJob: true   # creates an HF pre-download Job + PVC (see inference/nim-operator/)
-  resources:
-    gpu: 2
-    memory: 180Gi
-```
-
-**Creates:** `NIMService` + optional `PersistentVolumeClaim` + optional pre-download `Job` (see `inference/nim-operator/` for reference manifests)
-
-**Status source:** NIMService `.status.conditions[?(@.type=="Ready")]`
-
-#### `runtimeType: ray` — Ray cluster or Ray job
-
-Renders a RayCluster for long-lived or RayJob for batch.
-
-**`runtimeConfig`:**
-```yaml
-mode: job    # job | cluster
-rayVersion: "2.9.0"
-head:
-  image: rayproject/ray:2.9.0-py310-gpu
-  resources: {cpu: 4, memory: 16Gi}
-worker:
-  replicas: 8
-  image: rayproject/ray:2.9.0-py310-gpu
-  resources: {cpu: 8, memory: 32Gi, nvidia.com/gpu: "1"}
-entrypoint: "python /opt/train.py"   # RayJob only
-```
-
-**Creates:** `ray.io/v1 RayCluster` or `RayJob`
-
-**Status source:** RayCluster `.status.state` + `.status.availableWorkerReplicas`, or RayJob `.status.jobStatus`.
-
-#### `runtimeType: dynamo` — NVIDIA Dynamo disaggregated serving
-
-Renders a DynamoGraphDeployment CR.
-
-**`runtimeConfig`:**
-```yaml
-graph:
-  components:
-  - name: prefill
-    image: ...
-    replicas: 2
-    resources: {gpu: 4}
-  - name: decode
-    image: ...
-    replicas: 4
-    resources: {gpu: 4}
-  kvTransfer:
-    backend: nixl
-```
-
-**Creates:** `DynamoGraphDeployment`
-
-**Status source:** Per-component conditions in the DynamoGraphDeployment status, rolled up.
-
-#### `runtimeType: grove` — Grove PodClique
-
-For heterogeneous gang scheduling of disaggregated serving workloads. Mutually exclusive with Dynamo for the same role; Grove is broader, Dynamo is specialized for prefill/decode.
-
-**`runtimeConfig`:**
-```yaml
-cliques:
-- name: vlm
-  replicas: 1
-  members: [...]
-- name: llm
-  replicas: 2
-  members: [...]
-scheduler: grove-scheduler
-```
-
-**Creates:** `scheduler.grove.io PodClique` resources.
-
-**Status source:** PodClique `.status` fields.
-
-### Status mapping
-
-Each runtime's status shape is different. The controller normalizes into a stable `OSMOTaskGroupStatus`:
-
-```go
-type OSMOTaskGroupStatus struct {
-    Phase              Phase               // Pending | Running | Succeeded | Failed | Terminating
-    Conditions         []metav1.Condition  // Ready, Progressing, ...
-    RuntimeStatus      *runtime.RawExtension  // opaque runtime-specific payload
-    ObservedGeneration int64
-    Retries            int
-    Message            string
-}
-```
-
-**Per-runtime normalization rules:**
-
-| Runtime | Phase=Running if | Phase=Succeeded if | Phase=Failed if |
+Two collaborating planes, two distinct authorities:
+
+- **Control plane**: knows submissions, pool policy, multi-tenant
+  bindings, cross-cluster capacity reports, workflow co-location. Picks
+  *which* cluster.
+- **Backend plane**: Kueue is the authoritative admission engine (queue,
+  quota, priority, preemption). KAI is the placement-only scheduler (gang
+  scheduling + node placement). Backend reports capacity over the session
+  as the hint the control plane uses.
+
+### 2.2 Why CRDs replace the OSMO microservice stack
+
+Before describing the three CRDs themselves, it's worth being explicit about
+*why* the rewrite uses CRDs rather than continuing the Python microservice
+pattern. This is the structural decision that makes everything else possible.
+
+#### What a CRD is in concrete terms
+
+A **CustomResourceDefinition** registers a new object type with the
+Kubernetes apiserver. From the moment the CRD is installed:
+
+- The object type appears in `kubectl api-resources`.
+- `kubectl get osmoworkflow`, `kubectl describe`, `kubectl edit`,
+  `kubectl apply -f workflow.yaml` all work — no custom CLI needed for
+  basic operations.
+- The object is persisted in **etcd** (the same store K8s uses for Pods,
+  Services, ConfigMaps).
+- Field-level validation runs at the apiserver via an OpenAPI v3 schema —
+  bad submissions get a 400 with a useful error before any code runs.
+- Other components subscribe to changes via the K8s **watch protocol** —
+  any controller, sidecar, or `kubectl get -w` gets push notifications on
+  every create/update/delete.
+- The object has a **status subresource** — controllers can update
+  `.status` without bumping `.metadata.generation`, and clients can
+  distinguish observed state (the `.status`) from desired state (the
+  `.spec`).
+- RBAC applies natively — admins can grant a user `osmoworkflow:create`
+  in namespace X without granting access to other resources.
+- The K8s **audit log** records every change with `who/what/when`.
+
+A **controller** is the other half. It's a small Go program — typically
+~500-2000 LOC built on the upstream `controller-runtime` library — that
+follows this loop:
+
+1. **Watch**: subscribe to one or more CRD types.
+2. **Reconcile**: on every event, fetch the current state of the object
+   plus its child resources, compute what the world should look like to
+   match `.spec`, and take the minimum set of actions to converge.
+3. **Update status**: write the observed state back to `.status` so
+   clients see progress.
+
+controller-runtime gives you for free: a per-object workqueue with
+exponential backoff, leader election (so multiple controller replicas
+don't fight over the same object), informer caches (so reconciles are
+fast — no re-fetching from etcd every iteration), metrics, structured
+logging, graceful shutdown.
+
+#### What this lets us delete from existing OSMO
+
+OSMO today is ~7 Python services with a stack of supporting infrastructure
+that exists *because* there was no platform to delegate to. Mapped onto
+the CRD + controller model, most of it collapses into machinery
+Kubernetes already provides:
+
+| Existing OSMO component | What it does today | What replaces it | What disappears |
 |---|---|---|---|
-| kai | any Pod has `phase=Running` | all lead Pods have `phase=Succeeded` | any Pod has `phase=Failed` beyond retry budget, or PodGroup's `minAvailable` never met within grace period |
-| nim | NIMService `Ready=False, Progressing=True` | N/A (persistent; use Ready) | NIMService `Ready=False, Progressing=False` + message |
-| ray | RayCluster `state=ready` OR RayJob `jobStatus=RUNNING` | RayJob `jobStatus=SUCCEEDED` | RayJob `jobStatus=FAILED` / RayCluster `state=failed` |
-| dynamo | any component `state=Running` | N/A (persistent) | any component `state=Failed` |
-| grove | aggregate over PodClique conditions | aggregate over PodClique conditions | aggregate over PodClique conditions |
+| **Worker** (Kombu + Celery + Redis queue) | Picks tasks off a Redis-backed queue and runs them, including retries and dedup | controller-runtime reconcile loops. **The controllers are the execution engine** — they `Watches(OSMOTaskGroup{})`, get a reconcile call per change, take action. Per-object workqueue handles retry/dedup. | Worker pods, Kombu task definitions, Celery worker pool, dedup tracking |
+| **Redis** | Message bus, job queue, distributed barriers, event streams, status cache | etcd watches (notify), controller-runtime workqueue (queue + retry), informer cache (cache), barriers deferred. The K8s watch protocol fills the message-bus role. | Redis deployment, Redis backup/restore ops, message-bus client code |
+| **Delayed Job Monitor** | Polls Redis ZSETs for scheduled jobs that have come due | controller-runtime's `reconcile.Result{RequeueAfter: t}` — built into every reconcile signature | Delayed Job Monitor process, ZSET schema |
+| **PostgreSQL: workflow_state, task_state** | Live state for workflows + tasks | etcd via CRDs. State lives where the controllers naturally watch it. | Tables, ORM models, SQL migrations, application-layer locking |
+| **PostgreSQL: pool tables** | Pool definitions + cluster memberships | `OSMOPool` CRD (Phase 5) — admin manages with kubectl like any other resource | Tables, CRUD API, schema migrations |
+| **PostgreSQL: RBAC (osmo_actions + role_policies + bindings)** | Application-layer permission model | K8s RBAC (Verb × Resource × Subject) — already the K8s permission model. `OSMOPoolBinding` CRD only for the per-user-to-pool layer K8s RBAC can't express natively. | Custom roles + policies + bindings tables, custom permission evaluation code, custom audit logger |
+| **PostgreSQL: accounting tables** | Per-workflow resource usage tracking | Prometheus metrics. Counters + histograms on the workflow controller, scraped by Prometheus, aggregated by PromQL. | Accounting tables, write-side accounting hooks, query API for accounting |
+| **PostgreSQL: workflow + task history** | Lookback for past workflows | **Kept.** A single Postgres schema (workflows + groups + curated events) projected from etcd via a watch-based projector. The only PostgreSQL workload remaining in the new design. | The other ~6 tables and their CRUD code. |
+| **Agent + Operator service** (per-backend) | Cross-cluster dispatch via long-poll WebSocket; backend executes commands locally | gRPC ClusterSession (phone-home bidi stream) + Backend Session Client (Go). See [`02-multicluster-transport.md`](./02-multicluster-transport.md). | Per-backend Agent service, custom WebSocket protocol, all the auth + reconnect glue we built for it |
+| **Python `K8sObjectFactory`** (in API server) | Renders Pod specs for KAI from a workflow YAML, centrally | Per-runtime Go controller plugin in `controller/runtimes/<name>/`, running **on the backend** alongside the workload. The API server never sees Pod specs again. | The factory + all the per-runtime branches inside it |
+| **Custom retry / dedup / scheduling logic across the above** | Various places | controller-runtime workqueue + idempotent reconciliation. The pattern is "make reconcile cheap and idempotent; let it run as often as needed; the workqueue handles dedup and retry." | All the bespoke retry / scheduling code we built into Worker |
 
-The normalization layer is the main per-runtime engineering — not the CR → native CRD translation, which is mostly plumbing.
+#### Why this is a structural simplification, not a port
 
-### Cross-cluster networking
+If we were just rewriting the existing OSMO from Python to Go but
+keeping Worker + Redis + Postgres-for-state, we'd cut wall-clock latency
+and improve type safety, but the operational footprint would be the same.
+Same number of services to deploy, same number of stateful systems to
+back up, same custom retry/dedup logic to maintain.
 
-> **TL;DR**: OSMO routes workload, not packets. Task-to-task traffic travels directly through a cluster mesh that is chosen at infra-deployment time, not in the CR. The API server and controller get small, well-defined extensions to plug in any supported mesh.
+The CRD + controller pattern is **a different shape**:
 
-#### Problem
+- **Stateful systems collapse from 3 (Postgres + Redis + etcd) to ~2 (etcd
+  + Postgres-for-history only).** Redis goes away entirely. Postgres is
+  scoped down to one query projection.
+- **Services collapse from ~7 to ~3** (apiserver, workflow controller,
+  per-backend taskgroup controller). Worker, Delayed Job Monitor, Agent,
+  and the original Operator all become "code that runs inside a
+  controller's reconcile loop."
+- **Custom application-layer concerns become K8s primitives.** RBAC,
+  audit, watch notifications, retry queues, leader election, cascade
+  delete, TTL — all built-in. We stop writing this code; K8s already
+  has it.
+- **Runtimes become plugins.** Adding NIM, Ray, Dynamo, or Grove means
+  writing a ~200 LOC Go reconciler that renders the runtime's native
+  CRD. No changes to the apiserver, no protocol changes, no SQL
+  migrations.
 
-OSMO workflows can span clusters on heterogeneous infrastructure: AKS, AWS EKS, GCP GKE, on-prem, neocloud (CoreWeave, Nebius), plus edge (Jetson, Orin). A task in one cluster may need to call a service in another — typically an inference endpoint, occasionally a coordination endpoint.
+The new OSMO is **a small amount of Go on top of Kubernetes** rather than
+a custom platform that happens to run on Kubernetes. Kubernetes does
+most of the work; we add only the parts specific to OSMO's workflow
+domain.
 
-Additional constraints:
+#### What stays custom (and why)
 
-- **Private networks only.** No traffic may transit the public internet, even encrypted. This rules out commercial Tailscale (public DERP), Skupper (public HTTPS) as-is, and public Ingress + mTLS.
-- **Mixed connectivity.** Some clusters have private interconnects (ExpressRoute, Direct Connect, Cloud Interconnect, Megaport/Equinix); edge devices may be NAT'd behind carrier APNs or corporate firewalls.
-- **No shared IAM or network fabric.** Each cluster is an independent administrative domain.
+CRDs don't replace *everything*. The pieces that remain OSMO-specific:
 
-#### Principle: OSMO routes workload, not packets
+- **The workflow + DAG semantics** — `dependsOn`, status rollup, TTL.
+  These are domain-specific to what a "workflow" means in OSMO.
+- **Cross-cluster dispatch** — K8s controllers work within one cluster;
+  OSMO workflows span clusters. The phone-home gRPC ClusterSession is
+  our addition. See [`02-multicluster-transport.md`](./02-multicluster-transport.md).
+- **The runtime plugin abstraction** — Kubernetes doesn't know what a
+  "runtime" is. We define the contract; per-runtime plugins implement it.
+  See [`03-runtime-plugins.md`](./03-runtime-plugins.md).
+- **The capacity-aware scheduler** — picking which cluster a workflow
+  runs on, given live capacity and admin policy. Kueue handles per-cluster
+  admission; cross-cluster placement is ours. See
+  [`04-scheduling.md`](./04-scheduling.md).
+- **The submission API + multi-tenant policy** — a thin Go apiserver +
+  pool bindings.
+- **Workflow history projection** — a watch-based controller that mirrors
+  CR state to Postgres for fast queries past etcd's natural scope. See
+  [`01-crd-model.md`](./01-crd-model.md).
 
-The core architectural decision is that **OSMO is a control plane; cross-cluster data flow is direct, mesh-mediated**.
+Everything else is K8s machinery we delegate to.
 
-Concretely:
+### 2.3 The three CRDs
 
-- **API server**: writes `OSMOTaskGroup` CRs specifying *which cluster* runs what. Records cluster → mesh-identity mapping. Does not see task traffic.
-- **Controller**: materializes CRs into Kubernetes objects. Creates mesh-discovery artifacts (e.g., `ServiceExport` CR, Tailscale Service annotation). Does not proxy traffic.
-- **Mesh**: handles encryption, routing, discovery between peer clusters. Chosen per deployment.
-- **Tasks**: resolve peer services by stable DNS name (`vlm-qwen3.osmo.svc.clusterset.local`) and establish direct connections.
+Detailed in [`01-crd-model.md`](./01-crd-model.md). Headline shape:
 
-```
-┌────────────────────────────┐     ┌──────────────────────────┐
-│ Task in cluster A           │     │ Service in cluster B     │
-│   code calls:               │     │  listening on port 8000  │
-│   http://vlm-qwen3:8000     │     │                          │
-└───────────┬────────────────┘     └────────────▲─────────────┘
-            │                                   │
-            │ DNS → mesh-provided address       │
-            │ connection → direct through mesh ─┘
-            │
-┌───────────▼────────────────────────────────────┐
-│              Cluster mesh                       │
-│   (Submariner IPsec, WireGuard, or Headscale)  │
-│  Private backbone / private APN / private link │
-└─────────────────────────────────────────────────┘
-
-OSMO API server and Controller are NOT in this path.
-```
-
-#### Candidate meshes
-
-Given the private-only + heterogeneous-backend constraints, three candidates are realistic off-the-shelf:
-
-##### Submariner + Multi-Cluster Services (MCS)
-
-```
-Cluster A                                     Cluster B
-┌──────────────┐       ┌──────────────┐      ┌──────────────┐
-│ pod-A        │─┐     │ Gateway A    │      │ Gateway B    │
-│ 10.0.1.5     │ │     │  IPsec/ESP   │═════▶│  decapsulate │
-└──────────────┘ │     │  encapsulate │      └──────────────┘
-                 │     └──────────────┘
-                 └────▶ route to gateway
-```
-
-- Gateway node per cluster establishes IPsec (or VXLAN) tunnels over the private backbone
-- Lighthouse DNS plugin resolves `name.ns.svc.clusterset.local` to the remote cluster's ClusterIP
-- Globalnet handles CIDR overlap via NAT at the gateway
-- Broker cluster holds the ServiceExport/ServiceImport registry
-
-**Strengths:**
-- Standard K8s API (MCS, [KEP-1645](https://github.com/kubernetes/enhancements/tree/master/keps/sig-multicluster/1645-multi-cluster-services-api))
-- CNI-agnostic (no cluster-wide CNI replacement required)
-- CNCF sandbox project, Apache-2.0
-
-**Weaknesses:**
-- Gateway node is a throughput bottleneck per cluster
-- Requires each gateway to have a routable IP on the private backbone — awkward for NAT'd/edge clusters
-- Added latency ~200–1000µs RTT vs direct routing
-
-##### WireGuard mesh (Netmaker / Nebula / plain WireGuard)
-
-```
-Cluster A                                     Cluster B
-┌──────────────┐       ┌──────────────┐      ┌──────────────┐
-│ pod-A        │       │ node-a1 wg0  │      │ node-b5 wg0  │
-│ 10.0.1.5     │──────▶│ WG encrypt   │═════▶│ WG decrypt   │
-└──────────────┘       │ direct peer  │      │ forward pkt  │
-                       └──────────────┘      └──────────────┘
-```
-
-- Every participating node runs a WireGuard interface
-- Each node peers directly with every other node (mesh topology)
-- Control plane (Netmaker server / Nebula lighthouse) distributes peer keys and allowed-IP routes; data never touches it
-- Kernel WireGuard is extremely fast (~5–20µs per packet)
-
-**Strengths:**
-- No gateway bottleneck; per-node throughput
-- Per-node cryptographic identity
-- Works over any L3-reachable network (including private APN cellular)
-- Lowest added latency (~50–200µs RTT)
-
-**Weaknesses:**
-- Not K8s-native out of the box — K8s Service discovery requires additional layering
-- CIDR overlap not handled gracefully; pods either get mesh-space IPs (bypass CNI) or require non-overlapping CIDRs
-- CIDR + pod routing integration with managed K8s CNIs is fragile
-
-##### Headscale + DERP
-
-```
-# Direct mode (preferred; identical to WireGuard mesh)
-pod → node wg0 ═══ UDP ═══ node wg0 → pod
-
-# DERP relay mode (fallback for NAT-impossible cases)
-pod → tailscaled → HTTPS(WG-encrypted payload) → DERP → HTTPS → tailscaled → pod
-```
-
-- Open-source (BSD-3) Tailscale-protocol coordination server + self-hosted DERP relays
-- Same kernel WireGuard as plain mesh when direct peering works
-- DERP relay fallback via HTTPS when hole-punching fails
-- MagicDNS resolves short names within the tailnet
-- Tailscale Kubernetes Operator exposes K8s Services into the tailnet
-
-**Strengths:**
-- Same raw performance as plain WireGuard mesh in direct mode (~50–200µs RTT)
-- Automatic NAT traversal (STUN + hole punching) — handles edge/NAT'd clusters transparently
-- DERP fallback preserves end-to-end WireGuard encryption through the relay
-- Fully self-hostable with private-only DERP servers
-
-**Weaknesses:**
-- Two components to run (Headscale + DERP relays)
-- Headscale feature-drifts behind commercial Tailscale by 6–12 months
-- DERP relay mode adds 2–10ms RTT and is bandwidth-limited by the relay capacity
-
-#### Tradeoff matrix (private-only)
-
-| Dimension | Submariner | WireGuard mesh | Headscale + DERP |
+| CRD | Scope | Lives in | Role |
 |---|---|---|---|
-| K8s-native discovery | **MCS (standard)** | Requires layering | MagicDNS + Operator |
-| Private-only viable | ✅ | ✅ | ✅ (self-hosted DERP) |
-| Works for NAT'd edge | ❌ gateway needs routable IP | ⚠️ manual relay config | ✅ automatic |
-| Data-plane bottleneck | Per-cluster gateway | None | None (direct) / DERP (fallback) |
-| Added latency RTT | 200–1000µs | 50–200µs | 50–200µs direct / 2–10ms DERP |
-| CIDR overlap handling | Globalnet NAT | Not handled | Tailscale IP replaces pod CIDR |
-| Day-1 setup time | 2–4 h | 3–6 h | 4–6 h |
-| Per-new-cluster time | ~30 min | ~1 h | ~20 min |
-| License | Apache-2.0 | BSD-3 / Apache-2.0 | BSD-3 |
-| Community / maintenance | CNCF sandbox | Small community | Community + Tailscale Inc. adjacent |
+| **OSMOWorkflow** | Namespaced | Control cluster only | User-submitted DAG. Owns DAG resolution, status rollup, TTL, cross-cluster cleanup finalizer. |
+| **OSMOTaskGroup** | Namespaced | Wherever the node runs (control cluster for local groups; backend cluster for remote) | One DAG node materialized. Carries `runtimeType` discriminator + opaque `runtimeConfig`. |
+| **OSMOCluster** | Cluster | Control cluster only | Registry of backend clusters. Status carries liveness, supported runtimes, live capacity. |
 
-#### Recommendation
+`OSMOPool` and `OSMOPoolBinding` (multi-tenant policy) are added in
+Phase 5; covered in [`04-scheduling.md`](./04-scheduling.md).
 
-**No single mesh fits every deployment.** OSMO should support multiple meshes pluggably, chosen at cluster registration time. Default reference deployments:
+### 2.4 Control plane services
 
-- **Datacenter-only deployments** (AKS + AWS + on-prem, no edge): **Submariner + MCS**. Standard API surface, clean developer experience, fine latency.
-- **Datacenter + edge deployments** (includes Jetson / NAT'd clusters): **Headscale + DERP**. Automatic NAT traversal is the deciding factor; edge clusters join the tailnet with a single outbound connection.
-- **Latency-critical, no-edge deployments** (HPC-adjacent, tight east-west patterns): **Netmaker / plain WireGuard mesh**. Lowest per-packet overhead, no gateway bottleneck.
+| Service | Role | Status |
+|---|---|---|
+| **apiserver** (Go) | HTTP API for submit / list / query. **Writes only to etcd** (CREATE OSMOWorkflow CR on submit; GETs and LISTs from Postgres for history, with etcd fallback on UID GETs for very-recent submits). Replaces existing Python FastAPI apiserver. | Phase 1 |
+| **Workflow Controller** | Reconciles OSMOWorkflow → dispatches OSMOTaskGroups. DAG resolution, status rollup, TTL, scheduler (Phase 5). **Writes only to etcd; does not write Postgres.** | Phase 1 |
+| **Projector Controller** | New Phase 4 controller. **Sole writer to `osmo_workflows` + `osmo_workflow_groups`.** Watches OSMOWorkflow CRs via standard controller-runtime informer; UPSERTs the Postgres row on Added/Modified events; finalizes on Deleted. K8s `List + Watch` handles recovery on restart automatically; no orphan-sweeper is required for correctness. See [`01-crd-model.md`](./01-crd-model.md). | Phase 4 |
+| **Operator Service** | gRPC server for the phone-home ClusterSession. Accepts incoming `Connect` streams from backends. Bus + Registry for commands and status. | Phase 2 |
+| **Defaulting webhook** | Mutates `OSMOTaskGroup.spec.suspend = true` on create from the workflow controller, so Kueue's admit-then-unsuspend flow works. | Phase 5 |
+| **Pool Reconciler** | Reconciles OSMOPool readiness from OSMOCluster session state. | Phase 5 |
+| **Retention pruner** | CronJob that drops `osmo_workflow_events` monthly partitions and deletes `osmo_workflows` rows past the configured retention cutoff (default 6-12 months). | Phase 4 |
+| **WorkflowEventIngest** | Operator-service pipeline that ingests `WorkflowTaskEventBatch` envelopes from backends into `osmo_workflow_events` via batched COPY. Events live only in Postgres; no dual-write. | Phase 4 |
+| **Postgres (control plane data store)** | Three-table schema (`osmo_workflows` + `osmo_workflow_groups` + `osmo_workflow_events`) for workflow + event history. Source of truth for **historical** query (etcd is source of truth for **live** state). Populated by the Projector (workflows) and WorkflowEventIngest (events). See [`01-crd-model.md`](./01-crd-model.md). | Phase 4 |
 
-#### Minimal API server + controller changes
+### 2.5 Backend cluster services
 
-The networking layer is orthogonal to OSMO's core — the integration surface is small:
+| Service | Role | Status |
+|---|---|---|
+| **TaskGroup Controller** | Reconciles OSMOTaskGroup → invokes the configured runtime plugin. Universal across runtimes. Houses the `spec.suspend` gate. | Phase 1 |
+| **Backend Session Client** | Dials home, executes commands, streams status, sends capacity reports + heartbeats. Watches local Kueue ClusterQueue to derive capacity. | Phase 2 |
+| **Runtime plugins** | One per `runtimeType`. KAI today; NIM and Ray in Phase 3; JobSet / Dynamo / Grove later. | Phase 1 (KAI) / Phase 3 (NIM, Ray) |
+| **Kueue manager** | Authoritative admission engine: ClusterQueue, ResourceFlavor, LocalQueue, WorkloadPriorityClass. Watches OSMOTaskGroup via GenericJob; admits → flips `spec.suspend=false`. | Phase 5 |
+| **KAI Scheduler (placement-only)** | Reconfigured from "queue + quota + preempt + place" to "place only." Gang-schedules admitted PodGroups onto nodes. | Phase 5 |
 
-**API server:**
+### 2.6 Deep dive: phone-home transport (gRPC ClusterSession)
 
-1. **Cluster registration schema**: add `network_config` JSONB column on `backend_cluster` table. Example values:
-   ```json
-   {"type": "submariner", "config": {"cluster_set_id": "osmo-prod"}}
-   {"type": "tailnet", "config": {"tailnet_domain": "osmo-private.ts.net", "login_server": "https://headscale.internal.nvidia.com"}}
-   ```
+The single piece of infrastructure that makes the no-credentials-on-the-hub
+property work. Existing OSMO has nothing comparable — the closest analogue
+in the K8s ecosystem is OCM's klusterlet, but we built a smaller, simpler
+custom one to keep the auth model (SHA-256 hash) stronger than klusterlet's
+ServiceAccount-JWT model. Full design in
+[`02-multicluster-transport.md`](./02-multicluster-transport.md).
 
-2. **Service-name resolver helper** at workflow render time:
-   ```python
-   def resolve_service_dns(service_name: str, cluster: BackendCluster) -> str:
-       match cluster.network_config.type:
-           case "submariner":
-               return f"{service_name}.osmo.svc.clusterset.local"
-           case "tailnet":
-               return f"{service_name}-{cluster.name}.{cluster.network_config.config['tailnet_domain']}"
-           case "netmaker":
-               return f"{service_name}.{cluster.name}.netmaker.internal"
-           case "ingress":
-               return f"{service_name}.{cluster.name}.{cluster.network_config.config['ingress_wildcard']}"
-   ```
+**Two components**:
 
-3. **Workflow spec**: allow service references that are cluster-qualified:
-   ```yaml
-   inputs:
-     - service: vlm-qwen3
-       cluster: aks-osmo-eastus
-   ```
-   The resolver produces the mesh-appropriate DNS at render time.
+- **Operator Service** (control plane): gRPC server. Accepts incoming
+  bidirectional streams from backends. Runs a `ClusterRegistry` of
+  authenticated sessions, a `CommandBus` for dispatching outbound
+  commands, and a `StatusBus` for fanning out inbound status events.
+- **Backend Session Client** (one per backend cluster): dials home with
+  `Hello` + plaintext bearer token, runs the bidi stream, executes
+  incoming commands against local K8s, streams status events back.
 
-**Controller:**
+**The wire protocol** (one bidi stream per backend):
 
-4. **Service discovery reconciler interface**:
-   ```go
-   type ServiceDiscoveryReconciler interface {
-       Expose(ctx context.Context, svc *corev1.Service, cluster *ClusterNetworkConfig) error
-       Unexpose(ctx context.Context, svc *corev1.Service, cluster *ClusterNetworkConfig) error
-   }
-   ```
-   With one implementation per mesh type:
-   - Submariner: create a `ServiceExport` CR
-   - Tailnet: annotate the Service (`tailscale.com/expose: "true"`, `tailscale.com/hostname: ...`)
-   - Netmaker: create the mesh's equivalent CR or update its DNS
-   - Ingress + mTLS: create an `Ingress` + cert-manager `Certificate`
-
-**Estimated effort:**
-
-| Component | Lines of code |
+| Backend → Control | Control → Backend |
 |---|---|
-| API server: `network_config` schema migration + cluster model | ~100 |
-| API server: service name resolver | ~50 |
-| API server: workflow spec validation for service references | ~50 |
-| Controller: `ServiceDiscoveryReconciler` interface + dispatcher | ~80 |
-| Controller: per-mesh implementations (Submariner / Tailnet) | ~150 each |
-| **Total core** | **~580 + ~150 per additional mesh** |
-
-No changes to: CR schema, runtime containers, Redis/barriers, workflow spec DSL beyond adding cluster qualifier, data plane.
-
-#### What is explicitly out of scope
-
-1. **Cross-cluster synchronous collectives** (`torch.distributed`, NCCL all-reduce, cross-cluster barriers at high frequency) are unsupported. The design assumes cross-cluster traffic is `task → stable-service` or `task → Swift/S3`, not `task ↔ task` synchronous. Mesh latency makes the latter impractical anyway.
-2. **Mesh enrollment automation.** OSMO does not join clusters to the mesh — that's an infra-provisioning step. OSMO records that a cluster is in the mesh (via `network_config`) and uses the mesh for service resolution.
-3. **Failover between meshes.** A cluster is either in mesh X or not. OSMO does not gracefully degrade from Submariner to public Ingress if the backbone fails.
-
-### Data plane
-
-Swift/S3 remains the lingua franca for bulk data movement between task groups. Nothing about the CR design changes this:
-
-- Task inputs/outputs are URLs (Swift, S3, Azure Blob, GCS, local storage backends)
-- OSMO's existing storage SDK (`lib/data/storage/`) handles transfer parallelism
-- A task in cluster A writes to `swift://.../step1-output`; a task in cluster B reads from the same URL
-- Bucket placement is the deployment's responsibility — regional colocation with the consumer is how you minimize egress cost
-
-The CR carries input/output URL references; the osmo_ctrl runtime container in each pod handles the actual transfer.
-
-### Edge and heterogeneous backends
-
-Edge clusters (K3s on Jetson / Orin, MicroK8s, KubeEdge) are *first-class* backend types under the CR design. The reason: a local controller reconciling a small CR against local Kubernetes primitives is exactly what edge K8s distros are designed for.
-
-**Works well at the edge:**
-- CRs are small (~1–2 KB), cheap to replicate over intermittent links
-- Local controller tolerates disconnection — keeps reconciling against last-known state
-- Same CR schema as datacenter clusters — workflow authors don't specialize
-
-**Needs care at the edge:**
-
-- **Image architecture**: Jetson is ARM64. Multi-arch container manifests required, or separate image references per cluster. Many NIMs currently don't publish ARM64.
-- **Image pull strategy**: pulling GB-scale images over a slow link fails or is unacceptable. Pattern: local registry mirror per site, or pre-baked device images.
-- **Execution lifecycle**: edge workloads are often persistent streaming (Deepstream pipeline, Holoscan app), not batch. The CR's lifecycle state machine must permit a "persistent runtime" type that does not terminate unless explicitly stopped.
-- **Data plane**: Swift/S3 from a Jetson on LTE backhaul is a bad default. Tasks should declare local-only data, or the cluster registration includes an alternative object store (local NFS with periodic S3 sync).
-- **Device enrollment**: zero-touch device provisioning (Fleet Command-style) is out of scope for the CR design but needed alongside it. OSMO does not manage device identity; cluster enrollment adds a Jetson cluster to the registry with appropriate `network_config`.
-
-**Explicit out-of-scope for edge:**
-- Cross-cluster synchronous service calls from edge to datacenter with low latency requirements — the backhaul latency (especially cellular) makes this unreliable.
-- Distributed collective operations across edge + datacenter.
-
-### Security
-
-#### Credential distribution
-
-Secrets (HF tokens, NGC keys, Swift credentials) do **not** travel in the CR body. They are:
-
-1. Created in each target cluster as Kubernetes Secrets during cluster provisioning (or via an external-secrets operator).
-2. Referenced by name in the CR: `credentials: - secretName: hf-token-secret, keyMap: {HF_TOKEN: HF_TOKEN}`.
-3. Materialized as env vars or volume mounts at Pod render time by the controller.
-
-The API server never has cleartext credentials. This matches current OSMO design.
-
-#### Identity and mesh auth
-
-- **Submariner**: cluster-level identity via IPsec certificates. Pods inherit cluster trust. Coarse-grained.
-- **WireGuard mesh / Headscale**: per-node cryptographic identity. Finer-grained. ACLs enforced at the mesh control plane.
-- **OSMO's role**: none for network-layer auth. The mesh is the identity system. OSMO's RBAC (API server) is separate and controls *who can submit workflows and what clusters they can target*.
-
-#### RBAC for CR operations
-
-The Operator Service holds cluster credentials; the API server authenticates to the Operator Service via mTLS. The existing authz sidecar (PROJ-148) governs user-facing API calls:
-
-- `workflow:Create` in pool X → API server authorized to write CRs to pool X's clusters
-- `cluster:Admin` → authorized to register new clusters
-
-### Alternatives considered
-
-#### Direct Pod push (current architecture)
-
-**Approach:** Keep rendering full Pod specs in Python, push via gRPC.
-
-**Pros:**
-- No net-new components.
-- Familiar code paths.
-
-**Cons:**
-- Every new runtime requires Python + Go coordinated changes.
-- gRPC protocol leaks K8s object shape.
-- No clean multi-cluster story.
-- Schema changes require API server rollouts (blast radius).
-
-**Rejected because:** doesn't solve the extensibility or multi-cluster requirements.
-
-#### Argo Workflows / Kubeflow Pipelines
-
-**Approach:** Adopt an existing workflow engine.
-
-**Pros:**
-- Mature.
-- Community support.
-
-**Cons:**
-- Single-cluster by design (both).
-- Don't integrate naturally with OSMO's pool / quota / multi-tenancy model.
-- Migrating existing workflows would be a complete rewrite.
-- No native NIM / Dynamo runtime abstraction — we'd still build it on top.
-
-**Rejected because:** the impedance mismatch with OSMO's existing semantics is larger than the work to build a CRD.
-
-#### KubeFed / Open Cluster Management
-
-**Approach:** Use a federated control plane to push workloads to member clusters.
-
-**Pros:**
-- Solves the multi-cluster dispatch problem.
-
-**Cons:**
-- Designed for replicating the same workload across clusters, not per-cluster-specialized work.
-- Adds a second control plane layer.
-- Community momentum shifted; KubeFed is effectively retired; OCM is healthier but still an additional dependency.
-
-**Rejected because:** our needs are per-cluster specialization, not global replication. A CRD with per-cluster controllers is simpler.
-
-### Backwards compatibility
-
-- Existing workflows default to `runtimeType: kai`. No YAML change required.
-- The current backend worker path will coexist during migration (see Implementation Plan).
-- gRPC protocol adds new messages (`CreateOTG`, etc.) without removing old ones for one release.
-- Database migrations are additive (new `network_config` column with default `NULL`).
-
-### Performance
-
-- **Reconcile loop**: per-CR reconcile target <100 ms p99. Achieved via controller-runtime's client-side cache + indexer.
-- **Status push latency**: terminal-state gRPC push <5 s from Pod phase transition. Achieved via controller-runtime watch + no intermediate buffering.
-- **Periodic reconciliation**: 60 s sweep. At 10 k CRs per cluster, list+compare is ~2 s CPU; acceptable.
-- **etcd object size**: budget 500 KB per CR (vs. 1.5 MB limit). Compact templates keep even 100-task groups under budget.
-- **gRPC throughput**: status push uses streaming RPC. Tested to 10 k status updates/sec per controller.
-- **Cross-cluster service latency**: see [Cross-cluster networking](#cross-cluster-networking) tradeoff matrix. Sub-millisecond for direct WireGuard; ~500 µs for Submariner IPsec.
-
-### Operations
-
-- **Installation**: one Helm chart per cluster for the controller. The Operator Service (PROJ-147) is deployed centrally.
-- **Upgrades**: per-cluster controller upgrade is an independent operation. CRD schema upgrades require a K8s conversion webhook for breaking changes.
-- **Monitoring**: Prometheus metrics from the controller — `otg_reconcile_duration_seconds`, `otg_status_push_failures_total`, `otg_active_by_runtime`, `otg_finalizer_log_collection_failures_total`.
-- **Alerting**: controller's gRPC push error rate, CR reconciliation lag, periodic reconciliation drift count.
-- **Debugging**: a user can `kubectl get osmotaskgroup -A` and see everything. CR events are standard `kubectl events`. Logs are standard controller logs.
-
-### Documentation
-
-- CRD schema reference (auto-generated from Go types).
-- Per-runtime runbook (`runtimeType: nim`, `dynamo`, `ray`, `grove`).
-- Workflow-spec migration guide for authors.
-- Mesh integration guides (one per supported mesh).
-- Cluster-registration guide for infra teams.
-
-### Testing
-
-- **Unit**: per-reconciler unit tests with fake K8s client. Target 80% coverage on reconciler code.
-- **Integration**: envtest-based tests per runtime. A test fixture spins up a local K8s API + etcd, creates a CR, verifies rendered Pod / NIMService / etc. matches a golden file.
-- **E2E**: full OSMO stack with a single local cluster, exercise each `runtimeType` end to end.
-- **Multi-cluster E2E**: two local clusters connected via Submariner in a KIND-based setup, exercise cross-cluster service discovery. Part of Phase 1 because multi-cluster is not an afterthought.
-- **Regression**: migration tests — submit a workflow via legacy path, submit the same workflow via CRD path, assert outputs match.
-
-KPIs:
-- CR reconcile p99 latency
-- Status push p99 latency
-- Per-runtime reconcile failure rate
-- Finalizer log-collection success rate
-- Cross-cluster service-exposure reconcile latency
-
-### Dependencies
-
-| Project | Relationship |
-|---|---|
-| **PROJ-147 Operator Redesign** | Hard dependency. The Go-based Operator Service is what the API server talks to for `CreateOTG`/`DeleteOTG`/`GetOTGStatus`. This project extends PROJ-147's gRPC surface |
-| **PROJ-148 Auth Rework** | Soft dependency. RBAC for CR operations is enforced via the authz sidecar; new grants like `osmotaskgroup:Create` are added |
-| **KAI Scheduler** | Runtime dependency for `runtimeType: kai`. PodGroup CRD must be installed |
-| **NIM Operator** | Runtime dependency for `runtimeType: nim`. NIMService, NIMCache CRDs must be installed |
-| **Ray Operator (KubeRay)** | Runtime dependency for `runtimeType: ray`. RayCluster / RayJob CRDs |
-| **Dynamo Operator** | Runtime dependency for `runtimeType: dynamo`. DynamoGraphDeployment CRD |
-| **Grove Scheduler** | Runtime dependency for `runtimeType: grove` |
-| **Submariner / Tailscale / Netmaker** | Infra dependency per deployment. OSMO documents required versions |
-
-## Implementation Plan
-
-### Phase 1: CRD foundation + KAI + single-cluster + dual-write
-
-Phase 1 ships a working CRD path for the existing KAI runtime against a single backend cluster, running alongside the legacy Python path. Multi-cluster, additional runtimes, mesh integration, and Redis elimination are all deferred to later phases.
-
-**Critical:** the controller's *architecture* is built generic from day 1 even though only one runtime is implemented. The dispatcher, `Reconciler` interface, `StatusMapper` interface, `Generic CRD Reconciler` skeleton, and `ServiceDiscoveryReconciler` interface are all defined so later phases plug in implementations without revisiting Phase 1 code.
-
-Scope:
-
-- Define `OSMOTaskGroup` v1alpha1 CRD (schema, validation, CRD manifest)
-- Implement controller binary with the full generic architecture in place:
-  - **Dispatcher** that routes by `spec.runtimeType` to a registered `Reconciler`
-  - **`Reconciler` interface** + **`StatusMapper` interface** (only KAI implementations in Phase 1)
-  - **Generic CRD Reconciler** skeleton using `dynamic.Interface` — unused in Phase 1 but ready for NIM/Ray/Dynamo/Grove to plug in
-  - **`ServiceDiscoveryReconciler` interface** — defined but no implementation in Phase 1
-- Implement **KAI reconciler + status mapper** — must render Pods and PodGroups identical in effect to current `KaiK8sObjectFactory` (see Phase 0 note below)
-- Implement **log-collection finalizer**
-- Implement **periodic reconciliation** loop (60s drift detection + status push)
-- Extend Operator Service gRPC with `CreateOTG`/`DeleteOTG`/`GetOTGStatus`
-- **Dual-write mode in the API server:** every workflow submission writes through both the legacy path and the new CRD path. Compare and log divergences. Legacy path remains the production path until exit criteria are met.
-- **Single cluster only.** No `cluster_id` column, no `network_config`, no cross-cluster routing, no service discovery implementations. Operator Service writes CRs to the one configured cluster.
-- Deployed in single-cluster staging
-
-**Phase 0 prerequisite (recommended):** before starting Phase 1, refactor the Python `K8sObjectFactory` + `KaiK8sObjectFactory` + relevant `task.py` rendering paths into a pure function with golden-file output fixtures. This gives the Go KAI reconciler something verifiable to diff against. Without it, "no divergence" in dual-write mode is unverifiable. This is a discovery-and-refactor task in the existing Python codebase, not new functionality.
-
-**Exit criteria:** All existing KAI workflows run successfully via the CRD path in single-cluster staging for 2 weeks with zero divergence from legacy-path output (verified against the Phase 0 golden files).
-
-**Explicitly out of scope for Phase 1:**
-- Multi-cluster anything (no `cluster:` field, no `cluster_id`, no `network_config`)
-- Service discovery / mesh integration (Submariner / Tailnet / Netmaker)
-- Additional runtimes (NIM, Ray, Dynamo, Grove)
-- Worker / Delayed Job Monitor elimination
-- Redis migration
-- Logger replatform / object-storage logs
-- Barriers replatform
-
-### Phase 2: Multi-cluster dispatch + service discovery
-
-With Phase 1 stable on one cluster, add multi-cluster routing and the first service-discovery mesh.
-
-- Add `cluster_id` and `network_config` columns to `backend_cluster` table
-- API server: cluster-qualified service references in workflow spec, service-name resolver, dispatch CRs to the right cluster via Operator Service
-- Per-cluster Controllers filter CRs by `cluster_id` label
-- Implement **Submariner** as the reference `ServiceDiscoveryReconciler` (controller-side: create `ServiceExport` CRs; API-server-side: resolve `*.clusterset.local` DNS)
-- Two-cluster staging deployment with Submariner mesh established between them
-
-**Exit criteria:** A workflow that declares task groups in two different clusters with cross-cluster service references runs successfully end-to-end in staging.
-
-### Phase 3: NIM + Ray runtimes
-
-Adds the first two runtimes beyond KAI, exercising the Generic CRD Reconciler pattern.
-
-- Implement **NIM reconciler + status mapper** via the Generic CRD Reconciler
-  - Support NIMCache / manual PVC + HF download Job pattern (reference: `inference/nim-operator/`)
-  - Handle persistent-service lifecycle (no terminal state unless workflow completes)
-- Implement **Ray reconciler + status mapper**
-  - RayCluster (persistent) and RayJob (batch) modes
-- Workflow spec DSL accepts `runtimeType: nim`, `runtimeType: ray`
-- Add **Tailnet** as the second `ServiceDiscoveryReconciler` implementation (to enable edge clusters)
-
-**Exit criteria:** At least one production workflow served end-to-end using `runtimeType: nim` and one using `runtimeType: ray`, in a multi-cluster deployment.
-
-### Phase 4: Service consolidation + Redis elimination
-
-With the CRD path proven for multiple runtimes, eliminate Worker, Delayed Job Monitor, Redis, **and PostgreSQL**. Each call site is its own migration; this phase enumerates them.
-
-- Implement gRPC `BarrierService` on the Operator Service backed by a small CRD (`OSMOBarrier`), not Postgres
-- Migrate the per-task action queue (currently Redis `brpop` from `osmo_ctrl` for restart/cancel signals) to gRPC streaming. Coordinated change in the Go `osmo_ctrl` runtime container.
-- Migrate the workflow event XSTREAM (consumed by UI/CLI for workflow log timeline) to the structured-log pipeline (Loki / CloudWatch) — query path replaces the per-event SQL
-- Migrate Logger from Redis-buffered logs to direct object-storage flush
-- Wire `osmo workflow logs -f` to gRPC streaming through the Logger
-- Add API server retry/backoff wrapper around `CreateOTG` (replaces Worker's role)
-- Move workflow-level timeouts (`CheckQueueTimeout`, `CheckRunTimeout`, `CleanupWorkflow` delay — currently Delayed Job Monitor concerns) onto `OSMOWorkflow.spec.timeout` + the controller's TTL path (`ttlSecondsAfterFinished`)
-- Move workflow history queries to the log aggregator + S3 archive; remove the Postgres `workflow`, `task_group`, `task_execution` tables
-- Move credential storage from Postgres (JWE-encrypted) to K8s Secrets
-- Move accounting from Postgres tables to Prometheus + recording rules
-- Remove `service/worker/` and `service/delayed_job_monitor/` Python code
-- Remove Redis Helm chart, secrets, Prometheus exporter from staging then production deployments
-- Remove PostgreSQL Helm chart, secrets, RDS instances after the last consumer migrates
-
-**Exit criteria:** Production deployment has no Redis StatefulSet and no PostgreSQL / RDS dependency. All barrier, log-tail, action-queue, event-stream, history, credential, and accounting features work via K8s primitives + the log aggregator + Prometheus + S3.
-
-### Phase 5: Dynamo + Grove + additional meshes
-
-- Implement Dynamo, Grove reconcilers (each ~200–300 LOC via the Generic CRD Reconciler)
-- Add the third mesh implementation (Netmaker) for deployments needing it
-- Deprecation notices begin for the legacy backend worker / pod-rendering path
-
-### Phase 6: Legacy path removal
-
-- Default all new workflows to CRD path
-- Migrate existing production workflows
-- Remove dual-write logic
-- Remove Python `K8sObjectFactory` and `KaiK8sObjectFactory`
-
-## Open Questions
-
-- [ ] Which mesh should ship as the "reference" default in OSMO's Helm chart — Submariner or leave it to the deployment? (Leaning: Submariner as the default, with Tailnet / Netmaker as alternatives the deployer selects at install time.)
-- [ ] How do we handle credential rotation for cluster-mesh identity (e.g., WireGuard keys, IPsec certs)? Is OSMO involved or is that infra-ops?
-- [ ] For edge clusters with persistent-streaming workloads, do we model them as a new `runtimeType: edge-stream` or as a long-running `runtimeType: kai` with no terminal state?
-- [ ] Does the CR need a `priority` or `preemption` field, or is scheduler-native priority sufficient?
-- [ ] CRD versioning — when we introduce v1, what's the conversion webhook strategy for live workflows?
-- [ ] Should the controller run leader-election-elected replicas per cluster, or is a single active instance acceptable given reconciliation is idempotent?
-- [ ] Benchmark target: how many CRs per cluster do we support at the 100 ms reconcile p99 SLO?
-- [ ] Do we need a dry-run mode for CR creation (render-only, don't apply) for CLI preview?
-- [ ] Multi-cluster credential propagation — where does `ngc-api-secret` live for each cluster? Automated via external-secrets, or manually provisioned at cluster registration?
+| `Hello` (auth handshake with plaintext token) | `HelloAck` (session accepted / rejected) |
+| `Heartbeat` (liveness, every N seconds) | — |
+| `StatusEvent` (OSMOTaskGroup phase transitions) | `CreateOTG` (dispatch a TaskGroup) |
+| `CapacityReport` (Kueue ClusterQueue snapshot) | `DeleteOTG` (cascade delete) |
+| `ResyncRequest` (on reconnect, request command replay) | (Phase 8) `PreemptOTG` |
+| `Ack` (command result) | |
+
+**Auth model** (purposely stronger than OCM's):
+
+```
+on the backend cluster                   on the control plane
+──────────────────────                   ────────────────────
+K8s Secret holds                         K8s Secret holds
+  plaintext bearer token                   SHA-256 hash of the token
+        │                                       ▲
+        │                                       │
+        │   Hello { token: <plaintext> }        │ constant-time compare
+        └──────────────────────────────────────►│ against stored hash
+                                                │
+                                                └─► accept / reject
+```
+
+A compromised control plane secret store reveals only **hashes**. There's
+no path from a leaked hash back to authenticating with a backend. Compare
+to OCM's `managed-serviceaccount` model, where the hub holds the actual
+JWT and a leaked secret store gives an attacker scoped K8s API access on
+every backend.
+
+**Failure modes covered**:
+
+- **Reconnect**: backend client exponentially backs off; resets backoff on
+  successful `Hello`. Stream disconnect doesn't lose commands — they're
+  retried after reconnect.
+- **Resync**: on reconnect, backend sends `ResyncRequest`; control plane
+  replays any commands the backend missed.
+- **Stale session**: control plane marks the cluster `Disconnected` if no
+  Heartbeat for 60s. The session client's reconnect+resync flow handles
+  catch-up.
+
+**Why we built this instead of adopting OCM**: OCM's klusterlet +
+managed-serviceaccount + cluster-proxy stack is the closest off-the-shelf
+equivalent. We pass on it for two reasons:
+1. The auto-bootstrap delivers a real ServiceAccount JWT to the hub —
+   strictly weaker than our SHA-256 hash model. Critical for our on-prem
+   tenants.
+2. Adopting OCM means replacing our existing transport, auth, registry,
+   and bus packages with OCM's framework. The migration cost is large and
+   the security regression is real.
+
+Rationale fully covered in [`08-future-scheduling.md`](./08-future-scheduling.md) (alternatives appendix).
+
+### 2.7 Deep dive: per-cluster Kueue + KAI placement-only
+
+This is the second new piece of infrastructure that existing OSMO doesn't
+have. Today's OSMO has KAI as the per-cluster queue / quota / preemption
+authority. The new model uses Kueue as the multi-runtime admission
+authority and reconfigures KAI to placement-only mode. Full design in
+[`04-scheduling.md`](./04-scheduling.md).
+
+**Why we need it**: KAI's queue is Pod+PodGroup-shaped. Other runtimes
+(NIMService, RayCluster, JobSet) don't produce PodGroups; their native
+controllers create Deployments / StatefulSets / Jobs directly. KAI's
+admission logic never sees them. To make KAI's queue span runtimes would
+require a PodGroup-shim per runtime — unbounded ongoing work that fights
+each runtime's native controller.
+
+Kueue solves this via the `Workload` abstraction: every runtime has a
+`GenericJob` integration; Kueue treats them uniformly. One ClusterQueue,
+one ResourceFlavor set, one WorkloadPriorityClass governs PodGroups,
+NIMServices, RayClusters, JobSets, everything.
+
+**Two collaborating components per backend** (both new, or new-config in
+KAI's case):
+
+| Component | What it owns | What changes |
+|---|---|---|
+| **Kueue manager** | Admission, quota, queue, priority, preemption | NEW. Installed on every backend via a Helm chart. |
+| **KAI Scheduler** | Gang scheduling, node placement, topology | EXISTING but **reconfigured**: single flat queue, no quota, no preemption. |
+
+**The handoff** (clearer than today's KAI-does-everything model):
+
+```
+1. Control plane dispatches OSMOTaskGroup with spec.suspend=true.
+2. Backend OSMOTaskGroup Controller sees suspend=true → does nothing
+   (gate at the universal layer, before invoking any runtime).
+3. Kueue's GenericJob integration sees the OTG → builds a Workload CR.
+4. Workload queued in the ClusterQueue.
+5. Kueue admits (quota + priority) → flips spec.suspend=false.
+6. OSMOTaskGroup Controller sees suspend=false → invokes the runtime
+   plugin matching spec.runtimeType.
+7. Runtime (e.g. KAI) renders runtime-native K8s objects (PodGroup +
+   Pods with schedulerName: kai-scheduler).
+8. KAI Scheduler gang-places the PodGroup.
+9. Pods run.
+```
+
+**What we get from Kueue, for free** (we don't build):
+
+- Cross-runtime queue: PodGroup, NIMService, RayCluster all in the same
+  Workload type.
+- Workload-level priority + preemption.
+- Cohort lending between LocalQueues (Phase 8 territory but the primitive
+  is there from Phase 5).
+- ProvisioningRequest hooks for cluster autoscalers.
+- Standard CNCF observability for admission decisions.
+
+**What it costs**:
+
+- A new Helm chart on every backend cluster (`deploy/multicluster/kueue/`).
+- KAI reconfigured to placement-only (existing customers running KAI's
+  hierarchical queues need migration — Phase 6 concern).
+- A mutating defaulting webhook on the control plane (sets
+  `spec.suspend=true` on creation by the workflow controller).
+- GenericJob integration package, ~250 LOC of Go.
+
+**What's mandatory**: Kueue must be installed on every backend. KAI-only
+fallback configurations are not supported — the session client refuses to
+advertise the cluster as `Connected` until it verifies Kueue's CRDs are
+present.
+
+### 2.8 What's removed, kept, reconfigured, or new vs existing OSMO
+
+| Existing component | Fate | Notes |
+|---|---|---|
+| Apiserver (Python FastAPI) | **Replaced** | New Go apiserver, thinner; no Postgres for workflow state, only history. |
+| Worker (Kombu / Celery on Redis) | **Removed** | Reconcile loops in Workflow Controller. |
+| Delayed Job Monitor | **Removed** | Periodic reconcile in Workflow Controller. |
+| Agent (per-backend) | **Replaced** | Backend Session Client, smaller, Go, phone-home. |
+| Operator service (per-backend) | **Replaced** | TaskGroup Controller + Session Client; split responsibilities. |
+| Logger | **Kept** | Unchanged. |
+| Router | **Kept (simplified)** | Loses Postgres-driven routing rules. |
+| Authz sidecar | **Kept** | Unchanged. |
+| Redis (job queue + barriers + events) | **Removed** | Job queue is the gRPC stream. Barriers Phase 8. |
+| PostgreSQL (workflow/task/datasets/RBAC/pools) | **Mostly removed** | Datasets deprecated separately. Custom RBAC replaced by K8s RBAC + OSMOPoolBinding. Pools become CRDs. **One table kept: workflow history (query index for millions of workflows).** |
+| KAI Scheduler | **Reconfigured** | From queue+quota+preempt+place to place-only. |
+| — | **NEW**: Kueue manager (per backend) | Multi-runtime admission engine. |
+| — | **NEW**: gRPC ClusterSession (Operator Service + Backend Session Client) | Phone-home transport. |
+| — | **NEW**: Defaulting webhook | Sets `spec.suspend=true` on new OTGs. |
+| — | **NEW**: Postgres workflow-history table | Indexed for fast query at 10M+ scale. |
+| — | **NEW**: Retention pruner | Drops Postgres monthly partitions past the retention cutoff. |
+
+## 3. Why not existing open-source stacks
+
+We considered each of these. None covers OSMO's specific intersection of
+constraints. Detailed per-candidate breakdown follows; the composition
+analysis at the end explains why "just glue several together" still leaves
+us building most of OSMO.
+
+Scope of comparison: **Kubernetes-native** workflow / scheduling /
+federation projects. Non-K8s engines (Temporal, Cadence, AWS Step
+Functions, Azure Durable Functions) are out of scope — OSMO is a K8s
+control plane.
+
+### 3.1 Argo Workflows
+
+Mature DAG engine, K8s-native, defines a `Workflow` CRD with templates.
+The closest off-the-shelf DAG layer.
+
+**Gaps for OSMO**:
+- **Single-cluster only.** The Argo controller manages everything in the
+  cluster it runs in. Argo's `Resource` template *can* `kubectl apply` an
+  arbitrary CRD (NIMService, RayCluster, anything) and map status via
+  `successCondition` / `failureCondition` JSONPaths — but only on the
+  Argo controller's cluster. Multi-cluster dispatch is the missing piece,
+  not the template shape.
+- **No admission / quota** beyond raw resource requests on Pods. Kueue
+  integration would still be ours to build.
+- **Status model assumes everything is local.** Cross-cluster status
+  rollup would require new infrastructure on top.
+
+We'd still own multi-cluster dispatch, runtime-plugin abstraction,
+admission integration, history at scale, multi-tenant policy. ~60-70% of
+OSMO's surface remains.
+
+### 3.2 Flyte
+
+Strong DAG, multi-tenant, type system, Python SDK. ML-focused.
+
+**Gaps**:
+- Heavy footprint.
+- "Data plane clusters" exist but the model is "send a workflow to one
+  cluster," not "different tasks to different clusters in one DAG."
+- Python SDK is the primary interface. We want a thinner K8s CRD that's
+  usable from any client.
+- Opinionated about workflow versioning + caching that doesn't match our
+  needs.
+
+### 3.3 Kubeflow Pipelines
+
+DAG, ML-focused, runs on Argo or Tekton.
+
+**Gaps**: same as Argo + ML-pipeline-specific shape (steps must be
+containers). No multi-cluster.
+
+### 3.4 Tekton Pipelines
+
+Pipelines + Tasks CRDs, K8s-native.
+
+**Gaps**: container-only templates; no runtime-pluggable abstraction; no
+multi-cluster; no admission / quota.
+
+### 3.5 Karmada / KubeFed / OCM (Open Cluster Management)
+
+Federation layers. Propagate K8s objects from a hub to many workers.
+
+**Gaps for OSMO**:
+- All require the hub to hold credentials (kubeconfig or auto-generated
+  ServiceAccount token) for each worker. Our hard constraint is **no**
+  backend credentials on the hub.
+- No DAG / workflow concept — just CR propagation.
+- Even if we accepted the credential model, we'd still build the DAG
+  engine, runtime plugins, history, multi-tenant policy on top.
+
+OCM specifically: `klusterlet` + `managed-serviceaccount` + `cluster-proxy`
+automates the credential bootstrap and tunnels traffic so the hub doesn't
+need direct network access to backends. **End state**: the hub still holds
+a real ServiceAccount JWT per backend. Narrowly scoped, auto-rotated —
+but a leaked hub secret store gives an attacker scoped K8s API access on
+backends. Our SHA-256 hash model is strictly stronger.
+
+### 3.6 MultiKueue
+
+Cross-cluster Kueue federation. The most direct overlap with our scheduling layer.
+
+**Gaps**:
+- Same kubeconfig requirement: each `MultiKueueCluster` references a
+  Secret containing a kubeconfig that authenticates to the worker
+  cluster's K8s API. Hard-constraint blocker.
+- MultiKueue replicates Workload CRs to every backend and wastes the
+  losers; our centralized capacity-aware placement doesn't. Race-to-admit
+  also offers no place to express OSMO-specific central policy (pool
+  bindings, group co-location, SLA tiers).
+
+We considered building a `SessionProxy` that gives MultiKueue a fake
+`client.Client` backed by our gRPC session, costing ~1500-2000 LOC.
+Rejected: bigger than the equivalent in-house scheduler, and the in-house
+path gives us features MultiKueue can't express (group co-location, pool
+bindings). Full rationale in [`08-future-scheduling.md`](./08-future-scheduling.md).
+
+### 3.7 Per-runtime operators (KubeRay, NIM Operator, Kueue's job-integration zoo)
+
+Each does exactly one runtime well.
+
+**Gaps**: none handles DAG, multi-cluster, multi-tenant routing, or
+workflow-level lifecycle. We *use* these — they're what our runtime
+plugins call into. They're complementary to OSMO, not alternatives.
+
+### 3.8 SkyPilot
+
+UC Berkeley project; orchestrates ML/AI jobs across multiple K8s
+clusters and clouds; popular for cost-optimized GPU placement. Python
+SDK + YAML tasks.
+
+**What it does well**: cross-cloud GPU shopping ("where's the cheapest
+A100 available right now"); spot/preemption-aware retry; mature Python
+SDK; supports K8s as one of N backends.
+
+**Gaps for OSMO**:
+1. Kubeconfig-based. SkyPilot's controller dials each K8s cluster
+   directly using credentials provided at setup. Same blocker as
+   MultiKueue.
+2. Client-driven, not CRD-native. Workflow state lives on the launcher
+   side; SkyPilot creates Pods/Jobs/Services via API calls, doesn't
+   define a workflow CRD. We want workflows to be first-class K8s
+   objects.
+3. Cost-optimized, not capacity-and-policy-optimized. SkyPilot picks
+   clusters by cheapest free GPU; OSMO needs multi-tenant pool policy,
+   cohort lending, SLA tiers, group co-location.
+4. DAG is supported (`sky.Dag`, `Pipeline`) but isn't the primary
+   primitive — the platform is built around `sky launch` for single
+   tasks, and the DAG abstraction is comparatively shallow vs Argo /
+   Flyte / OSMO.
+5. No multi-tenant model. Assumes one operator owns all credentials and
+   accounting.
+
+If "cheapest GPU across clouds" were OSMO's goal, SkyPilot would be a
+serious contender. It's not.
+
+### 3.9 Composition: Argo + MultiKueue + per-runtime operators + custom glue
+
+The most credible "just use OSS" path. Costed honestly:
+
+| Piece | Off-the-shelf contribution | What we'd still build |
+|---|---|---|
+| Argo Workflows (DAG) | ~30% of OSMO surface | The integration |
+| MultiKueue (cross-cluster admit) | blocked (kubeconfig requirement) | full replacement (SessionProxy or custom scheduler) |
+| Per-runtime operators (KubeRay, NIM) | runtime layer ✓ | runtime-plugin abstraction (~1000 LOC) |
+| Argo `Resource` template → our gRPC dispatch | conceptually | ~3000 LOC of glue |
+| Argo Workflow status reconciliation | single-cluster only | ~1500 LOC cross-cluster |
+| Submission UX + multi-tenant policy | Argo's UI is workflow-author-centric | ~2000 LOC |
+| History at 10M+ scale | Argo's etcd-only model doesn't scale | full new history layer (Phase 4) |
+
+Saves ~30% of the work, adds ~70% of integration complexity, fights
+Argo's assumptions at every layer. The composition becomes its own
+load-bearing piece of infrastructure to maintain — Argo upgrades,
+integration testing, hybrid bug triage. Net negative.
+
+### 3.10 The specific gap OSMO fills
+
+**OSMO is the workflow orchestration platform for environments where all
+four of these are simultaneously true**:
+
+1. **Backends are operated by parties who refuse inbound credentials.**
+   On-prem with sensitive data; NAT'd edge; customer-managed; neoclouds
+   with strict outbound-only policies. Rules out Karmada, OCM, KubeFed,
+   MultiKueue, SkyPilot.
+2. **Workloads span heterogeneous K8s-native runtime types.** PodGroup
+   (KAI), NIMService (NIM Operator), RayCluster (KubeRay), JobSet,
+   Dynamo, Grove — as first-class task types in a single workflow. Rules
+   out per-runtime operators alone; rules out Tekton's container-only
+   model.
+3. **One workflow's tasks may run on different clusters.** Workflow A is
+   a DAG with `train` on a GPU-rich cluster, `evaluate` on a CPU cluster,
+   `deploy` on an edge cluster — platform decides the routing. Rules out
+   single-cluster engines like Argo, Flyte, Tekton.
+4. **The platform must offer first-class submission UX, history, audit,
+   multi-tenant policy.** Most submitters don't get raw kubectl access.
+   Listing "my workflows in pool X using A100 last month" must be fast
+   at 10M+ rows. Rules out raw Argo/Flyte/Tekton without significant
+   additional infrastructure.
+
+No single OSS project covers all four. The closest composition
+(Argo + MultiKueue + per-runtime operators) is blocked by (1) and would
+still leave us building 60%+ of OSMO's surface. The phone-home
+constraint is the structural factor that makes off-the-shelf adoption
+infeasible.
+
+## 4. Phase plan
+
+Eight phases mapped to user-facing needs. Each gets its own detailed
+sub-doc.
+
+| # | User-facing need | What ships | Status |
+|---|---|---|---|
+| **1** | Workflows are typed K8s objects with feature parity vs today on one cluster | 3 CRDs + Workflow + TaskGroup controllers + KAI runtime + single-cluster apiserver. See [`01-crd-model.md`](./01-crd-model.md), [`03-runtime-plugins.md`](./03-runtime-plugins.md) | ✅ done |
+| **2** | A workflow runs on a different cluster than the control plane, with no kubeconfigs on the hub | gRPC ClusterSession + operator + backend session client + RemoteDispatcher + status bridge + SHA-256 auth. See [`02-multicluster-transport.md`](./02-multicluster-transport.md) | ✅ done |
+| **3** | Support NIM and Ray workloads as first-class workflow nodes — `runtimeType: nim` and `runtimeType: ray` work end-to-end alongside `runtimeType: kai` | Runtime-plugin interface hardening, NIM plugin (renders NIMService), Ray plugin (renders RayCluster + RayJob), per-runtime status mapping. JobSet / Dynamo / Grove deferred to a later phase. See [`03-runtime-plugins.md`](./03-runtime-plugins.md) | next |
+| **4** | Query 10M historical workflows + per-task events by user / GPU / date / reason in <100ms | Postgres infrastructure (Helm chart + migrations), `osmo_workflows` + `osmo_workflow_events` tables, controller projection, transport's `WorkflowEventIngest` pipeline, query API with cursor pagination, retention pruner (monthly partition drop), UI filter integration against the existing OSMO UI. **Postgres is the durable home for workflow + task-event history; live state stays in etcd via CRDs.** Schema and lifecycle in [`01-crd-model.md`](./01-crd-model.md); ingest path in [`02-multicluster-transport.md`](./02-multicluster-transport.md); per-runtime EventCurator in [`03-runtime-plugins.md`](./03-runtime-plugins.md). | parallel with 3 |
+| **5** | Users describe what they need (8× A100); OSMO picks the cluster, queues if none have capacity, runs when capacity frees | Per-backend Kueue + KAI placement-only install; `spec.suspend` + GenericJob + defaulting webhook; CapacityReport over session; central scheduler; OSMOPool + OSMOPoolBinding. See [`04-scheduling.md`](./04-scheduling.md) | follows 1+2 |
+| **6** | Existing OSMO users migrate without losing access to workflow history | Dual-write window: new workflows go through CRD path; legacy reads continue from old Postgres; API compatibility shim; ETL backfill of relevant history into new schema; cutover plan + rollback story. See [`06-migration-from-existing.md`](./06-migration-from-existing.md) | follows 3+4+5 |
+| **7** | Old OSMO components removed: Worker, Redis, Kombu, most of Postgres | Decommission of dead code paths; ArgoCD/Helm cleanup; docs/runbook trimming. See [`07-decommission.md`](./07-decommission.md) | distributed |
+| **8** | Multi-tenant fairness: team A's idle quota can be borrowed by team B; high-pri workloads preempt low-pri ones across clusters | Cross-cluster preemption protocol; OSMOPoolBinding.borrowFrom; admin policy knobs. See [`08-future-scheduling.md`](./08-future-scheduling.md) | future |
+
+### Engineer staffing for 8 engineers across phases 3-8
+
+Phases 1 and 2 are shipped. Remaining workstreams running concurrently:
+
+| Engineers (illustrative) | Months 1-3 | Months 4-6 | Months 7-9 | Months 10-12 |
+|---|---|---|---|---|
+| E1 | P3 NIM plugin | P3 NIM polish + observability stand-up (Prometheus metrics, Grafana dashboards for the new control + backend planes) | P5 capacity-report + Kueue glue | P7 Redis removal |
+| E2 | P3 Ray plugin | P5 Kueue + webhook | P5 dispatch routing | P8 design |
+| E3 | P3 runtime-plugin interface hardening + per-runtime status mapping | P5 scheduler logic | P7 ArgoCD trimming + dead-code removal | P7 Kombu removal |
+| E4 | P4 schema + migrations | P4 retention pruner | P6 cutover plan | P6 cutover |
+| E5 | P4 query API + cursor pagination | P5 eligibility filter | P6 compat shim | P6 cutover |
+| E6 | P4 projection (controller UPSERT) | P5 scheduler / dispatch routing | P6 ETL backfill | P6 cutover |
+| E7 | P4 UI filters against existing OSMO UI | P6 design | P5 polish + scheduler hardening | P6 cutover |
+| E8 | P5 Kueue spike | P5 OSMOPool CRDs | P5 scheduler + pool reconciler | P5 polish + scheduler hardening |
+
+Assignments are illustrative — the real schedule depends on team interest
+and skill match. The point is: each phase has 2-4 engineer-months per
+calendar quarter, and every engineer has continuous work.
+
+## 5. Detailed designs
+
+Each linked doc carries its own Goal, Detailed Design, Implementation
+Plan, Risks, and Out-of-Scope sections. They evolve independently of this
+umbrella doc.
+
+- [`01-crd-model.md`](./01-crd-model.md) — The full data model: three CRDs
+  (lifecycles, fields, finalizers) **plus the Postgres projection schema**
+  (`osmo_workflows`, `osmo_workflow_groups`, `osmo_workflow_events`),
+  query patterns, write ordering, retention lifecycle.
+- [`02-multicluster-transport.md`](./02-multicluster-transport.md) — gRPC
+  ClusterSession protocol, auth, registry, bus, failure modes; envelope
+  types for OTG status, capacity reports, **and `WorkflowTaskEventBatch`
+  for events bound to Postgres**.
+- [`03-runtime-plugins.md`](./03-runtime-plugins.md) — Runtime-plugin
+  interface (Reconciler, StatusMapper, **EventCurator**, Finalize); KAI
+  implementation; NIM and Ray design.
+- [`04-scheduling.md`](./04-scheduling.md) — Capacity-aware placement,
+  Kueue + KAI integration, OSMOPool / OSMOPoolBinding.
+- [`06-migration-from-existing.md`](./06-migration-from-existing.md) —
+  Migration from existing OSMO; dual-write, compat shim, ETL, cutover;
+  **mapping old Postgres schema to the new tables**.
+- [`07-decommission.md`](./07-decommission.md) — What's removed (old OSMO
+  Postgres tables, Worker, Redis, etc.); **what stays of Postgres (the
+  new history + events tables)**.
+- [`08-future-scheduling.md`](./08-future-scheduling.md) — Cross-cluster
+  preemption, cohort lending, extended MultiKueue/OCM rationale.
+
+**Postgres is mentioned in every sub-doc that touches workflow data** —
+data model (01), event ingest path (02), per-runtime EventCurator output
+(03), pool history projection (04), migration backfill (06), what's kept
+on decommission (07). The previously separate `05-history-and-query.md`
+sub-doc was removed; its content lives in the docs that actually own each
+piece of the lifecycle.
+
+## 6. Open questions
+
+- **Phase 4 query patterns.** We've designed for "by user, GPU type, date
+  range." What's the actual top-5 query pattern? (Affects index choices.)
+- **Phase 6 migration timeline.** Cut over once new OSMO has feature
+  parity, or gradually (some clusters new, others old)?
+- **Phase 3 runtime priority within NIM and Ray.** Which lands first if
+  resourcing forces a sequence? Other runtimes (JobSet, Dynamo, Grove)
+  are deferred — when does a future phase pick them up?
+- **Postgres deployment shape.** Single instance with backups, or HA
+  primary + standby with PgBouncer? Default in the design: HA pair.
+- **Defaulting webhook availability.** It's in the hot path for OTG
+  creation. 2 replicas + leader election the default; could be relaxed
+  for non-production deployments.
