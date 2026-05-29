@@ -78,15 +78,23 @@ it's a candidate — regardless of how hard the test will be to write.
      "targets": [
        {{
          "file_path": "src/lib/utils/...",
-         "reason": "1-2 sentences explaining what regression a test here
-                    would catch and which OSMO behavior it protects"
+         "reason": "2-3 sentences covering: (a) the OSMO behavior this
+                    file owns, (b) the regression class a test here
+                    would catch, and (c) why this file is the highest
+                    ROI in today's shortlist — what makes it more
+                    valuable to lock down now than the other
+                    candidates (e.g., recent churn, contract this
+                    other code depends on, blast radius)"
        }}
      ]
    }}
    ```
 
    The `reason` is consumed by the PR body and shown to the human
-   reviewer. Make it concrete — name the behavior, not the file.
+   reviewer. Make it concrete — name the behavior, name the regression
+   class, and name the comparative reason this file beat the rest of
+   the shortlist. A reason that would read identically for any low-
+   coverage file is too vague.
 
 ## How to decide
 
@@ -111,5 +119,8 @@ For each candidate (in the order given — they are pre-ranked):
 ## Now decide
 
 Pick at most {max_targets} files and emit the JSON block. In each
-`reason`, name the OSMO behavior the tests will protect and the kind of
-regression they would catch.
+`reason`, name (a) the OSMO behavior the tests will protect, (b) the
+regression class they would catch, and (c) why this file is the
+highest-ROI pick from today's shortlist — what about it (recent churn,
+public contract centrality, blast radius if buggy) makes a test here
+matter more than tests on the candidates you dropped.
