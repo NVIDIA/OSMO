@@ -655,6 +655,56 @@ class TestBuildRationaleSection(unittest.TestCase):
         self.assertNotIn("test_unrelated", section)
         self.assertNotIn("unrelated.py", section)
 
+    def test_multi_sentence_reason_with_roi_clause_preserved(self):
+        # Per the picker prompt's 3-clause contract, the reason names
+        # (a) behavior owned, (b) regression class caught, (c) why this
+        # file beat the rest of the shortlist. All three must reach the
+        # PR body unaltered so reviewers can audit the comparative
+        # call.
+        meta = {
+            "src/utils/job/jobs.py": {
+                "file_path": "src/utils/job/jobs.py",
+                "coverage_pct": 30.0,
+                "uncovered_lines": 500,
+                "reason": (
+                    "Owns the workflow job state machine. A silent "
+                    "regression here would corrupt workflow state. "
+                    "Highest ROI on today's shortlist: 22 commits in "
+                    "6mo plus public resource-validation surface."
+                ),
+            },
+        }
+        section = _build_rationale_section(
+            ["src/utils/job/tests/test_jobs.py"], meta,
+        )
+        self.assertIn("workflow job state machine", section)
+        self.assertIn("would corrupt workflow state", section)
+        self.assertIn("Highest ROI on today's shortlist", section)
+        self.assertIn("22 commits in", section)
+
+    def test_reason_with_embedded_newlines_renders_each_line_quoted(self):
+        # If the LLM hand-wraps the reason for readability, every
+        # rendered line must carry the blockquote `>` prefix so the
+        # PR body still reads as one logical quote on GitHub.
+        meta = {
+            "src/lib/foo.py": {
+                "file_path": "src/lib/foo.py",
+                "coverage_pct": 25.0,
+                "uncovered_lines": 100,
+                "reason": (
+                    "Owns the foo contract.\n"
+                    "Regression class: silent serializer drift.\n"
+                    "ROI: highest fan-in (47) on the list."
+                ),
+            },
+        }
+        section = _build_rationale_section(
+            ["src/lib/tests/test_foo.py"], meta,
+        )
+        self.assertIn("> Owns the foo contract.", section)
+        self.assertIn("> Regression class: silent serializer drift.", section)
+        self.assertIn("> ROI: highest fan-in (47) on the list.", section)
+
     def test_dedupes_when_two_tests_map_to_same_source(self):
         meta = {
             "src/lib/foo.py": {
