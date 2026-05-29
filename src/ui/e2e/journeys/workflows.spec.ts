@@ -181,9 +181,27 @@ test.describe("Workflow Bulk Cancel", () => {
     await page.goto("/workflows?all=true");
     await page.waitForLoadState("networkidle");
 
+    await expect(page.getByRole("checkbox", { name: "Select all workflows" })).toHaveCount(0);
+    const tableContainer = page.locator(".table-container");
+    const tableBoxBeforeSelection = await tableContainer.boundingBox();
+    expect(tableBoxBeforeSelection).not.toBeNull();
+
     await page.getByRole("checkbox", { name: "Select workflow bulk-running" }).check();
     await page.getByRole("checkbox", { name: "Select workflow bulk-completed" }).check();
     await page.getByRole("checkbox", { name: "Select workflow bulk-waiting" }).check();
+
+    const tableBoxAfterSelection = await tableContainer.boundingBox();
+    expect(tableBoxAfterSelection).not.toBeNull();
+    expect(Math.abs(tableBoxAfterSelection!.y - tableBoxBeforeSelection!.y)).toBeLessThanOrEqual(1);
+    const actionBar = page
+      .locator("div")
+      .filter({ hasText: "3 selected" })
+      .filter({ has: page.getByRole("button", { name: "Cancel selected" }) })
+      .last();
+    const actionBarBox = await actionBar.boundingBox();
+    expect(actionBarBox).not.toBeNull();
+    const tableBottom = tableBoxAfterSelection!.y + tableBoxAfterSelection!.height;
+    expect(actionBarBox!.y).toBeGreaterThanOrEqual(tableBottom - 1);
 
     await expect(page.getByText("3 selected")).toBeVisible();
     await expect(page.getByText("2 cancelable")).toBeVisible();

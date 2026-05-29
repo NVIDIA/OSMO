@@ -35,7 +35,6 @@ import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 export interface WorkflowSelectionOptions {
   selectedWorkflowNames: ReadonlySet<string>;
   onToggleWorkflow: (workflowName: string, selected: boolean) => void;
-  onToggleVisibleWorkflows: (workflowNames: string[], selected: boolean) => void;
 }
 
 function getMinSize(id: WorkflowColumnId): number {
@@ -47,30 +46,7 @@ export function createWorkflowColumns(selection?: WorkflowSelectionOptions): Col
   return [
     {
       id: "_select",
-      header: ({ table }) => {
-        if (!selection) return null;
-
-        const workflowNames = table.getRowModel().rows.map((row) => row.original.name);
-        const selectedCount = workflowNames.filter((workflowName) =>
-          selection.selectedWorkflowNames.has(workflowName),
-        ).length;
-        const allSelected = workflowNames.length > 0 && selectedCount === workflowNames.length;
-        const someSelected = selectedCount > 0 && !allSelected;
-
-        return (
-          <input
-            ref={(element) => {
-              if (element) element.indeterminate = someSelected;
-            }}
-            type="checkbox"
-            aria-label="Select all workflows"
-            checked={allSelected}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => selection.onToggleVisibleWorkflows(workflowNames, event.target.checked)}
-            className="border-input size-4 rounded border"
-          />
-        );
-      },
+      header: () => null,
       minSize: getMinSize("_select"),
       size: getMinSize("_select"),
       enableSorting: false,

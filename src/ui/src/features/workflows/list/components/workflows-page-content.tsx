@@ -95,20 +95,6 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
     });
   }, []);
 
-  const handleToggleVisibleWorkflows = useCallback((workflowNames: string[], selected: boolean) => {
-    setSelectedWorkflowNames((current) => {
-      const next = new Set(current);
-      for (const workflowName of workflowNames) {
-        if (selected) {
-          next.add(workflowName);
-        } else {
-          next.delete(workflowName);
-        }
-      }
-      return next;
-    });
-  }, []);
-
   const handleClearSelection = useCallback(() => {
     setSelectedWorkflowNames(new Set());
   }, []);
@@ -143,7 +129,7 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
   );
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
+    <div className="flex h-full flex-col gap-4 p-6 pb-20 sm:pb-6">
       <div className="shrink-0">
         <InlineErrorBoundary
           title="Toolbar error"
@@ -159,14 +145,6 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
           />
         </InlineErrorBoundary>
       </div>
-
-      <BulkCancelSelectionBar
-        selectedCount={bulkCancelSelection.selected.length}
-        cancelableCount={bulkCancelSelection.cancelable.length}
-        skippedCount={bulkCancelSelection.skipped.length}
-        onClear={handleClearSelection}
-        onCancelSelected={() => setBulkCancelDialogOpen(true)}
-      />
 
       <div className="min-h-0 flex-1">
         <InlineErrorBoundary
@@ -185,9 +163,18 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
             isFetchingNextPage={isFetchingNextPage}
             selectedWorkflowNames={selectedWorkflowNames}
             onToggleWorkflow={handleToggleWorkflow}
-            onToggleVisibleWorkflows={handleToggleVisibleWorkflows}
           />
         </InlineErrorBoundary>
+      </div>
+
+      <div className="flex h-28 shrink-0 items-center sm:h-16">
+        <BulkCancelSelectionBar
+          selectedCount={bulkCancelSelection.selected.length}
+          cancelableCount={bulkCancelSelection.cancelable.length}
+          skippedCount={bulkCancelSelection.skipped.length}
+          onClear={handleClearSelection}
+          onCancelSelected={() => setBulkCancelDialogOpen(true)}
+        />
       </div>
 
       <BulkCancelWorkflowsDialog

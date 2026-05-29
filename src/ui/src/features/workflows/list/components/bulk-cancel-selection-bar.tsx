@@ -37,7 +37,7 @@ export const BulkCancelSelectionBar = memo(function BulkCancelSelectionBar({
   if (selectedCount === 0) return null;
 
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
+    <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-blue-200 bg-white px-3 py-2.5 shadow-sm dark:border-blue-900/60 dark:bg-zinc-950">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-blue-900 dark:text-blue-200">
         <strong>{selectedCount} selected</strong>
         <span>{cancelableCount} cancelable</span>

@@ -78,8 +78,6 @@ export interface WorkflowsDataTableProps {
   selectedWorkflowNames?: ReadonlySet<string>;
   /** Toggle a single workflow selection */
   onToggleWorkflow?: (workflowName: string, selected: boolean) => void;
-  /** Toggle all visible workflow selections */
-  onToggleVisibleWorkflows?: (workflowNames: string[], selected: boolean) => void;
 }
 
 // =============================================================================
@@ -108,7 +106,6 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   isFetchingNextPage = false,
   selectedWorkflowNames = EMPTY_SELECTED_WORKFLOW_NAMES,
   onToggleWorkflow,
-  onToggleVisibleWorkflows,
 }: WorkflowsDataTableProps) {
   const router = useNavigationRouter();
   const pathname = usePathname();
@@ -136,13 +133,8 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
 
   // Create TanStack columns
   const columns = useMemo(
-    () =>
-      createWorkflowColumns(
-        onToggleWorkflow && onToggleVisibleWorkflows
-          ? { selectedWorkflowNames, onToggleWorkflow, onToggleVisibleWorkflows }
-          : undefined,
-      ),
-    [onToggleWorkflow, onToggleVisibleWorkflows, selectedWorkflowNames],
+    () => createWorkflowColumns(onToggleWorkflow ? { selectedWorkflowNames, onToggleWorkflow } : undefined),
+    [onToggleWorkflow, selectedWorkflowNames],
   );
 
   // Handle sort change
