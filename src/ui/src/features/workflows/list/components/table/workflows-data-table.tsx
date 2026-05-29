@@ -74,6 +74,10 @@ export interface WorkflowsDataTableProps {
   onLoadMore?: () => void;
   /** Whether currently loading more data */
   isFetchingNextPage?: boolean;
+  /** Selected workflow names for bulk actions */
+  selectedWorkflowNames?: ReadonlySet<string>;
+  /** Toggle a single workflow selection */
+  onToggleWorkflow?: (workflowName: string, selected: boolean) => void;
 }
 
 // =============================================================================
@@ -85,6 +89,7 @@ const getRowId = (workflow: WorkflowListEntry) => workflow.name;
 
 // Module-level constant — stable reference, no useMemo needed
 const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
+const EMPTY_SELECTED_WORKFLOW_NAMES = new Set<string>();
 
 // =============================================================================
 // Component
@@ -99,6 +104,8 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   hasNextPage = false,
   onLoadMore,
   isFetchingNextPage = false,
+  selectedWorkflowNames = EMPTY_SELECTED_WORKFLOW_NAMES,
+  onToggleWorkflow,
 }: WorkflowsDataTableProps) {
   const router = useNavigationRouter();
   const pathname = usePathname();
@@ -125,7 +132,10 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   const columnVisibility = useColumnVisibility(columnOrder, storeVisibleColumnIds);
 
   // Create TanStack columns
-  const columns = useMemo(() => createWorkflowColumns(), []);
+  const columns = useMemo(
+    () => createWorkflowColumns(onToggleWorkflow ? { selectedWorkflowNames, onToggleWorkflow } : undefined),
+    [onToggleWorkflow, selectedWorkflowNames],
+  );
 
   // Handle sort change
   const handleSortChange = useCallback(
@@ -156,11 +166,20 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   );
 
   // Row class for status styling + zebra striping
-  const rowClassName = useCallback((workflow: WorkflowListEntry, index: number) => {
-    const { category } = getStatusDisplay(workflow.status);
-    const zebraClass = index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
-    return cn("workflows-row", `workflows-row--${category}`, zebraClass);
-  }, []);
+  const rowClassName = useCallback(
+    (workflow: WorkflowListEntry, index: number) => {
+      const { category } = getStatusDisplay(workflow.status);
+      const isSelected = selectedWorkflowNames.has(workflow.name);
+      const zebraClass = index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
+      return cn(
+        "workflows-row",
+        `workflows-row--${category}`,
+        zebraClass,
+        isSelected && "bg-[var(--nvidia-green-bg)] shadow-[inset_3px_0_0_var(--nvidia-green)]",
+      );
+    },
+    [selectedWorkflowNames],
+  );
 
   const emptyContent = useMemo(() => <TableEmptyState message="No workflows found" />, []);
 

@@ -22,12 +22,17 @@ import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count
 import { useDefaultFilter } from "@/components/filter-bar/hooks/use-default-filter";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { useWorkflowsData } from "@/lib/workflows/hooks/use-workflows-data";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { WorkflowsDataTable } from "@/features/workflows/list/components/table/workflows-data-table";
 import { WorkflowsToolbar } from "@/features/workflows/list/components/workflows-toolbar";
+import { BulkCancelSelectionBar } from "@/features/workflows/list/components/bulk-cancel-selection-bar";
+import { BulkCancelWorkflowsDialog } from "@/features/workflows/list/components/bulk-cancel-workflows-dialog";
+import type { BulkCancelWorkflowResult } from "@/features/workflows/list/lib/actions";
+import { getBulkCancelSelection } from "@/features/workflows/list/lib/bulk-cancel";
 import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { useWorkflowsAutoRefresh } from "@/features/workflows/list/hooks/use-workflows-auto-refresh";
 import { useUser } from "@/lib/auth/user-context";
+import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 
 interface WorkflowsPageContentProps {
@@ -38,6 +43,8 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
   usePage({ title: "Workflows" });
   const { startTransition: startViewTransition } = useViewTransition();
   const { user } = useUser();
+  const [selectedWorkflowNames, setSelectedWorkflowNames] = useState<Set<string>>(() => new Set());
+  const [bulkCancelDialogOpen, setBulkCancelDialogOpen] = useState(false);
 
   const currentUsername = initialUsername ?? user?.username ?? null;
 
@@ -77,6 +84,42 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
 
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
+  const handleToggleWorkflow = useCallback((workflowName: string, selected: boolean) => {
+    setSelectedWorkflowNames((current) => {
+      const next = new Set(current);
+      if (selected) {
+        next.add(workflowName);
+      } else {
+        next.delete(workflowName);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedWorkflowNames(new Set());
+  }, []);
+
+  const bulkCancelSelection = useMemo(
+    () => getBulkCancelSelection(workflows, selectedWorkflowNames),
+    [workflows, selectedWorkflowNames],
+  );
+  const hasBulkSelection = bulkCancelSelection.selected.length > 0;
+
+  const handleBulkCancelComplete = useCallback(
+    (result: BulkCancelWorkflowResult) => {
+      const successfulWorkflowNames = new Set(
+        result.results.filter((entry) => entry.success).map((entry) => entry.workflowName),
+      );
+      setSelectedWorkflowNames((current) => {
+        const next = new Set([...current].filter((workflowName) => !successfulWorkflowNames.has(workflowName)));
+        return next.size === current.size ? current : next;
+      });
+      void refetch();
+    },
+    [refetch],
+  );
+
   const autoRefreshProps = useMemo(
     () => ({
       interval: autoRefresh.interval,
@@ -88,7 +131,12 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
   );
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
+    <div
+      className={cn(
+        "flex h-full flex-col p-6 transition-[padding-bottom] duration-200 ease-out",
+        hasBulkSelection ? "pb-16 sm:pb-6" : "pb-6",
+      )}
+    >
       <div className="shrink-0">
         <InlineErrorBoundary
           title="Toolbar error"
@@ -105,7 +153,7 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
         </InlineErrorBoundary>
       </div>
 
-      <div className="min-h-0 flex-1">
+      <div className="mt-4 min-h-0 flex-1 transition-[height] duration-200 ease-out">
         <InlineErrorBoundary
           title="Unable to display workflows table"
           resetKeys={[workflows.length]}
@@ -120,9 +168,35 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
             hasNextPage={hasMore}
             onLoadMore={fetchNextPage}
             isFetchingNextPage={isFetchingNextPage}
+            selectedWorkflowNames={selectedWorkflowNames}
+            onToggleWorkflow={handleToggleWorkflow}
           />
         </InlineErrorBoundary>
       </div>
+
+      <div
+        className={cn(
+          "flex shrink-0 items-center overflow-hidden transition-[height,margin-top,opacity] duration-200 ease-out",
+          hasBulkSelection ? "mt-2 h-20 opacity-100 sm:h-12" : "mt-0 h-0 opacity-0",
+        )}
+      >
+        <BulkCancelSelectionBar
+          selectedCount={bulkCancelSelection.selected.length}
+          cancelableCount={bulkCancelSelection.cancelable.length}
+          skippedCount={bulkCancelSelection.skipped.length}
+          onClear={handleClearSelection}
+          onCancelSelected={() => setBulkCancelDialogOpen(true)}
+        />
+      </div>
+
+      <BulkCancelWorkflowsDialog
+        workflowNames={bulkCancelSelection.cancelable.map((workflow) => workflow.name)}
+        selectedCount={bulkCancelSelection.selected.length}
+        skippedCount={bulkCancelSelection.skipped.length}
+        open={bulkCancelDialogOpen}
+        onOpenChange={setBulkCancelDialogOpen}
+        onComplete={handleBulkCancelComplete}
+      />
     </div>
   );
 }
