@@ -3,140 +3,120 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Multi-cluster QUICKSTART
+# Multi-cluster deployment quickstart
 
-Two-cluster topology: API Server + Workflow Controller + Operator Service in **cluster A
-(control)**; TaskGroup Controller in **cluster B (backend)**. Cluster B connects outbound
-to cluster A's Operator Service over gRPC. No inbound exposure of cluster B is needed —
-works for NAT'd, private, or edge clusters.
+OSMOTaskGroup multi-cluster splits responsibility across two cluster roles:
 
-Pre-reqs:
-- Two kubeconfig contexts (`KUBECONFIG_A`, `KUBECONFIG_B`)
-- Built and pushed images: `nvcr.io/nvstaging/osmo/taskgroup-controller:v0.1.0` and
-  `nvcr.io/nvstaging/osmo/taskgroup-apiserver:v0.1.0`
-- Cluster A's Operator Service must be reachable from cluster B over gRPC (LoadBalancer
-  IP, NodePort, or Ingress + TLS termination — the manifest defaults to LoadBalancer)
+- **Control cluster** runs the API server, the Workflow Controller, and the Operator
+  Service (gRPC server). All OSMOWorkflow CRs and OSMOCluster CRs live here.
+- **Backend clusters** run the TaskGroup Controller + a session client that phones home
+  to the control cluster's Operator Service. They never see OSMOWorkflow CRs; they only
+  receive OSMOTaskGroup CRs dispatched from the control side.
 
-## 1. Generate the cluster bearer token
+Backend clusters always initiate the outbound TCP connection (no inbound exposure
+required). The Operator Service authenticates each incoming session against an
+OSMOCluster CR's token-hash Secret.
+
+## Prerequisites
+
+- `kubectl` contexts for the control cluster and every backend cluster.
+- `openssl` and `sha256sum` (or `shasum -a 256` on macOS).
+- A way for backend clusters to reach the control cluster's Operator Service:
+  a LoadBalancer Service (default in `control-cluster.yaml`), a NodePort, or an
+  Ingress with HTTP/2 (gRPC) support — see the commented Ingress block at the
+  bottom of `control-cluster.yaml`.
+
+## 1. Apply the control-cluster manifests
 
 ```bash
+cp deploy/multicluster/kustomization.control.yaml deploy/multicluster/kustomization.yaml
+kubectl --context=control apply -k deploy/multicluster/
+```
+
+This installs the namespace, the three CRDs (OSMOWorkflow, OSMOTaskGroup, OSMOCluster),
+RBAC for the controller and API server, and Deployments + Services for the API server
+and the control-plane controller.
+
+Note the Operator Service's external address — for a LoadBalancer Service:
+
+```bash
+kubectl --context=control -n osmo-system get svc taskgroup-operator -o wide
+```
+
+Call this `OPERATOR_ENDPOINT` — typically `<external-IP>:9000` or
+`operator.osmo.example.com:9000` if you fronted it with an Ingress.
+
+## 2. Register each backend cluster
+
+For every backend cluster you want to dispatch work to, generate a token, install it on
+the backend (raw) and the control (hashed), then apply an OSMOCluster CR:
+
+```bash
+BACKEND=backend-a
 TOKEN=$(openssl rand -hex 32)
-TOKEN_HASH=$(echo -n "${TOKEN}" | sha256sum | awk '{print $1}')
-echo "TOKEN     = ${TOKEN}"
-echo "TOKEN_HASH = ${TOKEN_HASH}"
+HASH=$(echo -n "${TOKEN}" | shasum -a 256 | cut -d' ' -f1)
+
+# Backend: store the raw token in the cluster that will use it.
+kubectl --context=${BACKEND} create namespace osmo-system --dry-run=client -o yaml \
+  | kubectl --context=${BACKEND} apply -f -
+kubectl --context=${BACKEND} -n osmo-system create secret generic taskgroup-cluster-token \
+  --from-literal=token="${TOKEN}"
+
+# Control: store the SHA-256 hash only. The raw token never leaves the backend cluster
+# or your local generation step.
+kubectl --context=control -n osmo-system create secret generic ${BACKEND}-token \
+  --from-literal=tokenHash="${HASH}"
 ```
 
-The plain `TOKEN` goes into cluster B. The `TOKEN_HASH` goes into an OSMOCluster
-registration in cluster A.
-
-## 2. Cluster A — control plane
-
-Set `kubectl` context to cluster A.
+Then create the OSMOCluster CR. Edit `cluster-registration.yaml` to match the name,
+strip the placeholder Secret (real hash was created above), and apply:
 
 ```bash
-# CRDs + namespaces + RBAC + apiserver
-kubectl --context=cluster-a apply -f config/crd/
-kubectl --context=cluster-a wait --for=condition=Established crd/osmoworkflows.workflow.osmo.nvidia.com  --timeout=60s
-kubectl --context=cluster-a wait --for=condition=Established crd/osmotaskgroups.workflow.osmo.nvidia.com --timeout=60s
-kubectl --context=cluster-a wait --for=condition=Established crd/osmoclusters.workflow.osmo.nvidia.com   --timeout=60s
-
-kubectl --context=cluster-a apply -f deploy/namespace.yaml
-kubectl --context=cluster-a apply -f deploy/rbac.yaml
-kubectl --context=cluster-a apply -f deploy/apiserver.yaml
-kubectl --context=cluster-a apply -f deploy/multicluster/control-cluster.yaml
+sed "s/backend-a/${BACKEND}/g" deploy/multicluster/cluster-registration.yaml \
+  | awk '/^---$/{section++} section<2' \
+  | kubectl --context=control apply -f -
 ```
 
-Register cluster B and store its token hash:
+(The `awk` keeps only the first YAML doc — the OSMOCluster CR — and discards the
+placeholder Secret stanza.)
+
+## 3. Apply the backend-cluster manifests
+
+Edit `backend-cluster.yaml` to set `--operator-endpoint` and `--cluster-id`, then:
 
 ```bash
-kubectl --context=cluster-a create secret generic cluster-b-token-hash \
-  -n osmo-system --from-literal=tokenHash="${TOKEN_HASH}"
-
-kubectl --context=cluster-a apply -f - <<EOF
-apiVersion: workflow.osmo.nvidia.com/v1alpha1
-kind: OSMOCluster
-metadata:
-  name: cluster-b
-spec:
-  region: example
-  provider: example
-  network: {type: ""}
-  tokenSecretRef:
-    name: cluster-b-token-hash
-    namespace: osmo-system
-EOF
+cp deploy/multicluster/kustomization.backend.yaml deploy/multicluster/kustomization.yaml
+kubectl --context=${BACKEND} apply -k deploy/multicluster/
 ```
 
-Verify the Operator Service is reachable (get the LB external IP/hostname):
+## 4. Verify the session is established
 
 ```bash
-kubectl --context=cluster-a -n osmo-system get svc taskgroup-operator-service
-# Note the EXTERNAL-IP; this is the OPERATOR_ENDPOINT for cluster B below.
+kubectl --context=control -n osmo-system logs deploy/taskgroup-control --tail=50 \
+  | grep -E 'session established|hello rejected'
+kubectl --context=control get osmocluster ${BACKEND} -o yaml
 ```
 
-## 3. Cluster B — backend
+`status.connection` should be `Connected` and `status.lastSeen` should be recent.
 
-Set the operator endpoint and cluster id placeholders, then provision the bearer token
-and apply:
-
-```bash
-# Replace these:
-OPERATOR_ENDPOINT="LB-IP-FROM-STEP-2"     # e.g. 10.42.42.42
-CLUSTER_ID="cluster-b"
-
-kubectl --context=cluster-b apply -f deploy/namespace.yaml
-kubectl --context=cluster-b apply -f config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml
-
-kubectl --context=cluster-b create secret generic taskgroup-cluster-token \
-  -n osmo-system --from-literal=token="${TOKEN}"
-
-# Render the manifest with substitutions:
-sed -e "s|CHANGEME_OPERATOR_ENDPOINT|${OPERATOR_ENDPOINT}|" \
-    -e "s|CHANGEME_CLUSTER_ID|${CLUSTER_ID}|" \
-    deploy/multicluster/backend-cluster.yaml \
-| kubectl --context=cluster-b apply -f -
-```
-
-Wait for the backend controller to come up:
+## 5. Submit a workflow that targets the backend
 
 ```bash
-kubectl --context=cluster-b -n osmo-system wait --for=condition=Available deploy/taskgroup-backend --timeout=60s
-kubectl --context=cluster-b -n osmo-system logs deploy/taskgroup-backend | grep "session established"
-```
-
-You should see `session established` in cluster B's controller logs. On cluster A:
-
-```bash
-kubectl --context=cluster-a get osmocluster cluster-b -o jsonpath='{.status.connection}'
-# Should print: Connected
-```
-
-## 4. Submit a workflow
-
-Port-forward the API server in cluster A and submit. The workflow's group targets
-`cluster: cluster-b`:
-
-```bash
-kubectl --context=cluster-a -n osmo-system port-forward svc/taskgroup-apiserver 8088:8088 &
-
-curl -X POST http://localhost:8088/v1/workflows \
-  -H "Authorization: Bearer me@example.com" \
-  -H "Content-Type: application/json" \
+curl -X POST http://<apiserver-address>/v1/workflows \
+  -H 'Content-Type: application/json' \
   -d @- <<EOF
 {
+  "name": "demo",
   "groups": [
     {
-      "name": "hello",
-      "cluster": "cluster-b",
+      "name": "train",
+      "cluster": "${BACKEND}",
       "runtimeType": "kai",
       "runtimeConfig": {
         "tasks": [{
-          "name": "worker-0",
-          "lead": true,
-          "image": "busybox:1.36",
-          "resources": {"cpu": "100m", "memory": "64Mi"},
-          "command": ["sh", "-c"],
-          "args": ["echo hello from cluster-b && sleep 5"]
+          "name": "main",
+          "image": "busybox",
+          "command": ["echo", "hello from ${BACKEND}"]
         }]
       }
     }
@@ -145,67 +125,68 @@ curl -X POST http://localhost:8088/v1/workflows \
 EOF
 ```
 
-Observe:
-
-```bash
-# On cluster A: workflow status
-kubectl --context=cluster-a get osmoworkflow -n osmo-workflows
-
-# On cluster B: the OSMOTaskGroup and its Pod actually running here
-kubectl --context=cluster-b get osmotaskgroup -n osmo-workflows
-kubectl --context=cluster-b get pods -n osmo-workflows
-```
+The Workflow Controller dispatches the group via the Operator Service's session stream;
+the backend's TaskGroup Controller materializes a Pod and pushes status events back.
 
 ## How it actually works (paths)
 
 ```
-USER ──HTTP──▶ apiserver (cluster A)
-                  │ K8s API: writes OSMOWorkflow CR (cluster A)
+USER ──HTTP──▶ apiserver (control cluster)
+                  │ K8s API: writes OSMOWorkflow CR (control)
                   ▼
-              Workflow Controller (cluster A)
-                  │ resolves DAG, sees cluster: cluster-b
+              Workflow Controller (control)
+                  │ resolves DAG, sees group.cluster: backend-a
                   │ calls RemoteDispatcher → CommandBus.DispatchCreateOTG
                   ▼
-              Operator Service (in-process, cluster A)
-                  │ looks up cluster-b's open stream
+              Operator Service (in-process, control)
+                  │ looks up backend-a's open session stream
                   │ sends OperatorEnvelope{CreateOTG} on that stream
-                  ▼   (bidi gRPC stream, initiated by cluster B's controller)
+                  ▼   (bidi gRPC stream, initiated by the backend's controller)
                   │
-              TaskGroup Controller (cluster B)
+              TaskGroup Controller (backend-a)
                   │ receives CreateOTG via session client
-                  │ applies OSMOTaskGroup CR to LOCAL K8s API (cluster B)
+                  │ applies OSMOTaskGroup CR to LOCAL K8s API (backend)
                   │ uses its own in-cluster service account
                   │
                   ▼ (local watch fires)
-              TaskGroup Reconciler (cluster B)
+              TaskGroup Reconciler (backend-a)
                   │ KAI runtime renders Pod + PodGroup
                   ▼
-              Pod runs in cluster B
+              Pod runs in backend-a
                   │
                   │ status updates flow back through the session stream:
                   ▼
-              Operator Service publishes to StatusBus
+              Operator Service publishes to StatusBus (control)
                   ▼
-              Workflow Controller subscribes
+              StartRemoteStatusBridge subscribes
                   ▼
-              Updates OSMOWorkflow.status (cluster A)
+              Updates OSMOWorkflow.status.Groups[group] (control)
 ```
 
-## Security notes (Phase 2 MVP)
-
-- Transport is **plain HTTP/2 gRPC, no TLS**. Suitable only for trusted private
-  networks. Production needs mTLS — wire it into the gRPC server options.
-- Token auth: SHA-256 of a 32-byte random token. Sufficient inside a trusted backbone;
-  rotate by replacing the OSMOCluster's `tokenSecretRef` and the backend's
-  `taskgroup-cluster-token` Secret in coordination.
-- The Operator Service's gRPC port (9000) must be reachable from cluster B but does NOT
-  need to be exposed to the public internet. Restrict via NetworkPolicy + cloud firewall.
+Key invariants:
+- The backend controller is always the gRPC *client*. The Operator Service never dials
+  into a backend. NAT'd / private / edge clusters work as long as they can reach the
+  control cluster's `:9000` outbound.
+- Authentication happens once per session, on Hello, against the SHA-256 hash stored in
+  `OSMOCluster.spec.tokenSecretRef`. Plaintext tokens never leave the backend.
+- Cross-cluster owner references don't exist, so backend OTGs are not GC'd by the
+  control side's K8s. Instead, the Workflow Controller carries
+  `workflow.osmo.nvidia.com/remote-cleanup` finalizer and emits explicit `DeleteOTG`
+  commands on workflow deletion (plus from an annotation set BEFORE Create, so a
+  controller crash between dispatch and status write still cleans up).
+- Status freshness across a control-plane restart: on every successful Hello the
+  Operator Service sends a `ResyncRequest` and the backend's session client pushes
+  the current status of every OTG in its namespace, recovering state without waiting
+  for the next reconcile-driven event.
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `OSMOCluster.status.connection` stays `Disconnected` | Cluster B can't reach the operator endpoint or the token doesn't match | Check cluster B controller logs for `dial` errors or `unauthorized`; verify the SHA-256 of `taskgroup-cluster-token` matches `cluster-b-token-hash` |
-| Workflow group stays `Pending` indefinitely | RemoteResolver returns "not connected" — same as above | Wait for the session to establish; then the next reconcile tick (≤30s) will dispatch |
-| `unauthorized` in operator logs on every Hello | Token hash mismatch | Regenerate token + hash, update both Secrets, restart the backend controller pod |
-| Cluster B sees the OTG but never runs Pods | Look at it like a single-cluster bug (KAI scheduler missing? gangScheduling needed?) | Same troubleshooting as `deploy/QUICKSTART.md` |
+- `hello rejected` on the control side: the token hash on the control side doesn't
+  match the SHA-256 of the raw token on the backend. Regenerate.
+- Backend logs say `dial: connection refused`: the `--operator-endpoint` is wrong,
+  the Service has no external IP yet, or there's no network path. Verify with
+  `kubectl --context=${BACKEND} run nc --image=busybox --rm -it --restart=Never \
+   -- nc -vz <operator-host> 9000`.
+- OSMOTaskGroup created on the backend but stays Pending: confirm the KAI PodGroup CRD
+  is installed (`kubectl get crd podgroups.scheduling.kai.run.ai`). The kustomization
+  includes the dev CRD; for production install the real KAI Scheduler chart.

@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Control-cluster kustomization. Apply with:
+#   kubectl apply -k deploy/multicluster/   (when this file is the default kustomization.yaml)
+# or explicitly:
+#   kubectl kustomize deploy/multicluster/ --reorder=legacy -f kustomization.control.yaml | kubectl apply -f -
+#
+# A more reliable workflow is to symlink/rename whichever variant you want as
+# `kustomization.yaml` inside this directory.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: osmo-system
+
+resources:
+  - ../namespace.yaml
+  - ../../config/crd/workflow.osmo.nvidia.com_osmoclusters.yaml
+  - ../../config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml
+  - ../../config/crd/workflow.osmo.nvidia.com_osmoworkflows.yaml
+  - ../rbac.yaml
+  - control-cluster.yaml

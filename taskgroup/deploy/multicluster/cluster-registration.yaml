@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Per-backend-cluster registration. Applied on the CONTROL cluster (NOT the backend) for
+# every backend you want to dispatch to. Two objects per backend:
+#
+#   1. OSMOCluster CR: the control-plane identity record.
+#   2. Secret containing the SHA-256 hash of the backend's bearer token (used by the
+#      operator service to authenticate session Hello requests).
+#
+# Generating a fresh token for a backend called "backend-a":
+#
+#   TOKEN=$(openssl rand -hex 32)
+#
+#   # Provision on the BACKEND cluster (raw token):
+#   kubectl --context backend-a create namespace osmo-system
+#   kubectl --context backend-a -n osmo-system create secret generic taskgroup-cluster-token \
+#     --from-literal=token="${TOKEN}"
+#
+#   # Provision on the CONTROL cluster (SHA-256 hash only — never the raw token):
+#   HASH=$(echo -n "${TOKEN}" | sha256sum | cut -d' ' -f1)
+#   kubectl --context control -n osmo-system create secret generic backend-a-token \
+#     --from-literal=tokenHash="${HASH}"
+#
+# Then edit and apply this file with backend-a's values.
+
+---
+apiVersion: workflow.osmo.nvidia.com/v1alpha1
+kind: OSMOCluster
+metadata:
+  name: backend-a   # MUST match --cluster-id passed to the backend controller
+spec:
+  region: ""        # informational; e.g. "us-east-1"
+  provider: ""      # informational; e.g. "coreweave", "aws-eks", "on-prem"
+  gpuTypes: []      # informational; e.g. ["H100", "A100"]
+  tokenSecretRef:
+    name: backend-a-token
+    namespace: osmo-system
+
+---
+# Hash-only secret. Real value injected via kubectl create secret (see header).
+# This file is here to document the expected key name; do NOT check in the hash itself.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-a-token
+  namespace: osmo-system
+type: Opaque
+stringData:
+  tokenHash: REPLACE_WITH_SHA256_HEX_OF_BACKEND_TOKEN

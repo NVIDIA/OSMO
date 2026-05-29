@@ -1,30 +1,23 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Backend-cluster deployment: TaskGroup Controller + session client only.
-# Connects outbound to the control cluster's Operator Service. No inbound exposure.
+# Backend-cluster deployment: TaskGroup Controller + session client. Phones home (gRPC
+# outbound) to the control cluster's Operator Service. No inbound exposure.
 #
-# Before applying, edit the marked placeholders:
-#   - CLUSTER_ID: must match an OSMOCluster CR's metadata.name in the control cluster
-#   - OPERATOR_ENDPOINT: the control cluster's Operator Service (e.g. operator.osmo.example.com:9000)
+# Prerequisites (applied via kustomization.yaml):
+#   - namespace osmo-system
+#   - OSMOTaskGroup CRD (config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml)
+#   - KAI PodGroup CRD if you intend to run the kai runtime (deploy/dev/kai-podgroup-crd.yaml)
 #
-# The cluster's bearer token is provisioned as a separate Secret out-of-band. See
-# multicluster-quickstart.md for token generation and registration steps.
+# Before applying, replace:
+#   - CHANGEME_OPERATOR_ENDPOINT — e.g. operator.osmo.example.com:9000 (the control
+#     cluster's Operator Service Service / Ingress).
+#   - CHANGEME_CLUSTER_ID — must match an OSMOCluster.metadata.name on the control side.
+#
+# The bearer token Secret (`taskgroup-cluster-token`) is provisioned out-of-band with the
+# raw token; the matching SHA-256 hash lives in the control cluster only. See
+# cluster-registration.yaml for the registration ritual.
 
----
-# OSMOTaskGroup CRD (this cluster will receive these from the control cluster).
-# Apply config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml separately.
-
-# The cluster's bearer token. Provision out-of-band; never check the plain token into git.
-# This file shows the expected shape — generate the actual Secret with:
-#
-#   TOKEN=$(openssl rand -hex 32)
-#   kubectl create secret generic taskgroup-cluster-token \
-#     -n osmo-system --from-literal=token="${TOKEN}"
-#
-# Then on the control cluster:
-#   echo -n "${TOKEN}" | sha256sum  # → put this hex value into the tokenHash Secret
-#
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -38,7 +31,6 @@ kind: ClusterRole
 metadata:
   name: taskgroup-backend
 rules:
-  # Receive OSMOTaskGroup CRs (only on this cluster) and reconcile them locally.
   - apiGroups: ["workflow.osmo.nvidia.com"]
     resources: ["osmotaskgroups", "osmotaskgroups/status", "osmotaskgroups/finalizers"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -102,8 +94,9 @@ spec:
           args:
             - --enable-workflow-controller=false
             - --enable-taskgroup-controller=true
-            - --operator-endpoint=CHANGEME_OPERATOR_ENDPOINT:9000   # e.g. operator.osmo.example.com:9000
-            - --cluster-id=CHANGEME_CLUSTER_ID                       # e.g. coreweave-h100
+            - --taskgroup-namespace=osmo-workflows
+            - --operator-endpoint=CHANGEME_OPERATOR_ENDPOINT:9000
+            - --cluster-id=CHANGEME_CLUSTER_ID
             - --cluster-token-file=/var/run/secrets/osmo/token
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
@@ -134,5 +127,4 @@ spec:
           secret:
             secretName: taskgroup-cluster-token
             items:
-              - key: token
-                path: token
+              - { key: token, path: token }

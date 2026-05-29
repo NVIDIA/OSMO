@@ -3,7 +3,7 @@
 
 # Multi-stage build for the stateless API server. Same shape as the controller image.
 
-FROM golang:1.22 AS build
+FROM docker.io/library/golang:1.22 AS build
 WORKDIR /src
 
 COPY go.mod go.sum ./
@@ -15,7 +15,7 @@ ARG TARGETARCH=amd64
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags='-s -w' -o /out/apiserver ./cmd/apiserver
 
-FROM gcr.io/distroless/static:nonroot
+FROM --platform=linux/amd64 gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=build /out/apiserver /apiserver
 USER 65532:65532

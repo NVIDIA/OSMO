@@ -32,7 +32,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: apiserver
-          image: osmo-taskgroup-apiserver:v0.1.0
+          image: nvcr.io/nvstaging/osmo/taskgroup-apiserver:v0.1.0
           imagePullPolicy: IfNotPresent
           args:
             - --bind=:8088

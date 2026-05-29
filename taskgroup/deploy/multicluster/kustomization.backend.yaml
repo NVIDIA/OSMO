@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Backend-cluster kustomization. Apply with this file renamed/symlinked as
+# `kustomization.yaml` inside deploy/multicluster/, then:
+#
+#   kubectl --context backend-a apply -k deploy/multicluster/
+#
+# Before applying, edit backend-cluster.yaml to set --operator-endpoint and --cluster-id
+# (or use a kustomize patch). The cluster-token Secret is created out-of-band — see the
+# header of cluster-registration.yaml for the exact commands.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: osmo-system
+
+resources:
+  - ../namespace.yaml
+  - ../../config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml
+  - ../dev/kai-podgroup-crd.yaml
+  - backend-cluster.yaml

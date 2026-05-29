@@ -1,24 +1,22 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Control-cluster deployment: API server + Workflow Controller + Operator Service.
-# All three run as separate Pods; the controller binary embeds the Operator Service
-# gRPC server in-process (--operator-serve-bind) so the Workflow Controller can share
-# the in-memory CommandBus.
+# Control-cluster deployment.
 #
-# Apply with:
-#   kubectl apply -k deploy/multicluster/control-cluster.yaml/   # see kustomization below
+# Workloads:
+#   - taskgroup-apiserver: stateless HTTP API for submitting OSMOWorkflow CRs.
+#   - taskgroup-control:   Workflow Controller + embedded Operator Service (gRPC server
+#                          that accepts session streams from backend clusters).
 #
-# Or piece-by-piece for clarity:
-#   kubectl apply -f deploy/namespace.yaml
-#   kubectl apply -f config/crd/
-#   kubectl apply -f deploy/rbac.yaml
-#   kubectl apply -f deploy/apiserver.yaml
-#   kubectl apply -f deploy/multicluster/control-cluster.yaml
+# Prerequisites:
+#   1. Namespace + CRDs + control-side RBAC (applied via kustomization.yaml).
+#   2. For every backend cluster you want to dispatch to, apply
+#      cluster-registration.yaml with the right OSMOCluster name and SHA-256 token hash.
 #
-# Backend clusters get a different manifest (see backend-cluster.yaml). They never see
-# OSMOWorkflow CRs — they only run a TaskGroup Controller + session client that connects
-# back to this control cluster's operator-service endpoint.
+# Backend reachability:
+#   The Service below is type LoadBalancer to give backend clusters a reachable address.
+#   In environments without an external LB controller, switch to NodePort. For HTTP/2 +
+#   TLS termination at the edge, use the Ingress template at the bottom (commented).
 
 ---
 apiVersion: apps/v1
@@ -79,22 +77,159 @@ spec:
             readOnlyRootFilesystem: true
 
 ---
-# Service exposing the in-process Operator Service gRPC port to backend clusters.
-# Type LoadBalancer for cross-cluster reach. In environments without LB controllers,
-# use NodePort or an Ingress with gRPC support. Backend clusters need DNS or stable IP.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskgroup-apiserver
+  namespace: osmo-system
+  labels:
+    app.kubernetes.io/name: taskgroup-apiserver
+    app.kubernetes.io/component: apiserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: taskgroup-apiserver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: taskgroup-apiserver
+        app.kubernetes.io/component: apiserver
+    spec:
+      serviceAccountName: taskgroup-apiserver
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: apiserver
+          image: nvcr.io/nvstaging/osmo/taskgroup-apiserver:v0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --bind=:8088
+            - --workflow-namespace=osmo-workflows
+          ports:
+            - { name: http, containerPort: 8088 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits:   { cpu: 250m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+
+---
+# Cluster-internal service for the API server. The AWS ALB Ingress below fronts this
+# Service at vpan-dev.osmo.nvidia.com with TLS terminated at the ALB.
 apiVersion: v1
 kind: Service
 metadata:
-  name: taskgroup-operator-service
+  name: taskgroup-apiserver
+  namespace: osmo-system
+  labels:
+    app.kubernetes.io/name: taskgroup-apiserver
+spec:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 8088, targetPort: http, protocol: TCP }
+  selector:
+    app.kubernetes.io/name: taskgroup-apiserver
+
+---
+# Internal AWS ALB exposing the apiserver at https://vpan-dev.osmo.nvidia.com.
+# Joins the shared "osmo2" ALB via IngressGroup so we don't allocate a new LB.
+# Requires the AWS Load Balancer Controller installed in the cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: taskgroup-apiserver
+  namespace: osmo-system
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.order: "50"
+    alb.ingress.kubernetes.io/certificate-arn: REPLACE_WITH_ACM_CERT_ARN
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+spec:
+  ingressClassName: alb
+  rules:
+    - host: vpan-dev.osmo.nvidia.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: taskgroup-apiserver
+                port:
+                  number: 8088
+
+---
+# Operator Service — backend clusters dial this from outside the cluster. ClusterIP
+# because the AWS ALB Ingress below provides the external entry point.
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskgroup-operator
   namespace: osmo-system
   labels:
     app.kubernetes.io/name: taskgroup-operator
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
-    - name: grpc
-      port: 9000
-      targetPort: grpc
-      protocol: TCP
+    - { name: grpc, port: 9000, targetPort: grpc, protocol: TCP }
   selector:
     app.kubernetes.io/name: taskgroup-control
+
+---
+# AWS ALB Ingress for the operator gRPC stream. Joins the same osmo2 IngressGroup as
+# the apiserver Ingress above, so backends can reach both apiserver (HTTP/1.1) and
+# operator (HTTP/2 gRPC) at the same host via path-based routing. Lower group.order
+# wins on path matching, and our path is more specific than `/` so this rule fires
+# first for ClusterSession traffic.
+#
+# Requires the AWS Load Balancer Controller v2.4+ (for backend-protocol-version: GRPC).
+# Health check goes to the controller's :8081 /healthz instead of the gRPC port so we
+# don't need a grpc_health_v1.Health service implemented on the operator.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: taskgroup-operator
+  namespace: osmo-system
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.order: "40"
+    alb.ingress.kubernetes.io/certificate-arn: REPLACE_WITH_ACM_CERT_ARN
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/backend-protocol-version: GRPC
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-port: "8081"
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+spec:
+  ingressClassName: alb
+  rules:
+    - host: vpan-dev.osmo.nvidia.com
+      http:
+        paths:
+          - path: /osmo.taskgroup.v1alpha1.ClusterSession/
+            pathType: Prefix
+            backend:
+              service:
+                name: taskgroup-operator
+                port:
+                  number: 9000
