@@ -85,25 +85,37 @@ fi
 #    stuck Terminating; `--rm` reaps it; `timeout` guards against stuck image
 #    pull / Pending-forever scheduling.
 BUCKET_SETUP_TIMEOUT="${BUCKET_SETUP_TIMEOUT:-300}"
-AWS_CLI_IMAGE="${AWS_CLI_IMAGE:-amazon/aws-cli:latest}"
+# Pinned to an immutable, multi-arch (amd64+arm64) manifest-list digest rather
+# than the floating :latest, so the bootstrap image is reproducible. The tag is
+# kept for readability; containerd resolves by digest.
+AWS_CLI_IMAGE="${AWS_CLI_IMAGE:-amazon/aws-cli:2.31.10@sha256:c3545440ffb85aac40c104d7fe5cb885d0ed26e91d95a433094a9dba9ddfacd6}"
 BUCKET_SETUP_POD="rustfs-bucket-setup-$RANDOM-$RANDOM"
 echo "[INFO] Ensuring RustFS bucket $RUSTFS_BUCKET exists (helper pod: $BUCKET_SETUP_POD)"
+# Credentials and connection details are passed as pod env vars (--env), never
+# interpolated into the /bin/sh command string — the script body is single-
+# quoted and reads everything from the environment. $KUBECTL is quoted so a
+# multi-word override (e.g. "microk8s kubectl") doesn't word-split incorrectly.
 timeout "$BUCKET_SETUP_TIMEOUT" \
-  $KUBECTL run "$BUCKET_SETUP_POD" --rm -i --restart=Never \
+  "$KUBECTL" run "$BUCKET_SETUP_POD" --rm -i --restart=Never \
     --namespace="$RUSTFS_NAMESPACE" \
-    --image="$AWS_CLI_IMAGE" --command -- \
-    /bin/sh -c "
+    --image="$AWS_CLI_IMAGE" \
+    --env="AWS_ACCESS_KEY_ID=$RUSTFS_USER" \
+    --env="AWS_SECRET_ACCESS_KEY=$RUSTFS_PASS" \
+    --env="AWS_DEFAULT_REGION=us-east-1" \
+    --env="RUSTFS_ENDPOINT_URL=$RUSTFS_ENDPOINT_URL" \
+    --env="RUSTFS_BUCKET=$RUSTFS_BUCKET" \
+    --command -- \
+    /bin/sh -c '
         set -e
-        mkdir -p \$HOME/.aws
-        printf '[default]\ns3 =\n  addressing_style = path\n' > \$HOME/.aws/config
-        export AWS_ACCESS_KEY_ID='$RUSTFS_USER' AWS_SECRET_ACCESS_KEY='$RUSTFS_PASS' AWS_DEFAULT_REGION=us-east-1
-        if aws --endpoint-url $RUSTFS_ENDPOINT_URL s3api head-bucket --bucket $RUSTFS_BUCKET 2>/dev/null; then
-            echo 'Bucket already exists: $RUSTFS_BUCKET'
+        mkdir -p "$HOME/.aws"
+        printf "[default]\ns3 =\n  addressing_style = path\n" > "$HOME/.aws/config"
+        if aws --endpoint-url "$RUSTFS_ENDPOINT_URL" s3api head-bucket --bucket "$RUSTFS_BUCKET" 2>/dev/null; then
+            echo "Bucket already exists: $RUSTFS_BUCKET"
         else
-            aws --endpoint-url $RUSTFS_ENDPOINT_URL s3api create-bucket --bucket $RUSTFS_BUCKET
-            echo 'Bucket ready: $RUSTFS_BUCKET'
+            aws --endpoint-url "$RUSTFS_ENDPOINT_URL" s3api create-bucket --bucket "$RUSTFS_BUCKET"
+            echo "Bucket ready: $RUSTFS_BUCKET"
         fi
-    " || { echo "[ERROR] aws-cli bucket setup failed"; exit 1; }
+    ' || { echo "[ERROR] aws-cli bucket setup failed"; exit 1; }
 
 # 3. Create 3 K8s Secrets, one per workflow_* credential reference.
 create_workflow_cred_secrets \

@@ -30,7 +30,7 @@
 #   configure-storage.sh [options]
 #
 # Options:
-#   --backend {auto|minio|rustfs|azure-blob|byo|none} Backend (default: auto)
+#   --backend {auto|s3|minio|rustfs|azure-blob|byo|none} Backend (default: auto)
 #   --auth-method {static|workload-identity}          Auth mode (default: static)
 #   --namespace NS                                    OSMO namespace (default: osmo-minimal)
 #   --output-values PATH                              Where to write the values fragment

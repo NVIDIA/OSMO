@@ -62,7 +62,9 @@ run_minio() {
             MINIO_ADDRESSING_STYLE="$addressing_style" \
             bash "$MINIO_SCRIPT"
     else
-        env \
+        # Clear any inherited addressing-style vars so the default-path
+        # assertion is deterministic regardless of the runner's environment.
+        env -u MINIO_ADDRESSING_STYLE -u STORAGE_ADDRESSING_STYLE \
             PATH="$FAKE_BIN:$PATH" \
             KUBECTL=kubectl \
             KUBECTL_LOG="$KUBECTL_LOG" \

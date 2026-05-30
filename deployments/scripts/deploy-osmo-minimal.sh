@@ -144,7 +144,7 @@ General Options:
   --auth-method X        Storage auth: static|workload-identity (default: static)
                          workload-identity REQUIRES caller-provisioned cloud
                          identity (UAMI for Azure, IAM role for AWS) + RBAC.
-                         Not valid for --storage-backend minio.
+                         Not valid for --storage-backend minio or rustfs.
   --workload-identity-client-id ID
                          Azure UAMI client ID (required for azure-blob + WI)
   --workload-identity-role-arn ARN
