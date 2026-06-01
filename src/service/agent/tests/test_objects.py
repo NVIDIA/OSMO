@@ -60,6 +60,16 @@ class _FakeWorkflowJob(jobs.WorkflowJob):
         self.failure_messages.append(error)
 
 
+class _FakeNonWorkflowJob:
+    """Non-workflow job double: not a jobs.WorkflowJob, so handle_failure is skipped."""
+
+    def get_metadata(self):
+        return {}
+
+    def __str__(self):
+        return '(type=_FakeNonWorkflowJob, id=fake-job)'
+
+
 class WebsocketWorkerRunJobsTest(unittest.TestCase):
     """Regression tests for WebsocketWorker.run_jobs failure handling."""
 
@@ -118,6 +128,37 @@ class WebsocketWorkerRunJobsTest(unittest.TestCase):
         self.assertEqual(worker._result, jobs_base.JobResult(
             status=jobs_base.JobStatus.FAILED_NO_RETRY,
             message=expected_message))
+        self.assertIsNone(worker._current_job)
+
+    def test_successful_job_skips_failure_handling(self):
+        # A non-FAILED_NO_RETRY result must not trigger failure handling.
+        worker = self._worker_with_current_job()
+        worker.handle_failure = mock.AsyncMock()
+
+        result = jobs_base.JobResult(status=jobs_base.JobStatus.SUCCESS)
+        asyncio.run(worker.finish_current_job(result))
+
+        worker.handle_failure.assert_not_called()
+        self.assertEqual(_FakeWorkflowJob.failure_messages, [])
+        self.assertEqual(worker._result, result)
+        self.assertIsNone(worker._current_job)
+
+    def test_failed_no_retry_non_workflow_job_skips_handle_failure(self):
+        # FAILED_NO_RETRY on a non-workflow job must not trigger handle_failure.
+        worker = self._worker_with_current_job()
+        worker._current_job = objects.CurrentJobContext(
+            workflow=None,
+            log_redis=None,
+            job=cast(jobs.FrontendJob, _FakeNonWorkflowJob()),
+            start_time=time.time())
+        worker.handle_failure = mock.AsyncMock()
+
+        result = jobs_base.JobResult(
+            status=jobs_base.JobStatus.FAILED_NO_RETRY, message='backend failed')
+        asyncio.run(worker.finish_current_job(result))
+
+        worker.handle_failure.assert_not_called()
+        self.assertEqual(worker._result, result)
         self.assertIsNone(worker._current_job)
 
 

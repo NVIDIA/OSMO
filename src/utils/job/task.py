@@ -799,6 +799,8 @@ class TaskSpec(pydantic.BaseModel):
                 raise osmo_errors.OSMOResourceError(
                     f'Task with platform: {self.resources.platform} does not have ' +
                     f'hostNetwork flag enabled. Task {self.name}')
+            allowed_mounts = set(task_platform.allowed_mounts)
+            default_mounts = set(task_platform.default_mounts)
             for task_mount in self.volumeMounts:
                 split_mount = task_mount.split(':')
                 src_mount = split_mount[0]
@@ -806,9 +808,16 @@ class TaskSpec(pydantic.BaseModel):
                     (len(split_mount) == 2 and split_mount[1] == ''):
                     raise osmo_errors.OSMOResourceError(
                         f'Invalid task volume mount: {task_mount}.')
-                task_platform_mounts = \
-                    set(task_platform.allowed_mounts).union(set(task_platform.default_mounts))
-                if src_mount not in task_platform_mounts:
+                # Default mounts are already provided by the platform's pod template. Requesting
+                # one as a host mount cannot be honored (it is not an allowed host mount) and would
+                # collide with the existing mount, causing CreateGroup to fail later and leaving the
+                # workflow stuck. Reject it early with an actionable message instead.
+                if src_mount in default_mounts and src_mount not in allowed_mounts:
+                    raise osmo_errors.OSMOResourceError(
+                        f'Mount {src_mount} is already provided by platform '
+                        f'{self.resources.platform} and cannot be set in volumeMounts. '
+                        f'Remove it from the task spec. Task {self.name}')
+                if src_mount not in allowed_mounts | default_mounts:
                     raise osmo_errors.OSMOResourceError(
                         f'Task with platform: {self.resources.platform} does not allow ' +
                         f'mount: {src_mount}. Task {self.name}')

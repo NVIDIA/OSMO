@@ -943,12 +943,26 @@ class TaskSpecValidatePrivilegeHostMountTest(unittest.TestCase):
         platform = self._make_platform(allowed_mounts=['/host'])
         spec.validate_privilege_host_mount({'gpu-platform': platform})
 
-    def test_default_mount_passes(self):
+    def test_default_only_mount_raises(self):
+        # A mount that is only a platform default (already provided by the pod template)
+        # but not an allowed host mount is rejected, so it cannot collide with the
+        # default mount and stall the workflow during CreateGroup.
         spec = task.TaskSpec(
             name='mytask', image='ubuntu', command=['ls'],
             volumeMounts=['/default'],
             resources=connectors.ResourceSpec(platform='gpu-platform'))
         platform = self._make_platform(default_mounts=['/default'])
+        with self.assertRaises(OSMOResourceError):
+            spec.validate_privilege_host_mount({'gpu-platform': platform})
+
+    def test_default_and_allowed_mount_passes(self):
+        # A mount that is both a default and an allowed host mount is still accepted.
+        spec = task.TaskSpec(
+            name='mytask', image='ubuntu', command=['ls'],
+            volumeMounts=['/shared'],
+            resources=connectors.ResourceSpec(platform='gpu-platform'))
+        platform = self._make_platform(
+            allowed_mounts=['/shared'], default_mounts=['/shared'])
         spec.validate_privilege_host_mount({'gpu-platform': platform})
 
 
