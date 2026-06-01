@@ -8,20 +8,21 @@ Testbot analyzes coverage gaps, generates tests using Claude Code, validates the
 
 ```text
 Codecov API ──┐
-              ├─► criticality_scorer.py ──► select_targets_agent.py ──► Claude Code CLI ──► guardrails ──► create_pr.py
-git log ──────┤    (heuristic shortlist)       (LLM target picker)         |          ↑
-filesystem ───┘                                                            └──────────┘ (agent retries on test failures)
+              ├─► criticality_scorer.py ──► select_targets_agent.py ──► Claude Code CLI ──► guardrails ──► verify_coverage.py ──► create_pr.py
+git log ──────┤    (heuristic shortlist)       (LLM target picker)         |          ↑      (LCOV → JSON report)
+filesystem ───┘                                                            └──────────┘ (agent retries on test failures; self-checks coverage)
 ```
 
 | Stage | Component | Description |
 |-------|-----------|-------------|
 | **Stage 1: Heuristic** | `criticality_scorer.py` | Combines Codecov coverage with static fan-in (Python AST + Go scan), 6-month git churn, and a path-tier classification to rank candidates by `criticality * coverage_gap`. Outputs a top-20 JSON shortlist. |
-| **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate, rejects hard-to-test infra glue, and picks the 1-3 files where unit tests would have the highest ROI. Can return zero picks if nothing meets the bar. |
-| **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures |
+| **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate and picks the 1-3 files where coverage would protect the highest-value OSMO behavior. The picker reasons about **value only** (blast radius, contract centrality, encoded policy) — feasibility/scaffolding is left to the generator. Can return zero picks if nothing meets the bar. |
+| **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures, and runs `verify_coverage.py` against `bazel-out/_coverage/_coverage_report.dat` to confirm the listed uncovered lines are actually hit. Iterates again on the still-uncovered ranges until ≥70% of the picker's listed lines are covered or the remainder is explained as unreachable. |
 | **Guardrails** | `guardrails.py` | Filters out any non-test file changes made by Claude |
-| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, enables auto-merge, renders the picker's target rationale, and sends a brief Slack review request when Slack credentials are configured |
+| **Coverage verifier** | `verify_coverage.py` | Parses the LCOV report, computes per-range hits against the picker's listed uncovered ranges, emits a JSON sidecar + Markdown PR snippet. Used by both the generator (self-iteration) and the harness (independent verification before PR). |
+| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, enables auto-merge, renders the picker's target rationale and the coverage-gain report (with ✅/⚠️/❔ markers per target), and sends a brief Slack review request when Slack credentials are configured |
 
-Claude Code is sandboxed: it can only read files, edit test files, and run test commands (`bazel test`, `pnpm test`). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
+Claude Code is sandboxed: it can only read files, edit test files, and run test/build commands (`bazel test`, `bazel coverage`, `bazel query`, `pnpm test`, and `python`/`python3` — the latter so the generator can invoke `verify_coverage.py` during its self-iteration loop). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
 
 ### Review Response (`testbot-respond.yaml`)
 
@@ -114,8 +115,12 @@ Then post a new `/testbot` comment with clearer instructions.
 ### Slack review requests
 
 After `create_pr.py` opens a PR, it posts a short review request to Slack when
-`TESTBOT_SLACK_BOT_TOKEN` is set. `TESTBOT_SLACK_CHANNEL` defaults to
-`#osmo-slack-test`; direct channel IDs are also accepted.
+`TESTBOT_SLACK_BOT_TOKEN` is set. The channel is resolved as: workflow_dispatch
+`slack_channel` input (if non-null) → `vars.TESTBOT_SLACK_CHANNEL` repo/org var
+(prod sets this to `#osmo-code-reviews`, which is also the dispatch input
+default) → the in-code fallback `#osmo-slack-test` for forks/dev repos with
+no var configured. Pass an empty string to the dispatch input to skip the
+notification. Direct channel IDs are also accepted.
 
 ### Review response (CLI args in `testbot-respond.yaml`)
 
@@ -193,7 +198,8 @@ src/scripts/testbot/
 ├── criticality_scorer.py       # Stage 1: heuristic shortlist (fan-in × churn × tier × coverage gap)
 ├── select_targets_agent.py     # Stage 2: Claude subagent that picks the best test targets
 ├── SELECT_TARGETS_PROMPT.md    # System prompt for the Stage-2 picker
-├── create_pr.py                # Branch, commit, push, open PR
+├── verify_coverage.py          # LCOV → per-range coverage report (used by generator + harness)
+├── create_pr.py                # Branch, commit, push, open PR (with coverage report in body)
 ├── guardrails.py               # Test-file-only filter, shared by all scripts
 ├── respond.py                  # Review response: Claude Code CLI + GitHub API
 ├── TESTBOT_RULES.md            # Shared test quality rules and conventions
@@ -206,7 +212,8 @@ src/scripts/testbot/
     ├── test_criticality_scorer.py
     ├── test_guardrails.py
     ├── test_respond.py
-    └── test_select_targets_agent.py
+    ├── test_select_targets_agent.py
+    └── test_verify_coverage.py
 
 .github/workflows/
 ├── testbot.yaml                    # Scheduled test generation

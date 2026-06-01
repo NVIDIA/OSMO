@@ -13,6 +13,7 @@ from unittest.mock import patch
 from src.scripts.testbot.create_pr import (
     SLACK_API_URL,
     TESTBOT_SLACK_CHANNEL_DEFAULT,
+    _build_coverage_section,
     _build_rationale_section,
     _build_slack_review_payload,
     _enable_auto_merge,
@@ -296,6 +297,24 @@ class TestSlackReviewRequest(unittest.TestCase):
         mock_urlopen.assert_not_called()
 
     @patch("src.scripts.testbot.create_pr.urllib.request.urlopen")
+    def test_post_slack_review_request_skips_when_channel_empty(
+        self,
+        mock_urlopen,
+    ):
+        # Empty channel is the workflow_dispatch "no notification"
+        # signal. We must short-circuit BEFORE any HTTP call so an
+        # ad-hoc run never accidentally posts.
+        self.assertFalse(
+            _post_slack_review_request(
+                bot_token="token",
+                channel="",
+                pr_url="https://github.com/NVIDIA/OSMO/pull/123",
+                pr_title="[testbot] Add tests for foo.py",
+            ),
+        )
+        mock_urlopen.assert_not_called()
+
+    @patch("src.scripts.testbot.create_pr.urllib.request.urlopen")
     def test_post_slack_review_request_returns_false_on_api_error(
         self,
         mock_urlopen,
@@ -447,6 +466,52 @@ class TestScanSuspectedBugs(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertIn("off-by-one month", result[0])
 
+    def test_unittest_skip_reason_string_detected(self):
+        # PR #1046 regression: Claude wrote the marker as the skip
+        # decorator's reason string instead of a sibling comment. The
+        # scanner must catch this form so the PR body's "Suspected
+        # bugs" section reflects the signal.
+        path = self._write_temp(
+            "    @unittest.skip(\n"
+            "        'Suspected source bug: get_resource_from_spec "
+            "assumes cpu/gpu values are dicts'\n"
+            "    )\n"
+            "    def test_to_pod_resource_spec_drops_zero_gpu(self):\n"
+        )
+        result = _scan_suspected_bugs([path])
+        self.assertEqual(len(result), 1)
+        self.assertIn("get_resource_from_spec", result[0])
+        # Trailing closing quote on the captured string must be trimmed.
+        self.assertFalse(result[0].endswith("'"))
+        self.assertFalse(result[0].endswith('"'))
+
+    def test_go_t_skip_reason_string_detected(self):
+        # Mirror of the Python case for Go-style integration tests
+        # where the bot leaves the marker in the t.Skip(...) argument.
+        path = self._write_temp(
+            "func TestThing(t *testing.T) {\n"
+            "    t.Skip(\"Suspected library bug: pool.Acquire never "
+            "returns on closed pool\")\n"
+            "}\n"
+        )
+        result = _scan_suspected_bugs([path])
+        self.assertEqual(len(result), 1)
+        self.assertIn("pool.Acquire", result[0])
+        self.assertFalse(result[0].endswith('"'))
+
+    def test_prose_mention_inside_comment_still_ignored(self):
+        # Don't regress the existing safety: free-form prose that
+        # happens to contain the words "suspected" and "bug" must not
+        # trigger a section. Anchor stays on the comment/quote prefix
+        # immediately preceding "Suspected ... bug".
+        path = self._write_temp(
+            "# We chased a suspected bug here for a week — turned out\n"
+            "# to be a flaky test. Leaving the note for posterity.\n"
+            "def test_unrelated_thing(self):\n"
+            "    self.assertTrue(True)\n"
+        )
+        self.assertEqual(_scan_suspected_bugs([path]), [])
+
 
 class TestTestToSourcePath(unittest.TestCase):
     """Tests for mapping a generated test file back to its source path."""
@@ -590,6 +655,56 @@ class TestBuildRationaleSection(unittest.TestCase):
         self.assertNotIn("test_unrelated", section)
         self.assertNotIn("unrelated.py", section)
 
+    def test_multi_sentence_reason_with_roi_clause_preserved(self):
+        # Per the picker prompt's 3-clause contract, the reason names
+        # (a) behavior owned, (b) regression class caught, (c) why this
+        # file beat the rest of the shortlist. All three must reach the
+        # PR body unaltered so reviewers can audit the comparative
+        # call.
+        meta = {
+            "src/utils/job/jobs.py": {
+                "file_path": "src/utils/job/jobs.py",
+                "coverage_pct": 30.0,
+                "uncovered_lines": 500,
+                "reason": (
+                    "Owns the workflow job state machine. A silent "
+                    "regression here would corrupt workflow state. "
+                    "Highest ROI on today's shortlist: 22 commits in "
+                    "6mo plus public resource-validation surface."
+                ),
+            },
+        }
+        section = _build_rationale_section(
+            ["src/utils/job/tests/test_jobs.py"], meta,
+        )
+        self.assertIn("workflow job state machine", section)
+        self.assertIn("would corrupt workflow state", section)
+        self.assertIn("Highest ROI on today's shortlist", section)
+        self.assertIn("22 commits in", section)
+
+    def test_reason_with_embedded_newlines_renders_each_line_quoted(self):
+        # If the LLM hand-wraps the reason for readability, every
+        # rendered line must carry the blockquote `>` prefix so the
+        # PR body still reads as one logical quote on GitHub.
+        meta = {
+            "src/lib/foo.py": {
+                "file_path": "src/lib/foo.py",
+                "coverage_pct": 25.0,
+                "uncovered_lines": 100,
+                "reason": (
+                    "Owns the foo contract.\n"
+                    "Regression class: silent serializer drift.\n"
+                    "ROI: highest fan-in (47) on the list."
+                ),
+            },
+        }
+        section = _build_rationale_section(
+            ["src/lib/tests/test_foo.py"], meta,
+        )
+        self.assertIn("> Owns the foo contract.", section)
+        self.assertIn("> Regression class: silent serializer drift.", section)
+        self.assertIn("> ROI: highest fan-in (47) on the list.", section)
+
     def test_dedupes_when_two_tests_map_to_same_source(self):
         meta = {
             "src/lib/foo.py": {
@@ -637,6 +752,157 @@ class TestBuildRationaleSection(unittest.TestCase):
         )
         self.assertIn("**`src/lib/foo.py`**", section)
         self.assertNotIn("> ", section)
+
+
+class TestBuildCoverageSection(unittest.TestCase):
+    """Tests for the verify_coverage.py JSON → PR body renderer."""
+
+    def _write_report(self, payload: list) -> str:
+        """Helper: dump ``payload`` to a tempfile and return its path."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8",
+        ) as fh:
+            json.dump(payload, fh)
+            return fh.name
+
+    def test_empty_path_returns_empty(self):
+        self.assertEqual(_build_coverage_section(""), "")
+
+    def test_missing_file_returns_empty(self):
+        # A non-existent path is treated as "no report yet" — the PR
+        # still opens; only the section is omitted.
+        self.assertEqual(_build_coverage_section("/nonexistent.json"), "")
+
+    def test_malformed_json_returns_empty(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8",
+        ) as fh:
+            fh.write("not json")
+            path = fh.name
+        try:
+            self.assertEqual(_build_coverage_section(path), "")
+        finally:
+            os.unlink(path)
+
+    def test_renders_pass_target_with_check_marker(self):
+        path = self._write_report([
+            {
+                "file_path": "src/utils/roles/roles.go",
+                "listed_lines": 10,
+                "hit_lines": 8,
+                "hit_fraction": 0.80,
+                "passed": True,
+                "lcov_seen": True,
+                "ranges": [
+                    {"start": 90, "end": 99,
+                     "hit_lines": 8, "total_lines": 10, "covered": True},
+                ],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("## Coverage gain on listed uncovered ranges", section)
+        self.assertIn("src/utils/roles/roles.go", section)
+        self.assertIn("8/10", section)
+        self.assertIn("80%", section)
+        self.assertIn("✅", section)
+        # Per-range detail should be in the body so reviewers can scan
+        # which blocks were missed without leaving the PR.
+        self.assertIn("lines 90-99", section)
+
+    def test_below_threshold_target_gets_warning_marker(self):
+        path = self._write_report([
+            {
+                "file_path": "src/utils/roles/roles.go",
+                "listed_lines": 121,
+                "hit_lines": 3,
+                "hit_fraction": 0.025,
+                "passed": False,
+                "lcov_seen": True,
+                "ranges": [],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        # The PR #1033 failure mode (3/121 = 2%) should be loud and
+        # scannable, so the reviewer doesn't need to compute it.
+        self.assertIn("⚠️", section)
+        self.assertIn("3/121", section)
+        self.assertIn("2%", section)
+
+    def test_lcov_miss_target_gets_question_marker(self):
+        path = self._write_report([
+            {
+                "file_path": "src/lib/foo.py",
+                "listed_lines": 5,
+                "hit_lines": 0,
+                "hit_fraction": 0.0,
+                "passed": False,
+                "lcov_seen": False,
+                "ranges": [],
+                "still_uncovered_ranges": [[1, 5]],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("❔", section)
+        self.assertIn("file not found in LCOV", section)
+
+    def test_renders_with_malformed_numeric_fields(self):
+        # A stray non-numeric value (e.g., upstream tool wrote a string)
+        # must not abort PR creation. Defaults to 0 so the row still shows.
+        path = self._write_report([
+            {
+                "file_path": "src/lib/foo.py",
+                "listed_lines": "not-a-number",
+                "hit_lines": None,
+                "hit_fraction": "bogus",
+                "passed": False,
+                "lcov_seen": True,
+                "ranges": [],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("src/lib/foo.py", section)
+        self.assertIn("0/0", section)
+        self.assertIn("0%", section)
+
+    def test_single_line_range_renders_singular_form(self):
+        # Reviewers find "lines 5-5" jarring; verify we say "line 5"
+        # when start == end.
+        path = self._write_report([
+            {
+                "file_path": "src/lib/foo.py",
+                "listed_lines": 1,
+                "hit_lines": 1,
+                "hit_fraction": 1.0,
+                "passed": True,
+                "lcov_seen": True,
+                "ranges": [
+                    {"start": 5, "end": 5,
+                     "hit_lines": 1, "total_lines": 1, "covered": True},
+                ],
+                "still_uncovered_ranges": [],
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("line 5", section)
+        self.assertNotIn("lines 5-5", section)
 
 
 if __name__ == "__main__":

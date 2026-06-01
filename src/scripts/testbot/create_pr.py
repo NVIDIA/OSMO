@@ -100,7 +100,33 @@ def _enable_auto_merge(pr_url: str) -> bool:
     return True
 
 
-_SUSPECTED_BUG_RE = re.compile(r"(?:#|//)\s*SUSPECTED BUG:\s*(.+)")
+# Match SUSPECTED BUG markers Claude leaves on skipped tests. Accepts
+# both forms the convention has produced in practice:
+#   - canonical sibling comment:
+#       # SUSPECTED BUG: foo.py:fn — desc
+#       // SUSPECTED BUG: foo.go:Fn — desc
+#   - the marker inlined as the skip-decorator reason string:
+#       @unittest.skip('Suspected source bug: foo assumes X but receives Y')
+#       t.Skip("Suspected library bug: ...")
+# The second form is what surfaced on PR #1046 — Claude wrote the marker
+# as the skip reason and never added the sibling comment, so the original
+# strict regex missed it and the PR body's "Suspected bugs" section
+# silently dropped a real signal. Stay anchored to a comment prefix or
+# an opening quote so generic prose mentions ("# this is a suspected
+# bug in the code") are still excluded.
+_SUSPECTED_BUG_RE = re.compile(
+    r"""(?xi)               # verbose, case-insensitive
+    (?:\#|//|['\"])         # comment marker, or opening quote of a string literal
+    \s*
+    Suspected               # always starts with this word
+    (?:\s+\w+)?             # optional adjective ("source", "library", ...)
+    \s+
+    bug                     # always ends with "bug"
+    \s*:?\s*                # optional colon
+    (.+)                    # the description; trailing quotes/parens
+                            # are stripped in _scan_suspected_bugs
+    """
+)
 
 # Map a generated test file back to the source file it covers, so the
 # Stage-2 picker rationale (keyed on source path) can be attached to the
@@ -143,6 +169,84 @@ def _load_targets_meta(path: str) -> dict[str, dict]:
         for entry in entries
         if isinstance(entry, dict) and entry.get("file_path")
     }
+
+
+def _build_coverage_section(path: str) -> str:
+    """Render the coverage-gain section from verify_coverage.py's JSON.
+
+    The verifier writes one entry per picker target with the listed-line
+    hit count and per-range outcome. Missing / unreadable reports yield
+    an empty string so the PR opens unchanged. Below-threshold files get
+    a ⚠️ marker so reviewers can scan the gap at a glance — for example
+    ``2/121 lines (2%)`` should jump out the way the roles.go PR did.
+    """
+    if not path:
+        return ""
+    try:
+        reports = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Could not read coverage report %s: %s", path, exc)
+        return ""
+    if not isinstance(reports, list) or not reports:
+        return ""
+
+    lines: list[str] = ["## Coverage gain on listed uncovered ranges", ""]
+    for entry in reports:
+        if not isinstance(entry, dict):
+            continue
+        file_path = entry.get("file_path", "")
+        if not file_path:
+            continue
+        # Fail-soft on malformed values so a stray string in one field can't
+        # abort PR creation — we'd rather show 0 and let the reviewer see the
+        # gap than block the whole pipeline on a typo upstream.
+        try:
+            listed = int(entry.get("listed_lines", 0) or 0)
+        except (TypeError, ValueError):
+            listed = 0
+        try:
+            hit = int(entry.get("hit_lines", 0) or 0)
+        except (TypeError, ValueError):
+            hit = 0
+        try:
+            hit_fraction = float(entry.get("hit_fraction", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            hit_fraction = 0.0
+        passed = bool(entry.get("passed", False))
+        lcov_seen = bool(entry.get("lcov_seen", True))
+        if not lcov_seen:
+            marker = "❔"
+            note = (
+                " — file not found in LCOV (test target may not have run; "
+                "the harness ran `bazel coverage` over //... after generation)"
+            )
+        else:
+            marker = "✅" if passed else "⚠️"
+            note = ""
+        lines.append(
+            f"{marker} **`{file_path}`** — "
+            f"{hit}/{listed} listed lines hit ({hit_fraction * 100:.0f}%)"
+            f"{note}"
+        )
+        # Detail per range so reviewers can spot which specific blocks
+        # the bot missed without leaving the PR view.
+        for r in entry.get("ranges", []) or []:
+            if not isinstance(r, dict):
+                continue
+            start = r.get("start")
+            end = r.get("end")
+            hit_lines = r.get("hit_lines", 0)
+            total_lines = r.get("total_lines", 0)
+            covered = bool(r.get("covered", False))
+            if start is None or end is None:
+                continue
+            span = f"line {start}" if start == end else f"lines {start}-{end}"
+            check = "✅" if covered else "❌"
+            lines.append(
+                f"  - {check} {span} — {hit_lines}/{total_lines} hit"
+            )
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _build_rationale_section(
@@ -198,8 +302,12 @@ def _scan_suspected_bugs(files: list[str]) -> list[str]:
                 for line in fh:
                     match = _SUSPECTED_BUG_RE.search(line)
                     if match:
-                        description = match.group(1).strip()
-                        if description not in seen:
+                        # Strip trailing characters left over from
+                        # string-literal markers: closing quote,
+                        # closing paren, comma, backslash for line
+                        # continuation, plus surrounding whitespace.
+                        description = match.group(1).strip(" \t\r\n'\"),\\")
+                        if description and description not in seen:
                             seen.add(description)
                             bugs.append(description)
         except OSError:
@@ -258,6 +366,14 @@ def _post_slack_review_request(
     if not bot_token:
         logger.warning(
             "TESTBOT_SLACK_BOT_TOKEN not set; skipping Slack review request",
+        )
+        return False
+    if not channel:
+        # Empty channel is an explicit opt-out (workflow_dispatch input
+        # cleared by the operator). Log at info rather than warning so
+        # ad-hoc runs don't generate noise.
+        logger.info(
+            "TESTBOT_SLACK_CHANNEL is empty; skipping Slack review request",
         )
         return False
     if not pr_url:
@@ -326,6 +442,13 @@ def main() -> None:
         help="Optional path to the picker's JSON metadata; when provided, "
              "the PR body includes the 'Why this file was targeted' section",
     )
+    parser.add_argument(
+        "--coverage-report", default="",
+        help="Optional path to verify_coverage.py's JSON report; when "
+             "provided, the PR body includes a 'Coverage gain on listed "
+             "uncovered ranges' section so reviewers can see how many of "
+             "the picker's listed lines the generated tests actually hit",
+    )
     args = parser.parse_args()
 
     if has_unapproved_testbot_pr():
@@ -381,6 +504,10 @@ def main() -> None:
     if rationale_section:
         rationale_section = "\n" + rationale_section
 
+    coverage_section = _build_coverage_section(args.coverage_report)
+    if coverage_section:
+        coverage_section = "\n" + coverage_section
+
     pr_title = f"[testbot] Add tests for {files_summary}"
     pr_body = f"""## Summary
 AI-generated tests targeting file(s) with low coverage.
@@ -389,7 +516,7 @@ Issue - None
 
 ## Files tested
 {files_list}
-{rationale_section}{bugs_section}
+{rationale_section}{coverage_section}{bugs_section}
 ## Checklist
 - [x] I am familiar with the Contributing Guidelines
 - [x] New or existing tests cover these changes
@@ -414,10 +541,18 @@ Generated by testbot pipeline"""
     logger.info("PR created: %s", pr_url or result.stdout.strip())
     if not _enable_auto_merge(pr_url):
         sys.exit(1)
+    # Resolve channel with the unset-vs-empty distinction:
+    #   - var absent (e.g., local debug)   → fall back to the default
+    #   - var present and empty            → propagate "" so the
+    #     downstream helper short-circuits (workflow_dispatch operator
+    #     explicitly opted out of notification)
+    raw_channel = os.environ.get("TESTBOT_SLACK_CHANNEL")
+    channel = (
+        TESTBOT_SLACK_CHANNEL_DEFAULT if raw_channel is None else raw_channel
+    )
     _post_slack_review_request(
         bot_token=_get_slack_bot_token(),
-        channel=os.environ.get("TESTBOT_SLACK_CHANNEL")
-        or TESTBOT_SLACK_CHANNEL_DEFAULT,
+        channel=channel,
         pr_url=pr_url,
         pr_title=pr_title,
     )
