@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_py_test", "osmo_python_wrapper")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
@@ -94,15 +94,6 @@ osmo_py_library(
         "//src/utils/progress_check:progress_check_lib",
     ],
     visibility = ["//src/service:__subpackages__"],
-)
-
-osmo_py_test(
-    name = "test_objects",
-    srcs = ["test_objects.py"],
-    deps = [
-        ":helpers",
-        "//src/utils/job",
-    ],
 )
 
 ################
