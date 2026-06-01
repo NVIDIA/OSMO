@@ -54,6 +54,9 @@ class BackendDeleteType(enum.Enum):
 
 # How long to keep uuids for deduplicating jobs
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
+MESSAGE_TOO_BIG_FAILURE = 'Disconnected because message is too big, set as FAILED_NO_RETRY'
+INCOMPLETE_JOB_FAILURE = \
+    'Agent worker stopped before current job completed, set as FAILED_NO_RETRY'
 
 
 class ListBackendsResponse(pydantic.BaseModel, extra='forbid'):
@@ -137,10 +140,11 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 websockets.exceptions.ConnectionClosedOK,
                 websockets.exceptions.ConnectionClosedError) as err:
             if isinstance(err, fastapi.WebSocketDisconnect) and err.code == 1009:
-                base_msg = 'Disconnected because message is too big, set as FAILED_NO_RETRY'
                 if self._current_job:
-                    logging.error(base_msg, extra=self._current_job.job.log_labels())
-                logging.error(base_msg)
+                    logging.error(MESSAGE_TOO_BIG_FAILURE,
+                                  extra=self._current_job.job.log_labels())
+                logging.error(MESSAGE_TOO_BIG_FAILURE)
+                await self.fail_current_job_without_retry(MESSAGE_TOO_BIG_FAILURE)
             else:
                 await self.finish_current_job(
                     jobs.JobResult(status=jobs_base.JobStatus.FAILED_RETRY))
@@ -148,8 +152,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
         # Any remaining jobs at this point encountered an exception, do not retry them
         finally:
             # Mark the current job as finished and set should_stop so the worker stops
-            await self.finish_current_job(jobs.JobResult(
-                status=jobs_base.JobStatus.FAILED_NO_RETRY))
+            await self.fail_current_job_without_retry(INCOMPLETE_JOB_FAILURE)
             self.should_stop = True
 
     async def handle_events(self, backend_name: str):
@@ -340,6 +343,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                             message=f'Got exception when running frontend execute: {error_message}')
 
                 if result.status == jobs_base.JobStatus.FAILED_NO_RETRY:
+                    result = self.ensure_failed_no_retry_message(result)
                     await self.handle_failure(result)
             await self.finish_current_job(result)
         else:
@@ -356,6 +360,26 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 'Fatal exception %s when trying to handle failure for job %s',
                 error_message, job,
                 extra={'workflow_uuid': job.workflow_uuid})
+
+    async def fail_current_job_without_retry(self, message: str):
+        result = jobs.JobResult(
+            status=jobs_base.JobStatus.FAILED_NO_RETRY,
+            message=message)
+        if self._current_job is not None and isinstance(self._current_job.job, jobs.WorkflowJob):
+            await self.handle_failure(result)
+        await self.finish_current_job(result)
+
+    def ensure_failed_no_retry_message(self, result: jobs.JobResult) -> jobs.JobResult:
+        if result.status != jobs_base.JobStatus.FAILED_NO_RETRY or result.message:
+            return result
+
+        current_job = self._current_job
+        if current_job is None:
+            return result
+
+        message = f'{current_job.job} returned FAILED_NO_RETRY without an error message'
+        logging.error(message, extra=current_job.job.log_labels())
+        return result.model_copy(update={'message': message})
 
     async def finish_current_job(self, result: jobs.JobResult):
         # Do nothing if this has already been called
