@@ -146,8 +146,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 logging.error(MESSAGE_TOO_BIG_FAILURE)
                 await self.finish_current_job(
                     jobs.JobResult(status=jobs_base.JobStatus.FAILED_NO_RETRY,
-                                   message=MESSAGE_TOO_BIG_FAILURE),
-                    handle_failure=True)
+                                   message=MESSAGE_TOO_BIG_FAILURE))
             else:
                 await self.finish_current_job(
                     jobs.JobResult(status=jobs_base.JobStatus.FAILED_RETRY))
@@ -157,8 +156,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
             # Mark the current job as finished and set should_stop so the worker stops
             await self.finish_current_job(
                 jobs.JobResult(status=jobs_base.JobStatus.FAILED_NO_RETRY,
-                               message=INCOMPLETE_JOB_FAILURE),
-                handle_failure=True)
+                               message=INCOMPLETE_JOB_FAILURE))
             self.should_stop = True
 
     async def handle_events(self, backend_name: str):
@@ -227,7 +225,6 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                     start_time=time.time())
                 result = jobs.JobResult(status=jobs_base.JobStatus.FAILED_NO_RETRY,
                                         message=error_message)
-                await self.handle_failure(result)
                 await self.finish_current_job(result)
                 return
             # Send the job to the backend worker
@@ -348,13 +345,6 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                         result = jobs.JobResult(status=jobs_base.JobStatus.FAILED_NO_RETRY,
                             message=f'Got exception when running frontend execute: {error_message}')
 
-                if result.status == jobs_base.JobStatus.FAILED_NO_RETRY:
-                    await self.finish_current_job(
-                        result,
-                        failure_message=f'{self._current_job.job} returned FAILED_NO_RETRY '
-                                        'without an error message',
-                        handle_failure=True)
-                    return
             await self.finish_current_job(result)
         else:
             raise osmo_errors.OSMOServerError(
@@ -371,20 +361,21 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 error_message, job,
                 extra={'workflow_uuid': job.workflow_uuid})
 
-    async def finish_current_job(self, result: jobs.JobResult,
-                                 failure_message: Optional[str] = None,
-                                 handle_failure: bool = False):
+    async def finish_current_job(self, result: jobs.JobResult):
         # Do nothing if this has already been called
         if self._current_job is None:
             return
 
-        if result.status == jobs_base.JobStatus.FAILED_NO_RETRY and \
-                failure_message and not result.message:
-            result = result.model_copy(update={'message': failure_message})
-            logging.error(failure_message, extra=self._current_job.job.log_labels())
+        if result.status == jobs_base.JobStatus.FAILED_NO_RETRY:
+            if not result.message:
+                message = f'{self._current_job.job} returned FAILED_NO_RETRY without an ' \
+                    'error message'
+                result = jobs.JobResult(status=jobs_base.JobStatus.FAILED_NO_RETRY,
+                                        message=message)
+                logging.error(message, extra=self._current_job.job.log_labels())
 
-        if handle_failure and isinstance(self._current_job.job, jobs.WorkflowJob):
-            await self.handle_failure(result)
+            if isinstance(self._current_job.job, jobs.WorkflowJob):
+                await self.handle_failure(result)
 
         # Record metrics
         execute_processing_time = time.time() - self._current_job.start_time
