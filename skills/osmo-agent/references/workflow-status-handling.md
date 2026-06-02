@@ -75,8 +75,8 @@ After a workflow reaches `COMPLETED`:
    ```
 
 2. **Offer to create an OSMO app.** Suggest a name derived from the workflow
-   (e.g. `sdg-run-42` → app name `sdg-run-42`) and a one-sentence description.
-   If the user agrees, follow "Use Case: Create an App" in SKILL.md.
+   (e.g. `sdg-run-42` -> app name `sdg-run-42`) and a one-sentence description.
+   If the user agrees, follow "Create an App" in `references/cli-workflows.md`.
 
 3. **Batch monitoring.** When monitoring multiple workflows from the same spec,
    offer app creation **once** after all of them reach a terminal state — not

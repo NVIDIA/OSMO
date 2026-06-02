@@ -210,8 +210,9 @@ Inter-GPU communication is broken or too slow. Possible causes:
 - Specific NCCL version incompatibility with the GPU/driver combination.
 
 ### Fix
-- For pod placement, the workflow may need topology constraints — see
-  `references/advanced-patterns.md` for `topology_keys` usage.
+- For pod placement, the workflow may need topology constraints. Start with
+  `references/workflow-patterns.md`, which routes to
+  `references/workflow-advanced-patterns.md` for topology placement guidance.
 - Set NCCL env vars in the workflow's `environment:` block to debug:
   - `NCCL_DEBUG=INFO` (verbose logging)
   - `NCCL_SOCKET_IFNAME=eth0` (force a specific interface)
