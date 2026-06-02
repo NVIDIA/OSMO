@@ -108,8 +108,22 @@ shame you for.
       --json-output "$RUNNER_TEMP/coverage_self_check.json" \
       --markdown-output "$RUNNER_TEMP/coverage_self_check.md"
     ```
-    Then `Read "$RUNNER_TEMP/coverage_self_check.json"`. Each target has
-    a `hit_fraction` (0.0–1.0) and a `still_uncovered_ranges` list.
+    Run this command **directly** — do not `ls`/`find` against
+    `$RUNNER_TEMP` to verify the meta file first. The path is outside
+    Claude Code's `ls` sandbox and the workflow already staged the file
+    before this prompt ran. (runs/26791499822 lost 4 turns groping in
+    `/tmp`, got blocked, and dropped the verifier as a result.) Your
+    `Bash(python *)` permission passes the path straight through to the
+    Python subprocess, which can read `$RUNNER_TEMP` just fine.
+
+    To inspect the resulting JSON, first resolve the env var (the
+    `Read` tool doesn't shell-expand):
+    ```bash
+    echo $RUNNER_TEMP
+    ```
+    then `Read <resolved>/coverage_self_check.json` with the absolute
+    path. Each target has a `hit_fraction` (0.0–1.0) and a
+    `still_uncovered_ranges` list.
 
 11. **Iterate until the gap closes.** A target passes when
     `hit_fraction >= 0.70`. If you're below, return to step 5 and add
@@ -163,5 +177,5 @@ shame you for.
   creation, committing, pushing, and PR creation.
 - **No gaming the verifier**: don't change the picker's
   `uncovered_ranges` list to shrink the gap, and don't paste a fake
-  `/tmp/targets_meta.json`. The harness re-runs the verifier against the
-  unmodified meta and posts the truth to the PR.
+  `$RUNNER_TEMP/targets_meta.json`. The harness re-runs the verifier
+  against the unmodified meta and posts the truth to the PR.
