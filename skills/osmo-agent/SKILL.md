@@ -45,7 +45,8 @@ files only when the current intent requires them:
 | User intent | Read |
 |---|---|
 | Resources, pools, GPUs, quota | `references/cli-workflows.md`, then `references/resource-check-format.md` before responding |
-| Submit a supplied or generated workflow, or create/publish an app | `references/workflow-submit.md` |
+| Submit a supplied or generated workflow | `references/workflow-submit.md` |
+| Create or publish an app from a workflow | `references/workflow-apps.md` |
 | Workflow structure, multi-task execution, dependencies, Jinja templates, checkpointing, exit/retry behavior, node exclusion, or topology placement | `references/workflow-patterns.md` first; it routes to `references/workflow-advanced-patterns.md` for niche patterns |
 | Submission capacity validation errors | `references/validation-error-recovery.md` |
 | Status, logs, Grafana links, Kubernetes dashboard links, PENDING diagnosis, completed follow-ups, recent workflows, or workflow explanation | `references/workflow-status.md` |

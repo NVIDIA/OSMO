@@ -111,7 +111,7 @@ After a workflow reaches `COMPLETED`:
    ```
 2. Offer to create an OSMO app. Suggest a name derived from the workflow and a
    one-sentence description. If the user agrees, follow "Create an App" in
-   `references/workflow-submit.md`.
+   `references/workflow-apps.md`.
 3. When monitoring multiple workflows from the same spec, offer app creation
    once after all of them reach a terminal state, not once per workflow.
 

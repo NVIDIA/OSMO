@@ -1,7 +1,7 @@
-# Workflow Submit and App Creation
+# Workflow Submit
 
 Use this reference when the user wants to submit a workflow, generate a
-workflow spec for submission, or publish a workflow as an OSMO app.
+workflow spec for submission, or choose a pool for submission.
 
 ## Generate and Submit a Workflow
 
@@ -59,22 +59,3 @@ monitoring. If they ask you to monitor, debug, or report final results, use
    `{{num_gpu}}`.
 
 7. Report every workflow ID returned by the CLI.
-
-## Create an App
-
-Use when the user wants to publish a workflow as an OSMO app, or when you offer
-app creation after a completed workflow.
-
-1. Determine the workflow YAML path. If the user already has a YAML file, use
-   that path. If the app is based on a completed workflow, use the submitted spec
-   file from the current workflow cycle.
-2. Decide on a name and description.
-   - If the user explicitly asked to create an app, ask for the name and suggest
-     a default derived from the workflow name.
-   - If offering post-completion, present a suggested name and one-sentence
-     description in a single prompt.
-3. After confirmation, run:
-   ```bash
-   osmo app create <app_name> --description "<description>" --file <workflow_yaml>
-   ```
-4. Report the app identifier or URL returned by the CLI.
