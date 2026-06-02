@@ -5,9 +5,29 @@ Catalog of common failure modes for OSMO workflows. Each entry has:
 - **Diagnosis** — what it means in plain language
 - **Fix** — concrete recipe to resolve
 
-Always start by running the standard status workflow first (`osmo workflow query`
-+ `osmo workflow logs` and/or `osmo workflow events`) so the cached JSON is
-available for diagnosis.
+Always start by running the standard status workflow in
+`references/workflow-status.md` first (`osmo workflow query` + logs and/or
+events) so the cached JSON is available for diagnosis.
+
+## Debug a Failed or Stuck Workflow
+
+Use when the user asks why a workflow failed, why it is stuck, or how to fix an
+OSMO error. If they want automatic fix-and-resubmit, use the end-to-end
+orchestration flow in `references/workflow-status.md` instead.
+
+1. Establish current state with `references/workflow-status.md`; cache the
+   query JSON.
+2. Match the symptom below by status, exit code, error keyword, log signature,
+   or behavior.
+3. Explain the likely root cause in plain language, avoiding raw Kubernetes
+   jargon when possible.
+4. Recommend a concrete fix from the matched pattern. If the fix edits
+   `workflow.yaml`, show the exact diff you would apply.
+5. Ask before applying the fix and resubmitting unless the user has already
+   authorized autonomous fix-and-resubmit.
+
+Escalate to the user when the symptom does not match any troubleshooting
+pattern, or when the same workflow has already failed after three fix attempts.
 
 ---
 

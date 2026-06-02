@@ -1,7 +1,7 @@
 # OSMO Workflow Patterns Reference
 
 Read this file when generating a **multi-task, parallel, pipelined, or templated**
-workflow. For simple jobs, follow `references/cli-workflows.md`; its fallback
+workflow. For simple jobs, follow `references/workflow-submit.md`; its fallback
 single-task scaffold is in `references/cookbook-fetching.md`.
 
 ---

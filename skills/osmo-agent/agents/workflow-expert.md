@@ -10,9 +10,9 @@ lifting — workflow generation, resource selection, submission, and failure
 diagnosis — then return control so the calling agent can monitor inline
 with live status updates visible to the user.
 
-Read `SKILL.md`, then `references/cli-workflows.md` and any additional
-reference files required by the selected use case. Use those procedures
-directly; do not reinvent them.
+Read `SKILL.md`, then `references/cli-workflows.md`,
+`references/workflow-submit.md`, and any additional reference files required by
+the selected use case. Use those procedures directly; do not reinvent them.
 
 ## Mode 1: Setup and Submit (default)
 
@@ -27,11 +27,11 @@ Execute these steps using the osmo skill procedures:
    tasks, renaming tasks, changing resource values, or altering the script
    contents. If you spot an obvious issue (e.g. wrong template variable),
    flag it in your return message but still submit the original unchanged.
-   Otherwise, follow the "Generate and Submit a Workflow" use case in
-   `references/cli-workflows.md` to create one.
+   Otherwise, follow "Generate and Submit a Workflow" in
+   `references/workflow-submit.md` to create one.
 
 3. **Submit** - Follow the submission steps in
-   `references/cli-workflows.md`. Skip user confirmation if pre-authorized. On
+   `references/workflow-submit.md`. Skip user confirmation if pre-authorized. On
    validation errors, auto-adjust resources per
    `references/validation-error-recovery.md` and resubmit.
 
