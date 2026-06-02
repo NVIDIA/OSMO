@@ -52,6 +52,10 @@ logger = logging.getLogger(__name__)
 # Timeout for S3 API calls.
 OSMO_S3_TIMEOUT = 'OSMO_S3_TIMEOUT'
 
+# Read timeout for the underlying S3 client (time to wait for a server response
+# after a request has been sent).
+OSMO_S3_READ_TIMEOUT = 'OSMO_S3_READ_TIMEOUT'
+
 # Max retry count for retryable S3 API calls.
 OSMO_S3_MAX_RETRY_COUNT = 'OSMO_S3_MAX_RETRY_COUNT'
 
@@ -92,6 +96,20 @@ def _get_s3_timeout() -> datetime.timedelta:
     Returns the timeout for S3 API calls.
     """
     return utils_common.to_timedelta(os.getenv(OSMO_S3_TIMEOUT, '24h'))
+
+
+def _get_s3_read_timeout() -> float:
+    """
+    Returns the read timeout (in seconds) for the underlying S3 client.
+
+    This bounds how long the client waits for a server response after a request
+    has been fully sent. botocore defaults to 60s, which is too short to
+    finalize large single-PUT objects on some backends (e.g. Swift), where the
+    server replicates and checksums the whole object before responding. That
+    produces spurious read timeouts and full-object retries, so we default to a
+    more generous 5m.
+    """
+    return utils_common.to_timedelta(os.getenv(OSMO_S3_READ_TIMEOUT, '5m')).total_seconds()
 
 
 _VALID_S3_ADDRESSING_STYLES = ('virtual', 'path', 'auto')
@@ -184,6 +202,7 @@ def _get_boto_config(
             'mode': 'standard',
         },
         'max_pool_connections': max_pool_connections,
+        'read_timeout': _get_s3_read_timeout(),
         'request_checksum_calculation': 'when_required',
         'response_checksum_validation': 'when_required',
     }

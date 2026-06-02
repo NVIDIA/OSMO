@@ -707,6 +707,19 @@ class GetBotoConfigTest(unittest.TestCase):
             config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
         self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
 
+    def test_default_read_timeout(self):
+        """Default read_timeout is 5m (300s), overriding botocore's 60s default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('swift', endpoint_url='https://swift.example.com')
+        # read_timeout is not in botocore's type stubs — read defensively.
+        self.assertEqual(getattr(config, 'read_timeout'), 300)
+
+    def test_env_override_read_timeout(self):
+        """OSMO_S3_READ_TIMEOUT overrides the default read_timeout."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_READ_TIMEOUT: '10m'}):
+            config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
+        self.assertEqual(getattr(config, 'read_timeout'), 600)
+
 
 class CredentialAddressingStyleTest(unittest.TestCase):
     """Tests for carrying S3 addressing style through data credentials."""
