@@ -13,7 +13,8 @@ monitoring. If they ask you to monitor, debug, or report final results, use
    - If the user provides a YAML path, use that file as-is unless they ask for
      changes or submission validation requires resource recovery.
    - If the user references `workflow.yaml` in the current directory, read it
-     before submitting and do not modify it.
+     before submitting. Treat it as immutable during normal submission; only
+     validation-error resource recovery may edit hard-coded `resources` values.
    - If no spec is provided, generate `workflow.yaml`. Prefer adapting an OSMO
      cookbook example; read `references/cookbook-fetching.md` before doing so.
    - For multi-task, parallel, dependency, or Jinja-heavy workflows, read
@@ -38,7 +39,7 @@ monitoring. If they ask you to monitor, debug, or report final results, use
    ```bash
    osmo workflow submit <workflow_file> --pool <pool_name>
    ```
-   If the workflow has Jinja template variables and the user supplied values,
+   If the workflow has Jinja template variables and user-provided values,
    preserve the placeholders in the YAML and pass values at submit time:
    ```bash
    osmo workflow submit <workflow_file> --pool <pool_name> --set key=value other_key=value

@@ -12,7 +12,7 @@ Use when the user wants to see all or recent workflows.
    ```bash
    osmo workflow list --format-type json
    ```
-2. Summarize in a table with workflow name, pool, status, and duration. Group or
+2. Summarize in a table with workflow ID, pool, status, and duration. Group or
    sort by status when helpful. Use clear text labels for outcomes:
    COMPLETED, FAILED, FAILED_CANCELED, FAILED_EXEC_TIMEOUT,
    FAILED_SERVER_ERROR, RUNNING, and PENDING.
@@ -25,8 +25,10 @@ orchestration.
 
 1. Query the workflow and cache the JSON:
    ```bash
-   osmo workflow query <workflow_name> --format-type json
+   osmo workflow query <workflow_id> --format-type json
    ```
+   Use the cached JSON's `pool` field as `<pool>` for later resource
+   diagnostics.
 2. Fetch logs based on task count:
    - For one task, fetch inline:
      ```bash
@@ -83,9 +85,12 @@ When status is `PENDING` or the user asks why a workflow isn't scheduling, also
 fetch:
 
 ```bash
-osmo workflow events <workflow_name>
+osmo workflow events <workflow_id>
+osmo pool list
 osmo resource list -p <pool>
 ```
+
+Use `<pool>` from the cached workflow query JSON.
 
 Translate Kubernetes-speak into plain language. Examples:
 
@@ -96,9 +101,9 @@ Translate Kubernetes-speak into plain language. Examples:
 | `didn't match Pod's node affinity/selector` | "no nodes match the workflow's hardware requirements" |
 | `Preemption is not helpful for scheduling` | "no lower-priority workflows can be evicted to free GPUs" |
 
-Cross-check `osmo pool list` to determine whether this is quota exhaustion or
-physical capacity exhaustion. See `references/troubleshooting.md` for the
-distinction and recommended fixes.
+Compare `osmo pool list` with `osmo resource list -p <pool>` to determine
+whether this is quota exhaustion or physical capacity exhaustion. See
+`references/troubleshooting.md` for the distinction and recommended fixes.
 
 ## Completed Workflow Follow-Ups
 
@@ -125,9 +130,12 @@ terminal state, handle failures, and report the result.
    ask it to monitor, poll, or report final results.
 2. The subagent returns the workflow ID, pool name, OSMO Web link, and output
    datasets.
-3. Monitor inline in the main conversation using "Check Workflow Status". Poll
-   every 10-15 seconds for short jobs and every 30-60 seconds for long training
-   runs. Report state transitions to the user.
+3. Monitor inline in the main conversation using "Check Workflow Status". If
+   the user gives a cadence, honor it. Otherwise poll every 10-15 seconds for
+   smoke tests, simple commands, and jobs expected to finish in minutes; poll
+   every 30 seconds for training or data-generation runs, and back off to 60
+   seconds after several unchanged RUNNING or PENDING polls. Report state
+   transitions to the user.
 4. If the workflow completes, report the workflow ID, OSMO Web link, output
    datasets, and completed follow-ups.
 5. If the workflow fails:
@@ -144,7 +152,7 @@ workflow.
 
 1. Fetch the original template:
    ```bash
-   osmo workflow spec <workflow_name> --template
+   osmo workflow spec <workflow_id> --template
    ```
 2. Summarize the spec in plain language:
    - What it does

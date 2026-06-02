@@ -42,11 +42,12 @@ pattern, or when the same workflow has already failed after three fix attempts.
 ### Diagnosis flow
 Run these in order so you have the full picture before explaining:
 
-1. `osmo workflow query <name>` — confirm status is PENDING and grab the pool.
-2. `osmo workflow events <name>` — surface the scheduler's reason
+1. `osmo workflow query <workflow_id>` — confirm status is PENDING and grab the
+   pool.
+2. `osmo workflow events <workflow_id>` — surface the scheduler's reason
    (`FailedScheduling`, `Unschedulable`, etc.).
-3. `osmo workflow spec <name>` — read the resource request (GPUs / CPU / memory
-   per task, replica count).
+3. `osmo workflow spec <workflow_id>` — read the resource request (GPUs / CPU /
+   memory per task, replica count).
 4. `osmo resource list` (or `osmo resource list -p <pool>`) — inspect per-node
    available capacity in the target pool.
 5. Synthesize a plain-language explanation by comparing the spec's ask to what's
@@ -230,8 +231,7 @@ Inter-GPU communication is broken or too slow. Possible causes:
 - Specific NCCL version incompatibility with the GPU/driver combination.
 
 ### Fix
-- For pod placement, the workflow may need topology constraints. Start with
-  `references/workflow-patterns.md`, which routes to
+- For pod placement, the workflow may need topology constraints. Read
   `references/workflow-advanced-patterns.md` for topology placement guidance.
 - Set NCCL env vars in the workflow's `environment:` block to debug:
   - `NCCL_DEBUG=INFO` (verbose logging)
