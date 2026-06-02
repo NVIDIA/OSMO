@@ -28,6 +28,9 @@ def _make_record(
     level: int = logging.INFO,
     message: str = 'hello world',
     workflow_uuid: str | None = None,
+    user_id: str | None = None,
+    job_id: str | None = None,
+    status_code: int | None = None,
     exc_info=None,
 ) -> logging.LogRecord:
     record = logging.LogRecord(
@@ -42,6 +45,12 @@ def _make_record(
     record.module = 'test_logging'
     if workflow_uuid is not None:
         record.workflow_uuid = workflow_uuid
+    if user_id is not None:
+        record.user_id = user_id
+    if job_id is not None:
+        record.job_id = job_id
+    if status_code is not None:
+        record.status_code = status_code
     return record
 
 
@@ -92,6 +101,7 @@ class TestJsonServiceFormatter(unittest.TestCase):
         self.assertIn('timestamp', payload)
         self.assertNotIn('backend', payload)
         self.assertNotIn('workflow_uuid', payload)
+        self.assertNotIn('user_id', payload)
         self.assertNotIn('exception', payload)
 
     def test_backend_field_emitted_for_backend_loggers(self):
@@ -105,6 +115,66 @@ class TestJsonServiceFormatter(unittest.TestCase):
         formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
         payload = json.loads(formatter.format(_make_record(workflow_uuid='wf-123')))
         self.assertEqual(payload['workflow_uuid'], 'wf-123')
+
+    def test_user_id_propagated_when_present(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        payload = json.loads(formatter.format(_make_record(user_id='alice@example.com')))
+        self.assertEqual(payload['user_id'], 'alice@example.com')
+
+    def test_user_id_context_propagated_to_json(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        with logging_utils.UserLogContext('alice@example.com'):
+            payload = json.loads(formatter.format(_make_record()))
+        self.assertEqual(payload['user_id'], 'alice@example.com')
+
+    def test_empty_user_id_context_masks_outer_user_id(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        with logging_utils.UserLogContext('alice@example.com'):
+            with logging_utils.UserLogContext(''):
+                payload = json.loads(formatter.format(_make_record()))
+                self.assertNotIn('user_id', payload)
+            # Outer user_id is restored after the inner context exits.
+            payload = json.loads(formatter.format(_make_record()))
+            self.assertEqual(payload['user_id'], 'alice@example.com')
+
+    def test_job_id_propagated_when_present(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        payload = json.loads(formatter.format(_make_record(job_id='job-123')))
+        self.assertEqual(payload['job_id'], 'job-123')
+
+    def test_job_id_context_propagated_to_json(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        with logging_utils.JobLogContext('job-123'):
+            payload = json.loads(formatter.format(_make_record()))
+        self.assertEqual(payload['job_id'], 'job-123')
+
+    def test_empty_job_id_context_masks_outer_job_id(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        with logging_utils.JobLogContext('job-123'):
+            with logging_utils.JobLogContext(''):
+                payload = json.loads(formatter.format(_make_record()))
+                self.assertNotIn('job_id', payload)
+            payload = json.loads(formatter.format(_make_record()))
+            self.assertEqual(payload['job_id'], 'job-123')
+
+    def test_status_code_propagated_when_present(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        payload = json.loads(formatter.format(_make_record(status_code=404)))
+        self.assertEqual(payload['status_code'], 404)
+
+    def test_status_code_absent_when_not_provided(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        payload = json.loads(formatter.format(_make_record()))
+        self.assertNotIn('status_code', payload)
+
+    def test_workflow_log_context_propagates_job_id(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        with logging_utils.WorkflowLogContext(
+            'wf-123', user_id='alice@example.com', job_id='job-123'
+        ):
+            payload = json.loads(formatter.format(_make_record()))
+        self.assertEqual(payload['user_id'], 'alice@example.com')
+        self.assertEqual(payload['job_id'], 'job-123')
 
     def test_exception_traceback_included(self):
         formatter = logging_utils.JsonServiceFormatter(service='osmo-test')

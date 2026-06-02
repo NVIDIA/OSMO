@@ -134,36 +134,39 @@ class BackendWorker():
 
         workflow_uuid = job.workflow_uuid if \
             isinstance(job, backend_jobs.BackendWorkflowJob) else ''
-        logging.info('Starting job %s from the queue', job, extra={'workflow_uuid': workflow_uuid})
-        job_start_time = time.time()
-        try:
-            result = await asyncio.to_thread(
-                job.execute, context, self._progress_writer, self._progress_iter_freq)
-            if result.status != jobs_base.JobStatus.SUCCESS:
-                result.message = f'Backend execution failed: {result.message}'
-            message = backend_messages.MessageBody(
-                type=backend_messages.MessageType.JOB_STATUS, body=result)
-        except Exception as error:  # pylint: disable=broad-except
-            error_message = f'{type(error).__name__}: {error}'
-            logging.exception('Fatal exception of type %s when running job %s',
-                            error_message, job, extra={'workflow_uuid': workflow_uuid})
-            message = backend_messages.MessageBody(
-                type=backend_messages.MessageType.JOB_STATUS,
-                body=jobs_base.JobResult(
-                    status=jobs_base.JobStatus.FAILED_NO_RETRY,
-                    message=f'Got exception when running backend execute: {error_message}\n' + \
-                            f'Traceback: {traceback.format_exc()}'))
+        with src.lib.utils.logging.UserLogContext(job_spec.get('user', '')), \
+                src.lib.utils.logging.JobLogContext(job.job_id or ''):
+            logging.info(
+                'Starting job %s from the queue', job, extra={'workflow_uuid': workflow_uuid})
+            job_start_time = time.time()
+            try:
+                result = await asyncio.to_thread(
+                    job.execute, context, self._progress_writer, self._progress_iter_freq)
+                if result.status != jobs_base.JobStatus.SUCCESS:
+                    result.message = f'Backend execution failed: {result.message}'
+                message = backend_messages.MessageBody(
+                    type=backend_messages.MessageType.JOB_STATUS, body=result)
+            except Exception as error:  # pylint: disable=broad-except
+                error_message = f'{type(error).__name__}: {error}'
+                logging.exception('Fatal exception of type %s when running job %s',
+                                error_message, job, extra={'workflow_uuid': workflow_uuid})
+                message = backend_messages.MessageBody(
+                    type=backend_messages.MessageType.JOB_STATUS,
+                    body=jobs_base.JobResult(
+                        status=jobs_base.JobStatus.FAILED_NO_RETRY,
+                        message=f'Got exception when running backend execute: {error_message}\n' + \
+                                f'Traceback: {traceback.format_exc()}'))
 
-        await context.send_async_message(message)
+            await context.send_async_message(message)
 
-        logging.info('Completed job %s with status %s', job, message.body,
-                     extra={'workflow_uuid': workflow_uuid})
-        job_duration = time.time() - job_start_time
-        self.backend_metrics.send_histogram(
-            name='backend_job_execution_time', value=job_duration, unit='seconds',
-            description=f'Job execution time for {job.job_type}',
-            tags={'job_type': job.job_type, 'namespace': self.config.namespace}
-        )
+            logging.info('Completed job %s with status %s', job, message.body,
+                         extra={'workflow_uuid': workflow_uuid})
+            job_duration = time.time() - job_start_time
+            self.backend_metrics.send_histogram(
+                name='backend_job_execution_time', value=job_duration, unit='seconds',
+                description=f'Job execution time for {job.job_type}',
+                tags={'job_type': job.job_type, 'namespace': self.config.namespace}
+            )
         self._current_job = None
 
     def _monitor_progress(self):
