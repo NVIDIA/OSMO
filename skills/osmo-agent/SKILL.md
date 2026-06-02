@@ -1,17 +1,12 @@
 ---
 name: osmo-agent
 description: >
-  Use the OSMO CLI to manage cloud robotics compute: discover pools, quota,
-  GPUs, CPUs, and nodes; submit, list, query, monitor, debug, and explain OSMO
-  workflows; inspect workflow logs/status/errors; surface workflow Grafana and
-  Kubernetes dashboard links; download outputs; and create OSMO apps from
-  workflows. Use when the user asks about available resources, pools, quota,
-  workflow submission/status/logs, failed/PENDING/stuck workflows, OSMO errors,
-  OSMO apps, recent submissions, or workflow dashboard links, even if they do
-  not say "OSMO" explicitly. Do not use for general Kubernetes setup unrelated
-  to an OSMO workflow, NVIDIA hardware/product questions unrelated to OSMO,
-  non-OSMO compute platforms, or OSMO deployment/install tasks covered by the
-  osmo-deploy skill.
+  Use the OSMO CLI for cloud robotics compute. Use when the user asks about
+  accessible pools, quota, GPUs, CPUs, or nodes; workflow
+  submit/list/query/monitor/debug/explain; logs, errors, failed, PENDING, or
+  stuck workflows; output downloads; workflow apps; or Grafana/Kubernetes
+  dashboard links. Do not use for general Kubernetes admin, OSMO
+  install/deploy, non-OSMO compute, or general NVIDIA hardware questions.
 ---
 
 # osmo-agent
@@ -36,6 +31,35 @@ router: load only the reference files needed for the current task.
   unavailable instead of omitting it.
 - Do not edit cluster config, node taints, quota policies, or non-OSMO
   Kubernetes resources. Those are admin-side operations.
+
+## Routing Examples
+
+Use these as examples of how to choose references; do not treat them as complete
+command recipes.
+
+| User asks | Route |
+|---|---|
+| "What GPUs can I use right now?" | `references/cli-workflows.md`, then `references/resource-check-format.md` |
+| "Show my recent workflows" | `references/workflow-status.md` |
+| "Is workflow gr00t-train-1 done? Show progress." | `references/workflow-status.md` |
+| "Give me the Grafana or Kubernetes dashboard link" | `references/workflow-status.md` |
+| "What does this workflow do?" | `references/workflow-status.md` |
+| "Submit this workflow.yaml to a free H100 pool" | `references/workflow-submit.md`, with resource routing from `references/cli-workflows.md` |
+| "Submit this Jinja workflow with 4 GPUs" | `references/workflow-submit.md`; pass values at submit time |
+| "Generate synthetic data from a cookbook workflow and submit it" | `references/workflow-submit.md`, then `references/cookbook-fetching.md` |
+| "Why is my workflow PENDING/stuck/failed?" | `references/workflow-status.md`, then `references/troubleshooting.md` |
+| "What GPUs does NVIDIA sell?" | Do not use this skill |
+
+## Error Handling Router
+
+- CLI missing: report that `osmo` is unavailable and stop.
+- Auth error: ask the user to run `osmo login`; do not retry until confirmed.
+- Command output missing/null: say the specific field is unavailable; do not
+  invent values.
+- Validation error at submission: use `references/validation-error-recovery.md`.
+- Failed, stuck, sparse-log, or PENDING workflow: use
+  `references/troubleshooting.md`.
+- App creation error: use `references/workflow-apps.md`.
 
 ## Reference Routing
 
