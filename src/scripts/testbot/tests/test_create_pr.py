@@ -24,6 +24,7 @@ from src.scripts.testbot.create_pr import (
     _resolve_slack_channel,
     _scan_suspected_bugs,
     _test_to_source_path,
+    _test_to_source_paths,
     has_unapproved_testbot_pr,
     main,
 )
@@ -549,6 +550,27 @@ class TestTestToSourcePath(unittest.TestCase):
     def test_unrecognized_pattern_returns_none(self):
         self.assertIsNone(_test_to_source_path("README.md"))
 
+    def test_go_integration_test_returns_two_candidates(self):
+        # PR #1058 regression: user_role_sync_integration_test.go must
+        # map to user_role_sync.go (the picker's real source target),
+        # not user_role_sync_integration.go (the naive _test strip).
+        # Both are returned so the caller can prefer whichever exists
+        # in the picker meta.
+        candidates = _test_to_source_paths(
+            "src/utils/roles/user_role_sync_integration_test.go"
+        )
+        self.assertEqual(candidates, [
+            "src/utils/roles/user_role_sync_integration.go",
+            "src/utils/roles/user_role_sync.go",
+        ])
+
+    def test_plain_go_test_returns_single_candidate(self):
+        # No _integration_test suffix → only the naive strip.
+        self.assertEqual(
+            _test_to_source_paths("src/utils/roles/roles_test.go"),
+            ["src/utils/roles/roles.go"],
+        )
+
 
 class TestLoadTargetsMeta(unittest.TestCase):
     """Tests for picker-sidecar JSON loading."""
@@ -599,6 +621,50 @@ class TestBuildRationaleSection(unittest.TestCase):
 
     def test_empty_when_no_meta(self):
         self.assertEqual(_build_rationale_section(["src/x/tests/test_y.py"], {}), "")
+
+    def test_go_integration_test_attaches_rationale_to_underscore_source(self):
+        # PR #1058 regression: the rationale silently dropped because
+        # the naive `_test` strip mapped the integration test to
+        # `user_role_sync_integration.go` instead of the picker's
+        # target `user_role_sync.go`. The fallback candidate must
+        # match the picker meta.
+        meta = {
+            "src/utils/roles/user_role_sync.go": {
+                "file_path": "src/utils/roles/user_role_sync.go",
+                "coverage_pct": 0.0,
+                "uncovered_lines": 97,
+                "reason": "Owns IDP-to-OSMO role sync — RBAC blast radius.",
+            },
+        }
+        section = _build_rationale_section(
+            ["src/utils/roles/user_role_sync_integration_test.go"],
+            meta,
+        )
+        self.assertIn("`src/utils/roles/user_role_sync.go`", section)
+        self.assertIn("Owns IDP-to-OSMO role sync", section)
+
+    def test_prefers_naive_strip_when_both_candidates_match_meta(self):
+        # Hypothetical: meta has BOTH `kafka_integration.go` (a real
+        # source file) and `kafka.go`. The naive strip wins so we
+        # don't accidentally attach the kafka-integration rationale to
+        # kafka.go.
+        meta = {
+            "src/foo/kafka.go": {
+                "file_path": "src/foo/kafka.go",
+                "coverage_pct": 50.0, "uncovered_lines": 10,
+                "reason": "kafka rationale",
+            },
+            "src/foo/kafka_integration.go": {
+                "file_path": "src/foo/kafka_integration.go",
+                "coverage_pct": 30.0, "uncovered_lines": 20,
+                "reason": "kafka_integration rationale",
+            },
+        }
+        section = _build_rationale_section(
+            ["src/foo/kafka_integration_test.go"], meta,
+        )
+        self.assertIn("kafka_integration rationale", section)
+        self.assertNotIn("kafka rationale", section)
 
     def test_singular_heading_for_one_target(self):
         meta = {

@@ -139,13 +139,46 @@ _TEST_TO_SOURCE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def _test_to_source_path(test_path: str) -> str | None:
-    """Return the source path a test file covers, or None if unknown."""
+def _test_to_source_paths(test_path: str) -> list[str]:
+    """Return the source paths a test file may cover, most-specific first.
+
+    Returns a list because a Go integration test name like
+    ``foo_integration_test.go`` is ambiguous: it could test
+    ``foo_integration.go`` (the naive ``_test`` strip) *or* ``foo.go``
+    (the OSMO convention for integration tests of ``foo.go``, e.g.,
+    ``user_role_sync_integration_test.go`` → ``user_role_sync.go``,
+    ``authz_server_integration_test.go`` → ``authz_server.go``). PR
+    #1058 surfaced this — the naive strip didn't match the picker's
+    meta key and the rationale section got dropped.
+
+    Callers walk the returned list and pick the first candidate that
+    exists in the picker meta (or on disk).
+    """
+    candidates: list[str] = []
     for pattern, replacement in _TEST_TO_SOURCE_PATTERNS:
         match = pattern.fullmatch(test_path)
         if match:
-            return pattern.sub(replacement, test_path)
-    return None
+            candidates.append(pattern.sub(replacement, test_path))
+            break
+    # Go integration test fallback: strip the trailing `_integration`
+    # too. Added after the naive strip so callers prefer the more
+    # specific match when both candidates exist in meta.
+    if test_path.endswith("_integration_test.go"):
+        base = test_path[: -len("_integration_test.go")]
+        simplified = f"{base}.go"
+        if simplified not in candidates:
+            candidates.append(simplified)
+    return candidates
+
+
+def _test_to_source_path(test_path: str) -> str | None:
+    """Return the most-specific source path a test file covers.
+
+    Backward-compatible wrapper around :func:`_test_to_source_paths`
+    for callers (and existing tests) that need a single value.
+    """
+    candidates = _test_to_source_paths(test_path)
+    return candidates[0] if candidates else None
 
 
 def _load_targets_meta(path: str) -> dict[str, dict]:
@@ -257,10 +290,18 @@ def _build_rationale_section(
     seen_sources: list[str] = []
     seen_set: set[str] = set()
     for test_path in changed_files:
-        source = _test_to_source_path(test_path)
-        if source and source in meta and source not in seen_set:
-            seen_set.add(source)
-            seen_sources.append(source)
+        # Walk candidates in specificity order — most-specific (naive
+        # `_test` strip) first, falling back to `_integration_test`
+        # stripping. The first match against the picker meta wins, so
+        # `user_role_sync_integration_test.go` correctly attaches the
+        # rationale meant for `user_role_sync.go` while a hypothetical
+        # `kafka_integration_test.go` testing `kafka_integration.go`
+        # still resolves to the more-specific target.
+        for candidate in _test_to_source_paths(test_path):
+            if candidate in meta and candidate not in seen_set:
+                seen_set.add(candidate)
+                seen_sources.append(candidate)
+                break
     if not seen_sources:
         return ""
     heading = (
@@ -465,14 +506,29 @@ def main() -> None:
 
     logger.info("Changed test files: %s", changed_files)
 
-    basenames = sorted({f.rsplit("/", maxsplit=1)[-1] for f in changed_files})
-    # Strip test prefixes/suffixes to show source file names in the PR title.
-    # test_foo.py → foo.py, foo_test.go → foo.go, foo.test.ts → foo.ts
-    source_names = sorted({
-        re.sub(r"^test_", "", re.sub(r"[._]test(\.\w+)$", r"\1", name))
-        for name in basenames
-    })
-    files_summary = ", ".join(source_names)
+    # Load picker meta early so the title can prefer the picker's
+    # canonical source path over the naive `_test` strip — important
+    # for `_integration_test.go` files where the strip otherwise
+    # yields a non-existent `foo_integration.go` instead of `foo.go`.
+    targets_meta = _load_targets_meta(args.targets_meta)
+
+    source_names: set[str] = set()
+    for test_path in changed_files:
+        candidates = _test_to_source_paths(test_path)
+        if not candidates:
+            # Non-test file (e.g., the BUILD edit) — keep its basename.
+            source_names.add(test_path.rsplit("/", maxsplit=1)[-1])
+            continue
+        # Prefer the candidate the picker actually targeted; fall
+        # back to the most-specific naive strip when no picker meta
+        # is available (local dry-run, ad-hoc dispatch).
+        chosen = next(
+            (c for c in candidates if c in targets_meta),
+            candidates[0],
+        )
+        source_names.add(chosen.rsplit("/", maxsplit=1)[-1])
+
+    files_summary = ", ".join(sorted(source_names))
     files_list = "\n".join(f"- `{f}`" for f in changed_files)
 
     branch = f"testbot/{datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%d-%H%M")}"
@@ -499,7 +555,7 @@ def main() -> None:
         bugs_list = "\n".join(f"- {bug}" for bug in suspected_bugs)
         bugs_section = f"\n## Suspected bugs\n{bugs_list}\n"
 
-    targets_meta = _load_targets_meta(args.targets_meta)
+    # targets_meta already loaded above for the title computation.
     rationale_section = _build_rationale_section(changed_files, targets_meta)
     if rationale_section:
         rationale_section = "\n" + rationale_section

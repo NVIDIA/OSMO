@@ -50,6 +50,10 @@ on:
       slack_channel:
         description: 'Slack channel for review request (empty = no notification)'
         default: '#osmo-code-reviews'
+      force_run:
+        description: 'Bypass the open-PR preflight (useful when testing workflow changes from a branch)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -69,6 +73,14 @@ jobs:
         id: open-testbot-prs
         run: |
           set -euo pipefail
+          # workflow_dispatch force_run bypass — useful when verifying
+          # testbot changes from a feature branch without waiting for
+          # all open ai-generated PRs to be approved/merged.
+          if [[ "$FORCE_RUN" == "true" ]]; then
+            echo "force_run=true; bypassing open-PR preflight check."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if ! unapproved_prs="$(
             gh pr list \
               --repo "$REPOSITORY" \
@@ -93,6 +105,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          FORCE_RUN: ${{ inputs.force_run || 'false' }}
 
   generate-tests:
     needs: preflight
@@ -306,12 +319,19 @@ jobs:
           set +e
           # bazel coverage prints the LCOV path on success; the
           # combined_report=lcov setting in .bazelrc routes it to
-          # bazel-out/_coverage/_coverage_report.dat. We only need
-          # //... — the previous test runs are still cached, so this is
-          # cheap. requires-network targets that can't reach Docker will
-          # warn but not abort.
+          # bazel-out/_coverage/_coverage_report.dat.
+          #
+          # Do NOT use --config=ci here. That config sets
+          # DOCKER_HOST=tcp://docker:2375 and TESTCONTAINERS_HOST_OVERRIDE=docker
+          # for the self-hosted DinD environment that coverage.yaml uses,
+          # but testbot.yaml runs on ubuntu-latest with the runner's
+          # local docker socket. With --config=ci, testcontainers-based
+          # integration tests fail to reach the daemon and produce zero
+          # DA hits — that's how PR #1058 ended up with the verifier
+          # reporting 0/97 while Codecov's later pr-checks run (which
+          # has DinD wired up properly) confirmed 93/97 hit.
           echo "::group::bazel coverage //..."
-          bazel coverage --config=ci //... 2>&1 | tail -50
+          bazel coverage //... 2>&1 | tail -50
           coverage_status=${PIPESTATUS[0]}
           echo "::endgroup::"
           echo "bazel coverage exit_status: $coverage_status"
