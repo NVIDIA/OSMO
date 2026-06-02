@@ -109,7 +109,11 @@ class Worker(kombu.mixins.ConsumerMixin):
         self._current_job = job
 
         workflow_uuid = job.workflow_uuid if isinstance(job, jobs.WorkflowJob) else ''
-        with src.lib.utils.logging.WorkflowLogContext(workflow_uuid):
+        with src.lib.utils.logging.WorkflowLogContext(
+            workflow_uuid,
+            user_id=getattr(job, 'user', ''),
+            job_id=job.job_id or '',
+        ):
             logging.info('Starting job %s from the queue', job)
             job_metadata = job.get_metadata()
 

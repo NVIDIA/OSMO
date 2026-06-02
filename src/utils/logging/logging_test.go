@@ -369,6 +369,12 @@ func TestJSONHandlerServiceAttrAlwaysPresent(t *testing.T) {
 	if records[0]["service"] != "authz-sidecar" {
 		t.Errorf("service missing after WithGroup: %v", records[0])
 	}
+	if records[0]["user_id"] != "alice" {
+		t.Errorf("user should be emitted as user_id in JSON logs, got %v", records[0])
+	}
+	if _, ok := records[0]["user"]; ok {
+		t.Errorf("JSON logs should not emit user, got %v", records[0])
+	}
 }
 
 // TestInitLoggerJSONFormat is the end-to-end check: InitLogger with

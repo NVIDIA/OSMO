@@ -16,7 +16,8 @@
 
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { setLogUserId } from "@/lib/logger";
 
 export interface User {
   id: string;
@@ -55,6 +56,11 @@ export function UserProvider({ children, initialUser }: UserProviderProps) {
   const logout = () => {
     window.location.href = getLogoutUrl();
   };
+
+  useEffect(() => {
+    setLogUserId(initialUser?.id ?? null);
+    return () => setLogUserId(null);
+  }, [initialUser?.id]);
 
   return (
     <UserContext.Provider value={{ user: initialUser, isLoading: false, logout }}>{children}</UserContext.Provider>

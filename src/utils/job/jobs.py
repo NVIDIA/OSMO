@@ -63,7 +63,7 @@ class JobExecutionContext(pydantic.BaseModel):
 
 
 def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workflow_uuid: str,
-                           group_name: str):
+                           group_name: str, user: str = ''):
     """
     Cleans up a workflow group and enqueues a workflow cleanup job if all groups are cleaned up.
 
@@ -76,6 +76,7 @@ def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workf
         workflow_id: The ID of the workflow to clean up
         workflow_uuid: The UUID of the workflow to clean up
         group_name: The name of the group to mark as cleaned up
+        user: The user that owns the workflow; propagated onto CleanupWorkflow for log labels
 
     Returns:
         None
@@ -85,7 +86,8 @@ def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workf
     if all_cleaned_up:
         cleanup_job = CleanupWorkflow(
             workflow_id=workflow_id,
-            workflow_uuid=workflow_uuid
+            workflow_uuid=workflow_uuid,
+            user=user,
         )
         cleanup_job.send_job_to_queue()
 
@@ -144,13 +146,19 @@ class WorkflowJob(FrontendJob):
     """
     workflow_id: task_common.NamePattern
     workflow_uuid: common.UuidPattern
+    user: str = ''
 
     def log_submission(self):
         logging.info('Submitted new job %s to the job queue', self,
-                     extra={'workflow_uuid': self.workflow_uuid})
+                     extra=self.log_labels())
 
     def log_labels(self) -> Dict[str, str]:
-        return {'workflow_uuid': self.workflow_uuid}
+        labels = {'workflow_uuid': self.workflow_uuid}
+        if self.user:
+            labels['user_id'] = self.user
+        if self.job_id:
+            labels['job_id'] = self.job_id
+        return labels
 
 
 class BackendJob(Job):
@@ -511,6 +519,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             upload_task = UploadWorkflowFiles(
                 workflow_id=workflow_obj.workflow_id,
                 workflow_uuid=self.workflow_uuid,
+                user=self.user,
                 files=[File(f'{task_name}.spec', yaml.dump(redact_pod_spec_env(pod_spec)))
                         for task_name, pod_spec in pod_specs.items()])
             upload_task.send_job_to_queue()
@@ -556,7 +565,8 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
-        cleanup_workflow_group(context, self.workflow_id, self.workflow_uuid, self.group_name)
+        cleanup_workflow_group(context, self.workflow_id, self.workflow_uuid, self.group_name,
+                               user=self.user)
         return JobResult()
 
     def prepare_execute(self, context: JobExecutionContext,
@@ -814,7 +824,8 @@ class UpdateGroup(WorkflowJob):
 
             cleanup_workflow_group(context, workflow_obj.workflow_id,
                                     workflow_obj.workflow_uuid,
-                                    group_obj.name)
+                                    group_obj.name,
+                                    user=self.user)
         else:
             factory = group_obj.get_k8s_object_factory(backend)
             cleanup_specs = [
@@ -851,6 +862,7 @@ class UpdateGroup(WorkflowJob):
                 group_name=group_obj.name,
                 workflow_id=self.workflow_id,
                 workflow_uuid=self.workflow_uuid,
+                user=self.user,
                 force_delete=self.force_cancel,
                 cleanup_specs=cleanup_specs, error_log_spec=error_log_spec,
                 max_log_lines=workflow_config.max_error_log_lines)
@@ -968,6 +980,7 @@ class UpdateGroup(WorkflowJob):
                         else workflow_config.default_queue_timeout)
                 check_queue_timeout = CheckQueueTimeout(workflow_id=self.workflow_id,
                                                         workflow_uuid=self.workflow_uuid,
+                                                        user=self.user,
                                                         group_name=self.group_name)
                 check_queue_timeout.send_delayed_job_to_queue(queue_timeout)
 
@@ -982,6 +995,7 @@ class UpdateGroup(WorkflowJob):
                         else workflow_config.default_exec_timeout)
                 check_run_timeout = CheckRunTimeout(workflow_id=self.workflow_id,
                                                     workflow_uuid=self.workflow_uuid,
+                                                    user=self.user,
                                                     group_name=self.group_name)
                 check_run_timeout.send_delayed_job_to_queue(exec_timeout)
 
@@ -1178,6 +1192,7 @@ class UpdateGroup(WorkflowJob):
             group_name=group.name,
             workflow_id=self.workflow_id,
             workflow_uuid=self.workflow_uuid,
+            user=self.user,
             cleanup_specs=[error_log_spec], error_log_spec=error_log_spec,
             max_log_lines=workflow_config.max_error_log_lines)
 
@@ -1212,6 +1227,7 @@ class UpdateGroup(WorkflowJob):
             workflow_id=self.workflow_id,
             workflow_uuid=self.workflow_uuid,
             backend=spec.backend,
+            user=self.user,
             retry_id=new_task.retry_id,
             task_name=new_task.name,
             lead_task=self.lead_task,
@@ -1634,9 +1650,15 @@ class CancelWorkflow(WorkflowJob):
         Executes the job. Returns true if the workflow was canceled.
         """
 
-        # Indicate that the workflow is to be canceled
+        # Indicate that the workflow is to be canceled. Timeout-driven cancels are
+        # attributed to the 'osmo' system user so the UI can distinguish them from
+        # user-initiated cancels.
         workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
-        workflow_obj.update_cancelled_by(self.user)
+        cancelled_by = 'osmo' if self.workflow_status in (
+            workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT,
+            workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT,
+        ) else self.user
+        workflow_obj.update_cancelled_by(cancelled_by)
 
         # Iterate through each group and create a task to mark it as failed
         for group_obj in workflow_obj.get_group_objs():
@@ -1733,6 +1755,7 @@ class CheckRunTimeout(WorkflowJob):
             CheckRunTimeout(
                 workflow_id=self.workflow_id,
                 workflow_uuid=self.workflow_uuid,
+                user=self.user,
                 group_name=group_name,
             ).send_delayed_job_to_queue(exec_timeout - time_elapsed)
             return JobResult()
@@ -1746,7 +1769,7 @@ class CheckRunTimeout(WorkflowJob):
             group_name=group_name,
             status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT,
             message=f'{limit_message}.',
-            user='osmo',
+            user=self.user,
         ).send_job_to_queue()
         return JobResult()
 
@@ -1770,11 +1793,12 @@ class CheckRunTimeout(WorkflowJob):
             CheckRunTimeout(
                 workflow_id=self.workflow_id,
                 workflow_uuid=self.workflow_uuid,
+                user=self.user,
             ).send_delayed_job_to_queue(exec_timeout - time_elapsed)
         else:
             CancelWorkflow(
                 workflow_id=self.workflow_id,
-                workflow_uuid=self.workflow_uuid, user='osmo',
+                workflow_uuid=self.workflow_uuid, user=self.user,
                 workflow_status=workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT,
                 task_status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT,
             ).send_job_to_queue()
@@ -1848,6 +1872,7 @@ class CheckQueueTimeout(WorkflowJob):
             CheckQueueTimeout(
                 workflow_id=self.workflow_id,
                 workflow_uuid=self.workflow_uuid,
+                user=self.user,
                 group_name=group_name,
             ).send_delayed_job_to_queue(queue_timeout - time_elapsed)
             return JobResult()
@@ -1861,7 +1886,7 @@ class CheckQueueTimeout(WorkflowJob):
             group_name=group_name,
             status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
             message=f'{limit_message}.',
-            user='osmo',
+            user=self.user,
         ).send_job_to_queue()
         return JobResult()
 
@@ -1887,11 +1912,12 @@ class CheckQueueTimeout(WorkflowJob):
             CheckQueueTimeout(
                 workflow_id=self.workflow_id,
                 workflow_uuid=self.workflow_uuid,
+                user=self.user,
             ).send_delayed_job_to_queue(queue_timeout - time_since_submission)
         else:
             CancelWorkflow(
                 workflow_id=self.workflow_id,
-                workflow_uuid=self.workflow_uuid, user='osmo',
+                workflow_uuid=self.workflow_uuid, user=self.user,
                 workflow_status=workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT,
                 task_status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
             ).send_job_to_queue()
