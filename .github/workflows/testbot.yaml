@@ -39,7 +39,7 @@ on:
         default: '200'
       timeout_minutes:
         description: 'Workflow timeout in minutes'
-        default: '30'
+        default: '60'
       model:
         description: 'LLM model name on NVIDIA gateway'
         default: 'aws/anthropic/bedrock-claude-opus-4-7'
@@ -98,7 +98,7 @@ jobs:
     needs: preflight
     if: needs.preflight.outputs.should_run == 'true'
     environment: nim-env
-    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '30') }}
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '60') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
