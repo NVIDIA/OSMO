@@ -1,0 +1,143 @@
+name: Local KIND Deployment
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deployments/charts/**'
+      - 'deployments/scripts/**'
+      - 'deployments/values/**'
+      - 'test/oetf/**'
+      - 'test/workflow/**'
+      - 'bzl/**'
+      - 'MODULE.bazel'
+      - 'src/**'
+      - '.github/workflows/oetf-kind.yaml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oetf-kind-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  oetf-kind:
+    name: oetf:deploy_and_run --env kind --tags kind
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install kind
+        run: |
+          set -euo pipefail
+          KIND_VERSION=v0.24.0
+          KIND_SHA256=b89aada5a39d620da3fcd16435b7f28d858927dd53f92cbac77686b0588b600d
+          curl -fsSLo /usr/local/bin/kind \
+            "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          echo "${KIND_SHA256}  /usr/local/bin/kind" | sha256sum -c -
+          sudo chmod +x /usr/local/bin/kind
+
+      - name: Install kubectl
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION=v1.31.0
+          curl -fsSLo /usr/local/bin/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            | awk '{print $1"  /usr/local/bin/kubectl"}' | sha256sum -c -
+          sudo chmod +x /usr/local/bin/kubectl
+
+      - name: Install helm
+        run: |
+          set -euo pipefail
+          HELM_VERSION=v3.16.2
+          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
+          curl -fsSLo /tmp/helm.tgz \
+            "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+          sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          rm -rf /tmp/helm.tgz /tmp/linux-amd64
+
+      - name: Tool versions
+        run: |
+          docker --version
+          kind version
+          kubectl version --client --output=yaml | head -2 | tail -1
+          helm version --short
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Add quick-start.osmo to /etc/hosts
+        run: |
+          # The KIND adapter's check_kind_prereqs requires this name to
+          # resolve so tests can reach the chart's ingress at
+          # http://quick-start.osmo via the host port mapping published by
+          # `kind create cluster --config`.
+          echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+
+      - name: Preflight (OETF KIND adapter check_kind_prereqs)
+        run: |
+          set -euo pipefail
+          missing=()
+          for bin in docker kind kubectl helm; do
+            command -v "$bin" >/dev/null 2>&1 || missing+=("$bin")
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "ERROR: missing on runner: ${missing[*]}"
+            exit 3
+          fi
+
+      - name: Build osmo CLI
+        run: |
+          # CLI-mode scenarios (e.g. router-connectivity, smoke:cli-checks)
+          # need an `osmo` binary to invoke. Build from //src/cli and expose
+          # at /usr/local/bin/osmo (the default --local-osmo path) via
+          # symlink.
+          bazel build //src/cli:cli
+          sudo ln -sf "$(pwd)/bazel-bin/src/cli/cli" /usr/local/bin/osmo
+          /usr/local/bin/osmo --help >/dev/null
+
+      - name: Run OETF deploy_and_run on KIND
+        run: |
+          # --jobs=1 serializes the test suite. The KIND-deployed
+          # quick-start chart runs a single ingress-nginx replica with
+          # default resources; parallel scenario submits saturate it and
+          # intermittently 504. Trade-off: longer wall clock; in exchange
+          # we get deterministic green. Lift back to default jobs once the
+          # chart's kind profile bumps ingress replicas.
+          bazel run //test/oetf:deploy_and_run -- \
+            --env kind --tags kind \
+            --jobs 1 \
+            --output-json kind-smoke-result.json
+
+      - name: Cleanup KIND cluster
+        if: always()
+        run: |
+          kind delete clusters --all || true
+
+      - name: Upload OETF result JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kind-smoke-result
+          path: kind-smoke-result.json
+          if-no-files-found: warn
+
+      - name: Upload bazel test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bazel-testlogs
+          path: bazel-testlogs/
+          if-no-files-found: warn
