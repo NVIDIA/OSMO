@@ -195,5 +195,19 @@
       "The agent recommended a concrete fix: add an install step (e.g. apt-get install -y jq), rewrite to use an in-image tool, or switch to a base image that includes the binary",
       "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
     ]
+  },
+  {
+    "id": "osmo-agent-016",
+    "question": "badimage-train-1 has been sitting there for ten minutes and there are no logs at all. What's wrong?",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to diagnose an image-pull failure: queried badimage-train-1, found empty logs, fetched events showing ImagePullBackOff / manifest unknown, explained the container runtime can't fetch the image (bad tag/path, auth, or registry issue), and recommended verifying the image tag exists or checking the pull secret.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md and the troubleshooting reference",
+      "The agent queried the workflow, saw empty logs, and fetched 'osmo workflow events badimage-train-1' to find the blocker",
+      "The agent identified ImagePullBackOff / ErrImagePull and explained the image cannot be pulled (bad tag/path, registry auth, or registry outage)",
+      "The agent recommended verifying the image exists at that exact tag, checking the cluster pull secret for private registries, or retrying for transient issues",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
   }
 ]
