@@ -401,6 +401,41 @@ class TestSlackReviewRequest(unittest.TestCase):
         self.assertEqual(post_mock.call_args.kwargs["bot_token"], "token")
         self.assertEqual(post_mock.call_args.kwargs["channel"], "#osmo-slack-test")
 
+    def test_main_skips_slack_when_skip_slack_env_true(self):
+        # workflow_dispatch skip_slack=true sets SKIP_SLACK=true.
+        # _post_slack_review_request must NOT be invoked even though
+        # the token and channel env vars are populated. This regressed
+        # in run #26870328623 — the previous YAML expression form
+        # collapsed back to the secret, so we now check the env var
+        # in Python directly.
+        gh_create_result = subprocess.CompletedProcess(
+            [], 0, stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
+        )
+        env = {
+            "TESTBOT_SLACK_BOT_TOKEN": "token",
+            "TESTBOT_SLACK_CHANNEL": "#osmo-code-reviews",
+            "SKIP_SLACK": "true",
+        }
+        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                   return_value=False), \
+                patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                      return_value=["src/lib/tests/test_foo.py"]), \
+                patch("src.scripts.testbot.create_pr.run",
+                      return_value=subprocess.CompletedProcess([], 0)), \
+                patch("src.scripts.testbot.create_pr.subprocess.run") as run_mock, \
+                patch("src.scripts.testbot.create_pr._scan_suspected_bugs",
+                      return_value=[]), \
+                patch("src.scripts.testbot.create_pr._post_slack_review_request") \
+                as post_mock, \
+                patch.object(sys, "argv", ["create_pr.py"]), \
+                patch.dict(os.environ, env, clear=True):
+            run_mock.side_effect = [
+                subprocess.CompletedProcess([], 0),
+                gh_create_result,
+            ]
+            main()
+        post_mock.assert_not_called()
+
 
 class TestScanSuspectedBugs(unittest.TestCase):
     """Tests for _scan_suspected_bugs marker extraction."""
