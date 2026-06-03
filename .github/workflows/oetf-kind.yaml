@@ -74,7 +74,9 @@ jobs:
         run: |
           set -euo pipefail
           BAZELISK_VERSION=v1.20.0
-          curl -fsSLo /usr/local/bin/bazel \
+          # ubuntu-latest ships a pre-existing /usr/local/bin/bazel; sudo on the
+          # curl and chmod so the overwrite + permissions succeed.
+          sudo curl -fsSLo /usr/local/bin/bazel \
             "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
           sudo chmod +x /usr/local/bin/bazel
           bazel --version
