@@ -1,4 +1,4 @@
-name: OETF KIND smoke
+name: Local KIND Deployment
 
 on:
   pull_request:
