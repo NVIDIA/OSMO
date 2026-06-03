@@ -11,10 +11,17 @@ exports_files(glob(["*.yaml"]))
 
 filegroup(
     name = "all_workflow_yamls",
-    srcs = glob([
-        "*.yaml",
-        "scripts/**",
-        "input/**",
-    ]),
+    # `scripts/` and `input/` subdirs are KEEP-only (they contain script blobs +
+    # uploaded dataset trees referenced by non-kind-tagged scenarios — see
+    # migration plan). Glob with allow_empty=True so the filegroup loads in the
+    # public repo even when those dirs are absent.
+    srcs = glob(
+        [
+            "*.yaml",
+            "scripts/**",
+            "input/**",
+        ],
+        allow_empty = True,
+    ),
     visibility = ["//visibility:public"],
 )
