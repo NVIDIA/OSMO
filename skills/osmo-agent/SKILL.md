@@ -22,6 +22,9 @@ router: load only the reference files needed for the current task.
   routes each intent to the relevant command reference.
 - Do not guess command names or flags from memory. Use the linked reference for
   the user's use case, then run the commands yourself.
+- Obtain workflow and resource state (status, logs, events, capacity, spec) by
+  running the `osmo` CLI yourself. Do not infer OSMO state by reading, cat-ing,
+  or grepping files in the workspace — run the command and use its output.
 - If `osmo --version` fails, tell the user the OSMO CLI is not available and
   stop. Never fabricate command output.
 - If an `osmo` command returns an auth error, ask the user to run `osmo login`
