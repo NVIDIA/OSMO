@@ -348,8 +348,36 @@ jobs:
           # DA hits — that's how PR #1058 ended up with the verifier
           # reporting 0/97 while Codecov's later pr-checks run (which
           # has DinD wired up properly) confirmed 93/97 hit.
-          echo "::group::bazel coverage //..."
-          bazel coverage //... 2>&1 | tail -50
+          # Scope to test targets in the directories the picker
+          # actually chose. `bazel coverage //...` ran 211 tests on
+          # run/26871947281 and took 10 minutes; the LLM's earlier
+          # in-Generate coverage call (scoped to the same package)
+          # produced the same numbers in 48 seconds. Same-directory
+          # patterns work across languages:
+          #   Go     src/utils/roles/user_role_sync.go  →  //src/utils/roles/...
+          #          (same-package roles_test + roles_integration_test)
+          #   Python src/utils/job/jobs.py             →  //src/utils/job/...
+          #          (picks up the tests/ subdir convention)
+          #   TS     src/ui/.../foo.ts                 →  //src/ui/.../...
+          patterns=$(python3 -c '
+          import json, os, sys
+          path = os.path.join(os.environ["RUNNER_TEMP"], "targets_meta.json")
+          try:
+              meta = json.load(open(path))
+          except (OSError, json.JSONDecodeError):
+              # fail-open to //... so a stale/missing meta still produces
+              # a (slower) report rather than skipping coverage entirely
+              print("//...")
+              sys.exit(0)
+          dirs = sorted({
+              entry["file_path"].rsplit("/", 1)[0]
+              for entry in meta
+              if isinstance(entry, dict) and entry.get("file_path") and "/" in entry["file_path"]
+          })
+          print(" ".join(f"//{d}/..." for d in dirs) if dirs else "//...")
+          ')
+          echo "::group::bazel coverage $patterns"
+          bazel coverage $patterns 2>&1 | tail -50
           coverage_status=${PIPESTATUS[0]}
           echo "::endgroup::"
           echo "bazel coverage exit_status: $coverage_status"
