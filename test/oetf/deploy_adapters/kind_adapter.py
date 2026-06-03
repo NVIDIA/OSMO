@@ -120,7 +120,7 @@ def _build_local_helm_args() -> List[str]:
 # matches what osmo/quick-start expects; the external/run 4-worker config
 # has node_group labels that fight with the umbrella chart's scheduler.
 _KIND_CONFIG_BUNDLED_RELPATH = os.path.join(
-    "test_infra", "oetf", "data", "kind-osmo-cluster-config.yaml",
+    "test", "oetf", "data", "kind-osmo-cluster-config.yaml",
 )
 
 

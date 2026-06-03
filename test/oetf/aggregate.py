@@ -93,7 +93,7 @@ def collect_allure_results(
     - Per-attempt (--runs_per_test=N): test.outputs/test_attempts/attempt_*/allure-results/
 
     A label like //test/oetf/staging/smoke:api-checks maps to
-    bazel-testlogs/test_infra/oetf/staging/smoke/api-checks/test.outputs/
+    bazel-testlogs/test/oetf/staging/smoke/api-checks/test.outputs/
 
     Also copies each target's test.log into staging_dir as an attachment
     and links it from every result.json the target produced — so the

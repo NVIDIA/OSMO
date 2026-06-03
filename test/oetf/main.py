@@ -606,7 +606,7 @@ def _short_label(result: Dict) -> str:
     # Bazel's auto-generated test.xml uses the full target path as classname AND
     # name (one testcase per target). Prefer the Bazel label for readability.
     if result["target"]:
-        return result["target"].lstrip("/").replace("test_infra/oetf/staging/", "")
+        return result["target"].lstrip("/").replace("test/oetf/staging/", "")
     class_name = result["classname"].rsplit(".", 1)[-1]
     return f"{class_name}.{result["name"]}" if class_name else result["name"]
 
