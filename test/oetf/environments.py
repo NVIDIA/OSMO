@@ -57,12 +57,10 @@ def default_environment_paths() -> List[str]:
          the overlay ships its yaml at the same directory as the public
          default — only practical for in-repo overlays).
     """
+    overlay = os.environ.get(_OVERLAY_PATH_ENV) or INTERNAL_OVERLAY_PATH
     paths = [CANONICAL_PATH]
-    env_path = os.environ.get(_OVERLAY_PATH_ENV, "")
-    if env_path and os.path.isfile(env_path):
-        paths.append(env_path)
-    elif os.path.isfile(INTERNAL_OVERLAY_PATH):
-        paths.append(INTERNAL_OVERLAY_PATH)
+    if os.path.isfile(overlay):
+        paths.append(overlay)
     paths.append(USER_OVERLAY_PATH)
     return paths
 

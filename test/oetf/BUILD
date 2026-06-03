@@ -245,8 +245,9 @@ osmo_py_library(
     ],
 )
 
-# Deploy-only binary: spin up a KIND cluster (or dev env via overlay) and
-# leave it running.
+# Deploy-only binary: spin up a KIND cluster and leave it running.
+# (Other DeployAdapter implementations register via factory.register_adapter
+# in a downstream package.)
 osmo_py_binary(
     name = "deploy",
     srcs = ["deploy_main.py"],

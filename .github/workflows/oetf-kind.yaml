@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Install kind
         run: |
@@ -70,25 +70,13 @@ jobs:
           kubectl version --client --output=yaml | head -2 | tail -1
           helm version --short
 
-      - name: Install Bazelisk
-        run: |
-          set -euo pipefail
-          BAZELISK_VERSION=v1.20.0
-          # ubuntu-latest ships a pre-existing /usr/local/bin/bazel; sudo on the
-          # curl and chmod so the overwrite + permissions succeed.
-          sudo curl -fsSLo /usr/local/bin/bazel \
-            "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
-          sudo chmod +x /usr/local/bin/bazel
-          bazel --version
-
-      - name: Cache Bazel
-        uses: actions/cache@v4
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
         with:
-          path: |
-            ~/.cache/bazel
-          key: bazel-oetf-kind-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
-          restore-keys: |
-            bazel-oetf-kind-${{ runner.os }}-
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
 
       - name: Add quick-start.osmo to /etc/hosts
         run: |

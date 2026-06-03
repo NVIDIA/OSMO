@@ -230,31 +230,17 @@ def add_run_args(parser: argparse.ArgumentParser) -> None:
 
 
 def parse_target_patterns(raw: List[str], default: str) -> List[str]:
-    """Flatten the raw --target-pattern argv list into a deduped pattern list.
+    """Flatten ``raw`` (a list of comma-joined --target-pattern argv values)
+    into a deduped, order-preserving pattern list. Returns ``[default]`` when
+    nothing was supplied.
 
-    Each element of ``raw`` may itself be comma-joined; we split and dedupe in
-    order. Falls back to ``[default]`` when nothing was supplied.
-
-    Examples (with default='//x/...'):
-      []              -> ['//x/...']
-      ['A']           -> ['A']
-      ['A', 'B']      -> ['A', 'B']
-      ['A,B']         -> ['A', 'B']
-      ['A,B', 'C']    -> ['A', 'B', 'C']
-      ['A', 'A']      -> ['A']  (deduped)
+    Examples (default='//x/...'): ``[]`` → ``['//x/...']``;
+    ``['A,B','C']`` → ``['A','B','C']``; ``['A','A']`` → ``['A']``.
     """
-    flat: List[str] = []
-    seen: set = set()
-    for entry in raw:
-        for part in entry.split(","):
-            part = part.strip()
-            if not part or part in seen:
-                continue
-            seen.add(part)
-            flat.append(part)
-    if not flat:
-        return [default]
-    return flat
+    flat = list(dict.fromkeys(
+        p.strip() for entry in raw for p in entry.split(",") if p.strip()
+    ))
+    return flat or [default]
 
 
 # --- Forwarding helpers ----------------------------------------------------
