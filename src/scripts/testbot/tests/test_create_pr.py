@@ -10,7 +10,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from src.scripts.testbot.create_pr import (
+from src.scripts.testbot.create_pr import (  # noqa: E501
+    _build_generator_summary_section,
     SLACK_API_URL,
     TESTBOT_SLACK_CHANNEL_DEFAULT,
     _build_coverage_section,
@@ -68,6 +69,34 @@ class TestHasUnapprovedTestbotPr(unittest.TestCase):
     def test_gh_command_fails_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 1, stdout="", stderr="error")
         self.assertTrue(has_unapproved_testbot_pr())
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_force_create_pr_bypasses_check_without_running_gh(self, mock_run):
+        # The workflow_dispatch `force_create_pr=true` input sets
+        # FORCE_CREATE_PR=true. The script must short-circuit BEFORE
+        # invoking `gh pr list` so that branch-side verification runs
+        # don't get blocked by an already-open ai-generated PR.
+        with patch.dict(os.environ, {"FORCE_CREATE_PR": "true"}, clear=False):
+            self.assertFalse(has_unapproved_testbot_pr())
+        mock_run.assert_not_called()
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_force_create_pr_case_insensitive(self, mock_run):
+        # Tolerate "True" / "TRUE" from YAML boolean coercion.
+        for value in ("true", "True", "TRUE"):
+            mock_run.reset_mock()
+            with patch.dict(os.environ, {"FORCE_CREATE_PR": value}, clear=False):
+                self.assertFalse(has_unapproved_testbot_pr())
+            mock_run.assert_not_called()
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_force_create_pr_false_or_unset_falls_through_to_gh(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="2\n")
+        for value in ("false", "False", "", "0"):
+            mock_run.reset_mock(return_value=False)
+            with patch.dict(os.environ, {"FORCE_CREATE_PR": value}, clear=False):
+                self.assertTrue(has_unapproved_testbot_pr())
+            mock_run.assert_called_once()
 
     @patch("src.scripts.testbot.create_pr.run")
     def test_non_numeric_output_returns_true_fail_closed(self, mock_run):
@@ -818,6 +847,65 @@ class TestBuildRationaleSection(unittest.TestCase):
         )
         self.assertIn("**`src/lib/foo.py`**", section)
         self.assertNotIn("> ", section)
+
+
+class TestBuildGeneratorSummarySection(unittest.TestCase):
+    """Tests for the Generator-summary section renderer."""
+
+    def _write_temp(self, content: str) -> str:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8",
+        ) as fh:
+            fh.write(content)
+            return fh.name
+
+    def test_empty_path_returns_empty(self):
+        self.assertEqual(_build_generator_summary_section(""), "")
+
+    def test_missing_file_returns_empty_without_raising(self):
+        # Fail-soft: a missing summary file just omits the section
+        # rather than crashing PR creation (it's optional context).
+        self.assertEqual(
+            _build_generator_summary_section("/nonexistent/summary.md"), "",
+        )
+
+    def test_renders_section_with_llm_body(self):
+        body = (
+            "## Coverage Report\n\n"
+            "**Target: `src/utils/roles/user_role_sync.go`**\n\n"
+            "- Lines now hit: **93 / 97 (96%)**\n"
+            "- Lines still uncovered: **4**\n"
+        )
+        path = self._write_temp(body)
+        try:
+            section = _build_generator_summary_section(path)
+        finally:
+            os.unlink(path)
+        self.assertTrue(section.startswith("## Generator summary"))
+        self.assertIn("93 / 97 (96%)", section)
+        self.assertIn("user_role_sync.go", section)
+        # No spurious double-newlines around the heading.
+        self.assertNotIn("\n\n\n\n", section)
+
+    def test_strips_leading_and_trailing_whitespace_from_body(self):
+        path = self._write_temp("\n\n\nactual content\n\n\n")
+        try:
+            section = _build_generator_summary_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("actual content", section)
+        # Section ends with a single trailing newline (delimiter for
+        # the next section), no extra blanks.
+        self.assertTrue(section.endswith("actual content\n"))
+
+    def test_blank_summary_file_returns_empty(self):
+        # If the LLM produced no final text, drop the section entirely
+        # rather than emitting an empty heading.
+        path = self._write_temp("   \n\n\t\n")
+        try:
+            self.assertEqual(_build_generator_summary_section(path), "")
+        finally:
+            os.unlink(path)
 
 
 class TestBuildCoverageSection(unittest.TestCase):

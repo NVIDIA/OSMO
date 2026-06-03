@@ -54,6 +54,14 @@ on:
         description: 'Bypass the open-PR preflight (useful when testing workflow changes from a branch)'
         type: boolean
         default: false
+      force_create_pr:
+        description: 'Bypass create_pr.py has_unapproved_testbot_pr check (useful for branch verification when an unapproved testbot PR already exists)'
+        type: boolean
+        default: false
+      skip_slack:
+        description: 'Skip the Slack review request even when the channel/token are configured (useful for ad-hoc dispatches)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -284,6 +292,16 @@ jobs:
                   print(f"{key}: {final[key]}")
           result = final.get("result")
           if isinstance(result, str) and result:
+              # Save the full generator summary so create_pr.py can
+              # embed it in the PR body — reviewers see the same
+              # "what I did / what's still uncovered / files changed"
+              # block the LLM produced, not just the workflow log.
+              import os
+              summary_path = os.path.join(
+                  os.environ["RUNNER_TEMP"], "generate_summary.md"
+              )
+              with open(summary_path, "w", encoding="utf-8") as out:
+                  out.write(result)
               print("result:")
               print(result[:2000])
           PY
@@ -355,18 +373,34 @@ jobs:
           if [[ -s "$RUNNER_TEMP/coverage_report.json" ]]; then
             coverage_flag="--coverage-report $RUNNER_TEMP/coverage_report.json"
           fi
+          # --generate-summary is similarly fail-soft: when the file is
+          # missing (LLM produced no final result text), the PR body
+          # still renders without the section.
+          summary_flag=""
+          if [[ -s "$RUNNER_TEMP/generate_summary.md" ]]; then
+            summary_flag="--generate-summary $RUNNER_TEMP/generate_summary.md"
+          fi
           PYTHONPATH=src/scripts python -m testbot.create_pr \
             --targets-meta "$RUNNER_TEMP/targets_meta.json" \
-            $coverage_flag
+            $coverage_flag \
+            $summary_flag
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
-          TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          # workflow_dispatch override wins when present (including
-          # the empty string, which means "skip notification"). For
-          # schedule triggers inputs.slack_channel is null, so we fall
-          # back to the org/repo var. The literal #osmo-slack-test is
-          # the safety-net default for forks / dev repos where the var
+          # FORCE_CREATE_PR bypasses the create_pr.py script-level guard
+          # against stacking on top of an already-open ai-generated PR.
+          # Pairs with force_run (which bypasses the *job-level*
+          # preflight) for end-to-end branch verification when an
+          # unapproved testbot PR is already open.
+          FORCE_CREATE_PR: ${{ inputs.force_create_pr || 'false' }}
+          # An empty TESTBOT_SLACK_BOT_TOKEN is the existing fail-soft
+          # skip signal; we ALSO blank the channel for clarity. Either
+          # one being empty short-circuits the post.
+          TESTBOT_SLACK_BOT_TOKEN: ${{ inputs.skip_slack && '' || secrets.TESTBOT_SLACK_BOT_TOKEN }}
+          # workflow_dispatch override wins when present. For schedule
+          # triggers inputs.slack_channel is null, so we fall back to
+          # the org/repo var. The literal #osmo-slack-test is the
+          # safety-net default for forks / dev repos where the var
           # isn't set — prod has vars.TESTBOT_SLACK_CHANNEL configured
           # to #osmo-code-reviews and the workflow_dispatch input
-          # default mirrors that.
-          TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test') || inputs.slack_channel }}
+          # default mirrors that. skip_slack=true overrides everything.
+          TESTBOT_SLACK_CHANNEL: ${{ inputs.skip_slack && '' || (inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test') || inputs.slack_channel) }}

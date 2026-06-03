@@ -58,7 +58,19 @@ def has_unapproved_testbot_pr() -> bool:
     Filters by both label and author so that developer PRs manually
     labeled ai-generated don't block new testbot runs.
     Returns True (fail closed) if the gh command fails.
+
+    Bypass: when ``FORCE_CREATE_PR=true`` is exported in the
+    environment, returns False unconditionally. This pairs with the
+    workflow_dispatch ``force_create_pr`` input for end-to-end branch
+    verification — without it, a real PR can't be generated while an
+    unapproved testbot PR is already open, which is exactly the case
+    when you're iterating on testbot itself.
     """
+    if os.environ.get("FORCE_CREATE_PR", "").lower() == "true":
+        logger.info(
+            "FORCE_CREATE_PR=true; bypassing has_unapproved_testbot_pr",
+        )
+        return False
     result = run(
         ["gh", "pr", "list", "--label", "ai-generated", "--state", "open",
          "--author", "svc-osmo-ci",
@@ -202,6 +214,32 @@ def _load_targets_meta(path: str) -> dict[str, dict]:
         for entry in entries
         if isinstance(entry, dict) and entry.get("file_path")
     }
+
+
+def _build_generator_summary_section(path: str) -> str:
+    """Render the generator's final summary into the PR body.
+
+    The Generate step writes the LLM's final ``result`` text — which
+    typically contains the LLM's own per-target coverage breakdown,
+    per-range hit/miss reasoning, and a "Files changed" recap — to
+    ``$RUNNER_TEMP/generate_summary.md``. Embedding that block in the
+    PR body gives reviewers the same narrative the LLM produced
+    instead of only the harness's bare-numbers coverage section.
+
+    Missing / unreadable summary file yields an empty string so the PR
+    opens unchanged. Leading/trailing whitespace is stripped to avoid
+    extra blank lines around the section.
+    """
+    if not path:
+        return ""
+    try:
+        body = Path(path).read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        logger.warning("Could not read generator summary %s: %s", path, exc)
+        return ""
+    if not body:
+        return ""
+    return f"## Generator summary\n\n{body}\n"
 
 
 def _build_coverage_section(path: str) -> str:
@@ -490,6 +528,14 @@ def main() -> None:
              "uncovered ranges' section so reviewers can see how many of "
              "the picker's listed lines the generated tests actually hit",
     )
+    parser.add_argument(
+        "--generate-summary", default="",
+        help="Optional path to the LLM's final result text dumped by the "
+             "Generate step. When present, embedded verbatim in a "
+             "'Generator summary' section so reviewers see the LLM's own "
+             "narrative (per-target breakdown, still-uncovered reasoning, "
+             "files changed) alongside the harness's bare-numbers report.",
+    )
     args = parser.parse_args()
 
     if has_unapproved_testbot_pr():
@@ -564,6 +610,12 @@ def main() -> None:
     if coverage_section:
         coverage_section = "\n" + coverage_section
 
+    generator_summary_section = _build_generator_summary_section(
+        args.generate_summary,
+    )
+    if generator_summary_section:
+        generator_summary_section = "\n" + generator_summary_section
+
     pr_title = f"[testbot] Add tests for {files_summary}"
     pr_body = f"""## Summary
 AI-generated tests targeting file(s) with low coverage.
@@ -572,7 +624,7 @@ Issue - None
 
 ## Files tested
 {files_list}
-{rationale_section}{coverage_section}{bugs_section}
+{rationale_section}{generator_summary_section}{coverage_section}{bugs_section}
 ## Checklist
 - [x] I am familiar with the Contributing Guidelines
 - [x] New or existing tests cover these changes
