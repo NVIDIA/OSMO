@@ -36,17 +36,32 @@ CANONICAL_PATH = os.path.join(os.path.dirname(__file__), "data", "oetf.default.y
 INTERNAL_OVERLAY_PATH = os.path.join(os.path.dirname(__file__), "data", "oetf.internal.yaml")
 USER_OVERLAY_PATH = os.path.expanduser("~/.config/osmo/oetf.yaml")
 
+# Overlay binaries shipped in a separate Bazel module (e.g. an internal
+# overlay package consuming this OETF as @osmo_workspace) can set this env
+# var to point at their own oetf.internal.yaml. Used when the overlay's
+# runfiles tree is disjoint from the canonical-default discovery path.
+_OVERLAY_PATH_ENV = "OETF_INTERNAL_YAML"
+
 
 def default_environment_paths() -> List[str]:
     """Return the standard ordered list of environments.yaml paths.
 
-    The internal overlay (``oetf.internal.yaml`` sibling of the default) is
-    included only when it exists on disk. Post-migration this carries the
-    ``staging:`` and ``dev:`` env definitions that don't ship in the public
-    OETF distribution.
+    Merge order: canonical → internal overlay (if discovered) → user overlay.
+    Later paths override earlier ones per env name.
+
+    Internal overlay discovery, in priority order:
+      1. ``OETF_INTERNAL_YAML`` env var (set by overlay shim binaries that
+         ship in a separate Bazel module — used when the overlay's yaml
+         lives at a runfiles path the canonical sibling-discovery can't see).
+      2. ``oetf.internal.yaml`` sibling of the canonical default (used when
+         the overlay ships its yaml at the same directory as the public
+         default — only practical for in-repo overlays).
     """
     paths = [CANONICAL_PATH]
-    if os.path.isfile(INTERNAL_OVERLAY_PATH):
+    env_path = os.environ.get(_OVERLAY_PATH_ENV, "")
+    if env_path and os.path.isfile(env_path):
+        paths.append(env_path)
+    elif os.path.isfile(INTERNAL_OVERLAY_PATH):
         paths.append(INTERNAL_OVERLAY_PATH)
     paths.append(USER_OVERLAY_PATH)
     return paths
