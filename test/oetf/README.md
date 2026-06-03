@@ -302,7 +302,7 @@ Extend an existing file or add a new one under `staging/smoke/`. Subclass
 ```python
 # staging/smoke/my_checks.py
 import unittest
-from test_infra.oetf.smoke_fixture import SmokeFixture
+from test.oetf.smoke_fixture import SmokeFixture
 
 class MyChecks(SmokeFixture):
     def test_my_endpoint(self):
@@ -375,7 +375,7 @@ with an `.expect_*` method:
 ```python
 # staging/scenarios/my_workflows.py
 import unittest
-from test_infra.oetf.runner_fixture import RunnerFixture
+from test.oetf.runner_fixture import RunnerFixture
 
 class MyWorkflows(RunnerFixture):
     def test_my_flow(self):
@@ -514,7 +514,7 @@ if __name__ == "__main__":
 ```python
 # staging/scenarios/my_scenario/test_runner.py
 import unittest
-from test_infra.oetf.runner_fixture import RunnerFixture
+from test.oetf.runner_fixture import RunnerFixture
 
 
 class MyConnectivity(RunnerFixture):
@@ -612,7 +612,7 @@ if __name__ == "__main__":
 ```python
 # staging/scenarios/router_connectivity/test_runner.py
 import unittest
-from test_infra.oetf.runner_fixture import RunnerFixture
+from test.oetf.runner_fixture import RunnerFixture
 
 # Kept in sync with task.py — the two files run on different machines
 # (task.py in-container, test_runner.py on the caller) so they can't share

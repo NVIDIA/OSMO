@@ -14,7 +14,7 @@ import unittest
 
 import boto3  # type: ignore[import-not-found]
 
-from test_infra.oetf.sinks import (
+from test.oetf.sinks import (
     S3Sink,
     _cache_control,
     _maybe_gzip,

@@ -17,7 +17,7 @@ import logging
 import os
 from typing import List
 
-from test_infra.oetf.models import EnvironmentConfig
+from test.oetf.models import EnvironmentConfig
 
 logger = logging.getLogger(__name__)
 

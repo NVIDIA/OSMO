@@ -12,7 +12,7 @@ import logging
 
 from src.lib.utils import login
 from src.lib.utils.client import LoginManager, RequestMethod, ServiceClient
-from test_infra.oetf.models import OetfConfig
+from test.oetf.models import OetfConfig
 
 logger = logging.getLogger(__name__)
 

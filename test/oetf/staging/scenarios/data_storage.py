@@ -12,7 +12,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import unittest
 
-from test_infra.oetf.runner_fixture import RunnerFixture
+from test.oetf.runner_fixture import RunnerFixture
 
 
 class DataStorageWorkflows(RunnerFixture):

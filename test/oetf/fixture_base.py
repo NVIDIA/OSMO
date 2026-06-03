@@ -18,9 +18,9 @@ import unittest
 from typing import Tuple
 
 from src.lib.utils.client import ServiceClient
-from test_infra.oetf import reporter
-from test_infra.oetf.auth import create_service_client
-from test_infra.oetf.models import OetfConfig
+from test.oetf import reporter
+from test.oetf.auth import create_service_client
+from test.oetf.models import OetfConfig
 
 
 class OetfFixture(unittest.TestCase):

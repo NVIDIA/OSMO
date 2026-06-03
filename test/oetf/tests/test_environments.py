@@ -16,14 +16,14 @@ import unittest
 
 from unittest import mock
 
-from test_infra.oetf import environments
-from test_infra.oetf.environments import (
+from test.oetf import environments
+from test.oetf.environments import (
     default_environment_paths,
     load_environments,
     resolve_environment,
     resolve_token,
 )
-from test_infra.oetf.preflight import (
+from test.oetf.preflight import (
     PreflightError,
     check_auth,
     check_auth_config,

@@ -18,15 +18,15 @@ import unittest
 import unittest.mock
 from typing import List
 
-from test_infra.oetf import breadcrumb, local_images, teardown_main
-from test_infra.oetf.deploy_adapters import factory
-from test_infra.oetf.deploy_adapters.base import (
+from test.oetf import breadcrumb, local_images, teardown_main
+from test.oetf.deploy_adapters import factory
+from test.oetf.deploy_adapters.base import (
     DeployParams,
     DeploySession,
 )
-from test_infra.oetf.deploy_adapters.kind_adapter import KindAdapter, check_kind_prereqs
-from test_infra.oetf.deploy_adapters.noop_adapter import NoopAdapter
-from test_infra.oetf.models import DeployMode, EnvironmentAuth, EnvironmentConfig
+from test.oetf.deploy_adapters.kind_adapter import KindAdapter, check_kind_prereqs
+from test.oetf.deploy_adapters.noop_adapter import NoopAdapter
+from test.oetf.models import DeployMode, EnvironmentAuth, EnvironmentConfig
 
 
 @dataclasses.dataclass
@@ -674,7 +674,7 @@ class TestTeardownArgs(unittest.TestCase):
     """``oetf:teardown`` argparse + dispatch policy."""
 
     def test_no_args_errors_with_helpful_message(self):
-        with self.assertLogs("test_infra.oetf.teardown_main", "ERROR") as ctx:
+        with self.assertLogs("test.oetf.teardown_main", "ERROR") as ctx:
             rc = teardown_main.main([])
         self.assertEqual(rc, teardown_main.EXIT_FRAMEWORK_ERROR)
         joined = "\n".join(ctx.output)
@@ -682,7 +682,7 @@ class TestTeardownArgs(unittest.TestCase):
         self.assertIn("--list", joined)
 
     def test_list_and_env_are_mutually_exclusive(self):
-        with self.assertLogs("test_infra.oetf.teardown_main", "ERROR") as ctx:
+        with self.assertLogs("test.oetf.teardown_main", "ERROR") as ctx:
             rc = teardown_main.main(["--list", "--env", "anything"])
         self.assertEqual(rc, teardown_main.EXIT_FRAMEWORK_ERROR)
         self.assertIn("mutually exclusive", "\n".join(ctx.output))
@@ -693,7 +693,7 @@ class TestTeardownArgs(unittest.TestCase):
             with unittest.mock.patch.object(
                 breadcrumb, "DEFAULT_PATH", path,
             ):
-                with self.assertLogs("test_infra.oetf.teardown_main", "INFO") as ctx:
+                with self.assertLogs("test.oetf.teardown_main", "INFO") as ctx:
                     rc = teardown_main.main(["--list"])
         self.assertEqual(rc, teardown_main.EXIT_SUCCESS)
         self.assertIn("No active deploys", "\n".join(ctx.output))
@@ -707,7 +707,7 @@ class TestTeardownArgs(unittest.TestCase):
             with unittest.mock.patch.object(
                 breadcrumb, "DEFAULT_PATH", path,
             ):
-                with self.assertLogs("test_infra.oetf.teardown_main", "INFO") as ctx:
+                with self.assertLogs("test.oetf.teardown_main", "INFO") as ctx:
                     rc = teardown_main.main(["--list"])
         self.assertEqual(rc, teardown_main.EXIT_SUCCESS)
         joined = "\n".join(ctx.output)

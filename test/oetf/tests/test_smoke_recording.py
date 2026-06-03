@@ -15,8 +15,8 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from src.lib.utils.osmo_errors import OSMOError
-from test_infra.oetf import reporter
-from test_infra.oetf.smoke_fixture import CliProbe, HttpProbe, WsProbe
+from test.oetf import reporter
+from test.oetf.smoke_fixture import CliProbe, HttpProbe, WsProbe
 
 
 class _Stub:
@@ -71,7 +71,7 @@ class WsProbeRecordingTest(unittest.TestCase):
             return None
 
         stub = _Stub()
-        with patch("test_infra.oetf.smoke_fixture._ws_connect", side_effect=_noop):
+        with patch("test.oetf.smoke_fixture._ws_connect", side_effect=_noop):
             WsProbe(stub, "/api/x").expect_connect()  # type: ignore[arg-type]
         self.assertEqual(len(stub._recorder.steps), 1)  # pylint: disable=protected-access
         self.assertEqual(stub._recorder.steps[0]["status"], "passed")  # pylint: disable=protected-access

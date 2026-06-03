@@ -13,7 +13,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 import unittest
 from unittest.mock import patch
 
-from test_infra.oetf import local_images
+from test.oetf import local_images
 
 
 class TestImageSpecs(unittest.TestCase):

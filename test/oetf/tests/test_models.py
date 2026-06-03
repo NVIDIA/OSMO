@@ -14,7 +14,7 @@ import os
 import unittest
 from unittest import mock
 
-from test_infra.oetf.models import OetfConfig, WorkflowServerStatus
+from test.oetf.models import OetfConfig, WorkflowServerStatus
 
 
 class TestWorkflowServerStatus(unittest.TestCase):

@@ -26,19 +26,19 @@ import sys
 from pathlib import Path
 from typing import Dict, List, NoReturn, Optional, Tuple
 
-from test_infra.oetf import aggregate
-from test_infra.oetf import reporter
-from test_infra.oetf.auth import create_service_client
-from test_infra.oetf import cli_args
-from test_infra.oetf.cli_args import add_env_args, add_report_args, add_run_args
-from test_infra.oetf.environments import (
+from test.oetf import aggregate
+from test.oetf import reporter
+from test.oetf.auth import create_service_client
+from test.oetf import cli_args
+from test.oetf.cli_args import add_env_args, add_report_args, add_run_args
+from test.oetf.environments import (
     resolve_environment,
     resolve_token,
 )
-from test_infra.oetf.log_summary import summarize_log_path
-from test_infra.oetf.models import OetfConfig
-from test_infra.oetf.osmo_cli import login_cli_to, resolve_osmo_cli
-from test_infra.oetf.sinks import S3Sink
+from test.oetf.log_summary import summarize_log_path
+from test.oetf.models import OetfConfig
+from test.oetf.osmo_cli import login_cli_to, resolve_osmo_cli
+from test.oetf.sinks import S3Sink
 from src.lib.utils.client import RequestMethod
 
 

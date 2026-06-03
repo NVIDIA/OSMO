@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import unittest
 
-from test_infra.oetf.runner_fixture import RunnerFixture, curl_until
+from test.oetf.runner_fixture import RunnerFixture, curl_until
 
 # Kept in sync with staging/scenarios/router_connectivity/task.py.
 SENTINEL_CONTENT = "OETF_ROUTER_SENTINEL_c5b41e"

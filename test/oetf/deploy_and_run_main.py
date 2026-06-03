@@ -21,23 +21,23 @@ import subprocess
 import sys
 from typing import List
 
-from test_infra.oetf import breadcrumb
-from test_infra.oetf.cli_args import (
+from test.oetf import breadcrumb
+from test.oetf.cli_args import (
     add_deploy_args,
     add_env_args,
     add_run_args,
     forward_env_args,
     forward_run_args,
 )
-from test_infra.oetf.deploy_adapters.base import DeployParams, DeploySession, install_signal_shim
-from test_infra.oetf.deploy_adapters.factory import build_adapter
-from test_infra.oetf.deploy_adapters.kind_adapter import (
+from test.oetf.deploy_adapters.base import DeployParams, DeploySession, install_signal_shim
+from test.oetf.deploy_adapters.factory import build_adapter
+from test.oetf.deploy_adapters.kind_adapter import (
     check_kind_prereqs,
     print_chart_versions,
 )
-from test_infra.oetf.environments import resolve_environment
-from test_infra.oetf.models import EnvironmentConfig
-from test_infra.oetf.preflight import (
+from test.oetf.environments import resolve_environment
+from test.oetf.models import EnvironmentConfig
+from test.oetf.preflight import (
     PreflightError,
     check_auth,
     check_deployable,

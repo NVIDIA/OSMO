@@ -17,7 +17,7 @@ import os
 import shutil
 import subprocess
 
-from test_infra.oetf.models import OetfConfig
+from test.oetf.models import OetfConfig
 
 
 logger = logging.getLogger(__name__)

@@ -17,7 +17,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 import textwrap
 import unittest
 
-from test_infra.oetf.log_summary import summarize_lines
+from test.oetf.log_summary import summarize_lines
 
 
 def _as_lines(text: str) -> list:

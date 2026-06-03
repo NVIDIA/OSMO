@@ -21,12 +21,12 @@ import concurrent.futures
 import logging
 from typing import Callable, Dict, Tuple
 
-from test_infra.oetf import local_images
-from test_infra.oetf.deploy_adapters.base import DeployAdapter
-from test_infra.oetf.deploy_adapters.kind_adapter import KindAdapter
-from test_infra.oetf.deploy_adapters.noop_adapter import NoopAdapter
-from test_infra.oetf.models import EnvironmentConfig
-from test_infra.oetf.preflight import PreflightError
+from test.oetf import local_images
+from test.oetf.deploy_adapters.base import DeployAdapter
+from test.oetf.deploy_adapters.kind_adapter import KindAdapter
+from test.oetf.deploy_adapters.noop_adapter import NoopAdapter
+from test.oetf.models import EnvironmentConfig
+from test.oetf.preflight import PreflightError
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 # other than ModuleNotFoundError logs a WARNING so silent ImportError
 # swallowing doesn't hide real bugs.
 try:
-    from test_infra.oetf import dev_argocd
-    from test_infra.oetf.deploy_adapters.dev_adapter import DevAdapter
+    from test.oetf import dev_argocd
+    from test.oetf.deploy_adapters.dev_adapter import DevAdapter
     _DEV_ADAPTER_AVAILABLE = True
 except ModuleNotFoundError:
     dev_argocd = None  # type: ignore[assignment]

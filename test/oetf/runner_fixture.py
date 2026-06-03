@@ -44,11 +44,11 @@ import yaml
 from src.cli.workflow import load_local_files
 from src.lib.utils.client import RequestMethod, ResponseMode, ServiceClient
 from src.lib.utils.osmo_errors import OSMOError
-from test_infra.oetf import reporter
-from test_infra.oetf.fixture_base import OetfFixture
-from test_infra.oetf.models import OetfConfig, WorkflowServerStatus
-from test_infra.oetf.osmo_cli import login_cli_to, resolve_osmo_cli
-from test_infra.oetf.task_fixture import CHECKPOINT_PREFIX, TASK_NAME_FILE
+from test.oetf import reporter
+from test.oetf.fixture_base import OetfFixture
+from test.oetf.models import OetfConfig, WorkflowServerStatus
+from test.oetf.osmo_cli import login_cli_to, resolve_osmo_cli
+from test.oetf.task_fixture import CHECKPOINT_PREFIX, TASK_NAME_FILE
 
 if TYPE_CHECKING:
     pass

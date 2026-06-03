@@ -21,7 +21,7 @@ import argparse
 import unittest
 from typing import Set
 
-from test_infra.oetf import cli_args
+from test.oetf import cli_args
 
 
 def _flag_set(*adders) -> Set[str]:

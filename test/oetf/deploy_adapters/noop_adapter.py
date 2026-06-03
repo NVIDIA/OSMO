@@ -17,9 +17,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 import dataclasses
 import logging
 
-from test_infra.oetf.deploy_adapters.base import DeployParams
-from test_infra.oetf.environments import resolve_environment
-from test_infra.oetf.models import EnvironmentConfig
+from test.oetf.deploy_adapters.base import DeployParams
+from test.oetf.environments import resolve_environment
+from test.oetf.models import EnvironmentConfig
 
 logger = logging.getLogger(__name__)
 

@@ -21,8 +21,8 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from test_infra.oetf.models import WorkflowServerStatus
-from test_infra.oetf.runner_fixture import (
+from test.oetf.models import WorkflowServerStatus
+from test.oetf.runner_fixture import (
     RunnerFixture,
     WorkflowHandle,
     _find_checkpoint_marker,

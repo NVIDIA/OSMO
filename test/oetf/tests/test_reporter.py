@@ -14,7 +14,7 @@ import os
 import tempfile
 import unittest
 
-from test_infra.oetf import reporter
+from test.oetf import reporter
 
 
 class StatusMappingTest(unittest.TestCase):

@@ -20,7 +20,7 @@ import logging
 import os
 from typing import Dict, List, Optional
 
-from test_infra.oetf.models import DeployType
+from test.oetf.models import DeployType
 
 logger = logging.getLogger(__name__)
 

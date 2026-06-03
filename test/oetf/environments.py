@@ -28,7 +28,7 @@ from typing import Dict, List
 
 import yaml
 
-from test_infra.oetf.models import EnvironmentAuth, EnvironmentConfig
+from test.oetf.models import EnvironmentAuth, EnvironmentConfig
 
 logger = logging.getLogger(__name__)
 

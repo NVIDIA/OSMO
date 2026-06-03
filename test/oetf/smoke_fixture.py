@@ -26,9 +26,9 @@ from urllib.parse import urlparse
 
 from src.lib.utils.client import RequestMethod
 from src.lib.utils.osmo_errors import OSMOError
-from test_infra.oetf import reporter
-from test_infra.oetf.fixture_base import OetfFixture
-from test_infra.oetf.osmo_cli import login_cli_to
+from test.oetf import reporter
+from test.oetf.fixture_base import OetfFixture
+from test.oetf.osmo_cli import login_cli_to
 
 
 # --- HttpProbe ---

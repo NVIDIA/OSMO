@@ -19,7 +19,7 @@ import logging
 import signal
 from typing import Dict, Protocol
 
-from test_infra.oetf.models import DeployType, EnvironmentConfig
+from test.oetf.models import DeployType, EnvironmentConfig
 
 logger = logging.getLogger(__name__)
 

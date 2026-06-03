@@ -16,9 +16,9 @@ from unittest.mock import MagicMock
 
 from src.lib.utils.osmo_errors import OSMOSubmissionError
 
-from test_infra.oetf import reporter
-from test_infra.oetf.models import WorkflowServerStatus
-from test_infra.oetf.runner_fixture import (
+from test.oetf import reporter
+from test.oetf.models import WorkflowServerStatus
+from test.oetf.runner_fixture import (
     WorkflowBuilder,
     WorkflowHandle,
     _record_step,

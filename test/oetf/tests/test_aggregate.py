@@ -15,7 +15,7 @@ import unittest
 import zipfile
 from unittest.mock import MagicMock, patch
 
-from test_infra.oetf import aggregate
+from test.oetf import aggregate
 
 
 class CollectAllureResultsTest(unittest.TestCase):
@@ -276,8 +276,8 @@ class AggregateRunTest(unittest.TestCase):
             sink.public_url.side_effect = (
                 lambda key: f"http://localhost:8080/{key.lstrip(slash)}"
             )
-            with patch("test_infra.oetf.aggregate.run_allure_generate"):
-                with patch("test_infra.oetf.aggregate.collect_allure_results",
+            with patch("test.oetf.aggregate.run_allure_generate"):
+                with patch("test.oetf.aggregate.collect_allure_results",
                            return_value=0):
                     public_url = aggregate.run(
                         sink=sink,

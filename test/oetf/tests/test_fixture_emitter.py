@@ -13,8 +13,8 @@ import json
 import os
 import tempfile
 import unittest
-from test_infra.oetf import fixture_base, reporter
-from test_infra.oetf.fixture_base import _exc_message
+from test.oetf import fixture_base, reporter
+from test.oetf.fixture_base import _exc_message
 
 
 class ExcMessageTest(unittest.TestCase):

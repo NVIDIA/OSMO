@@ -20,10 +20,10 @@ import logging
 import sys
 from typing import List, Optional
 
-from test_infra.oetf import breadcrumb
-from test_infra.oetf.deploy_adapters import factory
-from test_infra.oetf.deploy_adapters.base import DeployParams
-from test_infra.oetf.environments import resolve_environment
+from test.oetf import breadcrumb
+from test.oetf.deploy_adapters import factory
+from test.oetf.deploy_adapters.base import DeployParams
+from test.oetf.environments import resolve_environment
 
 EXIT_SUCCESS = 0
 EXIT_TEARDOWN_FAILURE = 1

@@ -15,7 +15,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-from test_infra.oetf.main import maybe_publish_report
+from test.oetf.main import maybe_publish_report
 
 # Canonical regex matching what jenkins/vars/oetfTests.groovy _extractReportUrl
 # greps for: `/Report:\s+(https?:\/\/\S+)/`. main.py emits this line so the
@@ -50,8 +50,8 @@ class MaybePublishTest(unittest.TestCase):
     def test_dispatches_to_users_actor_by_default(self):
         args = _args(report_s3="s3://bkt/p", report_actor="agent-x")
         env = {"url": "https://staging.example"}
-        with patch("test_infra.oetf.main.aggregate") as mock_agg, \
-             patch("test_infra.oetf.main._build_sink"):
+        with patch("test.oetf.main.aggregate") as mock_agg, \
+             patch("test.oetf.main._build_sink"):
             mock_agg.run.return_value = "https://x/users/agent-x/runs/x/index.html"
             maybe_publish_report(args, env, targets=[])
         mock_agg.run.assert_called_once()
@@ -61,8 +61,8 @@ class MaybePublishTest(unittest.TestCase):
         args = _args(report_s3="s3://bkt/p", report_source="staging",
                      report_actor="jenkins-bot")
         env = {"url": "https://staging.example"}
-        with patch("test_infra.oetf.main.aggregate") as mock_agg, \
-             patch("test_infra.oetf.main._build_sink"):
+        with patch("test.oetf.main.aggregate") as mock_agg, \
+             patch("test.oetf.main._build_sink"):
             mock_agg.run.return_value = "https://x/staging/runs/x/index.html"
             maybe_publish_report(args, env, targets=[])
         self.assertEqual(mock_agg.run.call_args.kwargs["source"], "staging")
@@ -70,8 +70,8 @@ class MaybePublishTest(unittest.TestCase):
     def test_strict_propagates_exceptions(self):
         args = _args(report_s3="s3://bkt/p", report_actor="x", report_strict=True)
         env = {"url": "https://staging.example"}
-        with patch("test_infra.oetf.main.aggregate") as mock_agg, \
-             patch("test_infra.oetf.main._build_sink"):
+        with patch("test.oetf.main.aggregate") as mock_agg, \
+             patch("test.oetf.main._build_sink"):
             mock_agg.run.side_effect = RuntimeError("boom")
             with self.assertRaises(RuntimeError):
                 maybe_publish_report(args, env, targets=[])
@@ -79,8 +79,8 @@ class MaybePublishTest(unittest.TestCase):
     def test_non_strict_swallows_exceptions(self):
         args = _args(report_s3="s3://bkt/p", report_actor="x")
         env = {"url": "https://staging.example"}
-        with patch("test_infra.oetf.main.aggregate") as mock_agg, \
-             patch("test_infra.oetf.main._build_sink"):
+        with patch("test.oetf.main.aggregate") as mock_agg, \
+             patch("test.oetf.main._build_sink"):
             mock_agg.run.side_effect = RuntimeError("boom")
             maybe_publish_report(args, env, targets=[])  # no raise
 
@@ -93,8 +93,8 @@ class MaybePublishTest(unittest.TestCase):
         args = _args(report_s3="s3://bkt/p", report_actor="x")
         env = {"url": "https://staging.example"}
         buf = io.StringIO()
-        with patch("test_infra.oetf.main.aggregate") as mock_agg, \
-             patch("test_infra.oetf.main._build_sink"):
+        with patch("test.oetf.main.aggregate") as mock_agg, \
+             patch("test.oetf.main._build_sink"):
             mock_agg.run.return_value = report_url
             with redirect_stdout(buf):
                 maybe_publish_report(args, env, targets=[])

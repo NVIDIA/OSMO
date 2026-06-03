@@ -39,11 +39,11 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
-from test_infra.oetf import local_images
-from test_infra.oetf.deploy_adapters.base import DeployParams
-from test_infra.oetf.environments import resolve_environment
-from test_infra.oetf.models import DeployMode, EnvironmentConfig
-from test_infra.oetf.preflight import PreflightError
+from test.oetf import local_images
+from test.oetf.deploy_adapters.base import DeployParams
+from test.oetf.environments import resolve_environment
+from test.oetf.models import DeployMode, EnvironmentConfig
+from test.oetf.preflight import PreflightError
 
 logger = logging.getLogger(__name__)
 

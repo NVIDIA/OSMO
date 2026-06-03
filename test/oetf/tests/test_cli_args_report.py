@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 import argparse
 import unittest
 
-from test_infra.oetf.cli_args import add_report_args
+from test.oetf.cli_args import add_report_args
 
 
 class AddReportArgsTest(unittest.TestCase):

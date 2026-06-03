@@ -24,8 +24,8 @@ import uuid
 import zipfile
 from typing import List, Optional
 
-from test_infra.oetf import reporter
-from test_infra.oetf.sinks import S3Sink
+from test.oetf import reporter
+from test.oetf.sinks import S3Sink
 
 
 def _copy_from_dir(results_dir: str, staging_dir: str) -> List[str]:
