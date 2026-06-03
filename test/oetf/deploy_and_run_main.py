@@ -117,7 +117,7 @@ def main(arguments: List[str] | None = None) -> int:
     if not args.env:
         logger.error(
             "ERROR: --env is required\nNEXT:  pass --env <name> (see "
-            "test_infra/oetf/data/oetf.default.yaml for available envs)"
+            "test/oetf/data/oetf.default.yaml for available envs)"
         )
         return EXIT_FRAMEWORK_ERROR
 

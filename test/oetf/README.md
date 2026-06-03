@@ -135,7 +135,7 @@ bazel run //test/oetf:teardown -- --env <user>-dev
 `--env <name>` resolves to a URL + pool + auth method from two layered
 config files — nothing silently defaults beyond what's declared.
 
-1. **Canonical (in-repo):** `test_infra/oetf/data/oetf.default.yaml` ships
+1. **Canonical (in-repo):** `test/oetf/data/oetf.default.yaml` ships
    `staging` and `kind`. `--env staging` works out of the box; the user
    just exports the auth token referenced in the entry
    (e.g. `OETF_TOKEN`).
@@ -179,7 +179,7 @@ environments:
 | `type` | `kind`, `dev`, `custom` | What kind of infra this env is. Drives adapter selection. `custom` = externally managed, `oetf:run` only. |
 | `allow_deploy` | `true` / `false` (default `false`) | Safety gate — `oetf:deploy` refuses unless explicitly `true`. `type: custom` always pins this to `false`. |
 
-**Canonical entries** (from `test_infra/oetf/data/oetf.default.yaml`):
+**Canonical entries** (from `test/oetf/data/oetf.default.yaml`):
 
 ```yaml
 environments:
@@ -777,7 +777,7 @@ fairness, backend latency percentiles, error-rate spikes under load.
 
 ## `oetf:run` wrapper
 
-The wrapper (`test_infra/oetf/main.py`) is thin:
+The wrapper (`test/oetf/main.py`) is thin:
 
 1. Load `data/oetf.default.yaml` + user overlay at `~/.config/osmo/oetf.yaml`.
 2. Resolve `--env` to `OETF_URL` / `OETF_AUTH_TOKEN` / `OETF_POOL` (CLI flags win).
@@ -1171,7 +1171,7 @@ environments:
 ## Layout
 
 ```
-test_infra/oetf/
+test/oetf/
 ├── README.md
 ├── BUILD
 ├── main.py                  # oetf:run wrapper

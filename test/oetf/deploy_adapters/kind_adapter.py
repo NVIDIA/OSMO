@@ -152,7 +152,7 @@ class KindAdapter:
         chart_version: Pin a specific ``osmo/quick-start`` chart version
             (default: latest available in the repo).
         kind_config_path: Path to the KIND cluster config file. Defaults to
-            the bundled ``test_infra/oetf/data/kind-osmo-cluster-config.yaml``
+            the bundled ``test/oetf/data/kind-osmo-cluster-config.yaml``
             (6-node layout matching the public deploy_local.html CPU guide).
         extra_helm_sets: Additional ``key=value`` pairs for ``helm --set``.
     """

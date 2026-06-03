@@ -56,7 +56,7 @@ TARGET_PATTERN = "//test/oetf/staging/..."
 # --- Env config ------------------------------------------------------------
 #
 #   Loaded by environments.py from:
-#   Layer 1: test_infra/oetf/data/oetf.default.yaml  (canonical, in-repo)
+#   Layer 1: test/oetf/data/oetf.default.yaml  (canonical, in-repo)
 #   Layer 2: ~/.config/osmo/oetf.yaml                (user overlay)
 #   + CLI flags on oetf:run win over both.
 
@@ -342,7 +342,7 @@ def resolve_name_target(name: str) -> Tuple[str, Optional[str]]:
     """
     class_hint, method = _parse_name(name)
     workspace = _workspace_root()
-    staging = Path(workspace) / "test_infra" / "oetf" / "staging"
+    staging = Path(workspace) / "test" / "oetf" / "staging"
     for py_file in staging.rglob("*.py"):
         text = py_file.read_text(encoding="utf-8")
         if f"def {method}" not in text:

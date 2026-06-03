@@ -58,7 +58,7 @@ class CollectAllureResultsTest(unittest.TestCase):
 
     def test_collect_from_plain_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
-            results_dir = os.path.join(tmp, "test_infra", "oetf", "staging",
+            results_dir = os.path.join(tmp, "test", "oetf", "staging",
                                        "smoke", "auth-checks", "test.outputs",
                                        "allure-results")
             os.makedirs(results_dir)

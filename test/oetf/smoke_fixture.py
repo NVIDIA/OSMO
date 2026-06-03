@@ -228,7 +228,7 @@ class CliProbe:
 async def _ws_connect(service_client: Any, ws_address: str, endpoint: str, timeout: int) -> None:
     """Open a WebSocket connection and immediately close it.
 
-    Module-level so tests can patch ``test_infra.oetf.smoke_fixture._ws_connect``
+    Module-level so tests can patch ``test.oetf.smoke_fixture._ws_connect``
     without needing to spin up a real server.
     """
     websocket = await service_client.create_websocket(

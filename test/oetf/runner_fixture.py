@@ -422,7 +422,7 @@ class RunnerFixture(OetfFixture):
 
         Spec-path resolution:
           - Workspace-relative if path starts with a top-level dir
-            (validation/, test_infra/, charts/, src/).
+            (validation/, test/, charts/, src/).
           - Otherwise relative to the test_runner.py file's directory.
         """
         resolved = self._resolve_spec_path(spec_path)
@@ -433,7 +433,7 @@ class RunnerFixture(OetfFixture):
             return spec_path
         # Workspace-relative if the path contains a directory separator and is
         # not explicitly caller-relative (./ or ../). Covers validation/...,
-        # test_infra/..., transfer_service/..., etc.
+        # test/..., transfer_service/..., etc.
         if "/" in spec_path and not spec_path.startswith(("./", "../")):
             return os.path.join(_workspace_root(), spec_path)
         # Caller-relative: resolve against the test_runner.py file's directory.

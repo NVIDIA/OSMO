@@ -14,8 +14,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 # ``Dict[str, EnvironmentConfig]``. Later paths override earlier ones per-env.
 # The default order is:
 #
-# 1. ``test_infra/oetf/data/oetf.default.yaml`` (canonical, shipped with the repo)
-# 2. ``test_infra/oetf/data/oetf.internal.yaml`` (optional internal-overlay,
+# 1. ``test/oetf/data/oetf.default.yaml`` (canonical, shipped with the repo)
+# 2. ``test/oetf/data/oetf.internal.yaml`` (optional internal-overlay,
 #    sibling of oetf.default.yaml — auto-discovered when present; absent in
 #    public OETF distributions)
 # 3. ``~/.config/osmo/oetf.yaml`` (optional user overlay)
