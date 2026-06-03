@@ -1,0 +1,28 @@
+workflow:
+  name: sdg-train-1
+  tasks:
+  - name: generate
+    image: nvcr.io/nvidia/isaac-sim:4.5.0
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    environment:
+      NUM_IMAGES: "1000"
+    files:
+    - contents: |
+        #!/bin/bash
+        set -e
+        echo "Starting Isaac Sim SDG"
+        python -m isaac.sdg \
+          --num-images 1000 \
+          --out {{outputs}}/images
+        echo "Generation complete"
+      path: /tmp/entry.sh
+    outputs:
+    - dataset:
+        name: sdg-train-1-output
+  resources:
+    default:
+      cpu: 16
+      gpu: 2
+      memory: 128Gi
+      storage: 200Gi
