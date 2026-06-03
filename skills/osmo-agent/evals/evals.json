@@ -238,5 +238,19 @@
       "The agent did not modify any Jinja template variables (oversized.yaml has none; the resources are hard-coded values to edit directly)",
       "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
     ]
+  },
+  {
+    "id": "osmo-agent-019",
+    "question": "Create an OSMO app from gr00t-train-1 so my teammates can rerun it without copying the YAML around.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to create an app from the workflow: it determined the workflow YAML/spec (fetching the templated spec for gr00t-train-1), chose an app name defaulting from the workflow name and a one-line description, ran 'osmo app create <name> --description <desc> --file <yaml>', and reported the returned app name/URL.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md and the workflow-apps reference",
+      "The agent determined the workflow YAML or spec path (e.g. fetched the templated spec for gr00t-train-1) to use as the app source",
+      "The agent ran 'osmo app create <app_name> --description \"<description>\" --file <workflow_yaml>' with a name derived from the workflow",
+      "The agent reported the app name/version/URL returned by the CLI",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
   }
 ]
