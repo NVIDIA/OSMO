@@ -50,6 +50,18 @@ on:
       slack_channel:
         description: 'Slack channel for review request (empty = no notification)'
         default: '#osmo-code-reviews'
+      force_run:
+        description: 'Bypass the open-PR preflight (useful when testing workflow changes from a branch)'
+        type: boolean
+        default: false
+      force_create_pr:
+        description: 'Bypass create_pr.py has_unapproved_testbot_pr check (useful for branch verification when an unapproved testbot PR already exists)'
+        type: boolean
+        default: false
+      skip_slack:
+        description: 'Skip the Slack review request even when the channel/token are configured (useful for ad-hoc dispatches)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -69,6 +81,14 @@ jobs:
         id: open-testbot-prs
         run: |
           set -euo pipefail
+          # workflow_dispatch force_run bypass — useful when verifying
+          # testbot changes from a feature branch without waiting for
+          # all open ai-generated PRs to be approved/merged.
+          if [[ "$FORCE_RUN" == "true" ]]; then
+            echo "force_run=true; bypassing open-PR preflight check."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if ! unapproved_prs="$(
             gh pr list \
               --repo "$REPOSITORY" \
@@ -93,6 +113,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          FORCE_RUN: ${{ inputs.force_run || 'false' }}
 
   generate-tests:
     needs: preflight
@@ -271,6 +292,16 @@ jobs:
                   print(f"{key}: {final[key]}")
           result = final.get("result")
           if isinstance(result, str) and result:
+              # Save the full generator summary so create_pr.py can
+              # embed it in the PR body — reviewers see the same
+              # "what I did / what's still uncovered / files changed"
+              # block the LLM produced, not just the workflow log.
+              import os
+              summary_path = os.path.join(
+                  os.environ["RUNNER_TEMP"], "generate_summary.md"
+              )
+              with open(summary_path, "w", encoding="utf-8") as out:
+                  out.write(result)
               print("result:")
               print(result[:2000])
           PY
@@ -306,12 +337,47 @@ jobs:
           set +e
           # bazel coverage prints the LCOV path on success; the
           # combined_report=lcov setting in .bazelrc routes it to
-          # bazel-out/_coverage/_coverage_report.dat. We only need
-          # //... — the previous test runs are still cached, so this is
-          # cheap. requires-network targets that can't reach Docker will
-          # warn but not abort.
-          echo "::group::bazel coverage //..."
-          bazel coverage --config=ci //... 2>&1 | tail -50
+          # bazel-out/_coverage/_coverage_report.dat.
+          #
+          # Do NOT use --config=ci here. That config sets
+          # DOCKER_HOST=tcp://docker:2375 and TESTCONTAINERS_HOST_OVERRIDE=docker
+          # for the self-hosted DinD environment that coverage.yaml uses,
+          # but testbot.yaml runs on ubuntu-latest with the runner's
+          # local docker socket. With --config=ci, testcontainers-based
+          # integration tests fail to reach the daemon and produce zero
+          # DA hits — that's how PR #1058 ended up with the verifier
+          # reporting 0/97 while Codecov's later pr-checks run (which
+          # has DinD wired up properly) confirmed 93/97 hit.
+          # Scope to test targets in the directories the picker
+          # actually chose. `bazel coverage //...` ran 211 tests on
+          # run/26871947281 and took 10 minutes; the LLM's earlier
+          # in-Generate coverage call (scoped to the same package)
+          # produced the same numbers in 48 seconds. Same-directory
+          # patterns work across languages:
+          #   Go     src/utils/roles/user_role_sync.go  →  //src/utils/roles/...
+          #          (same-package roles_test + roles_integration_test)
+          #   Python src/utils/job/jobs.py             →  //src/utils/job/...
+          #          (picks up the tests/ subdir convention)
+          #   TS     src/ui/.../foo.ts                 →  //src/ui/.../...
+          patterns=$(python3 -c '
+          import json, os, sys
+          path = os.path.join(os.environ["RUNNER_TEMP"], "targets_meta.json")
+          try:
+              meta = json.load(open(path))
+          except (OSError, json.JSONDecodeError):
+              # fail-open to //... so a stale/missing meta still produces
+              # a (slower) report rather than skipping coverage entirely
+              print("//...")
+              sys.exit(0)
+          dirs = sorted({
+              entry["file_path"].rsplit("/", 1)[0]
+              for entry in meta
+              if isinstance(entry, dict) and entry.get("file_path") and "/" in entry["file_path"]
+          })
+          print(" ".join(f"//{d}/..." for d in dirs) if dirs else "//...")
+          ')
+          echo "::group::bazel coverage $patterns"
+          bazel coverage $patterns 2>&1 | tail -50
           coverage_status=${PIPESTATUS[0]}
           echo "::endgroup::"
           echo "bazel coverage exit_status: $coverage_status"
@@ -335,17 +401,38 @@ jobs:
           if [[ -s "$RUNNER_TEMP/coverage_report.json" ]]; then
             coverage_flag="--coverage-report $RUNNER_TEMP/coverage_report.json"
           fi
+          # --generate-summary is similarly fail-soft: when the file is
+          # missing (LLM produced no final result text), the PR body
+          # still renders without the section.
+          summary_flag=""
+          if [[ -s "$RUNNER_TEMP/generate_summary.md" ]]; then
+            summary_flag="--generate-summary $RUNNER_TEMP/generate_summary.md"
+          fi
           PYTHONPATH=src/scripts python -m testbot.create_pr \
             --targets-meta "$RUNNER_TEMP/targets_meta.json" \
-            $coverage_flag
+            $coverage_flag \
+            $summary_flag
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          # FORCE_CREATE_PR bypasses the create_pr.py script-level guard
+          # against stacking on top of an already-open ai-generated PR.
+          # Pairs with force_run (which bypasses the *job-level*
+          # preflight) for end-to-end branch verification when an
+          # unapproved testbot PR is already open.
+          FORCE_CREATE_PR: ${{ inputs.force_create_pr || 'false' }}
+          # SKIP_SLACK uses the same env-var pattern as FORCE_CREATE_PR
+          # (script checks the string at runtime). The earlier YAML-
+          # expression form `inputs.skip_slack && '' || <secret>`
+          # didn't work because GHA expressions treat empty string as
+          # falsy: `'' || X` collapses to `X`, so the secret always
+          # reached create_pr.py. Run #26870328623 verified that
+          # failure mode — Slack still posted despite skip_slack=true.
+          SKIP_SLACK: ${{ inputs.skip_slack || 'false' }}
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          # workflow_dispatch override wins when present (including
-          # the empty string, which means "skip notification"). For
-          # schedule triggers inputs.slack_channel is null, so we fall
-          # back to the org/repo var. The literal #osmo-slack-test is
-          # the safety-net default for forks / dev repos where the var
+          # workflow_dispatch override wins when present. For schedule
+          # triggers inputs.slack_channel is null, so we fall back to
+          # the org/repo var. The literal #osmo-slack-test is the
+          # safety-net default for forks / dev repos where the var
           # isn't set — prod has vars.TESTBOT_SLACK_CHANNEL configured
           # to #osmo-code-reviews and the workflow_dispatch input
           # default mirrors that.

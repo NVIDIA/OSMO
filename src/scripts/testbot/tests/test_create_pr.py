@@ -10,7 +10,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from src.scripts.testbot.create_pr import (
+from src.scripts.testbot.create_pr import (  # noqa: E501
+    _build_generator_summary_section,
     SLACK_API_URL,
     TESTBOT_SLACK_CHANNEL_DEFAULT,
     _build_coverage_section,
@@ -24,6 +25,7 @@ from src.scripts.testbot.create_pr import (
     _resolve_slack_channel,
     _scan_suspected_bugs,
     _test_to_source_path,
+    _test_to_source_paths,
     has_unapproved_testbot_pr,
     main,
 )
@@ -67,6 +69,34 @@ class TestHasUnapprovedTestbotPr(unittest.TestCase):
     def test_gh_command_fails_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 1, stdout="", stderr="error")
         self.assertTrue(has_unapproved_testbot_pr())
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_force_create_pr_bypasses_check_without_running_gh(self, mock_run):
+        # The workflow_dispatch `force_create_pr=true` input sets
+        # FORCE_CREATE_PR=true. The script must short-circuit BEFORE
+        # invoking `gh pr list` so that branch-side verification runs
+        # don't get blocked by an already-open ai-generated PR.
+        with patch.dict(os.environ, {"FORCE_CREATE_PR": "true"}, clear=False):
+            self.assertFalse(has_unapproved_testbot_pr())
+        mock_run.assert_not_called()
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_force_create_pr_case_insensitive(self, mock_run):
+        # Tolerate "True" / "TRUE" from YAML boolean coercion.
+        for value in ("true", "True", "TRUE"):
+            mock_run.reset_mock()
+            with patch.dict(os.environ, {"FORCE_CREATE_PR": value}, clear=False):
+                self.assertFalse(has_unapproved_testbot_pr())
+            mock_run.assert_not_called()
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_force_create_pr_false_or_unset_falls_through_to_gh(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="2\n")
+        for value in ("false", "False", "", "0"):
+            mock_run.reset_mock(return_value=False)
+            with patch.dict(os.environ, {"FORCE_CREATE_PR": value}, clear=False):
+                self.assertTrue(has_unapproved_testbot_pr())
+            mock_run.assert_called_once()
 
     @patch("src.scripts.testbot.create_pr.run")
     def test_non_numeric_output_returns_true_fail_closed(self, mock_run):
@@ -371,6 +401,112 @@ class TestSlackReviewRequest(unittest.TestCase):
         self.assertEqual(post_mock.call_args.kwargs["bot_token"], "token")
         self.assertEqual(post_mock.call_args.kwargs["channel"], "#osmo-slack-test")
 
+    def test_main_pr_body_files_tested_lists_source_paths(self):
+        # "Files tested" should list the source files the picker
+        # targeted, not the test files that were committed (those
+        # appear in the diff already). PR #1065 surfaced this — the
+        # body showed src/utils/job/tests/test_backend_jobs.py
+        # instead of the more reviewer-useful
+        # src/utils/job/backend_jobs.py. Test by capturing the body
+        # passed to gh pr create via subprocess.run's args.
+        gh_create_result = subprocess.CompletedProcess(
+            [], 0, stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8",
+        ) as meta_fh:
+            json.dump([
+                {
+                    "file_path": "src/utils/job/backend_jobs.py",
+                    "coverage_pct": 23.6,
+                    "uncovered_lines": 60,
+                    "uncovered_ranges": [[105, 110]],
+                    "reason": "test rationale",
+                },
+            ], meta_fh)
+            meta_path = meta_fh.name
+        env = {"TESTBOT_SLACK_BOT_TOKEN": "", "SKIP_SLACK": "true"}
+        try:
+            with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                       return_value=False), \
+                    patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                          return_value=[
+                              "src/utils/job/tests/test_backend_jobs.py",
+                              "src/utils/job/tests/BUILD",
+                          ]), \
+                    patch("src.scripts.testbot.create_pr.run",
+                          return_value=subprocess.CompletedProcess([], 0)), \
+                    patch("src.scripts.testbot.create_pr.subprocess.run") as run_mock, \
+                    patch("src.scripts.testbot.create_pr._scan_suspected_bugs",
+                          return_value=[]), \
+                    patch.object(sys, "argv", ["create_pr.py",
+                                               "--targets-meta", meta_path]), \
+                    patch.dict(os.environ, env, clear=True):
+                run_mock.side_effect = [
+                    subprocess.CompletedProcess([], 0),  # git commit
+                    gh_create_result,                    # gh pr create
+                ]
+                main()
+        finally:
+            os.unlink(meta_path)
+
+        # Last subprocess.run call was `gh pr create ... --body <body>`
+        # Find the --body arg payload.
+        gh_calls = [
+            call for call in run_mock.call_args_list
+            if call.args and call.args[0] and call.args[0][:3] == ["gh", "pr", "create"]
+        ]
+        self.assertEqual(len(gh_calls), 1)
+        argv = gh_calls[0].args[0]
+        body = argv[argv.index("--body") + 1]
+
+        self.assertIn("## Files tested", body)
+        # Source path appears in body, test file path does NOT.
+        self.assertIn("`src/utils/job/backend_jobs.py`", body)
+        self.assertNotIn(
+            "`src/utils/job/tests/test_backend_jobs.py`", body,
+            "test file path leaked into 'Files tested' — should show source",
+        )
+        # Title still uses the source basename as before.
+        title = argv[argv.index("--title") + 1]
+        self.assertIn("backend_jobs.py", title)
+        self.assertNotIn("test_backend_jobs.py", title)
+
+    def test_main_skips_slack_when_skip_slack_env_true(self):
+        # workflow_dispatch skip_slack=true sets SKIP_SLACK=true.
+        # _post_slack_review_request must NOT be invoked even though
+        # the token and channel env vars are populated. This regressed
+        # in run #26870328623 — the previous YAML expression form
+        # collapsed back to the secret, so we now check the env var
+        # in Python directly.
+        gh_create_result = subprocess.CompletedProcess(
+            [], 0, stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
+        )
+        env = {
+            "TESTBOT_SLACK_BOT_TOKEN": "token",
+            "TESTBOT_SLACK_CHANNEL": "#osmo-code-reviews",
+            "SKIP_SLACK": "true",
+        }
+        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                   return_value=False), \
+                patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                      return_value=["src/lib/tests/test_foo.py"]), \
+                patch("src.scripts.testbot.create_pr.run",
+                      return_value=subprocess.CompletedProcess([], 0)), \
+                patch("src.scripts.testbot.create_pr.subprocess.run") as run_mock, \
+                patch("src.scripts.testbot.create_pr._scan_suspected_bugs",
+                      return_value=[]), \
+                patch("src.scripts.testbot.create_pr._post_slack_review_request") \
+                as post_mock, \
+                patch.object(sys, "argv", ["create_pr.py"]), \
+                patch.dict(os.environ, env, clear=True):
+            run_mock.side_effect = [
+                subprocess.CompletedProcess([], 0),
+                gh_create_result,
+            ]
+            main()
+        post_mock.assert_not_called()
+
 
 class TestScanSuspectedBugs(unittest.TestCase):
     """Tests for _scan_suspected_bugs marker extraction."""
@@ -549,6 +685,27 @@ class TestTestToSourcePath(unittest.TestCase):
     def test_unrecognized_pattern_returns_none(self):
         self.assertIsNone(_test_to_source_path("README.md"))
 
+    def test_go_integration_test_returns_two_candidates(self):
+        # PR #1058 regression: user_role_sync_integration_test.go must
+        # map to user_role_sync.go (the picker's real source target),
+        # not user_role_sync_integration.go (the naive _test strip).
+        # Both are returned so the caller can prefer whichever exists
+        # in the picker meta.
+        candidates = _test_to_source_paths(
+            "src/utils/roles/user_role_sync_integration_test.go"
+        )
+        self.assertEqual(candidates, [
+            "src/utils/roles/user_role_sync_integration.go",
+            "src/utils/roles/user_role_sync.go",
+        ])
+
+    def test_plain_go_test_returns_single_candidate(self):
+        # No _integration_test suffix → only the naive strip.
+        self.assertEqual(
+            _test_to_source_paths("src/utils/roles/roles_test.go"),
+            ["src/utils/roles/roles.go"],
+        )
+
 
 class TestLoadTargetsMeta(unittest.TestCase):
     """Tests for picker-sidecar JSON loading."""
@@ -599,6 +756,50 @@ class TestBuildRationaleSection(unittest.TestCase):
 
     def test_empty_when_no_meta(self):
         self.assertEqual(_build_rationale_section(["src/x/tests/test_y.py"], {}), "")
+
+    def test_go_integration_test_attaches_rationale_to_underscore_source(self):
+        # PR #1058 regression: the rationale silently dropped because
+        # the naive `_test` strip mapped the integration test to
+        # `user_role_sync_integration.go` instead of the picker's
+        # target `user_role_sync.go`. The fallback candidate must
+        # match the picker meta.
+        meta = {
+            "src/utils/roles/user_role_sync.go": {
+                "file_path": "src/utils/roles/user_role_sync.go",
+                "coverage_pct": 0.0,
+                "uncovered_lines": 97,
+                "reason": "Owns IDP-to-OSMO role sync — RBAC blast radius.",
+            },
+        }
+        section = _build_rationale_section(
+            ["src/utils/roles/user_role_sync_integration_test.go"],
+            meta,
+        )
+        self.assertIn("`src/utils/roles/user_role_sync.go`", section)
+        self.assertIn("Owns IDP-to-OSMO role sync", section)
+
+    def test_prefers_naive_strip_when_both_candidates_match_meta(self):
+        # Hypothetical: meta has BOTH `kafka_integration.go` (a real
+        # source file) and `kafka.go`. The naive strip wins so we
+        # don't accidentally attach the kafka-integration rationale to
+        # kafka.go.
+        meta = {
+            "src/foo/kafka.go": {
+                "file_path": "src/foo/kafka.go",
+                "coverage_pct": 50.0, "uncovered_lines": 10,
+                "reason": "kafka rationale",
+            },
+            "src/foo/kafka_integration.go": {
+                "file_path": "src/foo/kafka_integration.go",
+                "coverage_pct": 30.0, "uncovered_lines": 20,
+                "reason": "kafka_integration rationale",
+            },
+        }
+        section = _build_rationale_section(
+            ["src/foo/kafka_integration_test.go"], meta,
+        )
+        self.assertIn("kafka_integration rationale", section)
+        self.assertNotIn("kafka rationale", section)
 
     def test_singular_heading_for_one_target(self):
         meta = {
@@ -752,6 +953,65 @@ class TestBuildRationaleSection(unittest.TestCase):
         )
         self.assertIn("**`src/lib/foo.py`**", section)
         self.assertNotIn("> ", section)
+
+
+class TestBuildGeneratorSummarySection(unittest.TestCase):
+    """Tests for the Generator-summary section renderer."""
+
+    def _write_temp(self, content: str) -> str:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8",
+        ) as fh:
+            fh.write(content)
+            return fh.name
+
+    def test_empty_path_returns_empty(self):
+        self.assertEqual(_build_generator_summary_section(""), "")
+
+    def test_missing_file_returns_empty_without_raising(self):
+        # Fail-soft: a missing summary file just omits the section
+        # rather than crashing PR creation (it's optional context).
+        self.assertEqual(
+            _build_generator_summary_section("/nonexistent/summary.md"), "",
+        )
+
+    def test_renders_section_with_llm_body(self):
+        body = (
+            "## Coverage Report\n\n"
+            "**Target: `src/utils/roles/user_role_sync.go`**\n\n"
+            "- Lines now hit: **93 / 97 (96%)**\n"
+            "- Lines still uncovered: **4**\n"
+        )
+        path = self._write_temp(body)
+        try:
+            section = _build_generator_summary_section(path)
+        finally:
+            os.unlink(path)
+        self.assertTrue(section.startswith("## Generator summary"))
+        self.assertIn("93 / 97 (96%)", section)
+        self.assertIn("user_role_sync.go", section)
+        # No spurious double-newlines around the heading.
+        self.assertNotIn("\n\n\n\n", section)
+
+    def test_strips_leading_and_trailing_whitespace_from_body(self):
+        path = self._write_temp("\n\n\nactual content\n\n\n")
+        try:
+            section = _build_generator_summary_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn("actual content", section)
+        # Section ends with a single trailing newline (delimiter for
+        # the next section), no extra blanks.
+        self.assertTrue(section.endswith("actual content\n"))
+
+    def test_blank_summary_file_returns_empty(self):
+        # If the LLM produced no final text, drop the section entirely
+        # rather than emitting an empty heading.
+        path = self._write_temp("   \n\n\t\n")
+        try:
+            self.assertEqual(_build_generator_summary_section(path), "")
+        finally:
+            os.unlink(path)
 
 
 class TestBuildCoverageSection(unittest.TestCase):

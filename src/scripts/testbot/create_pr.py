@@ -58,7 +58,19 @@ def has_unapproved_testbot_pr() -> bool:
     Filters by both label and author so that developer PRs manually
     labeled ai-generated don't block new testbot runs.
     Returns True (fail closed) if the gh command fails.
+
+    Bypass: when ``FORCE_CREATE_PR=true`` is exported in the
+    environment, returns False unconditionally. This pairs with the
+    workflow_dispatch ``force_create_pr`` input for end-to-end branch
+    verification — without it, a real PR can't be generated while an
+    unapproved testbot PR is already open, which is exactly the case
+    when you're iterating on testbot itself.
     """
+    if os.environ.get("FORCE_CREATE_PR", "").lower() == "true":
+        logger.info(
+            "FORCE_CREATE_PR=true; bypassing has_unapproved_testbot_pr",
+        )
+        return False
     result = run(
         ["gh", "pr", "list", "--label", "ai-generated", "--state", "open",
          "--author", "svc-osmo-ci",
@@ -139,13 +151,46 @@ _TEST_TO_SOURCE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def _test_to_source_path(test_path: str) -> str | None:
-    """Return the source path a test file covers, or None if unknown."""
+def _test_to_source_paths(test_path: str) -> list[str]:
+    """Return the source paths a test file may cover, most-specific first.
+
+    Returns a list because a Go integration test name like
+    ``foo_integration_test.go`` is ambiguous: it could test
+    ``foo_integration.go`` (the naive ``_test`` strip) *or* ``foo.go``
+    (the OSMO convention for integration tests of ``foo.go``, e.g.,
+    ``user_role_sync_integration_test.go`` → ``user_role_sync.go``,
+    ``authz_server_integration_test.go`` → ``authz_server.go``). PR
+    #1058 surfaced this — the naive strip didn't match the picker's
+    meta key and the rationale section got dropped.
+
+    Callers walk the returned list and pick the first candidate that
+    exists in the picker meta (or on disk).
+    """
+    candidates: list[str] = []
     for pattern, replacement in _TEST_TO_SOURCE_PATTERNS:
         match = pattern.fullmatch(test_path)
         if match:
-            return pattern.sub(replacement, test_path)
-    return None
+            candidates.append(pattern.sub(replacement, test_path))
+            break
+    # Go integration test fallback: strip the trailing `_integration`
+    # too. Added after the naive strip so callers prefer the more
+    # specific match when both candidates exist in meta.
+    if test_path.endswith("_integration_test.go"):
+        base = test_path[: -len("_integration_test.go")]
+        simplified = f"{base}.go"
+        if simplified not in candidates:
+            candidates.append(simplified)
+    return candidates
+
+
+def _test_to_source_path(test_path: str) -> str | None:
+    """Return the most-specific source path a test file covers.
+
+    Backward-compatible wrapper around :func:`_test_to_source_paths`
+    for callers (and existing tests) that need a single value.
+    """
+    candidates = _test_to_source_paths(test_path)
+    return candidates[0] if candidates else None
 
 
 def _load_targets_meta(path: str) -> dict[str, dict]:
@@ -169,6 +214,32 @@ def _load_targets_meta(path: str) -> dict[str, dict]:
         for entry in entries
         if isinstance(entry, dict) and entry.get("file_path")
     }
+
+
+def _build_generator_summary_section(path: str) -> str:
+    """Render the generator's final summary into the PR body.
+
+    The Generate step writes the LLM's final ``result`` text — which
+    typically contains the LLM's own per-target coverage breakdown,
+    per-range hit/miss reasoning, and a "Files changed" recap — to
+    ``$RUNNER_TEMP/generate_summary.md``. Embedding that block in the
+    PR body gives reviewers the same narrative the LLM produced
+    instead of only the harness's bare-numbers coverage section.
+
+    Missing / unreadable summary file yields an empty string so the PR
+    opens unchanged. Leading/trailing whitespace is stripped to avoid
+    extra blank lines around the section.
+    """
+    if not path:
+        return ""
+    try:
+        body = Path(path).read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        logger.warning("Could not read generator summary %s: %s", path, exc)
+        return ""
+    if not body:
+        return ""
+    return f"## Generator summary\n\n{body}\n"
 
 
 def _build_coverage_section(path: str) -> str:
@@ -257,10 +328,18 @@ def _build_rationale_section(
     seen_sources: list[str] = []
     seen_set: set[str] = set()
     for test_path in changed_files:
-        source = _test_to_source_path(test_path)
-        if source and source in meta and source not in seen_set:
-            seen_set.add(source)
-            seen_sources.append(source)
+        # Walk candidates in specificity order — most-specific (naive
+        # `_test` strip) first, falling back to `_integration_test`
+        # stripping. The first match against the picker meta wins, so
+        # `user_role_sync_integration_test.go` correctly attaches the
+        # rationale meant for `user_role_sync.go` while a hypothetical
+        # `kafka_integration_test.go` testing `kafka_integration.go`
+        # still resolves to the more-specific target.
+        for candidate in _test_to_source_paths(test_path):
+            if candidate in meta and candidate not in seen_set:
+                seen_set.add(candidate)
+                seen_sources.append(candidate)
+                break
     if not seen_sources:
         return ""
     heading = (
@@ -449,6 +528,14 @@ def main() -> None:
              "uncovered ranges' section so reviewers can see how many of "
              "the picker's listed lines the generated tests actually hit",
     )
+    parser.add_argument(
+        "--generate-summary", default="",
+        help="Optional path to the LLM's final result text dumped by the "
+             "Generate step. When present, embedded verbatim in a "
+             "'Generator summary' section so reviewers see the LLM's own "
+             "narrative (per-target breakdown, still-uncovered reasoning, "
+             "files changed) alongside the harness's bare-numbers report.",
+    )
     args = parser.parse_args()
 
     if has_unapproved_testbot_pr():
@@ -465,15 +552,50 @@ def main() -> None:
 
     logger.info("Changed test files: %s", changed_files)
 
-    basenames = sorted({f.rsplit("/", maxsplit=1)[-1] for f in changed_files})
-    # Strip test prefixes/suffixes to show source file names in the PR title.
-    # test_foo.py → foo.py, foo_test.go → foo.go, foo.test.ts → foo.ts
-    source_names = sorted({
-        re.sub(r"^test_", "", re.sub(r"[._]test(\.\w+)$", r"\1", name))
-        for name in basenames
-    })
-    files_summary = ", ".join(source_names)
-    files_list = "\n".join(f"- `{f}`" for f in changed_files)
+    # Load picker meta early so the title can prefer the picker's
+    # canonical source path over the naive `_test` strip — important
+    # for `_integration_test.go` files where the strip otherwise
+    # yields a non-existent `foo_integration.go` instead of `foo.go`.
+    targets_meta = _load_targets_meta(args.targets_meta)
+
+    # Walk each changed test file to its source-file equivalent using the
+    # meta-aware mapping (handles _integration_test.go correctly).
+    # Non-test changes (BUILD edits) are recorded separately so we can
+    # render them under "Files tested" without confusing source vs test.
+    source_paths: set[str] = set()
+    non_test_basenames: set[str] = set()
+    for test_path in changed_files:
+        candidates = _test_to_source_paths(test_path)
+        if not candidates:
+            # Non-test file (e.g., the BUILD edit) — keep its basename
+            # for the title fallback.
+            non_test_basenames.add(test_path.rsplit("/", maxsplit=1)[-1])
+            continue
+        # Prefer the candidate the picker actually targeted; fall back
+        # to the most-specific naive strip when no picker meta is
+        # available (local dry-run, ad-hoc dispatch).
+        chosen = next(
+            (c for c in candidates if c in targets_meta),
+            candidates[0],
+        )
+        source_paths.add(chosen)
+
+    # Title uses basenames of the source files (and non-test files like
+    # BUILD), summarized — keeps the historical title shape.
+    source_basenames = {p.rsplit("/", maxsplit=1)[-1] for p in source_paths}
+    files_summary = ", ".join(sorted(source_basenames | non_test_basenames))
+
+    # "Files tested" body section lists the SOURCE files the picker
+    # targeted — what reviewers actually want to scan. The committed
+    # test file paths still appear in the diff, so we don't lose
+    # information by hiding them here. Fall back to listing all
+    # changed files when we couldn't resolve any source path (entirely
+    # non-test diff — shouldn't happen for a real testbot run but keeps
+    # the section non-empty defensively).
+    if source_paths:
+        files_list = "\n".join(f"- `{p}`" for p in sorted(source_paths))
+    else:
+        files_list = "\n".join(f"- `{f}`" for f in changed_files)
 
     branch = f"testbot/{datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%d-%H%M")}"
 
@@ -499,7 +621,7 @@ def main() -> None:
         bugs_list = "\n".join(f"- {bug}" for bug in suspected_bugs)
         bugs_section = f"\n## Suspected bugs\n{bugs_list}\n"
 
-    targets_meta = _load_targets_meta(args.targets_meta)
+    # targets_meta already loaded above for the title computation.
     rationale_section = _build_rationale_section(changed_files, targets_meta)
     if rationale_section:
         rationale_section = "\n" + rationale_section
@@ -507,6 +629,12 @@ def main() -> None:
     coverage_section = _build_coverage_section(args.coverage_report)
     if coverage_section:
         coverage_section = "\n" + coverage_section
+
+    generator_summary_section = _build_generator_summary_section(
+        args.generate_summary,
+    )
+    if generator_summary_section:
+        generator_summary_section = "\n" + generator_summary_section
 
     pr_title = f"[testbot] Add tests for {files_summary}"
     pr_body = f"""## Summary
@@ -516,7 +644,7 @@ Issue - None
 
 ## Files tested
 {files_list}
-{rationale_section}{coverage_section}{bugs_section}
+{rationale_section}{generator_summary_section}{coverage_section}{bugs_section}
 ## Checklist
 - [x] I am familiar with the Contributing Guidelines
 - [x] New or existing tests cover these changes
@@ -541,21 +669,28 @@ Generated by testbot pipeline"""
     logger.info("PR created: %s", pr_url or result.stdout.strip())
     if not _enable_auto_merge(pr_url):
         sys.exit(1)
-    # Resolve channel with the unset-vs-empty distinction:
-    #   - var absent (e.g., local debug)   → fall back to the default
-    #   - var present and empty            → propagate "" so the
-    #     downstream helper short-circuits (workflow_dispatch operator
-    #     explicitly opted out of notification)
-    raw_channel = os.environ.get("TESTBOT_SLACK_CHANNEL")
-    channel = (
-        TESTBOT_SLACK_CHANNEL_DEFAULT if raw_channel is None else raw_channel
-    )
-    _post_slack_review_request(
-        bot_token=_get_slack_bot_token(),
-        channel=channel,
-        pr_url=pr_url,
-        pr_title=pr_title,
-    )
+    # SKIP_SLACK is the workflow_dispatch opt-out signal. GHA
+    # expressions treat empty string as falsy (`'' || X` collapses to
+    # X), so we can't use a YAML expression to *blank* the channel/
+    # token env vars — we use a separate string-typed env instead and
+    # check it here. Same pattern as FORCE_CREATE_PR.
+    if os.environ.get("SKIP_SLACK", "").lower() == "true":
+        logger.info("SKIP_SLACK=true; skipping Slack review request")
+    else:
+        # Resolve channel with the unset-vs-empty distinction:
+        #   - var absent (e.g., local debug)   → fall back to the default
+        #   - var present and empty            → propagate "" so the
+        #     downstream helper short-circuits
+        raw_channel = os.environ.get("TESTBOT_SLACK_CHANNEL")
+        channel = (
+            TESTBOT_SLACK_CHANNEL_DEFAULT if raw_channel is None else raw_channel
+        )
+        _post_slack_review_request(
+            bot_token=_get_slack_bot_token(),
+            channel=channel,
+            pr_url=pr_url,
+            pr_title=pr_title,
+        )
 
 
 if __name__ == "__main__":
