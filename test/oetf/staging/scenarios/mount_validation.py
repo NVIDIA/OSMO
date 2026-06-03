@@ -21,10 +21,10 @@ class MountValidation(RunnerFixture):
     timeout = "1m"
 
     def test_invalid_host_mount(self):
-        self.workflow("validation/workflow/invalid_mount.yaml").expect_failed_submission()
+        self.workflow("test/workflow/invalid_mount.yaml").expect_failed_submission()
 
     def test_invalid_src_dest_mount(self):
-        self.workflow("validation/workflow/invalid_src_dest_mount.yaml") \
+        self.workflow("test/workflow/invalid_src_dest_mount.yaml") \
             .expect_failed_submission()
 
 

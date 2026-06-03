@@ -231,20 +231,20 @@ Four test shapes, all Bazel `py_test` targets:
 | Shape | BUILD macro | Example target | What it does |
 |---|---|---|---|
 | **smoke** | `oetf_smoke_test` | `//test/oetf/staging/smoke:api-checks` | HTTP / CLI / WebSocket probes of the target instance. No workflows submitted. |
-| **scenario** (plain) | `oetf_scenario_test(src=...)` | `//test/oetf/staging/scenarios:privileged` | Submit a referenced workflow YAML (under `validation/workflow/`), poll, assert outcome. One py_test class per tightly related group of scenarios. |
+| **scenario** (plain) | `oetf_scenario_test(src=...)` | `//test/oetf/staging/scenarios:privileged` | Submit a referenced workflow YAML (under `test/workflow/`), poll, assert outcome. One py_test class per tightly related group of scenarios. |
 | **scenario** (split) | `oetf_scenario_test(src=..., test_filter=...)` | `//test/oetf/staging/scenarios:serial-workflow` | Same as plain, but one Bazel target per test method so Bazel parallelizes them. Used for files whose combined runtime exceeded ~120s. |
 | **scenario** (3-file) | `oetf_scenario_test(test_dir=...)` | `//test/oetf/staging/scenarios:router-connectivity` | Plain scenario plus a `task.py` injected into the container. Used when both in-container and caller-side assertions matter. |
 
 ### Scenario layouts: plain vs 3-file
 
 Plain scenarios reference an existing workflow YAML under
-`validation/workflow/`; 3-file scenarios bundle their own spec plus a
+`test/workflow/`; 3-file scenarios bundle their own spec plus a
 `task.py` that runs inside the container:
 
 ```
 staging/scenarios/serial.py            ← plain scenario: a py test file whose methods
-                                         call self.workflow("validation/workflow/<X>.yaml")
-                                         against already-existing yamls under validation/workflow/
+                                         call self.workflow("test/workflow/<X>.yaml")
+                                         against already-existing yamls under test/workflow/
 
 staging/scenarios/router_connectivity/ ← 3-file scenario (in-task code)
 ├── spec.yaml         ← workflow definition; submitted as-is
@@ -380,12 +380,12 @@ from test.oetf.runner_fixture import RunnerFixture
 class MyWorkflows(RunnerFixture):
     def test_my_flow(self):
         # Happy path — one chained expression:
-        self.workflow("validation/workflow/my_workflow.yaml") \
+        self.workflow("test/workflow/my_workflow.yaml") \
             .expect_completed()
 
     def test_my_flow_with_set_vars(self):
         # Override Jinja template vars via .args():
-        self.workflow("validation/workflow/group_actions.yaml") \
+        self.workflow("test/workflow/group_actions.yaml") \
             .args("ignore_nonlead_status=false") \
             .expect_failed()
 ```
@@ -414,7 +414,7 @@ class CliWorkflows(RunnerFixture):
     timeout = "5m"               # class default — OETF poll deadline
 
     def test_exec_workflow(self):
-        self.workflow("validation/workflow/exec_workflow.yaml") \
+        self.workflow("test/workflow/exec_workflow.yaml") \
             .timeout("10m") \    # per-submission override
             .expect_completed()
 ```
@@ -745,7 +745,7 @@ class LoggerLoadTest(RunnerFixture):
         # Each workflow runs a task that streams stdout through osmo-ctrl
         # to the logger service, which is fronted by Envoy.
         handles = [
-            self.workflow("validation/workflow/serial_workflow.yaml").submit()
+            self.workflow("test/workflow/serial_workflow.yaml").submit()
             for _ in range(50)
         ]
         self.wait_all(handles)

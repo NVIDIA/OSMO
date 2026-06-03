@@ -21,29 +21,29 @@ class ExitActionsWorkflows(RunnerFixture):
     timeout = "5m"
 
     def test_exit_actions(self):
-        self.workflow("validation/workflow/exit_actions.yaml") \
+        self.workflow("test/workflow/exit_actions.yaml") \
             .expect_completed()
 
     def test_exit_actions_failed(self):
         """Negative: code=1 task should fail (exit action handles it)."""
-        self.workflow("validation/workflow/exit_actions.yaml") \
+        self.workflow("test/workflow/exit_actions.yaml") \
             .args("code=1") \
             .expect_failed()
 
     def test_group_actions(self):
         """Negative: non-lead status propagates to fail the group."""
-        self.workflow("validation/workflow/group_actions.yaml") \
+        self.workflow("test/workflow/group_actions.yaml") \
             .args("ignore_nonlead_status=false") \
             .expect_failed()
 
     def test_ignore_group_actions(self):
         """Positive: non-lead failure is ignored, group passes."""
-        self.workflow("validation/workflow/group_actions.yaml") \
+        self.workflow("test/workflow/group_actions.yaml") \
             .args("ignore_nonlead_status=true") \
             .expect_completed()
 
     def test_restart_reschedule(self):
-        self.workflow("validation/workflow/restart.yaml") \
+        self.workflow("test/workflow/restart.yaml") \
             .timeout("10m") \
             .expect_completed()
 

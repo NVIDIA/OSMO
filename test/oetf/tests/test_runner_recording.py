@@ -106,7 +106,7 @@ class ExpectFailedSubmissionTest(unittest.TestCase):
         fixture._recorder = recorder  # pylint: disable=protected-access
         builder = WorkflowBuilder.__new__(WorkflowBuilder)
         builder._fixture = fixture  # pylint: disable=protected-access
-        builder._spec_path = "validation/workflow/serial_workflow.yaml"  # pylint: disable=protected-access
+        builder._spec_path = "test/workflow/serial_workflow.yaml"  # pylint: disable=protected-access
         # Stub submit() to raise the expected error AFTER recording the step
         # as failed (mirroring the real submit + _record_step interaction).
         def stub_submit():

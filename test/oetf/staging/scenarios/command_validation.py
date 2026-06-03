@@ -21,10 +21,10 @@ class CommandValidation(RunnerFixture):
     timeout = "1m"
 
     def test_empty_command(self):
-        self.workflow("validation/workflow/empty_command.yaml").expect_failed_submission()
+        self.workflow("test/workflow/empty_command.yaml").expect_failed_submission()
 
     def test_bad_command(self):
-        self.workflow("validation/workflow/bad_command.yaml").expect_failed_submission()
+        self.workflow("test/workflow/bad_command.yaml").expect_failed_submission()
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ def oetf_scenario_test(
         src = None,
         test_dir = None,
         data = [],
-        workflow_data = ["//validation/workflow:all_workflow_yamls"],
+        workflow_data = ["//test/workflow:all_workflow_yamls"],
         tags = [],
         test_filter = None,
         size = "large",
@@ -85,11 +85,11 @@ def oetf_scenario_test(
       src: single .py file for plain scenarios. Mutually exclusive with test_dir.
       test_dir: dir containing test_runner.py + spec.yaml + task.py.
       data: extra runfiles (e.g. other specs referenced via self.workflow()).
-      workflow_data: label(s) of the validation/workflow filegroup(s) bundled
-        as runfiles so self.workflow("validation/workflow/...") resolves.
-        Default `["//validation/workflow:all_workflow_yamls"]` (today's
+      workflow_data: label(s) of the test/workflow filegroup(s) bundled
+        as runfiles so self.workflow("test/workflow/...") resolves.
+        Default `["//test/workflow:all_workflow_yamls"]` (today's
         behavior). Post-migration overlay packages pass their own internal
-        filegroup label (e.g. `["//test/oetf/validation/workflow:all_internal_yamls"]`).
+        filegroup label (e.g. `["//test/workflow:all_internal_yamls"]`).
       tags: additional filter tags (e.g. ["router", "load"]).
       test_filter: optional "ClassName.test_method" — emitted as an argv arg
         so `unittest` only runs the one method. Used to split slow files
@@ -108,9 +108,9 @@ def oetf_scenario_test(
         srcs = [src]
         main = src
 
-    # Bundle the chosen validation/workflow filegroup(s) so that
-    # self.workflow("validation/workflow/...") resolves to a real file in
-    # runfiles. Internal repo default is //validation/workflow:all_workflow_yamls;
+    # Bundle the chosen test/workflow filegroup(s) so that
+    # self.workflow("test/workflow/...") resolves to a real file in
+    # runfiles. Internal repo default is //test/workflow:all_workflow_yamls;
     # overlay packages override via the workflow_data arg.
     data = data + workflow_data
 

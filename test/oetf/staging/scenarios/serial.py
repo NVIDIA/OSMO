@@ -16,15 +16,15 @@ from test.oetf.runner_fixture import RunnerFixture
 
 
 class SerialWorkflows(RunnerFixture):
-    """Positive + negative serial-workflow cases from validation/workflow/."""
+    """Positive + negative serial-workflow cases from test/workflow/."""
 
     def test_serial_workflow(self):
-        self.workflow("validation/workflow/serial_workflow.yaml") \
+        self.workflow("test/workflow/serial_workflow.yaml") \
             .expect_completed()
 
     def test_serial_workflow_mounting(self):
         """Negative: mountpoint-s3 downloadType is not accepted."""
-        self.workflow("validation/workflow/serial_workflow.yaml") \
+        self.workflow("test/workflow/serial_workflow.yaml") \
             .args("download_type=mountpoint-s3") \
             .expect_failed_submission()
 
@@ -32,14 +32,14 @@ class SerialWorkflows(RunnerFixture):
     # image.
 
     def test_serial_workflow_update_dataset(self):
-        self.workflow("validation/workflow/serial_workflow_update_dataset.yaml") \
+        self.workflow("test/workflow/serial_workflow_update_dataset.yaml") \
             .expect_completed()
 
     # test_serial_workflow_multi_arch stays internal — needs a heterogeneous
     # pool not present in the public quick-start chart.
 
     def test_regex_workflow(self):
-        self.workflow("validation/workflow/regex_workflow.yaml") \
+        self.workflow("test/workflow/regex_workflow.yaml") \
             .expect_completed()
 
 

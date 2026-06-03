@@ -20,7 +20,7 @@ class ErrorHandlingWorkflows(RunnerFixture):
 
     def test_exec_timeout(self):
         """Expect a server-side exec_timeout termination."""
-        self.workflow("validation/workflow/exec_timeout.yaml") \
+        self.workflow("test/workflow/exec_timeout.yaml") \
             .expect_timeout()
 
     # test_catch_start_error stays internal — needs an internal-only OCI registry/start_error
@@ -28,13 +28,13 @@ class ErrorHandlingWorkflows(RunnerFixture):
 
     def test_resource_as_byte(self):
         """Positive: byte-spec resource values (e.g. cpu: 1024Mi) parse + run."""
-        self.workflow("validation/workflow/resource_type.yaml") \
+        self.workflow("test/workflow/resource_type.yaml") \
             .timeout("1m") \
             .expect_completed()
 
     def test_osmo_client_test(self):
         """In-task workflow that exercises the osmo CLI from inside the container."""
-        self.workflow("validation/workflow/osmo_client_test.yaml") \
+        self.workflow("test/workflow/osmo_client_test.yaml") \
             .expect_completed()
 
 

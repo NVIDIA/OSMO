@@ -24,22 +24,22 @@ class ResourceValidation(RunnerFixture):
     timeout = "1m"
 
     def test_cpu_too_high_v2(self):
-        self.workflow("validation/workflow/bad_resource_workflow_v2.yaml") \
+        self.workflow("test/workflow/bad_resource_workflow_v2.yaml") \
             .args("cpu=1000000") \
             .expect_failed_submission()
 
     def test_storage_too_high_v2(self):
-        self.workflow("validation/workflow/bad_resource_workflow_v2.yaml") \
+        self.workflow("test/workflow/bad_resource_workflow_v2.yaml") \
             .args("storage=1000000Gi") \
             .expect_failed_submission()
 
     def test_memory_too_high_v2(self):
-        self.workflow("validation/workflow/bad_resource_workflow_v2.yaml") \
+        self.workflow("test/workflow/bad_resource_workflow_v2.yaml") \
             .args("memory=1000000Gi") \
             .expect_failed_submission()
 
     def test_bad_platform_v2(self):
-        self.workflow("validation/workflow/bad_resource_workflow_v2.yaml") \
+        self.workflow("test/workflow/bad_resource_workflow_v2.yaml") \
             .args("platform=bad-platform") \
             .expect_failed_submission()
 

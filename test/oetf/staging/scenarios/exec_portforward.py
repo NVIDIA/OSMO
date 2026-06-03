@@ -22,11 +22,11 @@ class ExecPortforwardWorkflows(RunnerFixture):
     """In-task `osmo workflow exec` / `osmo workflow port-forward` smoke."""
 
     def test_exec_workflow(self):
-        self.workflow("validation/workflow/exec_workflow.yaml") \
+        self.workflow("test/workflow/exec_workflow.yaml") \
             .expect_completed()
 
     def test_portforward_workflow(self):
-        self.workflow("validation/workflow/portforward_workflow.yaml") \
+        self.workflow("test/workflow/portforward_workflow.yaml") \
             .expect_completed()
 
 

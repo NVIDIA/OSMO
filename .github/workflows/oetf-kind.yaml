@@ -8,7 +8,7 @@ on:
       - 'deployments/scripts/**'
       - 'deployments/values/**'
       - 'test/oetf/**'
-      - 'validation/workflow/**'
+      - 'test/workflow/**'
       - 'bzl/**'
       - 'MODULE.bazel'
       - 'src/**'

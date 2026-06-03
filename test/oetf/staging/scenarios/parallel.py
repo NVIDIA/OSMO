@@ -19,24 +19,24 @@ class ParallelWorkflows(RunnerFixture):
     """Parallel task execution + templated-files patterns."""
 
     def test_parallel_workflow_v2(self):
-        self.workflow("validation/workflow/parallel_workflow_v2.yaml") \
+        self.workflow("test/workflow/parallel_workflow_v2.yaml") \
             .expect_completed()
 
     def test_serial_workflow_templated_with_files(self):
-        self.workflow("validation/workflow/serial_workflow_mount.yaml") \
+        self.workflow("test/workflow/serial_workflow_mount.yaml") \
             .expect_completed()
 
     def test_parallel_workflow_templated_with_files_v2(self):
-        self.workflow("validation/workflow/parallel_workflow_mount_v2.yaml") \
+        self.workflow("test/workflow/parallel_workflow_mount_v2.yaml") \
             .expect_completed()
 
     def test_parallel_workflow_multi_groups(self):
-        self.workflow("validation/workflow/parallel_workflow_multi_groups.yaml") \
+        self.workflow("test/workflow/parallel_workflow_multi_groups.yaml") \
             .expect_completed()
 
     def test_parallel_workflow_leader_exits(self):
         """Negative: leader task exits, group should fail."""
-        self.workflow("validation/workflow/parallel_workflow_leader_exits.yaml") \
+        self.workflow("test/workflow/parallel_workflow_leader_exits.yaml") \
             .expect_failed()
 
 

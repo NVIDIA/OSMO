@@ -31,7 +31,7 @@ class AdvancedWorkflows(RunnerFixture):
     def test_folder_input(self):
         """Dataset localpath upload — requires CLI-mode submission (api-mode
         can't upload a directory tree)."""
-        self.workflow("validation/workflow/folder_input.yaml") \
+        self.workflow("test/workflow/folder_input.yaml") \
             .client("cli") \
             .expect_completed()
 
