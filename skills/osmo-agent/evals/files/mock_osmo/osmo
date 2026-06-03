@@ -98,18 +98,46 @@ case "$cmd $sub" in
       stuck-train-1)
         emit_fixture "workflow_query_pending.json"
         ;;
+      oom-train-1)
+        emit_fixture "workflow_query_oom.json"
+        ;;
+      tool-train-1)
+        emit_fixture "workflow_query_tool.json"
+        ;;
+      badimage-train-1)
+        emit_fixture "workflow_query_badimage.json"
+        ;;
+      sdg-train-1)
+        emit_fixture "workflow_query_sdg.json"
+        ;;
       *)
         emit_fixture "workflow_query.json" "workflow_query_single_task.json"
         ;;
     esac
     ;;
   "workflow logs")
-    emit_fixture "workflow_logs.txt" "workflow_logs_single_task.txt"
+    case "$3" in
+      tool-train-1)
+        emit_fixture "workflow_logs_tool.txt"
+        ;;
+      badimage-train-1)
+        emit_fixture "workflow_logs_badimage.txt"
+        ;;
+      *)
+        emit_fixture "workflow_logs.txt" "workflow_logs_single_task.txt"
+        ;;
+    esac
     ;;
   "workflow events")
     case "$3" in
       stuck-train-1)
         emit_fixture "workflow_events_pending.txt"
+        ;;
+      oom-train-1)
+        emit_fixture "workflow_events_oom.txt"
+        ;;
+      badimage-train-1)
+        emit_fixture "workflow_events_badimage.txt"
         ;;
       *)
         emit_fixture "workflow_events.txt"
@@ -121,12 +149,25 @@ case "$cmd $sub" in
       stuck-train-1)
         emit_fixture "workflow_spec_pending.yaml"
         ;;
+      sdg-train-1)
+        emit_fixture "workflow_spec_sdg.yaml"
+        ;;
       *)
         emit_fixture "workflow_spec_template.yaml"
         ;;
     esac
     ;;
   "workflow submit")
+    case "$3" in
+      *oversized.yaml)
+        oversized_marker="${OSMO_MOCK_OVERSIZED_MARKER:-/tmp/osmo_mock_oversized_seen}"
+        if [[ ! -f "$oversized_marker" ]]; then
+          touch "$oversized_marker"
+          emit_fixture "submit_validation_error.txt"
+          exit 1
+        fi
+        ;;
+    esac
     # Mirror real OSMO's per-name suffix counter: each submit of a base
     # workflow name produces `<name>-1`, `<name>-2`, ... so multi-submit
     # evals (e.g. eval-009) see realistic monotonic IDs. State lives in a
