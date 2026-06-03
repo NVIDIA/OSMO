@@ -34,7 +34,7 @@ orchestration.
      ```bash
      osmo workflow logs <workflow_id> -n 10000
      ```
-   - For two or more tasks, delegate to `agents/logs-reader.md` subagents, one
+   - For two or more tasks, delegate to `references/logs-reader.md` subagents, one
      subagent per five tasks. Do not fetch multi-task logs inline in the main
      conversation.
 3. Report the status using the rules below. Include Grafana and Kubernetes
@@ -125,7 +125,7 @@ After a workflow reaches `COMPLETED`:
 Use when the user wants you to create or submit a workflow, monitor it to a
 terminal state, handle failures, and report the result.
 
-1. Spawn the `agents/workflow-expert.md` subagent for setup and submission only.
+1. Spawn the `references/workflow-expert.md` subagent for setup and submission only.
    Ask it to write workflow YAML if needed, check resources, and submit. Do not
    ask it to monitor, poll, or report final results.
 2. The subagent returns the workflow ID, pool name, OSMO Web link, and output

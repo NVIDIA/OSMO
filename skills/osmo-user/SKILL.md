@@ -70,7 +70,7 @@ complete command recipes.
 | "Submit workflow.yaml", "Pick a free H100 pool", "No need to ask" | `references/workflow-submit.md` plus resource routing from `references/cli-workflows.md` | Read supplied YAML as-is, choose pool, submit only if authorized |
 | "Submit this Jinja workflow with 4 GPUs" | `references/workflow-submit.md` | Preserve Jinja placeholders and pass values at submit time |
 | "Generate 1000 Isaac Sim images and submit" | `references/workflow-submit.md`, then `references/cookbook-fetching.md` | Fetch/adapt cookbook workflow and compute run count |
-| "Monitor this from submit to completion", "Fix and resubmit if it fails" | `references/workflow-status.md`, then `agents/workflow-expert.md` as directed | Keep final monitoring/reporting in the main conversation |
+| "Monitor this from submit to completion", "Fix and resubmit if it fails" | `references/workflow-status.md`, then `references/workflow-expert.md` as directed | Keep final monitoring/reporting in the main conversation |
 | "Why is it PENDING/queued/stuck?", "Why won't it schedule?" | `references/workflow-status.md`, then `references/troubleshooting.md` | Compare query/events/spec/resources in plain language |
 | "The logs are empty", "Why did it fail?", "Exit code 137/139/143/127" | `references/troubleshooting.md` | Match the failure signature and propose a concrete fix |
 | "Create an app from this workflow", "Publish this completed run" | `references/workflow-apps.md` | Create app only from the selected completed workflow |
@@ -87,8 +87,8 @@ complete command recipes.
 | Logs or events time out or return sparse output | Follow `references/workflow-status.md`; for failures or sparse logs, route to `references/troubleshooting.md` |
 | Submission capacity validation error | Use `references/validation-error-recovery.md`; edit only allowed hard-coded `resources` values |
 | Workflow is PENDING, queued, stuck, or unschedulable | Use `references/workflow-status.md`, then `references/troubleshooting.md` |
-| Workflow failed after a submit/monitor/fix loop | Fetch logs as directed, resume `agents/workflow-expert.md`, and stop after three failures |
-| Multi-task logs are needed | Spawn `agents/logs-reader.md` subagents as directed; do not inline all logs |
+| Workflow failed after a submit/monitor/fix loop | Fetch logs as directed, resume `references/workflow-expert.md`, and stop after three failures |
+| Multi-task logs are needed | Spawn `references/logs-reader.md` subagents as directed; do not inline all logs |
 | App creation fails or the source workflow is not complete | Use `references/workflow-apps.md` and explain the prerequisite or error |
 | The request asks for admin-side cluster changes | Do not run commands that edit cluster config, node taints, quota policies, or Kubernetes resources |
 
@@ -106,9 +106,7 @@ files only when the current intent requires them:
 | Submission capacity validation errors | `references/validation-error-recovery.md` |
 | Status, logs, Grafana links, Kubernetes dashboard links, PENDING diagnosis, completed follow-ups, recent workflows, or workflow explanation | `references/workflow-status.md` |
 | Failed, stuck, sparse-log, or misbehaving workflows | `references/troubleshooting.md` |
-| End-to-end submit/monitor/fix loops | `references/workflow-status.md`, then spawn or resume `agents/workflow-expert.md` as directed |
-| Multi-task log summarization | Spawn `agents/logs-reader.md` subagents as directed |
+| End-to-end submit/monitor/fix loops | `references/workflow-status.md`, then spawn or resume `references/workflow-expert.md` as directed |
+| Multi-task log summarization | Spawn `references/logs-reader.md` subagents as directed |
 
-The `agents/` files are prompts for specialized subagents. Read the relevant
-agent file only when the selected reference calls for spawning or resuming that
-agent.
+`references/workflow-expert.md` and `references/logs-reader.md` are prompts for specialized subagents. Read the relevant one only when the selected reference calls for spawning or resuming that subagent.

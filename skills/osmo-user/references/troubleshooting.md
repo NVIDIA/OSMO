@@ -300,7 +300,7 @@ requested resources exceed what any node in the chosen pool can offer.
 
 ### Fix
 - For multi-task workflows, use `--task <task_name>` per task, or delegate to the
-  `logs-reader` subagent (see `agents/logs-reader.md`).
+  `logs-reader` subagent (see `references/logs-reader.md`).
 - For buffered output, suggest the user add `python -u` (unbuffered) for Python
   scripts, or `stdbuf -oL` for general commands, in their entry script.
 - If logs are truly empty, check pod events for what's blocking (image pull,

@@ -28,7 +28,7 @@ Before the first OSMO operation in a conversation:
 | Submit a supplied or generated workflow | `references/workflow-submit.md` |
 | Create or publish an app from a workflow | `references/workflow-apps.md` |
 | Workflow status, logs, Grafana link, Kubernetes dashboard link, live metrics, recent workflows, or workflow explanation | `references/workflow-status.md` |
-| Submit, monitor, fix failures, and report completion | `references/workflow-status.md`, then spawn or resume `agents/workflow-expert.md` as directed |
+| Submit, monitor, fix failures, and report completion | `references/workflow-status.md`, then spawn or resume `references/workflow-expert.md` as directed |
 | Failed, stuck, PENDING, sparse-log, or misbehaving workflows | `references/troubleshooting.md` |
 | Workflow structure, multi-task execution, dependencies, Jinja templates, checkpointing, exit/retry behavior, node exclusion, or topology placement | `references/workflow-patterns.md` |
 
