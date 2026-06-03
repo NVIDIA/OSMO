@@ -1,0 +1,25 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Try to access unsafe methods of a string object
+version: 2
+workflow:
+  name: template-unsafe
+  tasks:
+  - name: task1
+    image:  ubuntu:22.04
+    command:
+    - /bin/bash
+    - -c
+    - |
+        echo A string has the class {{ ''.__class__ }}
+
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 1h

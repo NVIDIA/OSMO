@@ -1,0 +1,50 @@
+#####################################################################################
+# Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+workflow:
+  name: restart
+  groups:
+  - name: my_group
+    ignoreNonleadStatus: false
+    tasks:
+    - name: task1
+      image: busybox
+      command: [/bin/sh]
+      args: [/tmp/run.sh]
+      files:
+      - contents: |
+          set -ex
+          if [[ -f /tmp/hello.txt ]]; then
+            nc -w 50 -l -p 24831 < /tmp/hello.txt
+            cat /tmp/hello.txt
+          else
+            echo hello > /tmp/hello.txt
+            while true; do
+              date
+              sleep 5
+            done
+          fi
+        path: /tmp/run.sh
+      lead: true
+    - name: task2
+      image: busybox
+      command: [/bin/sh]
+      args: [/tmp/run.sh]
+      exitActions:
+       RESCHEDULE: 1
+      files:
+      - contents: |
+          set -ex
+          sleep 5
+          nc -w 30 {{host:task1}} 24831 > /tmp/hello.txt
+          cat /tmp/hello.txt
+        path: /tmp/run.sh
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 1h

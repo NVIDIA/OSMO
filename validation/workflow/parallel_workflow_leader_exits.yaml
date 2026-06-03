@@ -1,0 +1,56 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  groups:
+  - name: echo
+    tasks:
+    - args:
+      - /tmp/leader.sh
+      command:
+      - /bin/sh
+      files:
+      - contents: |
+          set -ex
+          exit 1
+        path: /tmp/leader.sh
+      - contents: |-
+          hello
+        path: /tmp/hello.txt
+      image: busybox
+      lead: true
+      name: leader
+      resource: default
+    - args:
+      - /tmp/non_lead.sh
+      command:
+      - /bin/sh
+      files:
+      - contents: |
+          set -ex
+          # Workflow should end and be cleaned up when leader
+          # returns with an exit 1 code
+          sleep 1000
+        path: /tmp/non_lead.sh
+      image: busybox
+      name: non_lead
+      resource: default
+  name: group-leader-exits
+  resources:
+    default:
+      cpu: 1
+      platform: {{platform}}
+      memory: 1Gi
+      storage: 1Gi
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+default-values:
+  platform: cpu-x86

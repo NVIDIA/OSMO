@@ -1,0 +1,41 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: multi-arch-container-test
+  resources:
+    amd64:
+      cpu: 1
+      storage: 2Gi
+      memory: 2Gi
+      platform: cpu-x86
+    arm64:
+      cpu: 1
+      storage: 2Gi
+      memory: 2Gi
+      platform: orin-nano-jp6
+  # Both tasks technically have the same image tag, but they target different
+  # architectures, so they should pull images with different SHAs.
+  # In the past, we did not handle this correctly, and the arm64 task would pull
+  # the amd64 image for nvcr.io registry.
+  tasks:
+  - name: amd64-task
+    image: nvcr.io/nvidia/base/ubuntu:22.04_20240212
+    command: ['echo', 'Hello from amd64']
+    resource: amd64
+  - name: arm64-task
+    image: nvcr.io/nvidia/base/ubuntu:22.04_20240212
+    command: ['echo', 'Hello from arm64']
+    resource: arm64
+  timeout:
+    queue_timeout: 1h
+    # When amd64-task starts running, the exec time will start the countdown
+    # for the workflow, even if arm64-task is still pending
+    exec_timeout: 1h

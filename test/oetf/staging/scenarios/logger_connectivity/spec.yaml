@@ -1,0 +1,39 @@
+#####################################################################################
+# Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Logger Connectivity Test
+#
+# Validates the OSMO log pipeline end-to-end:
+# - INSIDE (task.py): prints a unique log marker to stdout.
+# - OUTSIDE (test_runner.py): asserts the marker is retrievable via the logs
+#   API, proving the stdout -> ctrl -> logger -> DB -> API pipeline.
+#
+# task_fixture.py and task.py are injected by the OETF executor at submission time.
+
+version: 2
+workflow:
+  name: oetf-logger-connectivity-{{test_id}}
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 30m
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: logger-probe
+    image: python:3.10-slim
+    command: ["python3"]
+    args: ["/tmp/oetf/task.py"]
+    resource: default
+
+default-values:
+  test_id: "0"

@@ -1,0 +1,41 @@
+#####################################################################################
+# Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+workflow:
+  name: group_action
+  groups:
+  - name: my_group
+    ignoreNonleadStatus: {{ ignore_nonlead_status }}
+    tasks:
+    - name: task1
+      image: ubuntu
+      command: [bash]
+      args: [/tmp/run.sh]
+      files:
+      - contents: |
+          echo hello
+          sleep 120
+        path: /tmp/run.sh
+      lead: true
+    - name: task2
+      image: ubuntu
+      command: [bash]
+      args: [/tmp/run.sh]
+      files:
+      - contents: |
+          echo hello
+          sleep 10
+          exit 3
+        path: /tmp/run.sh
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  ignore_nonlead_status: false

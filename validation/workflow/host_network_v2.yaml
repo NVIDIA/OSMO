@@ -1,0 +1,53 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: host-network
+  resources:
+    host-network-resource:
+      cpu: 1
+      platform: {{ platform }}
+      memory: {{ memory }}
+      storage: 2Gi
+  tasks:
+  - args:
+    - /tmp/echo.sh
+    command:
+    - /bin/bash
+    files:
+    - contents: |
+        set -ex
+
+        # Install "route"
+        apt update > /dev/null 2>&1
+        apt install -y net-tools > /dev/null 2>&1
+
+        # Fetch the GATEWAY IP address, and make sure it doesnt start with 10.244
+        GATEWAY=$(route -n | grep 'UG[ \t]' | awk '{print $2}' | head -n1)
+        echo "Gateway IP is $GATEWAY"
+        if [[ $GATEWAY == 10.244* ]] ; then
+          echo "Gateway is not a host ip address"
+          echo "The task does not have hostNetwork flag"
+          exit 1
+        fi
+        echo "The task is invoked with hostNetwork flag"
+      path: /tmp/echo.sh
+    hostNetwork: {{ host_network }}
+    image: ubuntu:22.04
+    name: host-network
+    resource: host-network-resource
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  memory: 1Gi
+  host_network: true
+  platform: agx-orin-jp6

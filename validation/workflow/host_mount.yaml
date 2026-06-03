@@ -1,0 +1,49 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: host-mount
+  resources:
+    default:
+      cpu: 1
+      storage: 2Gi
+      memory: 1Gi
+      platform: cpu-x86
+  tasks:
+  - name: task1
+    image: busybox
+    command: [sh]
+    args: [/tmp/run.sh]
+    volumeMounts: ['/dev/shm']
+    files:
+    - contents: |
+        set -ex
+        # This directory should be in all machines in the cluster
+        ls /dev/shm
+      path: /tmp/run.sh
+    resource: default
+  - name: task2
+    image: ubuntu:22.04
+    args: ['$(FILE_PATH)']
+    command: ['sh']
+    environment:
+      FILE_PATH: /tmp/run.sh
+    files:
+    - contents: |
+        set -x
+        ls /home/data
+      path: /tmp/run.sh
+    resource: default
+    volumeMounts: ['/dev/shm:/home/data']
+    inputs:
+    - task: task1
+  timeout:
+    exec_timeout: 1m
+    queue_timeout: 1h

@@ -1,0 +1,85 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  groups:
+  - name: echo
+    tasks:
+    - args:
+      - /tmp/server.sh
+      command:
+      - /bin/sh
+      files:
+      - contents: |
+          set -ex
+          # Open a TCP server in listening mode using port 24831
+          # Wait for 50 seconds before closing the connection
+          nc -w 50 -l -p 24831 < /tmp/hello.txt
+          cat /tmp/hello.txt > {{output}}/hello.txt
+        path: /tmp/server.sh
+      - contents: |-
+          hello
+        path: /tmp/hello.txt
+      image: busybox
+      lead: true
+      name: server
+      resource: default
+    - args:
+      - /tmp/client.sh
+      command:
+      - /bin/sh
+      files:
+      - contents: |
+          set -ex
+
+          # Wait for the server container to be created
+          retries=45
+          while ! nslookup {{host:server}} > /dev/null ; do
+            echo "Waiting for server pod, $retries retries left..."
+            if [ $retries -eq 0 ] ; then
+              echo "Server pod not started in time!"
+              exit 1
+            fi
+            retries=$(($retries - 1))
+            sleep 1
+          done
+
+          # Attempt to read from the server for 20 seconds
+          # (The first few attempts may fail if the data phase is still running)
+          retries=20
+          while ! nc -w 30 {{host:server}} 24831 > tmp/tcp_echo.txt ; do
+            echo "Attempting to connect to server, $retries retries left..."
+            if [ $retries -eq 0 ] ; then
+              echo "Could not connect to server in time!"
+              exit 1
+            fi
+            retries=$(($retries - 1))
+            sleep 1
+          done
+
+          cat tmp/tcp_echo.txt
+          cat tmp/tcp_echo.txt > {{output}}/tcp_echo.txt
+          sleep 1000
+        path: /tmp/client.sh
+      image: busybox
+      name: client
+      resource: default
+  name: parallel-workflow
+  resources:
+    default:
+      cpu: 1
+      platform: {{platform}}
+      memory: 1Gi
+      storage: 1Gi
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+default-values:
+  platform: cpu-x86

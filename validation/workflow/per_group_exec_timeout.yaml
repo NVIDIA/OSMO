@@ -1,0 +1,46 @@
+#####################################################################################
+# Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Validates per-group exec_timeout semantics: each group has its own clock that starts
+# when the group enters RUNNING. Three sequential groups each sleep 60s; exec_timeout
+# is set to 2m. Total wall time is roughly 3 minutes, which would have tripped the old
+# workflow-level timeout. Each group individually fits inside the 2m per-group budget,
+# so all three should COMPLETE.
+version: 2
+workflow:
+  name: per-group-exec-timeout
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: cpu-x86
+  tasks:
+  - name: stage-1
+    image: ubuntu:22.04
+    command: ['sh', '-c']
+    args: ['echo "stage-1 starting"; sleep 60; echo "stage-1 done"']
+    resource: default
+  - name: stage-2
+    image: ubuntu:22.04
+    command: ['sh', '-c']
+    args: ['echo "stage-2 starting"; sleep 60; echo "stage-2 done"']
+    resource: default
+    inputs:
+    - task: stage-1
+  - name: stage-3
+    image: ubuntu:22.04
+    command: ['sh', '-c']
+    args: ['echo "stage-3 starting"; sleep 60; echo "stage-3 done"']
+    resource: default
+    inputs:
+    - task: stage-2
+  timeout:
+    exec_timeout: 3m
+    queue_timeout: 1h

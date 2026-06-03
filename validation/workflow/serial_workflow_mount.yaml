@@ -1,0 +1,59 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: serial-workflow-mount
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: {{platform}}
+
+  tasks:
+  - name: task1
+    image: ubuntu:22.04
+    command: ['sh']
+    args: ['$(FILE_PATH)']
+    environment:
+      FILE_PATH: /tmp/run.sh
+    files:
+    - contents: |
+        echo "Hello from pod $(hostname)"
+      path: /tmp/run.sh
+    resource: default
+  - name: task2
+    image: ubuntu:22.04
+    command: ['sh']
+    args: ['/tmp/run.sh']
+    files:
+    - contents: |
+        echo "Hello from pod $(hostname)"
+      path: /tmp/run.sh
+    resource: default
+    inputs:
+    - task: task1
+  - name: task3
+    image: ubuntu:22.04
+    command: ['sh']
+    args: ['/tmp/run.sh']
+    files:
+    - localpath: scripts/echo_hostname.sh
+      path: /tmp/run.sh
+    resource: default
+    inputs:
+    - task: task1
+    - task: task2
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  platform: cpu-x86

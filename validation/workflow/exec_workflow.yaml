@@ -1,0 +1,85 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Test if we can exec into a workflow from within itself
+# TODO: We must re-login with credentials for this to work
+# Otherwise the OSMO command doesn't have permissions to to exec
+workflow:
+  name: exec_workflow
+  timeout: {{ timeout }}
+  tasks:
+  - name: task1
+    image: ubuntu:22.04
+    command:
+    - /bin/bash
+    - -c
+    - |
+        set -ex
+
+        # Kill all child processes when this script exits
+        trap 'pkill -P $BASHPID' EXIT
+
+        apt update
+        apt install -y socat
+
+        # First, create a pty so we can run interactive command in a non-interactive way
+        socat pty,rawer,echo=0,link=/tmp/portA pty,rawer,echo=0,link=/tmp/portB &
+        # Wait for the pty files to be created
+        while [ ! -e /tmp/portA ] || [ ! -e /tmp/portB ]; do
+            sleep 1
+        done
+
+        # Now, wait for the workflow to be considered "RUNNING"
+        while ! osmo workflow query {{workflow_id}} | grep -q "RUNNING"; do
+            sleep 1
+        done
+
+        # Next, exec into this workflow from within itself. Wait a few seconds for the
+        # exec session to start.
+        osmo workflow exec {{workflow_id}} task1 --entry sh < /tmp/portB &
+        sleep 10
+
+        # Now run some commands through the osmo exec session
+        MESSAGE="Hello from workflow {{workflow_id}} self-exec"
+        echo "
+          sleep 1;
+          echo '${MESSAGE}' > /tmp/file.txt
+          exit
+        " > /tmp/portA
+
+        # Verify the file doesn't exist yet (Because the command hasnt run in the exec sessions yet)
+        if [ -f /tmp/file.txt ]; then
+            echo "File /tmp/file.txt already exists"
+            exit 1
+        fi
+
+        # Wait for the command to finish running
+        sleep 2
+
+        # Verify the file exists and has the correct message
+        if [ ! -f /tmp/file.txt ]; then
+            echo "File /tmp/file.txt does not exist"
+            exit 1
+        fi
+
+        if [ "$(cat /tmp/file.txt)" != "${MESSAGE}" ]; then
+            echo "File /tmp/file.txt has the wrong message"
+            exit 1
+        fi
+
+        echo "File /tmp/file.txt created through exec has the correct message"
+  resources:
+    default:
+      gpu: {{gpus}}
+
+default-values:
+  gpus: 0
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h

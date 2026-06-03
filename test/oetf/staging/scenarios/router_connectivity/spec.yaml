@@ -1,0 +1,45 @@
+#####################################################################################
+# Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Router Connectivity Test
+#
+# Validates the OSMO router can proxy exec/port-forward/rsync to a live task:
+#   - INSIDE (task.py): writes a sentinel file to /workspace, starts a simple
+#     HTTP server on port 8080, sleeps to keep the task alive while the
+#     external runner exercises the router.
+#   - OUTSIDE (test_runner.py): waits for the task to be RUNNING, then
+#     shells out to the osmo CLI to exec, port-forward, and rsync. Cancels
+#     the workflow after the three probes complete (pass or fail).
+#
+# Expected outcome: "failed" — the workflow ends in FAILED_CANCELED, which
+# the builder's expect_failed() / handle.expect_outcome("failed") accepts.
+#
+# task_fixture.py and task.py are injected by the OETF executor at submission time.
+
+version: 2
+workflow:
+  name: oetf-router-connectivity-{{test_id}}
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 30m
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: router-target
+    image: python:3.10-slim
+    command: ["python3"]
+    args: ["/tmp/oetf/task.py"]
+    resource: default
+
+default-values:
+  test_id: "0"

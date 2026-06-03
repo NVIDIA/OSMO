@@ -1,0 +1,57 @@
+#####################################################################################
+# Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# OETF canonical named environments.
+#
+# Select with `--env <name>`. User overlay at ~/.config/osmo/oetf.yaml is
+# merged on load; user keys override canonical keys of the same name.
+#
+# Schema:
+#   environments:
+#     <name>:
+#       url: https://...                    # required
+#       auth:                               # required
+#         strategy: token | dev             # required
+#         token_env: OETF_TOKEN     # required when strategy=token
+#         username: testuser                # required when strategy=dev
+#       type: kind | dev | custom           # required
+#       allow_deploy: true | false          # default false; type=custom always false
+#       cluster_name: osmo                  # required when type=kind
+#       mode: cpu | gpu                     # kind only; default cpu
+#       dev_user: testuser                    # required when type=dev
+#       pool: default                 # optional
+#       router_url: https://...             # optional
+#       prometheus_url: https://...         # optional
+#       image_registry: nvcr.io/...         # dev only; default registry.example.com/project
+#       argocd_branch: argocd/<user>        # dev only; default argocd/<dev_user>
+#       exclude_tags: [auth]                # optional
+
+version: "1"
+
+environments:
+  staging:
+    url: https://staging.example
+    auth:
+      strategy: token
+      token_env: OETF_TOKEN
+    type: custom
+    pool: default
+
+  kind:
+    url: http://quick-start.osmo
+    auth:
+      strategy: dev
+      username: testuser
+    type: kind
+    allow_deploy: true
+    cluster_name: osmo
+    mode: cpu
+    pool: default
+    exclude_tags: [auth]
