@@ -184,7 +184,7 @@
   },
   {
     "id": "osmo-agent-015",
-    "question": "tool-train-1 failed almost immediately. Can you tell why and how to fix it?",
+    "question": "My OSMO workflow tool-train-1 failed almost immediately. Can you tell why and how to fix it?",
     "expected_skill": "osmo-agent",
     "expected_script": null,
     "ground_truth": "The agent used osmo-agent to diagnose a missing-binary failure: queried tool-train-1 (exit code 127), read the logs ending in 'jq: command not found', explained that the entry script called a binary not present in the container image, and recommended installing it (e.g. apt-get install -y jq) or using a base image that includes it.",
@@ -281,7 +281,7 @@
   },
   {
     "id": "osmo-agent-022",
-    "question": "Add a node selector to one of our pod templates so jobs land on the right hardware.",
+    "question": "Edit our OSMO server-side config to add a node selector to one of the shared pod templates an admin manages, so future jobs land on the right hardware.",
     "expected_skill": null,
     "expected_script": null,
     "ground_truth": "The agent recognized this as server-side OSMO configuration administration (editing pod templates), which belongs to the OSMO admin surface rather than the osmo-agent read/submit/diagnose skill, and did not invoke osmo-agent.",

@@ -36,6 +36,10 @@ router: load only the reference files needed for the current task.
   unavailable instead of omitting it.
 - Do not edit cluster config, node taints, quota policies, or non-OSMO
   Kubernetes resources. Those are admin-side operations.
+- Do not edit server-side OSMO configuration (`osmo config`): pod or group
+  templates, resource validations, pool/backend config, roles, or dataset
+  buckets. That is the OSMO admin surface — say it is out of scope and do not
+  attempt it here.
 
 ## Default Workflow
 
@@ -70,7 +74,7 @@ complete command recipes.
 | "Why is it PENDING/queued/stuck?", "Why won't it schedule?" | `references/workflow-status.md`, then `references/troubleshooting.md` | Compare query/events/spec/resources in plain language |
 | "The logs are empty", "Why did it fail?", "Exit code 137/139/143/127" | `references/troubleshooting.md` | Match the failure signature and propose a concrete fix |
 | "Create an app from this workflow", "Publish this completed run" | `references/workflow-apps.md` | Create app only from the selected completed workflow |
-| "What GPUs does NVIDIA sell?", "How do I deploy OSMO?", "Configure Kubernetes taints" | Do not use this skill | Answer with another skill or general help; do not run `osmo` |
+| "What GPUs does NVIDIA sell?", "How do I deploy OSMO?", "Configure Kubernetes taints", "Edit a pod template / pool quota / `osmo config`" | Do not use this skill | Answer with another skill or general help; do not run `osmo`; server-side config is the OSMO admin surface |
 
 ## Error Handling Router
 
