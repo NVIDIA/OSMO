@@ -229,11 +229,9 @@ osmo_py_binary(
 )
 
 # Deploy-only binary: spin up a KIND cluster and leave it running.
-osmo_py_binary(
-    name = "deploy",
+osmo_py_library(
+    name = "deploy_main_lib",
     srcs = ["deploy_main.py"],
-    main = "deploy_main.py",
-    tags = ["manual"],
     deps = [
         ":breadcrumb",
         ":cli_args",
@@ -245,6 +243,16 @@ osmo_py_binary(
         ":models",
         ":preflight",
     ],
+)
+
+# Deploy-only binary: spin up a KIND cluster (or dev env via overlay) and
+# leave it running.
+osmo_py_binary(
+    name = "deploy",
+    srcs = ["deploy_main.py"],
+    main = "deploy_main.py",
+    tags = ["manual"],
+    deps = [":deploy_main_lib"],
 )
 
 osmo_py_library(
@@ -267,12 +275,9 @@ osmo_py_binary(
     deps = [":teardown_main"],
 )
 
-# Compose: deploy → oetf:run → teardown.
-osmo_py_binary(
-    name = "deploy_and_run",
+osmo_py_library(
+    name = "deploy_and_run_main_lib",
     srcs = ["deploy_and_run_main.py"],
-    main = "deploy_and_run_main.py",
-    tags = ["manual"],
     deps = [
         ":breadcrumb",
         ":cli_args",
@@ -284,4 +289,13 @@ osmo_py_binary(
         ":models",
         ":preflight",
     ],
+)
+
+# Compose: deploy → oetf:run → teardown.
+osmo_py_binary(
+    name = "deploy_and_run",
+    srcs = ["deploy_and_run_main.py"],
+    main = "deploy_and_run_main.py",
+    tags = ["manual"],
+    deps = [":deploy_and_run_main_lib"],
 )
