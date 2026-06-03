@@ -90,6 +90,13 @@ jobs:
           restore-keys: |
             bazel-oetf-kind-${{ runner.os }}-
 
+      - name: Add quick-start.osmo to /etc/hosts
+        run: |
+          # KIND adapter's check_kind_prereqs requires this name to resolve so
+          # tests can reach the ingress at http://quick-start.osmo via the host
+          # network published by `kind create cluster --config`.
+          echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+
       - name: Preflight (OETF KIND adapter check_kind_prereqs)
         run: |
           set -euo pipefail

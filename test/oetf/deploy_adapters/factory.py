@@ -42,7 +42,14 @@ try:
     from test.oetf import dev_argocd
     from test.oetf.deploy_adapters.dev_adapter import DevAdapter
     _DEV_ADAPTER_AVAILABLE = True
-except ModuleNotFoundError:
+except ImportError:
+    # Catches both:
+    # - ModuleNotFoundError: the module/file is absent (public-OETF case).
+    # - ImportError: the name doesn't exist as an attribute of the package
+    #   (e.g. `from test.oetf import dev_argocd` when test/oetf/dev_argocd.py
+    #   isn't shipped — the package is a PEP 420 namespace package and the
+    #   missing-attribute case lands here, not in ModuleNotFoundError).
+    # Both are silent-and-expected; exotic failures fall through to below.
     dev_argocd = None  # type: ignore[assignment]
     DevAdapter = None  # type: ignore[assignment, misc]
     _DEV_ADAPTER_AVAILABLE = False
