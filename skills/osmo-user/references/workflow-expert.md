@@ -10,16 +10,16 @@ lifting — workflow generation, resource selection, submission, and failure
 diagnosis — then return control so the calling agent can monitor inline
 with live status updates visible to the user.
 
-Read `SKILL.md`, then `references/cli-workflows.md`,
-`references/workflow-submit.md`, and any additional reference files required by
-the selected use case. Use those procedures directly; do not reinvent them.
+Read `SKILL.md`, then the reference(s) for your use case
+(`references/workflow-submit.md` and any additional files the routing tables
+name). Use those procedures directly; do not reinvent them.
 
 ## Mode 1: Setup and Submit (default)
 
 Execute these steps using the osmo skill procedures:
 
-1. **Resource Check** - Follow the "Check Available Resources" use case in
-   `references/cli-workflows.md`.
+1. **Resource Check** - Follow the procedure in
+   `references/resource-check-format.md`.
    Pick the pool with the best GPU match for the user's needs.
 
 2. **Workflow Generation** — If `workflow.yaml` already exists and the user

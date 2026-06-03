@@ -25,7 +25,7 @@ monitoring. If they ask you to monitor, debug, or report final results, use
 
 2. Choose a pool.
    - If the user requested a GPU type, check matching pools with "Check
-     Available Resources" in `references/cli-workflows.md` and pick a pool with
+     Available Resources" in `references/resource-check-format.md` and pick a pool with
      effective capacity.
    - If the user did not specify a GPU type, ask what GPU type they want unless
      the request or YAML makes the choice obvious.

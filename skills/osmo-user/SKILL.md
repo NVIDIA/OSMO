@@ -18,8 +18,8 @@ router: load only the reference files needed for the current task.
 
 ## Operating Rules
 
-- Read `references/cli-workflows.md` before running any `osmo` command; it
-  routes each intent to the relevant command reference.
+- Classify the request using the Routing Examples and Reference Routing tables
+  below, then load only the reference file(s) they name before running commands.
 - Do not guess command names or flags from memory. Use the linked reference for
   the user's use case, then run the commands yourself.
 - Obtain workflow and resource state (status, logs, events, capacity, spec) by
@@ -45,7 +45,7 @@ router: load only the reference files needed for the current task.
 
 1. Classify the user request into one intent in "Routing Examples" or
    "Reference Routing".
-2. Read only `references/cli-workflows.md` plus the selected reference files.
+2. Read only the reference files named by the routing tables below.
 3. Confirm `osmo --version` before the first OSMO command in the conversation.
 4. Run the OSMO commands yourself unless the selected reference says to spawn a
    subagent.
@@ -61,13 +61,13 @@ complete command recipes.
 
 | User wording | Route | First responsibility |
 |---|---|---|
-| "What resources are available to me?", "Any H100s free?", "Do I have quota?" | `references/cli-workflows.md`, then `references/resource-check-format.md` | Discover profile/pools and report effective capacity |
+| "What resources are available to me?", "Any H100s free?", "Do I have quota?" | `references/resource-check-format.md` | Discover profile/pools and report effective capacity |
 | "Show my recent workflows", "What's still running?", "What finished?" | `references/workflow-status.md` | List workflows and summarize status/duration |
 | "Is workflow gr00t-train-1 done?", "How is my run going?", "Show progress" | `references/workflow-status.md` | Query workflow, fetch logs, summarize state |
 | "How much memory/GPU is it using?", "Open metrics" | `references/workflow-status.md` | Surface `grafana_url`; do not invent live utilization |
 | "Give me the Kubernetes dashboard link", "I want to inspect the pod" | `references/workflow-status.md` | Surface `dashboard_url` or say it is unavailable |
 | "What does this workflow do?", "Explain this run before I rerun it" | `references/workflow-status.md` | Fetch the templated spec and summarize purpose/image/command/output |
-| "Submit workflow.yaml", "Pick a free H100 pool", "No need to ask" | `references/workflow-submit.md` plus resource routing from `references/cli-workflows.md` | Read supplied YAML as-is, choose pool, submit only if authorized |
+| "Submit workflow.yaml", "Pick a free H100 pool", "No need to ask" | `references/workflow-submit.md` plus `references/resource-check-format.md` for pool selection | Read supplied YAML as-is, choose pool, submit only if authorized |
 | "Submit this Jinja workflow with 4 GPUs" | `references/workflow-submit.md` | Preserve Jinja placeholders and pass values at submit time |
 | "Generate 1000 Isaac Sim images and submit" | `references/workflow-submit.md`, then `references/cookbook-fetching.md` | Fetch/adapt cookbook workflow and compute run count |
 | "Monitor this from submit to completion", "Fix and resubmit if it fails" | `references/workflow-status.md`, then `references/workflow-expert.md` as directed | Keep final monitoring/reporting in the main conversation |
@@ -82,7 +82,7 @@ complete command recipes.
 |---|---|
 | `osmo --version` fails or `osmo` is missing | Tell the user the OSMO CLI is unavailable and stop |
 | Authentication or profile error | Ask the user to run `osmo login`; do not retry until they confirm |
-| Pool/resource output is empty or ambiguous | Re-check profile/pool access via `references/cli-workflows.md`; state uncertainty instead of guessing |
+| Pool/resource output is empty or ambiguous | Re-check profile/pool access per `references/resource-check-format.md`; state uncertainty instead of guessing |
 | `grafana_url` or `dashboard_url` is null | Say the specific link is unavailable; do not omit or fabricate it |
 | Logs or events time out or return sparse output | Follow `references/workflow-status.md`; for failures or sparse logs, route to `references/troubleshooting.md` |
 | Submission capacity validation error | Use `references/validation-error-recovery.md`; edit only allowed hard-coded `resources` values |
@@ -94,12 +94,11 @@ complete command recipes.
 
 ## Reference Routing
 
-Start with `references/cli-workflows.md` for all user intents. Load additional
-files only when the current intent requires them:
+Load only the reference files the current intent requires:
 
 | User intent | Read |
 |---|---|
-| Resources, pools, GPUs, quota | `references/cli-workflows.md`, then `references/resource-check-format.md` before responding |
+| Resources, pools, GPUs, quota | `references/resource-check-format.md` before responding |
 | Submit a supplied or generated workflow | `references/workflow-submit.md` |
 | Create or publish an app from a workflow | `references/workflow-apps.md` |
 | Workflow structure, multi-task execution, dependencies, Jinja templates, checkpointing, exit/retry behavior, node exclusion, or topology placement | `references/workflow-patterns.md` first; it routes to `references/workflow-advanced-patterns.md` for niche patterns |
