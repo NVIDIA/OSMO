@@ -104,9 +104,12 @@ class S3SinkTest(unittest.TestCase):
 
 class NormalizeEndpointTest(unittest.TestCase):
     def test_swift_url_with_path_becomes_https_host(self):
+        # swift://host/tenant/... is osmo's report-upload URL shape; the
+        # normalizer drops the tenant + path and rewrites scheme to https
+        # so boto3 can speak to it as an S3 endpoint.
         self.assertEqual(
             _normalize_s3_endpoint(
-                "s3://my-bucket/dev/testuser/local"),
+                "swift://s3.example.com/AUTH_tenant/dev/testuser/local"),
             "https://s3.example.com",
         )
 
