@@ -558,24 +558,44 @@ def main() -> None:
     # yields a non-existent `foo_integration.go` instead of `foo.go`.
     targets_meta = _load_targets_meta(args.targets_meta)
 
-    source_names: set[str] = set()
+    # Walk each changed test file to its source-file equivalent using the
+    # meta-aware mapping (handles _integration_test.go correctly).
+    # Non-test changes (BUILD edits) are recorded separately so we can
+    # render them under "Files tested" without confusing source vs test.
+    source_paths: set[str] = set()
+    non_test_basenames: set[str] = set()
     for test_path in changed_files:
         candidates = _test_to_source_paths(test_path)
         if not candidates:
-            # Non-test file (e.g., the BUILD edit) — keep its basename.
-            source_names.add(test_path.rsplit("/", maxsplit=1)[-1])
+            # Non-test file (e.g., the BUILD edit) — keep its basename
+            # for the title fallback.
+            non_test_basenames.add(test_path.rsplit("/", maxsplit=1)[-1])
             continue
-        # Prefer the candidate the picker actually targeted; fall
-        # back to the most-specific naive strip when no picker meta
-        # is available (local dry-run, ad-hoc dispatch).
+        # Prefer the candidate the picker actually targeted; fall back
+        # to the most-specific naive strip when no picker meta is
+        # available (local dry-run, ad-hoc dispatch).
         chosen = next(
             (c for c in candidates if c in targets_meta),
             candidates[0],
         )
-        source_names.add(chosen.rsplit("/", maxsplit=1)[-1])
+        source_paths.add(chosen)
 
-    files_summary = ", ".join(sorted(source_names))
-    files_list = "\n".join(f"- `{f}`" for f in changed_files)
+    # Title uses basenames of the source files (and non-test files like
+    # BUILD), summarized — keeps the historical title shape.
+    source_basenames = {p.rsplit("/", maxsplit=1)[-1] for p in source_paths}
+    files_summary = ", ".join(sorted(source_basenames | non_test_basenames))
+
+    # "Files tested" body section lists the SOURCE files the picker
+    # targeted — what reviewers actually want to scan. The committed
+    # test file paths still appear in the diff, so we don't lose
+    # information by hiding them here. Fall back to listing all
+    # changed files when we couldn't resolve any source path (entirely
+    # non-test diff — shouldn't happen for a real testbot run but keeps
+    # the section non-empty defensively).
+    if source_paths:
+        files_list = "\n".join(f"- `{p}`" for p in sorted(source_paths))
+    else:
+        files_list = "\n".join(f"- `{f}`" for f in changed_files)
 
     branch = f"testbot/{datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%d-%H%M")}"
 

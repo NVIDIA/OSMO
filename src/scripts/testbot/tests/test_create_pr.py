@@ -401,6 +401,77 @@ class TestSlackReviewRequest(unittest.TestCase):
         self.assertEqual(post_mock.call_args.kwargs["bot_token"], "token")
         self.assertEqual(post_mock.call_args.kwargs["channel"], "#osmo-slack-test")
 
+    def test_main_pr_body_files_tested_lists_source_paths(self):
+        # "Files tested" should list the source files the picker
+        # targeted, not the test files that were committed (those
+        # appear in the diff already). PR #1065 surfaced this — the
+        # body showed src/utils/job/tests/test_backend_jobs.py
+        # instead of the more reviewer-useful
+        # src/utils/job/backend_jobs.py. Test by capturing the body
+        # passed to gh pr create via subprocess.run's args.
+        gh_create_result = subprocess.CompletedProcess(
+            [], 0, stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8",
+        ) as meta_fh:
+            json.dump([
+                {
+                    "file_path": "src/utils/job/backend_jobs.py",
+                    "coverage_pct": 23.6,
+                    "uncovered_lines": 60,
+                    "uncovered_ranges": [[105, 110]],
+                    "reason": "test rationale",
+                },
+            ], meta_fh)
+            meta_path = meta_fh.name
+        env = {"TESTBOT_SLACK_BOT_TOKEN": "", "SKIP_SLACK": "true"}
+        try:
+            with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                       return_value=False), \
+                    patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                          return_value=[
+                              "src/utils/job/tests/test_backend_jobs.py",
+                              "src/utils/job/tests/BUILD",
+                          ]), \
+                    patch("src.scripts.testbot.create_pr.run",
+                          return_value=subprocess.CompletedProcess([], 0)), \
+                    patch("src.scripts.testbot.create_pr.subprocess.run") as run_mock, \
+                    patch("src.scripts.testbot.create_pr._scan_suspected_bugs",
+                          return_value=[]), \
+                    patch.object(sys, "argv", ["create_pr.py",
+                                               "--targets-meta", meta_path]), \
+                    patch.dict(os.environ, env, clear=True):
+                run_mock.side_effect = [
+                    subprocess.CompletedProcess([], 0),  # git commit
+                    gh_create_result,                    # gh pr create
+                ]
+                main()
+        finally:
+            os.unlink(meta_path)
+
+        # Last subprocess.run call was `gh pr create ... --body <body>`
+        # Find the --body arg payload.
+        gh_calls = [
+            call for call in run_mock.call_args_list
+            if call.args and call.args[0] and call.args[0][:3] == ["gh", "pr", "create"]
+        ]
+        self.assertEqual(len(gh_calls), 1)
+        argv = gh_calls[0].args[0]
+        body = argv[argv.index("--body") + 1]
+
+        self.assertIn("## Files tested", body)
+        # Source path appears in body, test file path does NOT.
+        self.assertIn("`src/utils/job/backend_jobs.py`", body)
+        self.assertNotIn(
+            "`src/utils/job/tests/test_backend_jobs.py`", body,
+            "test file path leaked into 'Files tested' — should show source",
+        )
+        # Title still uses the source basename as before.
+        title = argv[argv.index("--title") + 1]
+        self.assertIn("backend_jobs.py", title)
+        self.assertNotIn("test_backend_jobs.py", title)
+
     def test_main_skips_slack_when_skip_slack_env_true(self):
         # workflow_dispatch skip_slack=true sets SKIP_SLACK=true.
         # _post_slack_review_request must NOT be invoked even though
