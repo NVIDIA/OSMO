@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mock `osmo` CLI for the osmo-agent skill evals.
+# Mock `osmo` CLI for the osmo-user skill evals.
 #
 # Dispatches by subcommand and prints canned content from a fixtures
 # directory tree. Fixtures are organized into scenario subdirectories
@@ -73,7 +73,7 @@ case "$cmd" in
     exit 0
     ;;
   --help|-h)
-    echo "mock-osmo — stub used for osmo-agent eval runs"
+    echo "mock-osmo — stub used for osmo-user eval runs"
     exit 0
     ;;
 esac

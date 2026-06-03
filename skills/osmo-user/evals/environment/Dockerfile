@@ -1,4 +1,4 @@
-# Eval environment for the osmo-agent skill.
+# Eval environment for the osmo-user skill.
 #
 # ACES runs the eval inside a container built from this Dockerfile.
 # At runtime, ACES stages everything under `evals/files/` to

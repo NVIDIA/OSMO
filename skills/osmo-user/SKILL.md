@@ -1,5 +1,5 @@
 ---
-name: osmo-agent
+name: osmo-user
 description: >
   Use the OSMO CLI for cloud robotics compute. Trigger on requests about
   resources (pools, quota, GPUs, CPUs, nodes); workflow
@@ -11,7 +11,7 @@ description: >
   hardware.
 ---
 
-# osmo-agent
+# osmo-user
 
 Run OSMO CLI workflows from natural-language requests. Keep this file as a
 router: load only the reference files needed for the current task.

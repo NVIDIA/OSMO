@@ -1,6 +1,6 @@
-# osmo-agent evals
+# osmo-user evals
 
-Evaluation set for the `osmo-agent` skill, written against the NVIDIA eval
+Evaluation set for the `osmo-user` skill, written against the NVIDIA eval
 schema (`question` / `expected_skill` / `expected_script` / `ground_truth` /
 `expected_behavior`) and run by ACES.
 
@@ -35,7 +35,7 @@ them at the agent's cwd.
 
 ## Eval set
 
-22 evals total — 17 positives (`expected_skill` is `osmo-agent`) and 5 negatives
+22 evals total — 17 positives (`expected_skill` is `osmo-user`) and 5 negatives
 (`expected_skill` is `null`). See `evals.json` for the full set.
 
 ## How the eval environment works
@@ -74,7 +74,7 @@ everything under `evals/files/` automatically.
 
 ## Coverage notes
 
-- The cookbook-fetch eval (`osmo-agent-009`) performs a real `WebFetch`
+- The cookbook-fetch eval (`osmo-user-009`) performs a real `WebFetch`
   against `raw.githubusercontent.com/NVIDIA/OSMO`. That's the public OSMO
   cookbook and is part of the skill's documented behavior.
 

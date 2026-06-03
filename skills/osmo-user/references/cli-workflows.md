@@ -1,6 +1,6 @@
 # OSMO CLI Workflows
 
-This is the command router for the `osmo-agent` skill. Use it to map the
+This is the command router for the `osmo-user` skill. Use it to map the
 user's intent to the right reference file, then load only that reference and any
 additional files it names.
 
