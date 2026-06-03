@@ -1,20 +1,32 @@
 ---
 name: osmo-user
 description: >
-  Use the OSMO CLI for cloud robotics compute. Trigger on requests about
-  resources (pools, quota, GPUs, CPUs, nodes); workflow
-  submit/list/query/status/monitor/debug/explain; recent submissions; logs or
-  errors; failed, PENDING, queued, or stuck workflows; output downloads;
-  workflow apps; or Grafana/Kubernetes dashboard links. Also use when the user
-  omits "OSMO" but asks about resources or workflows here. Do not use for
-  Kubernetes admin, OSMO install/deploy, non-OSMO compute, or general NVIDIA
-  hardware.
+  Drive the OSMO CLI for cloud-robotics compute on behalf of an end user:
+  check resources, submit/monitor/debug/explain workflows, fetch logs and
+  Grafana/Kubernetes links, and create workflow apps. Use whenever the user
+  asks about OSMO pools, quota, GPUs, or nodes, or about submitting, listing,
+  querying, monitoring, or troubleshooting workflows — including failed,
+  PENDING, queued, or stuck ones — even when they describe a workflow or
+  cluster resource without saying "OSMO". Do not use for Kubernetes admin,
+  server-side `osmo config` changes, OSMO install/deploy, non-OSMO compute, or
+  general NVIDIA hardware questions.
 ---
 
 # osmo-user
 
 Run OSMO CLI workflows from natural-language requests. Keep this file as a
 router: load only the reference files needed for the current task.
+
+## Prerequisites
+
+Before the first OSMO command in a conversation:
+
+1. Confirm the CLI is available: `osmo --version`. If it fails, tell the user
+   the OSMO CLI is unavailable and stop.
+2. If any command returns an authentication error, ask the user to run
+   `osmo login` and stop until they confirm.
+3. Resource and workflow operations rely on the user's profile and pool access
+   (`osmo profile list`, `osmo pool list`).
 
 ## Operating Rules
 
@@ -25,10 +37,7 @@ router: load only the reference files needed for the current task.
 - Obtain workflow and resource state (status, logs, events, capacity, spec) by
   running the `osmo` CLI yourself. Do not infer OSMO state by reading, cat-ing,
   or grepping files in the workspace — run the command and use its output.
-- If `osmo --version` fails, tell the user the OSMO CLI is not available and
-  stop. Never fabricate command output.
-- If an `osmo` command returns an auth error, ask the user to run `osmo login`
-  and stop until they confirm.
+- Never fabricate command output; report only what the `osmo` commands actually returned.
 - Cache workflow query JSON during the conversation; do not re-query just to
   extract another field from the same response.
 - Surface `grafana_url` and `dashboard_url` according to
@@ -43,16 +52,19 @@ router: load only the reference files needed for the current task.
 
 ## Default Workflow
 
-1. Classify the user request to a reference using the Reference Routing section
-   below.
-2. Read only the reference file(s) named by the Reference Routing section below.
-3. Confirm `osmo --version` before the first OSMO command in the conversation.
-4. Run the OSMO commands yourself unless the selected reference says to spawn a
-   subagent.
-5. Summarize the result in the user's terms: available capacity, workflow state,
-   progress, error cause, dashboard link, output, or next action.
-6. For submit/monitor/fix loops, keep monitoring in the main conversation and
-   delegate only setup, submission, or log summarization as directed.
+1. Complete the Prerequisites above (CLI check, auth, profile/pool access)
+   before the first OSMO command.
+2. Classify the request and read only the reference file(s) named in the
+   Reference Routing section below.
+3. Run the `osmo` commands yourself — cache the query JSON and never infer state
+   from workspace files — unless the selected reference says to spawn a subagent.
+4. Verify the outputs before reporting: surface `grafana_url`/`dashboard_url`
+   (or say a null one is unavailable), confirm returned workflow IDs, and check
+   status and exit codes.
+5. Summarize in the user's terms: available capacity, workflow state, progress,
+   error cause and concrete fix, dashboard link, output, or next action.
+6. For submit -> monitor -> fix loops, keep monitoring and final reporting in
+   the main conversation; delegate only setup, submission, or log summarization.
 
 ## Reference Routing
 
