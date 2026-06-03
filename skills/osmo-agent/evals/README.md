@@ -48,8 +48,8 @@ the skill's prescribed commands (`osmo profile list`, `osmo pool list`,
 `osmo workflow query …`, etc.) resolve end-to-end without needing a live
 OSMO backend.
 
-Fixtures are organized by category (`default/`, `submit_ok/`,
-`sample_workflows/`); the dispatcher walks the fixtures tree at lookup time.
+Fixtures are organized by category (`default/`, `submit_ok/`, `submit_err/`,
+`app_ok/`); the dispatcher walks the fixtures tree at lookup time.
 Filenames are unique across categories, so there's no ambiguity when ACES
 stages all of `evals/files/` into a single runtime tree.
 
