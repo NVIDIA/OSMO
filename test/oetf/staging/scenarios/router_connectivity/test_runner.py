@@ -1,5 +1,5 @@
 """
-Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 NVIDIA CORPORATION and its licensors retain all intellectual property
 and proprietary rights in and to this software, related documentation
@@ -15,6 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import unittest
 
+from test.oetf.models import WorkflowServerStatus
 from test.oetf.runner_fixture import RunnerFixture, curl_until
 
 # Kept in sync with staging/scenarios/router_connectivity/task.py.
@@ -61,7 +62,10 @@ class RouterConnectivity(RunnerFixture):
             )
 
         handle.cancel()
-        handle.expect_outcome("failed")
+        # Specifically FAILED_CANCELED, not the `failed` union — a regression
+        # where the workflow ends as plain FAILED (e.g., a router fault
+        # unrelated to cancellation) would otherwise silently pass.
+        self.assertEqual(handle.status, WorkflowServerStatus.FAILED_CANCELED)
 
 
 if __name__ == "__main__":
