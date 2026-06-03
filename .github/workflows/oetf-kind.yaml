@@ -121,8 +121,15 @@ jobs:
 
       - name: Run OETF deploy_and_run on KIND
         run: |
+          # --jobs=1 serializes the OETF test suite. The KIND-deployed
+          # quick-start chart runs a single ingress-nginx replica with
+          # default resources; running 4 parallel scenarios saturates it
+          # and intermittent submits 504 (saw 2/3 runs fail this way).
+          # Trade-off: longer wall clock; in exchange we get deterministic
+          # green on the M1 milestone.
           bazel run //test/oetf:deploy_and_run -- \
             --env kind --tags kind \
+            --jobs 1 \
             --output-json kind-smoke-result.json
 
       - name: Cleanup KIND cluster
