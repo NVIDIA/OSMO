@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit train.yaml --set n_nodes=<number of nodes> n_gpus_per_node=<number of GPUs per node>
+# osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets n_nodes=<number of nodes> n_gpus_per_node=<number of GPUs per node>
 
 workflow:
   name: wandb-sample
@@ -33,9 +33,7 @@ workflow:
     - name: master  # Master task for torchrun
       lead: true
       outputs:
-      - dataset:
-          name: {{ dataset }}
-          path: models
+      - url: {{ storage_url }}/{{ dataset }}/{{workflow_id}}/
     {% else %}
     - name: worker_{{item}}  # Worker task that will communicate with the master task
     {% endif %}
@@ -72,4 +70,4 @@ default-values:
   master_port: 29400
   n_epochs: 10
   batch_size: 32
-  dataset: model-sample
+  dataset: model-sample  # Name of the output dataset under storage_url.

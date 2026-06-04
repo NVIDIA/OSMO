@@ -81,7 +81,7 @@ Once raw trajectories are recorded, use Cosmos Transfer to apply diffusion-based
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/mobility_gen/cosmos_augmentation.yaml
-osmo workflow submit cosmos_augmentation.yaml
+osmo workflow submit cosmos_augmentation.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 **Example Prompt:**

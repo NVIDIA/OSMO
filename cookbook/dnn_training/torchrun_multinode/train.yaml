@@ -16,7 +16,7 @@
 
 # This workflow has multiple files. Please refer to README for more details.
 # To submit:
-# osmo workflow submit train.yaml
+# osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: train-multi-gpu
@@ -48,9 +48,7 @@ workflow:
       - path: /tmp/train.py
         localpath: train.py
       outputs:
-        - dataset:
-            name: {{ output_dataset }}
-            path: models
+        - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
 
     - name: worker  # Worker task that will communicate with the master task
       image: nvcr.io/nvidia/pytorch:24.03-py3
@@ -71,4 +69,4 @@ workflow:
         localpath: train.py
 
 default-values:
-  output_dataset: my-trained-model  # The name of the output dataset
+  output_dataset: my-trained-model  # Name of the output dataset under storage_url.

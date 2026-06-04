@@ -34,7 +34,7 @@ This workflow example contains:
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/single_node/train.yaml
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/single_node/train.py
-osmo workflow submit train.yaml
+osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 ## Open Tensorboard

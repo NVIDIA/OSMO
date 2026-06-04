@@ -72,37 +72,44 @@ Set your credential for Huggingface in order to access datasets:
 osmo credential set huggingface_token --type GENERIC --payload token=<your-hf-token>
 ```
 
-Set up the first input dataset:
+Pick a base storage URL for the chain (every stage will read from / write to it),
+and upload the seed input HDF5 to `$STORAGE_URL/PhysAI-InputMimic/`:
 
 ```bash
-mkdir -p input_mimic
+export STORAGE_URL=s3://my-bucket/datasets
+
 curl -O https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/dataset_annotated_gr1_nut_pouring.hdf5
-osmo dataset upload PhysAI-InputMimic dataset_annotated_gr1_nut_pouring.hdf5
+osmo data upload $STORAGE_URL/PhysAI-InputMimic/ dataset_annotated_gr1_nut_pouring.hdf5
 ```
 
-Execute each step sequentially:
+Execute each step sequentially. All six stages share the same `storage_url` so each
+stage's output URL matches the next stage's input URL — pass the same value via
+`--set storage_url=...` on every submission:
 
 ```bash
 mkdir -p nut_pouring && cd nut_pouring
 curl https://codeload.github.com/NVIDIA/OSMO/tar.gz/main | tar -xz --strip=4 OSMO-main/cookbook/nut_pouring
 
+# Pick a base URL the entire chain will read from and write to.
+export STORAGE_URL=s3://my-bucket/datasets
+
 # Step 1: MimicGen data generation
-osmo workflow submit 01_mimic_generation.yaml
+osmo workflow submit 01_mimic_generation.yaml --set storage_url=$STORAGE_URL
 
 # Step 2: HDF5 to MP4 conversion
-osmo workflow submit 02_hdf5_to_mp4.yaml
+osmo workflow submit 02_hdf5_to_mp4.yaml --set storage_url=$STORAGE_URL
 
 # Step 3: Cosmos Transfer augmentation
-osmo workflow submit 03_cosmos_augmentation.yaml
+osmo workflow submit 03_cosmos_augmentation.yaml --set storage_url=$STORAGE_URL
 
 # Step 4: MP4 to HDF5 conversion
-osmo workflow submit 04_mp4_to_hdf5.yaml
+osmo workflow submit 04_mp4_to_hdf5.yaml --set storage_url=$STORAGE_URL
 
 # Step 5: LeRobot format conversion
-osmo workflow submit 05_lerobot_conversion.yaml
+osmo workflow submit 05_lerobot_conversion.yaml --set storage_url=$STORAGE_URL
 
 # Step 6: GROOT fine-tuning
-osmo workflow submit 06_groot_finetune.yaml
+osmo workflow submit 06_groot_finetune.yaml --set storage_url=$STORAGE_URL
 ```
 
 ## Configuration
@@ -111,6 +118,7 @@ Each workflow uses parameterized default values. Override as needed:
 
 ```bash
 osmo workflow submit 06_groot_finetune.yaml \
+  --set storage_url=$STORAGE_URL \
   --set max_steps=20000 \
   --set batch_size=64
 ```

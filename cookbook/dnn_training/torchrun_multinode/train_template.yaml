@@ -14,6 +14,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# This workflow has multiple files. Please refer to README for more details.
+# To submit:
+# osmo workflow submit train_template.yaml --set storage_url=s3://my-bucket/datasets
+
 workflow:
   name: train-torchrun
   resources:
@@ -30,9 +34,7 @@ workflow:
     - name: master  # Master task for torchrun
       lead: true  # Set to the lead of the group
       outputs:  # Only save the trained model in lead task
-      - dataset:
-          name: {{ output_dataset }}
-          path: models
+      - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
     {% else %}
     - name: worker_{{item}}  # Worker task that will communicate with the master task
     {% endif %}
@@ -65,4 +67,4 @@ default-values:
   master_port: 29400
   n_epochs: 10
   batch_size: 32
-  output_dataset: my-trained-model  # The name of the output dataset
+  output_dataset: my-trained-model  # Name of the output dataset under storage_url.

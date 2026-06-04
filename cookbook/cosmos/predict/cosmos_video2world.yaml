@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit cosmos_video2world.yaml
+# osmo workflow submit cosmos_video2world.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: cosmos_video2world
@@ -45,9 +45,7 @@ workflow:
             mv output/hf_video2world {{output}}/output/
 
       outputs:
-        - dataset:
-            name: cosmos_video2world
-            path: output
+        - url: {{ storage_url }}/cosmos_video2world/{{workflow_id}}/
   resources:
     default:
       cpu: 16

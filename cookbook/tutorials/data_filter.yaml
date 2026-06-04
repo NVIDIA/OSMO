@@ -14,6 +14,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# To submit:
+#   osmo workflow submit data_filter.yaml --set storage_url=s3://my-bucket
+
 workflow:
   name: filtered-io
 
@@ -24,11 +27,9 @@ workflow:
     args: ["ls -la {{input:0}}/"]
 
     inputs:
-    - dataset:
-        name: large_dataset
-        regex: .*\.txt$ # (1)
+    - url: {{ storage_url }}/large_dataset/
+      regex: .*\.txt$ # (1)
 
     outputs:
-    - dataset:
-        name: output_dataset
-        regex: .*\.(json|yaml)$ # (2)
+    - url: {{ storage_url }}/output_dataset/{{workflow_id}}/
+      regex: .*\.(json|yaml)$ # (2)

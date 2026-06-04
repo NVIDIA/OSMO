@@ -2,7 +2,7 @@
 # Generates photorealistic videos from synthetic robot data using Cosmos Transfer
 #
 # To submit:
-#   osmo workflow submit cosmos_transfer_mobility.yaml --pool isaac-hil
+#   osmo workflow submit cosmos_transfer_mobility.yaml --pool isaac-hil --set storage_url=s3://my-bucket/datasets
 #
 # To connect:
 #   osmo workflow exec <workflow-id> -t cosmos_transfer
@@ -76,25 +76,24 @@ workflow:
         echo "  python examples/inference.py -i <spec_file> -o /workspace/output"
         echo ""
     - path: /workspace/params.json
-        contents: |
-          {
-              "name": "cosmos-transfer-mobility",
-              "prompt": "High-quality warehouse simulation...",
-              "video_path": "/workspace/input/clip_0000/rgb.mp4",
-              "vis": {"control_weight": 0.25},
-              "edge": {"control_weight": 0.25},
-              "depth": {
-                  "input_control": "/workspace/input/clip_0000/depth.mp4",
-                  "control_weight": 0.25
-              },
-              "seg": {
-                  "input_control": "/workspace/input/clip_0000/segmentation.mp4",
-                  "control_weight": 0.25
-              }
-          }
+      contents: |
+        {
+            "name": "cosmos-transfer-mobility",
+            "prompt": "High-quality warehouse simulation...",
+            "video_path": "/workspace/input/clip_0000/rgb.mp4",
+            "vis": {"control_weight": 0.25},
+            "edge": {"control_weight": 0.25},
+            "depth": {
+                "input_control": "/workspace/input/clip_0000/depth.mp4",
+                "control_weight": 0.25
+            },
+            "seg": {
+                "input_control": "/workspace/input/clip_0000/segmentation.mp4",
+                "control_weight": 0.25
+            }
+        }
     outputs:
-      - dataset:
-          name: cosmos-transfer-augmented-mobility
+      - url: {{ storage_url }}/cosmos-transfer-augmented-mobility/{{workflow_id}}/
 
 default-values:
   workflow_name: cosmos_transfer_mobility
