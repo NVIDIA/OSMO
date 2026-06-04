@@ -1,0 +1,13 @@
+ERROR: Workflow submission failed capacity validation.
+
+The requested resources exceed what any single node in pool 'h100-east' can provide.
+
+Task: generate
+  Resource   Requested   Node capacity
+  --------   ---------   -------------
+  gpu        4           64
+  cpu        300         192
+  memory     2000Gi      1500Gi
+  storage    2000Gi      1024Gi
+
+Adjust the 'resources' block in your workflow YAML to fit within node capacity and resubmit.

@@ -1,4 +1,4 @@
-# Eval environment for the osmo-agent skill.
+# Eval environment for the osmo-user skill.
 #
 # ACES runs the eval inside a container built from this Dockerfile.
 # At runtime, ACES stages everything under `evals/files/` to
@@ -33,6 +33,7 @@ RUN printf '#!/usr/bin/env bash\nexec bash /workspace/input/mock_osmo/osmo "$@"\
 RUN mkdir -p /workspace
 COPY workflows/simple_workflow.yaml /workspace/workflow.yaml
 COPY workflows/jinja_workflow.yaml  /workspace/jinja_workflow.yaml
+COPY workflows/oversized.yaml       /workspace/oversized.yaml
 
 RUN useradd --uid 10001 --create-home --shell /bin/bash agent && \
     chown -R agent:agent /workspace /usr/local/bin/osmo

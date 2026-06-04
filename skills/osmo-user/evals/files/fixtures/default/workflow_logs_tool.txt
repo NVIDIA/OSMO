@@ -1,0 +1,4 @@
+[2026-05-09 09:01:30] Starting dataset conversion
+[2026-05-09 09:01:31] Reading manifest from /workflow/inputs/dataset/manifest.json
+[2026-05-09 09:01:33] Found 4,200 records to convert
+[2026-05-09 09:02:05] /tmp/entry.sh: line 6: jq: command not found
