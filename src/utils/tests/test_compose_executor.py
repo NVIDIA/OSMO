@@ -32,7 +32,12 @@ from src.utils.compose_executor import (
     ComposeExecutor,
     run_workflow_compose,
 )
-from src.utils.standalone_executor import CONTAINER_DATA_PATH, TaskResult
+from src.utils.standalone_executor import (
+    CONTAINER_DATA_PATH,
+    TaskResult,
+    _expand_jinja_locally,
+    _spec_has_templates,
+)
 
 
 def _docker_compose_available() -> bool:
@@ -437,8 +442,8 @@ class TestComposeValidation(unittest.TestCase):
             executor._validate_for_compose(spec)
         self.assertIn('dataset', str(context.exception))
 
-    def test_credentials_rejected(self):
-        """Credentials are rejected in compose mode."""
+    def test_credential_not_provided_rejected(self):
+        """A credential required by a task but not supplied via --credential is rejected."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -454,7 +459,25 @@ class TestComposeValidation(unittest.TestCase):
         executor._build_dag(spec)
         with self.assertRaises(ValueError) as context:
             executor._validate_for_compose(spec)
-        self.assertIn('credentials', str(context.exception))
+        self.assertIn('credential', str(context.exception))
+
+    def test_provided_credential_passes(self):
+        """A credential supplied via --credential is accepted in compose mode."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: ok
+              tasks:
+              - name: task
+                image: ubuntu:24.04
+                command: ["echo"]
+                credentials:
+                  my-secret: NGC_API_KEY
+        ''')
+        executor = ComposeExecutor(
+            work_dir='/tmp/unused', credentials={'my-secret': '/tmp/secret-dir'})
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._validate_for_compose(spec)
 
     def test_simple_spec_passes(self):
         """A simple spec with only task-to-task inputs passes compose validation."""
@@ -637,33 +660,26 @@ class TestComposeProjectName(unittest.TestCase):
 
 
 class TestJinjaTemplateDetection(unittest.TestCase):
-    """Verify that Jinja templates are rejected before execution."""
+    """Verify that Jinja templates are detected and expanded locally before execution."""
 
-    def _write_temp_spec(self, content: str) -> str:
-        f = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        f.write(content)
-        f.flush()
-        f.close()
-        return f.name
-
-    def test_jinja_block_detected(self):
-        path = self._write_temp_spec(textwrap.dedent('''\
+    def test_jinja_block_expanded(self):
+        """A spec with {% %} Jinja block tags is detected and expanded locally."""
+        spec_text = textwrap.dedent('''\
             workflow:
               name: {% if true %}test{% endif %}
               tasks:
               - name: task
                 image: alpine:3.18
                 command: ["echo"]
-        '''))
-        try:
-            with self.assertRaises(ValueError) as context:
-                run_workflow_compose(path)
-            self.assertIn('Jinja', str(context.exception))
-        finally:
-            os.unlink(path)
+        ''')
+        self.assertTrue(_spec_has_templates(spec_text))
+        expanded = _expand_jinja_locally(spec_text)
+        self.assertNotIn('{%', expanded)
+        self.assertIn('name: test', expanded)
 
-    def test_default_values_detected(self):
-        path = self._write_temp_spec(textwrap.dedent('''\
+    def test_default_values_expanded(self):
+        """A spec with a default-values section has its {{ }} variables expanded locally."""
+        spec_text = textwrap.dedent('''\
             workflow:
               name: "{{experiment}}"
               tasks:
@@ -672,13 +688,11 @@ class TestJinjaTemplateDetection(unittest.TestCase):
                 command: ["echo"]
             default-values:
               experiment: test
-        '''))
-        try:
-            with self.assertRaises(ValueError) as context:
-                run_workflow_compose(path)
-            self.assertIn('Jinja', str(context.exception))
-        finally:
-            os.unlink(path)
+        ''')
+        self.assertTrue(_spec_has_templates(spec_text))
+        expanded = _expand_jinja_locally(spec_text)
+        self.assertNotIn('{{', expanded)
+        self.assertIn('test', expanded)
 
 
 class TestUnresolvedTokenDetection(unittest.TestCase):

@@ -25,7 +25,15 @@ import unittest
 from unittest import mock
 
 from src.utils.job import task as task_module
-from src.utils.standalone_executor import CONTAINER_DATA_PATH, StandaloneExecutor, TaskNode, TaskResult, run_workflow_standalone
+from src.utils.standalone_executor import (
+    CONTAINER_DATA_PATH,
+    StandaloneExecutor,
+    TaskNode,
+    TaskResult,
+    _expand_jinja_locally,
+    _spec_has_templates,
+    run_workflow_standalone,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -784,11 +792,11 @@ class TestValidateForStandalone(unittest.TestCase):
             executor._validate_for_standalone(spec)
         self.assertIn('URL', str(context.exception))
 
-    def test_dataset_output_rejected(self):
-        """A spec with dataset outputs is rejected as unsupported in standalone mode."""
+    def test_dataset_output_ignored(self):
+        """A spec with dataset outputs passes validation; the output is ignored in standalone mode."""
         spec_text = textwrap.dedent('''\
             workflow:
-              name: bad
+              name: ok
               tasks:
               - name: task
                 image: ubuntu:24.04
@@ -800,9 +808,7 @@ class TestValidateForStandalone(unittest.TestCase):
         executor = self._make_executor()
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
-        with self.assertRaises(ValueError) as context:
-            executor._validate_for_standalone(spec)
-        self.assertIn('dataset', str(context.exception).lower())
+        executor._validate_for_standalone(spec)
 
     def test_url_output_rejected(self):
         """A spec with URL outputs is rejected as unsupported in standalone mode."""
@@ -906,7 +912,7 @@ class TestValidateForStandaloneRemainingBranches(unittest.TestCase):
                     credentials:
                       my-secret: NGC_API_KEY
             '''),
-            'expected_substring': 'credentials',
+            'expected_substring': 'credential',
         },
         'checkpoint': {
             'yaml': textwrap.dedent('''\
@@ -1350,8 +1356,8 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor.execute(spec)
 
-    def test_error_message_suggests_dry_run(self):
-        """The unresolved token error message suggests using --dry-run to expand templates."""
+    def test_error_message_suggests_set(self):
+        """The unresolved token error message suggests using --set to provide values."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: helpful
@@ -1364,7 +1370,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         with self.assertRaises(ValueError) as context:
             executor.execute(spec)
-        self.assertIn('dry-run', str(context.exception))
+        self.assertIn('--set', str(context.exception))
 
 
 class TestShmSize(unittest.TestCase):
@@ -1482,36 +1488,26 @@ class TestShmSize(unittest.TestCase):
 
 
 class TestJinjaTemplateDetection(unittest.TestCase):
-    """Verify that specs containing Jinja template markers are rejected before execution."""
+    """Verify that specs containing Jinja template markers are expanded locally before execution."""
 
-    def _write_temp_spec(self, content: str) -> str:
-        """Write YAML content to a temporary file and return its path."""
-        f = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        f.write(content)
-        f.flush()
-        f.close()
-        return f.name
-
-    def test_jinja_block_detected(self):
-        """A spec containing {% %} Jinja block tags is rejected."""
-        path = self._write_temp_spec(textwrap.dedent('''\
+    def test_jinja_block_expanded(self):
+        """A spec containing {% %} Jinja block tags is detected and expanded locally."""
+        spec_text = textwrap.dedent('''\
             workflow:
               name: {% if true %}test{% endif %}
               tasks:
               - name: task
                 image: alpine:3.18
                 command: ["echo"]
-        '''))
-        try:
-            with self.assertRaises(ValueError) as context:
-                run_workflow_standalone(path)
-            self.assertIn('Jinja', str(context.exception))
-        finally:
-            os.unlink(path)
+        ''')
+        self.assertTrue(_spec_has_templates(spec_text))
+        expanded = _expand_jinja_locally(spec_text)
+        self.assertNotIn('{%', expanded)
+        self.assertIn('name: test', expanded)
 
-    def test_jinja_comment_detected(self):
-        """A spec containing {# #} Jinja comment tags is rejected."""
-        path = self._write_temp_spec(textwrap.dedent('''\
+    def test_jinja_comment_expanded(self):
+        """A spec containing {# #} Jinja comment tags is detected and stripped locally."""
+        spec_text = textwrap.dedent('''\
             {# A comment #}
             workflow:
               name: test
@@ -1519,17 +1515,15 @@ class TestJinjaTemplateDetection(unittest.TestCase):
               - name: task
                 image: alpine:3.18
                 command: ["echo"]
-        '''))
-        try:
-            with self.assertRaises(ValueError) as context:
-                run_workflow_standalone(path)
-            self.assertIn('Jinja', str(context.exception))
-        finally:
-            os.unlink(path)
+        ''')
+        self.assertTrue(_spec_has_templates(spec_text))
+        expanded = _expand_jinja_locally(spec_text)
+        self.assertNotIn('{#', expanded)
+        self.assertIn('name: test', expanded)
 
-    def test_default_values_section_detected(self):
-        """A spec containing a 'default-values' section is rejected as a Jinja template."""
-        path = self._write_temp_spec(textwrap.dedent('''\
+    def test_default_values_section_expanded(self):
+        """A spec containing a 'default-values' section has its variables expanded locally."""
+        spec_text = textwrap.dedent('''\
             workflow:
               name: "{{experiment_name}}"
               tasks:
@@ -1538,13 +1532,11 @@ class TestJinjaTemplateDetection(unittest.TestCase):
                 command: ["echo"]
             default-values:
               experiment_name: my-experiment
-        '''))
-        try:
-            with self.assertRaises(ValueError) as context:
-                run_workflow_standalone(path)
-            self.assertIn('Jinja', str(context.exception))
-        finally:
-            os.unlink(path)
+        ''')
+        self.assertTrue(_spec_has_templates(spec_text))
+        expanded = _expand_jinja_locally(spec_text)
+        self.assertNotIn('{{', expanded)
+        self.assertIn('my-experiment', expanded)
 
 
 # ============================================================================
@@ -1620,24 +1612,18 @@ class TestCookbookSpecValidation(unittest.TestCase):
             self._run_cookbook_spec('data_upload.yaml')
         self.assertIn('object storage', str(context.exception).lower())
 
-    def test_unsupported_spec_dataset_upload(self):
-        """dataset_upload.yaml uses dataset outputs — verify it is cleanly rejected."""
-        with self.assertRaises(ValueError) as context:
-            self._run_cookbook_spec('dataset_upload.yaml')
-        self.assertIn('dataset', str(context.exception).lower())
-
-    def test_unsupported_spec_template(self):
-        """template_hello_world.yaml uses default-values templating — verify it is rejected."""
+    def test_template_spec_expanded_locally(self):
+        """template_hello_world.yaml uses default-values templating — verify it expands locally."""
         spec_path = os.path.join(self.COOKBOOK_DIR, 'template_hello_world.yaml')
         self.assertTrue(os.path.exists(spec_path),
                         f'Cookbook file not found: {spec_path}')
-        with self.assertRaises(ValueError) as context:
-            run_workflow_standalone(
-                spec_path=spec_path,
-                work_dir=self.work_dir,
-                keep_work_dir=True,
-            )
-        self.assertIn('Jinja', str(context.exception))
+        with open(spec_path, encoding='utf-8') as f:
+            spec_text = f.read()
+        self.assertTrue(_spec_has_templates(spec_text))
+        expanded = _expand_jinja_locally(spec_text)
+        self.assertNotIn('{{', expanded)
+        self.assertIn('hello-osmo', expanded)
+        self.assertIn('Hello from OSMO!', expanded)
 
 
 class TestRunWorkflowStandaloneErrors(unittest.TestCase):

@@ -555,11 +555,11 @@ class StandaloneExecutor:
                     f'Task "{node.name}": file path "{file_spec.path}" escapes the task directory')
             os.makedirs(os.path.dirname(host_path), exist_ok=True)
             if file_spec.base64:
-                with open(host_path, 'wb') as f:
-                    f.write(base64_module.b64decode(resolved_contents))
+                with open(host_path, 'wb') as binary_file:
+                    binary_file.write(base64_module.b64decode(resolved_contents))
             else:
-                with open(host_path, 'w', encoding='utf-8') as f:
-                    f.write(resolved_contents)
+                with open(host_path, 'w', encoding='utf-8') as text_file:
+                    text_file.write(resolved_contents)
 
         resolved_command = [self._substitute_tokens(c, token_map) for c in task_spec.command]
         resolved_args = [self._substitute_tokens(a, token_map) for a in task_spec.args]
