@@ -126,6 +126,18 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_jobs_pure",
+    srcs = ["test_jobs_pure.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors",
+        "//src/utils/job",
+        "//src/utils/job:backend_job",
+        requirement("pydantic"),
+    ],
+)
+
+osmo_py_test(
     name = "test_task_db",
     srcs = ["test_task_db.py"],
     deps = [
