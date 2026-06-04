@@ -55,7 +55,7 @@ except ImportError:
     #   missing-attribute case lands here, not in ModuleNotFoundError).
     # Both are silent-and-expected; exotic failures fall through to below.
     dev_argocd = None  # type: ignore[assignment]
-    DevAdapter = None  # type: ignore[assignment, misc]
+    DevAdapter = None  # type: ignore[assignment, misc]  # pylint: disable=invalid-name
     _DEV_ADAPTER_AVAILABLE = False
 except Exception as _exc:  # pylint: disable=broad-except
     logger.warning(
@@ -63,7 +63,7 @@ except Exception as _exc:  # pylint: disable=broad-except
         "unavailable: %s: %s", type(_exc).__name__, _exc,
     )
     dev_argocd = None  # type: ignore[assignment]
-    DevAdapter = None  # type: ignore[assignment, misc]
+    DevAdapter = None  # type: ignore[assignment, misc]  # pylint: disable=invalid-name
     _DEV_ADAPTER_AVAILABLE = False
 
 
