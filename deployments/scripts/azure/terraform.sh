@@ -493,8 +493,8 @@ log_analytics_retention_days = 30
 # to the GPU prompt in azure_configure_interactively.
 gpu_node_pool_enabled = ${TF_GPU_NODE_POOL_ENABLED:-false}
 gpu_vm_size           = "${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
-gpu_min               = ${TF_GPU_COUNT:-0}
-gpu_max               = ${TF_GPU_COUNT:-0}
+gpu_node_pool_min_size = ${TF_GPU_COUNT:-0}
+gpu_node_pool_max_size = ${TF_GPU_COUNT:-0}
 
 # Optional Azure Blob Storage Account for workflow data
 # Triggered by --storage-backend azure-blob on deploy-osmo-minimal.sh
