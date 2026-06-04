@@ -58,9 +58,8 @@ class CollectAllureResultsTest(unittest.TestCase):
 
     def test_collect_from_plain_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
-            results_dir = os.path.join(tmp, "test", "oetf", "staging",
-                                       "smoke", "auth-checks", "test.outputs",
-                                       "allure-results")
+            results_dir = os.path.join(tmp, "test", "smoke", "auth-checks",
+                                       "test.outputs", "allure-results")
             os.makedirs(results_dir)
             with open(os.path.join(results_dir, "abc-result.json"),
                       "w", encoding="utf-8") as fh:
