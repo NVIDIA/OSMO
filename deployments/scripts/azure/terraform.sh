@@ -495,6 +495,7 @@ gpu_node_pool_enabled = ${TF_GPU_NODE_POOL_ENABLED:-false}
 gpu_vm_size           = "${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
 gpu_node_pool_min_size = ${TF_GPU_COUNT:-0}
 gpu_node_pool_max_size = ${TF_GPU_COUNT:-0}
+gpu_driver             = "${TF_GPU_DRIVER:-None}"
 
 # Optional Azure Blob Storage Account for workflow data
 # Triggered by --storage-backend azure-blob on deploy-osmo-minimal.sh

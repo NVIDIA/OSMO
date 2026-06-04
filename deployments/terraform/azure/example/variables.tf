@@ -296,6 +296,17 @@ variable "gpu_node_pool_priority" {
   }
 }
 
+variable "gpu_driver" {
+  description = "AKS-managed GPU driver install for the GPU node pool: 'None' (OSMO uses the GPU Operator) or 'Install'."
+  type        = string
+  default     = "None"
+
+  validation {
+    condition     = contains(["Install", "None"], var.gpu_driver)
+    error_message = "gpu_driver must be 'Install' or 'None'."
+  }
+}
+
 # Optional Storage Account for OSMO workflow data — disabled by default.
 # When false, BYO an existing Storage Account by setting STORAGE_ACCOUNT and
 # STORAGE_KEY env vars before running configure-storage.sh --backend azure-blob.
