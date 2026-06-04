@@ -98,7 +98,22 @@ jobs:
             exit 3
           fi
 
+      - name: Detect OETF framework presence
+        id: oetf
+        run: |
+          # The OETF framework lands in a separate PR (#1062). Until that
+          # merges, //test/oetf:deploy_and_run doesn't exist on main, and
+          # this workflow has nothing to verify against the PR-merged tree.
+          # Skip cleanly rather than failing red.
+          if [ -f test/oetf/BUILD ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::OETF framework not present in tree; skipping deploy_and_run."
+          fi
+
       - name: Build osmo CLI
+        if: steps.oetf.outputs.present == 'true'
         run: |
           # CLI-mode scenarios (e.g. router-connectivity, smoke:cli-checks)
           # need an `osmo` binary to invoke. Build from //src/cli and expose
@@ -109,6 +124,7 @@ jobs:
           /usr/local/bin/osmo --help >/dev/null
 
       - name: Run OETF deploy_and_run on KIND
+        if: steps.oetf.outputs.present == 'true'
         run: |
           # --jobs=1 serializes the test suite. The KIND-deployed
           # quick-start chart runs a single ingress-nginx replica with
