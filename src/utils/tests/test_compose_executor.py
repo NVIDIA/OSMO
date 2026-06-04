@@ -473,11 +473,14 @@ class TestComposeValidation(unittest.TestCase):
                 credentials:
                   my-secret: NGC_API_KEY
         ''')
-        executor = ComposeExecutor(
-            work_dir='/tmp/unused', credentials={'my-secret': '/tmp/secret-dir'})
-        spec = executor.load_spec(spec_text)
-        executor._build_dag(spec)
-        executor._validate_for_compose(spec)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            secret_dir = os.path.join(tmp_dir, 'secret-dir')
+            os.makedirs(secret_dir)
+            executor = ComposeExecutor(
+                work_dir=tmp_dir, credentials={'my-secret': secret_dir})
+            spec = executor.load_spec(spec_text)
+            executor._build_dag(spec)
+            executor._validate_for_compose(spec)
 
     def test_simple_spec_passes(self):
         """A simple spec with only task-to-task inputs passes compose validation."""
