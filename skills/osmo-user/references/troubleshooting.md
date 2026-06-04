@@ -5,9 +5,29 @@ Catalog of common failure modes for OSMO workflows. Each entry has:
 - **Diagnosis** — what it means in plain language
 - **Fix** — concrete recipe to resolve
 
-Always start by running the standard status workflow first (`osmo workflow query`
-+ `osmo workflow logs` and/or `osmo workflow events`) so the cached JSON is
-available for diagnosis.
+Always start by running the standard status workflow in
+`references/workflow-status.md` first (`osmo workflow query` + logs and/or
+events) so the cached JSON is available for diagnosis.
+
+## Debug a Failed or Stuck Workflow
+
+Use when the user asks why a workflow failed, why it is stuck, or how to fix an
+OSMO error. If they want automatic fix-and-resubmit, use the end-to-end
+orchestration flow in `references/workflow-status.md` instead.
+
+1. Establish current state with `references/workflow-status.md`; cache the
+   query JSON.
+2. Match the symptom below by status, exit code, error keyword, log signature,
+   or behavior.
+3. Explain the likely root cause in plain language, avoiding raw Kubernetes
+   jargon when possible.
+4. Recommend a concrete fix from the matched pattern. If the fix edits
+   `workflow.yaml`, show the exact diff you would apply.
+5. Ask before applying the fix and resubmitting unless the user has already
+   authorized autonomous fix-and-resubmit.
+
+Escalate to the user when the symptom does not match any troubleshooting
+pattern, or when the same workflow has already failed after three fix attempts.
 
 ---
 
@@ -22,11 +42,12 @@ available for diagnosis.
 ### Diagnosis flow
 Run these in order so you have the full picture before explaining:
 
-1. `osmo workflow query <name>` — confirm status is PENDING and grab the pool.
-2. `osmo workflow events <name>` — surface the scheduler's reason
+1. `osmo workflow query <workflow_id>` — confirm status is PENDING and grab the
+   pool.
+2. `osmo workflow events <workflow_id>` — surface the scheduler's reason
    (`FailedScheduling`, `Unschedulable`, etc.).
-3. `osmo workflow spec <name>` — read the resource request (GPUs / CPU / memory
-   per task, replica count).
+3. `osmo workflow spec <workflow_id>` — read the resource request (GPUs / CPU /
+   memory per task, replica count).
 4. `osmo resource list` (or `osmo resource list -p <pool>`) — inspect per-node
    available capacity in the target pool.
 5. Synthesize a plain-language explanation by comparing the spec's ask to what's
@@ -210,8 +231,8 @@ Inter-GPU communication is broken or too slow. Possible causes:
 - Specific NCCL version incompatibility with the GPU/driver combination.
 
 ### Fix
-- For pod placement, the workflow may need topology constraints — see
-  `references/advanced-patterns.md` for `topology_keys` usage.
+- For pod placement, start with `references/workflow-patterns.md`, then follow
+  its topology guidance to `references/workflow-advanced-patterns.md`.
 - Set NCCL env vars in the workflow's `environment:` block to debug:
   - `NCCL_DEBUG=INFO` (verbose logging)
   - `NCCL_SOCKET_IFNAME=eth0` (force a specific interface)
@@ -279,7 +300,7 @@ requested resources exceed what any node in the chosen pool can offer.
 
 ### Fix
 - For multi-task workflows, use `--task <task_name>` per task, or delegate to the
-  `logs-reader` subagent (see `agents/logs-reader.md`).
+  `logs-reader` subagent (see `references/logs-reader.md`).
 - For buffered output, suggest the user add `python -u` (unbuffered) for Python
   scripts, or `stdbuf -oL` for general commands, in their entry script.
 - If logs are truly empty, check pod events for what's blocking (image pull,

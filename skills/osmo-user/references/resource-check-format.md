@@ -2,6 +2,16 @@
 
 Required output format for the "Check Available Resources" use case.
 
+## How to check
+
+1. Check the user's profile and pool access:
+   ```bash
+   osmo profile list
+   ```
+2. Check GPU availability across accessible pools (`osmo pool list`); use
+   `osmo pool list --mode free` to see free capacity instead of used/total.
+3. Apply the output format below before responding.
+
 ## `osmo pool list` column meanings
 
 | Column | Meaning |

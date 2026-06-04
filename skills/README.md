@@ -45,7 +45,7 @@ npx skills update
 To uninstall:
 
 ```bash
-npx skills remove osmo-agent
+npx skills remove osmo-user
 ```
 
 ## Usage
@@ -65,7 +65,7 @@ For complex workflows, the skill spawns specialized sub-agents to handle resourc
 ## Skill Contents
 
 ```
-skills/osmo-agent/
+skills/osmo-user/
 ├── SKILL.md                 # Main skill instructions
 ├── LICENSE                  # Apache-2.0
 ├── agents/
@@ -79,4 +79,4 @@ skills/osmo-agent/
 
 ## License
 
-Apache-2.0 — see [osmo-agent/LICENSE](osmo-agent/LICENSE).
+Apache-2.0 — see [osmo-user/LICENSE](osmo-user/LICENSE).

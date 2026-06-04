@@ -33,7 +33,7 @@ metadata:
 
 Activate when the user asks to install, deploy, set up, stand up, or provision OSMO; when they reference `deploy-osmo-minimal.sh` / `deploy-k8s.sh` / "OSMO helm install"; when they ask to wire up workflow storage (MinIO / Azure Blob / S3); or when they ask to add a GPU pool, install KAI Scheduler, install the NVIDIA GPU Operator, or run post-install smoke tests on an OSMO cluster.
 
-Do **not** activate for general OSMO usage questions (running workflows, CLI usage, troubleshooting a running deployment) — those belong to the `osmo-agent` skill.
+Do **not** activate for general OSMO usage questions (running workflows, CLI usage, troubleshooting a running deployment) — those belong to the `osmo-user` skill.
 
 **This skill requires OSMO >= 6.3 (ConfigMap mode).** Earlier 6.2 CLI-write mode is not supported — the chart's HTTP 409 on `osmo config update` is the runtime signal that the cluster landed on 6.2. If the default `latest` channel still resolves to a 6.2 release, the deploy with no env-var pins lands on the unsupported variant. You MUST set the three version pins to a 6.3.x release before invoking the script — see "Picking chart, image, and CLI versions" below. Run `--list-chart-versions` to discover the latest available tags.
 

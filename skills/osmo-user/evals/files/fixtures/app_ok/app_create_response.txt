@@ -1,0 +1,4 @@
+App created successfully.
+App Name    - gr00t-train
+App Version - 1
+App URL     - https://osmo.example.com/apps/gr00t-train

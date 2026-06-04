@@ -1,8 +1,17 @@
 # OSMO Workflow Patterns Reference
 
 Read this file when generating a **multi-task, parallel, pipelined, or templated**
-workflow. The basic single-task scaffold in SKILL.md is sufficient for simple jobs;
-this reference covers everything beyond that.
+workflow. For simple jobs, follow `references/workflow-submit.md`; its fallback
+single-task scaffold is in `references/cookbook-fetching.md`.
+
+---
+
+## Related Workflow References
+
+Read `references/workflow-advanced-patterns.md` only when the request requires
+checkpointing, exit/retry behavior, node exclusion, or topology placement
+constraints. Those patterns are intentionally separate so common workflow
+generation does not load niche guidance.
 
 ---
 

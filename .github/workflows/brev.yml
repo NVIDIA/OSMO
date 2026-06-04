@@ -70,7 +70,7 @@ jobs:
         run: |
           brev agent-skill install          # installs /brev-cli — always latest
           mkdir -p ~/.claude/skills
-          cp -r skills/osmo-agent ~/.claude/skills/   # /osmo-agent — from repo
+          cp -r skills/osmo-user ~/.claude/skills/   # /osmo-user — from repo
 
       - name: Configure git
         run: |

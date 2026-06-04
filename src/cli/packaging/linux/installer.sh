@@ -125,7 +125,7 @@ rm -rf "$OSMO_CLI_TMP_DIR"
 # Skipped if: non-interactive, npx missing, or skill already installed.
 OSMO_SKILL_INSTALLED=false
 for agent_dir in "$HOME/.claude" "$HOME/.codex" "$HOME/.agents"; do
-    if [ -f "$agent_dir/skills/osmo-agent/SKILL.md" ]; then
+    if [ -f "$agent_dir/skills/osmo-user/SKILL.md" ]; then
         OSMO_SKILL_INSTALLED=true
         break
     fi
@@ -149,7 +149,7 @@ if [ -t 0 ] && [ "$OSMO_SKILL_INSTALLED" = false ]; then
             if npx skills add nvidia/osmo; then
                 echo ""
                 echo "To remove:"
-                echo "  npx skills remove osmo-agent"
+                echo "  npx skills remove osmo-user"
                 echo ""
             else
                 echo ""

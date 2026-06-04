@@ -1,0 +1,5 @@
+2026-05-09T09:01:20Z  Normal   Scheduled    Pod assigned to node osmo-iad1-h100-7e3a2
+2026-05-09T09:01:30Z  Normal   Started      Started container train
+2026-05-09T09:14:12Z  Warning  OOMKilling   Memory cgroup out of memory: Killed process (python) total-vm, anon-rss exceeded limit
+2026-05-09T09:14:12Z  Warning  OOMKilled    Reason: OOMKilled, exit code 137
+2026-05-09T09:14:13Z  Warning  BackOff      Back-off restarting failed container train

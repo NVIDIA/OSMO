@@ -1,8 +1,9 @@
-# OSMO Advanced Patterns Reference
+# OSMO Workflow Advanced Patterns Reference
 
 Read this file only when the user's request clearly requires one of these specific
-capabilities: **checkpointing**, **exit/retry behavior**, or **node exclusion**.
-These are niche patterns not needed for most workflow generation tasks.
+capabilities: **checkpointing**, **exit/retry behavior**, **node exclusion**, or
+**topology placement constraints**. These are niche patterns not needed for most
+workflow generation tasks.
 
 ---
 
@@ -91,3 +92,31 @@ workflow:
 
 > **Warning:** Excluding too many nodes can cause tasks to remain PENDING indefinitely.
 > Only use this when specific nodes are confirmed to have hardware or network issues.
+
+---
+
+## Topology Placement Constraints
+
+Use `topology` on a resource spec when tasks must be co-located at a configured
+pool topology level, such as a zone, rack, or GPU clique.
+
+```yaml
+resources:
+  default:
+    gpu: 8
+    topology:
+    - key: gpu-clique
+```
+
+Each topology entry supports:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `key` | required | Topology key configured on the pool, such as `zone`, `rack`, or `gpu-clique`. |
+| `group` | `default` | User-defined group of tasks that must share the same topology value for this key. |
+| `requirementType` | `required` | `required` blocks scheduling unless satisfied; `preferred` allows scheduling if the constraint cannot be met. |
+
+All tasks with topology requirements must use the same set of topology keys, or
+submission will fail. Confirm available keys with pool/resource inspection before
+adding constraints; topology scheduling only works on pools configured with those
+keys.
