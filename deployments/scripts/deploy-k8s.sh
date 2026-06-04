@@ -871,9 +871,10 @@ extra_values_flags() {
     echo "$flags"
 }
 
-# Layer values/gpu-pool.yaml when GPU nodes are detected (or when --gpu-node-pool
-# was passed via NO_GPU=0 + force). Replaces the 6.2-era `osmo config update`
-# CLI dance — in 6.3 ConfigMap mode the pool definition lives in Helm values.
+# Layer values/gpu-pool.yaml when OSMO_GPU_POOL_ENABLED=true (set automatically
+# by --gpu-node-pool) or when a GPU node is already present. Replaces the
+# 6.2-era `osmo config update` CLI dance — in 6.3 ConfigMap mode the pool
+# definition lives in Helm values.
 #
 # To force-enable on a cluster without the gpu.present label, set
 # OSMO_GPU_POOL_ENABLED=true. To force-disable, set NO_GPU=1.

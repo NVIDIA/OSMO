@@ -493,6 +493,12 @@ setup_provider_env() {
     # TF variables.
     if [[ "$GPU_NODE_POOL" == true ]]; then
         export TF_GPU_NODE_POOL_ENABLED=true
+        # The pool is provisioned scale-from-zero (min=0 by default), so no GPU
+        # node may exist when deploy-k8s.sh decides whether to layer the OSMO
+        # `gpu` platform. Force-enable it off the requested-pool intent rather
+        # than current node presence, so `--gpu-node-pool` reliably configures
+        # the gpu platform even before the autoscaler brings a node up.
+        export OSMO_GPU_POOL_ENABLED=true
     fi
     # --with-nfs-storage: azure-only. Flips var.nfs_storage_account_enabled so
     # TF provisions the Premium FileStorage SA + 4 role assignments needed by
