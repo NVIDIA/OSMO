@@ -39,8 +39,12 @@ logger = logging.getLogger(__name__)
 # other than ModuleNotFoundError logs a WARNING so silent ImportError
 # swallowing doesn't hide real bugs.
 try:
-    from test.oetf import dev_argocd
-    from test.oetf.deploy_adapters.dev_adapter import DevAdapter
+    # type-ignored: mypy correctly observes that these modules don't exist in
+    # the public tree (the optional-import block exists precisely so they can
+    # be absent). They DO exist when a downstream overlay package adds them
+    # to the runfiles tree; the runtime try/except handles both cases.
+    from test.oetf import dev_argocd  # type: ignore[attr-defined]
+    from test.oetf.deploy_adapters.dev_adapter import DevAdapter  # type: ignore[import-not-found]
     _DEV_ADAPTER_AVAILABLE = True
 except ImportError:
     # Catches both:
