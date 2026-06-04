@@ -8,6 +8,8 @@ on:
       - 'deployments/scripts/**'
       - 'deployments/values/**'
       - 'test/oetf/**'
+      - 'test/smoke/**'
+      - 'test/scenarios/**'
       - 'test/workflow/**'
       - 'bzl/**'
       - 'MODULE.bazel'
