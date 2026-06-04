@@ -31,5 +31,5 @@ bazel run //test/oetf:run -- --env staging --name test_foo    # one method again
 bazel run //test/oetf:deploy_and_run -- --env kind --tags kind  # end-to-end on local KIND
 ```
 
-If you touched BUILD or `bzl/oetf.bzl`: `bazel query //test/oetf/staging/...` must succeed.
+If you touched BUILD or `bzl/oetf.bzl`: `bazel query //test/...` must succeed.
 If you touched `cli_args.py`: `--help` on all three binaries.

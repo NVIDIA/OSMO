@@ -38,7 +38,7 @@ bazel run //test/oetf:run -- \
   --tags smoke
 
 # Direct Bazel invocation (bypassing the wrapper) for IDE / debugger use
-bazel test //test/oetf/staging/smoke:api-checks \
+bazel test //test/smoke:api-checks \
   --test_env=OETF_URL=https://staging.example \
   --test_env=OETF_AUTH_METHOD=token \
   --test_env=OETF_AUTH_TOKEN=$OETF_TOKEN \
@@ -230,10 +230,10 @@ Four test shapes, all Bazel `py_test` targets:
 
 | Shape | BUILD macro | Example target | What it does |
 |---|---|---|---|
-| **smoke** | `oetf_smoke_test` | `//test/oetf/staging/smoke:api-checks` | HTTP / CLI / WebSocket probes of the target instance. No workflows submitted. |
-| **scenario** (plain) | `oetf_scenario_test(src=...)` | `//test/oetf/staging/scenarios:privileged` | Submit a referenced workflow YAML (under `test/workflow/`), poll, assert outcome. One py_test class per tightly related group of scenarios. |
-| **scenario** (split) | `oetf_scenario_test(src=..., test_filter=...)` | `//test/oetf/staging/scenarios:serial-workflow` | Same as plain, but one Bazel target per test method so Bazel parallelizes them. Used for files whose combined runtime exceeded ~120s. |
-| **scenario** (3-file) | `oetf_scenario_test(test_dir=...)` | `//test/oetf/staging/scenarios:router-connectivity` | Plain scenario plus a `task.py` injected into the container. Used when both in-container and caller-side assertions matter. |
+| **smoke** | `oetf_smoke_test` | `//test/smoke:api-checks` | HTTP / CLI / WebSocket probes of the target instance. No workflows submitted. |
+| **scenario** (plain) | `oetf_scenario_test(src=...)` | `//test/scenarios:privileged` | Submit a referenced workflow YAML (under `test/workflow/`), poll, assert outcome. One py_test class per tightly related group of scenarios. |
+| **scenario** (split) | `oetf_scenario_test(src=..., test_filter=...)` | `//test/scenarios:serial-workflow` | Same as plain, but one Bazel target per test method so Bazel parallelizes them. Used for files whose combined runtime exceeded ~120s. |
+| **scenario** (3-file) | `oetf_scenario_test(test_dir=...)` | `//test/scenarios:router-connectivity` | Plain scenario plus a `task.py` injected into the container. Used when both in-container and caller-side assertions matter. |
 
 ### Scenario layouts: plain vs 3-file
 
@@ -1257,7 +1257,7 @@ via `curl -fsSL .../install.sh | bash` (sets `/usr/local/bin/osmo`) or pass
 `--local-osmo <path>`.
 
 **"(no test results reported by Bazel)"** — usually `--tags X` matched no
-targets. Verify with `bazel query 'attr(tags, "X", tests(//test/oetf/staging/...))'`.
+targets. Verify with `bazel query 'attr(tags, "X", tests(//test/...))'`.
 
 **"Data credential not found for swift://…"** — a CLI-mode scenario tried to
 upload a `localpath:` dataset with no stored credential. Pass all four

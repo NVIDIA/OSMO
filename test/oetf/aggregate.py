@@ -92,8 +92,8 @@ def collect_allure_results(
     - Zipped: test.outputs/outputs.zip (containing allure-results/ entries)
     - Per-attempt (--runs_per_test=N): test.outputs/test_attempts/attempt_*/allure-results/
 
-    A label like //test/oetf/staging/smoke:api-checks maps to
-    bazel-testlogs/test/oetf/staging/smoke/api-checks/test.outputs/
+    A label like //test/smoke:api-checks maps to
+    bazel-testlogs/test/smoke/api-checks/test.outputs/
 
     Also copies each target's test.log into staging_dir as an attachment
     and links it from every result.json the target produced — so the

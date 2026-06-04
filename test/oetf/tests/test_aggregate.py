@@ -71,7 +71,7 @@ class CollectAllureResultsTest(unittest.TestCase):
             staging = os.path.join(tmp, "staging")
             count = aggregate.collect_allure_results(
                 testlogs_dir=tmp,
-                targets=["//test/oetf/staging/smoke:auth-checks"],
+                targets=["//test/smoke:auth-checks"],
                 staging_dir=staging,
             )
             self.assertEqual(count, 2)

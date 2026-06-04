@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
-# OETF runner: wrapper around `bazel test //test/oetf/staging/...`.
+# OETF runner: wrapper around `bazel test //test/...`.
 #
 # Resolves --env to OETF_* env vars, invokes Bazel, parses the per-method
 # JUnit XML files from bazel-testlogs/, and renders the [PASS]/[FAIL] summary
@@ -50,7 +50,7 @@ TAG_ALIASES = {
     "scenario": "oetf-scenario",
 }
 
-TARGET_PATTERN = "//test/oetf/staging/..."
+TARGET_PATTERN = "//test/..."
 
 
 # --- Env config ------------------------------------------------------------
@@ -83,7 +83,7 @@ def _add_env_hint(name: str) -> str:
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="oetf:run",
-        description="OETF test runner — wraps `bazel test //test/oetf/staging/...`.",
+        description="OETF test runner — wraps `bazel test //test/...`.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_env_args(parser)
@@ -342,22 +342,31 @@ def resolve_name_target(name: str) -> Tuple[str, Optional[str]]:
     """
     class_hint, method = _parse_name(name)
     workspace = _workspace_root()
-    staging = Path(workspace) / "test" / "oetf" / "staging"
-    for py_file in staging.rglob("*.py"):
-        text = py_file.read_text(encoding="utf-8")
-        if f"def {method}" not in text:
+    # Tests live in two trees post-reorg: test/smoke/ + test/scenarios/.
+    search_roots = [
+        Path(workspace) / "test" / "smoke",
+        Path(workspace) / "test" / "scenarios",
+    ]
+    for root in search_roots:
+        if not root.is_dir():
             continue
-        class_name = _find_class_containing_method(text, method)
-        if class_hint and class_name != class_hint:
-            continue
-        package, file_stem = _package_and_stem(py_file, workspace)
-        slug = method.removeprefix("test_").replace("_", "-")
-        split_target = f"//{package}:{slug}"
-        if _bazel_target_exists(split_target):
-            return split_target, None
-        combined_target = f"//{package}:{file_stem}"
-        return combined_target, f"{class_name}.{method}"
-    raise SystemExit(f"ERROR: no test matching --name={name!r} found under {staging}")
+        for py_file in root.rglob("*.py"):
+            text = py_file.read_text(encoding="utf-8")
+            if f"def {method}" not in text:
+                continue
+            class_name = _find_class_containing_method(text, method)
+            if class_hint and class_name != class_hint:
+                continue
+            package, file_stem = _package_and_stem(py_file, workspace)
+            slug = method.removeprefix("test_").replace("_", "-")
+            split_target = f"//{package}:{slug}"
+            if _bazel_target_exists(split_target):
+                return split_target, None
+            combined_target = f"//{package}:{file_stem}"
+            return combined_target, f"{class_name}.{method}"
+    raise SystemExit(
+        f"ERROR: no test matching --name={name!r} found under {search_roots}"
+    )
 
 
 def _bazel_target_exists(label: str) -> bool:
@@ -606,7 +615,7 @@ def _short_label(result: Dict) -> str:
     # Bazel's auto-generated test.xml uses the full target path as classname AND
     # name (one testcase per target). Prefer the Bazel label for readability.
     if result["target"]:
-        return result["target"].lstrip("/").replace("test/oetf/staging/", "")
+        return result["target"].lstrip("/").replace("test/", "")
     class_name = result["classname"].rsplit(".", 1)[-1]
     return f"{class_name}.{result["name"]}" if class_name else result["name"]
 

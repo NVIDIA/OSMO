@@ -224,7 +224,7 @@ def add_run_args(parser: argparse.ArgumentParser) -> None:
         "--target-pattern", action="append", default=[],
         help="Bazel target pattern(s) to discover OETF tests from. Repeat OR "
              "comma-join to combine (e.g. `--target-pattern A,B --target-pattern C`). "
-             "Default: `//test/oetf/staging/...`. Used post-migration to "
+             "Default: `//test/...`. Used post-migration to "
              "combine internal overlay paths with public framework paths.",
     )
 

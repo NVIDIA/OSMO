@@ -30,7 +30,7 @@ class SummarizeLinesTest(unittest.TestCase):
     def test_single_line_assertion_error(self):
         """smoke:cli-checks — vanilla AssertionError from a CliProbe."""
         log = _as_lines("""\
-            Executing tests from //test/oetf/staging/smoke:cli-checks
+            Executing tests from //test/smoke:cli-checks
             -----------------------------------------------------------------------------
             FF.F
             ======================================================================
@@ -154,7 +154,7 @@ class SummarizeLinesTest(unittest.TestCase):
         """If setUp() raises, no FAIL: header is emitted — only a bare
         traceback. We should still surface the exception."""
         log = _as_lines("""\
-            Executing tests from //test/oetf/staging/smoke:api-checks
+            Executing tests from //test/smoke:api-checks
             Traceback (most recent call last):
               File "<snip>", line 43, in setUp
                 self.service_client = create_service_client(self.config)
@@ -175,7 +175,7 @@ class SummarizeLinesTest(unittest.TestCase):
     def test_passing_log_returns_empty_string(self):
         """OK run — no FAIL/ERROR block, no exception anywhere."""
         log = _as_lines("""\
-            Executing tests from //test/oetf/staging/smoke:api-checks
+            Executing tests from //test/smoke:api-checks
             ....
             ----------------------------------------------------------------------
             Ran 4 tests in 3.0s

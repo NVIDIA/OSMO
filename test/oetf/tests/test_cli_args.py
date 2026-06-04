@@ -144,7 +144,7 @@ class TestTargetPattern(unittest.TestCase):
     keep working unchanged.
     """
 
-    _DEFAULT = "//test/oetf/staging/..."
+    _DEFAULT = "//test/..."
 
     def _parse(self, *argv):
         parser = argparse.ArgumentParser(add_help=False)
