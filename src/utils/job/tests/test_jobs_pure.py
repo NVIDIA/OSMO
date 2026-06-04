@@ -1404,7 +1404,7 @@ class UpdateGroupUpdateAllTasksTest(unittest.TestCase):
         return jobs.UpdateGroup(
             workflow_id=WORKFLOW_ID, workflow_uuid=WORKFLOW_UUID,
             group_name='g1', task_name=task_name, retry_id=retry_id,
-            status=status, user='alice')
+            status=status, user='alice', lead_task=lead_task)
 
     def _make_group(self, has_barrier=False, ignore_nonlead=False):
         task_spec = mock.Mock()
@@ -1570,7 +1570,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
             lead_task=lead_task)
 
     def _make_workflow(self, queue_timeout=None, exec_timeout=None,
-                       pool='pool-1', backend='back', method='prod'):
+                       pool='pool-1', backend='back'):
         wf = mock.Mock()
         wf.workflow_id = WORKFLOW_ID
         wf.workflow_uuid = WORKFLOW_UUID
@@ -1585,8 +1585,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
         return wf
 
     def _patches(self, *, group_obj, workflow_obj, pool_info=None,
-                  backend_get=None, backend_get_raises=False,
-                  fetch_metadata_group=None):
+                  backend_get=None, backend_get_raises=False):
         if pool_info is None:
             pool_info = mock.Mock(spec=connectors.Pool)
             pool_info.name = 'pool-1'
@@ -1619,7 +1618,6 @@ class UpdateGroupExecuteTest(unittest.TestCase):
         ctx = mock.Mock()
         ctx.postgres.get_workflow_configs.return_value = mock.Mock()
         ctx.postgres.method = 'prod'
-        wf = self._make_workflow()
         with mock.patch.object(task.TaskGroup, 'fetch_from_db', return_value=group), \
              mock.patch.object(jobs.UpdateGroup, 'send_delayed_job_to_queue') \
                 as mock_delay:
@@ -1855,8 +1853,7 @@ class CleanupWorkflowExecuteTest(unittest.TestCase):
         return jobs.CleanupWorkflow(
             workflow_id=WORKFLOW_ID, workflow_uuid=WORKFLOW_UUID, user='alice')
 
-    def _make_workflow(self, logs_url='redis://localhost:6379', failed=False,
-                        method='prod'):
+    def _make_workflow(self, logs_url='redis://localhost:6379', failed=False):
         wf = mock.Mock()
         wf.workflow_id = WORKFLOW_ID
         wf.workflow_uuid = WORKFLOW_UUID
