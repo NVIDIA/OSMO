@@ -19,14 +19,14 @@ description: A complete OSMO deployment for local development and testing
 
 type: application
 
-version: 1.3.0
+version: 1.3.1
 
 dependencies:
 - name: service
-  version: 1.3.0
+  version: 1.3.1
   repository: file://../service
 - name: backend-operator
-  version: 1.3.0
+  version: 1.3.1
   repository: file://../backend-operator
 
-appVersion: "6.3.0"
+appVersion: "6.3.1"

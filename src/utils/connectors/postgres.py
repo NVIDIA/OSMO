@@ -1439,30 +1439,8 @@ class PostgresConnector:
             if default_role_name not in role_objects:
                 default_role_object.insert_into_db(self, force=True)
             else:
-                # Add any action in default_role_object that isn't in existing role
                 existing_role = role_objects[default_role_name]
-
-                # Flatten actions for comparison
-                def flatten_actions(policies):
-                    return set(
-                        action
-                        for policy in policies
-                        for action in getattr(policy, 'actions', [])
-                    )
-
-                existing_actions = flatten_actions(existing_role.policies)
-                default_actions = flatten_actions(default_role_object.policies)
-
-                # Find actions in default_role_object not in existing_role
-                missing_actions = default_actions - existing_actions
-                if missing_actions:
-                    # Add missing actions to the first policy of the existing role
-                    if not existing_role.policies:
-                        existing_role.policies = default_role_object.policies
-                    else:
-                        for action_str in missing_actions:
-                            role.validate_semantic_action(action_str)
-                            existing_role.policies[0].actions.append(action_str)
+                if merge_default_role_policies(existing_role, default_role_object):
                     existing_role.insert_into_db(self, force=True)
                     updated_roles = True
 
@@ -4800,6 +4778,63 @@ class Role(role.Role):
             raise osmo_errors.OSMOUserError(f'Role {self.name} is immutable.')
 
 
+def _role_policy_scope_key(policy: role.RolePolicy) -> Tuple[role.PolicyEffect, Tuple[str, ...]]:
+    resources = policy.resources or ['*']
+    return policy.effect, tuple(sorted(set(resources)))
+
+
+def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool:
+    """
+    Append missing default role policies/actions into an existing role.
+
+    Default-role updates should add newly introduced actions only to a policy with
+    the same effect and resource scope. Existing policies and actions are
+    preserved exactly, including operator-added grants.
+    """
+    if not existing_role.policies:
+        if not default_role.policies:
+            return False
+        existing_role.policies = copy.deepcopy(default_role.policies)
+        return True
+
+    default_actions_by_scope: Dict[
+        Tuple[role.PolicyEffect, Tuple[str, ...]], set[str]
+    ] = {}
+    for default_policy in default_role.policies:
+        policy_scope_key = _role_policy_scope_key(default_policy)
+        default_actions = default_actions_by_scope.setdefault(policy_scope_key, set())
+        for action_str in default_policy.actions:
+            role.validate_semantic_action(action_str)
+            default_actions.add(action_str)
+
+    existing_policies_by_scope: Dict[
+        Tuple[role.PolicyEffect, Tuple[str, ...]], role.RolePolicy
+    ] = {}
+    did_update = False
+    for existing_policy in existing_role.policies:
+        policy_scope_key = _role_policy_scope_key(existing_policy)
+        existing_policies_by_scope.setdefault(policy_scope_key, existing_policy)
+        for action_str in existing_policy.actions:
+            role.validate_semantic_action(action_str)
+
+    for default_policy in default_role.policies:
+        policy_scope_key = _role_policy_scope_key(default_policy)
+        matching_policy = existing_policies_by_scope.get(policy_scope_key)
+        if matching_policy is None:
+            existing_role.policies.append(copy.deepcopy(default_policy))
+            existing_policies_by_scope[policy_scope_key] = existing_role.policies[-1]
+            did_update = True
+            continue
+
+        for action_str in default_policy.actions:
+            role.validate_semantic_action(action_str)
+            if action_str not in matching_policy.actions:
+                matching_policy.actions.append(action_str)
+                did_update = True
+
+    return did_update
+
+
 # Default roles using semantic action format.
 # Authorization is now handled by the authz_sidecar (Go service).
 # These roles are seeded into the database on startup.
@@ -4828,25 +4863,23 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
+                    'app:*',
+                    'auth:Token',
+                    'credentials:*',
+                    'dataset:*',
+                    'pool:List',
+                    'profile:Read',
+                    'profile:Update',
+                    'resources:Read',
+                    'user:List',
                     'workflow:List',
                     'workflow:Read',
-                    'workflow:Update',
-                    'workflow:Delete',
-                    'workflow:Cancel',
-                    'workflow:Exec',
-                    'workflow:PortForward',
-                    'workflow:Rsync',
-                    'dataset:*',
-                    'credentials:*',
-                    'pool:List',
-                    'app:*',
-                    'resources:Read',
                 ],
                 resources=['*']
             ),
             role.RolePolicy(
                 actions=[
-                    'workflow:Create',
+                    'workflow:*',
                 ],
                 resources=['pool/default']
             )
