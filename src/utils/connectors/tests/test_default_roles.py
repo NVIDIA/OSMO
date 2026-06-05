@@ -117,6 +117,48 @@ class TestDefaultRoleMerge(unittest.TestCase):
         self.assertEqual(existing_role.policies[2].actions, ['workflow:Create'])
         self.assertEqual(existing_role.policies[2].resources, ['pool/default'])
 
+    def test_normalizes_broadened_default_actions_back_to_default_scope(self):
+        existing_role = connectors.Role(
+            name='osmo-user',
+            description='User role',
+            external_roles=['osmo-user'],
+            policies=[
+                role.RolePolicy(
+                    actions=['app:*', 'workflow:Create', 'workflow:List', 'workflow:*'],
+                    resources=['*'],
+                ),
+                role.RolePolicy(
+                    actions=['workflow:*'],
+                    resources=['pool/orion-gb200-02'],
+                ),
+            ],
+        )
+        default_role = connectors.Role(
+            name='osmo-user',
+            description='Standard user role',
+            policies=[
+                role.RolePolicy(
+                    actions=['app:*'],
+                    resources=['*'],
+                ),
+                role.RolePolicy(
+                    actions=['workflow:*'],
+                    resources=['pool/default'],
+                ),
+            ],
+        )
+
+        did_update = connectors.merge_default_role_policies(existing_role, default_role)
+
+        self.assertTrue(did_update)
+        self.assertEqual(existing_role.external_roles, ['osmo-user'])
+        self.assertEqual(existing_role.policies[0].actions, ['app:*'])
+        self.assertEqual(existing_role.policies[0].resources, ['*'])
+        self.assertEqual(existing_role.policies[1].actions, ['workflow:*'])
+        self.assertEqual(existing_role.policies[1].resources, ['pool/orion-gb200-02'])
+        self.assertEqual(existing_role.policies[2].actions, ['workflow:*'])
+        self.assertEqual(existing_role.policies[2].resources, ['pool/default'])
+
     def test_returns_false_when_existing_role_already_contains_defaults(self):
         existing_role = connectors.Role(
             name='osmo-user',

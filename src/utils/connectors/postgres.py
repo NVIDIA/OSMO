@@ -4783,13 +4783,18 @@ def _role_policy_scope_key(policy: role.RolePolicy) -> Tuple[role.PolicyEffect, 
     return policy.effect, tuple(sorted(set(resources)))
 
 
+def _semantic_action_resource_type(action_str: str) -> str:
+    return action_str.split(':', 1)[0]
+
+
 def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool:
     """
     Merge default role policies into an existing role without broadening scopes.
 
     Default-role updates should add newly introduced actions only to a policy with
-    the same effect and resource scope. If that policy scope does not exist, copy
-    the default policy as a new scoped policy.
+    the same effect and resource scope. Existing default scopes are also
+    normalized when an action resource type moves to a different default scope.
+    Policies in scopes that are not managed by the default role are preserved.
     """
     if not existing_role.policies:
         if not default_role.policies:
@@ -4797,15 +4802,46 @@ def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool
         existing_role.policies = copy.deepcopy(default_role.policies)
         return True
 
+    default_actions_by_scope: Dict[
+        Tuple[role.PolicyEffect, Tuple[str, ...]], set[str]
+    ] = {}
+    default_scopes_by_action_resource: Dict[
+        str, set[Tuple[role.PolicyEffect, Tuple[str, ...]]]
+    ] = {}
+    for default_policy in default_role.policies:
+        policy_scope_key = _role_policy_scope_key(default_policy)
+        default_actions = default_actions_by_scope.setdefault(policy_scope_key, set())
+        for action_str in default_policy.actions:
+            role.validate_semantic_action(action_str)
+            default_actions.add(action_str)
+            action_resource_type = _semantic_action_resource_type(action_str)
+            default_scopes_by_action_resource.setdefault(
+                action_resource_type,
+                set()).add(policy_scope_key)
+
     existing_policies_by_scope: Dict[
         Tuple[role.PolicyEffect, Tuple[str, ...]], role.RolePolicy
     ] = {}
-    for existing_policy in existing_role.policies:
-        existing_policies_by_scope.setdefault(
-            _role_policy_scope_key(existing_policy),
-            existing_policy)
-
     did_update = False
+    for existing_policy in existing_role.policies:
+        policy_scope_key = _role_policy_scope_key(existing_policy)
+        existing_policies_by_scope.setdefault(policy_scope_key, existing_policy)
+
+        if policy_scope_key not in default_actions_by_scope:
+            continue
+
+        normalized_actions = []
+        for action_str in existing_policy.actions:
+            role.validate_semantic_action(action_str)
+            action_resource_type = _semantic_action_resource_type(action_str)
+            default_scopes = default_scopes_by_action_resource.get(action_resource_type)
+            if default_scopes and policy_scope_key not in default_scopes:
+                did_update = True
+                continue
+            normalized_actions.append(action_str)
+
+        existing_policy.actions = normalized_actions
+
     for default_policy in default_role.policies:
         policy_scope_key = _role_policy_scope_key(default_policy)
         matching_policy = existing_policies_by_scope.get(policy_scope_key)
