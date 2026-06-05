@@ -81,7 +81,7 @@ Resources, pools, GPUs, nodes, or quota.
 
 ### `references/cli-commands.md`
 Safe end-user OSMO command lookup when no dedicated reference applies.
-- "What is the command for dataset download?", "How do I list direct storage?", "Set my default pool" — use this for auth/version/profile/dataset/data/task syntax.
+- "What is the command for data download?", "How do I list direct storage?", "Set my default pool" — use this for auth/version/profile/data/task syntax.
 - For workflow, app, credential, resource, or troubleshooting details, follow this file's routing to the dedicated reference.
 - If the requested command is `osmo config`, `osmo user`, role/bucket/admin mutation, or Kubernetes administration, treat it as out of scope.
 

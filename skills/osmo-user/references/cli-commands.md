@@ -8,7 +8,7 @@ app, credential, resource, and troubleshooting references.
 
 Use this file for:
 
-- Authentication, version, profile, pool, resource, dataset, data, and task
+- Authentication, version, profile, pool, resource, data, and task
   command lookup.
 - Quick routing to the right deeper reference.
 - Non-destructive command syntax that helps users inspect or operate their own
@@ -73,38 +73,9 @@ osmo resource info <node_name> [--pool <pool>] [--platform <platform>]
 For user-facing capacity answers, use `resource-check-format.md`; it defines
 effective availability, grouping, and default-pool annotation.
 
-## Dataset Commands
-
-Use datasets for OSMO-managed inputs and outputs.
-
-```bash
-osmo dataset list [--name <substring>] [--user <user> ...] [--bucket <bucket> ...] \
-  [--all-users] [--count N] [--order asc|desc] [--format-type json|text]
-osmo dataset info <dataset[:tag_or_version]> [--all] [--count N] \
-  [--order asc|desc] [--format-type json|text]
-osmo dataset inspect <dataset[:tag_or_version]> [--format-type text|tree|json] \
-  [--regex <regex>] [--count N]
-osmo dataset download <dataset[:tag_or_version]> <path> [--regex <regex>] [--resume]
-osmo dataset upload <dataset[:tag]> <path> ... [--desc <description>] \
-  [--metadata <yaml> ...] [--labels <yaml> ...] [--regex <regex>] [--resume]
-```
-
-Use delete, rename, tag, label, metadata, update, collect, recollect, migrate,
-and checksum only when the user specifically asks for that dataset operation.
-Ask for confirmation before destructive dataset actions.
-
-```bash
-osmo dataset delete <dataset[:tag_or_version]> [--all] [--force]
-osmo dataset rename <old_name> <new_name>
-osmo dataset tag <dataset[:tag_or_version]> --set <tag> ... --delete <tag> ...
-osmo dataset query <query_file> [--bucket <bucket>] [--format-type json|text]
-osmo dataset check <dataset[:tag_or_version]> [--access-type <type>] [--config-file <path>]
-```
-
 ## Direct Data Commands
 
-Use direct data commands for storage URIs such as `s3://...` when the user is
-not working through an OSMO dataset name.
+Use direct data commands for storage URIs such as `s3://...`.
 
 ```bash
 osmo data list <remote_uri> [--prefix <prefix>] [--recursive] [--regex <regex>] \
