@@ -178,15 +178,34 @@ OSMO_CONFIGMAP_NAME deliberately references services.service.serviceName
 {{- end }}
 {{- end -}}
 
+{{/*
+The minimal deploy values keep nvcr-secret as the private-registry default for
+existing deployments. Public installs can omit that Secret; in that case, do
+not render references that make pods wait on or configs load a missing Secret.
+*/}}
+{{- define "osmo.config-secret-ref-enabled" -}}
+{{- $secretName := .secretName | default "" -}}
+{{- $root := .root -}}
+{{- $imagePullSecret := $root.Values.global.imagePullSecret | default "" -}}
+{{- if and (eq $secretName "nvcr-secret") (ne $imagePullSecret $secretName) (not (lookup "v1" "Secret" $root.Release.Namespace $secretName)) -}}
+false
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
 {{- define "osmo.configmap-volume-mounts" -}}
 {{- if .Values.services.configs.enabled }}
 - name: configs
   mountPath: /etc/osmo/configs
   readOnly: true
 {{- range .Values.services.configs.secretRefs }}
+{{- $secretName := .secretName | default "" }}
+{{- if and $secretName (eq (include "osmo.config-secret-ref-enabled" (dict "root" $ "secretName" $secretName) | trim) "true") }}
 - name: secret-{{ .secretName }}
   mountPath: /etc/osmo/secrets/{{ .secretName }}
   readOnly: true
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -197,10 +216,12 @@ OSMO_CONFIGMAP_NAME deliberately references services.service.serviceName
   configMap:
     name: {{ .Values.services.service.serviceName }}-configs
 {{- range .Values.services.configs.secretRefs }}
+{{- $secretName := .secretName | default "" }}
+{{- if and $secretName (eq (include "osmo.config-secret-ref-enabled" (dict "root" $ "secretName" $secretName) | trim) "true") }}
 - name: secret-{{ .secretName }}
   secret:
     secretName: {{ .secretName }}
 {{- end }}
 {{- end }}
+{{- end }}
 {{- end -}}
-

@@ -15,3 +15,9 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+
+filegroup(
+    name = "values",
+    srcs = glob(["values/**"]),
+    visibility = ["//visibility:public"],
+)

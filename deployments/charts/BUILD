@@ -32,3 +32,12 @@ filegroup(
     srcs = glob(["quick-start/**"]),
     visibility = ["//visibility:public"],
 )
+
+sh_test(
+    name = "service_public_registry_secret_render_test",
+    srcs = ["service/tests/public_registry_secret_render_test.sh"],
+    data = [
+        ":service",
+        "//deployments:values",
+    ],
+)
