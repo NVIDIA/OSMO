@@ -11,7 +11,7 @@ COPY input/ /workspace/input/
 
 RUN bash /workspace/input/prepare-fixture-workspace.sh /workspace /workspace/input/repo
 
-RUN for tool in osmo kubectl; do \
+RUN for tool in osmo kubectl argocd flux; do \
       printf '%s\n' '#!/usr/bin/env bash' \
         'printf "%s\n" "live admin command disabled in osmo-admin eval fixture; use provided config files" >&2' \
         'exit 2' > "/usr/local/bin/${tool}"; \
@@ -19,8 +19,8 @@ RUN for tool in osmo kubectl; do \
     done && \
     useradd --uid 10001 --create-home --shell /bin/bash agent && \
     chown -R agent:agent /workspace && \
-    chown root:root /usr/local/bin/osmo /usr/local/bin/kubectl && \
-    chmod 0555 /usr/local/bin/osmo /usr/local/bin/kubectl
+    chown root:root /usr/local/bin/osmo /usr/local/bin/kubectl /usr/local/bin/argocd /usr/local/bin/flux && \
+    chmod 0555 /usr/local/bin/osmo /usr/local/bin/kubectl /usr/local/bin/argocd /usr/local/bin/flux
 
 USER agent
 

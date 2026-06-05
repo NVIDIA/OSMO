@@ -2,22 +2,38 @@
 
 ## Scope
 
-This reference covers OSMO `services.configs` values under a user-provided
-config root. It is config-root agnostic: discover source files from the provided
-directory, workspace, or values file instead of assuming paths, environment
+This reference covers OSMO `services.configs` values under an explicit
+user-provided config root or values file. It is config-root agnostic: discover
+source files from that provided location instead of assuming paths, environment
 names, pools, backends, storage, or role names.
 
 ## Source Of Truth
 
-Use the config files the user identifies, or visible config files under the
-provided config root. Some deployments render `services.configs` into service
-runtime config, but this public skill does not assume a deployment mechanism.
-Do not use direct CLI/API config-write paths for this skill.
+Use only the config files the user identifies or files reached from the provided
+config root. Some deployments render `services.configs` into service runtime
+config, but this public skill does not assume a deployment mechanism. Do not use
+direct CLI/API config-write paths for this skill.
+
+## Canonical Schema Source
+
+Use the public OSMO docs as the canonical source for config shapes, especially
+Deployment Guide > References > Configuration API:
+
+- `pool`: https://nvidia.github.io/OSMO/main/deployment_guide/references/configs_definitions/pool.html
+- `pod_template`: https://nvidia.github.io/OSMO/main/deployment_guide/references/configs_definitions/pod_template.html
+- `resource_validation`: https://nvidia.github.io/OSMO/main/deployment_guide/references/configs_definitions/resource_validation.html
+- Resource pools: https://nvidia.github.io/OSMO/main/deployment_guide/advanced_config/pool.html
+- Roles and policies: https://nvidia.github.io/OSMO/main/deployment_guide/appendix/authentication/roles_policies.html
+
+Use the user-provided config root or values file as the source for current
+deployment values. If public docs and local files conflict, cite the docs for
+schema expectations and the local file for the current value. Do not invent
+fields.
 
 To find the source of truth:
 
-1. Start from the config root, workspace, or values file supplied by the user.
-   If none is available, ask for it before making file-specific claims.
+1. Start from the config root or values file supplied by the user. If neither
+   is available, ask for it before making file-specific claims.
 2. Look for a manifest, Helmfile, Kustomize overlay, values index, application
    file, or local docs that list the active values files.
 3. Read the active values files for the target deployment.
@@ -31,10 +47,10 @@ Useful generic evidence includes:
 - chart templates that render `services.configs` into config data
 - chart default values that define empty `services.configs` sections
 - deployment values files that set `services.configs.<section>`
-- deployment docs that define field semantics
+- local docs that identify active values files or environment conventions
 
-Do not duplicate full schema docs in the answer. Read matching local docs or
-schema files when field-level detail is needed.
+Do not duplicate full schema docs in the answer. Use the public docs above when
+field-level detail is needed.
 
 ## Schema Map
 
@@ -64,8 +80,8 @@ and runtime availability are live output. Do not add them to service values.
 
 ## Read Procedure
 
-1. Identify the config root and target values file from the user's words or
-   visible workspace context.
+1. Identify the config root or target values file from the user's explicit
+   request.
 2. Read the smallest relevant YAML file, then expand to sibling files only when
    needed to resolve references.
 3. Use the `services.configs.<section>` key path.
@@ -88,7 +104,12 @@ and runtime availability are live output. Do not add them to service values.
 3. Edit the smallest YAML subtree.
 4. Preserve sibling fields and unrelated objects.
 5. Show the local file diff.
-6. Run local validation relevant to the edit.
+6. Run user-provided or discoverable local validation when available. If no
+   validation command is provided or discoverable, report that no local
+   validation command was found.
+
+For preview-only requests, do not edit files. Read the target values file and
+describe the minimal key/value change or patch that would be made.
 
 ## Generic Examples
 
@@ -103,7 +124,8 @@ concepts:
 - `services.configs.pools.<pool>` with only CPU quota under `resources`
 - `services.configs.podTemplates.<template>` with arm64 node selection and no
   `nvidia.com/gpu` request
-- `services.configs.resourceValidations.<validation>` requiring zero GPUs
+- `services.configs.resourceValidations.<validation>` as an array of validation
+  rules requiring zero GPUs
 - `services.configs.roles.<role>` with `external_roles` and policy resources
   limited to the pool and its backend
 
@@ -138,14 +160,15 @@ services:
                   memory: "{{USER_MEMORY}}"
     resourceValidations:
       example-cpu-only:
-        assert_rules:
-          - expression: "{{USER_GPU}} == 0"
-            assert_message: This pool does not allow GPU requests.
+        - operator: EQ
+          left_operand: "{{USER_GPU}}"
+          right_operand: "0"
+          assert_message: This pool does not allow GPU requests.
     roles:
       osmo-example-arm64-users:
         description: Example access for the arm64 CPU pool
         immutable: false
-        sync_mode: external
+        sync_mode: import
         external_roles:
           - example-arm64-users
         policies:
@@ -269,7 +292,7 @@ Use `services.configs.roles.<role>`.
 - Translate `actions`, `resources`, and `external_roles` in plain language.
 - Do not use per-user role commands or token commands.
 - A role definition does not assign the role to users. User or group assignment
-  is owned by the deployment's identity provider or separate admin workflow.
+  is owned by the deployment's identity provider or separate admin process.
 - A conventional pool role name is `osmo-` plus the literal pool name. If the
   pool is named `osmo-dev`, the generated pool role is `osmo-osmo-dev` and its
   resource pattern targets `pool/osmo-dev*`.
@@ -310,8 +333,8 @@ For rollback:
    subject.
 2. Prepare the smallest reverse diff for the requested key or object.
 3. Do not revert unrelated fields from the same commit.
-4. Show the local diff and stop before any external review or rollout workflow
-   unless the user provides that workflow and explicitly asks.
+4. Show the local diff and stop before any external review or rollout process
+   unless the user provides that process and explicitly asks.
 
 Do not use `osmo config history`, `osmo config rollback`, live API writes, or
 cluster mutation.

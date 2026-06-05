@@ -5,8 +5,9 @@ author: NVIDIA
 tags: [osmo, admin, service-config]
 tools: [filesystem, shell]
 description: >
-  Use for OSMO services.configs admin in a user-provided config root: read
-  values and prepare minimal local diffs.
+  Use for OSMO config-admin requests that reference or require service values,
+  values files, config roots, pools, backends, quotas, roles, templates,
+  storage, maintenance, validation rules, or history.
 ---
 
 # osmo-admin
@@ -19,13 +20,13 @@ current request.
 
 Route OSMO config-admin questions to verified service values or local file
 diffs. This skill is config-root agnostic: it does not assume a repo layout,
-environment name, identity provider, storage backend, review workflow, or
+environment name, identity provider, storage backend, approval process, or
 deployment mechanism.
 
 ## Requirements
 
-- A user-provided config root, values file path, or clear current workspace
-  containing OSMO service config values or docs.
+- A user-provided config root or values file path containing OSMO service
+  config values or docs.
 - Permission to read files under the provided config root.
 - Permission to edit local files only when the user asks for an admin change.
 - Generic example-only requests do not require a config root, but the answer
@@ -51,10 +52,10 @@ administration, or incident response.
 
 ## Core Rules
 
-1. Require a config root, values file path, or clear current workspace before
-   making file-specific claims or edits. Ask for it when missing. Generic
-   example requests may be answered without a config root when clearly labeled
-   as illustrative.
+1. Require an explicit config root or values file path before making
+   file-specific claims or edits. Ask for it when missing. Generic example
+   requests may be answered without a config root when clearly labeled as
+   illustrative.
 2. Read `references/service-configs.md` for `services.configs` questions before
    answering or editing.
 3. Clarify ambiguous config root, values file, deployment, pool, backend,
@@ -66,10 +67,12 @@ administration, or incident response.
 6. Do not invent deployment names, file paths, review steps, or config
    relationships. Infer only from provided config files, or use obvious
    placeholder names in clearly labeled examples.
-7. Never run live mutation commands, including `osmo config` writes, direct
+7. Do not treat the working directory as the config root unless the user
+   explicitly identifies it as the config root.
+8. Never run live mutation commands, including `osmo config` writes, direct
    OSMO API config writes, cluster mutation, deployment sync, or rollout
    commands.
-8. Never print secret payloads. Refer only to secret names, key names, and
+9. Never print secret payloads. Refer only to secret names, key names, and
    reference paths.
 
 ## Reference Routing
@@ -95,7 +98,7 @@ plus YAML key path.
 User: Config root is /workspace/repo. Show the diff to put gpu-prod in
 maintenance.
 Agent: Change only services.configs.pools.gpu-prod.enable_maintenance locally,
-show the file diff, and stop before any external workflow.
+show the file diff, and stop before any external process.
 ```
 
 ## Limitations

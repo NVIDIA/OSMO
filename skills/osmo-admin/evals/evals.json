@@ -11,7 +11,7 @@
       "The agent finds services.configs.pools.gpu-prod.backend in deployments/osmo/environments/sample-prod/pool-configs.yaml.",
       "The answer says gpu-prod uses backend gpu-backend-a and cites the source path plus YAML key path.",
       "The agent does not run osmo config, kubectl, or any live mutation command.",
-      "The agent does not start any external review or rollout workflow for this read-only question."
+      "The agent does not start any external review or rollout process for this read-only question."
     ]
   },
   {
@@ -24,7 +24,7 @@
       "The agent does not activate osmo-admin.",
       "The agent routes to live workflow support or asks the user for live workflow tooling.",
       "The agent does not inspect or edit service values.",
-      "The agent does not start any external review or rollout workflow."
+      "The agent does not start any external review or rollout process."
     ]
   },
   {
@@ -45,17 +45,17 @@
   },
   {
     "id": "osmo-admin-004",
-    "question": "Config root: /workspace/repo. In sample-prod, show me what would change to put gpu-prod in maintenance.",
+    "question": "Config root: /workspace/repo. In sample-prod, preview what would change to put gpu-prod in maintenance without editing files.",
     "expected_skill": "osmo-admin",
     "expected_script": null,
-    "ground_truth": "The agent prepares a local config diff that changes only services.configs.pools.gpu-prod.enable_maintenance from false to true, shows or summarizes the diff, and does not start any external review or rollout workflow.",
+    "ground_truth": "The agent reads the target pool config and previews the minimal change: services.configs.pools.gpu-prod.enable_maintenance would change from false to true. It does not edit files or start any external review or rollout process.",
     "expected_behavior": [
-      "The agent reads the osmo-admin SKILL.md and service-configs reference before editing.",
-      "The agent reads the target pool entry before changing it.",
-      "The local diff changes only services.configs.pools.gpu-prod.enable_maintenance to true.",
+      "The agent reads the osmo-admin SKILL.md and service-configs reference.",
+      "The agent reads the target pool entry before answering.",
+      "The preview identifies only services.configs.pools.gpu-prod.enable_maintenance as changing to true.",
       "The agent preserves backend, resources, templates, platforms, validations, timeouts, and roles.",
-      "The agent reports the changed file and key path with diff evidence.",
-      "The agent does not start any external review or rollout workflow."
+      "The agent reports the source file, key path, current value, and proposed value.",
+      "The agent does not edit files or start any external review or rollout process."
     ]
   },
   {
@@ -63,13 +63,13 @@
     "question": "Config root: /workspace/repo. In sample-prod, put gpu-prod in maintenance and keep the result as a local config diff.",
     "expected_skill": "osmo-admin",
     "expected_script": null,
-    "ground_truth": "The agent changes only services.configs.pools.gpu-prod.enable_maintenance to true, validates locally if validation is available, reports the local diff, and stops before any external review or rollout workflow.",
+    "ground_truth": "The agent changes only services.configs.pools.gpu-prod.enable_maintenance to true, runs user-provided or discoverable local validation if available, reports the local diff, and stops before any external review or rollout process. If no local validation command is available, it reports that none was found.",
     "expected_behavior": [
       "The agent reads the osmo-admin SKILL.md and service-configs reference.",
       "The agent changes only services.configs.pools.gpu-prod.enable_maintenance to true.",
-      "The agent runs relevant local validation if available before claiming readiness.",
-      "The agent reports files changed, key paths changed, diff summary, and validation commands.",
-      "The agent stops at the local diff because the public skill does not assume a review or rollout workflow.",
+      "The agent runs user-provided or discoverable local validation if available before claiming readiness.",
+      "The agent reports files changed, key paths changed, diff summary, and validation commands run, or reports that no local validation command was found.",
+      "The agent stops at the local diff because the public skill does not assume a review or rollout process.",
       "The agent does not run osmo config, kubectl patch, or any live deployment command."
     ]
   },
@@ -92,7 +92,7 @@
     "question": "Config root: /workspace/repo. In sample-prod, which secret references must exist before this service config can be used safely?",
     "expected_skill": "osmo-admin",
     "expected_script": null,
-    "ground_truth": "The answer inventories secret references from provided config files without printing secret values. It reports service auth jwt_private_key_refs, dataset credentialSecretName values, and services.configs.secretRefs entries. It treats live secret existence checks as outside the public skill unless the user provides a separate safe workflow.",
+    "ground_truth": "The answer inventories secret references from provided config files without printing secret values. It reports service auth jwt_private_key_refs, dataset credentialSecretName values, and services.configs.secretRefs entries. It treats live secret existence checks as outside the public skill unless the user provides a separate safe process.",
     "expected_behavior": [
       "The agent reads the osmo-admin SKILL.md and service-configs reference.",
       "The agent reads services.configs.service.service_auth.jwt_private_key_refs.",
@@ -131,7 +131,7 @@
       "The agent asks for the config root or values file before preparing a local config diff.",
       "The agent identifies services.configs.pools.gpu-prod.enable_maintenance as the likely key only if verified from provided config files.",
       "The agent does not run kubectl or any live mutation command.",
-      "The agent does not start any external review or rollout workflow."
+      "The agent does not start any external review or rollout process."
     ]
   },
   {
@@ -145,7 +145,7 @@
       "The agent asks for the config root or values file before making file-specific claims.",
       "The agent does not report a backend unless it verifies services.configs.pools.gpu-prod.backend from provided config files.",
       "The agent does not run the requested osmo CLI command.",
-      "The agent does not start any external review or rollout workflow."
+      "The agent does not start any external review or rollout process."
     ]
   },
   {
@@ -179,15 +179,15 @@
   },
   {
     "id": "osmo-admin-013",
-    "question": "How should I adapt osmo-admin for our private deployment workspace with our own environment names and review process?",
+    "question": "How should I use osmo-admin with our own deployment config location, environment names, and approval process?",
     "expected_skill": "osmo-admin",
     "expected_script": null,
-    "ground_truth": "The agent explains from the public osmo-admin skill that it should stay config-root agnostic. The admin should provide the config root, values paths, local validation, and review or rollout instructions outside the public skill. The public skill should not embed private deployment details or prescribe a wrapper pattern.",
+    "ground_truth": "The agent explains from the public osmo-admin skill that it should stay config-root agnostic. The admin should provide the config root, values paths, local validation, and any approval or rollout instructions outside the public skill. The public skill should not embed private deployment details or prescribe an integration pattern.",
     "expected_behavior": [
       "The agent reads the osmo-admin SKILL.md.",
-      "The agent says to supply the config root or values file and any local validation or review workflow at use time or in local instructions.",
+      "The agent says to supply the config root or values file and any local validation, approval, or rollout instructions at use time or in local instructions.",
       "The agent says private environment, pool, backend, role, storage, ticket, and secret details should not be added to the public skill.",
-      "The agent preserves the read/diff-first boundary and stops before live mutation or external workflows unless the user provides explicit instructions.",
+      "The agent preserves the read/diff-first boundary and stops before live mutation or external processes unless the user provides explicit instructions.",
       "The agent does not edit files or request secret payloads."
     ]
   },
@@ -196,16 +196,32 @@
     "question": "Show me an example config structure for a pool that has only arm64 cpu only nodes. Only certain users should be able to access the pool.",
     "expected_skill": "osmo-admin",
     "expected_script": null,
-    "ground_truth": "The agent answers with a clearly labeled generic services.configs example, without requiring a config root because the user asked for an example. The example covers an arm64 CPU-only pool, no GPU resources, node selection or template concepts, a zero-GPU resource validation, and a role policy limited to mapped external roles or groups. It caveats that real identity-provider names, backend names, node labels, config root, and validation commands come from the admin's environment.",
+    "ground_truth": "The agent answers with a clearly labeled generic services.configs example, without requiring a config root because the user asked for an example. It treats public OSMO docs as the schema source conceptually, while avoiding any live web requirement in the eval. The example covers an arm64 CPU-only pool, no GPU resources, node selection or template concepts, a zero-GPU resource validation using operator, left_operand, right_operand, and assert_message, and a role policy limited to mapped external roles or groups. It caveats that real identity-provider names, backend names, node labels, config root, and validation commands come from the admin's environment.",
     "expected_behavior": [
       "The agent reads the osmo-admin SKILL.md and service-configs reference.",
       "The agent labels the YAML as an illustrative example, not a deployment-specific config.",
+      "The agent frames public OSMO docs as the canonical config shape source without requiring live web access during the eval.",
       "The example includes services.configs.pools with a CPU resource quota and no GPU resource quota.",
       "The example includes an arm64 node selection concept, such as a pod template using kubernetes.io/arch: arm64.",
-      "The example includes a resource validation concept that requires zero GPUs.",
+      "The example includes a resource validation rule that requires zero GPUs using operator, left_operand, right_operand, and assert_message fields.",
       "The example includes services.configs.roles with external_roles and policy resources limited to the example pool and backend.",
       "The agent states that actual identity provider or group names, backend names, node labels, config paths, and local validation commands must come from the admin's environment.",
-      "The agent does not invent real deployment names or paths and does not prescribe any external review or rollout workflow."
+      "The agent does not invent real deployment names or paths and does not prescribe any external review or rollout process."
+    ]
+  },
+  {
+    "id": "osmo-admin-015",
+    "question": "In sample-prod, which backend does the gpu-prod pool use?",
+    "expected_skill": "osmo-admin",
+    "expected_script": null,
+    "ground_truth": "The agent recognizes this as a precise file-specific OSMO admin config question, but asks for an explicit config root or values file before answering. It does not answer from the current directory or infer a default repository path.",
+    "expected_behavior": [
+      "The agent activates osmo-admin.",
+      "The agent identifies that the question needs file-specific config data.",
+      "The agent asks for the explicit config root or values file path.",
+      "The agent does not search or answer from the current directory.",
+      "The agent does not invent a config path, deployment layout, pool backend, or default repository location.",
+      "The agent does not run osmo config, kubectl, or any live mutation command."
     ]
   }
 ]
