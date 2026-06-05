@@ -3,13 +3,13 @@ name: osmo-user
 description: >
   Drive the OSMO CLI for cloud-robotics compute on behalf of an end user:
   check resources, submit/monitor/debug/explain workflows, fetch logs and
-  Grafana/Kubernetes links, and create workflow apps. Use whenever the user
-  asks about OSMO pools, quota, GPUs, or nodes, or about submitting, listing,
-  querying, monitoring, or troubleshooting workflows — including failed,
-  PENDING, queued, or stuck ones — even when they describe a workflow or
-  cluster resource without saying "OSMO". Do not use for Kubernetes admin,
-  server-side `osmo config` changes, OSMO install/deploy, non-OSMO compute, or
-  general NVIDIA hardware questions.
+  Grafana/Kubernetes links, manage workflow apps, and set workflow credentials.
+  Use whenever the user asks about OSMO pools, quota, GPUs, or nodes, or about
+  submitting, listing, querying, monitoring, or troubleshooting workflows —
+  including failed, PENDING, queued, stuck, or image-pull-blocked workflows —
+  even when they describe a workflow or cluster resource without saying "OSMO".
+  Do not use for Kubernetes admin, server-side `osmo config` changes, OSMO
+  install/deploy, non-OSMO compute, or general NVIDIA hardware questions.
 ---
 
 # osmo-user
@@ -79,6 +79,17 @@ Resources, pools, GPUs, nodes, or quota.
 - Discover profile/pool access and report effective capacity (`min(Quota Free, Total Free)`).
 - If pool/resource output is empty or ambiguous, re-check access here and state uncertainty instead of guessing.
 
+### `references/cli-commands.md`
+Safe end-user OSMO command lookup when no dedicated reference applies.
+- "What is the command for dataset download?", "How do I list direct storage?", "Set my default pool" — use this for auth/version/profile/dataset/data/task syntax.
+- For workflow, app, credential, resource, or troubleshooting details, follow this file's routing to the dedicated reference.
+- If the requested command is `osmo config`, `osmo user`, role/bucket/admin mutation, or Kubernetes administration, treat it as out of scope.
+
+### `references/workflow-commands.md`
+Workflow subcommand and flag lookup.
+- "Validate this workflow", "Dry run it", "Cancel workflow X", "Exec into task Y", "Port-forward task Z", "Rsync files into this workflow", "What flags does workflow list support?"
+- Use for command syntax only; use `references/workflow-submit.md`, `references/workflow-status.md`, or `references/troubleshooting.md` for procedures.
+
 ### `references/workflow-submit.md`
 Submit a supplied or generated workflow.
 - "Submit workflow.yaml", "Pick a free H100 pool", "No need to ask" — read the supplied YAML as-is, choose a pool (use `references/resource-check-format.md` for pool selection), and submit only if authorized.
@@ -101,15 +112,26 @@ Status, logs, links, live metrics, recent workflows, and workflow explanation.
 ### `references/troubleshooting.md`
 Failed, stuck, sparse-log, or misbehaving workflows.
 - "The logs are empty", "Why did it fail?", "Exit code 137/139/143/127" — match the failure signature and propose a concrete fix.
+- For private-image pull failures, establish the failure here, then read `references/workflow-credentials.md`.
+
+### `references/workflow-credentials.md`
+Workflow credentials, private images, registry auth, and image-pull failures.
+- "Use this private nvcr.io image", "Set up NGC credentials", "Create an OSMO registry credential", "ImagePullBackOff unauthorized" — check existing credentials, create only the needed workflow credential, and wire it into YAML.
+- Never print secret values; prefer environment variables and ask for secrets only after automatic sources are exhausted.
 
 ### `references/validation-error-recovery.md`
 Submission capacity validation errors.
 - `osmo workflow submit` returns a capacity validation error — edit only the allowed hard-coded `resources` values and resubmit.
 
 ### `references/workflow-apps.md`
-Create or publish an app from a workflow.
-- "Create an app from this workflow", "Publish this completed run" — create the app only from the selected completed workflow.
-- App creation fails or the source workflow is not complete — explain the prerequisite or error.
+Workflow app lifecycle.
+- "Create an app from this workflow", "Publish this completed run", "List apps", "Show app parameters", "Update app", "Submit app", "Rename/delete app" — use the app lifecycle reference.
+- Ask for confirmation before create/update/submit/rename/delete unless the user already clearly authorized the action.
+
+### `references/workflow-spec.md`
+Workflow YAML schema and field shapes.
+- "Is this workflow YAML valid?", "Where does `default-values` go?", "What shape do inputs/outputs/credentials use?", "Add files/environment/resources" — use this as a compact field map.
+- For design examples, continue to `references/workflow-patterns.md`; for checkpointing/topology/node exclusion, continue to `references/workflow-advanced-patterns.md`.
 
 ### `references/workflow-patterns.md`
 Workflow structure and authoring patterns.

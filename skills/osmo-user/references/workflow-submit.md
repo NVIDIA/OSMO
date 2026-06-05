@@ -17,6 +17,8 @@ monitoring. If they ask you to monitor, debug, or report final results, use
      validation-error resource recovery may edit hard-coded `resources` values.
    - If no spec is provided, generate `workflow.yaml`. Prefer adapting an OSMO
      cookbook example; read `references/cookbook-fetching.md` before doing so.
+   - For workflow YAML field shapes and minimal valid structure, read
+     `references/workflow-spec.md`.
    - For multi-task, parallel, dependency, or Jinja-heavy workflows, read
      `references/workflow-patterns.md`.
    - For checkpointing, retry/exit behavior, node exclusion, or topology
@@ -41,9 +43,11 @@ monitoring. If they ask you to monitor, debug, or report final results, use
    ```
    If the workflow has Jinja template variables and user-provided values,
    preserve the placeholders in the YAML and pass values at submit time:
-   ```bash
-   osmo workflow submit <workflow_file> --pool <pool_name> --set key=value other_key=value
-   ```
+     ```bash
+     osmo workflow submit <workflow_file> --pool <pool_name> --set key=value other_key=value
+     ```
+   For dry runs, string-preserving overrides, environment overrides, rsync, or
+   resubmission by workflow ID, read `references/workflow-commands.md`.
    Submit the same YAML multiple times when the user asks for multiple runs; do
    not duplicate the YAML file.
 

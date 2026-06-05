@@ -178,14 +178,16 @@ victims: `jq`, `git`, `curl`, `wget`, language runtimes, `gcloud`/`aws`/`az` CLI
 ### Diagnosis
 The container runtime cannot fetch the image:
 - **Bad tag or path** — image name or tag doesn't exist in the registry.
-- **Auth failure** — the cluster lacks credentials for a private registry.
+- **Auth failure** — the workflow is missing an OSMO registry credential, the
+  YAML does not reference it, or the credential payload is wrong.
 - **Registry outage** — transient network or registry-side issue.
 
 ### Fix
 - Verify the image exists at that exact tag (e.g. `docker pull <image>` from a
   workstation with the same credentials).
-- If using a private registry, check that the cluster has the right pull secret
-  configured. If not, the user needs to coordinate with their OSMO admin.
+- If using a private registry for a workflow image, read
+  `references/workflow-credentials.md`; check or create the `REGISTRY`
+  credential and make sure the task references it in `credentials:`.
 - For transient issues, resubmit once. If it keeps failing, switch to a known-good
   image as a smoke test before debugging further.
 
