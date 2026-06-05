@@ -4787,6 +4787,36 @@ def _semantic_action_resource_type(action_str: str) -> str:
     return action_str.split(':', 1)[0]
 
 
+def _semantic_action_is_wildcard(action_str: str) -> bool:
+    _, action_name = action_str.split(':', 1)
+    return action_name == '*'
+
+
+def _default_action_covers_existing_action(
+    default_action: str,
+    existing_action: str,
+) -> bool:
+    default_resource, default_name = default_action.split(':', 1)
+    existing_resource, existing_name = existing_action.split(':', 1)
+    if default_resource not in ('*', existing_resource):
+        return False
+    return default_name in ('*', existing_name)
+
+
+def _default_scopes_for_action(
+    action_str: str,
+    default_scopes_by_action: Dict[
+        str, set[Tuple[role.PolicyEffect, Tuple[str, ...]]]
+    ],
+) -> set[Tuple[role.PolicyEffect, Tuple[str, ...]]]:
+    return {
+        scope
+        for default_action, scopes in default_scopes_by_action.items()
+        if _default_action_covers_existing_action(default_action, action_str)
+        for scope in scopes
+    }
+
+
 def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool:
     """
     Merge default role policies into an existing role without broadening scopes.
@@ -4805,18 +4835,22 @@ def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool
     default_actions_by_scope: Dict[
         Tuple[role.PolicyEffect, Tuple[str, ...]], set[str]
     ] = {}
-    default_scopes_by_action_resource: Dict[
+    default_scopes_by_action: Dict[
         str, set[Tuple[role.PolicyEffect, Tuple[str, ...]]]
     ] = {}
+    default_action_resource_types: set[str] = set()
+    default_policy_scopes: set[Tuple[role.PolicyEffect, Tuple[str, ...]]] = set()
     for default_policy in default_role.policies:
         policy_scope_key = _role_policy_scope_key(default_policy)
+        default_policy_scopes.add(policy_scope_key)
         default_actions = default_actions_by_scope.setdefault(policy_scope_key, set())
         for action_str in default_policy.actions:
             role.validate_semantic_action(action_str)
             default_actions.add(action_str)
             action_resource_type = _semantic_action_resource_type(action_str)
-            default_scopes_by_action_resource.setdefault(
-                action_resource_type,
+            default_action_resource_types.add(action_resource_type)
+            default_scopes_by_action.setdefault(
+                action_str,
                 set()).add(policy_scope_key)
 
     existing_policies_by_scope: Dict[
@@ -4833,9 +4867,16 @@ def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool
         normalized_actions = []
         for action_str in existing_policy.actions:
             role.validate_semantic_action(action_str)
-            action_resource_type = _semantic_action_resource_type(action_str)
-            default_scopes = default_scopes_by_action_resource.get(action_resource_type)
+            default_scopes = _default_scopes_for_action(
+                action_str, default_scopes_by_action)
             if default_scopes and policy_scope_key not in default_scopes:
+                did_update = True
+                continue
+            action_resource_type = _semantic_action_resource_type(action_str)
+            if (_semantic_action_is_wildcard(action_str)
+                    and action_resource_type in default_action_resource_types
+                    and policy_scope_key in default_policy_scopes
+                    and action_str not in default_actions_by_scope[policy_scope_key]):
                 did_update = True
                 continue
             normalized_actions.append(action_str)
@@ -4888,6 +4929,14 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
+                    'workflow:List',
+                    'workflow:Read',
+                    'workflow:Update',
+                    'workflow:Delete',
+                    'workflow:Cancel',
+                    'workflow:Exec',
+                    'workflow:PortForward',
+                    'workflow:Rsync',
                     'dataset:*',
                     'credentials:*',
                     'pool:List',
@@ -4898,7 +4947,7 @@ DEFAULT_ROLES: Dict[str, Role] = {
             ),
             role.RolePolicy(
                 actions=[
-                    'workflow:*',
+                    'workflow:Create',
                 ],
                 resources=['pool/default']
             )
