@@ -102,8 +102,8 @@ osmo credential set my-s3 --type DATA \
   --payload access_key_id=<id> access_key=<secret> endpoint=<endpoint>
 ```
 
-For direct storage operations, prefer `osmo data check` or `osmo dataset check`
-to verify access before large transfers.
+For direct storage operations, prefer `osmo data check` to verify access before
+large transfers.
 
 ## Delete Credentials
 
