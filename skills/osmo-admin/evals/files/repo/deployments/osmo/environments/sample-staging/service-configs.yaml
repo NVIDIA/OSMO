@@ -1,0 +1,13 @@
+services:
+  configs:
+    pools:
+      staging-gpu:
+        backend: staging-backend
+        enable_maintenance: false
+    backends:
+      staging-backend:
+        scheduler_settings:
+          scheduler_type: volcano
+          scheduler_name: volcano
+          scheduler_timeout: 30
+        router_address: wss://router.sample.example.com/staging

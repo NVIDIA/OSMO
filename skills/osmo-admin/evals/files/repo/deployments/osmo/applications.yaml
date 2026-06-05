@@ -1,0 +1,13 @@
+applications:
+  sample-prod:
+    chartBranch: v6.3.0
+    valueFiles:
+      - deployments/osmo/environments/sample-prod/service-values.yaml
+      - deployments/osmo/environments/sample-prod/service-configs.yaml
+      - deployments/osmo/environments/sample-prod/pool-configs.yaml
+      - deployments/osmo/environments/sample-prod/template-configs.yaml
+  sample-staging:
+    chartBranch: v6.3.0
+    valueFiles:
+      - deployments/osmo/environments/sample-staging/service-values.yaml
+      - deployments/osmo/environments/sample-staging/service-configs.yaml

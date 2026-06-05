@@ -1,0 +1,97 @@
+services:
+  configs:
+    service:
+      cli_config:
+        latest_version: 6.3.0
+        min_supported_version: 6.3.0
+        client_install_url: https://osmo.example.com/install.sh
+      service_auth:
+        active_key_id: jwt-key-current
+        max_token_duration: 168h
+        jwt_private_key_refs:
+          - key_id: jwt-key-current
+            secretName: osmo-sample-service-auth
+            secretKey: jwt-key-current.pem
+          - key_id: jwt-key-previous
+            secretName: osmo-sample-service-auth
+            secretKey: jwt-key-previous.pem
+    workflow:
+      plugins_config:
+        rsync:
+          enabled: false
+          read_bandwidth_limit: 2621440
+          write_bandwidth_limit: 2621440
+          upload_rate_limit: 2621440
+          telemetry: true
+          allowed_paths:
+            workspace:
+              path: /workspace
+              writable: true
+            results:
+              path: /results
+              writable: true
+      default_backend_image: ghcr.io/example/osmo/backend:6.3.0
+      max_workflow_runtime: 30d
+    dataset:
+      default_bucket: main
+      buckets:
+        main:
+          dataset_path: s3://osmo-sample-datasets
+          credentialSecretName: osmo-sample-dataset-s3
+          mode: readwrite
+        archive:
+          dataset_path: s3://osmo-sample-archive
+          credentialSecretName: osmo-sample-dataset-s3
+          mode: readonly
+    backends:
+      gpu-backend-a:
+        scheduler_settings:
+          scheduler_type: volcano
+          scheduler_name: volcano
+          scheduler_timeout: 30
+        router_address: wss://router.sample.example.com/gpu-backend-a
+        dashboard_url: https://dashboard.sample.example.com/gpu-backend-a
+        grafana_url: https://grafana.sample.example.com/gpu-backend-a
+        tests:
+          - gpu-backend-a-connection
+          - gpu-backend-a-resource
+      gpu-backend-b:
+        scheduler_settings:
+          scheduler_type: kai
+          scheduler_name: kai-scheduler
+          scheduler_timeout: 30
+        router_address: wss://router.sample.example.com/gpu-backend-b
+        dashboard_url: https://dashboard.sample.example.com/gpu-backend-b
+    backendTests:
+      gpu-backend-a-connection:
+        type: connection
+        backend: gpu-backend-a
+      gpu-backend-a-resource:
+        type: resource
+        backend: gpu-backend-a
+        pool: gpu-prod
+    roles:
+      osmo-gpu-users:
+        description: GPU workflow access
+        immutable: false
+        sync_mode: external
+        external_roles:
+          - gpu-users
+        policies:
+          - actions:
+              - workflow:*
+              - dataset:read
+            resources:
+              - pool/gpu-prod*
+              - backend/gpu-backend-a
+      osmo-platform-admins:
+        description: Platform administration access
+        immutable: false
+        sync_mode: external
+        external_roles:
+          - platform-admins
+        policies:
+          - actions:
+              - "*"
+            resources:
+              - "*"

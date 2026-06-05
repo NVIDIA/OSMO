@@ -1,0 +1,54 @@
+services:
+  configs:
+    podTemplates:
+      default-user:
+        spec:
+          containers:
+            - name: "{{USER_CONTAINER_NAME}}"
+              imagePullPolicy: IfNotPresent
+              resources:
+                requests:
+                  nvidia.com/gpu: "{{USER_GPU}}"
+      shared-workspace:
+        spec:
+          volumes:
+            - name: shared-workspace
+              persistentVolumeClaim:
+                claimName: shared-workspace-pvc
+          containers:
+            - name: "{{USER_CONTAINER_NAME}}"
+              volumeMounts:
+                - name: shared-workspace
+                  mountPath: /mnt/shared
+            - name: osmo-ctrl
+              volumeMounts:
+                - name: shared-workspace
+                  mountPath: /mnt/shared
+      h100-node:
+        spec:
+          nodeSelector:
+            nvidia.com/gpu.product: H100
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+    resourceValidations:
+      balanced-gpu:
+        assert_rules:
+          - expression: "{{USER_GPU}} == 0 or {{USER_GPU}} in [1, 2, 4, 8]"
+            assert_message: GPU requests must be 0, 1, 2, 4, or 8 GPUs.
+          - expression: "{{USER_CPU}} >= {{USER_GPU}} * 8"
+            assert_message: CPU must scale with requested GPUs.
+      h100-limit:
+        assert_rules:
+          - expression: "{{USER_GPU}} <= 8"
+            assert_message: H100 jobs are capped at 8 GPUs.
+    groupTemplates:
+      base-config:
+        manifests:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: "{{WF_GROUP_UUID}}-base-config"
+            data:
+              deployment: sample-prod

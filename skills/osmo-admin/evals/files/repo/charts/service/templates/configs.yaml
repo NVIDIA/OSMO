@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osmo-service-configs
+data:
+  config.yaml: |
+    service: {{ .Values.services.configs.service | toYaml | nindent 6 }}
+    workflow: {{ .Values.services.configs.workflow | toYaml | nindent 6 }}
+    dataset: {{ .Values.services.configs.dataset | toYaml | nindent 6 }}
+    pools: {{ .Values.services.configs.pools | toYaml | nindent 6 }}
+    pod_templates: {{ .Values.services.configs.podTemplates | toYaml | nindent 6 }}
+    resource_validations: {{ .Values.services.configs.resourceValidations | toYaml | nindent 6 }}
+    backends: {{ .Values.services.configs.backends | toYaml | nindent 6 }}
+    backend_tests: {{ .Values.services.configs.backendTests | toYaml | nindent 6 }}
+    group_templates: {{ .Values.services.configs.groupTemplates | toYaml | nindent 6 }}
+    roles: {{ .Values.services.configs.roles | toYaml | nindent 6 }}
