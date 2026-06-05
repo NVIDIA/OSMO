@@ -93,8 +93,6 @@ Advanced task fields include `privileged`, `hostNetwork`, `volumeMounts`,
 ```yaml
 inputs:
 - task: preprocess
-- dataset:
-    name: my-dataset:latest
 - url: s3://bucket/path/
 ```
 
@@ -105,11 +103,7 @@ Task inputs create dependencies. Their paths are available as `{{input:0}}`,
 
 ```yaml
 outputs:
-- dataset:
-    name: my-output
 - url: s3://bucket/output/
-- update_dataset:
-    name: existing-dataset
 ```
 
 Write artifacts under `{{output}}`. Do not use `{{outputs}}`.
