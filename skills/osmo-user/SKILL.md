@@ -116,7 +116,7 @@ Failed, stuck, sparse-log, or misbehaving workflows.
 
 ### `references/workflow-credentials.md`
 Workflow credentials, private images, registry auth, and image-pull failures.
-- "Use this private nvcr.io image", "Set up NGC credentials", "Create an OSMO registry credential", "ImagePullBackOff unauthorized" — check existing credentials, create only the needed workflow credential, and wire it into YAML.
+- "Use this private nvcr.io image", "Set up NGC credentials", "Create an OSMO registry credential", "ImagePullBackOff unauthorized" — check existing credentials and create only the needed workflow registry credential.
 - Never print secret values; prefer environment variables and ask for secrets only after automatic sources are exhausted.
 
 ### `references/validation-error-recovery.md`
@@ -130,7 +130,7 @@ Workflow app lifecycle.
 
 ### `references/workflow-spec.md`
 Workflow YAML schema and field shapes.
-- "Is this workflow YAML valid?", "Where does `default-values` go?", "What shape do inputs/outputs/credentials use?", "Add files/environment/resources" — use this as a compact field map.
+- "Is this workflow YAML valid?", "Where does `default-values` go?", "What shape do inputs/outputs use?", "Add files/environment/resources" — use this as a compact field map.
 - For design examples, continue to `references/workflow-patterns.md`; for checkpointing/topology/node exclusion, continue to `references/workflow-advanced-patterns.md`.
 
 ### `references/workflow-patterns.md`

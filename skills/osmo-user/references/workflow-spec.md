@@ -3,7 +3,7 @@
 Use this as a compact field map for OSMO workflow YAML. It answers where fields
 belong and what shape they take. For examples and procedures, route to
 `workflow-patterns.md`, `workflow-advanced-patterns.md`,
-`workflow-submit.md`, `workflow-commands.md`, or `workflow-credentials.md`.
+`workflow-submit.md`, or `workflow-commands.md`.
 
 ## Minimal Shape
 
@@ -81,7 +81,6 @@ Common task fields:
 | `environment` | map | Environment variables. |
 | `files` | list | Inline files with `path`, `contents`, optional `base64`. |
 | `inputs` / `outputs` | list | Data dependencies and produced artifacts. |
-| `credentials` | map | Secret mounts or env projection. |
 | `checkpoint` | list | Periodic upload rules; see advanced patterns. |
 | `exitActions` | map | Exit-code handling; see advanced patterns. |
 
@@ -107,17 +106,6 @@ outputs:
 ```
 
 Write artifacts under `{{output}}`. Do not use `{{outputs}}`.
-
-## Credentials
-
-```yaml
-credentials:
-  nvcr:
-    NGC_CLI_API_KEY: auth
-```
-
-For private images, the credential name must match an OSMO `REGISTRY`
-credential. For full setup, read `workflow-credentials.md`.
 
 ## Groups
 

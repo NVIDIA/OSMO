@@ -22,8 +22,9 @@ osmo credential list
 ```
 
 Look for a `REGISTRY` credential for the needed registry host, such as
-`nvcr.io`. If one exists, reuse its credential name in the workflow YAML. Do
-not create a duplicate unless the user asks.
+`nvcr.io`. If one exists, do not create a duplicate unless the user asks.
+Image-pull registry credentials are managed by OSMO; they are not defined in
+the workflow YAML.
 
 ## Create an NGC Registry Credential
 
@@ -54,29 +55,9 @@ Important details:
 - `registry` is the hostname only: `nvcr.io`, no scheme and no path.
 - `username` is the literal string `$oauthtoken` for NGC.
 - `auth` is the raw NGC API key, not a base64 Docker auth string.
-- The credential name, such as `nvcr`, is what workflow tasks reference.
-
-## Reference Credentials in Workflow YAML
-
-Add the credential under each task that needs the private image or secret.
-
-```yaml
-workflow:
-  tasks:
-  - name: train
-    image: nvcr.io/nvidia/pytorch:24.01-py3
-    credentials:
-      nvcr:
-        NGC_CLI_API_KEY: auth
-```
-
-The outer key (`nvcr`) must exactly match the credential name. For a
-`REGISTRY` credential, referencing it in `credentials:` lets OSMO wire it as
-the task pod's image-pull credential. The nested map also projects payload
-fields into the task environment; here `auth` becomes `NGC_CLI_API_KEY`.
-
-Do not write `nvcr:` with an empty or null value. If the task does not need the
-key at runtime, still use a harmless mapping such as `NGC_CLI_API_KEY: auth`.
+- The credential name, such as `nvcr`, is for managing the OSMO credential.
+- Do not add task-level `credentials:` YAML to make image pulls work; registry
+  image-pull credentials are not wired through the workflow spec.
 
 ## Diagnose Image Pull Failures
 
@@ -95,9 +76,8 @@ Common causes:
 | `pull access denied` | Credential lacks access or registry host is wrong | Check NGC access and `registry=...`. |
 | `ImagePullBackOff` with no auth detail | Image pull failed before user container started | Inspect events and image name. |
 
-If the workflow YAML lacks a matching `credentials:` entry for a private image,
-add one and resubmit. If the credential exists but `auth` contains a Docker
-base64 string from `~/.docker/config.json`, replace it with the raw NGC API key.
+If the registry credential exists but `auth` contains a Docker base64 string
+from `~/.docker/config.json`, replace it with the raw NGC API key.
 
 ## Generic Credentials
 
@@ -108,9 +88,8 @@ osmo credential set hf-token --type GENERIC --payload token=<secret>
 osmo credential set ssh-key --type GENERIC --payload-file ssh_public_key=<path>
 ```
 
-Project fields into task environment variables or mount paths using
-`credentials:` in the workflow YAML. Keep the workflow spec free of hard-coded
-secret values.
+Generic task secrets are separate from registry image-pull credentials. Keep
+workflow specs free of hard-coded secret values.
 
 ## Data Credentials
 

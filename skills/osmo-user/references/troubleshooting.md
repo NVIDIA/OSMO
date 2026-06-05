@@ -187,7 +187,8 @@ The container runtime cannot fetch the image:
   workstation with the same credentials).
 - If using a private registry for a workflow image, read
   `references/workflow-credentials.md`; check or create the `REGISTRY`
-  credential and make sure the task references it in `credentials:`.
+  credential for the registry host. Do not try to fix image pulls by adding
+  task-level `credentials:` YAML.
 - For transient issues, resubmit once. If it keeps failing, switch to a known-good
   image as a smoke test before debugging further.
 
