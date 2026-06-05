@@ -69,7 +69,7 @@ def _make_cleanup_group(**overrides):
 
 
 class CleanupWorkflowGroupTest(unittest.TestCase):
-    """Tests for module-level cleanup_workflow_group helper (lines 84, 86-87, 92)."""
+    """Tests for module-level cleanup_workflow_group helper."""
 
     def test_when_not_all_groups_cleaned_does_not_enqueue(self):
         context = mock.Mock()
@@ -87,7 +87,7 @@ class CleanupWorkflowGroupTest(unittest.TestCase):
 
 
 class FrontendJobBaseMethodsTest(unittest.TestCase):
-    """Tests for FrontendJob default behaviour (lines 119, 125, 136-140)."""
+    """Tests for FrontendJob default behaviour."""
 
     def test_send_delayed_job_to_queue_writes_to_redis_zset(self):
         cleanup = jobs.CleanupWorkflow(
@@ -145,7 +145,7 @@ class WorkflowJobLoggingTest(unittest.TestCase):
 
 
 class BackendJobRedisOptionsTest(unittest.TestCase):
-    """Tests for BackendJob.get_redis_options (line 171)."""
+    """Tests for BackendJob.get_redis_options."""
 
     def test_create_group_uses_backend_redis_options(self):
         create = _make_create_group(backend='my-backend')
@@ -159,8 +159,7 @@ class BackendJobRedisOptionsTest(unittest.TestCase):
 
 
 class JobIdValidatorErrorTest(unittest.TestCase):
-    """Validators that reject malformed job_ids (lines 204, 379, 470-471, 559-560,
-    637-639, 1315-1316, 1413-1414, 1640-1641)."""
+    """Validators that reject malformed job_ids."""
 
     def test_update_group_rejects_bad_job_id_suffix(self):
         with self.assertRaises(osmo_errors.OSMOServerError):
@@ -258,8 +257,7 @@ class GetJobIdGenerationTest(unittest.TestCase):
 
 
 class UpdateGroupApplyExitActionTest(unittest.TestCase):
-    """Tests for UpdateGroup._apply_exit_action — pure logic with no DB
-    (lines 1101, 1103-1108, 1110, 1112-1115, 1117-1122, 1124-1126, 1128-1130)."""
+    """Tests for UpdateGroup._apply_exit_action — pure logic with no DB."""
 
     def _make_update_group(self, status, exit_code, message=''):
         return jobs.UpdateGroup(
@@ -320,8 +318,7 @@ class UpdateGroupApplyExitActionTest(unittest.TestCase):
 
 
 class UpdateGroupBarrierAndRestartTest(unittest.TestCase):
-    """Redis-only barrier/restart helpers (lines 1241-1243, 1246-1248,
-    1284-1286, 1288-1292)."""
+    """Redis-only barrier/restart helpers."""
 
     def _make_update(self):
         return jobs.UpdateGroup(
@@ -355,9 +352,7 @@ class UpdateGroupBarrierAndRestartTest(unittest.TestCase):
 
 
 class UpdateGroupNotifyBarrierTest(unittest.TestCase):
-    """Test _notify_barrier — when enough tasks reach the barrier, emit notifications
-    (lines 1251, 1253-1254, 1256-1258, 1260-1261, 1264-1266, 1268-1271, 1273-1274,
-    1276, 1278-1279, 1281)."""
+    """Test _notify_barrier — when enough tasks reach the barrier, emit notifications."""
 
     def _make_update(self):
         return jobs.UpdateGroup(
@@ -408,7 +403,7 @@ class UpdateGroupNotifyBarrierTest(unittest.TestCase):
 
 
 class UpdateGroupSendJobToQueueTest(unittest.TestCase):
-    """UpdateGroup.send_job_to_queue (lines 660-661, 663-665, 667, 669)."""
+    """UpdateGroup.send_job_to_queue."""
 
     def test_send_skipped_when_not_canceled_and_dedupe_key_exists(self):
         ug = jobs.UpdateGroup(
@@ -451,8 +446,7 @@ class UpdateGroupSendJobToQueueTest(unittest.TestCase):
 
 
 class CreateGroupHandleFailureTest(unittest.TestCase):
-    """CreateGroup.handle_failure enqueues an UpdateGroup job
-    (lines 533, 541)."""
+    """CreateGroup.handle_failure enqueues an UpdateGroup job."""
 
     def test_handle_failure_enqueues_update_group(self):
         cg = _make_create_group()
@@ -462,8 +456,7 @@ class CreateGroupHandleFailureTest(unittest.TestCase):
 
 
 class CleanupGroupTest(unittest.TestCase):
-    """CleanupGroup.execute / .prepare_execute (lines 568, 570, 583-584,
-    586-587, 589)."""
+    """CleanupGroup.execute / .prepare_execute."""
 
     def test_execute_calls_cleanup_workflow_group(self):
         cg = _make_cleanup_group()
@@ -495,9 +488,7 @@ class CleanupGroupTest(unittest.TestCase):
 
 
 class RescheduleTaskTest(unittest.TestCase):
-    """RescheduleTask helpers (lines 1321, 1323-1326, 1329, 1331, 1333-1334,
-    1344-1345, 1347, 1349-1350, 1363, 1365-1366, 1368-1369, 1371-1372,
-    1375-1376, 1378, 1384, 1395)."""
+    """RescheduleTask helpers."""
 
     def _make(self, **overrides):
         cleanup_spec = backend_job_defs.BackendCleanupSpec(
@@ -605,7 +596,7 @@ class RescheduleTaskTest(unittest.TestCase):
 
 
 class CancelWorkflowExecuteTest(unittest.TestCase):
-    """CancelWorkflow.execute (lines 1656-1701, 1703)."""
+    """CancelWorkflow.execute."""
 
     def _make_workflow(self, statuses_finished=None, exec_timeout=None,
                        queue_timeout=None):
@@ -695,8 +686,7 @@ class CancelWorkflowExecuteTest(unittest.TestCase):
 
 
 class CheckRunTimeoutTest(unittest.TestCase):
-    """CheckRunTimeout helpers (lines 1719-1722, 1727-1735, 1739-1773, 1782-1804,
-    1815-1817)."""
+    """CheckRunTimeout helpers."""
 
     def _make(self, group_name=None):
         return jobs.CheckRunTimeout(
@@ -859,7 +849,7 @@ class CheckRunTimeoutTest(unittest.TestCase):
 
 
 class CheckQueueTimeoutTest(unittest.TestCase):
-    """CheckQueueTimeout helpers (lines 1834-1937)."""
+    """CheckQueueTimeout helpers."""
 
     def _make(self, group_name=None):
         return jobs.CheckQueueTimeout(
@@ -1022,7 +1012,7 @@ class CheckQueueTimeoutTest(unittest.TestCase):
 
 
 class SubmitWorkflowHandleFailureTest(unittest.TestCase):
-    """SubmitWorkflow.handle_failure (lines 314-348)."""
+    """SubmitWorkflow.handle_failure."""
 
     def _make(self):
         # Bypass SubmitWorkflow's required nested fields with model_construct.
@@ -1071,7 +1061,7 @@ class SubmitWorkflowHandleFailureTest(unittest.TestCase):
 
 
 class UpdateGroupHandleFailureTest(unittest.TestCase):
-    """UpdateGroup.handle_failure (lines 1083-1088, 1090-1094, 1096)."""
+    """UpdateGroup.handle_failure."""
 
     def test_handle_failure_returns_early_if_workflow_unfinished(self):
         ug = jobs.UpdateGroup(
@@ -1130,7 +1120,7 @@ class UpdateGroupHandleFailureTest(unittest.TestCase):
 
 
 class ScheduleCleanupJobTest(unittest.TestCase):
-    """UpdateGroup.schedule_cleanup_job (lines 805-869)."""
+    """UpdateGroup.schedule_cleanup_job."""
 
     def _make_update(self, status, force_cancel=False, lead_task=True):
         return jobs.UpdateGroup(
@@ -1211,7 +1201,7 @@ class ScheduleCleanupJobTest(unittest.TestCase):
 
 
 class SubmitWorkflowExecuteTest(unittest.TestCase):
-    """SubmitWorkflow.execute (lines 219-307)."""
+    """SubmitWorkflow.execute."""
 
     def _make(self):
         return jobs.SubmitWorkflow.model_construct(  # type: ignore[arg-type]
@@ -1337,7 +1327,7 @@ class SubmitWorkflowExecuteTest(unittest.TestCase):
 
 
 class CreateGroupPrepareExecuteTest(unittest.TestCase):
-    """CreateGroup.prepare_execute (lines 491-527)."""
+    """CreateGroup.prepare_execute."""
 
     def test_returns_false_when_group_not_in_waiting_or_processing(self):
         cg = _make_create_group()
@@ -1397,7 +1387,7 @@ class CreateGroupPrepareExecuteTest(unittest.TestCase):
 
 
 class UpdateGroupUpdateAllTasksTest(unittest.TestCase):
-    """UpdateGroup._update_all_tasks (lines 707-795 and surroundings)."""
+    """UpdateGroup._update_all_tasks."""
 
     def _make(self, status=task.TaskGroupStatus.RUNNING, lead_task=True,
               task_name='t1', retry_id=0):
@@ -1559,7 +1549,7 @@ class UpdateGroupUpdateAllTasksTest(unittest.TestCase):
 
 
 class UpdateGroupExecuteTest(unittest.TestCase):
-    """UpdateGroup.execute (lines 881-1077). Uses heavy mocking to bypass DB/Redis."""
+    """UpdateGroup.execute. Uses heavy mocking to bypass DB/Redis."""
 
     def _make(self, status=task.TaskGroupStatus.RUNNING, task_name='t1',
               retry_id=0, force_cancel=False, lead_task=True):
@@ -1847,7 +1837,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
 
 
 class CleanupWorkflowExecuteTest(unittest.TestCase):
-    """CleanupWorkflow.execute (lines 1426-1606)."""
+    """CleanupWorkflow.execute."""
 
     def _make(self):
         return jobs.CleanupWorkflow(
@@ -1932,7 +1922,7 @@ class CleanupWorkflowExecuteTest(unittest.TestCase):
 
 
 class UploadWorkflowFilesTest(unittest.TestCase):
-    """UploadWorkflowFiles validators and execute (lines 379, 391-450)."""
+    """UploadWorkflowFiles validators and execute."""
 
     def _make(self, files=None):
         files = files or [jobs.File(path='spec1.yaml', content='a: 1')]
