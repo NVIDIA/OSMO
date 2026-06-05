@@ -44,3 +44,17 @@ py_test(
     ],
     size = "small"
 )
+
+py_test(
+    name = "test_default_roles",
+    srcs = [
+        "test_default_roles.py"
+        ],
+    deps = [
+        "//src/utils/connectors:connectors",
+    ],
+    tags = [
+        "exclusive"
+    ],
+    size = "small"
+)
