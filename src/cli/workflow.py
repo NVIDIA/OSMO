@@ -72,6 +72,85 @@ class TemplateData(pydantic.BaseModel, extra='forbid'):
         }
 
 
+class _AppendFilterRule(argparse.Action):
+    """
+    Captures rsync filter rules into a single ordered list. Rsync uses first-match-wins
+    semantics across `--exclude`/`--include`, so we cannot use four separate `append`
+    dests — interleave order would be lost.
+    """
+    _OPTION_TO_KIND = {
+        '--exclude': rsync.RsyncFilterRuleKind.EXCLUDE,
+        '--include': rsync.RsyncFilterRuleKind.INCLUDE,
+        '--exclude-from': rsync.RsyncFilterRuleKind.EXCLUDE_FROM,
+        '--include-from': rsync.RsyncFilterRuleKind.INCLUDE_FROM,
+    }
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        items = getattr(namespace, self.dest, None) or []
+        kind = self._OPTION_TO_KIND[option_string]
+        items.append((kind, values))
+        setattr(namespace, self.dest, items)
+
+
+def _add_rsync_filter_args(subparser: argparse.ArgumentParser) -> None:
+    """
+    Adds the four rsync filter flags to the given subparser, all writing to a single
+    ordered `filter_rules` dest. Defined as a helper so upload and download share the
+    same surface.
+    """
+    subparser.add_argument('--exclude',
+                           metavar='PATTERN',
+                           dest='filter_rules',
+                           default=[],
+                           action=_AppendFilterRule,
+                           help='Skip files matching PATTERN. Repeatable. '
+                                'Patterns interleave with --include in input order '
+                                '(first-match-wins).')
+    subparser.add_argument('--include',
+                           metavar='PATTERN',
+                           dest='filter_rules',
+                           action=_AppendFilterRule,
+                           help='Include files matching PATTERN even if they would '
+                                'otherwise be excluded. Repeatable.')
+    subparser.add_argument('--exclude-from',
+                           metavar='FILE',
+                           dest='filter_rules',
+                           action=_AppendFilterRule,
+                           help='Read exclude patterns from FILE (one per line, '
+                                '# for comments). For --daemon, FILE is re-read on '
+                                'every reconnect, so it must remain readable.')
+    subparser.add_argument('--include-from',
+                           metavar='FILE',
+                           dest='filter_rules',
+                           action=_AppendFilterRule,
+                           help='Read include patterns from FILE (one per line, '
+                                '# for comments). For --daemon, FILE is re-read on '
+                                'every reconnect, so it must remain readable.')
+
+
+def _build_rsync_filter_spec(
+    filter_rules: List[Tuple[rsync.RsyncFilterRuleKind, str]],
+) -> rsync.RsyncFilterSpec:
+    """
+    Convert parsed CLI rules into an `RsyncFilterSpec`. For file-based rules
+    (`--exclude-from`/`--include-from`), resolve to absolute paths and verify the file
+    exists at parse time so daemon mode fails loudly upfront rather than at every
+    reconnect.
+    """
+    rules = []
+    for kind, value in filter_rules:
+        if kind in (rsync.RsyncFilterRuleKind.EXCLUDE_FROM,
+                    rsync.RsyncFilterRuleKind.INCLUDE_FROM):
+            resolved = os.path.abspath(os.path.expanduser(value))
+            if not os.path.isfile(resolved):
+                raise osmo_errors.OSMOUserError(
+                    f'--{kind.value} file does not exist: {value}')
+            rules.append(rsync.RsyncFilterRule(kind=kind, value=resolved))
+        else:
+            rules.append(rsync.RsyncFilterRule(kind=kind, value=value))
+    return rsync.RsyncFilterSpec(rules=tuple(rules))
+
+
 def setup_parser(parser: argparse._SubParsersAction):
     '''
     Workflow parser setup and run command based on parsing.
@@ -531,6 +610,7 @@ Stop a specific daemon::
                                  action='store_true',
                                  help='Suppress transfer progress output. By default, progress '
                                       'is shown for foreground transfers.')
+    _add_rsync_filter_args(rsync_up_parser)
     rsync_up_parser.set_defaults(func=_rsync_upload)
 
     # --- download subcommand ---
@@ -558,6 +638,7 @@ Stop a specific daemon::
                                    action='store_true',
                                    help='Suppress transfer progress output. By default, progress '
                                         'is shown.')
+    _add_rsync_filter_args(rsync_down_parser)
     rsync_down_parser.set_defaults(func=_rsync_download)
 
     # --- status subcommand ---
@@ -1707,6 +1788,7 @@ def _rsync_upload(service_client: client.ServiceClient, args: argparse.Namespace
         daemon_max_log_size=args.max_log_size,
         daemon_verbose_logging=args.verbose,
         show_progress=not args.daemon and not args.no_progress,
+        filter_spec=_build_rsync_filter_spec(args.filter_rules),
     )
 
 
@@ -1730,4 +1812,5 @@ def _rsync_download(service_client: client.ServiceClient, args: argparse.Namespa
         args.path,
         timeout=args.timeout,
         show_progress=not args.no_progress,
+        filter_spec=_build_rsync_filter_spec(args.filter_rules),
     )

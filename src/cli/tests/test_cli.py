@@ -16,11 +16,16 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import argparse
+import dataclasses
+import json
+import os
+import tempfile
 import unittest
 from unittest import mock
 
 from src.cli import workflow
 from src.lib.rsync import rsync
+from src.lib.utils import osmo_errors
 
 class TestPortParse(unittest.TestCase):
     def test_port_parse(self):
@@ -155,6 +160,157 @@ class TestAsyncioEntrypoints(unittest.TestCase):
             )
 
         self.assertEqual(download_task.await_count, 1)
+
+
+class TestRsyncFilterCliParsing(unittest.TestCase):
+    """Tests for the rsync filter CLI parsing and spec construction."""
+
+    def _build_rsync_parser(self) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest='module')
+        workflow.setup_parser(subparsers)
+        return parser
+
+    def test_filter_rules_preserve_input_order(self):
+        """First-match-wins requires that --exclude/--include interleave is preserved."""
+        parser = self._build_rsync_parser()
+        args = parser.parse_args([
+            'workflow', 'rsync', 'upload', 'wf-1', 'task-1', '/tmp/a:/tmp/b',
+            '--include', '*.py',
+            '--exclude', '*.log',
+            '--include', 'README',
+            '--exclude', '*',
+        ])
+        self.assertEqual(args.filter_rules, [
+            (rsync.RsyncFilterRuleKind.INCLUDE, '*.py'),
+            (rsync.RsyncFilterRuleKind.EXCLUDE, '*.log'),
+            (rsync.RsyncFilterRuleKind.INCLUDE, 'README'),
+            (rsync.RsyncFilterRuleKind.EXCLUDE, '*'),
+        ])
+
+    def test_filter_rules_default_is_empty_list(self):
+        parser = self._build_rsync_parser()
+        args = parser.parse_args([
+            'workflow', 'rsync', 'upload', 'wf-1', 'task-1', '/tmp/a:/tmp/b',
+        ])
+        self.assertEqual(args.filter_rules, [])
+
+    def test_download_parser_accepts_filter_flags(self):
+        parser = self._build_rsync_parser()
+        args = parser.parse_args([
+            'workflow', 'rsync', 'download', 'wf-1', 'task-1', '/tmp/r:/tmp/l',
+            '--exclude', '*.tmp',
+        ])
+        self.assertEqual(args.filter_rules, [
+            (rsync.RsyncFilterRuleKind.EXCLUDE, '*.tmp'),
+        ])
+
+    def test_build_spec_validates_exclude_from_exists(self):
+        with self.assertRaises(osmo_errors.OSMOUserError):
+            workflow._build_rsync_filter_spec([
+                (rsync.RsyncFilterRuleKind.EXCLUDE_FROM, '/nonexistent/excludes.txt'),
+            ])
+
+    def test_build_spec_resolves_from_path_to_absolute(self):
+        with tempfile.NamedTemporaryFile(suffix='.excludes', delete=False) as f:
+            f.write(b'*.log\n')
+            tmp_path = f.name
+        try:
+            spec = workflow._build_rsync_filter_spec([
+                (rsync.RsyncFilterRuleKind.EXCLUDE_FROM, tmp_path),
+            ])
+            self.assertEqual(len(spec.rules), 1)
+            self.assertTrue(os.path.isabs(spec.rules[0].value))
+            self.assertEqual(spec.rules[0].kind, rsync.RsyncFilterRuleKind.EXCLUDE_FROM)
+        finally:
+            os.unlink(tmp_path)
+
+
+class TestRsyncFilterSpec(unittest.TestCase):
+    """Tests for the lib-level filter spec types."""
+
+    def test_build_filter_args_preserves_order(self):
+        spec = rsync.RsyncFilterSpec(rules=(
+            rsync.RsyncFilterRule(rsync.RsyncFilterRuleKind.INCLUDE, '*.py'),
+            rsync.RsyncFilterRule(rsync.RsyncFilterRuleKind.EXCLUDE, '*'),
+            rsync.RsyncFilterRule(rsync.RsyncFilterRuleKind.EXCLUDE_FROM, '/tmp/excl'),
+        ))
+        self.assertEqual(rsync._build_filter_args(spec), [
+            '--include', '*.py',
+            '--exclude', '*',
+            '--exclude-from', '/tmp/excl',
+        ])
+
+    def test_build_filter_args_empty_spec_is_empty_list(self):
+        self.assertEqual(rsync._build_filter_args(rsync.RsyncFilterSpec()), [])
+
+    def test_filter_spec_json_roundtrip(self):
+        spec = rsync.RsyncFilterSpec(rules=(
+            rsync.RsyncFilterRule(rsync.RsyncFilterRuleKind.EXCLUDE, '*.log'),
+            rsync.RsyncFilterRule(rsync.RsyncFilterRuleKind.INCLUDE, 'keep.txt'),
+        ))
+        as_dict = dataclasses.asdict(spec)
+        reloaded = rsync.RsyncFilterSpec.from_dict(json.loads(json.dumps(as_dict)))
+        self.assertEqual(reloaded, spec)
+
+    def test_daemon_metadata_backward_compat_no_filter_spec(self):
+        """Old PID files lacking filter_spec must still load with an empty spec."""
+        old_pid_data = {
+            'pid': 1234,
+            'rsync_request': {
+                'workflow_id': 'wf-1',
+                'task_name': 'task-1',
+                'direction': 'upload',
+                'local_path': '/tmp/local',
+                'remote_module': 'osmo',
+                'remote_path': 'sub',
+                'original_remote_path': '/osmo/run/workspace/sub',
+            },
+            'start_time': '2025-01-01T00:00:00',
+        }
+        metadata = rsync.RsyncDaemonMetadata.from_dict(old_pid_data)
+        self.assertEqual(metadata.rsync_request.filter_spec, rsync.RsyncFilterSpec())
+
+    def test_daemon_metadata_backward_compat_legacy_keys(self):
+        """Legacy schema with src/dst_module/dst_path keys must still load."""
+        legacy_pid_data = {
+            'pid': 1234,
+            'rsync_request': {
+                'workflow_id': 'wf-1',
+                'task_name': 'task-1',
+                'src': '/tmp/local',
+                'dst_module': 'osmo',
+                'dst_path': 'sub',
+                'original_dst_path': '/osmo/run/workspace/sub',
+            },
+            'start_time': '2025-01-01T00:00:00',
+        }
+        metadata = rsync.RsyncDaemonMetadata.from_dict(legacy_pid_data)
+        self.assertEqual(metadata.rsync_request.local_path, '/tmp/local')
+        self.assertEqual(metadata.rsync_request.filter_spec, rsync.RsyncFilterSpec())
+
+    def test_daemon_metadata_roundtrip_with_filter_spec(self):
+        """New PID files with a filter_spec must round-trip cleanly."""
+        original = rsync.RsyncDaemonMetadata(
+            pid=4321,
+            rsync_request=rsync.RsyncRequest(
+                workflow_id='wf-1',
+                task_name='task-1',
+                direction=rsync.RsyncDirection.UPLOAD,
+                local_path='/tmp/local',
+                remote_module='osmo',
+                remote_path='sub',
+                original_remote_path='/osmo/run/workspace/sub',
+                filter_spec=rsync.RsyncFilterSpec(rules=(
+                    rsync.RsyncFilterRule(rsync.RsyncFilterRuleKind.EXCLUDE, '*.log'),
+                )),
+            ),
+            start_time='2025-01-01T00:00:00',
+        )
+        reloaded = rsync.RsyncDaemonMetadata.from_dict(
+            json.loads(json.dumps(dataclasses.asdict(original))),
+        )
+        self.assertEqual(reloaded, original)
 
 
 if __name__ == "__main__":

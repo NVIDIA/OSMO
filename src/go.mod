@@ -91,3 +91,5 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.70 // indirect
 )
+
+replace github.com/gokrazy/rsync => github.com/f-luo/rsync v0.0.0-20260422234135-c84164e0ea7d
