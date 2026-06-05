@@ -567,18 +567,12 @@ services:
           - "profile:Update"
           - "resources:Read"
           - "user:List"
-          - "workflow:Cancel"
-          - "workflow:Delete"
-          - "workflow:Exec"
           - "workflow:List"
-          - "workflow:PortForward"
           - "workflow:Read"
-          - "workflow:Rsync"
-          - "workflow:Update"
           resources: ["*"]
         - effect: Allow
           actions:
-          - "workflow:Create"
+          - "workflow:*"
           resources: ["pool/default"]
         external_roles: [osmo-user]
       osmo-default:

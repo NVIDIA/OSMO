@@ -64,7 +64,11 @@ class TestDefaultRoleMerge(unittest.TestCase):
                     resources=['*'],
                 ),
                 role.RolePolicy(
-                    actions=['workflow:Create'],
+                    actions=['workflow:List', 'workflow:Read'],
+                    resources=['*'],
+                ),
+                role.RolePolicy(
+                    actions=['workflow:*'],
                     resources=['pool/default'],
                 ),
             ],
@@ -75,8 +79,9 @@ class TestDefaultRoleMerge(unittest.TestCase):
         self.assertTrue(did_update)
         self.assertNotIn('workflow:Create', existing_role.policies[0].actions)
         self.assertIn('workflow:List', existing_role.policies[0].actions)
+        self.assertIn('workflow:Read', existing_role.policies[0].actions)
         self.assertEqual(existing_role.policies[0].resources, ['*'])
-        self.assertEqual(existing_role.policies[1].actions, ['workflow:Create'])
+        self.assertEqual(existing_role.policies[1].actions, ['workflow:*'])
         self.assertEqual(existing_role.policies[1].resources, ['pool/default'])
 
     def test_preserves_existing_extra_policy_and_external_roles(self):
@@ -104,7 +109,11 @@ class TestDefaultRoleMerge(unittest.TestCase):
                     resources=['*'],
                 ),
                 role.RolePolicy(
-                    actions=['workflow:Create'],
+                    actions=['workflow:List', 'workflow:Read'],
+                    resources=['*'],
+                ),
+                role.RolePolicy(
+                    actions=['workflow:*'],
                     resources=['pool/default'],
                 ),
             ],
@@ -116,7 +125,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
         self.assertEqual(existing_role.external_roles, ['osmo-user'])
         self.assertEqual(existing_role.policies[1].actions, ['workflow:*'])
         self.assertEqual(existing_role.policies[1].resources, ['pool/orion-gb200-02'])
-        self.assertEqual(existing_role.policies[2].actions, ['workflow:Create'])
+        self.assertEqual(existing_role.policies[2].actions, ['workflow:*'])
         self.assertEqual(existing_role.policies[2].resources, ['pool/default'])
 
     def test_normalizes_broadened_default_actions_back_to_default_scope(self):
@@ -144,6 +153,10 @@ class TestDefaultRoleMerge(unittest.TestCase):
                     resources=['*'],
                 ),
                 role.RolePolicy(
+                    actions=['workflow:List', 'workflow:Read'],
+                    resources=['*'],
+                ),
+                role.RolePolicy(
                     actions=['workflow:*'],
                     resources=['pool/default'],
                 ),
@@ -154,20 +167,29 @@ class TestDefaultRoleMerge(unittest.TestCase):
 
         self.assertTrue(did_update)
         self.assertEqual(existing_role.external_roles, ['osmo-user'])
-        self.assertEqual(existing_role.policies[0].actions, ['app:*'])
+        self.assertEqual(existing_role.policies[0].actions, [
+            'app:*',
+            'workflow:List',
+            'workflow:Read',
+        ])
         self.assertEqual(existing_role.policies[0].resources, ['*'])
         self.assertEqual(existing_role.policies[1].actions, ['workflow:*'])
         self.assertEqual(existing_role.policies[1].resources, ['pool/orion-gb200-02'])
         self.assertEqual(existing_role.policies[2].actions, ['workflow:*'])
         self.assertEqual(existing_role.policies[2].resources, ['pool/default'])
 
-    def test_keeps_default_wildcard_workflow_actions_but_moves_create(self):
+    def test_keeps_read_list_wildcard_but_moves_other_workflow_actions(self):
         existing_role = connectors.Role(
             name='osmo-user',
             description='User role',
             policies=[
                 role.RolePolicy(
-                    actions=['workflow:Create', 'workflow:List', 'workflow:Read'],
+                    actions=[
+                        'workflow:Create',
+                        'workflow:List',
+                        'workflow:Read',
+                        'workflow:Update',
+                    ],
                     resources=['*'],
                 ),
             ],
@@ -181,7 +203,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
                     resources=['*'],
                 ),
                 role.RolePolicy(
-                    actions=['workflow:Create'],
+                    actions=['workflow:*'],
                     resources=['pool/default'],
                 ),
             ],
@@ -195,7 +217,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
             ['workflow:List', 'workflow:Read'],
         )
         self.assertEqual(existing_role.policies[0].resources, ['*'])
-        self.assertEqual(existing_role.policies[1].actions, ['workflow:Create'])
+        self.assertEqual(existing_role.policies[1].actions, ['workflow:*'])
         self.assertEqual(existing_role.policies[1].resources, ['pool/default'])
 
     def test_returns_false_when_existing_role_already_contains_defaults(self):
@@ -203,16 +225,22 @@ class TestDefaultRoleMerge(unittest.TestCase):
             name='osmo-user',
             description='User role',
             policies=[
-                role.RolePolicy(actions=['app:*'], resources=['*']),
-                role.RolePolicy(actions=['workflow:Create'], resources=['pool/default']),
+                role.RolePolicy(
+                    actions=['app:*', 'workflow:List', 'workflow:Read'],
+                    resources=['*'],
+                ),
+                role.RolePolicy(actions=['workflow:*'], resources=['pool/default']),
             ],
         )
         default_role = connectors.Role(
             name='osmo-user',
             description='Standard user role',
             policies=[
-                role.RolePolicy(actions=['app:*'], resources=['*']),
-                role.RolePolicy(actions=['workflow:Create'], resources=['pool/default']),
+                role.RolePolicy(
+                    actions=['app:*', 'workflow:List', 'workflow:Read'],
+                    resources=['*'],
+                ),
+                role.RolePolicy(actions=['workflow:*'], resources=['pool/default']),
             ],
         )
 
@@ -282,7 +310,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
         self.assertFalse(did_update)
         self.assertEqual(existing_role.policies, [])
 
-    def test_osmo_user_default_role_scopes_workflow_create_to_default_pool(self):
+    def test_osmo_user_default_role_allows_only_workflow_read_list_on_all_pools(self):
         osmo_user = connectors.DEFAULT_ROLES['osmo-user']
 
         wildcard_workflow_actions = [
@@ -303,16 +331,10 @@ class TestDefaultRoleMerge(unittest.TestCase):
             [
                 'workflow:List',
                 'workflow:Read',
-                'workflow:Update',
-                'workflow:Delete',
-                'workflow:Cancel',
-                'workflow:Exec',
-                'workflow:PortForward',
-                'workflow:Rsync',
             ],
         )
         self.assertEqual(len(scoped_workflow_policies), 1)
-        self.assertEqual(scoped_workflow_policies[0].actions, ['workflow:Create'])
+        self.assertEqual(scoped_workflow_policies[0].actions, ['workflow:*'])
 
 
 if __name__ == '__main__':

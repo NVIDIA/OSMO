@@ -4931,12 +4931,6 @@ DEFAULT_ROLES: Dict[str, Role] = {
                 actions=[
                     'workflow:List',
                     'workflow:Read',
-                    'workflow:Update',
-                    'workflow:Delete',
-                    'workflow:Cancel',
-                    'workflow:Exec',
-                    'workflow:PortForward',
-                    'workflow:Rsync',
                     'dataset:*',
                     'credentials:*',
                     'pool:List',
@@ -4947,7 +4941,7 @@ DEFAULT_ROLES: Dict[str, Role] = {
             ),
             role.RolePolicy(
                 actions=[
-                    'workflow:Create',
+                    'workflow:*',
                 ],
                 resources=['pool/default']
             )
