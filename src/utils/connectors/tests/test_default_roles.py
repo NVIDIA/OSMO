@@ -162,6 +162,45 @@ class TestDefaultRoleMerge(unittest.TestCase):
         self.assertEqual(existing_role.policies[0].actions, ['app:*', 'dataset:*'])
         self.assertEqual(existing_role.policies[0].resources, ['*'])
 
+    def test_copies_default_policies_when_existing_role_has_none(self):
+        existing_role = connectors.Role(
+            name='osmo-user',
+            description='User role',
+            policies=[],
+        )
+        default_role = connectors.Role(
+            name='osmo-user',
+            description='Standard user role',
+            policies=[
+                role.RolePolicy(actions=['app:*'], resources=['*']),
+            ],
+        )
+
+        did_update = connectors.merge_default_role_policies(existing_role, default_role)
+
+        self.assertTrue(did_update)
+        self.assertEqual(existing_role.policies[0].actions, ['app:*'])
+        self.assertEqual(existing_role.policies[0].resources, ['*'])
+        existing_role.policies[0].actions.append('dataset:*')
+        self.assertEqual(default_role.policies[0].actions, ['app:*'])
+
+    def test_returns_false_when_both_existing_and_default_have_no_policies(self):
+        existing_role = connectors.Role(
+            name='empty-role',
+            description='Empty role',
+            policies=[],
+        )
+        default_role = connectors.Role(
+            name='empty-role',
+            description='Empty default role',
+            policies=[],
+        )
+
+        did_update = connectors.merge_default_role_policies(existing_role, default_role)
+
+        self.assertFalse(did_update)
+        self.assertEqual(existing_role.policies, [])
+
     def test_osmo_user_default_role_scopes_workflow_actions_to_default_pool(self):
         osmo_user = connectors.DEFAULT_ROLES['osmo-user']
 
