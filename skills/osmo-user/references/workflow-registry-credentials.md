@@ -6,6 +6,8 @@ Read `workflow-credentials.md` first for credential types and safety rules.
 
 Registry credentials are OSMO workflow credentials. They are not local
 `docker login` state and are not Kubernetes secrets created with `kubectl`.
+The CLI commands are top-level `osmo credential ...`; do not run
+`osmo workflow credential ...`.
 
 ## Create an NGC Registry Credential
 

@@ -3,11 +3,14 @@ name: osmo-user
 description: >
   Drive the OSMO CLI for cloud-robotics compute on behalf of an end user:
   check resources, submit/monitor/debug/explain workflows, fetch logs and
-  Grafana/Kubernetes links, manage workflow apps, and set workflow credentials.
+  Grafana/Kubernetes links, inspect direct data storage, manage workflow apps,
+  and set workflow credentials.
   Use whenever the user asks about OSMO pools, quota, GPUs, or nodes, or about
   submitting, listing, querying, monitoring, or troubleshooting workflows —
-  including failed, PENDING, queued, stuck, or image-pull-blocked workflows —
-  even when they describe a workflow or cluster resource without saying "OSMO".
+  including failed, PENDING, queued, stuck, or image-pull-blocked workflows, or
+  when they ask to inspect or transfer direct storage URIs such as `s3://...`,
+  even when they describe a workflow, cluster resource, or storage URI without
+  saying "OSMO".
   Do not use for Kubernetes admin, server-side `osmo config` changes, OSMO
   install/deploy, non-OSMO compute, or general NVIDIA hardware questions.
 ---
@@ -21,6 +24,9 @@ router: load only the reference files needed for the current task.
 
 Before the first OSMO command in a conversation:
 
+0. For cancel/delete/force/destructive requests, ask for explicit confirmation
+   before running any `osmo` command, including `osmo --version` or query
+   commands. After confirmation, continue with the checks below.
 1. Confirm the CLI is available: `osmo --version`. If it fails, tell the user
    the OSMO CLI is unavailable and stop.
 2. If any command returns an authentication error, ask the user to run
@@ -81,7 +87,7 @@ Resources, pools, GPUs, nodes, or quota.
 
 ### `references/cli-commands.md`
 Safe end-user OSMO command lookup when no dedicated reference applies.
-- "What is the command for data download?", "How do I list direct storage?", "Set my default pool" — use this for auth/version/profile/data/task syntax.
+- "Check whether I can read from s3://...", "Download this s3:// path", "What is the command for data download?", "How do I list direct storage?", "Set my default pool" — use this for auth/version/profile/data/task syntax.
 - For workflow, app, credential, resource, or troubleshooting details, follow this file's routing to the dedicated reference.
 - If the requested command is `osmo config`, `osmo user`, role/bucket/admin mutation, or Kubernetes administration, treat it as out of scope.
 
@@ -93,7 +99,8 @@ Workflow submit/list/query/log/event/spec subcommand and flag lookup.
 ### `references/workflow-runtime-commands.md`
 Live workflow runtime operations.
 - "Cancel workflow X", "Exec into task Y", "Port-forward task Z", "Rsync files into this workflow", "Add a tag to this workflow"
-- Ask for confirmation before cancellation and other destructive operations.
+- Ask for confirmation before cancellation and other destructive operations. A
+  bare request like "Cancel workflow X" is not confirmation.
 
 ### `references/workflow-submit.md`
 Submit a supplied or generated workflow.
@@ -141,6 +148,7 @@ Workflow app lifecycle.
 ### `references/workflow-spec.md`
 Workflow YAML schema and field shapes.
 - "Is this workflow YAML valid?", "Add files/environment/resources", "What shape do tasks/resources/groups use?" — use this as a compact field map.
+- For URL inputs/outputs, also read `references/workflow-io-spec.md`; for topology placement, also read `references/workflow-advanced-patterns.md`.
 - For design examples, continue to `references/workflow-patterns.md`; for checkpointing/topology/node exclusion, continue to `references/workflow-advanced-patterns.md`.
 
 ### `references/workflow-io-spec.md`
@@ -161,4 +169,4 @@ Multi-task log summarization.
 - A workflow has two or more tasks and logs are needed — spawn `logs-reader` subagents as directed; do not inline all logs.
 
 ### When NOT to use this skill
-- "What GPUs does NVIDIA sell?", "How do I deploy OSMO?", "Configure Kubernetes taints", "Edit a pod template / pool quota / `osmo config`" — answer with general help or another skill; do not run `osmo`. Server-side config and cluster admin are the OSMO admin surface.
+- "What GPUs does NVIDIA sell?", "How do I deploy OSMO?", "Set up AKS / Kubernetes / NIM Operator infrastructure", "Configure Kubernetes taints", "Edit a pod template / pool quota / `osmo config`" — answer with general help or another skill; do not run `osmo`. Server-side config, cluster admin, and infrastructure scaffolding are outside this skill.

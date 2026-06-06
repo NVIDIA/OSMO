@@ -6,6 +6,12 @@ rsync, and tags. For submit/list/query/log syntax, read `workflow-commands.md`.
 ## Safety
 
 - Ask for explicit confirmation before canceling or force-canceling workflows.
+- Treat a request like "Cancel workflow X" as the action request, not as the
+  separate confirmation. Reply with a confirmation question and do not run
+  `osmo workflow cancel` until the user confirms.
+- This confirmation gate comes before CLI availability checks, workflow queries,
+  or status lookups. Do not inspect the workflow first unless the user asks for
+  status instead of cancellation.
 - Use runtime access only for workflows that are still running or reachable.
 - Prefer workflow query/log/event commands first when the user only wants
   status or failure diagnosis.

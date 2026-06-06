@@ -14,6 +14,7 @@ inputs:
 
 Task inputs create dependencies. URL inputs mount external data. Their paths
 are available as `{{input:0}}`, `{{input:1}}`, and so on in input-list order.
+For URL data, use `- url: ...`; do not model the URL as `string`.
 
 ## Outputs
 
@@ -32,6 +33,38 @@ tasks:
   args: ["mkdir -p {{output}} && echo result > {{output}}/result.txt"]
   outputs:
   - url: s3://bucket/output/
+```
+
+## URL IO with Topology
+
+When combining URL inputs, URL outputs, private images, and topology, keep
+topology on the resource profile and keep registry credentials outside YAML.
+
+```yaml
+workflow:
+  name: url-io-topology
+  resources:
+    default:
+      cpu: 4
+      gpu: 1
+      memory: 16Gi
+      storage: 50Gi
+      topology:
+      - key: gpu-clique
+        group: default
+        requirementType: required
+  tasks:
+  - name: process
+    image: nvcr.io/org/private-image:tag
+    command: ["bash", "-c"]
+    args:
+    - |
+      mkdir -p {{output}}
+      cp -r {{input:0}}/* {{output}}/
+    inputs:
+    - url: s3://bucket/input/
+    outputs:
+    - url: s3://bucket/output/
 ```
 
 ## Runtime Tokens

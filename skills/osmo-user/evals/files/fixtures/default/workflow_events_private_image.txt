@@ -1,0 +1,6 @@
+2026-05-09T10:00:20Z  Normal   Scheduled    Pod assigned to node osmo-iad1-h100-7e3a2
+2026-05-09T10:00:25Z  Normal   Pulling      Pulling image "nvcr.io/nvidia/gr00t:1.5.0"
+2026-05-09T10:00:40Z  Warning  Failed       Failed to pull image "nvcr.io/nvidia/gr00t:1.5.0": unauthorized: authentication required
+2026-05-09T10:00:40Z  Warning  Failed       Error: ErrImagePull
+2026-05-09T10:01:10Z  Normal   BackOff      Back-off pulling image "nvcr.io/nvidia/gr00t:1.5.0"
+2026-05-09T10:01:10Z  Warning  Failed       Error: ImagePullBackOff
