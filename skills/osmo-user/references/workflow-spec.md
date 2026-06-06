@@ -3,7 +3,7 @@
 Use this as a compact field map for OSMO workflow YAML. It answers where fields
 belong and what shape they take. For examples and procedures, route to
 `workflow-patterns.md`, `workflow-advanced-patterns.md`,
-`workflow-submit.md`, or `workflow-commands.md`.
+`workflow-submit.md`, `workflow-commands.md`, or `workflow-io-spec.md`.
 
 ## Minimal Shape
 
@@ -20,7 +20,7 @@ workflow:
   - name: run
     image: ubuntu:24.04
     command: ["bash", "-c"]
-    args: ["mkdir -p {{output}} && echo hello > {{output}}/result.txt"]
+    args: ["echo hello"]
 ```
 
 ## Top Level
@@ -80,70 +80,16 @@ Common task fields:
 | `lead` | bool | Required in groups; exactly one lead per group. |
 | `environment` | map | Environment variables. |
 | `files` | list | Inline files with `path`, `contents`, optional `base64`. |
-| `inputs` / `outputs` | list | Data dependencies and produced artifacts. |
+| `inputs` / `outputs` | list | See `workflow-io-spec.md`. |
 | `checkpoint` | list | Periodic upload rules; see advanced patterns. |
 | `exitActions` | map | Exit-code handling; see advanced patterns. |
 
 Advanced task fields include `privileged`, `hostNetwork`, `volumeMounts`,
 `downloadType`, `cacheSize`, and `backend`.
 
-## Inputs
-
-```yaml
-inputs:
-- task: preprocess
-- url: s3://bucket/path/
-```
-
-Task inputs create dependencies. Their paths are available as `{{input:0}}`,
-`{{input:1}}`, and so on in input-list order.
-
-## Outputs
-
-```yaml
-outputs:
-- url: s3://bucket/output/
-```
-
-Write artifacts under `{{output}}`. Do not use `{{outputs}}`.
-
 ## Groups
 
-```yaml
-workflow:
-  name: grouped
-  groups:
-  - name: workers
-    tasks:
-    - name: leader
-      lead: true
-      image: ubuntu:24.04
-      command: ["sleep", "300"]
-    - name: worker
-      image: ubuntu:24.04
-      command: ["bash", "-c", "echo {{host:leader}}"]
-```
-
-Every group must have exactly one `lead: true` task. The group completes when
-the lead exits, so the lead must outlive siblings that need to keep running.
-For full group patterns, read `workflow-patterns.md`.
-
-## Tokens and Jinja
-
-| Token | Meaning |
-|---|---|
-| `{{output}}` | Task output directory. |
-| `{{input:N}}` | Nth input path, zero-indexed. |
-| `{{workflow_id}}` | Workflow run ID. |
-| `{{host:task-name}}` | Host/IP for a task in the same group. |
-
-Template defaults:
-
-```yaml
-default-values:
-  workflow_name: hello
-  image: ubuntu:24.04
-```
-
-Submit overrides with `--set`, `--set-string`, or `--set-env`; see
-`workflow-commands.md`.
+Group workflows use `workflow.groups[].tasks`. Every group must have exactly
+one `lead: true` task. The group completes when the lead exits, so the lead
+must outlive siblings that need to keep running. For full group patterns, read
+`workflow-patterns.md`; for host/runtime tokens, read `workflow-io-spec.md`.

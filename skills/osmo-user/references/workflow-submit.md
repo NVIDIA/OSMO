@@ -19,6 +19,8 @@ monitoring. If they ask you to monitor, debug, or report final results, use
      cookbook example; read `references/cookbook-fetching.md` before doing so.
    - For workflow YAML field shapes and minimal valid structure, read
      `references/workflow-spec.md`.
+   - For inputs, outputs, Jinja defaults, or submit overrides, read
+     `references/workflow-io-spec.md`.
    - For multi-task, parallel, dependency, or Jinja-heavy workflows, read
      `references/workflow-patterns.md`.
    - For checkpointing, retry/exit behavior, node exclusion, or topology

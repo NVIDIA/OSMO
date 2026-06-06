@@ -86,9 +86,14 @@ Safe end-user OSMO command lookup when no dedicated reference applies.
 - If the requested command is `osmo config`, `osmo user`, role/bucket/admin mutation, or Kubernetes administration, treat it as out of scope.
 
 ### `references/workflow-commands.md`
-Workflow subcommand and flag lookup.
-- "Validate this workflow", "Dry run it", "Cancel workflow X", "Exec into task Y", "Port-forward task Z", "Rsync files into this workflow", "What flags does workflow list support?"
+Workflow submit/list/query/log/event/spec subcommand and flag lookup.
+- "Validate this workflow", "Dry run it", "What flags does workflow list support?", "How do I fetch logs?", "Show the rendered spec"
 - Use for command syntax only; use `references/workflow-submit.md`, `references/workflow-status.md`, or `references/troubleshooting.md` for procedures.
+
+### `references/workflow-runtime-commands.md`
+Live workflow runtime operations.
+- "Cancel workflow X", "Exec into task Y", "Port-forward task Z", "Rsync files into this workflow", "Add a tag to this workflow"
+- Ask for confirmation before cancellation and other destructive operations.
 
 ### `references/workflow-submit.md`
 Submit a supplied or generated workflow.
@@ -112,12 +117,17 @@ Status, logs, links, live metrics, recent workflows, and workflow explanation.
 ### `references/troubleshooting.md`
 Failed, stuck, sparse-log, or misbehaving workflows.
 - "The logs are empty", "Why did it fail?", "Exit code 137/139/143/127" — match the failure signature and propose a concrete fix.
-- For private-image pull failures, establish the failure here, then read `references/workflow-credentials.md`.
+- For private-image pull failures, establish the failure here, then read `references/workflow-registry-credentials.md`.
 
 ### `references/workflow-credentials.md`
-Workflow credentials, private images, registry auth, and image-pull failures.
-- "Use this private nvcr.io image", "Set up NGC credentials", "Create an OSMO registry credential", "ImagePullBackOff unauthorized" — check existing credentials and create only the needed workflow registry credential.
+Workflow credential types and generic/data credential setup: `REGISTRY` overview, `GENERIC` for task secrets, and `DATA` for object-storage access.
+- "What credential type do I need?", "Set an API token", "Set a data credential" — check existing credentials and create only the needed workflow credential.
 - Never print secret values; prefer environment variables and ask for secrets only after automatic sources are exhausted.
+
+### `references/workflow-registry-credentials.md`
+Private image-pull and registry credential setup.
+- "Use this private nvcr.io image", "Set up NGC credentials", "Create an OSMO registry credential", "ImagePullBackOff unauthorized", "pull access denied" — check existing registry credentials and create or fix only the needed OSMO registry credential.
+- Registry image-pull credentials are managed by OSMO outside workflow YAML.
 
 ### `references/validation-error-recovery.md`
 Submission capacity validation errors.
@@ -130,8 +140,13 @@ Workflow app lifecycle.
 
 ### `references/workflow-spec.md`
 Workflow YAML schema and field shapes.
-- "Is this workflow YAML valid?", "Where does `default-values` go?", "What shape do inputs/outputs use?", "Add files/environment/resources" — use this as a compact field map.
+- "Is this workflow YAML valid?", "Add files/environment/resources", "What shape do tasks/resources/groups use?" — use this as a compact field map.
 - For design examples, continue to `references/workflow-patterns.md`; for checkpointing/topology/node exclusion, continue to `references/workflow-advanced-patterns.md`.
+
+### `references/workflow-io-spec.md`
+Workflow data flow, runtime tokens, and Jinja parameter fields.
+- "Where does `default-values` go?", "What shape do inputs/outputs use?", "How do `{{output}}` or `{{input:0}}` work?", "How do I use `--set`?" — use this as the compact IO/template map.
+- For full workflow design examples, continue to `references/workflow-patterns.md`.
 
 ### `references/workflow-patterns.md`
 Workflow structure and authoring patterns.
