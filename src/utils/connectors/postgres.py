@@ -4848,11 +4848,9 @@ DEFAULT_ROLES: Dict[str, Role] = {
                 resources=['*']
             ),
             role.RolePolicy(
-                actions=[
-                    # Deny internal actions (handled via authz_sidecar deny logic)
-                    # Note: Deny is implicit - admin doesn't get internal:* actions
-                ],
-                resources=[]
+                effect=role.PolicyEffect.DENY,
+                actions=['internal:*'],
+                resources=['*']
             )
         ],
         immutable=True

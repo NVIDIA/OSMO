@@ -317,6 +317,36 @@ class TestDefaultRoleMerge(unittest.TestCase):
         self.assertFalse(did_update)
         self.assertEqual(existing_role.policies, [])
 
+    def test_osmo_admin_default_role_denies_internal_actions(self):
+        osmo_admin = connectors.DEFAULT_ROLES['osmo-admin']
+
+        self.assertEqual(osmo_admin.policies[0].effect, role.PolicyEffect.ALLOW)
+        self.assertEqual(osmo_admin.policies[0].actions, ['*:*'])
+        self.assertEqual(osmo_admin.policies[0].resources, ['*'])
+
+        self.assertEqual(osmo_admin.policies[1].effect, role.PolicyEffect.DENY)
+        self.assertEqual(osmo_admin.policies[1].actions, ['internal:*'])
+        self.assertEqual(osmo_admin.policies[1].resources, ['*'])
+
+    def test_default_role_merge_appends_admin_internal_deny(self):
+        existing_role = connectors.Role(
+            name='osmo-admin',
+            description='Administrator with full access except internal endpoints',
+            policies=[
+                role.RolePolicy(actions=['*:*'], resources=['*']),
+                role.RolePolicy(actions=[], resources=[]),
+            ],
+        )
+        default_role = connectors.DEFAULT_ROLES['osmo-admin']
+
+        did_update = connectors.merge_default_role_policies(existing_role, default_role)
+
+        self.assertTrue(did_update)
+        self.assertEqual(len(existing_role.policies), 3)
+        self.assertEqual(existing_role.policies[2].effect, role.PolicyEffect.DENY)
+        self.assertEqual(existing_role.policies[2].actions, ['internal:*'])
+        self.assertEqual(existing_role.policies[2].resources, ['*'])
+
     def test_osmo_user_default_role_allows_only_workflow_read_list_on_all_pools(self):
         osmo_user = connectors.DEFAULT_ROLES['osmo-user']
 
