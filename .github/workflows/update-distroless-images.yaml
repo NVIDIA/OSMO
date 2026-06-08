@@ -83,7 +83,7 @@ jobs:
           set -euo pipefail
           python3 scripts/distroless/update_distroless.py --apply
 
-      - name: Create or update pull request
+      - name: Create or find pull request
         if: steps.schedule-gate.outputs.should_run == 'true' && steps.distroless.outputs.updated == 'true'
         id: create-pr
         env:
@@ -112,6 +112,7 @@ jobs:
             echo "Open PR already exists for $BRANCH_NAME: $existing_pr"
             echo "pr_url=$existing_pr" >> "$GITHUB_OUTPUT"
             echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "notification_kind=reminder" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -150,16 +151,18 @@ jobs:
           )
           echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
           echo "created=true" >> "$GITHUB_OUTPUT"
+          echo "notification_kind=created" >> "$GITHUB_OUTPUT"
 
       - name: Send Slack review request
         if: >-
           steps.schedule-gate.outputs.should_run == 'true' &&
           steps.distroless.outputs.updated == 'true' &&
-          steps.create-pr.outputs.created == 'true'
+          steps.create-pr.outputs.pr_url != ''
         env:
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
           TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || 'C096VCXRK8U') || inputs.slack_channel }}
           SKIP_SLACK: ${{ inputs.skip_slack || 'false' }}
+          NOTIFICATION_KIND: ${{ steps.create-pr.outputs.notification_kind }}
           PR_URL: ${{ steps.create-pr.outputs.pr_url }}
           VERSION_LABEL: ${{ steps.distroless.outputs.version_label }}
         run: |
@@ -177,10 +180,16 @@ jobs:
             exit 0
           fi
 
+          if [[ "$NOTIFICATION_KIND" == "reminder" ]]; then
+            slack_text="Reminder: could someone review $PR_URL when you get a chance? It updates the OSMO distroless Python/UI images to $VERSION_LABEL."
+          else
+            slack_text="Could someone review $PR_URL when you get a chance? It updates the OSMO distroless Python/UI images to $VERSION_LABEL."
+          fi
+
           payload=$(
             jq -n \
               --arg channel "$TESTBOT_SLACK_CHANNEL" \
-              --arg text "Could someone review $PR_URL when you get a chance? It updates the OSMO distroless Python/UI images to $VERSION_LABEL." \
+              --arg text "$slack_text" \
               '{channel: $channel, text: $text}'
           )
           response=$(
