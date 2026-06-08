@@ -24,3 +24,12 @@ osmo_py_test(
         "//src/lib/utils:osmo_errors",
     ],
 )
+
+osmo_py_test(
+    name = "test_rsync",
+    srcs = ["test_rsync.py"],
+    deps = [
+        "//src/lib/rsync",
+        "//src/lib/utils:osmo_errors",
+    ],
+)
