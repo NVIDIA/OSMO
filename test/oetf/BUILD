@@ -96,6 +96,21 @@ osmo_py_library(
     ],
 )
 
+# Shared validation + adapter-build pipeline for the deploy / deploy_and_run
+# entry-point binaries. Keeps the two main()s thin and consistent.
+osmo_py_library(
+    name = "deploy_pipeline",
+    srcs = ["deploy_pipeline.py"],
+    deps = [
+        ":deploy_adapters_base",
+        ":deploy_adapters_factory",
+        ":deploy_adapters_kind",
+        ":environments",
+        ":models",
+        ":preflight",
+    ],
+)
+
 osmo_py_library(
     name = "auth",
     srcs = ["auth.py"],
@@ -236,12 +251,8 @@ osmo_py_library(
         ":breadcrumb",
         ":cli_args",
         ":deploy_adapters_base",
-        ":deploy_adapters_factory",
         ":deploy_adapters_kind",
-        ":environments",
-        ":local_images",
-        ":models",
-        ":preflight",
+        ":deploy_pipeline",
     ],
 )
 
@@ -283,12 +294,9 @@ osmo_py_library(
         ":breadcrumb",
         ":cli_args",
         ":deploy_adapters_base",
-        ":deploy_adapters_factory",
         ":deploy_adapters_kind",
-        ":environments",
-        ":local_images",
+        ":deploy_pipeline",
         ":models",
-        ":preflight",
     ],
 )
 

@@ -308,17 +308,11 @@ class KindAdapter:
         — chart defaults are not part of the user's intent. Robust to
         missing release / unreachable cluster: any failure → None.
         """
-        runner = self.subprocess_runner or subprocess.run
-        result = runner(
+        values = self._helm_json(
             ["helm", "get", "values", "osmo", "-n", OSMO_NAMESPACE, "-o", "json"],
-            check=False, capture_output=True, text=True,
+            description="Reading existing osmo release values",
         )
-        stdout = getattr(result, "stdout", "") or ""
-        if _returncode(result) != 0 or not stdout.strip():
-            return None
-        try:
-            values = json.loads(stdout)
-        except json.JSONDecodeError:
+        if values is None:
             return None
         return values.get("global") or {}
 
@@ -438,17 +432,12 @@ class KindAdapter:
 
     def _ensure_helm_repo(self, name: str, url: str) -> None:
         """Idempotent ``helm repo add`` — a no-op if ``name`` is already registered."""
-        existing = self._run_capture(
+        repos = self._helm_json(
             ["helm", "repo", "list", "-o", "json"],
             description=f"Checking helm repos for {name}",
-            allow_failure=True,
         )
-        if existing:
-            try:
-                if any(repo.get("name") == name for repo in json.loads(existing)):
-                    return
-            except json.JSONDecodeError:
-                pass
+        if repos and any(repo.get("name") == name for repo in repos):
+            return
         self._run(
             ["helm", "repo", "add", name, url],
             f"Adding helm repo {name}",
@@ -635,7 +624,7 @@ class KindAdapter:
     def _run(self, args: List[str], description: str) -> None:
         runner = self.subprocess_runner or subprocess.run
         logger.info("▶ %s", description)
-        logger.info("  $ %s", _redact_cmd(args))
+        logger.info("  $ %s", " ".join(args))
         result = runner(args, check=False)
         returncode = _returncode(result)
         if returncode != 0:
@@ -652,7 +641,7 @@ class KindAdapter:
         """Run ``args`` and return stdout as a string. On failure, raise or return ''."""
         runner = self.subprocess_runner or subprocess.run
         logger.debug("▶ %s", description)
-        logger.debug("  $ %s", _redact_cmd(args))
+        logger.debug("  $ %s", " ".join(args))
         result = runner(args, check=False, capture_output=True, text=True)
         returncode = _returncode(result)
         stdout = getattr(result, "stdout", "") or ""
@@ -665,6 +654,22 @@ class KindAdapter:
             )
         return stdout
 
+    def _helm_json(self, args: List[str], description: str) -> Optional[Any]:
+        """Run a JSON-emitting helm command and return the parsed payload, or None.
+
+        Tolerant: any non-zero exit, empty output, or JSON parse failure
+        returns ``None`` (the caller treats that as "no information"). Used
+        by the idempotency checks (does this release exist? what values
+        does it have?) which must not fail the deploy.
+        """
+        out = self._run_capture(args, description=description, allow_failure=True)
+        if not out:
+            return None
+        try:
+            return json.loads(out)
+        except json.JSONDecodeError:
+            return None
+
 
 # --- Utilities ------------------------------------------------------------ #
 
@@ -672,25 +677,6 @@ class KindAdapter:
 def _returncode(result: Any) -> int:
     """Normalize a subprocess.run result for test mocks that omit ``returncode``."""
     return getattr(result, "returncode", 0)
-
-
-_REDACTED_FLAGS = (
-    "--container-registry-password=",
-    "--auth-token=",
-    "--token=",
-)
-
-
-def _redact_cmd(args: List[str]) -> str:
-    """Return a shell-style command string with sensitive flag values redacted."""
-    redacted: List[str] = []
-    for arg in args:
-        for flag in _REDACTED_FLAGS:
-            if arg.startswith(flag):
-                arg = flag + "***"
-                break
-        redacted.append(arg)
-    return " ".join(redacted)
 
 
 def list_chart_versions(chart_ref: str = OSMO_CHART_REF) -> List[Dict[str, str]]:

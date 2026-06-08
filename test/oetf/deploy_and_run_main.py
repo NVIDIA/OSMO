@@ -29,20 +29,10 @@ from test.oetf.cli_args import (
     forward_env_args,
     forward_run_args,
 )
-from test.oetf.deploy_adapters.base import DeployParams, DeploySession, install_signal_shim
-from test.oetf.deploy_adapters.factory import build_adapter
-from test.oetf.deploy_adapters.kind_adapter import (
-    check_kind_prereqs,
-    print_chart_versions,
-)
-from test.oetf.environments import resolve_environment
+from test.oetf.deploy_adapters.base import DeploySession, install_signal_shim
+from test.oetf.deploy_adapters.kind_adapter import print_chart_versions
+from test.oetf.deploy_pipeline import prepare_deploy
 from test.oetf.models import EnvironmentConfig
-from test.oetf.preflight import (
-    PreflightError,
-    check_auth,
-    check_deployable,
-    report_preflight_errors,
-)
 
 EXIT_SUCCESS = 0
 EXIT_TEST_FAILURE = 1
@@ -114,60 +104,11 @@ def main(arguments: List[str] | None = None) -> int:
 
     if args.list_versions:
         return print_chart_versions()
-    if not args.env:
-        logger.error(
-            "ERROR: --env is required\nNEXT:  pass --env <name> (see "
-            "test/oetf/data/oetf.default.yaml for available envs)"
-        )
-        return EXIT_FRAMEWORK_ERROR
 
-    try:
-        env = resolve_environment(args.env)
-    except KeyError as error:
-        logger.error("ERROR: %s", error)
+    prepared = prepare_deploy(args)
+    if prepared is None:
         return EXIT_FRAMEWORK_ERROR
-
-    try:
-        check_deployable(env)
-        check_auth(env)
-    except PreflightError as error:
-        logger.error("ERROR: %s", error.error)
-        logger.error("NEXT:  %s", error.next_fix)
-        return EXIT_FRAMEWORK_ERROR
-    except NotImplementedError as error:
-        logger.error("ERROR: %s", error)
-        return EXIT_FRAMEWORK_ERROR
-    try:
-        if env.type == "kind":
-            report_preflight_errors(check_kind_prereqs())
-    except PreflightError:
-        return EXIT_FRAMEWORK_ERROR
-
-    cluster_name = args.cluster_name or env.cluster_name
-    params = DeployParams(
-        type=env.type,
-        env_name=env.name,
-        cluster_name=cluster_name,
-        fresh=args.fresh,
-    )
-
-    try:
-        adapter = build_adapter(args, env)
-    except (ValueError, NotImplementedError) as error:
-        logger.error("ERROR: %s", error)
-        return EXIT_FRAMEWORK_ERROR
-
-    # Read-only state checks before DeploySession opens — failures here
-    # do not roll back the existing cluster.
-    try:
-        adapter.pre_deploy_check(params)
-    except PreflightError as error:
-        logger.error("ERROR: %s", error.error)
-        logger.error("NEXT:  %s", error.next_fix)
-        return EXIT_FRAMEWORK_ERROR
-    except Exception as error:  # pylint: disable=broad-except
-        logger.error("Deploy aborted: %s", error)
-        return EXIT_FRAMEWORK_ERROR
+    env, params, adapter = prepared
 
     session = DeploySession(
         adapter, params,
@@ -188,7 +129,7 @@ def main(arguments: List[str] | None = None) -> int:
         breadcrumb.upsert(breadcrumb.Breadcrumb.now(
             type=env.type,
             env_name=env.name,
-            cluster_name=cluster_name,
+            cluster_name=params.cluster_name,
         ))
 
     try:
