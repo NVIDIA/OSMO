@@ -34,31 +34,38 @@ from typing import Iterable
 REGISTRY = "https://nvcr.io"
 PYTHON_REPO = "nvidia/distroless/python"
 NODE_REPO = "nvidia/distroless/node"
-PYTHON_PREFIX = "3.14"
-NODE_PREFIX = "24"
+
+# Update these when OSMO intentionally moves to a new runtime family.
+PYTHON_IMAGE_VERSION = "3.14"
+NODE_IMAGE_VERSION = "24"
 
 PYTHON_ACTIVE_RE = re.compile(
     r'(?P<indent>    )digest = "(?P<digest>sha256:[a-f0-9]+)",\n'
     r'(?P=indent)image = BASE_DISTROLESS_IMAGE_URL \+ '
-    r'"(?P<image>python:3\.14-v(?P<version>[0-9]+\.[0-9]+\.[0-9]+))",'
+    r'"(?P<image>python:(?P<prefix>[0-9]+\.[0-9]+)-v'
+    r'(?P<version>[0-9]+\.[0-9]+\.[0-9]+))",'
 )
 PYTHON_DEV_RE = re.compile(
     r'(?P<indent>#     )digest = "(?P<digest>sha256:[a-f0-9]+)",\n'
     r'(?P=indent)image = BASE_DISTROLESS_IMAGE_URL \+ '
-    r'"(?P<image>python:3\.14-v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-dev)",'
+    r'"(?P<image>python:(?P<prefix>[0-9]+\.[0-9]+)-v'
+    r'(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-dev)",'
 )
 NODE_IMAGE_RE = re.compile(
     r"ARG NODE_DISTROLESS_IMAGE=nvcr\.io/nvidia/distroless/"
-    r"node:24-v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)"
+    r"node:(?P<prefix>[0-9]+)-v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)"
 )
 
 
 @dataclass(frozen=True)
 class DistrolessState:
+    python_prefix: str
     python_version: str
     python_digest: str
+    python_dev_prefix: str
     python_dev_version: str
     python_dev_digest: str
+    node_prefix: str
     node_version: str
 
 
@@ -141,10 +148,10 @@ def fetch_latest() -> DistrolessLatest:
     python_tags = _repo_tags(PYTHON_REPO)
     node_tags = _repo_tags(NODE_REPO)
 
-    python_version = latest_version_for_prefix(python_tags, PYTHON_PREFIX)
+    python_version = latest_version_for_prefix(python_tags, PYTHON_IMAGE_VERSION)
     python_dev_version = latest_version_for_prefix(
         python_tags,
-        PYTHON_PREFIX,
+        PYTHON_IMAGE_VERSION,
         dev=True,
     )
     if python_dev_version != python_version:
@@ -153,10 +160,10 @@ def fetch_latest() -> DistrolessLatest:
             f"runtime={python_version} dev={python_dev_version}"
         )
 
-    node_version = latest_version_for_prefix(node_tags, NODE_PREFIX)
+    node_version = latest_version_for_prefix(node_tags, NODE_IMAGE_VERSION)
 
-    python_tag = f"{PYTHON_PREFIX}-v{python_version}"
-    python_dev_tag = f"{PYTHON_PREFIX}-v{python_version}-dev"
+    python_tag = f"{PYTHON_IMAGE_VERSION}-v{python_version}"
+    python_dev_tag = f"{PYTHON_IMAGE_VERSION}-v{python_version}-dev"
 
     return DistrolessLatest(
         python_version=python_version,
@@ -179,11 +186,22 @@ def read_state(module_text: str, dockerfile_text: str) -> DistrolessState:
     if not node_match:
         raise RuntimeError("could not find Node distroless image in src/ui/Dockerfile")
 
+    python_prefix = python_match.group("prefix")
+    python_dev_prefix = python_dev_match.group("prefix")
+    if python_dev_prefix != python_prefix:
+        raise RuntimeError(
+            "debug Python distroless image version does not match runtime: "
+            f"runtime={python_prefix} dev={python_dev_prefix}"
+        )
+
     return DistrolessState(
+        python_prefix=python_prefix,
         python_version=python_match.group("version"),
         python_digest=python_match.group("digest"),
+        python_dev_prefix=python_dev_prefix,
         python_dev_version=python_dev_match.group("version"),
         python_dev_digest=python_dev_match.group("digest"),
+        node_prefix=node_match.group("prefix"),
         node_version=node_match.group("version"),
     )
 
@@ -191,7 +209,7 @@ def read_state(module_text: str, dockerfile_text: str) -> DistrolessState:
 def update_module_text(module_text: str, latest: DistrolessLatest) -> str:
     active_replacement = (
         f'    digest = "{latest.python_digest}",\n'
-        f'    image = BASE_DISTROLESS_IMAGE_URL + "python:{PYTHON_PREFIX}-v{latest.python_version}",'
+        f'    image = BASE_DISTROLESS_IMAGE_URL + "python:{PYTHON_IMAGE_VERSION}-v{latest.python_version}",'
     )
     module_text, active_count = PYTHON_ACTIVE_RE.subn(active_replacement, module_text, count=1)
     if active_count != 1:
@@ -199,7 +217,7 @@ def update_module_text(module_text: str, latest: DistrolessLatest) -> str:
 
     dev_replacement = (
         f'#     digest = "{latest.python_dev_digest}",\n'
-        f'#     image = BASE_DISTROLESS_IMAGE_URL + "python:{PYTHON_PREFIX}-v{latest.python_version}-dev",'
+        f'#     image = BASE_DISTROLESS_IMAGE_URL + "python:{PYTHON_IMAGE_VERSION}-v{latest.python_version}-dev",'
     )
     module_text, dev_count = PYTHON_DEV_RE.subn(dev_replacement, module_text, count=1)
     if dev_count != 1:
@@ -211,7 +229,7 @@ def update_module_text(module_text: str, latest: DistrolessLatest) -> str:
 def update_dockerfile_text(dockerfile_text: str, latest: DistrolessLatest) -> str:
     replacement = (
         f"ARG NODE_DISTROLESS_IMAGE=nvcr.io/nvidia/distroless/"
-        f"node:{NODE_PREFIX}-v{latest.node_version}"
+        f"node:{NODE_IMAGE_VERSION}-v{latest.node_version}"
     )
     dockerfile_text, count = NODE_IMAGE_RE.subn(replacement, dockerfile_text, count=1)
     if count != 1:
@@ -288,24 +306,32 @@ def main() -> int:
         "branch_name": branch_name_for(latest),
         "pr_title": title_for(latest),
         "version_label": label_for(latest),
+        "current_python_tag": f"{current.python_prefix}-v{current.python_version}",
         "current_python_version": current.python_version,
+        "current_python_dev_tag": (
+            f"{current.python_dev_prefix}-v{current.python_dev_version}-dev"
+        ),
+        "latest_python_tag": f"{PYTHON_IMAGE_VERSION}-v{latest.python_version}",
         "latest_python_version": latest.python_version,
+        "latest_python_dev_tag": f"{PYTHON_IMAGE_VERSION}-v{latest.python_version}-dev",
         "latest_python_digest": latest.python_digest,
         "latest_python_dev_digest": latest.python_dev_digest,
+        "current_node_tag": f"{current.node_prefix}-v{current.node_version}",
         "current_node_version": current.node_version,
+        "latest_node_tag": f"{NODE_IMAGE_VERSION}-v{latest.node_version}",
         "latest_node_version": latest.node_version,
     }
     _write_github_output(args.github_output, outputs)
 
     print(
         "Current distroless: "
-        f"python=3.14-v{current.python_version} "
-        f"node=24-v{current.node_version}",
+        f"python={current.python_prefix}-v{current.python_version} "
+        f"node={current.node_prefix}-v{current.node_version}",
     )
     print(
         "Latest distroless: "
-        f"python=3.14-v{latest.python_version} "
-        f"node=24-v{latest.node_version}",
+        f"python={PYTHON_IMAGE_VERSION}-v{latest.python_version} "
+        f"node={NODE_IMAGE_VERSION}-v{latest.node_version}",
     )
     print(f"updated={str(updated).lower()}")
     return 0

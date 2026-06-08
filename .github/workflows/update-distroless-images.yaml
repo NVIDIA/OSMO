@@ -91,12 +91,14 @@ jobs:
           BRANCH_NAME: ${{ steps.distroless.outputs.branch_name }}
           PR_TITLE: ${{ steps.distroless.outputs.pr_title }}
           VERSION_LABEL: ${{ steps.distroless.outputs.version_label }}
-          CURRENT_PYTHON_VERSION: ${{ steps.distroless.outputs.current_python_version }}
-          LATEST_PYTHON_VERSION: ${{ steps.distroless.outputs.latest_python_version }}
+          CURRENT_PYTHON_TAG: ${{ steps.distroless.outputs.current_python_tag }}
+          CURRENT_PYTHON_DEV_TAG: ${{ steps.distroless.outputs.current_python_dev_tag }}
+          LATEST_PYTHON_TAG: ${{ steps.distroless.outputs.latest_python_tag }}
+          LATEST_PYTHON_DEV_TAG: ${{ steps.distroless.outputs.latest_python_dev_tag }}
           LATEST_PYTHON_DIGEST: ${{ steps.distroless.outputs.latest_python_digest }}
           LATEST_PYTHON_DEV_DIGEST: ${{ steps.distroless.outputs.latest_python_dev_digest }}
-          CURRENT_NODE_VERSION: ${{ steps.distroless.outputs.current_node_version }}
-          LATEST_NODE_VERSION: ${{ steps.distroless.outputs.latest_node_version }}
+          CURRENT_NODE_TAG: ${{ steps.distroless.outputs.current_node_tag }}
+          LATEST_NODE_TAG: ${{ steps.distroless.outputs.latest_node_tag }}
         run: |
           set -euo pipefail
 
@@ -125,14 +127,14 @@ jobs:
           cat > "$body_file" <<EOF
           ## Description
           Update NVIDIA distroless base images used by OSMO:
-          - Python 3.14 runtime: \`3.14-v$CURRENT_PYTHON_VERSION\` -> \`3.14-v$LATEST_PYTHON_VERSION\`, pinned to OCI index digest \`$LATEST_PYTHON_DIGEST\`
-          - Python 3.14 debug image reference -> \`3.14-v$LATEST_PYTHON_VERSION-dev\`, with OCI index digest \`$LATEST_PYTHON_DEV_DIGEST\`
-          - UI Node 24 runtime: \`24-v$CURRENT_NODE_VERSION\` -> \`24-v$LATEST_NODE_VERSION\`
+          - Python runtime: \`$CURRENT_PYTHON_TAG\` -> \`$LATEST_PYTHON_TAG\`, pinned to OCI index digest \`$LATEST_PYTHON_DIGEST\`
+          - Python debug image reference: \`$CURRENT_PYTHON_DEV_TAG\` -> \`$LATEST_PYTHON_DEV_TAG\`, with OCI index digest \`$LATEST_PYTHON_DEV_DIGEST\`
+          - UI Node runtime: \`$CURRENT_NODE_TAG\` -> \`$LATEST_NODE_TAG\`
 
           Issue - None
 
           ## Validation
-          - Automation queried nvcr.io for the latest Python 3.14 and Node 24 distroless tags.
+          - Automation queried nvcr.io for the latest configured Python and Node distroless tags.
           - Automation refreshed the Python OCI index digest from nvcr.io.
 
           ## Checklist

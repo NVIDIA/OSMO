@@ -79,6 +79,35 @@ class UpdateDistrolessTest(unittest.TestCase):
         self.assertIn("sha256:" + "b" * 64, new_module)
         self.assertIn("node:24-v4.0.9", new_dockerfile)
 
+    def test_python_image_version_is_single_target_knob(self):
+        latest = update_distroless.DistrolessLatest(
+            python_version="4.0.9",
+            python_digest="sha256:" + "a" * 64,
+            python_dev_digest="sha256:" + "b" * 64,
+            node_version="4.0.9",
+        )
+        module_text = '''oci.pull(
+    name = "distroless_python3_14",
+    digest = "sha256:49751a52c1b4f59e0b68d6caf6728f305afc9e47c507008f8a9e8e1253929676",
+    image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.8",
+)
+
+# oci.pull(
+#     name = "distroless_python3_14_dev",
+#     digest = "sha256:84aef61c2e737ac04e38e0945d423af8e9121774f223f1650b71be8a6968abba",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.8-dev",
+# )
+'''
+        original_python_version = update_distroless.PYTHON_IMAGE_VERSION
+        try:
+            update_distroless.PYTHON_IMAGE_VERSION = "3.15"
+            new_module = update_distroless.update_module_text(module_text, latest)
+        finally:
+            update_distroless.PYTHON_IMAGE_VERSION = original_python_version
+
+        self.assertIn('python:3.15-v4.0.9"', new_module)
+        self.assertIn('python:3.15-v4.0.9-dev"', new_module)
+
     def test_branch_name_uses_shared_distroless_version_when_possible(self):
         latest = update_distroless.DistrolessLatest(
             python_version="4.0.9",
