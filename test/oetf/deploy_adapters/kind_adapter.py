@@ -119,21 +119,20 @@ def _build_local_helm_args() -> List[str]:
 # http://quick-start.osmo from the host. The bundled single-node config
 # matches what osmo/quick-start expects; the external/run 4-worker config
 # has node_group labels that fight with the umbrella chart's scheduler.
-_KIND_CONFIG_BUNDLED_RELPATH = os.path.join(
-    "test", "oetf", "data", "kind-osmo-cluster-config.yaml",
-)
 
 
 def _default_kind_config_path() -> str:
     """Resolve the bundled KIND config path.
 
-    In ``bazel run`` context, the workspace root is exposed via
-    ``BUILD_WORKSPACE_DIRECTORY``. When that is unset (unit tests in sandbox),
-    fall back to a path relative to this file that works in the source tree.
+    The config ships as a ``data=`` dep of the deploy_adapters_kind py_library
+    so it sits in the runfiles tree next to this file in any caller context —
+    external standalone (``bazel run`` from NVIDIA/OSMO), internal overlay
+    (``bazel run`` from the internal repo that mounts NVIDIA/OSMO as a
+    submodule), and unit tests under the sandbox. Resolving from ``__file__``
+    works uniformly; ``$BUILD_WORKSPACE_DIRECTORY`` does not, because the
+    overlay caller's workspace root is the internal repo (where the config
+    lives under ``external/test/oetf/data/``, not ``test/oetf/data/``).
     """
-    workspace = os.environ.get("BUILD_WORKSPACE_DIRECTORY", "")
-    if workspace:
-        return os.path.join(workspace, _KIND_CONFIG_BUNDLED_RELPATH)
     return os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..",
         "data", "kind-osmo-cluster-config.yaml",
