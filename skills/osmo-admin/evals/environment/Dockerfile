@@ -24,4 +24,4 @@ RUN for tool in osmo kubectl argocd flux; do \
 
 USER agent
 
-WORKDIR /workspace/repo
+WORKDIR /workspace

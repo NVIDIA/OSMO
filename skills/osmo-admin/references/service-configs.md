@@ -7,12 +7,34 @@ user-provided config root or values file. It is config-root agnostic: discover
 source files from that provided location instead of assuming paths, environment
 names, pools, backends, storage, or role names.
 
+## Critical Gates
+
+- If no config root or values file was provided for a file-specific question,
+  stop and ask for it. Do not inspect the working directory to infer one.
+- Use the user-provided root string for source paths in answers. A tool may run
+  from another working directory, but do not present that directory as the
+  user's config root.
+- Keep reads bounded: read the relevant section, source file, or YAML key path
+  instead of dumping this whole reference or whole values files.
+- For scalar answers, report the source path, exact `services.configs...` key
+  path, and value.
+- For derived pod-template or resource-validation answers, report each pool
+  reference key and each referenced definition key. The answer must name all
+  resolved templates and validations and cite exact keys on both sides of the
+  reference.
+- For local edits, inspect the file diff and discover a local validation command
+  when one is provided or declared in the config root. If none is found, say
+  exactly that no local validation command was found.
+- Never use live CLI/API config paths, cluster mutation commands, destructive
+  cleanup, or repo-destructive git commands.
+
 ## Source Of Truth
 
 Use only the config files the user identifies or files reached from the provided
-config root. Some deployments render `services.configs` into service runtime
-config, but this public skill does not assume a deployment mechanism. Do not use
-direct CLI/API config-write paths for this skill.
+config root. Some deployments render `services.configs` into service config
+data, but this public skill does not assume a deployment mechanism. Do not use
+direct CLI/API config paths for this skill, including read-only `osmo config`
+show/list/get/history/rollback commands.
 
 ## Canonical Schema Source
 
@@ -30,16 +52,32 @@ deployment values. If public docs and local files conflict, cite the docs for
 schema expectations and the local file for the current value. Do not invent
 fields.
 
+Preserve the exact config root string the user provides. Build paths under that
+string and cite results with that root or paths relative to it. If local tooling
+maps the same root through another real filesystem path, use that mapped path
+only to read files; do not call it the config root or cite it as the source root
+unless the user supplied it. In reported output, preserve the
+user-root-relative path, such as `repo/...`. When a tool can read through the
+user-provided root string directly, prefer that form for discovery and read
+commands too. If a mapped filesystem path is required for the read, keep that
+mapping internal and translate reported source paths back to the user-provided
+root.
+
 To find the source of truth:
 
 1. Start from the config root or values file supplied by the user. If neither
-   is available, ask for it before making file-specific claims.
+   is available, stop and ask for it before listing, searching, reading, editing,
+   or making file-specific claims.
+   Do not substitute the current working directory, an unrelated checkout, or a
+   sibling directory for the supplied root.
 2. Look for a manifest, Helmfile, Kustomize overlay, values index, application
    file, or local docs that list the active values files.
 3. Read the active values files for the target deployment.
-4. Search for `services.configs` only as a discovery aid, then verify from the
-   actual values files before answering.
-5. If the requested deployment has no visible `services.configs` block, say so
+4. Search for `services.configs` only as a discovery aid. `rg`, `grep`, `find`,
+   `ls`, and file listings may locate candidate files or lines, but they are
+   never evidence for an answer. Verify by reading the exact value subtree from
+   the active values file before answering.
+5. If the requested deployment has no available `services.configs` block, say so
    and do not silently answer from another deployment.
 
 Useful generic evidence includes:
@@ -76,40 +114,157 @@ Secrets. It is not a normal mounted config section. Cite secret reference names
 and keys only; never print secret payloads.
 
 Computed fields such as parsed templates, parsed validations, heartbeat, status,
-and runtime availability are live output. Do not add them to service values.
+and live availability are live output. Do not add them to service values.
 
 ## Read Procedure
 
 1. Identify the config root or target values file from the user's explicit
-   request.
+   request. If it is missing, ask for it and do not inspect the working
+   directory to infer a default.
 2. Read the smallest relevant YAML file, then expand to sibling files only when
    needed to resolve references.
 3. Use the `services.configs.<section>` key path.
-4. Resolve relationships when answering derived questions:
+4. When answering from a YAML entry, collect compact exact evidence: source
+   file, key path, and the relevant value or small subtree.
+   Use direct file reads with bounded YAML extraction when possible. Prefer
+   focused extraction over full-file dumps; do not rely on truncated output,
+   broad `rg` or `grep` matches, `find` or `ls` output, or isolated line
+   snippets for claims.
+   Keep discovery scoped to the supplied config root. Do not search unrelated
+   directories, hidden repository metadata, or sibling copies unless the user
+   explicitly identifies one of those as the config root.
+   For any scalar value, including pool `backend` or `enable_maintenance`, first
+   print the source path, exact full key path, and value from a bounded direct
+   read or YAML extraction. If output truncates or shows only a matching source
+   line, retry with a smaller extraction before answering.
+5. Resolve relationships when answering derived questions:
    - pools reference templates through `common_pod_template` and platform
      `override_pod_template`
    - pools reference validations through `common_resource_validations` and
      platform `resource_validations`
-   - pools reference group templates through `common_group_templates`
+   - pools reference group templates through `common_group_templates` when the
+     question asks for group templates or all pool references
    - backends reference tests through `tests`
    - roles reference pools/backends through policy `resources`
-5. For inventory or reverse lookup, inspect the complete relevant mapping rather
+6. For derived pool/template/validation questions, first read and record only
+   the exact pool key paths needed for the answer from the values file
+   containing that pool. For template and validation questions, those usually
+   include `services.configs.pools.<pool>.common_pod_template`,
+   `services.configs.pools.<pool>.common_resource_validations`,
+   `services.configs.pools.<pool>.platforms.<platform>.override_pod_template`,
+   and
+   `services.configs.pools.<pool>.platforms.<platform>.resource_validations`.
+   Add `services.configs.pools.<pool>.common_group_templates` only when the
+   answer needs group templates.
+   Do not dump large files, entire pools, or whole values files when exact keys
+   are enough.
+7. Read and record compact definition evidence for each referenced
+   `services.configs.podTemplates.<template>`,
+   `services.configs.resourceValidations.<validation>`, and, when relevant,
+   `services.configs.groupTemplates.<template>` entry from the values files that
+   define them before answering. In split files, this usually means reading the
+   exact definition key paths in `template-configs.yaml` after reading pool
+   references from `pool-configs.yaml`. Record the exact entry path plus the
+   relevant fields or a small subtree; paths and reference names alone are not
+   enough. Raw full-section dumps are not required. If the
+   answer depends on backend details or reports backend-derived fields beyond
+   the backend name, read the full `services.configs.backends.<backend>` entry
+   too. Backend-name-only questions may cite
+   `services.configs.pools.<pool>.backend` without reading the backend entry.
+   Do not answer from reference names alone.
+   For definitions split across files, such as pool references in
+   `pool-configs.yaml` and template or validation definitions in
+   `template-configs.yaml`, read the definition file by exact key path before
+   citing the definition.
+8. Before answering derived pool/template/validation questions, verify that
+   the collected evidence includes each exact pool reference key and every
+   referenced podTemplate and resourceValidation entry used in the answer.
+   Include groupTemplate evidence only when group templates are part of the
+   question or answer.
+9. Verify the response includes every resolved pod template and resource
+   validation name, its common or platform-specific origin, and file/key-path
+   citations for both the pool reference and the referenced definition.
+10. For inventory or reverse lookup, inspect the complete relevant mapping rather
    than relying on partial terminal output.
-6. Cite file path and YAML key path in the answer.
+11. Cite file path and YAML key path in the answer.
+
+Focused evidence pattern, replacing names and paths with the target entries.
+Use a YAML-aware parser or a short bounded read to fill in the values; the point
+is to show exact keys and compact values, not whole parent files:
+
+```text
+<user-root>/<pool-values.yaml>
+  services.configs.pools.<pool>.common_pod_template
+  services.configs.pools.<pool>.common_resource_validations
+  services.configs.pools.<pool>.platforms.<platform>.override_pod_template
+  services.configs.pools.<pool>.platforms.<platform>.resource_validations
+
+<user-root>/<template-values.yaml>
+  services.configs.podTemplates.<template>
+  services.configs.resourceValidations.<validation>
+```
+
+Report exact paths for both sides of each reference, for example
+`services.configs.pools.<pool>.common_pod_template[]` and
+`services.configs.podTemplates.<template>`. For platform-derived references,
+also cite exact paths such as
+`services.configs.pools.<pool>.platforms.<platform>.override_pod_template[]`
+and
+`services.configs.pools.<pool>.platforms.<platform>.resource_validations[]`.
+After the required exact key evidence is collected, stop investigating and answer.
+
+Final answers must use this compact structure for every reported item:
+
+```text
+Source: <user-root-relative path>
+Key: <exact services.configs... YAML key path>
+Name/value: <reported name or scalar value>
+```
+
+For derived template or resource-validation answers, report both the pool
+reference and the referenced definition:
+
+```text
+Pool reference: <path> | <exact pool reference key> | <template/validation name>
+Definition: <path> | <exact podTemplates/resourceValidations key> | <name>
+```
+
+For previews or edits, also state whether validation was attempted:
+
+```text
+Validation: <command and relevant output>, or No local validation command was found.
+```
 
 ## Local Edit Procedure
 
 1. Confirm the config root, target values file, and exact config key.
+   Generic descriptions such as `the GPU pool` are not exact target names; ask
+   for the config root or values file, deployment, and literal pool/backend/etc.
+   name before editing.
 2. Read current state and related references.
 3. Edit the smallest YAML subtree.
 4. Preserve sibling fields and unrelated objects.
-5. Show the local file diff.
-6. Run user-provided or discoverable local validation when available. If no
-   validation command is provided or discoverable, report that no local
-   validation command was found.
+5. Inspect the local diff before reporting the change.
+6. Do not run destructive cleanup or repo-destructive commands such as `rm`,
+   `rm -f`, `rm -rf`, `git clean`, `git reset --hard`, or `git checkout --`.
+   Use the agent's normal file-edit tool when available instead of shell edit
+   sessions that require cleanup.
+7. For an existing scalar value, edit only that scalar with the normal file edit
+   tool available in the environment; then run `git diff -- <file>` or
+   `git -C <config-root> diff -- <file>` so the diff records the exact edit.
+8. Run user-provided or discoverable local validation when available. Discover
+   only from the provided config root, target repo files, or local instructions;
+   do not invent repo-specific validation commands. If no validation command is
+   provided or discoverable, report exactly that no local validation command was
+   found. Use read-only file discovery under the supplied config root for the
+   validation-discovery attempt.
+9. In the final response, report files changed, YAML key paths changed, the
+   before and after value or concise diff summary, and either validation command
+   output or the exact no-validation-found statement.
 
 For preview-only requests, do not edit files. Read the target values file and
-describe the minimal key/value change or patch that would be made.
+describe the minimal key/value change or patch that would be made. Do not use
+temporary-file cleanup commands to build the preview.
 
 ## Generic Examples
 
@@ -152,12 +307,6 @@ services:
         spec:
           nodeSelector:
             kubernetes.io/arch: arm64
-          containers:
-            - name: "{{USER_CONTAINER_NAME}}"
-              resources:
-                requests:
-                  cpu: "{{USER_CPU}}"
-                  memory: "{{USER_MEMORY}}"
     resourceValidations:
       example-cpu-only:
         - operator: EQ
@@ -203,20 +352,22 @@ For scheduler, router, dashboard, node-condition, or test questions:
 4. For backend metadata updates, write only user-provided values or values
    derived from an unambiguous existing config convention. Ask one targeted
    question if required details are missing.
-5. Preserve sibling backends and runtime-only fields.
+5. Preserve sibling backends and computed fields.
 
 ### Pool Storage Or Mounts
 
 For "Which storage is attached to this pool?":
 
-1. Read `services.configs.pools.<pool>.common_pod_template`.
-2. Read the selected platform's `override_pod_template`, if any.
-3. Resolve those names under `services.configs.podTemplates`.
-4. Inspect `spec.volumes[*].persistentVolumeClaim.claimName`,
-   `spec.containers[*].volumeMounts`, and
-   `spec.initContainers[*].volumeMounts`.
+1. Read the exact `services.configs.pools.<pool>.common_pod_template` key and
+   the selected platform's `override_pod_template`, if any, following the
+   derived question read rule above.
+2. Collect the referenced template names from those exact keys.
+3. Read the full `services.configs.podTemplates.<template>` entry for every
+   resolved template name before inspecting mount fields.
+4. Inspect `spec.volumes[*].persistentVolumeClaim.claimName` and the pod
+   workload/init mount lists.
 5. Report claim names and mount paths, and whether each comes from common pool
-   config or a platform override.
+   config or a platform override, with source file and key-path citations.
 
 Do not infer storage only from template names. Verify volumes or mounts.
 
@@ -273,7 +424,7 @@ annotations, `/dev/shm`, and image pull secrets.
 - Check which pools reference a shared template before editing it.
 - For pool-scoped additions, prefer a small overlay template wired into the
   target pool or platform instead of mutating a widely shared base template.
-- Preserve unrelated containers, mounts, selectors, and tolerations.
+- Preserve unrelated workload specs, mounts, selectors, and tolerations.
 
 ### Resource Validations
 
@@ -303,7 +454,7 @@ Use `services.configs.roles.<role>`.
 Use `services.configs.backendTests.<test>` and backend `tests` lists.
 
 - Verify every referenced test definition exists before reporting "attached".
-- Do not copy parsed or runtime fields into values.
+- Do not copy parsed or computed fields into values.
 - Removing a backend requires checking pool `backend` fields, role policy
   resources, backend `tests`, and `backendTests.*.backend` references.
 
@@ -312,9 +463,9 @@ Use `services.configs.backendTests.<test>` and backend `tests` lists.
 Use `services.configs.groupTemplates.<template>` for Kubernetes resources
 created with task groups.
 
-- Template resources need unique runtime-safe names such as group UUID
+- Template resources need unique generated names such as group UUID
   placeholders.
-- Omit `metadata.namespace`; OSMO sets the namespace at runtime.
+- Omit `metadata.namespace`; OSMO sets the namespace automatically.
 - Call out when backend worker RBAC may be required for a new resource kind.
 
 ## History And Rollback
