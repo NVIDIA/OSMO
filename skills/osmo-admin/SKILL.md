@@ -165,23 +165,6 @@ when available, rollback diffs, safe removals, and admin-flow specifics for
 pool/backend/storage/role/template/validation/workflow/dataset/backend-test
 values.
 
-## Examples
-
-```text
-User: Config root is repo. In sample-prod, which backend does the
-gpu-prod pool use?
-Agent: Read repo/.../pool-configs.yaml, print
-services.configs.pools.gpu-prod.backend, and cite repo/.../pool-configs.yaml at
-services.configs.pools.gpu-prod.backend.
-```
-
-```text
-User: Config root is repo. Show the diff to put gpu-prod in
-maintenance.
-Agent: Change only services.configs.pools.gpu-prod.enable_maintenance locally,
-show the file diff, and stop before any external process.
-```
-
 ## Limitations
 
 - This skill prepares local config file changes. It does not deploy, sync,

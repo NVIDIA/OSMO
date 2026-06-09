@@ -1,6 +1,0 @@
-global:
-  environment: sample-staging
-
-services:
-  configs:
-    secretRefs: []
