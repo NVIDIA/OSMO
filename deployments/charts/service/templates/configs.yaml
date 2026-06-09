@@ -20,6 +20,10 @@ metadata:
   name: {{ .Values.services.service.serviceName }}-configs
   labels:
     app: {{ .Values.services.service.serviceName }}
+  {{- with .Values.services.configs.extraAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 data:
   config.yaml: |
     {{- $cfg := .Values.services.configs }}
