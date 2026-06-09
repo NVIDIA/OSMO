@@ -444,8 +444,8 @@ Use `services.configs.roles.<role>`.
 - Do not use per-user role commands or token commands.
 - A role definition does not assign the role to users. User or group assignment
   is owned by the deployment's identity provider or separate admin process.
-- A conventional pool role name is `osmo-` plus the literal pool name. If the
-  pool is named `osmo-dev`, the generated pool role is `osmo-osmo-dev` and its
+- One common pool-role convention is `osmo-` plus the literal pool name. If the
+  pool is named `osmo-dev`, that convention uses `osmo-osmo-dev` and its
   resource pattern targets `pool/osmo-dev*`.
 - Preserve policies when the user asks only to change external identity mapping.
 
