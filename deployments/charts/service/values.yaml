@@ -451,6 +451,14 @@ services:
     ##
     enabled: false
 
+    ## Annotations on the generated configs ConfigMap.
+    ## Useful for large config payloads that need Argo CD server-side apply.
+    ## Example:
+    ##   extraAnnotations:
+    ##     argocd.argoproj.io/sync-options: ServerSideApply=true
+    ##
+    extraAnnotations: {}
+
     ## Service config. service_base_url is auto-derived from
     ## services.service.hostname if not set here.
     ##
@@ -1740,7 +1748,7 @@ gateway:
 
     ## Envoy container image
     ##
-    image: "envoyproxy/envoy:v1.29.0"
+    image: "envoyproxy/envoy:v1.38.1"
 
     ## Image pull policy for Envoy containers
     ##
@@ -1780,11 +1788,11 @@ gateway:
     ##
     ## Setting these renders Envoy `request_headers_to_add` rules at the
     ## gateway virtual host with `append_action: ADD_IF_ABSENT`. The chart
-    ## also conditionally drops these headers from the gateway's
-    ## `internal_only_headers` and Lua strip filter when oauth2Proxy and
-    ## authz are both disabled, so client-supplied identity (e.g. dev-mode
-    ## CLI's `x-osmo-user: <name>`) flows through; the default is only
-    ## injected when the client didn't set its own.
+    ## also conditionally drops these headers from the gateway's native
+    ## header sanitization rules when oauth2Proxy and authz are both
+    ## disabled, so client-supplied identity (e.g. dev-mode CLI's
+    ## `x-osmo-user: <name>`) flows through; the default is only injected
+    ## when the client didn't set its own.
     ##
     ## SECURITY: in this mode the gateway TRUSTS the client's identity
     ## headers. Any caller with network access can claim any user, any
@@ -1792,7 +1800,7 @@ gateway:
     ## reachable from untrusted networks.
     ##
     ## In production (oauth2Proxy or authz enabled), client identity
-    ## headers are stripped at both the HCM and Lua-filter layers, so
+    ## headers are stripped by Envoy's native header sanitization, so
     ## defaultIdentity is irrelevant — authz/JWT is the canonical source.
     ## Leave all three empty in that mode.
     ##

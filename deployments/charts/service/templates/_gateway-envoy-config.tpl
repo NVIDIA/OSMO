@@ -141,21 +141,28 @@ data:
               name: gateway_routes
 
               # Headers Envoy auto-strips from external requests at the HCM
-              # layer (before any HTTP filter runs). The identity headers
-              # (x-osmo-user, x-osmo-roles, x-osmo-allowed-pools) are only
-              # listed when an upstream auth component owns them. In
-              # minimal mode (oauth2Proxy and authz both off) the CLI and
-              # gateway-injected defaults are the only sources, so we
-              # leave them off and let client values flow.
+              # layer (before any HTTP filter runs). When authz is enabled,
+              # the authz sidecar owns all x-osmo-* identity/context headers
+              # below. In OAuth2-only mode, keep stripping the identity headers
+              # covered by defaultIdentity. In minimal mode, leave them off so
+              # gateway-injected defaults or trusted dev-mode client values
+              # can flow.
               internal_only_headers:
-              - x-osmo-auth-skip
-              {{- if or $gw.oauth2Proxy.enabled $gw.authz.enabled }}
+              {{- if $gw.authz.enabled }}
+              - x-osmo-user
+              - x-osmo-roles
+              - x-osmo-token-name
+              - x-osmo-workflow-id
+              - x-osmo-allowed-pools
+              {{- else if $gw.oauth2Proxy.enabled }}
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-allowed-pools
               {{- end }}
-              - x-osmo-token-name
-              - x-osmo-workflow-id
+              # Client-supplied x-forwarded-host is not trusted. The
+              # osmo-router route re-adds it from :authority after this
+              # sanitization step.
+              - x-forwarded-host
 
               virtual_hosts:
               - name: gateway
@@ -213,6 +220,13 @@ data:
                     - cookie:
                         name: {{ $envoy.routerRoute.cookie.name | default "_osmo_router_affinity" }}
                         ttl: {{ $envoy.routerRoute.cookie.ttl | default "60s" }}
+                  # osmo-router still expects x-forwarded-host, but it should
+                  # only receive the sanitized gateway authority.
+                  request_headers_to_add:
+                  - header:
+                      key: x-forwarded-host
+                      value: "%REQ(:AUTHORITY)%"
+                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
                 {{- end }}
 
                 {{- /* Agent routes — WebSocket to osmo-agent */}}
@@ -255,6 +269,15 @@ data:
                     prefix: /
                   route:
                     cluster: osmo-ui
+                  {{- if $gw.authz.enabled }}
+                  # The UI cluster never needs the authz sidecar. Let this
+                  # route run the metadata setter so the authz matcher consumes
+                  # the same osmo.authz.skip signal as other authz bypasses.
+                  typed_per_filter_config:
+                    set-authz-skip-metadata:
+                      "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcherPerRoute
+                      xds_matcher: {}
+                  {{- end }}
                 {{- end }}
 
             upgrade_configs:
@@ -303,82 +326,104 @@ data:
                         return
                       end
                     end
-            - name: strip-unauthorized-headers
-              typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-                default_source_code:
-                  inline_string: |
-                    function envoy_on_request(request_handle)
-                      request_handle:headers():remove("x-osmo-auth-skip")
-                      {{- /* In minimal mode (no oauth2Proxy, no authz),
-                             trust the client-supplied identity headers so
-                             dev-mode CLI multi-user works (workflows get
-                             attributed to the right user). When either auth
-                             component is on, ext_authz is the canonical
-                             source and any client claim must be stripped to
-                             prevent impersonation.
-                          */ -}}
-                      {{- if or $gw.oauth2Proxy.enabled $gw.authz.enabled }}
-                      request_handle:headers():remove("x-osmo-user")
-                      request_handle:headers():remove("x-osmo-roles")
-                      request_handle:headers():remove("x-osmo-allowed-pools")
-                      {{- end }}
-                      request_handle:headers():remove("x-osmo-token-name")
-                      request_handle:headers():remove("x-osmo-workflow-id")
-                      request_handle:headers():remove("x-envoy-internal")
-                      request_handle:headers():remove("x-forwarded-host")
-                    end
-            - name: add-auth-skip
-              typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-                default_source_code:
-                  inline_string: |
-                    function starts_with(str, start)
-                       return str:sub(1, #start) == start
-                    end
-
-                    function envoy_on_request(request_handle)
-                      skip = false
-                      {{- range $skipAuthPaths }}
-                      if (starts_with(request_handle:headers():get(':path'), '{{.}}')) then
-                        skip = true
-                      end
-                      {{- end}}
-                      if (skip) then
-                        request_handle:headers():add("x-osmo-auth-skip", "true")
-                      end
-                    end
-
-            - name: add-forwarded-host
-              typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-                default_source_code:
-                  inline_string: |
-                    function envoy_on_request(request_handle)
-                      local authority = request_handle:headers():get(":authority")
-                      if authority ~= nil then
-                        request_handle:headers():replace("x-forwarded-host", authority)
-                      end
-                    end
-
-            {{- if $gw.oauth2Proxy.enabled }}
-            - name: ext-authz-oauth2-proxy
+            {{- if $skipAuthPaths }}
+            {{- /* Authn skip paths bypass both authn and authz. Authz-only
+                   bypasses use route-specific set_metadata config. */}}
+            # set_metadata has no path matcher of its own, so wrap it and
+            # skip the metadata filter on non-skip paths. Matching skip paths
+            # set both authn and authz metadata because bypassing authn also
+            # bypasses downstream authz.
+            - name: set-authn-skip-metadata
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
                 xds_matcher:
                   matcher_list:
                     matchers:
                     - predicate:
+                        not_matcher:
+                          {{- /* Envoy validates or_matcher as requiring at
+                                 least two predicates. A single skipAuthPath
+                                 must be emitted as a bare single_predicate. */}}
+                          {{- if gt (len $skipAuthPaths) 1 }}
+                          or_matcher:
+                            predicate:
+                            {{- range $skipAuthPaths }}
+                            - single_predicate:
+                                input:
+                                  name: request-headers
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                    header_name: ":path"
+                                value_match:
+                                  prefix: {{ . | quote }}
+                            {{- end }}
+                          {{- else }}
+                          single_predicate:
+                            input:
+                              name: request-headers
+                              typed_config:
+                                "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                header_name: ":path"
+                            value_match:
+                              prefix: {{ (index $skipAuthPaths 0) | quote }}
+                          {{- end }}
+                      on_match:
+                        action:
+                          name: skip
+                          typed_config:
+                            "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
+                extension_config:
+                  name: envoy.filters.http.set_metadata
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.set_metadata.v3.Config
+                    metadata:
+                    - metadata_namespace: osmo.authn
+                      allow_overwrite: true
+                      value:
+                        skip: "true"
+                    - metadata_namespace: osmo.authz
+                      allow_overwrite: true
+                      value:
+                        skip: "true"
+            {{- end }}
+
+            {{- if $gw.authz.enabled }}
+            # Skipped by default; routes such as the UI can override the
+            # wrapper matcher and run this filter to set osmo.authz.skip
+            # before the authz matcher runs.
+            - name: set-authz-skip-metadata
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
+                xds_matcher:
+                  on_no_match:
+                    action:
+                      name: skip
+                      typed_config:
+                        "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
+                extension_config:
+                  name: envoy.filters.http.set_metadata
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.set_metadata.v3.Config
+                    metadata:
+                    - metadata_namespace: osmo.authz
+                      allow_overwrite: true
+                      value:
+                        skip: "true"
+            {{- end }}
+
+            {{- if $gw.oauth2Proxy.enabled }}
+            - name: ext-authz-oauth2-proxy
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
+                # Skip the OAuth2 proxy when another authn mechanism is in
+                # play (JWT bearer/x-osmo-auth) or a skipAuthPath marked
+                # osmo.authn.skip earlier in the chain.
+                xds_matcher:
+                  matcher_list:
+                    matchers:
+                    - predicate:
                         or_matcher:
                           predicate:
-                          - single_predicate:
-                              input:
-                                name: request-headers
-                                typed_config:
-                                  "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                                  header_name: x-osmo-auth-skip
-                              value_match:
-                                exact: "true"
                           - single_predicate:
                               input:
                                 name: request-headers
@@ -397,6 +442,23 @@ data:
                                   header_name: authorization
                               value_match:
                                 prefix: "Bearer "
+                          {{- if $skipAuthPaths }}
+                          - single_predicate:
+                              input:
+                                name: envoy.matching.inputs.dynamic_metadata
+                                typed_config:
+                                  "@type": type.googleapis.com/envoy.extensions.matching.common_inputs.network.v3.DynamicMetadataInput
+                                  filter: osmo.authn
+                                  path:
+                                  - key: skip
+                              custom_match:
+                                name: envoy.matching.matchers.metadata_matcher
+                                typed_config:
+                                  "@type": type.googleapis.com/envoy.extensions.matching.input_matchers.metadata.v3.Metadata
+                                  value:
+                                    string_match:
+                                      exact: "true"
+                          {{- end }}
                       on_match:
                         action:
                           name: skip
@@ -429,69 +491,56 @@ data:
             {{- end }}
 
             {{- if $envoy.jwt.providers }}
-            - name: jwt-authn-with-matcher
+            - name: envoy.filters.http.jwt_authn
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
-                xds_matcher:
-                  matcher_list:
-                    matchers:
-                    - predicate:
-                        single_predicate:
-                          input:
-                            name: request-headers
-                            typed_config:
-                              "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                              header_name: x-osmo-auth-skip
-                          value_match:
-                            exact: "true"
-                      on_match:
-                        action:
-                          name: skip
-                          typed_config:
-                            "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
-                extension_config:
-                  name: envoy.filters.http.jwt_authn
-                  typed_config:
-                    "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
-                    providers:
-                      {{- range $i, $provider := $envoy.jwt.providers }}
-                      provider_{{$i}}:
-                        issuer: {{ $provider.issuer }}
-                        audiences:
-                        - {{ $provider.audience }}
-                        forward: true
-                        payload_in_metadata: verified_jwt
-                        from_headers:
-                        - name: authorization
-                          value_prefix: "Bearer "
-                        - name: x-osmo-auth
-                        remote_jwks:
-                          http_uri:
-                            uri: {{ $provider.jwks_uri }}
-                            cluster: {{ $provider.cluster }}
-                            timeout: 5s
-                          cache_duration:
-                            seconds: 600
-                          async_fetch:
-                            failed_refetch_duration: 1s
-                          retry_policy:
-                            num_retries: 3
-                            retry_back_off:
-                              base_interval: 0.01s
-                              max_interval: 3s
-                        claim_to_headers:
-                        - claim_name: {{$provider.user_claim}}
-                          header_name: {{$envoy.jwt.user_header}}
-                      {{- end }}
-                    rules:
-                    - match:
-                        prefix: /
-                      requires:
-                        requires_any:
-                          requirements:
-                          {{- range $i, $provider := $envoy.jwt.providers }}
-                          - provider_name: provider_{{$i}}
-                          {{- end}}
+                "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                providers:
+                  {{- range $i, $provider := $envoy.jwt.providers }}
+                  provider_{{$i}}:
+                    issuer: {{ $provider.issuer }}
+                    audiences:
+                    - {{ $provider.audience }}
+                    forward: true
+                    payload_in_metadata: verified_jwt
+                    from_headers:
+                    - name: authorization
+                      value_prefix: "Bearer "
+                    - name: x-osmo-auth
+                    remote_jwks:
+                      http_uri:
+                        uri: {{ $provider.jwks_uri }}
+                        cluster: {{ $provider.cluster }}
+                        timeout: 5s
+                      cache_duration:
+                        seconds: 600
+                      async_fetch:
+                        failed_refetch_duration: 1s
+                      retry_policy:
+                        num_retries: 3
+                        retry_back_off:
+                          base_interval: 0.01s
+                          max_interval: 3s
+                    claim_to_headers:
+                    - claim_name: {{$provider.user_claim}}
+                      header_name: {{$envoy.jwt.user_header}}
+                  {{- end }}
+                rules:
+                  {{- if $skipAuthPaths }}
+                  # A jwt_authn rule with no "requires" allows the matching
+                  # path through without JWT validation.
+                  {{- range $skipAuthPaths }}
+                  - match:
+                      prefix: {{ . | quote }}
+                  {{- end }}
+                  {{- end }}
+                  - match:
+                      prefix: /
+                    requires:
+                      requires_any:
+                        requirements:
+                        {{- range $i, $provider := $envoy.jwt.providers }}
+                        - provider_name: provider_{{$i}}
+                        {{- end}}
             {{- end }}
 
             - name: envoy.filters.http.lua.roles
@@ -517,21 +566,31 @@ data:
                     end
 
             {{- if $gw.authz.enabled }}
-            - name: authz-with-matcher
+            - name: envoy.filters.http.ext_authz
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
+                # Dynamic metadata set by an earlier filter must be evaluated
+                # by ExtensionWithMatcher before ext_authz instantiation; the
+                # ext_authz metadata gate would run too late for this use.
                 xds_matcher:
                   matcher_list:
                     matchers:
                     - predicate:
                         single_predicate:
                           input:
-                            name: request-headers
+                            name: envoy.matching.inputs.dynamic_metadata
                             typed_config:
-                              "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                              header_name: x-osmo-auth-skip
-                          value_match:
-                            exact: "true"
+                              "@type": type.googleapis.com/envoy.extensions.matching.common_inputs.network.v3.DynamicMetadataInput
+                              filter: osmo.authz
+                              path:
+                              - key: skip
+                          custom_match:
+                            name: envoy.matching.matchers.metadata_matcher
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.extensions.matching.input_matchers.metadata.v3.Metadata
+                              value:
+                                string_match:
+                                  exact: "true"
                       on_match:
                         action:
                           name: skip
@@ -614,7 +673,7 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.service.host }}
           common_tls_context:
-            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
                  SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
                  the openssl version supports it). Allow up to 1.3 so
                  negotiation can pick the most compatible option. */}}
@@ -657,7 +716,7 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.router.host }}
           common_tls_context:
-            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
                  SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
                  the openssl version supports it). Allow up to 1.3 so
                  negotiation can pick the most compatible option. */}}
@@ -723,7 +782,7 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.agent.host }}
           common_tls_context:
-            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
                  SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
                  the openssl version supports it). Allow up to 1.3 so
                  negotiation can pick the most compatible option. */}}
@@ -765,7 +824,7 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.logger.host }}
           common_tls_context:
-            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
                  SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
                  the openssl version supports it). Allow up to 1.3 so
                  negotiation can pick the most compatible option. */}}
@@ -894,7 +953,7 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $jwksHost }}
           common_tls_context:
-            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
                  SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
                  the openssl version supports it). Allow up to 1.3 so
                  negotiation can pick the most compatible option. */}}
