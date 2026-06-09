@@ -327,14 +327,15 @@ Benefits of the separate gateway model:
 
 Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap is updated, Envoy automatically reloads listeners and clusters without a pod restart.
 
-**Identity header trust by mode.** The gateway either trusts or strips client-supplied `x-osmo-{user,roles,allowed-pools}` headers based on whether `gateway.oauth2Proxy.enabled` or `gateway.authz.enabled` is `true`:
+**Identity header trust by mode.** The gateway either trusts or strips client-supplied `x-osmo-*` identity/context headers based on whether any gateway auth source is configured:
 
-| `oauth2Proxy.enabled` | `authz.enabled` | Identity headers from clients |
-|---|---|---|
-| `true` (default) | `true` (default) | Stripped by Envoy's native header sanitization. ext_authz (the authz sidecar) is the only source. Production posture. |
-| `true` | `false` | Same — native header sanitization still runs. |
-| `false` | `true` | Same — native header sanitization still runs. |
-| `false` | `false` (minimal mode) | **Trusted.** Identity-header sanitization is skipped so dev-mode CLI's `x-osmo-user: <name>` flows through. `defaultIdentity` is only injected via `ADD_IF_ABSENT` when the client did not set its own. **Any caller with network access to the gateway can claim any user, role, or pool — only safe on clusters whose gateway is not exposed to untrusted networks.** |
+| `oauth2Proxy.enabled` | `authz.enabled` | `jwt.providers` | Identity headers from clients |
+|---|---|---|---|
+| `true` (default) | `true` (default) | any | Stripped by Envoy's native header sanitization. ext_authz (the authz sidecar) is the canonical identity source. Production posture. |
+| `true` | `false` | any | Stripped by Envoy's native header sanitization. |
+| `false` | `true` | any | Stripped by Envoy's native header sanitization. |
+| `false` | `false` | non-empty | Stripped by Envoy's native header sanitization so JWT claims are the identity source. |
+| `false` | `false` | empty (minimal mode) | **Trusted.** Identity-header sanitization is skipped so dev-mode CLI's `x-osmo-user: <name>` flows through. `defaultIdentity` is only injected via `ADD_IF_ABSENT` when the client did not set its own. **Any caller with network access to the gateway can claim any user, role, or pool — only safe on clusters whose gateway is not exposed to untrusted networks.** |
 
 #### Gateway Upstreams
 

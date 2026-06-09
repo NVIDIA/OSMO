@@ -141,22 +141,16 @@ data:
               name: gateway_routes
 
               # Headers Envoy auto-strips from external requests at the HCM
-              # layer (before any HTTP filter runs). When authz is enabled,
-              # the authz sidecar owns all x-osmo-* identity/context headers
-              # below. In OAuth2-only mode, keep stripping the identity headers
-              # covered by defaultIdentity. In minimal mode, leave them off so
-              # gateway-injected defaults or trusted dev-mode client values
-              # can flow.
+              # layer, before HTTP filters run. When any gateway auth source
+              # is configured, clients must not be able to spoof x-osmo-*
+              # identity/context headers. Minimal/demo deployments with no
+              # auth source keep their legacy client-header behavior.
               internal_only_headers:
-              {{- if $gw.authz.enabled }}
+              {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $envoy.jwt.providers }}
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-token-name
               - x-osmo-workflow-id
-              - x-osmo-allowed-pools
-              {{- else if $gw.oauth2Proxy.enabled }}
-              - x-osmo-user
-              - x-osmo-roles
               - x-osmo-allowed-pools
               {{- end }}
               # Client-supplied x-forwarded-host is not trusted. The
@@ -508,6 +502,14 @@ data:
                   - match:
                       prefix: {{ . | quote }}
                   {{- end }}
+                  {{- end }}
+                  {{- if $gw.oauth2Proxy.enabled }}
+                  # OAuth2 proxy endpoints must be reachable before a user has
+                  # a JWT, so these rules intentionally have no "requires".
+                  - match:
+                      prefix: /oauth2/
+                  - match:
+                      prefix: /signout
                   {{- end }}
                   - match:
                       prefix: /
