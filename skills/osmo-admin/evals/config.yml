@@ -1,0 +1,8 @@
+schema_version: 1
+
+harbor:
+  task_source: evals_json
+  runtime_env:
+    BASH_ENV: /workspace/input/osmo-admin-disabled.bash
+  pre_agent_setup:
+    - bash /workspace/input/prepare-fixture-workspace.sh /workspace /workspace/input/repo

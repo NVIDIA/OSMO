@@ -1,0 +1,51 @@
+services:
+  configs:
+    pools:
+      gpu-prod:
+        backend: gpu-backend-a
+        enable_maintenance: false
+        default_exec_timeout: 24h
+        max_exec_timeout: 30d
+        queue_timeout: 12h
+        common_pod_template:
+          - default-user
+          - shared-workspace
+        common_group_templates:
+          - base-config
+        common_resource_validations:
+          - balanced-gpu
+        resources:
+          gpu:
+            guarantee: 64
+            maximum: 128
+            weight: 100
+        platforms:
+          h100:
+            override_pod_template:
+              - h100-node
+            resource_validations:
+              - h100-limit
+            topology_keys:
+              - nvidia.com/gpu-clique
+      gpu-ci:
+        backend: gpu-backend-a
+        enable_maintenance: false
+        common_pod_template:
+          - default-user
+        common_resource_validations:
+          - balanced-gpu
+        resources:
+          gpu:
+            guarantee: 0
+            maximum: 16
+            weight: 25
+      cpu-batch:
+        backend: gpu-backend-b
+        enable_maintenance: false
+        common_pod_template:
+          - default-user
+        resources:
+          cpu:
+            guarantee: 128
+            maximum: 256
+            weight: 10

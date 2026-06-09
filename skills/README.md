@@ -19,14 +19,16 @@ SPDX-License-Identifier: Apache-2.0
 # Agent Skills
 
 Agent skills for the OSMO platform, built on the [Agent Skills](https://agentskills.io) open standard. Enables AI
-agents to check GPU resources, generate and submit workflows, monitor progress, diagnose failures, and orchestrate
-end-to-end Physical AI workloads.
+agents to check GPU resources, generate and submit workflows, monitor progress, diagnose failures, deploy OSMO, and
+prepare config-file admin changes.
 
 Compatible with Claude Code, Cursor, Codex, GitHub Copilot, Gemini CLI, and [30+ other agent tools](https://skills.sh/).
 
 ## Prerequisites
 
-The OSMO CLI must be installed and authenticated before using the skill. See the [Getting Started](https://nvidia.github.io/OSMO/main/user_guide/getting_started/install/index.html) guide for instructions.
+- `osmo-user`: the OSMO CLI must be installed and authenticated. See the [Getting Started](https://nvidia.github.io/OSMO/main/user_guide/getting_started/install/index.html) guide.
+- `osmo-deploy`: deployment tools such as `kubectl`, `helm`, and provider CLIs may be required depending on the target.
+- `osmo-admin`: work from a user-provided config root that stores OSMO service config values.
 
 ## Installation
 
@@ -42,7 +44,7 @@ To update an existing installation:
 npx skills update
 ```
 
-To uninstall:
+To uninstall one skill:
 
 ```bash
 npx skills remove osmo-user
@@ -55,28 +57,27 @@ Once installed, the skill activates automatically when the agent detects relevan
 | Category | Example |
 |----------|---------|
 | Resource availability | "What GPUs are available?" |
-| Workflow submission | "Submit workflow.yaml to available pool" |
+| Workflow submission | "Submit workflow.yaml to an available pool" |
 | Monitoring | "What's the status of my last workflow?" |
-| Failure diagnosis | "My workflow failed — figure out why and resubmit" |
-| End-to-end orchestration | "Create a SDG workflow with Issac Sim, submit and monitor it, and download results when done" |
+| Failure diagnosis | "My workflow failed; figure out why and resubmit" |
+| Deployment | "Deploy OSMO to this Kubernetes cluster" |
+| Admin desired state | "Show the service-values diff to put this pool in maintenance" |
 
 For complex workflows, the skill spawns specialized sub-agents to handle resource selection, YAML generation, submission, monitoring, logs fetching, failure diagnosis, and retries autonomously.
 
-## Skill Contents
+## Skills
 
+```text
+skills/
+├── osmo-user/    # End-user CLI workflow operations
+├── osmo-deploy/  # OSMO installation and deployment
+└── osmo-admin/   # Config-file admin reads and local diffs
 ```
-skills/osmo-user/
-├── SKILL.md                 # Main skill instructions
-├── LICENSE                  # Apache-2.0
-├── agents/
-│   ├── workflow-expert.md   # Sub-agent: workflow creation, submission, diagnosis
-│   └── logs-reader.md       # Sub-agent: log fetching and summarization
-└── references/
-    ├── cookbook.md           # 40+ real-world workflow templates
-    ├── workflow-patterns.md # Multi-task, parallel, data dependency patterns
-    └── advanced-patterns.md # Checkpointing, retry logic, node exclusion
-```
+
+Use `osmo-user` for live workflow operations, `osmo-deploy` for standing up OSMO, and `osmo-admin` for config-file
+service administration in a user-provided config root. `osmo-admin` does not run `osmo config`, mutate live Kubernetes
+resources, run deployment syncs, or print secret payloads.
 
 ## License
 
-Apache-2.0 — see [osmo-user/LICENSE](osmo-user/LICENSE).
+Apache-2.0.

@@ -1,0 +1,13 @@
+services:
+  configs:
+    service: {}
+    workflow: {}
+    dataset: {}
+    pools: {}
+    podTemplates: {}
+    resourceValidations: {}
+    backends: {}
+    backendTests: {}
+    groupTemplates: {}
+    roles: {}
+    secretRefs: []

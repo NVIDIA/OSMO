@@ -1,0 +1,9 @@
+global:
+  environment: sample-prod
+
+services:
+  replicas: 2
+  configs:
+    secretRefs:
+      - secretName: osmo-sample-service-auth
+      - secretName: osmo-sample-dataset-s3
