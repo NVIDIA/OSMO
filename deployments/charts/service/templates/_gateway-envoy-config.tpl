@@ -270,13 +270,14 @@ data:
                   route:
                     cluster: osmo-ui
                   {{- if $gw.authz.enabled }}
-                  # The UI cluster never needs the authz sidecar. Let this
-                  # route run the metadata setter so the authz matcher consumes
-                  # the same osmo.authz.skip signal as other authz bypasses.
+                  # UI traffic does not need the authz sidecar. Disable
+                  # ext_authz with its native per-route config; this only works
+                  # because the filter below is configured directly, not
+                  # wrapped in ExtensionWithMatcher.
                   typed_per_filter_config:
-                    set-authz-skip-metadata:
-                      "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcherPerRoute
-                      xds_matcher: {}
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
                   {{- end }}
                 {{- end }}
 
@@ -327,8 +328,7 @@ data:
                       end
                     end
             {{- if $skipAuthPaths }}
-            {{- /* Authn skip paths bypass both authn and authz. Authz-only
-                   bypasses use route-specific set_metadata config. */}}
+            {{- /* Authn skip paths bypass both authn and authz. */}}
             # set_metadata has no path matcher of its own, so wrap it and
             # skip the metadata filter on non-skip paths. Matching skip paths
             # set both authn and authz metadata because bypassing authn also
@@ -381,30 +381,6 @@ data:
                       allow_overwrite: true
                       value:
                         skip: "true"
-                    - metadata_namespace: osmo.authz
-                      allow_overwrite: true
-                      value:
-                        skip: "true"
-            {{- end }}
-
-            {{- if $gw.authz.enabled }}
-            # Skipped by default; routes such as the UI can override the
-            # wrapper matcher and run this filter to set osmo.authz.skip
-            # before the authz matcher runs.
-            - name: set-authz-skip-metadata
-              typed_config:
-                "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
-                xds_matcher:
-                  on_no_match:
-                    action:
-                      name: skip
-                      typed_config:
-                        "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
-                extension_config:
-                  name: envoy.filters.http.set_metadata
-                  typed_config:
-                    "@type": type.googleapis.com/envoy.extensions.filters.http.set_metadata.v3.Config
-                    metadata:
                     - metadata_namespace: osmo.authz
                       allow_overwrite: true
                       value:
@@ -568,49 +544,29 @@ data:
             {{- if $gw.authz.enabled }}
             - name: envoy.filters.http.ext_authz
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
-                # Dynamic metadata set by an earlier filter must be evaluated
-                # by ExtensionWithMatcher before ext_authz instantiation; the
-                # ext_authz metadata gate would run too late for this use.
-                xds_matcher:
-                  matcher_list:
-                    matchers:
-                    - predicate:
-                        single_predicate:
-                          input:
-                            name: envoy.matching.inputs.dynamic_metadata
-                            typed_config:
-                              "@type": type.googleapis.com/envoy.extensions.matching.common_inputs.network.v3.DynamicMetadataInput
-                              filter: osmo.authz
-                              path:
-                              - key: skip
-                          custom_match:
-                            name: envoy.matching.matchers.metadata_matcher
-                            typed_config:
-                              "@type": type.googleapis.com/envoy.extensions.matching.input_matchers.metadata.v3.Metadata
-                              value:
-                                string_match:
-                                  exact: "true"
-                      on_match:
-                        action:
-                          name: skip
-                          typed_config:
-                            "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
-                extension_config:
-                  name: envoy.filters.http.ext_authz
-                  typed_config:
-                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
-                    transport_api_version: V3
-                    with_request_body:
-                      max_request_bytes: 8192
-                      allow_partial_message: true
-                    failure_mode_allow: false
-                    grpc_service:
-                      envoy_grpc:
-                        cluster_name: authz
-                      timeout: 1s
-                    metadata_context_namespaces:
-                      - envoy.filters.http.jwt_authn
+                "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                transport_api_version: V3
+                with_request_body:
+                  max_request_bytes: 8192
+                  allow_partial_message: true
+                failure_mode_allow: false
+                # set-authn-skip-metadata writes osmo.authz.skip before this
+                # filter. Invert the metadata match so ext_authz runs for
+                # ordinary requests and stays disabled for authn skip paths.
+                filter_enabled_metadata:
+                  filter: osmo.authz
+                  path:
+                  - key: skip
+                  value:
+                    string_match:
+                      exact: "true"
+                  invert: true
+                grpc_service:
+                  envoy_grpc:
+                    cluster_name: authz
+                  timeout: 1s
+                metadata_context_namespaces:
+                  - envoy.filters.http.jwt_authn
             {{- end }}
 
             {{- if $gw.rateLimit.enabled }}
