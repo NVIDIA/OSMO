@@ -383,7 +383,6 @@ def submit_workflow(pool_name: str,
         return objects.SubmitResponse(name=workflow_submit_info.name, spec=spec)
 
     workflow_spec = workflow_submit_info.construct_workflow_spec_from_dict(workflow_dict)
-    workflow_submit_info.update_dataset_buckets(workflow_spec)
 
     env_vars_dict = {}
     if env_vars:
@@ -526,8 +525,6 @@ def restart_workflow(pool_name: str,
                         task_input.task = f'{workflow_id}:{parent_task}'
             new_tasks.append(task_obj)
     workflow_spec.tasks = new_tasks
-
-    workflow_submit_info.update_dataset_buckets(workflow_spec)
 
     group_and_task_uuids: Dict[str, common.UuidPattern] = {}
     rendered_spec = workflow_spec.parse(context.database,

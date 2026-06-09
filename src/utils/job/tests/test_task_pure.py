@@ -384,128 +384,6 @@ class TaskInputOutputTest(unittest.TestCase):
         self.assertNotEqual(hash(spec_a), hash(spec_b))
 
 
-class DatasetInputOutputTest(unittest.TestCase):
-    """Tests for DatasetInputOutput field validators."""
-
-    def _make(self, **fields) -> task.DatasetInputOutput:
-        defaults = {'name': 'mydataset'}
-        defaults.update(fields)
-        return task.DatasetInputOutput(dataset=defaults)
-
-    def test_valid_name_passes(self):
-        spec = self._make(name='valid-name_1')
-        self.assertEqual(spec.dataset.name, 'valid-name_1')
-
-    def test_invalid_name_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(name='!!bad!!')
-
-    def test_empty_path_passes(self):
-        spec = self._make(path='')
-        self.assertEqual(spec.dataset.path, '')
-
-    def test_valid_path_passes(self):
-        spec = self._make(path='subdir/file.txt')
-        self.assertEqual(spec.dataset.path, 'subdir/file.txt')
-
-    def test_invalid_path_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(path='bad?path')
-
-    def test_invalid_metadata_path_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(metadata=['bad,path'])
-
-    def test_valid_metadata_passes(self):
-        spec = self._make(metadata=['meta/info.json'])
-        self.assertEqual(spec.dataset.metadata, ['meta/info.json'])
-
-    def test_invalid_label_path_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(labels=['bad<path'])
-
-    def test_valid_labels_passes(self):
-        spec = self._make(labels=['mylabel/subdir'])
-        self.assertEqual(spec.dataset.labels, ['mylabel/subdir'])
-
-    def test_empty_regex_passes(self):
-        spec = self._make(regex='')
-        self.assertEqual(spec.dataset.regex, '')
-
-    def test_invalid_regex_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(regex='[unclosed')
-
-    def test_hash_uses_name_and_path(self):
-        spec_a = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p1'}
-        )
-        spec_b = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p1'}
-        )
-        self.assertEqual(hash(spec_a), hash(spec_b))
-
-    def test_hash_differs_for_different_path(self):
-        spec_a = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p1'}
-        )
-        spec_b = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p2'}
-        )
-        self.assertNotEqual(hash(spec_a), hash(spec_b))
-
-
-class UpdateDatasetOutputTest(unittest.TestCase):
-    """Tests for UpdateDatasetOutput field validators."""
-
-    def _make(self, **fields) -> task.UpdateDatasetOutput:
-        defaults = {'name': 'mydataset'}
-        defaults.update(fields)
-        return task.UpdateDatasetOutput(update_dataset=defaults)
-
-    def test_valid_name_passes(self):
-        spec = self._make(name='dataset-1')
-        self.assertEqual(spec.update_dataset.name, 'dataset-1')
-
-    def test_invalid_name_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(name='!!bad!!')
-
-    def test_valid_paths_passes(self):
-        spec = self._make(paths=['dir/file.txt'])
-        self.assertEqual(spec.update_dataset.paths, ['dir/file.txt'])
-
-    def test_invalid_paths_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(paths=['bad?path'])
-
-    def test_invalid_metadata_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(metadata=['bad,path'])
-
-    def test_valid_metadata_passes(self):
-        spec = self._make(metadata=['meta/file.json'])
-        self.assertEqual(spec.update_dataset.metadata, ['meta/file.json'])
-
-    def test_invalid_labels_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(labels=['bad<label'])
-
-    def test_valid_labels_passes(self):
-        spec = self._make(labels=['mylabel'])
-        self.assertEqual(spec.update_dataset.labels, ['mylabel'])
-
-    def test_hash_uses_name(self):
-        spec_a = task.UpdateDatasetOutput(update_dataset={'name': 'ds-1'})
-        spec_b = task.UpdateDatasetOutput(update_dataset={'name': 'ds-1'})
-        self.assertEqual(hash(spec_a), hash(spec_b))
-
-    def test_hash_differs_for_different_name(self):
-        spec_a = task.UpdateDatasetOutput(update_dataset={'name': 'ds-1'})
-        spec_b = task.UpdateDatasetOutput(update_dataset={'name': 'ds-2'})
-        self.assertNotEqual(hash(spec_a), hash(spec_b))
-
-
 class URLInputOutputTest(unittest.TestCase):
     """Tests for URLInputOutput.validate_regex."""
 
@@ -992,11 +870,11 @@ class TaskSpecParseTest(unittest.TestCase):
             workflow_id='wf-123', host_tokens={'host:peer': 'peer.example'})
         self.assertEqual(parsed.args, ['--host=peer.example'])
 
-    def test_input_index_token_substituted_for_dataset_input(self):
+    def test_input_index_token_substituted_for_url_input(self):
         spec = task.TaskSpec(
             name='mytask', image='ubuntu', command=['ls'],
             args=['{{ input:0 }}'],
-            inputs=[task.DatasetInputOutput(dataset={'name': 'mydataset'})])
+            inputs=[task.URLInputOutput(url='s3://bucket/path')])
         parsed = spec.parse(workflow_id='wf-123', host_tokens={})
         self.assertEqual(
             parsed.args, [f'{kb_objects.DATA_LOCATION}/input/0'])

@@ -538,20 +538,13 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
                     raise osmo_errors.OSMOResourceError(logs, workflow_id=self.name)
 
     def validate_credentials(self, user: str):
-        # Whether or not we have validated the user can access datasets
-        # We only need to do it once since all datasets are stored in the same location
-        # A list of size 1 is used to allow passing by reference instead of by copy
+        # Keep per-submit caches so repeated image and URL references are validated once.
         seen_data_input: Set[str] = set()
         seen_data_output: Set[str] = set()
-        seen_bucket_input: Set[str] = set()
-        seen_bucket_output: Set[str] = set()
         seen_registries: Dict[str, Any] = {}
         database = connectors.PostgresConnector.get_instance()
         workflow_config = database.get_workflow_configs()
-        dataset_config = database.get_dataset_configs()
         image_hash_map: Dict[str, str] = {}
-        default_user_bucket = connectors.UserProfile.fetch_from_db(database, user).bucket
-        default_service_bucket = dataset_config.default_bucket
         user_creds = database.get_all_data_creds(user)
         generic_cred_cache: Dict[str, Any] = {}
         for group in self.groups:
@@ -584,10 +577,9 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
                             group_task.image += \
                                 f'@{image_hash_map[group_task.image]}'
                 self.validate_data(
-                    user, dataset_config, group_task, seen_data_input,
+                    user, group_task, seen_data_input,
                     seen_data_output, workflow_config.credential_config.disable_data_validation,
-                    seen_bucket_input, seen_bucket_output,
-                    default_user_bucket, default_service_bucket, user_creds)
+                    user_creds)
                 self.validate_generic_cred(user, database, group_task,
                                            generic_cred_cache)
 
@@ -648,64 +640,19 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             'or check if the image exists.'
         raise osmo_errors.OSMOCredentialError(error_msgs)
 
-    def validate_data(self, user: str, dataset_config: connectors.DatasetConfig,
-                      group_task: task.TaskSpec, seen_uri_input: Set[str],
+    def validate_data(self, user: str, group_task: task.TaskSpec, seen_uri_input: Set[str],
                       seen_uri_output: Set[str], disabled_data: List[str],
-                      seen_bucket_input: Set[str], seen_bucket_output: Set[str],
-                      default_user_bucket: str | None,
-                      default_service_bucket: str,
                       user_creds: Dict[str, credentials.StaticDataCredential]):
 
         def _validate_input_output(data_spec: Union[task.InputType, task.OutputType, task.TaskKPI],
                                    is_input: bool):
-
-            def _fetch_bucket_info(dataset_info: common.DatasetStructure)\
-                -> Tuple[storage.StorageBackend, str]:
-                if dataset_info.bucket:
-                    bucket = dataset_info.bucket
-                elif default_user_bucket:
-                    bucket = default_user_bucket
-                elif default_service_bucket:
-                    bucket = default_service_bucket
-                else:
-                    raise osmo_errors.OSMOUserError(
-                        'No default bucket set. Specify default bucket using the '
-                        '"osmo profile set" CLI.')
-
-                return storage.construct_storage_backend(
-                    dataset_config.get_bucket_config(bucket).dataset_path), bucket
-
-            bucket_name: Optional[str] = None
             if isinstance(data_spec, task.TaskInputOutput):
                 return
-            elif isinstance(data_spec, task.DatasetInputOutput):
-                try:
-                    dataset_info = common.DatasetStructure(data_spec.dataset.name, True)
-                except osmo_errors.OSMOUserError as err:
-                    raise osmo_errors.OSMOUsageError(str(err))
-
-                bucket_info, bucket_name = _fetch_bucket_info(dataset_info)
-            elif isinstance(data_spec, task.UpdateDatasetOutput):
-                try:
-                    dataset_info = common.DatasetStructure(data_spec.update_dataset.name, True)
-                except osmo_errors.OSMOUserError as err:
-                    raise osmo_errors.OSMOUsageError(str(err))
-
-                bucket_info, bucket_name = _fetch_bucket_info(dataset_info)
             elif isinstance(data_spec, task.URLInputOutput):
                 bucket_info = storage.construct_storage_backend(data_spec.url)
             else:
                 raise osmo_errors.OSMOUsageError(
                     'Input/Output spec is not valid.')
-
-            if is_input and bucket_name and bucket_name not in seen_bucket_input:
-                dataset_config.get_bucket_config(bucket_name)\
-                    .valid_access(bucket_name, connectors.BucketModeAccess.READ)
-                seen_bucket_input.add(bucket_name)
-            if not is_input and bucket_name and bucket_name not in seen_bucket_output:
-                dataset_config.get_bucket_config(bucket_name)\
-                    .valid_access(bucket_name, connectors.BucketModeAccess.WRITE)
-                seen_bucket_output.add(bucket_name)
 
             # Check if data needs to be validated
             if bucket_info.scheme in disabled_data:
@@ -717,18 +664,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             if bucket_info.uri in uri_cache:
                 return
 
-            # Credential resolution — strict priority, no cross-tier fallback:
-            #   1. User explicit credential (from their stored credentials in DB).
-            #   2. System default_credential on the bucket config (used only when the user
-            #      has no explicit credential for this profile — already enforced by
-            #      get_all_data_creds which merges them with user taking priority).
-            #   Both tiers are represented by user_creds.get(profile): if the user has their
-            #   own credential it wins; otherwise the bucket default is returned; None means
-            #   neither tier has anything configured.
-            #
-            #   3. No configured credential + backend does not support ambient → error.
-            #   4. No configured credential + backend supports ambient → skip submit-time
-            #      validation entirely and let the runtime (osmo-ctrl) perform the real check.
+            # Backends that support ambient credentials are validated at runtime by osmo-ctrl.
             configured_cred = user_creds.get(bucket_info.profile)
 
             if configured_cred is not None:
