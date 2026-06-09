@@ -646,16 +646,33 @@ func TestRunOSMOCommandWithRetry_PanicsAfterRetriesOnNonRetriableExit(t *testing
 	RunOSMOCommandWithRetry([]string{"sh", "-c", "exit 1"}, 1, osmoChan, 0)
 }
 
-// SUSPECTED BUG: data.go:269-271 / common.go:253 — `createOutCommandStream`
-// and `createErrCommandStream` accept `sync.WaitGroup` BY VALUE, and
-// `common.RunCommand` launches them via `go streamOutCommand(... waitStreamLogs ...)`
-// passing the WaitGroup by value too. The goroutines call Add/Done on a copy,
-// so the parent's `waitStreamLogs.Wait()` returns immediately. Goroutines can
-// outlive the test, then hit "file already closed" on `scanner.Err()` and
-// trigger `panic(err)` at data.go:305 — crashing the whole test binary.
-// Tests for `RunOSMOCommandStreamingWithRetry`, `DownloadURI`, `UploadData`,
-// `SendDatasetSizeAndChecksum`, and `Checkpoint`'s upload path all exercise
-// this code path and have been omitted to keep the suite stable.
+// ---------------------------------------------------------------------------
+// RunOSMOCommandStreamingWithRetry — success path through the streaming
+// goroutines. Exercises common.RunCommand end-to-end (the WaitGroup is now
+// pre-incremented in the parent and the closures accept *sync.WaitGroup, so
+// the streaming goroutines complete before RunCommand returns).
+// ---------------------------------------------------------------------------
+
+func TestRunOSMOCommandStreamingWithRetry_SucceedsOnFirstAttempt(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	RunOSMOCommandStreamingWithRetry(
+		[]string{"sh", "-c", "echo streaming-ok"},
+		[]string{"sh", "-c", "echo streaming-ok"},
+		2, osmoChan, 0,
+	)
+	close(osmoChan)
+
+	var collected []string
+	for msg := range osmoChan {
+		collected = append(collected, msg)
+	}
+	joined := strings.Join(collected, "\n")
+	if !strings.Contains(joined, "streaming-ok") {
+		t.Errorf("expected 'streaming-ok' in osmoChan messages, got: %v", collected)
+	}
+}
 
 // ---------------------------------------------------------------------------
 // MountURL — supported / unsupported download type branches
@@ -725,16 +742,6 @@ func TestMountURL_ClearsAwsEnvWhenNoCredentialMatches(t *testing.T) {
 	}
 }
 
-// SUSPECTED BUG: data.go MountURL retry path also exercises the streaming
-// goroutines via the `cmd.Run()` -> stderr-only path, but more importantly the
-// underlying common.RunCommand WaitGroup-by-value bug means orphan goroutines
-// from earlier streaming tests can panic during MountURL's loop. Test omitted.
-
-// (Removed download/upload/checkpoint panic tests — see the WaitGroup-by-value
-// SUSPECTED BUG note above. Each of these calls
-// RunOSMOCommandStreamingWithRetry which leaks a goroutine that later
-// panics on a closed pipe.)
-
 func TestCheckpoint_InvalidFrequencyReturnsImmediately(t *testing.T) {
 	osmoChan := make(chan string, 8)
 	stop := false
@@ -759,8 +766,8 @@ func TestCheckpoint_InvalidFrequencyReturnsImmediately(t *testing.T) {
 // ---------------------------------------------------------------------------
 // createOutCommandStream / createErrCommandStream — call the returned closures
 // directly with synthetic scanners so we cover the streaming bodies without
-// going through common.RunCommand (which has the WaitGroup-by-value bug noted
-// above).
+// going through common.RunCommand. The closures expect their caller to have
+// already called wg.Add(1) (common.RunCommand pre-increments by 2).
 // ---------------------------------------------------------------------------
 
 func TestCreateOutCommandStream_StreamsScannerLinesToChannel(t *testing.T) {
@@ -781,9 +788,10 @@ func TestCreateOutCommandStream_StreamsScannerLinesToChannel(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+	wg.Add(1)
 	timeoutChan := make(chan bool, 2)
 
-	streamFn(cmd, scanner, wg, timeoutChan)
+	streamFn(cmd, scanner, &wg, timeoutChan)
 
 	got1 := <-osmoChan
 	got2 := <-osmoChan
@@ -794,6 +802,7 @@ func TestCreateOutCommandStream_StreamsScannerLinesToChannel(t *testing.T) {
 	if timedOut := <-timeoutChan; timedOut {
 		t.Errorf("timeoutChan = true, want false on clean scanner exit")
 	}
+	wg.Wait()
 }
 
 func TestCreateErrCommandStream_StreamsScannerLinesToChannel(t *testing.T) {
@@ -803,13 +812,15 @@ func TestCreateErrCommandStream_StreamsScannerLinesToChannel(t *testing.T) {
 	scanner := bufio.NewScanner(strings.NewReader("err1\nerr2\n"))
 
 	var wg sync.WaitGroup
-	streamFn(scanner, wg)
+	wg.Add(1)
+	streamFn(scanner, &wg)
 
 	got1 := <-osmoChan
 	got2 := <-osmoChan
 	if got1 != "err1" || got2 != "err2" {
 		t.Errorf("channel = (%q, %q), want (err1, err2)", got1, got2)
 	}
+	wg.Wait()
 }
 
 // errReader returns the given error after `okReads` successful reads.
@@ -846,7 +857,9 @@ func TestCreateErrCommandStream_LogsScannerError(t *testing.T) {
 	})
 
 	var wg sync.WaitGroup
-	streamFn(scanner, wg)
+	wg.Add(1)
+	streamFn(scanner, &wg)
+	wg.Wait()
 
 	close(osmoChan)
 	var collected []string
@@ -867,9 +880,6 @@ func TestCreateErrCommandStream_LogsScannerError(t *testing.T) {
 // via RunOSMOCommandWithRetry. Wrapping the test so it captures the panic
 // raised after the underlying retries exhaust (PATH=/nonexistent forces every
 // attempt to fail with "executable file not found").
-// RunOSMOCommandWithRetry uses cmd.Run with cmd.Stdout=&buf and does NOT
-// spawn streaming goroutines — so this exercise does NOT trigger the
-// WaitGroup race noted above.
 // ---------------------------------------------------------------------------
 
 func TestSendDatasetSizeAndChecksum_PanicsAfterRetriesWhenOsmoMissing(t *testing.T) {
@@ -935,11 +945,6 @@ func TestSendDatasetSizeAndChecksum_ReturnsEmptyWhenVersionsListIsEmpty(t *testi
 // MountURL Mountpoint retry path — uses /usr/bin/true as a no-op stand-in
 // for mount-s3 so cmd.Run() succeeds, IsDirEmpty stays true, and the loop
 // runs the full MountRetryCount before returning isEmpty=true.
-//
-// MountURL's mount-s3 invocation uses cmd.Run() directly (NOT
-// common.RunCommand) so it does not hit the streaming WaitGroup race. The
-// previous panic in this test was caused by orphan goroutines from
-// streaming tests; with those tests removed, this test runs cleanly.
 // ---------------------------------------------------------------------------
 
 func TestMountURL_RunsMountLoopAndReturnsEmptyWhenMountStaysEmpty(t *testing.T) {

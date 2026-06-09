@@ -211,10 +211,12 @@ func min(a int, b int) int {
 }
 
 func RunCommand(cmd *exec.Cmd,
-	streamOutCommand func(*exec.Cmd, *bufio.Scanner, sync.WaitGroup, chan bool),
-	streamErrCommand func(*bufio.Scanner, sync.WaitGroup)) (string, error) {
+	streamOutCommand func(*exec.Cmd, *bufio.Scanner, *sync.WaitGroup, chan bool),
+	streamErrCommand func(*bufio.Scanner, *sync.WaitGroup)) (string, error) {
 	var waitStreamLogs sync.WaitGroup
-	timeoutChan := make(chan bool)
+	// Buffered so streamOutCommand's send does not block its deferred wg.Done()
+	// (RunCommand only reads timeoutChan after waitStreamLogs.Wait() returns).
+	timeoutChan := make(chan bool, 1)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -250,8 +252,9 @@ func RunCommand(cmd *exec.Cmd,
 	stderrScanner.Split(splitFunc)
 
 	cmd.Start()
-	go streamOutCommand(cmd, stdoutScanner, waitStreamLogs, timeoutChan)
-	go streamErrCommand(stderrScanner, waitStreamLogs)
+	waitStreamLogs.Add(2)
+	go streamOutCommand(cmd, stdoutScanner, &waitStreamLogs, timeoutChan)
+	go streamErrCommand(stderrScanner, &waitStreamLogs)
 	waitStreamLogs.Wait()
 
 	if <-timeoutChan {
