@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 import datetime
 import json
-from typing import Any, List
+from typing import Any, List, cast
 from unittest import mock
 
 from src.lib.utils import common, osmo_errors
@@ -92,6 +92,50 @@ class TaskDbFixture(
                 remaining_upstream_groups, downstream_groups)
                VALUES (%s, %s, %s, %s, %s, FALSE, NULL, NULL)''',
             (WORKFLOW_ID, group_name, group_uuid, spec.model_dump_json(), status))
+
+    def _legacy_dataset_group_spec(self, group_name: str = GROUP_NAME,
+                                   task_name: str = 'lead') -> dict:
+        return {
+            'name': group_name,
+            'ignoreNonleadStatus': True,
+            'tasks': [{
+                'name': task_name,
+                'image': 'img',
+                'command': ['cmd'],
+                'lead': True,
+                'inputs': [
+                    {'dataset': {
+                        'name': 'legacy-input',
+                        'path': 'input-path',
+                        'metadata': ['input-metadata.json'],
+                        'labels': ['input-labels.json'],
+                        'regex': r'.*\.json',
+                    }},
+                    {'url': 's3://bucket/input'},
+                ],
+                'outputs': [
+                    {'update_dataset': {
+                        'name': 'legacy-output',
+                        'paths': ['output-path'],
+                        'metadata': ['output-metadata.json'],
+                        'labels': ['output-labels.json'],
+                    }},
+                    {'url': 's3://bucket/output'},
+                ],
+            }],
+        }
+
+    def _insert_legacy_dataset_group(self, group_name: str = GROUP_NAME,
+                                     group_uuid: str = GROUP_UUID,
+                                     task_name: str = 'lead',
+                                     status: str = 'RUNNING') -> None:
+        spec = self._legacy_dataset_group_spec(group_name, task_name)
+        self._get_db().execute_commit_command(
+            '''INSERT INTO groups
+               (workflow_id, name, group_uuid, spec, status, cleaned_up,
+                remaining_upstream_groups, downstream_groups)
+               VALUES (%s, %s, %s, %s, %s, FALSE, NULL, NULL)''',
+            (WORKFLOW_ID, group_name, group_uuid, json.dumps(spec), status))
 
     def _insert_task(self, task_name: str, retry_id: int = 0,
                      status: str = 'RUNNING', lead: bool = False,
@@ -301,6 +345,50 @@ class FetchMetadataDbTest(TaskDbFixture):
         self.assertEqual(len(group.tasks), 2)
         task_names = {t.name for t in group.tasks}
         self.assertEqual(task_names, {'task1', 'task2'})
+
+    def test_fetch_metadata_from_db_loads_legacy_dataset_group_spec(self):
+        self._insert_workflow()
+        self._insert_legacy_dataset_group()
+        self._insert_task('lead', lead=True)
+
+        group = task.TaskGroup.fetch_metadata_from_db(
+            self._get_db(), WORKFLOW_ID, GROUP_NAME)
+
+        self.assertIsInstance(group.spec, task.PersistedTaskGroupSpec)
+        self.assertEqual(group.tasks, [])
+        persisted_spec = cast(task.PersistedTaskGroupSpec, group.spec)
+        persisted_task = persisted_spec.tasks[0]
+        self.assertIsInstance(persisted_task.inputs[0], task.LegacyDatasetInputOutput)
+        self.assertIsInstance(persisted_task.outputs[0], task.LegacyUpdateDatasetOutput)
+
+    def test_fetch_from_db_loads_legacy_dataset_group_spec(self):
+        self._insert_workflow()
+        self._insert_legacy_dataset_group()
+        self._insert_task('lead', lead=True)
+
+        group = task.TaskGroup.fetch_from_db(
+            self._get_db(), WORKFLOW_ID, GROUP_NAME)
+
+        self.assertIsInstance(group.spec, task.PersistedTaskGroupSpec)
+        self.assertEqual([loaded_task.name for loaded_task in group.tasks], ['lead'])
+        persisted_spec = cast(task.PersistedTaskGroupSpec, group.spec)
+        persisted_task = persisted_spec.tasks[0]
+        legacy_input = cast(task.LegacyDatasetInputOutput, persisted_task.inputs[0])
+        legacy_output = cast(task.LegacyUpdateDatasetOutput, persisted_task.outputs[0])
+        self.assertIsInstance(legacy_input, task.LegacyDatasetInputOutput)
+        self.assertEqual(legacy_input.dataset.name, 'legacy-input')
+        self.assertIsInstance(legacy_output, task.LegacyUpdateDatasetOutput)
+        self.assertEqual(legacy_output.update_dataset.name, 'legacy-output')
+
+    def test_fetch_task_secrets_loads_legacy_dataset_group_spec(self):
+        self._insert_workflow()
+        self._insert_legacy_dataset_group()
+        self._insert_task('lead', lead=True)
+
+        secrets = task.TaskGroup.fetch_task_secrets(
+            self._get_db(), WORKFLOW_ID, 'lead', 'user@nvidia.com', 0)
+
+        self.assertEqual(secrets, set())
 
 
 class BatchFetchLatestRetryIdsDbTest(TaskDbFixture):
