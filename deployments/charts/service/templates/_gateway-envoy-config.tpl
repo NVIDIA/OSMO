@@ -278,10 +278,12 @@ data:
                     prefix: /api/
                   route:
                     cluster: osmo-service
+                    timeout: 60s
                 - match:
                     prefix: /client/
                   route:
                     cluster: osmo-service
+                    timeout: 60s
                 {{- end }}
 
                 {{- if $gw.upstreams.ui.enabled }}
