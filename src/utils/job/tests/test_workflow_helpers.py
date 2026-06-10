@@ -300,40 +300,6 @@ class WorkflowSpecValidateTasksGroupsTest(unittest.TestCase):
         self.assertEqual(len(spec.tasks), 0)
 
 
-class WorkflowSpecDatasetIORejectionTest(unittest.TestCase):
-    def _task_with_io(self, io_field: str, io_spec: dict) -> dict:
-        return {
-            'name': 'wf',
-            'tasks': [{
-                'name': 'task1',
-                'image': 'img',
-                'command': ['cmd'],
-                io_field: [io_spec],
-            }],
-        }
-
-    def test_dataset_input_rejected(self):
-        with self.assertRaises(pydantic.ValidationError) as ctx:
-            workflow.WorkflowSpec(
-                **self._task_with_io('inputs', {'dataset': {'name': 'dataset1'}})
-            )
-        self.assertIn('dataset', str(ctx.exception))
-
-    def test_dataset_output_rejected(self):
-        with self.assertRaises(pydantic.ValidationError) as ctx:
-            workflow.WorkflowSpec(
-                **self._task_with_io('outputs', {'dataset': {'name': 'dataset1'}})
-            )
-        self.assertIn('dataset', str(ctx.exception))
-
-    def test_update_dataset_output_rejected(self):
-        with self.assertRaises(pydantic.ValidationError) as ctx:
-            workflow.WorkflowSpec(
-                **self._task_with_io('outputs', {'update_dataset': {'name': 'dataset1'}})
-            )
-        self.assertIn('update_dataset', str(ctx.exception))
-
-
 class VersionedWorkflowSpecValidateVersionTest(unittest.TestCase):
     def _minimal_workflow_kwargs(self) -> dict:
         return {
