@@ -248,6 +248,17 @@ data:
                 {{- if $envoy.serviceRoutes }}
                 {{- toYaml $envoy.serviceRoutes | nindent 16 }}
                 {{- else }}
+                # Workflow log/event endpoints can stream while a workflow runs.
+                # Disable Envoy's per-route timeout and rely on idle timeout
+                # so quiet-but-open streams are not cut by the default
+                # /api/ route timeout.
+                - match:
+                    safe_regex:
+                      regex: "^/api/workflow/.+/(logs|events|error_logs)$"
+                  route:
+                    cluster: osmo-service
+                    timeout: 0s
+                    idle_timeout: 60s
                 - match:
                     prefix: /api/
                   route:
