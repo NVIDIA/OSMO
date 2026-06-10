@@ -1184,7 +1184,7 @@ class UpdateGroup(WorkflowJob):
         # Get create job
         pod_list = {new_task.name: kb_objects.construct_pod_name(
             self.workflow_uuid, new_task.task_uuid)}
-        pod, _, _ = group.convert_to_pod_spec(
+        pod, files, _ = group.convert_to_pod_spec(
             new_task,
             spec,
             self.workflow_uuid,
@@ -1199,13 +1199,16 @@ class UpdateGroup(WorkflowJob):
             skip_refresh_token=True,
         )
         k8s_factory.update_pod_k8s_resource(pod, group.group_uuid, pool, workflow_obj.priority)
+        labels = pod.get('metadata', {}).get('labels', {})
+        k8s_resources = [file.secret(labels) for file in files.values()]
+        k8s_resources.append(pod)
 
         create_job = CreateGroup(
             backend=spec.backend,
             group_name=group.name,
             workflow_id=self.workflow_id,
             workflow_uuid=self.workflow_uuid,
-            k8s_resources=[pod],
+            k8s_resources=k8s_resources,
             user=self.user)
 
         reschedule_job = RescheduleTask(
