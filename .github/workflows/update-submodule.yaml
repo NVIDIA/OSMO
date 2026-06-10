@@ -20,7 +20,8 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main  # Triggers when changes are merged into main branch
+      - main
+      - 'release/**'
 
 jobs:
   trigger-gitlab:
@@ -33,15 +34,59 @@ jobs:
           GITLAB_TRIGGER_TOKEN: ${{ secrets.GITLAB_TRIGGER_TOKEN }}
           GITLAB_PROJECT_ID: ${{ secrets.GITLAB_PROJECT_ID }}
           GITLAB_API_URL: ${{ secrets.GITLAB_API_URL }}
+          EVENT_CREATED: ${{ github.event.created }}
         run: |
-          echo "Triggering GitLab pipeline for commit: ${{ github.sha }}"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${EVENT_CREATED}" = "true" ]; then
+            echo "Skipping GitLab pipeline trigger for branch creation: ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+
+          is_release_branch() {
+            release_version="${GITHUB_REF_NAME#release/}"
+            major="${release_version%%.*}"
+            minor="${release_version#*.}"
+
+            [ "$major" != "$release_version" ] || return 1
+            [ -n "$major" ] || return 1
+            [ -n "$minor" ] || return 1
+            [ "${minor#*.}" = "$minor" ] || return 1
+
+            case "${major}${minor}" in
+              *[!0-9]*)
+                return 1
+                ;;
+              *)
+                return 0
+                ;;
+            esac
+          }
+
+          case "${GITHUB_REF_NAME}" in
+            main)
+              TRIGGER_SOURCE="github_main_merge"
+              ;;
+            release/*)
+              if is_release_branch; then
+                TRIGGER_SOURCE="github_release_merge"
+              else
+                echo "Skipping unsupported release branch: ${GITHUB_REF_NAME}"
+                exit 0
+              fi
+              ;;
+            *)
+              echo "Unsupported branch: ${GITHUB_REF_NAME}"
+              exit 1
+              ;;
+          esac
+
+          echo "Triggering GitLab pipeline for commit: ${GITHUB_SHA}"
 
           RESPONSE=$(curl -X POST \
             -F token="${GITLAB_TRIGGER_TOKEN}" \
-            -F ref="${{ github.ref_name }}" \
-            -F "variables[GITHUB_COMMIT_SHA]=${{ github.sha }}" \
-            -F "variables[TRIGGER_SOURCE]=github_main_merge" \
-            -F "variables[GITHUB_REPO]=${{ github.repository }}" \
+            -F ref="${GITHUB_REF_NAME}" \
+            -F "variables[GITHUB_COMMIT_SHA]=${GITHUB_SHA}" \
+            -F "variables[TRIGGER_SOURCE]=${TRIGGER_SOURCE}" \
+            -F "variables[GITHUB_REPO]=${GITHUB_REPOSITORY}" \
             -w "\n%{http_code}" \
             "${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/trigger/pipeline")
 
