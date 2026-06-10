@@ -198,10 +198,25 @@ data:
                     {{- else }}
                     path_redirect: "/oauth2/sign_out"
                     {{- end }}
+                  {{- if $gw.authz.enabled }}
+                  # OAuth2 control routes are part of authentication itself.
+                  # They must not require authorization from the OSMO authz
+                  # sidecar before the browser can complete login/logout.
+                  typed_per_filter_config:
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                  {{- end }}
                 - match:
                     prefix: /oauth2/
                   route:
                     cluster: oauth2-proxy
+                  {{- if $gw.authz.enabled }}
+                  typed_per_filter_config:
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                  {{- end }}
                 {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}
