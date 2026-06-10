@@ -1172,8 +1172,8 @@ environments:
 
 Framework code lives at `test/oetf/`; the actual test suites are siblings
 under `test/smoke/`, `test/scenarios/`, and `test/workflow/`. Downstream
-overlay packages (NVIDIA-internal scenarios, dev adapter) consume this
-tree as a Bazel external module under `@osmo_workspace`.
+overlay packages consume this tree as a Bazel external module under
+`@osmo_workspace` and can add their own adapter / scenarios on top.
 
 ```
 test/oetf/                   # Framework + 4 entry-point binaries.
@@ -1309,9 +1309,11 @@ should match `osmo workflow submit` behavior for the same yaml.
 
 OETF can publish each run as a self-contained Allure HTML bundle to any S3-compatible storage and print a stable shareable URL. The feature is opt-in: without `--report-s3`, OETF behaves exactly as it does today.
 
-### Quick start (NVIDIA-internal)
+### Quick start
 
-The user's existing `SWIFT_*` env vars (per the OSMO Configs runbook) are used as fallback creds:
+If `$OETF_REPORT_S3_*` or `$SWIFT_*` env vars are already set in your shell
+(see the [flag reference](#flag-reference) below for the full fallback chain),
+the command is short — credentials and endpoint are picked up automatically:
 
 ```bash
 bazel run //test/oetf:run -- \
@@ -1321,9 +1323,8 @@ bazel run //test/oetf:run -- \
 # → Report: https://s3.example.com/my-bucket/dev/oetf-reports/users/<your-username>/runs/<run_id>/index.html
 ```
 
-### Quick start (non-NVIDIA)
-
-Any S3-compatible service works (AWS, MinIO, R2, B2, …):
+Otherwise pass credentials explicitly. Works with any S3-compatible service
+(AWS, MinIO, R2, B2, …):
 
 ```bash
 bazel run //test/oetf:run -- \
