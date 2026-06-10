@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 import copy
 import datetime
 import unittest
+from typing import cast
 from unittest import mock
 
 import pydantic
@@ -929,6 +930,92 @@ class TaskGroupSpecValidateTasksTest(unittest.TestCase):
                 self._task(name='t2', lead=False),
             ])
         self.assertEqual(len(group.tasks), 2)
+
+
+class TaskGroupSpecPersistedSpecTest(unittest.TestCase):
+    """Tests for loading legacy group specs already persisted in the database."""
+
+    def _legacy_group_spec(self) -> dict:
+        return {
+            'name': 'mygroup',
+            'tasks': [{
+                'name': 'mytask',
+                'image': 'ubuntu',
+                'command': ['ls'],
+                'inputs': [
+                    {'dataset': {
+                        'name': 'dataset1',
+                        'path': 'images',
+                        'metadata': ['metadata.json'],
+                        'labels': ['labels.json'],
+                        'regex': r'.*\.jpg',
+                        'localpath': '/tmp/dataset1',
+                    }},
+                    {'url': 's3://bucket/input'},
+                ],
+                'outputs': [
+                    {'update_dataset': {
+                        'name': 'dataset2',
+                        'paths': ['outputs'],
+                        'metadata': ['output-metadata.json'],
+                        'labels': ['output-labels.json'],
+                    }},
+                    {'dataset': {'name': 'dataset3'}},
+                    {'url': 's3://bucket/output'},
+                ],
+                'credentials': {'mycred': {'TOKEN': 'token'}},
+            }],
+        }
+
+    def test_strict_constructor_rejects_legacy_dataset_io(self):
+        with self.assertRaises(pydantic.ValidationError):
+            task.TaskGroupSpec(**self._legacy_group_spec())
+
+    def test_from_persisted_spec_preserves_legacy_dataset_io(self):
+        group = cast(
+            task.PersistedTaskGroupSpec,
+            task.TaskGroupSpec.from_persisted_spec(self._legacy_group_spec()))
+
+        self.assertIsInstance(group, task.PersistedTaskGroupSpec)
+        self.assertEqual(group.tasks[0].credentials, {'mycred': {'TOKEN': 'token'}})
+        legacy_input = cast(task.LegacyDatasetInputOutput, group.tasks[0].inputs[0])
+        legacy_update_output = cast(task.LegacyUpdateDatasetOutput, group.tasks[0].outputs[0])
+        legacy_dataset_output = cast(task.LegacyDatasetInputOutput, group.tasks[0].outputs[1])
+        self.assertIsInstance(legacy_input, task.LegacyDatasetInputOutput)
+        self.assertEqual(legacy_input.dataset.name, 'dataset1')
+        self.assertIsInstance(legacy_update_output, task.LegacyUpdateDatasetOutput)
+        self.assertEqual(legacy_update_output.update_dataset.name, 'dataset2')
+        self.assertIsInstance(legacy_dataset_output, task.LegacyDatasetInputOutput)
+        self.assertEqual(legacy_dataset_output.dataset.name, 'dataset3')
+
+        dumped = group.model_dump()
+        self.assertEqual(dumped['tasks'][0]['inputs'][0]['dataset']['name'], 'dataset1')
+        self.assertEqual(
+            dumped['tasks'][0]['outputs'][0]['update_dataset']['name'], 'dataset2')
+
+    def test_from_persisted_spec_uses_strict_model_without_legacy_dataset_io(self):
+        group = task.TaskGroupSpec.from_persisted_spec({
+            'name': 'mygroup',
+            'tasks': [{
+                'name': 'mytask',
+                'image': 'ubuntu',
+                'command': ['ls'],
+                'inputs': [{'url': 's3://bucket/input'}],
+                'outputs': [{'url': 's3://bucket/output'}],
+            }],
+        })
+
+        self.assertIs(type(group), task.TaskGroupSpec)
+        self.assertIsInstance(group.tasks[0].inputs[0], task.URLInputOutput)
+        self.assertIsInstance(group.tasks[0].outputs[0], task.URLInputOutput)
+
+    def test_from_persisted_spec_does_not_mutate_raw_spec(self):
+        raw_spec = self._legacy_group_spec()
+        original = copy.deepcopy(raw_spec)
+
+        task.TaskGroupSpec.from_persisted_spec(raw_spec)
+
+        self.assertEqual(raw_spec, original)
 
 
 class TaskGroupSpecMethodsTest(unittest.TestCase):

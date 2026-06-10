@@ -339,10 +339,44 @@ class URLInputOutput(pydantic.BaseModel, extra='forbid'):
         return hash((self.__class__.__name__, self.url))
 
 
+class LegacyDatasetInputOutput(pydantic.BaseModel, extra='allow'):
+    """Read-only shape for dataset I/O persisted before dataset deprecation."""
+    class Dataset(pydantic.BaseModel, extra='allow'):
+        """Legacy dataset reference persisted in old group specs."""
+        name: str
+        path: str = ''
+        metadata: List[str] = pydantic.Field(default_factory=list)
+        labels: List[str] = pydantic.Field(default_factory=list)
+        regex: str = ''
+        localpath: str | None = None
+
+    dataset: Dataset
+
+    def __hash__(self):
+        return hash((self.__class__.__name__, self.model_dump_json()))
+
+
+class LegacyUpdateDatasetOutput(pydantic.BaseModel, extra='allow'):
+    """Read-only shape for update_dataset outputs persisted before deprecation."""
+    class Dataset(pydantic.BaseModel, extra='allow'):
+        """Legacy update_dataset reference persisted in old group specs."""
+        name: str
+        paths: List[str] = pydantic.Field(default_factory=list)
+        metadata: List[str] = pydantic.Field(default_factory=list)
+        labels: List[str] = pydantic.Field(default_factory=list)
+
+    update_dataset: Dataset
+
+    def __hash__(self):
+        return hash((self.__class__.__name__, self.model_dump_json()))
+
+
 # Valid inputs to a task
 InputType = TaskInputOutput | URLInputOutput
 # Valid outputs to a task
 OutputType = URLInputOutput
+PersistedInputType = InputType | LegacyDatasetInputOutput
+PersistedOutputType = OutputType | LegacyDatasetInputOutput | LegacyUpdateDatasetOutput
 
 
 class CheckpointSpec(pydantic.BaseModel, extra='forbid'):
@@ -812,6 +846,14 @@ class TaskSpec(pydantic.BaseModel):
         return base_spec
 
 
+class PersistedTaskSpec(TaskSpec):
+    """Task spec shape used only for legacy rows already persisted in groups.spec."""
+    inputs: List[PersistedInputType] = pydantic.Field(  # type: ignore[assignment]
+        default_factory=list)
+    outputs: List[PersistedOutputType] = pydantic.Field(  # type: ignore[assignment]
+        default_factory=list)
+
+
 class TaskGroupSpec(pydantic.BaseModel):
     """ Represents a task group """
     name: task_common.NamePattern
@@ -820,6 +862,37 @@ class TaskGroupSpec(pydantic.BaseModel):
     tasks: List[TaskSpec]
 
     model_config = pydantic.ConfigDict(use_enum_values=True, extra='forbid')
+
+    @classmethod
+    def from_persisted_spec(cls, raw_spec: Mapping[str, Any]) -> 'TaskGroupSpec':
+        """
+        Loads group specs from storage while tolerating legacy dataset I/O.
+
+        New workflow submissions still use the strict constructor. This path exists
+        only for rows written before dataset workflow I/O was deprecated.
+        """
+        spec = copy.deepcopy(raw_spec)
+        if cls._has_legacy_dataset_io(spec):
+            return PersistedTaskGroupSpec(**spec)
+        return cls(**spec)
+
+    @staticmethod
+    def _has_legacy_dataset_io(raw_spec: Mapping[str, Any]) -> bool:
+        tasks = raw_spec.get('tasks', [])
+        if not isinstance(tasks, list):
+            return False
+        for task_spec in tasks:
+            if not isinstance(task_spec, Mapping):
+                continue
+            for io_specs in (task_spec.get('inputs', []), task_spec.get('outputs', [])):
+                if not isinstance(io_specs, list):
+                    continue
+                for io_spec in io_specs:
+                    if not isinstance(io_spec, Mapping):
+                        continue
+                    if 'dataset' in io_spec or 'update_dataset' in io_spec:
+                        return True
+        return False
 
     @property
     def inputs(self) -> List[InputType]:
@@ -909,6 +982,11 @@ class TaskGroupSpec(pydantic.BaseModel):
         base_spec = self.model_dump(exclude_defaults=True)
         base_spec['tasks'] = [task.saved_spec() for task in self.tasks]
         return base_spec
+
+
+class PersistedTaskGroupSpec(TaskGroupSpec):
+    """Group spec shape used only for legacy rows already persisted in groups.spec."""
+    tasks: List[PersistedTaskSpec]  # type: ignore[assignment]
 
 
 class TaskGroupMetrics(pydantic.BaseModel, extra='forbid'):
@@ -1658,7 +1736,7 @@ class TaskGroup(pydantic.BaseModel):
 
         return TaskGroup(workflow_id_internal=group_row.workflow_id,
                          name=group_row.name, group_uuid=group_row.group_uuid,
-                         spec=TaskGroupSpec(**group_row.spec), tasks=tasks,
+                         spec=TaskGroupSpec.from_persisted_spec(group_row.spec), tasks=tasks,
                          remaining_upstream_groups=remaining_upstream_groups,
                          downstream_groups=downstream_groups,
                          start_time=group_row.start_time, end_time=group_row.end_time,
@@ -1786,7 +1864,7 @@ class TaskGroup(pydantic.BaseModel):
 
         # Fetch Task Spec
         task_creds = None
-        for task_spec in TaskGroupSpec(**group_row.spec).tasks:
+        for task_spec in TaskGroupSpec.from_persisted_spec(group_row.spec).tasks:
             if task_spec.name == task_name:
                 task_creds = task_spec.credentials
                 break
@@ -1845,7 +1923,7 @@ class TaskGroup(pydantic.BaseModel):
 
         # Fetch Task Spec
         task_creds = None
-        for task_spec in TaskGroupSpec(**task_row.spec).tasks:
+        for task_spec in TaskGroupSpec.from_persisted_spec(task_row.spec).tasks:
             if task_spec.name == task_row.name:
                 task_creds = task_spec.credentials
                 break
