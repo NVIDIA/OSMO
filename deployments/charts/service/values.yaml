@@ -451,6 +451,14 @@ services:
     ##
     enabled: false
 
+    ## Annotations on the generated configs ConfigMap.
+    ## Useful for large config payloads that need Argo CD server-side apply.
+    ## Example:
+    ##   extraAnnotations:
+    ##     argocd.argoproj.io/sync-options: ServerSideApply=true
+    ##
+    extraAnnotations: {}
+
     ## Service config. service_base_url is auto-derived from
     ## services.service.hostname if not set here.
     ##
@@ -1740,7 +1748,7 @@ gateway:
 
     ## Envoy container image
     ##
-    image: "envoyproxy/envoy:v1.29.0"
+    image: "envoyproxy/envoy:v1.38.1"
 
     ## Image pull policy for Envoy containers
     ##
@@ -1779,22 +1787,20 @@ gateway:
     ## empty role/pool lists, so the UI shows blank pages.
     ##
     ## Setting these renders Envoy `request_headers_to_add` rules at the
-    ## gateway virtual host with `append_action: ADD_IF_ABSENT`. The chart
-    ## also conditionally drops these headers from the gateway's
-    ## `internal_only_headers` and Lua strip filter when oauth2Proxy and
-    ## authz are both disabled, so client-supplied identity (e.g. dev-mode
-    ## CLI's `x-osmo-user: <name>`) flows through; the default is only
-    ## injected when the client didn't set its own.
+    ## gateway virtual host with `append_action: ADD_IF_ABSENT`. When
+    ## oauth2Proxy, authz, or JWT providers are configured, Envoy strips
+    ## client-supplied x-osmo-* identity headers before filters run. In
+    ## minimal/demo mode, where all three auth sources are disabled,
+    ## sanitization is skipped so trusted dev-mode client identity headers
+    ## can still flow through.
     ##
-    ## SECURITY: in this mode the gateway TRUSTS the client's identity
-    ## headers. Any caller with network access can claim any user, any
-    ## role, and any pool. Only enable on clusters whose gateway is not
+    ## SECURITY: in minimal/demo mode the gateway TRUSTS the client's
+    ## identity headers. Any caller with network access can claim any user,
+    ## role, and pool. Only use that mode on clusters whose gateway is not
     ## reachable from untrusted networks.
     ##
-    ## In production (oauth2Proxy or authz enabled), client identity
-    ## headers are stripped at both the HCM and Lua-filter layers, so
-    ## defaultIdentity is irrelevant — authz/JWT is the canonical source.
-    ## Leave all three empty in that mode.
+    ## In production, leave all three empty; authz/JWT is the canonical
+    ## source of identity.
     ##
     defaultIdentity:
       user: ""           # e.g. "admin"
