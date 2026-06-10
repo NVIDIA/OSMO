@@ -159,8 +159,7 @@ class K8sObjectFactory:
 
     def create_control_container(self, extra_args: List, image: str, task_uid: str,
                                  file_mounts: List[Dict[str, str]],
-                                 download_type: str, task_resources: connectors.ResourceSpec,
-                                 cache_size: int)\
+                                 task_resources: connectors.ResourceSpec)\
                                  -> Dict:
         """
         Converts to k8s pod container.
@@ -181,14 +180,10 @@ class K8sObjectFactory:
             'mountPath': DATA_LOCATION + '/input',
             'subPath': 'input'
         }
-        mounting = connectors.DownloadType.from_str(download_type).is_mounting()
-        if mounting:
-            input_mount['mountPropagation'] = 'Bidirectional'
         container: Dict = {
             'imagePullPolicy': 'Always',
             'name': k8s_name('osmo_ctrl'),
             'image': image,
-            'securityContext': {'privileged': mounting},
             'volumeMounts': [{'name': 'osmo', 'mountPath': '/osmo/bin/osmo_ctrl',
                               'subPath': 'osmo/osmo_ctrl', 'readOnly': True},
                              {'name': 'osmo-data', 'mountPath': DATA_LOCATION +
@@ -205,10 +200,8 @@ class K8sObjectFactory:
                      '-inputPath', DATA_LOCATION + '/input/',
                      '-outputPath', DATA_LOCATION + '/output/',
                      '-metadataFile', DATA_LOCATION + '/default_metadata.yaml',
-                     '-downloadType', str(download_type),
                      '-timeout', str(websocket_timeout),
-                     '-dataTimeout', str(data_timeout),
-                     '-cacheSize', str(cache_size)]
+                     '-dataTimeout', str(data_timeout)]
         }
 
         container['args'] += extra_args

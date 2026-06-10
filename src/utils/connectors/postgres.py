@@ -95,9 +95,6 @@ class DownloadType(str, enum.Enum):
         else:
             raise NotImplementedError
 
-    def is_mounting(self) -> bool:
-        return self.value != 'download'
-
 
 class PoolType(enum.Enum):
     """ Pool type for amount of info to output """

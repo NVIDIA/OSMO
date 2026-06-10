@@ -878,8 +878,7 @@ class TaskSpec(pydantic.BaseModel):
                              {'name': 'osmo-data', 'mountPath': kb_objects.DATA_LOCATION +
                               '/socket', 'subPath': 'socket'},
                              {'name': 'osmo-data', 'mountPath': kb_objects.DATA_LOCATION +
-                              '/input', 'subPath': 'input',
-                              'mountPropagation': 'HostToContainer'},
+                              '/input', 'subPath': 'input'},
                              {'name': 'osmo-data', 'mountPath': kb_objects.DATA_LOCATION +
                               '/output', 'subPath': 'output'},
                              {'name': 'osmo-data', 'mountPath': kb_objects.DATA_LOCATION +
@@ -2988,14 +2987,9 @@ class TaskGroup(pydantic.BaseModel):
             kb_objects.k8s_name(shorten_name_to_fit_kb(task_spec.name))
         jinja_variables.update(self._convert_labels_to_variables(labels))
 
-        # Specify the cache size in MiB
-        user_cache_size = math.floor(common.convert_resource_value_str(
-                                    str(jinja_variables.get('USER_CACHE', '0MiB')),
-                                    target='MiB'))
-
         control_container_spec = k8s_factory.create_control_container(
             ctrl_extra_args, workflow_config.backend_images.client, self.group_uuid, file_mounts,
-            task_spec.downloadType.value, task_spec.resources, user_cache_size)
+            task_spec.resources)
 
         using_gpu = bool(task_spec.resources.gpu and task_spec.resources.gpu > 0)
         user_args += [
