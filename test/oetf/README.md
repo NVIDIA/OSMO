@@ -242,11 +242,11 @@ Plain scenarios reference an existing workflow YAML under
 `task.py` that runs inside the container:
 
 ```
-staging/scenarios/serial.py            ← plain scenario: a py test file whose methods
+test/scenarios/serial.py            ← plain scenario: a py test file whose methods
                                          call self.workflow("test/workflow/<X>.yaml")
                                          against already-existing yamls under test/workflow/
 
-staging/scenarios/router_connectivity/ ← 3-file scenario (in-task code)
+test/scenarios/router_connectivity/ ← 3-file scenario (in-task code)
 ├── spec.yaml         ← workflow definition; submitted as-is
 ├── task.py           ← in-container assertions — subclass TaskFixture; stdlib only
 └── test_runner.py    ← caller-side assertions — subclass RunnerFixture; full Python + osmo CLI
@@ -284,7 +284,7 @@ flowchart LR
 
 ### Smoke test
 
-Extend an existing file or add a new one under `staging/smoke/`. Subclass
+Extend an existing file or add a new one under `test/smoke/`. Subclass
 `SmokeFixture`; each probe builder is chainable.
 
 **Probe builders:**
@@ -300,7 +300,7 @@ Extend an existing file or add a new one under `staging/smoke/`. Subclass
 **Minimal example:**
 
 ```python
-# staging/smoke/my_checks.py
+# test/smoke/my_checks.py
 import unittest
 from test.oetf.smoke_fixture import SmokeFixture
 
@@ -332,10 +332,10 @@ oetf_smoke_test(
 cover the common cases; for richer assertions (cryptographic checks,
 cross-endpoint state, stdout regex), call `.send()` / `.run()` to get the
 raw response and assert on it with plain `unittest` helpers. Two worked
-examples from `staging/smoke/`:
+examples from `test/smoke/`:
 
 ```python
-# staging/smoke/auth_checks.py — mint a JWT, verify it's signed with a
+# test/smoke/auth_checks.py — mint a JWT, verify it's signed with a
 # key from the JWKS endpoint (no pyjwt decoder needed beyond sig check).
 class AuthChecks(SmokeFixture):
     def test_token_signed_with_jwks_key(self):
@@ -357,7 +357,7 @@ class AuthChecks(SmokeFixture):
 ```
 
 ```python
-# staging/smoke/cli_checks.py — loose regex on stdout without coupling
+# test/smoke/cli_checks.py — loose regex on stdout without coupling
 # to exact format. Run the CLI via self.cli(...).expect_exit(0); the
 # return value is the subprocess.CompletedProcess for further asserts.
 class CliChecks(SmokeFixture):
@@ -369,11 +369,11 @@ class CliChecks(SmokeFixture):
 
 ### Plain scenario test (declarative)
 
-Under `staging/scenarios/`. Reference an existing yaml; terminate the chain
+Under `test/scenarios/`. Reference an existing yaml; terminate the chain
 with an `.expect_*` method:
 
 ```python
-# staging/scenarios/my_workflows.py
+# test/scenarios/my_workflows.py
 import unittest
 from test.oetf.runner_fixture import RunnerFixture
 
@@ -439,7 +439,7 @@ you drive explicitly, and inject a `task.py` that runs inside the
 container. The macro picks up three files from a scenario directory:
 
 ```
-staging/scenarios/my_scenario/
+test/scenarios/my_scenario/
 ├── spec.yaml            ← workflow definition; submitted as-is
 ├── task.py              ← subclass TaskFixture; stdlib only (runs in-container)
 └── test_runner.py       ← subclass RunnerFixture; caller-side
@@ -481,7 +481,7 @@ parses that line out of the workflow logs.
 `task.py`:
 
 ```python
-# staging/scenarios/my_scenario/task.py
+# test/scenarios/my_scenario/task.py
 import os
 
 from task_fixture import TaskFixture
@@ -512,7 +512,7 @@ if __name__ == "__main__":
 `test_runner.py`:
 
 ```python
-# staging/scenarios/my_scenario/test_runner.py
+# test/scenarios/my_scenario/test_runner.py
 import unittest
 from test.oetf.runner_fixture import RunnerFixture
 
@@ -577,7 +577,7 @@ checkpoint instead (inspired by
 `task.py` (writes a sentinel, serves HTTP, emits checkpoints, keeps alive):
 
 ```python
-# staging/scenarios/router_connectivity/task.py
+# test/scenarios/router_connectivity/task.py
 import time
 from task_fixture import TaskFixture
 
@@ -610,7 +610,7 @@ if __name__ == "__main__":
 `test_runner.py` (waits for each checkpoint before the matching caller-side action):
 
 ```python
-# staging/scenarios/router_connectivity/test_runner.py
+# test/scenarios/router_connectivity/test_runner.py
 import unittest
 from test.oetf.runner_fixture import RunnerFixture
 
@@ -799,7 +799,7 @@ The wrapper (`test/oetf/main.py`) is thin:
 |---|---|
 | `--env <name>` | Target environment resolved from `data/oetf.default.yaml` + `~/.config/osmo/oetf.yaml`. Canonical: `staging`, `kind`. |
 | `--tags smoke,scenario,router,kind,...` | Comma-separated Bazel tag filter. `smoke` / `scenario` are aliases for `oetf-smoke` / `oetf-scenario`. The `kind` tag selects tests verified to pass against `oetf:deploy --env kind` (see "Tests that pass on local KIND" below). |
-| `--name test_foo` or `Class.test_foo` | Run a single test method. Wrapper scans `staging/` and prefers the split target when one filters to that method. |
+| `--name test_foo` or `Class.test_foo` | Run a single test method. Wrapper scans `test/smoke/` and `test/scenarios/` and prefers the split target when one filters to that method. |
 | `--jobs N` | `--local_test_jobs=N` (default 3 — staging sweet spot). |
 | `--url` | Override the env's URL. Useful for quick-test against an arbitrary instance. |
 | `--auth-method {token,dev}` | Override the env's auth strategy. `token` uses `--auth-token` / `${env.auth.token_env}`; `dev` uses `--auth-username` with no JWT. Auto-adds the `auth` smoke suite to `exclude_tags` when `dev` is chosen (the auth suite needs a real JWT issuer). |
@@ -824,7 +824,7 @@ The wrapper (`test/oetf/main.py`) is thin:
 - `oetf-smoke` / `oetf-scenario` — for wrapper tag filtering.
 - `kind` — applied to tests **verified to pass against
   `oetf:deploy --env kind`**. `oetf:run --env kind --tags kind` runs
-  this curated subset (currently 11 tests: 3 smoke probes + 4
+  this curated subset (currently 10 tests: 2 smoke probes + 4
   submission-validation scenarios + 3 self-contained 3-file scenarios +
   `serial-workflow-mounting`). Tests that require NVIDIA-only platforms,
   registry credentials, or pre-existing data are intentionally not
@@ -935,10 +935,10 @@ OETF KIND adapter  (this file)
 touches the chart, and it's just one shell-out — no per-component logic,
 no manifest patching.
 
-#### Versus `external/run/start_service_kind.py`
+#### Versus `run/start_service_kind.py`
 
 Public users may also know
-[`external/run/start_service_kind.py`](../../external/run/start_service_kind.py)
+[`run/start_service_kind.py`](../../run/start_service_kind.py)
 — an older OSS script that predates the umbrella chart. Comparison:
 
 | Dimension                | OETF KIND adapter                       | `start_service_kind.py`                                  |
@@ -1170,58 +1170,87 @@ environments:
 
 ## Layout
 
+Framework code lives at `test/oetf/`; the actual test suites are siblings
+under `test/smoke/`, `test/scenarios/`, and `test/workflow/`. Downstream
+overlay packages (NVIDIA-internal scenarios, dev adapter) consume this
+tree as a Bazel external module under `@osmo_workspace`.
+
 ```
-test/oetf/
+test/oetf/                   # Framework + 4 entry-point binaries.
 ├── README.md
+├── CLAUDE.md                # Agent notes (invariants, file-placement rules).
 ├── BUILD
 ├── main.py                  # oetf:run wrapper
 ├── deploy_main.py           # oetf:deploy entry-point
-├── teardown_main.py         # oetf:teardown entry-point
 ├── deploy_and_run_main.py   # oetf:deploy_and_run entry-point (one-shot)
+├── teardown_main.py         # oetf:teardown entry-point
+├── deploy_pipeline.py       # prepare_deploy() — shared pre-DeploySession
+│                            #   pipeline used by deploy + deploy_and_run.
 ├── cli_args.py              # shared argparse helpers (add_env_args /
 │                            #   add_deploy_args / add_run_args) +
 │                            #   forward_run_args / forward_env_args.
 │                            #   Single source of truth for all binary flags.
-├── environments.py          # named-env loader (default + user overlay)
-├── preflight.py             # ERROR/NEXT contract; check_auth, check_deployable
-├── breadcrumb.py            # ~/.cache/oetf/last-deploy.json read/write
-├── deploy_adapters/         # DeployAdapter Protocol + KIND / DEV / Noop adapters
-├── local_images.py          # bazel build + kind load for --build-local
-├── dev_argocd.py            # bazel push + value-file edit + git push + rollout-wait
-├── fixture_base.py          # OetfFixture — env reader + ServiceClient
-├── smoke_fixture.py         # SmokeFixture + HttpProbe / CliProbe / WsProbe
-├── runner_fixture.py        # RunnerFixture + WorkflowBuilder + WorkflowHandle
-├── task_fixture.py          # TaskFixture (injected into containers; stdlib only)
-├── auth.py                  # ServiceClient factory
-├── osmo_cli.py              # shared CLI login + path-resolve helpers
-├── log_summary.py           # extracts failure summary from a unittest log
+├── environments.py          # named-env loader (default + user overlay).
+├── preflight.py             # ERROR/NEXT contract; check_auth, check_deployable.
+├── breadcrumb.py            # ~/.cache/oetf/last-deploy.json read/write.
+├── deploy_adapters/         # DeployAdapter Protocol + KIND / Noop adapters
+│                            #   + factory (optional-import auto-registration
+│                            #   for downstream-overlay DevAdapter).
+├── local_images.py          # bazel build + kind load for --build-local.
+├── fixture_base.py          # OetfFixture — env reader + ServiceClient base.
+├── smoke_fixture.py         # SmokeFixture + HttpProbe / CliProbe / WsProbe.
+├── runner_fixture.py        # RunnerFixture + WorkflowBuilder + WorkflowHandle.
+├── task_fixture.py          # TaskFixture (injected into containers; stdlib only).
+├── auth.py                  # ServiceClient factory.
+├── osmo_cli.py              # shared CLI login + path-resolve helpers.
+├── log_summary.py           # extracts failure summary from a unittest log.
 ├── models.py                # OetfConfig, EnvironmentConfig, DeployType, …
+├── reporter.py              # per-run JUnit + Allure result emitter.
+├── aggregate.py             # bundles per-target results into a single
+│                            #   Allure HTML report; uploads via sinks.
+├── sinks.py                 # S3-compatible upload (S3, Swift, MinIO, R2, B2).
 ├── data/
-│   ├── oetf.default.yaml    # canonical `staging` / `kind` env presets
-│   └── kind-osmo-cluster-config.yaml  # 6-node CPU KIND layout
+│   ├── oetf.default.yaml    # canonical `staging` / `kind` env presets.
+│   ├── kind-osmo-cluster-config.yaml  # 6-node CPU KIND layout.
+│   └── categories.json      # Allure failure-bucket rules.
 ├── bzl/
 │   ├── BUILD
 │   └── oetf.bzl             # oetf_smoke_test, oetf_scenario_test macros
-├── tests/                   # Unit tests for the framework itself
-│   ├── BUILD
-│   ├── test_log_summary.py
-│   ├── test_models.py
-│   └── test_runner_fixture.py
-└── staging/                 # The actual tests.
+│                            #   (cross-package deps qualified with
+│                            #   @osmo_workspace// so the macros work from
+│                            #   downstream-overlay callers).
+└── tests/                   # Unit tests for the framework itself.
     ├── BUILD
-    ├── smoke/
-    │   ├── BUILD
-    │   ├── api_checks.py
-    │   ├── auth_checks.py
-    │   ├── cli_checks.py
-    │   └── websocket_checks.py
-    └── scenarios/
-        ├── BUILD
-        ├── serial.py, parallel.py, exit_actions.py, ...    (split into per-test targets)
-        ├── credentials.py, data_io.py, privileged.py, ...  (combined targets)
-        ├── logger_connectivity/                            (scenario + task.py)
-        ├── task_runtime_environment/
-        └── router_connectivity/
+    ├── test_aggregate.py, test_sinks.py, test_reporter.py,
+    │   test_fixture_emitter.py, test_main_reporter_dispatch.py,
+    │   test_smoke_recording.py, test_runner_recording.py,
+    │   test_runner_fixture.py, test_environments.py,
+    │   test_models.py, test_models_env.py, test_local_images.py,
+    │   test_log_summary.py, test_cli_args.py, test_cli_args_report.py,
+    │   test_deploy.py
+
+test/smoke/                  # OSS-safe smoke tests.
+├── BUILD
+├── api_checks.py
+├── cli_checks.py
+└── websocket_checks.py
+                             # (auth-checks ships in the internal overlay —
+                             # the public quick-start chart has no JWT issuer.)
+
+test/scenarios/              # OSS-safe scenario tests.
+├── BUILD
+├── serial.py, parallel.py, exit_actions.py, ...    (split into per-test targets)
+├── advanced.py, command_validation.py, data_storage.py, error_handling.py,
+│   exec_portforward.py, mount_validation.py, resource_validation.py,
+│   templates.py
+├── logger_connectivity/                            (3-file scenario w/ task.py)
+├── router_connectivity/
+└── task_runtime_environment/
+
+test/workflow/               # YAML workflow fixtures referenced by scenarios.
+├── BUILD
+└── *.yaml                   (~35 fixtures: serial_workflow.yaml, restart.yaml,
+                              exec_workflow.yaml, host_mount.yaml, …)
 ```
 
 ### Fixture classes
