@@ -198,10 +198,25 @@ data:
                     {{- else }}
                     path_redirect: "/oauth2/sign_out"
                     {{- end }}
+                  {{- if $gw.authz.enabled }}
+                  # OAuth2 control routes are part of authentication itself.
+                  # They must not require authorization from the OSMO authz
+                  # sidecar before the browser can complete login/logout.
+                  typed_per_filter_config:
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                  {{- end }}
                 - match:
                     prefix: /oauth2/
                   route:
                     cluster: oauth2-proxy
+                  {{- if $gw.authz.enabled }}
+                  typed_per_filter_config:
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                  {{- end }}
                 {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}
@@ -248,14 +263,27 @@ data:
                 {{- if $envoy.serviceRoutes }}
                 {{- toYaml $envoy.serviceRoutes | nindent 16 }}
                 {{- else }}
+                # Workflow log/event endpoints can stream while a workflow runs.
+                # Disable Envoy's per-route timeout and rely on idle timeout
+                # so quiet-but-open streams are not cut by the default
+                # /api/ route timeout.
+                - match:
+                    safe_regex:
+                      regex: "^/api/workflow/.+/(logs|events|error_logs)$"
+                  route:
+                    cluster: osmo-service
+                    timeout: 0s
+                    idle_timeout: 60s
                 - match:
                     prefix: /api/
                   route:
                     cluster: osmo-service
+                    timeout: 60s
                 - match:
                     prefix: /client/
                   route:
                     cluster: osmo-service
+                    timeout: 60s
                 {{- end }}
 
                 {{- if $gw.upstreams.ui.enabled }}
