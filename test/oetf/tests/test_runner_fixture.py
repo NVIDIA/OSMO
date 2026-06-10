@@ -400,11 +400,10 @@ class TestRunnerFixtureDefaults(unittest.TestCase):
     """OETF_DEFAULT_* env-var-backed RunnerFixture defaults.
 
     Scenarios in OETF reference ``self.default_image`` / ``default_platform`` /
-    ``default_bucket`` so the same scenario runs against both internal staging
-    (with Jenkins-injected overrides like python:3.10-slim)
-    AND public KIND (with the safe OSS defaults below). Verified by direct
-    env-var manipulation rather than mocking, so the property contract is
-    exercised end-to-end.
+    ``default_bucket`` so the same scenario runs against both staging
+    (with Jenkins-injected overrides like python:3.10-slim) and KIND (with
+    the safe defaults below). Verified by direct env-var manipulation rather
+    than mocking, so the property contract is exercised end-to-end.
     """
 
     def setUp(self):

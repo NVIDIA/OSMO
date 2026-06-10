@@ -897,7 +897,7 @@ upgrade), pass `--fresh` — that deletes the cluster first and runs the
 first-deploy path on a clean slate.
 
 
-### Relationship to `osmo/quick-start` and existing OSS deploy scripts
+### Relationship to `osmo/quick-start` and existing deploy scripts
 
 The KIND adapter (`deploy_adapters/kind_adapter.py`) is a **consumer** of
 the public `osmo/quick-start` Helm chart, not a reimplementation. The chart
@@ -939,7 +939,7 @@ no manifest patching.
 
 Public users may also know
 [`run/start_service_kind.py`](../../run/start_service_kind.py)
-— an older OSS script that predates the umbrella chart. Comparison:
+— an older script that predates the umbrella chart. Comparison:
 
 | Dimension                | OETF KIND adapter                       | `start_service_kind.py`                                  |
 |--------------------------|-----------------------------------------|----------------------------------------------------------|
@@ -1229,7 +1229,7 @@ test/oetf/                   # Framework + 4 entry-point binaries.
     │   test_log_summary.py, test_cli_args.py, test_cli_args_report.py,
     │   test_deploy.py
 
-test/smoke/                  # OSS-safe smoke tests.
+test/smoke/                  # Smoke tests.
 ├── BUILD
 ├── api_checks.py
 ├── cli_checks.py
@@ -1237,7 +1237,7 @@ test/smoke/                  # OSS-safe smoke tests.
                              # (auth-checks ships in the internal overlay —
                              # the public quick-start chart has no JWT issuer.)
 
-test/scenarios/              # OSS-safe scenario tests.
+test/scenarios/              # Scenario tests.
 ├── BUILD
 ├── serial.py, parallel.py, exit_actions.py, ...    (split into per-test targets)
 ├── advanced.py, command_validation.py, data_storage.py, error_handling.py,
@@ -1321,7 +1321,7 @@ bazel run //test/oetf:run -- \
 # → Report: https://s3.example.com/my-bucket/dev/oetf-reports/users/<your-username>/runs/<run_id>/index.html
 ```
 
-### Quick start (OSS / non-NVIDIA)
+### Quick start (non-NVIDIA)
 
 Any S3-compatible service works (AWS, MinIO, R2, B2, …):
 

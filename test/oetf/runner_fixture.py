@@ -380,7 +380,7 @@ class RunnerFixture(OetfFixture):
 
         Reads ``OETF_DEFAULT_IMAGE`` at access time so tests/fixtures that
         monkey-patch the env see the current value. Falls back to a public
-        ``ubuntu:22.04`` so OSS KIND deploys work out of the box.
+        ``ubuntu:22.04`` so KIND deploys work out of the box.
         """
         return os.environ.get("OETF_DEFAULT_IMAGE", "ubuntu:22.04")
 

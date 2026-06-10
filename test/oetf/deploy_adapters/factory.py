@@ -31,13 +31,13 @@ from test.oetf.preflight import PreflightError
 logger = logging.getLogger(__name__)
 
 
-# Optional internal-only dev adapter + its dev_argocd companion module. In the
-# OSS-distributed copy of OETF these imports fail (dev_adapter.py / dev_argocd.py
-# are intentionally not shipped); the "dev" env type then becomes unavailable
-# with a clear error at build_adapter() time. Internal overlay packages
-# register it via `register_adapter()` from a plugin.py shim. Any exception
-# other than ModuleNotFoundError logs a WARNING so silent ImportError
-# swallowing doesn't hide real bugs.
+# Optional dev adapter + its dev_argocd companion module — present only when
+# a downstream overlay package adds them to the runfiles tree. In the public
+# copy of OETF these imports fail (dev_adapter.py / dev_argocd.py are not
+# shipped); the "dev" env type then becomes unavailable with a clear error at
+# build_adapter() time. Overlay packages register it via `register_adapter()`
+# from a plugin.py shim. Any exception other than ModuleNotFoundError logs a
+# WARNING so silent ImportError swallowing doesn't hide real bugs.
 try:
     # type-ignored: mypy correctly observes that these modules don't exist in
     # the public tree (the optional-import block exists precisely so they can
