@@ -60,6 +60,19 @@ async function makeWorkflowAction(endpoint: string, method: "POST" | "DELETE" = 
   }
 }
 
+function getCancelWorkflowEndpoint(workflowName: string, options?: { message?: string; force?: boolean }): string {
+  const params = new URLSearchParams();
+  if (options?.message) {
+    params.set("message", options.message);
+  }
+  if (options?.force !== undefined) {
+    params.set("force", String(options.force));
+  }
+
+  const queryString = params.toString();
+  return `/api/workflow/${encodeURIComponent(workflowName)}/cancel${queryString ? `?${queryString}` : ""}`;
+}
+
 // =============================================================================
 // Server Actions
 // =============================================================================
@@ -77,19 +90,7 @@ export async function cancelWorkflow(
   workflowName: string,
   options?: { message?: string; force?: boolean },
 ): Promise<ActionResult> {
-  // Build query parameters if provided
-  const params = new URLSearchParams();
-  if (options?.message) {
-    params.set("message", options.message);
-  }
-  if (options?.force !== undefined) {
-    params.set("force", String(options.force));
-  }
-
-  const queryString = params.toString();
-  const endpoint = `/api/workflow/${encodeURIComponent(workflowName)}/cancel${queryString ? `?${queryString}` : ""}`;
-
-  const result = await makeWorkflowAction(endpoint);
+  const result = await makeWorkflowAction(getCancelWorkflowEndpoint(workflowName, options));
 
   if (result.success) {
     // Revalidate workflow data after successful cancellation
@@ -103,6 +104,72 @@ export async function cancelWorkflow(
   }
 
   return result;
+}
+
+export interface BulkCancelWorkflowEntryResult {
+  workflowName: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface BulkCancelWorkflowResult extends ActionResult {
+  results: BulkCancelWorkflowEntryResult[];
+  successCount: number;
+  failureCount: number;
+}
+
+/**
+ * Cancel multiple workflows independently.
+ *
+ * @param workflowNames - Workflow names to cancel
+ * @param options - Optional cancellation parameters
+ * @returns Per-workflow cancellation results
+ */
+export async function bulkCancelWorkflows(
+  workflowNames: string[],
+  options?: { message?: string; force?: boolean },
+): Promise<BulkCancelWorkflowResult> {
+  const uniqueWorkflowNames = Array.from(new Set(workflowNames));
+  if (uniqueWorkflowNames.length === 0) {
+    return {
+      success: false,
+      error: "No cancelable workflows selected",
+      results: [],
+      successCount: 0,
+      failureCount: 0,
+    };
+  }
+
+  const results = await Promise.all(
+    uniqueWorkflowNames.map(async (workflowName): Promise<BulkCancelWorkflowEntryResult> => {
+      const result = await makeWorkflowAction(getCancelWorkflowEndpoint(workflowName, options));
+      return result.success
+        ? { workflowName, success: true }
+        : { workflowName, success: false, error: result.error ?? "Unknown error" };
+    }),
+  );
+
+  const successCount = results.filter((result) => result.success).length;
+  const failureCount = results.length - successCount;
+
+  if (successCount > 0) {
+    updateTag("workflows");
+    for (const result of results) {
+      if (!result.success) continue;
+      updateTag(`workflow-${result.workflowName}`);
+      revalidatePath(`/workflows/${result.workflowName}`, "page");
+    }
+    revalidatePath("/workflows", "page");
+    refresh();
+  }
+
+  return {
+    success: failureCount === 0,
+    error: failureCount > 0 ? `${failureCount} workflow${failureCount === 1 ? "" : "s"} failed to cancel` : undefined,
+    results,
+    successCount,
+    failureCount,
+  };
 }
 
 /**

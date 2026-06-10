@@ -17,6 +17,7 @@
 // NOTE: Only submit_time is sortable (backend limitation)
 
 import type { ColumnDef } from "@tanstack/react-table";
+import { BrandCheckbox } from "@/components/brand-checkbox";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
@@ -32,13 +33,47 @@ import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { formatDuration } from "@/lib/format-date";
 import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 
+export interface WorkflowSelectionOptions {
+  selectedWorkflowNames: ReadonlySet<string>;
+  onToggleWorkflow: (workflowName: string, selected: boolean) => void;
+}
+
 function getMinSize(id: WorkflowColumnId): number {
   const col = WORKFLOW_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
 }
 
-export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[] {
+export function createWorkflowColumns(selection?: WorkflowSelectionOptions): ColumnDef<WorkflowListEntry, unknown>[] {
+  const selectionColumns: ColumnDef<WorkflowListEntry, unknown>[] = selection
+    ? [
+        {
+          id: "_select",
+          header: () => null,
+          minSize: getMinSize("_select"),
+          size: getMinSize("_select"),
+          enableSorting: false,
+          enableResizing: false,
+          meta: {
+            useCustomHeader: true,
+            headerClassName: "px-3 py-3 justify-center",
+            cellClassName: "px-3 py-0 justify-center",
+          },
+          cell: ({ row }) => {
+            const workflowName = row.original.name;
+            return (
+              <BrandCheckbox
+                aria-label={`Select workflow ${workflowName}`}
+                checked={selection.selectedWorkflowNames.has(workflowName)}
+                onCheckedChange={(checked) => selection.onToggleWorkflow(workflowName, checked)}
+              />
+            );
+          },
+        },
+      ]
+    : [];
+
   return [
+    ...selectionColumns,
     {
       id: "name",
       accessorKey: "name",
