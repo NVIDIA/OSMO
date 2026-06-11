@@ -18,3 +18,4 @@
 set -euo pipefail
 
 "$SHELLCHECK" --severity=warning "$SETUP_SH"
+"$SHELLCHECK" --severity=warning "$SETUP_K8S_SH"
