@@ -34,3 +34,37 @@ spec:
                  {{ .Values.services.delayedJobMonitor.serviceName }}]
       }
 {{- end }}
+{{- if and .Values.podMonitor.enabled .Values.gateway.envoy.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: gateway-envoy-monitor
+spec:
+  podMetricsEndpoints:
+  - interval: 15s
+    port: envoy-admin
+    path: /stats/prometheus
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "osmo.gateway-name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: envoy
+{{- end }}
+{{- if and .Values.podMonitor.enabled .Values.gateway.oauth2Proxy.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: gateway-oauth2-proxy-monitor
+spec:
+  podMetricsEndpoints:
+  - interval: 15s
+    port: oauth2-metrics
+    path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "osmo.gateway-name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: oauth2-proxy
+{{- end }}
