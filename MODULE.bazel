@@ -97,8 +97,14 @@ bazel_dep(name = "rules_shell", version = "0.7.1")
 #    Python    #
 ################
 
-bazel_dep(name = "aspect_rules_py", version = "1.11.2")
-bazel_dep(name = "rules_python", version = "1.9.0")
+bazel_dep(name = "aspect_rules_py", version = "1.11.5")
+bazel_dep(name = "rules_python", version = "2.0.2")
+
+single_version_override(
+    module_name = "aspect_rules_py",
+    patch_strip = 1,
+    patches = ["//bzl/patches:aspect_rules_py_skip_venv_interpreter.patch"],
+)
 
 # Patches:
 #   - coverage_tool_label: single_version_platform_override.coverage_tool is
@@ -121,7 +127,7 @@ python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
     ignore_root_user_error = True,
     is_default = True,
-    python_version = "3.14.2",
+    python_version = "3.14.4",
 )
 
 # Python coverage tool for `bazel coverage` on CI (Linux x86_64).
@@ -143,15 +149,15 @@ filegroup(
 """,
     patch_args = ["-p1"],
     patches = ["//bzl/patches:coverage_syspath.patch"],
-    sha256 = "6c36ddb64ed9d7e496028d1d00dfec3e428e0aabf4006583bb1839958d280510",
+    sha256 = "06144cd511cf2624873a035c5069cf297144f6e77a73ee3d7a55b605ec5efb42",
     type = "zip",
-    urls = ["https://files.pythonhosted.org/packages/22/e5/06b1f88f42a5a99df42ce61208bdec3bddb3d261412874280a19796fc09c/coverage-7.13.5-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"],
+    urls = ["https://files.pythonhosted.org/packages/26/2b/78048cbe3b999f6cbf9cc0d90abba6a88a3e0863a8c1c6cbc762f3f8802f/coverage-7.14.1-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"],
 )
 
 python.single_version_platform_override(
     coverage_tool = "@python_coverage_linux_x86_64//:coverage",
     platform = "x86_64-unknown-linux-gnu",
-    python_version = "3.14.2",
+    python_version = "3.14.4",
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
@@ -166,7 +172,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_mypy_deps",
-    python_version = "3.14.2",
+    python_version = "3.14.4",
     requirements_lock = "//bzl/mypy:locked_requirements.txt",
 )
 use_repo(pip, "osmo_mypy_deps")
@@ -181,7 +187,7 @@ pip.parse(
         "30",
     ],
     hub_name = "pylint_python_deps",
-    python_version = "3.14.2",
+    python_version = "3.14.4",
     requirements_lock = "//bzl/linting:locked_requirements.txt",
 )
 use_repo(pip, "pylint_python_deps")
@@ -196,7 +202,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_python_deps",
-    python_version = "3.14.2",
+    python_version = "3.14.4",
     requirements_lock = "//src:locked_requirements.txt",
     target_platforms = [
         "{os}_{arch}",
@@ -216,7 +222,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_tests_python_deps",
-    python_version = "3.14.2",
+    python_version = "3.14.4",
     requirements_lock = "//src/tests:locked_requirements.txt",
 )
 use_repo(pip, "osmo_tests_python_deps")
