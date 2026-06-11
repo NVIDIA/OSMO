@@ -17,6 +17,9 @@
 name: Update distroless images
 
 on:
+  push:
+    branches:
+      - tdewan/test-distroless-workflow
   schedule:
     # GitHub cron is UTC. Run at 21:00 and 22:00 UTC, then gate on
     # America/Los_Angeles hour 14 so the workflow stays at 2 PM PT/PDT.
@@ -163,7 +166,7 @@ jobs:
         env:
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
           TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || 'C096VCXRK8U') || inputs.slack_channel }}
-          SKIP_SLACK: ${{ inputs.skip_slack || 'false' }}
+          SKIP_SLACK: true
           NOTIFICATION_KIND: ${{ steps.create-pr.outputs.notification_kind }}
           PR_URL: ${{ steps.create-pr.outputs.pr_url }}
           VERSION_LABEL: ${{ steps.distroless.outputs.version_label }}
