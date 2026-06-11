@@ -874,45 +874,6 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
 
         return versioned_workflow_spec.workflow
 
-    def update_dataset_buckets(self, workflow_spec: workflow.WorkflowSpec):
-        postgres = connectors.PostgresConnector.get_instance()
-        dataset_config = postgres.get_dataset_configs()
-        default_user_bucket = connectors.UserProfile.fetch_from_db(postgres, self.user).bucket
-
-        def _fetch_bucket(dataset_info_bucket: str) -> str:
-            if dataset_info_bucket:
-                bucket = dataset_info_bucket
-            elif default_user_bucket:
-                bucket = default_user_bucket
-            elif dataset_config.default_bucket:
-                bucket = dataset_config.default_bucket
-            else:
-                raise osmo_errors.OSMOUserError(
-                    'No default bucket set. Specify default bucket using the '
-                    '"osmo profile set" CLI.')
-
-            return bucket
-
-        def _update_bucket(task_obj: task.TaskSpec):
-            for dataset_input in task_obj.inputs + task_obj.outputs:
-                if isinstance(dataset_input, task.DatasetInputOutput):
-                    dataset_info = common.DatasetStructure(dataset_input.dataset.name,
-                                                           workflow_spec=True)
-                    dataset_info.bucket = _fetch_bucket(dataset_info.bucket)
-                    dataset_input.dataset.name = dataset_info.full_name
-                elif isinstance(dataset_input, task.UpdateDatasetOutput):
-                    dataset_info = common.DatasetStructure(dataset_input.update_dataset.name,
-                                                           workflow_spec=True)
-                    dataset_info.bucket = _fetch_bucket(dataset_info.bucket)
-                    dataset_input.update_dataset.name = dataset_info.full_name
-
-        for group in workflow_spec.groups:
-            for group_task in group.tasks:
-                _update_bucket(group_task)
-
-        for task_obj in workflow_spec.tasks:
-            _update_bucket(task_obj)
-
     def send_workflow_spec_to_queue(self, workflow_id: str, workflow_dict: Dict,
                                     original_templated_spec: str | None = None):
 

@@ -54,9 +54,6 @@ OSMO_CONFIG_FILE_DIR = '/osmo/login/config'
 
 OSMO_CONFIG_MOUNT_DIR = '/osmo'
 
-# Path regex which does not allow: , ? " < >
-PATH_REGEX = r'^([^\/\\,?\"<>|\r\n]+(\/|\\)?)+$'
-
 REFRESH_TOKEN_LENGTH = 32
 # secrets.token_urlsafe(REFRESH_TOKEN_LENGTH) produces a base64url string of this length
 REFRESH_TOKEN_STR_LENGTH = math.ceil(REFRESH_TOKEN_LENGTH * 4 / 3)
@@ -315,171 +312,6 @@ class TaskInputOutput(pydantic.BaseModel, extra='forbid'):
         return hash((self.__class__.__name__, self.task))
 
 
-class DatasetInputOutput(pydantic.BaseModel, extra='forbid'):
-    """ Represents an input/output that is a dataset """
-    class _Dataset(pydantic.BaseModel, extra='forbid'):
-        """ Represents dataset info """
-        name: str
-        path: str = ''
-        metadata: List[str] = []
-        labels: List[str] = []
-        regex: str = ''
-        localpath: str | None = None
-
-        @pydantic.field_validator('name')
-        @classmethod
-        def validate_name(cls, name: str) -> str:
-            """
-            Validates name. Returns the value of name if valid.
-
-            Raises:
-                ValueError: name fails validation.
-            """
-            try:
-                common.DatasetStructure(name, workflow_spec=True)
-            except osmo_errors.OSMOUserError as err:
-                raise ValueError(f'Invalid name: {err}') from err
-            return name
-
-        @pydantic.field_validator('path')
-        @classmethod
-        def validate_path(cls, path: str) -> str:
-            """
-            Validates path. Returns the value of path if valid.
-
-            Raises:
-                ValueError: path fails validation.
-            """
-            if not path:
-                return path
-            if re.fullmatch(PATH_REGEX, path) is None:
-                raise ValueError(f'Invalid path: {path}')
-            return path
-
-        @pydantic.field_validator('metadata')
-        @classmethod
-        def validate_metadata(cls, metadata: List[str]) -> List[str]:
-            """
-            Validates metadata. Returns the value of metadata if valid.
-
-            Raises:
-                ValueError: metadata fails validation.
-            """
-            for path in metadata:
-                if re.fullmatch(PATH_REGEX, path) is None:
-                    raise ValueError(f'Invalid path: {path}')
-            return metadata
-
-        @pydantic.field_validator('labels')
-        @classmethod
-        def validate_labels(cls, labels: List[str]) -> List[str]:
-            """
-            Validates labels. Returns the value of labels if valid.
-
-            Raises:
-                ValueError: labels fails validation.
-            """
-            for path in labels:
-                if re.fullmatch(PATH_REGEX, path) is None:
-                    raise ValueError(f'Invalid path: {path}')
-            return labels
-
-        @pydantic.field_validator('regex')
-        @classmethod
-        def validate_regex(cls, regex: str) -> str | None:
-            """
-            Validates regex. Returns the value of regex if valid.
-
-            Raises:
-                ValueError: regex fails validation.
-            """
-            if not regex:
-                return regex
-
-            try:
-                re.compile(regex)
-                return regex
-            except re.error as err:
-                raise ValueError(f'Invalid regex: {regex}') from err
-
-    dataset: _Dataset
-
-    def __hash__(self):
-        return hash((self.__class__.__name__, self.dataset.name, self.dataset.path))
-
-
-class UpdateDatasetOutput(pydantic.BaseModel, extra='forbid'):
-    """ Represents an input/output that is a dataset """
-    class _Dataset(pydantic.BaseModel, extra='forbid'):
-        """ Represents dataset info """
-        name: str
-        paths: List[str] = []
-        metadata: List[str] = []
-        labels: List[str] = []
-
-        @pydantic.field_validator('name')
-        @classmethod
-        def validate_name(cls, name: str) -> str:
-            """
-            Validates name. Returns the value of name if valid.
-
-            Raises:
-                ValueError: name fails validation.
-            """
-            try:
-                common.DatasetStructure(name, workflow_spec=True)
-            except osmo_errors.OSMOUserError as err:
-                raise ValueError(f'Invalid name: {err}') from err
-            return name
-
-        @pydantic.field_validator('paths')
-        @classmethod
-        def validate_paths(cls, paths: List[str]) -> List[str]:
-            """
-            Validates paths. Returns the value of paths if valid.
-
-            Raises:
-                ValueError: paths fails validation.
-            """
-            for path in paths:
-                if re.fullmatch(PATH_REGEX, path) is None:
-                    raise ValueError(f'Invalid path: {path}')
-            return paths
-
-        @pydantic.field_validator('metadata')
-        @classmethod
-        def validate_metadata(cls, metadata: List[str]) -> List[str]:
-            """
-            Validates metadata. Returns the value of metadata if valid.
-
-            Raises:
-                ValueError: metadata fails validation.
-            """
-            for path in metadata:
-                if re.fullmatch(PATH_REGEX, path) is None:
-                    raise ValueError(f'Invalid path: {path}')
-            return metadata
-
-        @pydantic.field_validator('labels')
-        @classmethod
-        def validate_labels(cls, labels: List[str]) -> List[str]:
-            """
-            Validates labels. Returns the value of labels if valid.
-
-            Raises:
-                ValueError: labels fails validation.
-            """
-            for path in labels:
-                if re.fullmatch(PATH_REGEX, path) is None:
-                    raise ValueError(f'Invalid path: {path}')
-            return labels
-
-    update_dataset: _Dataset
-
-    def __hash__(self):
-        return hash((self.__class__.__name__, self.update_dataset.name))
-
-
 class URLInputOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents a url used for input/output """
     url: str
@@ -508,9 +340,9 @@ class URLInputOutput(pydantic.BaseModel, extra='forbid'):
 
 
 # Valid inputs to a task
-InputType = TaskInputOutput | DatasetInputOutput | URLInputOutput
+InputType = TaskInputOutput | URLInputOutput
 # Valid outputs to a task
-OutputType = DatasetInputOutput | URLInputOutput | UpdateDatasetOutput
+OutputType = URLInputOutput
 
 
 class CheckpointSpec(pydantic.BaseModel, extra='forbid'):
@@ -960,7 +792,7 @@ class TaskSpec(pydantic.BaseModel):
                 source = first_field if not second_field else second_field
                 tokens[f'input:{source}'] = f'{input_token}/{index}'
                 tokens[f'input:{index}'] = f'{input_token}/{index}'
-            elif isinstance(input_source, (DatasetInputOutput, URLInputOutput)):
+            elif isinstance(input_source, URLInputOutput):
                 tokens[f'input:{index}'] = f'{input_token}/{index}'
             else:
                 raise osmo_errors.OSMOUsageError('Unknown Input Type')
@@ -2707,7 +2539,6 @@ class TaskGroup(pydantic.BaseModel):
         priority: wf_priority.WorkflowPriority,
         # Optional arguments
         service_config: connectors.ServiceConfig | None = None,
-        dataset_config: connectors.DatasetConfig | None = None,
         pool_info: connectors.Pool | None = None,
         data_endpoints: Mapping[str, credentials.StaticDataCredential] | None = None,
         skip_refresh_token: bool = False,
@@ -2734,8 +2565,6 @@ class TaskGroup(pydantic.BaseModel):
             pool_info = connectors.Pool.fetch_from_db(self.database, pool)
         if service_config is None:
             service_config = self.database.get_service_configs()
-        if dataset_config is None:
-            dataset_config = self.database.get_dataset_configs()
         if data_endpoints is None:
             data_endpoints = self.database.get_all_data_creds(user)
         if backend_config is None:
@@ -2761,7 +2590,6 @@ class TaskGroup(pydantic.BaseModel):
         url_prefix = workflow_config.workflow_data.credential.endpoint
 
         input_urls: List[str] = []
-        input_datasets: List[str] = []
 
         disabled_data = workflow_config.credential_config.disable_data_validation
         # TODO: Make extra_args a dumped json to be parsed by osmo-ctrl
@@ -2773,13 +2601,6 @@ class TaskGroup(pydantic.BaseModel):
                 task_name = first_field if not second_field else second_field
                 task_io_url = f'{url_prefix}/{task_workflow_id}/{task_name}'
                 ctrl_extra_args += ['-inputs', f'task:{index},{task_io_url},{spec_input.regex}']
-            elif isinstance(spec_input, DatasetInputOutput):
-                dataset_info = common.DatasetStructure(spec_input.dataset.name)
-                bucket_info = dataset_config.get_bucket_config(dataset_info.bucket)
-                task_io_url = dataset_info.full_name
-                ctrl_extra_args += ['-inputs',
-                                    f'dataset:{index},{task_io_url},{spec_input.dataset.regex}']
-                input_datasets.append(task_io_url)
             elif isinstance(spec_input, URLInputOutput):
                 task_io_url = spec_input.url
                 ctrl_extra_args += ['-inputs', f'url:{index},{task_io_url},{spec_input.regex}']
@@ -2800,29 +2621,6 @@ class TaskGroup(pydantic.BaseModel):
             ctrl_extra_args += ['-outputs', f'kpi:{task_io_url},{kpi.path}']
 
         for spec_output in task_spec.outputs:
-            if isinstance(spec_output, DatasetInputOutput):
-                dataset_info = common.DatasetStructure(spec_output.dataset.name, True)
-                bucket_info = dataset_config.get_bucket_config(dataset_info.bucket)
-                task_io_url = dataset_info.full_name
-                fetch_creds(user, data_endpoints, bucket_info.dataset_path,
-                            disabled_data)
-                ctrl_extra_args += ['-outputs',
-                                    f'dataset:{task_io_url},' +
-                                    f'{spec_output.dataset.path},' +
-                                    f'{','.join(spec_output.dataset.metadata)};' +
-                                    f'{','.join(spec_output.dataset.labels)};' +
-                                    spec_output.dataset.regex]
-            if isinstance(spec_output, UpdateDatasetOutput):
-                dataset_info = common.DatasetStructure(spec_output.update_dataset.name, True)
-                bucket_info = dataset_config.get_bucket_config(dataset_info.bucket)
-                task_io_url = dataset_info.full_name
-                fetch_creds(user, data_endpoints, bucket_info.dataset_path,
-                            disabled_data)
-                ctrl_extra_args += ['-outputs',
-                                    f'update_dataset:{task_io_url};' +
-                                    f'{','.join(spec_output.update_dataset.paths)};' +
-                                    f'{','.join(spec_output.update_dataset.metadata)};' +
-                                    ','.join(spec_output.update_dataset.labels)]
             if isinstance(spec_output, URLInputOutput):
                 task_io_url = spec_output.url
                 fetch_creds(user, data_endpoints, task_io_url, disabled_data)
@@ -2940,7 +2738,6 @@ class TaskGroup(pydantic.BaseModel):
         dataset_metadata_info = {
             'default': {
                 'input_data': input_urls,
-                'input_datasets': input_datasets,
                 'wfid': self.workflow_id,
                 'created_by': user
             }
@@ -3125,7 +2922,6 @@ class TaskGroup(pydantic.BaseModel):
 
         postgres = connectors.PostgresConnector.get_instance()
         service_config = self.database.get_service_configs()
-        dataset_config = self.database.get_dataset_configs()
         backend_config = connectors.Backend.fetch_from_db(postgres, self.spec.tasks[0].backend)
         k8s_factory = self.get_k8s_object_factory(backend_config)
         pool_info = connectors.Pool.fetch_from_db(postgres, pool)
@@ -3168,7 +2964,6 @@ class TaskGroup(pydantic.BaseModel):
                 backend_config,
                 priority,
                 service_config,
-                dataset_config,
                 pool_info,
                 data_endpoints,
                 auth_token=auth_token)
