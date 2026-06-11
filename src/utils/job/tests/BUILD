@@ -84,6 +84,16 @@ py_test(
     ]
 )
 
+osmo_py_test(
+    name = "test_task_pure",
+    srcs = ["test_task_pure.py"],
+    deps = [
+        "//src/lib/utils:credentials",
+        "//src/utils/job",
+        requirement("pydantic"),
+    ],
+)
+
 py_test(
     name = "test_kb_objects",
     srcs = [
