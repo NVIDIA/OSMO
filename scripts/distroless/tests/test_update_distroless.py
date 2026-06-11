@@ -13,9 +13,11 @@ from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "update_distroless.py"
 SPEC = importlib.util.spec_from_file_location("update_distroless", MODULE_PATH)
-assert SPEC is not None
+if SPEC is None:
+    raise ImportError(f"Unable to load module spec from {MODULE_PATH}")
 update_distroless = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
+if SPEC.loader is None:
+    raise ImportError(f"Unable to load module loader from {MODULE_PATH}")
 sys.modules[SPEC.name] = update_distroless
 SPEC.loader.exec_module(update_distroless)
 
@@ -78,6 +80,7 @@ class UpdateDistrolessTest(unittest.TestCase):
         self.assertIn("sha256:" + "a" * 64, new_module)
         self.assertIn("sha256:" + "b" * 64, new_module)
         self.assertIn("node:24-v4.0.9", new_dockerfile)
+        self.assertIn("ARG NODE_BUILD_IMAGE=node:24-slim", new_dockerfile)
 
     def test_python_image_version_is_single_target_knob(self):
         latest = update_distroless.DistrolessLatest(

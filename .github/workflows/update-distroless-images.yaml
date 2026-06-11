@@ -65,6 +65,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          persist-credentials: false
 
       - name: Configure git
         if: steps.schedule-gate.outputs.should_run == 'true'
@@ -121,7 +122,19 @@ jobs:
           git checkout -B "$BRANCH_NAME"
           git add MODULE.bazel src/ui/Dockerfile
           git commit -m "$PR_TITLE"
-          git push -u origin "$BRANCH_NAME"
+          git remote set-url origin \
+            "https://x-access-token:${{ secrets.SVC_OSMO_CI_TOKEN }}@github.com/${{ github.repository }}.git"
+
+          remote_branch_sha=$(
+            git ls-remote --heads origin "$BRANCH_NAME" | awk '{print $1}'
+          )
+          if [[ -n "$remote_branch_sha" ]]; then
+            git push -u \
+              --force-with-lease="refs/heads/$BRANCH_NAME:$remote_branch_sha" \
+              origin HEAD:"$BRANCH_NAME"
+          else
+            git push -u origin HEAD:"$BRANCH_NAME"
+          fi
 
           body_file="$RUNNER_TEMP/distroless-pr-body.md"
           cat > "$body_file" <<EOF
@@ -194,13 +207,16 @@ jobs:
               --arg text "$slack_text" \
               '{channel: $channel, text: $text}'
           )
-          response=$(
+          if ! response=$(
             curl -fsSL \
               -H "Authorization: Bearer $TESTBOT_SLACK_BOT_TOKEN" \
               -H "Content-Type: application/json; charset=utf-8" \
               -d "$payload" \
               https://slack.com/api/chat.postMessage
-          )
+          ); then
+            echo "Slack notification request failed; skipping."
+            exit 0
+          fi
           ok=$(jq -r '.ok' <<<"$response")
           if [[ "$ok" != "true" ]]; then
             echo "Slack notification failed: $response"

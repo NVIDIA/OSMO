@@ -81,7 +81,7 @@ def _version_tuple(version: str) -> tuple[int, int, int]:
     parts = version.split(".")
     if len(parts) != 3:
         raise ValueError(f"expected MAJOR.MINOR.PATCH, got {version!r}")
-    return tuple(int(part) for part in parts)
+    return (int(parts[0]), int(parts[1]), int(parts[2]))
 
 
 def latest_version_for_prefix(tags: Iterable[str], prefix: str, dev: bool = False) -> str:
@@ -101,7 +101,9 @@ def latest_version_for_prefix(tags: Iterable[str], prefix: str, dev: bool = Fals
 
 def _registry_token(repo: str) -> str:
     query = urllib.parse.urlencode({"scope": f"repository:{repo}:pull"})
-    with urllib.request.urlopen(f"{REGISTRY}/proxy_auth?{query}", timeout=30) as response:
+    url = f"{REGISTRY}/proxy_auth?{query}"
+    # REGISTRY is fixed to HTTPS nvcr.io.
+    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310
         payload = json.load(response)
     token = payload.get("token") or payload.get("access_token")
     if not token:
@@ -115,7 +117,8 @@ def _registry_json(repo: str, path: str) -> dict:
         f"{REGISTRY}/v2/{repo}/{path}",
         headers={"Authorization": f"Bearer {token}"},
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    # REGISTRY is fixed to HTTPS nvcr.io.
+    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
         return json.load(response)
 
 
@@ -129,7 +132,8 @@ def _manifest_digest(repo: str, tag: str) -> str:
             "Authorization": f"Bearer {token}",
         },
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    # REGISTRY is fixed to HTTPS nvcr.io.
+    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
         digest = response.headers.get("Docker-Content-Digest")
     if not digest:
         raise RuntimeError(f"manifest digest missing for {repo}:{tag}")
