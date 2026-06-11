@@ -19,7 +19,6 @@ import {
   createWorkflowsResponse,
   createPoolResponse,
   createResourcesResponse,
-  createDatasetsResponse,
   WorkflowStatus,
   PoolStatus,
 } from "@/mocks/factories";
@@ -29,7 +28,6 @@ import {
   setupWorkflows,
   setupPools,
   setupResources,
-  setupDatasets,
 } from "@/e2e/utils/mock-setup";
 
 /**
@@ -112,24 +110,5 @@ test.describe("Empty States — Resources Page", () => {
 
     // ASSERT — page renders without crashing (breadcrumb is visible)
     await expect(page.getByText(/resources/i).first()).toBeVisible();
-  });
-});
-
-test.describe("Empty States — Datasets Page", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupDefaultMocks(page);
-    await setupProfile(page);
-  });
-
-  test("shows empty state when no datasets exist", async ({ page }) => {
-    // ARRANGE — empty datasets
-    await setupDatasets(page, createDatasetsResponse([]));
-
-    // ACT
-    await page.goto("/datasets");
-    await page.waitForLoadState("networkidle");
-
-    // ASSERT — empty datasets page shows 0 results
-    await expect(page.getByText(/0 results/).first()).toBeVisible();
   });
 });

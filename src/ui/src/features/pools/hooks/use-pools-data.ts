@@ -165,7 +165,7 @@ export function usePoolsData({
 
   const filteredTotal = pools.length;
   // Chip filters (shim + client-only) count as "active filters" for the "X of Y" display.
-  // The my/all pools toggle changes scope silently (consistent with workflows/datasets).
+  // The my/all pools toggle changes scope silently (consistent with workflows).
   const hasActiveFilters = hasActiveChipFilters || clientOnlyChips.length > 0;
 
   const gpuSummary = useMemo(() => computePoolGpuSummary(pools, sharingGroups), [pools, sharingGroups]);

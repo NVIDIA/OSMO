@@ -831,129 +831,6 @@ for status in PoolStatus:
 
 ---
 
-### 23. Dataset List API Missing Offset Parameter — Fetch-All Workaround
-
-**Priority:** High
-**Status:** ✅ Workaround implemented in `datasets.ts` (`fetchAllDatasets`) + `datasets-shim.ts`
-
-The dataset list API (`GET /api/bucket/list_dataset`) lacks an `offset` parameter, making cursor/offset pagination impossible when filters are active.
-
-**API Parameters (current):**
-```typescript
-{
-  name?: string;           // Search filter
-  buckets?: string[];      // Bucket filter
-  user?: string[];         // User filter
-  all_users?: boolean;     // Show all users' datasets
-  dataset_type?: DatasetType;
-  count?: number;          // Limit (like "limit")
-  // ❌ Missing: offset, created_after, created_before, updated_after, updated_before, sort_by, sort_dir
-}
-```
-
-**Current workaround: fetch-all + shim**
-
-`fetchAllDatasets()` fetches with `count: 10_000` and passes all server-side params.
-React Query caches the result. `applyDatasetsFiltersSync()` in `datasets-shim.ts` applies
-date range filters client-side from the cache — zero API calls on filter changes.
-
-```
-useAllDatasets(showAllUsers, searchChips)
-    → fetchAllDatasets()  →  API (count: 10_000, name, buckets, user, all_users)
-    → React Query cache: Dataset[]
-    → applyDatasetsFiltersSync(allDatasets, chips, sort)   ← useMemo, pure function
-    → { datasets, total, filteredTotal }
-```
-
-**Tradeoffs:**
-
-| Aspect | Pro/Con | Details |
-|--------|---------|---------|
-| Filtering UX | ✅ Pro | All matching items available instantly |
-| Filter speed | ✅ Pro | <10ms in-memory filter |
-| Initial load | ❌ Con | Fetches up to 10,000 items at once |
-| Scalability | ⚠️ Limited | Works up to ~10,000 datasets |
-
-For OSMO's dataset counts this is appropriate. See issue #25 for the full backend fix needed.
-
-**Migration path (when #25 is fixed):**
-
-1. Remove `fetchAllDatasets` + `buildAllDatasetsQueryKey` from `datasets.ts`
-2. Delete `datasets-shim.ts` entirely
-3. Add date/sort params to `buildApiParams()` and include in query key
-4. `useDatasetsData` reads the query result directly (no shim `useMemo`)
-
----
-
-### 25. Dataset List API Missing Sort-By Field, Distinct Date Filters, and Response Totals
-
-**Priority:** High
-**Status:** Partially present — Active workaround in `datasets-shim.ts` (client-side filtering) and `datasets.ts` (fetch-all)
-
-The dataset list API (`data_service.py:991-1003`) already supports:
-- `latest_before` / `latest_after` — date range filtering (covers a combined "most recent" date)
-- `order` — sort direction (`ASC` / `DESC`)
-
-What's still **missing**:
-- **`sort_by`** — field to sort on (currently hardcoded to `combined_date` in SQL)
-- **`created_after` / `created_before`** — filtering specifically by creation date (distinct from `latest_*`)
-- **`updated_after` / `updated_before`** — filtering specifically by update date
-- **`offset`** — pagination offset (see also Issue #23)
-- **Response totals** — `total` and `filtered_total` counts
-
-**Existing parameters (already working):**
-
-| Parameter | Status | Notes |
-|-----------|--------|-------|
-| `name` | ✅ Exists | Search filter |
-| `buckets` | ✅ Exists | Bucket filter |
-| `user` | ✅ Exists | User filter |
-| `all_users` | ✅ Exists | Show all users |
-| `dataset_type` | ✅ Exists | Type filter |
-| `count` | ✅ Exists | Limit |
-| `order` | ✅ Exists | Sort direction (ASC/DESC) |
-| `latest_before` | ✅ Exists | Date ceiling (combined date) |
-| `latest_after` | ✅ Exists | Date floor (combined date) |
-
-**Still needed:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `sort_by` | string | Field to sort by: `name`, `bucket`, `created_at`, `updated_at`, `size_bytes`, `version` |
-| `created_after` | ISO 8601 datetime | Filter by creation date (distinct from `latest_after`) |
-| `created_before` | ISO 8601 datetime | Filter by creation date |
-| `updated_after` | ISO 8601 datetime | Filter by update date |
-| `updated_before` | ISO 8601 datetime | Filter by update date |
-| `offset` | number | Offset for pagination (see Issue #23) |
-
-**New response fields needed:**
-
-```json
-{
-  "datasets": [...],
-  "total": 1234,
-  "filtered_total": 87
-}
-```
-
-**Current client-side workarounds:**
-
-| Filter | Workaround location | Remove when fixed |
-|--------|---------------------|-------------------|
-| Distinct date range filters | `datasets-shim.ts` `applyDatasetsFiltersSync` | Use `created_*`/`updated_*` params, or map to `latest_*` |
-| Sort-by field | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `sort_by` to API |
-| Fetch all instead of paginating | `datasets.ts` `fetchAllDatasets` (count: 10_000) | Use proper offset pagination |
-
-**Migration path (when backend adds these params):**
-
-1. Delete `datasets-shim.ts` entirely
-2. In `datasets.ts`: update `buildApiParams()` to include date and sort params; switch back to paginated fetch
-3. In `datasets-hooks.ts`: include date/sort params in query key
-4. In `use-datasets-data.ts`: remove shim `useMemo`, read query result directly
-5. No changes needed in UI components
-
----
-
 ### 24. Events API Returns Plain Text Without Pod Status Data
 
 **Priority:** Medium
@@ -1074,9 +951,7 @@ Option B: Include pod phase in plain text header
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
 | #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
 | #22 Shell resize corrupts input | **CRITICAL** | ~~use-websocket-shell.ts, use-shell.ts~~ | ✅ FIXED — null-byte prefix protocol |
-| #23 Dataset pagination missing offset | **High** | datasets.ts (fetch-all workaround) | Add offset param to API |
 | #24 Events API lacks pod status data | Medium | events-parser.ts, events-utils.ts, events-grouping.ts | Use actual pod status from API |
-| #25 Dataset API missing sort_by, distinct dates | **High** | datasets-shim.ts (client-side filter/sort) | Delete shim, pass params to API |
 
 ### Priority Guide
 

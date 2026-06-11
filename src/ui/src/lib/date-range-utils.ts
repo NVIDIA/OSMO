@@ -17,8 +17,7 @@
 /**
  * Date Range Utilities
  *
- * Generic date range parsing and preset definitions used across features
- * (datasets filtering, adapter layer shims, etc.).
+ * Generic date range parsing and preset definitions used across features.
  */
 
 // =============================================================================

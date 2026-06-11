@@ -16,7 +16,6 @@
 
 export interface LocalpathWarnings {
   hasFileLocalpath: boolean;
-  hasDatasetLocalpath: boolean;
 }
 
 interface ParsedKey {
@@ -69,17 +68,16 @@ function parseYamlKey(line: string, indent: number): ParsedKey | null {
  * Detect `localpath:` usage in a YAML workflow spec.
  *
  * - `hasFileLocalpath`: `localpath:` inside a `files:` block (browser cannot read local files).
- * - `hasDatasetLocalpath`: `localpath:` inside a `dataset:` block (browser cannot rsync).
  */
 export function detectLocalpathUsage(spec: string): LocalpathWarnings {
   if (!spec.includes("localpath:")) {
-    return { hasFileLocalpath: false, hasDatasetLocalpath: false };
+    return { hasFileLocalpath: false };
   }
 
   let hasFileLocalpath = false;
-  let hasDatasetLocalpath = false;
-  let context: "files" | "dataset" | null = null;
+  let context: "files" | null = null;
   let contextIndent = 0;
+  let ignoredBlockIndent: number | null = null;
 
   for (const line of spec.split("\n")) {
     const indent = leadingWhitespace(line);
@@ -87,6 +85,12 @@ export function detectLocalpathUsage(spec: string): LocalpathWarnings {
 
     if (context !== null && !isInsideBlock(indent, contextIndent, line)) {
       context = null;
+      ignoredBlockIndent = null;
+    }
+
+    if (ignoredBlockIndent !== null) {
+      if (indent > ignoredBlockIndent) continue;
+      ignoredBlockIndent = null;
     }
 
     if (line.indexOf(":", indent) === -1) continue; // fast path: no key on this line
@@ -94,19 +98,17 @@ export function detectLocalpathUsage(spec: string): LocalpathWarnings {
     if (parsed === null) continue;
 
     // files: must be nested (indent > 0) to exclude top-level `files:` keys that are
-    // not task file lists. dataset: is valid at any indent level, including root.
+    // not task file lists.
     if (parsed.name === "files" && indent > 0 && parsed.isBlock) {
       context = "files";
       contextIndent = indent;
-    } else if (parsed.name === "dataset" && parsed.isBlock) {
-      context = "dataset";
-      contextIndent = indent;
     } else if (parsed.name === "localpath" && context !== null) {
-      if (context === "files") hasFileLocalpath = true;
-      else hasDatasetLocalpath = true;
-      if (hasFileLocalpath && hasDatasetLocalpath) break;
+      hasFileLocalpath = true;
+      break;
+    } else if (parsed.isBlock && context !== null) {
+      ignoredBlockIndent = indent;
     }
   }
 
-  return { hasFileLocalpath, hasDatasetLocalpath };
+  return { hasFileLocalpath };
 }

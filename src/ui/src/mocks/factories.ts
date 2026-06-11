@@ -23,11 +23,8 @@
 
 import {
   BackendResourceType,
-  DatasetType,
   PoolStatus,
   WorkflowStatus,
-  type DataListEntry,
-  type DataListResponse,
   type PoolResourceUsage,
   type ResourcesEntry,
   type PoolResponse,
@@ -227,32 +224,5 @@ export function createWorkflowsResponse(
   };
 }
 
-// =============================================================================
-// Dataset factories
-// =============================================================================
-
-export function createDatasetEntry(overrides: Partial<DataListEntry> = {}): DataListEntry {
-  const now = new Date();
-  return {
-    name: overrides.name ?? `dataset-${Math.random().toString(36).slice(2, 8)}`,
-    id: overrides.id ?? crypto.randomUUID(),
-    bucket: overrides.bucket ?? "default-bucket",
-    create_time: overrides.create_time ?? now.toISOString(),
-    last_created: overrides.last_created ?? now.toISOString(),
-    hash_location: overrides.hash_location ?? null,
-    hash_location_size: overrides.hash_location_size ?? null,
-    version_id: overrides.version_id ?? null,
-    type: overrides.type ?? DatasetType.DATASET,
-    ...overrides,
-  };
-}
-
-export function createDatasetsResponse(datasets: Partial<DataListEntry>[] = []): DataListResponse {
-  const defaultDatasets =
-    datasets.length > 0 ? datasets.map((d, i) => createDatasetEntry({ name: `dataset-${i + 1}`, ...d })) : [];
-
-  return { datasets: defaultDatasets };
-}
-
 // Re-export generated enums so E2E tests can import from one place
-export { BackendResourceType, DatasetType, PoolStatus, WorkflowStatus } from "@/lib/api/generated";
+export { BackendResourceType, PoolStatus, WorkflowStatus } from "@/lib/api/generated";

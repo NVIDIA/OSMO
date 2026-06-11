@@ -15,8 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import { createPoolResponse, createResourcesResponse, createDatasetsResponse, DatasetType } from "@/mocks/factories";
-import { setupDefaultMocks, setupPools, setupProfile, setupResources, setupDatasets } from "@/e2e/utils/mock-setup";
+import { createPoolResponse, createResourcesResponse } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupProfile, setupResources } from "@/e2e/utils/mock-setup";
 
 /**
  * Navigation Journey Tests
@@ -26,7 +26,7 @@ import { setupDefaultMocks, setupPools, setupProfile, setupResources, setupDatas
  *
  * User-facing sidebar routes (admin routes excluded):
  *   Dashboard /  ·  Workflows /workflows  ·  Pools /pools
- *   Resources /resources  ·  Occupancy /occupancy  ·  Datasets /datasets
+ *   Resources /resources  ·  Occupancy /occupancy
  *
  * Implementation notes:
  * - Scope sidebar queries to [data-sidebar="sidebar"] to avoid matching page
@@ -51,7 +51,7 @@ test.describe("Sidebar Links", () => {
   });
 
   test("shows all user-facing navigation links", async ({ page }) => {
-    for (const name of ["Dashboard", "Workflows", "Pools", "Resources", "Occupancy", "Datasets"]) {
+    for (const name of ["Dashboard", "Workflows", "Pools", "Resources", "Occupancy"]) {
       await expect(sidebarLink(page, name)).toBeVisible();
     }
   });
@@ -103,12 +103,6 @@ test.describe("Sidebar Navigation", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test("Datasets link navigates to /datasets", async ({ page }) => {
-    await sidebarLink(page, "Datasets").click();
-    await expect(page).toHaveURL(/\/datasets/);
-    await page.waitForLoadState("networkidle");
-  });
-
   test("Dashboard link navigates to /", async ({ page }) => {
     await sidebarLink(page, "Dashboard").click();
     await expect(page).toHaveURL(/\/$/);
@@ -152,12 +146,6 @@ test.describe("Route Loading", () => {
     await page.goto("/occupancy", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/occupancy/);
     await expect(sidebarLink(page, "Occupancy")).toBeVisible();
-  });
-
-  test("/datasets loads", async ({ page }) => {
-    await page.goto("/datasets", { waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL(/\/datasets/);
-    await expect(sidebarLink(page, "Datasets")).toBeVisible();
   });
 
   test("/profile loads", async ({ page }) => {
@@ -238,44 +226,14 @@ test.describe("Cross-Page Navigation", () => {
     await setupProfile(page);
   });
 
-  test("navigating from datasets list to dataset detail and back", async ({ page }) => {
-    // ARRANGE — mock datasets for the list page
-    await setupDatasets(
-      page,
-      createDatasetsResponse([
-        { name: "nav-test-dataset", bucket: "nav-bucket", type: DatasetType.DATASET },
-      ]),
-    );
-
-    // ACT — start at datasets list
-    await page.goto("/datasets?all=true");
-    await page.waitForLoadState("networkidle");
-
-    // Click the dataset row to navigate to detail
-    const grid = page.getByRole("grid");
-    const firstDataRow = grid.getByRole("row").nth(1);
-    await expect(firstDataRow).toBeVisible();
-    await firstDataRow.click();
-
-    // ASSERT — navigated to a dataset detail page
-    await expect(page).toHaveURL(/\/datasets\/[^/]+\/[^/]+/);
-
-    // Navigate back via breadcrumb
-    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
-    await breadcrumb.getByText("Datasets").first().click();
-
-    // ASSERT — back at datasets list
-    await expect(page).toHaveURL(/\/datasets\b/);
-  });
-
   test("sidebar links work across multiple page navigations", async ({ page }) => {
     // ACT — start at pools
     await page.goto("/pools");
     await page.waitForLoadState("networkidle");
 
-    // Navigate using sidebar to Datasets
-    await sidebarLink(page, "Datasets").click();
-    await expect(page).toHaveURL(/\/datasets/);
+    // Navigate using sidebar to Resources
+    await sidebarLink(page, "Resources").click();
+    await expect(page).toHaveURL(/\/resources/);
     await page.waitForLoadState("networkidle");
 
     // Navigate back to Pools via sidebar

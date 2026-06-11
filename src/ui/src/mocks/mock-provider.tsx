@@ -34,7 +34,6 @@ declare global {
       setResourcePerPool: (n: number) => Promise<void>;
       setResourceTotalGlobal: (n: number) => Promise<void>;
       setBucketTotal: (n: number) => Promise<void>;
-      setDatasetTotal: (n: number) => Promise<void>;
       setVolumes: (volumes: Partial<MockVolumes>) => Promise<void>;
       getVolumes: () => Promise<MockVolumes>;
       help: () => void;
@@ -67,7 +66,6 @@ export function MockProvider({ children }: MockProviderProps) {
       setResourcePerPool: createSetter("resourcesPerPool"),
       setResourceTotalGlobal: createSetter("resourcesGlobal"),
       setBucketTotal: createSetter("buckets"),
-      setDatasetTotal: createSetter("datasets"),
 
       setVolumes: async (volumes: Partial<MockVolumes>) => {
         const result = await setMockVolumes(volumes);
@@ -89,7 +87,6 @@ Set individual volumes:
   await __mockConfig.setResourcePerPool(10000)
   await __mockConfig.setResourceTotalGlobal(1000000)
   await __mockConfig.setBucketTotal(10000)
-  await __mockConfig.setDatasetTotal(50000)
 
 Set multiple at once:
   await __mockConfig.setVolumes({ workflows: 100000, pools: 500 })

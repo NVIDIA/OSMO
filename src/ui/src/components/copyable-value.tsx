@@ -148,7 +148,7 @@ export interface CopyableBlockProps {
  *
  * @example
  * ```tsx
- * <CopyableBlock value="/mnt/shared/datasets:/data:ro" />
+ * <CopyableBlock value="/mnt/shared/data:/data:ro" />
  * ```
  */
 export function CopyableBlock({ value, className }: CopyableBlockProps) {
