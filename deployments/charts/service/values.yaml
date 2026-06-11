@@ -1983,7 +1983,7 @@ gateway:
       timeout: 0s
       cookie:
         name: _osmo_router_affinity
-        ttl: 60s
+        ttl: 0s
 
     ## Advanced service routes for the osmo-service upstream.
     ## Each entry is a standard Envoy route YAML block (match + route).
@@ -2032,8 +2032,10 @@ gateway:
       port: 80
     logger:
       enabled: true
-      host: osmo-logger
-      port: 80
+      host: osmo-logger-headless
+      ## Port 8000 (not 80) because the headless service resolves to pod IPs
+      ## directly, and Envoy connects to the pod port, not the Service port.
+      port: 8000
 
   ## -----------------------------------------------------------------------
   ## Gateway OAuth2 Proxy — handles OIDC authentication flows.
