@@ -1,0 +1,71 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Test if we can port-forward a workflow from within itself
+# TODO: We must re-login with credentials for this to work
+# Otherwise the OSMO command doesnt have permissions to to exec
+workflow:
+  name: portforward_workflow
+  timeout: {{ timeout }}
+  tasks:
+  - name: task1
+    image: ubuntu:22.04
+    command:
+    - /bin/bash
+    - -c
+    - |
+        set -ex
+
+        # Kill all child processes when this script exits
+        trap 'pkill -P $BASHPID' EXIT
+
+        apt update
+        apt install -y netcat
+
+        # Create netcat server to dump into a file
+        nc -l 12345 > /tmp/file.txt &
+
+        # Now, wait for the workflow to be considered "RUNNING"
+        while ! osmo workflow query {{workflow_id}} | grep -q "RUNNING"; do
+            sleep 1
+        done
+
+        # Next, port forward this workflow from within itself. Wait a few seconds for the
+        # port-forward session to start.
+        osmo workflow port-forward {{workflow_id}} task1 --port 8080:12345 &
+        sleep 10
+
+        # Now send a message through the forwarded port
+        MESSAGE="Hello from workflow {{workflow_id}} port-forward"
+        echo $MESSAGE | nc -N localhost 8080
+
+        # Wait for the server to finish writing to the file
+        sleep 1
+
+        # Verify the file exists and has the correct message
+        if [ ! -f /tmp/file.txt ]; then
+            echo "File /tmp/file.txt does not exist"
+            exit 1
+        fi
+
+        if [ "$(cat /tmp/file.txt)" != "${MESSAGE}" ]; then
+            echo "File /tmp/file.txt has the wrong message"
+            exit 1
+        fi
+
+        echo "File /tmp/file.txt created through port-forward has the correct message"
+  resources:
+    default:
+      gpu: {{gpus}}
+
+default-values:
+  gpus: 0
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h

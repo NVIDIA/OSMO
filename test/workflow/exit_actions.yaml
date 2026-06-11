@@ -1,0 +1,36 @@
+#####################################################################################
+# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+workflow:
+  name: exit-actions
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: {{platform}}
+  tasks:
+  - name: test
+    image: ubuntu:22.04
+    command: [/bin/sh]
+    args: [/tmp/run.sh]
+    files:
+    - contents: |
+        echo hello
+        exit {{code}}
+      path: /tmp/run.sh
+
+    exitActions:
+       COMPLETE: 15
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+default-values:
+  platform: cpu-x86
+  code: 15

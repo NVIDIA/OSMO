@@ -1,0 +1,129 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: {{workflow_name}}
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: {{platform}}
+  groups:
+  - name: {{workflow_name}}-group
+    tasks:
+    - name: {{workflow_name}}-task-01
+      lead: true
+      image: ubuntu:22.04
+      resource: default
+      args: ['/tmp/run.sh']
+      command: ['/bin/bash']
+      files:
+      - contents: |
+          ls -alR {{input:0}}
+
+          input_path_1={{input:0}}/{{workflow_name}}/input/folder_input_0
+          input_path_2={{input:0}}/{{workflow_name}}/input/folder_input_1
+
+          for input_path in $input_path_1 $input_path_2; do
+            echo "Validating input_path: $input_path"
+
+            # Check if the folder_input directory exists
+            if [ ! -d $input_path ]; then
+              echo "Error: $input_path directory does not exist"
+              exit 1
+            else
+              echo "Successfully validated $input_path directory exists"
+            fi
+
+            # Check if the test_file.txt file exists in the folder_input directory
+            if [ ! -f "$input_path/test_file.txt" ]; then
+              echo "Error: $input_path/test_file.txt does not exist"
+              exit 1
+            else
+              echo "Successfully validated $input_path/test_file.txt exists"
+            fi
+
+            # Check if the test_file.txt file contains the expected content
+            if [ "$(cat $input_path/test_file.txt)" != "test_file_content" ]; then
+              echo "Error: $input_path/test_file.txt does not contain the expected content"
+              exit 1
+            else
+              echo "Successfully validated $input_path/test_file.txt contains the expected content"
+            fi
+
+            echo "Successfully validated input_path: $input_path"
+          done
+        path: /tmp/run.sh
+      inputs:
+      - dataset:
+          name: "{{bucket}}/{{workflow_name}}"
+          localpath: input
+
+    - name: {{workflow_name}}-task-02
+      image: ubuntu:22.04
+      resource: default
+      args: ['/tmp/run.sh']
+      command: ['/bin/bash']
+      files:
+      - contents: |
+          ls -alR {{input:0}}
+
+          input_path={{input:0}}/{{workflow_name}}/folder_input_1
+          invalid_input_path={{input:0}}/{{workflow_name}}/folder_input_0
+
+          echo "input_path: $input_path"
+
+          # Check if the folder_input directory exists
+          if [ ! -d $input_path ]; then
+            echo "Error: $input_path directory does not exist"
+            exit 1
+          else
+            echo "Successfully validated input_path: $input_path"
+          fi
+
+          # Check if the test_file.txt file exists in the folder_input directory
+          if [ ! -f "$input_path/test_file.txt" ]; then
+            echo "Error: $input_path/test_file.txt does not exist"
+            exit 1
+          else
+            echo "Successfully validated $input_path/test_file.txt exists"
+          fi
+
+          # Check if the test_file.txt file contains the expected content
+          if [ "$(cat $input_path/test_file.txt)" != "test_file_content" ]; then
+            echo "Error: $input_path/test_file.txt does not contain the expected content"
+            exit 1
+          else
+            echo "Successfully validated $input_path/test_file.txt contains the expected content"
+          fi
+
+          # Check the other folder_input directory is not present
+          if [ -d "$invalid_input_path" ]; then
+            echo "Error: $invalid_input_path directory should not exist"
+            exit 1
+          else
+            echo "Successfully validated $invalid_input_path does not exist"
+          fi
+
+          echo "Successfully validated folder_input"
+        path: /tmp/run.sh
+      inputs:
+      - dataset:
+          name: "{{bucket}}/{{workflow_name}}"
+          localpath: input/folder_input_1
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  workflow_name: folder-input-test
+  platform: cpu-x86
+  bucket: osmo

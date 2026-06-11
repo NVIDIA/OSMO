@@ -1,0 +1,38 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: workflow-cli
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: {{platform}}
+  tasks:
+  - name: workflow-cli
+    image: ubuntu:22.04
+    resource: default
+    args: ['/tmp/run.sh']
+    command: ['/bin/bash']
+    files:
+    - contents: |
+        # Wait for 2 mins for spec to be uploaded
+        sleep 2m
+        bash /tmp/osmo_workflow_test.sh
+      path: /tmp/run.sh
+    - localpath: scripts/workflow_cli.sh
+      path: /tmp/osmo_workflow_test.sh
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  platform: cpu-x86

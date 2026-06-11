@@ -1,0 +1,46 @@
+#####################################################################################
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Task Runtime Environment Test (OETF 3-file pattern)
+#
+# Validates the container environment is properly configured by running
+# in-task assertions (DNS, env vars, mounts, image pin).
+#
+# Catches bugs that status-only testing misses:
+#   - Logger unreachable (NVBugs 5887595)
+#   - Broken mounts (NVBugs 5968974)
+#   - Missing env vars (NVBugs 5933448)
+#
+# task_fixture.py and task.py are injected by the OETF executor at submission time.
+
+version: 2
+workflow:
+  name: oetf-task-runtime-environment-{{test_id}}
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 30m
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: check
+    image: python:3.10-slim
+    command: ["python3"]
+    args: ["/tmp/oetf/task.py"]
+    resource: default
+    outputs:
+    - dataset:
+        name: "{{bucket}}/oetf-task-runtime-environment-probe"
+
+default-values:
+  bucket: osmo
+  test_id: "0"

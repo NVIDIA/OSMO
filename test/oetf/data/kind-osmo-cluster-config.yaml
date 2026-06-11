@@ -1,0 +1,71 @@
+#####################################################################################
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# KIND cluster config for OETF's ``oetf:deploy --type kind``.
+#
+# Copied verbatim from the public CPU deploy guide:
+#   https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html
+#
+# Five labeled workers cover every ``node_group`` value the osmo/quick-start
+# chart uses, so the chart installs with no ``--set nodeSelector`` overrides:
+#   kai-scheduler — kai-scheduler pods
+#   data          — postgres, redis, localstack
+#   service (×2)  — osmo services + ingress-nginx (one has port 80 → 30080)
+#   compute       — workflow task pods scheduled by the backend operator
+#
+# ~400–600 MB of docker overhead per worker; total node footprint on Docker
+# Desktop runs ~2–3 GB on top of whatever the osmo pods use.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: osmo
+nodes:
+  - role: control-plane
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=kai-scheduler"
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=data"
+    extraMounts:
+      - hostPath: /tmp/localstack-s3
+        containerPath: /var/lib/localstack
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=service"
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 80
+        protocol: TCP
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=service"
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=compute"

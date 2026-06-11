@@ -1,0 +1,32 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# This template will run for a very long time, and should timeout
+version: 2
+workflow:
+  name: template-too-much-cpu
+  tasks:
+  - name: task1
+    image:  ubuntu:22.04
+    command:
+    - /bin/bash
+    - -c
+    - |
+        {%- for i in range(10000) -%}
+        {%- for j in range(10000) -%}
+        {%- for k in range(10000) -%}
+        {%- for l in range(10000) -%}
+        {%- endfor -%}
+        {%- endfor -%}
+        {%- endfor -%}
+        {%- endfor -%}
+
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 1h
