@@ -185,6 +185,7 @@ metadata:
     alb.ingress.kubernetes.io/group.name: {{ $gw.envoy.ingress.albAnnotations.groupName | default "osmo" }}
     alb.ingress.kubernetes.io/group.order: {{ $gw.envoy.ingress.albAnnotations.groupOrder | default "10" | quote }}
     alb.ingress.kubernetes.io/certificate-arn: {{ $gw.envoy.ingress.albAnnotations.sslCertArn }}
+    alb.ingress.kubernetes.io/healthcheck-path: /api/version
     {{- end }}
     {{- range $k, $v := $gw.envoy.ingress.annotations }}
     {{ $k }}: {{ $v | quote }}

@@ -232,7 +232,7 @@ data:
                     hash_policy:
                     - cookie:
                         name: {{ $envoy.routerRoute.cookie.name | default "_osmo_router_affinity" }}
-                        ttl: {{ $envoy.routerRoute.cookie.ttl | default "60s" }}
+                        ttl: {{ $envoy.routerRoute.cookie.ttl | default "0s" }}
                   # osmo-router still expects x-forwarded-host, but it should
                   # only receive the sanitized gateway authority.
                   request_headers_to_add:
@@ -666,10 +666,10 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.service.host }}
           common_tls_context:
-            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
-                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
-                 the openssl version supports it). Allow up to 1.3 so
-                 negotiation can pick the most compatible option. */}}
+            # Envoy upstream TLS defaults can be narrower than uvicorn's
+            # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
+            # openssl version supports it). Allow up to 1.3 so negotiation
+            # can pick the most compatible option.
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
@@ -709,10 +709,10 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.router.host }}
           common_tls_context:
-            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
-                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
-                 the openssl version supports it). Allow up to 1.3 so
-                 negotiation can pick the most compatible option. */}}
+            # Envoy upstream TLS defaults can be narrower than uvicorn's
+            # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
+            # openssl version supports it). Allow up to 1.3 so negotiation
+            # can pick the most compatible option.
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
@@ -744,12 +744,10 @@ data:
                 socket_address:
                   address: {{ $gw.upstreams.ui.host }}
                   port_value: {{ $gw.upstreams.ui.port }}
-      {{/*
-        UI traffic stays HTTP — Next.js does not natively serve HTTPS and
-        the UI sits behind NetworkPolicy. Confidentiality of the UI HTML
-        relies on browser → gateway TLS (gateway.envoy.ssl.enabled), not on
-        Envoy → upstream TLS.
-      */}}
+      # UI traffic stays HTTP. Next.js does not natively serve HTTPS and the
+      # UI sits behind NetworkPolicy. Confidentiality of the UI HTML relies on
+      # browser to gateway TLS (gateway.envoy.ssl.enabled), not on Envoy to
+      # upstream TLS.
     {{- end }}
 
     {{- if $gw.upstreams.agent.enabled }}
@@ -775,10 +773,10 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.agent.host }}
           common_tls_context:
-            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
-                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
-                 the openssl version supports it). Allow up to 1.3 so
-                 negotiation can pick the most compatible option. */}}
+            # Envoy upstream TLS defaults can be narrower than uvicorn's
+            # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
+            # openssl version supports it). Allow up to 1.3 so negotiation
+            # can pick the most compatible option.
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
@@ -817,10 +815,10 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.logger.host }}
           common_tls_context:
-            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
-                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
-                 the openssl version supports it). Allow up to 1.3 so
-                 negotiation can pick the most compatible option. */}}
+            # Envoy upstream TLS defaults can be narrower than uvicorn's
+            # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
+            # openssl version supports it). Allow up to 1.3 so negotiation
+            # can pick the most compatible option.
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
@@ -946,10 +944,10 @@ data:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $jwksHost }}
           common_tls_context:
-            {{/* Envoy upstream TLS defaults can be narrower than uvicorn's
-                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
-                 the openssl version supports it). Allow up to 1.3 so
-                 negotiation can pick the most compatible option. */}}
+            # Envoy upstream TLS defaults can be narrower than uvicorn's
+            # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
+            # openssl version supports it). Allow up to 1.3 so negotiation
+            # can pick the most compatible option.
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
