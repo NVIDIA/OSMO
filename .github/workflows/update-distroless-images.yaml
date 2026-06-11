@@ -1,0 +1,228 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Update distroless images
+
+on:
+  schedule:
+    # GitHub cron is UTC. Run at 21:00 and 22:00 UTC, then gate on
+    # America/Los_Angeles hour 14 so the workflow stays at 2 PM PT/PDT.
+    - cron: '0 21,22 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_slack:
+        description: 'Skip the Slack review request'
+        type: boolean
+        default: false
+      slack_channel:
+        description: 'Slack channel or channel ID for review request'
+        default: 'C096VCXRK8U'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-distroless-images
+  cancel-in-progress: false
+
+jobs:
+  update-distroless:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Schedule gate
+        id: schedule-gate
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            local_hour=$(TZ=America/Los_Angeles date +%H)
+            if [[ "$local_hour" != "14" ]]; then
+              echo "Not 2 PM Pacific yet (local hour: $local_hour); skipping."
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+
+      - name: Checkout
+        if: steps.schedule-gate.outputs.should_run == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          persist-credentials: false
+
+      - name: Configure git
+        if: steps.schedule-gate.outputs.should_run == 'true'
+        run: |
+          git config user.name "svc-osmo-ci"
+          git config user.email "svc-osmo-ci@users.noreply.github.com"
+
+      - name: Validate distroless updater
+        if: steps.schedule-gate.outputs.should_run == 'true'
+        run: python3 -m unittest scripts/distroless/tests/test_update_distroless.py
+
+      - name: Check latest distroless images
+        if: steps.schedule-gate.outputs.should_run == 'true'
+        id: distroless
+        run: |
+          set -euo pipefail
+          python3 scripts/distroless/update_distroless.py --apply
+
+      - name: Create or find pull request
+        if: steps.schedule-gate.outputs.should_run == 'true' && steps.distroless.outputs.updated == 'true'
+        id: create-pr
+        env:
+          GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          BRANCH_NAME: ${{ steps.distroless.outputs.branch_name }}
+          PR_TITLE: ${{ steps.distroless.outputs.pr_title }}
+          VERSION_LABEL: ${{ steps.distroless.outputs.version_label }}
+          CURRENT_PYTHON_TAG: ${{ steps.distroless.outputs.current_python_tag }}
+          CURRENT_PYTHON_DEV_TAG: ${{ steps.distroless.outputs.current_python_dev_tag }}
+          LATEST_PYTHON_TAG: ${{ steps.distroless.outputs.latest_python_tag }}
+          LATEST_PYTHON_DEV_TAG: ${{ steps.distroless.outputs.latest_python_dev_tag }}
+          LATEST_PYTHON_DIGEST: ${{ steps.distroless.outputs.latest_python_digest }}
+          LATEST_PYTHON_DEV_DIGEST: ${{ steps.distroless.outputs.latest_python_dev_digest }}
+          CURRENT_NODE_TAG: ${{ steps.distroless.outputs.current_node_tag }}
+          LATEST_NODE_TAG: ${{ steps.distroless.outputs.latest_node_tag }}
+        run: |
+          set -euo pipefail
+
+          existing_pr=$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$BRANCH_NAME" \
+              --state open \
+              --json url \
+              --jq '.[0].url // ""'
+          )
+          if [[ -n "$existing_pr" ]]; then
+            echo "Open PR already exists for $BRANCH_NAME: $existing_pr"
+            echo "pr_url=$existing_pr" >> "$GITHUB_OUTPUT"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "notification_kind=reminder" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git checkout -B "$BRANCH_NAME"
+          git add MODULE.bazel src/ui/Dockerfile
+          git commit -m "$PR_TITLE"
+          git remote set-url origin \
+            "https://x-access-token:${{ secrets.SVC_OSMO_CI_TOKEN }}@github.com/${{ github.repository }}.git"
+
+          remote_branch_sha=$(
+            git ls-remote --heads origin "$BRANCH_NAME" | awk '{print $1}'
+          )
+          if [[ -n "$remote_branch_sha" ]]; then
+            git push -u \
+              --force-with-lease="refs/heads/$BRANCH_NAME:$remote_branch_sha" \
+              origin HEAD:"$BRANCH_NAME"
+          else
+            git push -u origin HEAD:"$BRANCH_NAME"
+          fi
+
+          body_file="$RUNNER_TEMP/distroless-pr-body.md"
+          cat > "$body_file" <<EOF
+          ## Description
+          Update NVIDIA distroless base images used by OSMO:
+          - Python runtime: \`$CURRENT_PYTHON_TAG\` -> \`$LATEST_PYTHON_TAG\`, pinned to OCI index digest \`$LATEST_PYTHON_DIGEST\`
+          - Python debug image reference: \`$CURRENT_PYTHON_DEV_TAG\` -> \`$LATEST_PYTHON_DEV_TAG\`, with OCI index digest \`$LATEST_PYTHON_DEV_DIGEST\`
+          - UI Node runtime: \`$CURRENT_NODE_TAG\` -> \`$LATEST_NODE_TAG\`
+
+          Issue - None
+
+          ## Validation
+          - Automation queried nvcr.io for the latest configured Python and Node distroless tags.
+          - Automation refreshed the Python OCI index digest from nvcr.io.
+
+          ## Checklist
+          - [x] I am familiar with the [Contributing Guidelines](https://github.com/NVIDIA/OSMO/blob/main/CONTRIBUTING.md).
+          - [x] New or existing tests cover these changes.
+          - [x] The documentation is up to date with these changes.
+          EOF
+
+          pr_url=$(
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BRANCH_NAME" \
+              --title "$PR_TITLE" \
+              --body-file "$body_file"
+          )
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          echo "notification_kind=created" >> "$GITHUB_OUTPUT"
+
+      - name: Send Slack review request
+        if: >-
+          steps.schedule-gate.outputs.should_run == 'true' &&
+          steps.distroless.outputs.updated == 'true' &&
+          steps.create-pr.outputs.pr_url != ''
+        env:
+          TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
+          TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || 'C096VCXRK8U') || inputs.slack_channel }}
+          SKIP_SLACK: ${{ inputs.skip_slack || 'false' }}
+          NOTIFICATION_KIND: ${{ steps.create-pr.outputs.notification_kind }}
+          PR_URL: ${{ steps.create-pr.outputs.pr_url }}
+          VERSION_LABEL: ${{ steps.distroless.outputs.version_label }}
+        run: |
+          set -euo pipefail
+          if [[ "$SKIP_SLACK" == "true" ]]; then
+            echo "skip_slack=true; skipping Slack notification."
+            exit 0
+          fi
+          if [[ -z "${TESTBOT_SLACK_BOT_TOKEN:-}" ]]; then
+            echo "TESTBOT_SLACK_BOT_TOKEN not set; skipping Slack notification."
+            exit 0
+          fi
+          if [[ -z "${TESTBOT_SLACK_CHANNEL:-}" ]]; then
+            echo "TESTBOT_SLACK_CHANNEL empty; skipping Slack notification."
+            exit 0
+          fi
+
+          if [[ "$NOTIFICATION_KIND" == "reminder" ]]; then
+            slack_text="Reminder: could someone review $PR_URL when you get a chance? It updates the OSMO distroless Python/UI images to $VERSION_LABEL."
+          else
+            slack_text="Could someone review $PR_URL when you get a chance? It updates the OSMO distroless Python/UI images to $VERSION_LABEL."
+          fi
+
+          payload=$(
+            jq -n \
+              --arg channel "$TESTBOT_SLACK_CHANNEL" \
+              --arg text "$slack_text" \
+              '{channel: $channel, text: $text}'
+          )
+          if ! response=$(
+            curl -fsSL \
+              -H "Authorization: Bearer $TESTBOT_SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              -d "$payload" \
+              https://slack.com/api/chat.postMessage
+          ); then
+            echo "Slack notification request failed; skipping."
+            exit 0
+          fi
+          ok=$(jq -r '.ok' <<<"$response")
+          if [[ "$ok" != "true" ]]; then
+            echo "Slack notification failed: $response"
+            exit 0
+          fi
+
+      - name: No update found
+        if: steps.schedule-gate.outputs.should_run == 'true' && steps.distroless.outputs.updated != 'true'
+        run: echo "Distroless image pins are already up to date."
