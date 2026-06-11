@@ -29,6 +29,10 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $gw := .Values.gateway }}
 {{- $envoy := $gw.envoy }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
+{{- $authnSkipPaths := $skipAuthPaths }}
+{{- if $gw.oauth2Proxy.enabled }}
+{{- $authnSkipPaths = uniq (concat $authnSkipPaths (list "/oauth2/" "/signout")) }}
+{{- end }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- if $envoy.enabled }}
 apiVersion: v1
@@ -349,12 +353,15 @@ data:
                         return
                       end
                     end
-            {{- if $skipAuthPaths }}
+            {{- if $authnSkipPaths }}
             {{- /* Authn skip paths bypass both authn and authz. */}}
             # set_metadata has no path matcher of its own, so wrap it and
             # skip the metadata filter on non-skip paths. Matching skip paths
             # set both authn and authz metadata because bypassing authn also
             # bypasses downstream authz.
+            # When OAuth2 Proxy is enabled, the chart adds its control
+            # endpoints to this list so callbacks reach oauth2-proxy
+            # instead of being pre-checked by its /oauth2/auth endpoint.
             - name: set-authn-skip-metadata
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
@@ -366,10 +373,10 @@ data:
                           {{- /* Envoy validates or_matcher as requiring at
                                  least two predicates. A single skipAuthPath
                                  must be emitted as a bare single_predicate. */}}
-                          {{- if gt (len $skipAuthPaths) 1 }}
+                          {{- if gt (len $authnSkipPaths) 1 }}
                           or_matcher:
                             predicate:
-                            {{- range $skipAuthPaths }}
+                            {{- range $authnSkipPaths }}
                             - single_predicate:
                                 input:
                                   name: request-headers
@@ -387,7 +394,7 @@ data:
                                 "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
                                 header_name: ":path"
                             value_match:
-                              prefix: {{ (index $skipAuthPaths 0) | quote }}
+                              prefix: {{ (index $authnSkipPaths 0) | quote }}
                           {{- end }}
                       on_match:
                         action:
@@ -440,7 +447,7 @@ data:
                                   header_name: authorization
                               value_match:
                                 prefix: "Bearer "
-                          {{- if $skipAuthPaths }}
+                          {{- if $authnSkipPaths }}
                           - single_predicate:
                               input:
                                 name: envoy.matching.inputs.dynamic_metadata
