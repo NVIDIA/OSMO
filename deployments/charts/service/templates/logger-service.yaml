@@ -233,6 +233,24 @@ spec:
 
 ---
 
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.logger.serviceName }}-headless
+  labels:
+    app: {{ .Values.services.logger.serviceName }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.services.logger.serviceName }}
+
+---
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

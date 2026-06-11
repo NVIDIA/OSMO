@@ -232,7 +232,7 @@ data:
                     hash_policy:
                     - cookie:
                         name: {{ $envoy.routerRoute.cookie.name | default "_osmo_router_affinity" }}
-                        ttl: {{ $envoy.routerRoute.cookie.ttl | default "60s" }}
+                        ttl: {{ $envoy.routerRoute.cookie.ttl | default "0s" }}
                   # osmo-router still expects x-forwarded-host, but it should
                   # only receive the sanitized gateway authority.
                   request_headers_to_add:
