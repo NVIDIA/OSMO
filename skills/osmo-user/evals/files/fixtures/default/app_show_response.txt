@@ -1,0 +1,7 @@
+DESCRIPTION
+  Runs GR00T fine-tuning workflows
+
+PARAMETERS
+  model: gr00t-base
+  epochs: 10
+  batch_size: 32

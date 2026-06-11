@@ -1,0 +1,9 @@
+Name: gr00t-train
+UUID: app-123
+Owner: user@example.com
+Description: Runs GR00T fine-tuning workflows
+
+Version  Created By        Status
+=================================
+1        user@example.com  READY
+2        user@example.com  READY

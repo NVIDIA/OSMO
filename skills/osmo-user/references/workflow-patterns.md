@@ -8,6 +8,9 @@ single-task scaffold is in `references/cookbook-fetching.md`.
 
 ## Related Workflow References
 
+Read `references/workflow-spec.md` when you need a compact field map for valid
+workflow YAML shapes before choosing a pattern.
+
 Read `references/workflow-advanced-patterns.md` only when the request requires
 checkpointing, exit/retry behavior, node exclusion, or topology placement
 constraints. Those patterns are intentionally separate so common workflow

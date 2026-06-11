@@ -1,0 +1,3 @@
+Data download successful.
+URI: s3://robotics-artifacts/run-42/
+Path: /home/agent/outputs

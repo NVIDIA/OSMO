@@ -3,13 +3,16 @@ name: osmo-user
 description: >
   Drive the OSMO CLI for cloud-robotics compute on behalf of an end user:
   check resources, submit/monitor/debug/explain workflows, fetch logs and
-  Grafana/Kubernetes links, and create workflow apps. Use whenever the user
-  asks about OSMO pools, quota, GPUs, or nodes, or about submitting, listing,
-  querying, monitoring, or troubleshooting workflows — including failed,
-  PENDING, queued, or stuck ones — even when they describe a workflow or
-  cluster resource without saying "OSMO". Do not use for Kubernetes admin,
-  server-side `osmo config` changes, OSMO install/deploy, non-OSMO compute, or
-  general NVIDIA hardware questions.
+  Grafana/Kubernetes links, inspect direct data storage, manage workflow apps,
+  and set workflow credentials.
+  Use whenever the user asks about OSMO pools, quota, GPUs, or nodes, or about
+  submitting, listing, querying, monitoring, or troubleshooting workflows —
+  including failed, PENDING, queued, stuck, or image-pull-blocked workflows, or
+  when they ask to inspect or transfer direct storage URIs such as `s3://...`,
+  even when they describe a workflow, cluster resource, or storage URI without
+  saying "OSMO".
+  Do not use for Kubernetes admin, server-side `osmo config` changes, OSMO
+  install/deploy, non-OSMO compute, or general NVIDIA hardware questions.
 ---
 
 # osmo-user
@@ -21,6 +24,9 @@ router: load only the reference files needed for the current task.
 
 Before the first OSMO command in a conversation:
 
+0. For cancel/delete/force/destructive requests, ask for explicit confirmation
+   before running any `osmo` command, including `osmo --version` or query
+   commands. After confirmation, continue with the checks below.
 1. Confirm the CLI is available: `osmo --version`. If it fails, tell the user
    the OSMO CLI is unavailable and stop.
 2. If any command returns an authentication error, ask the user to run
@@ -79,6 +85,23 @@ Resources, pools, GPUs, nodes, or quota.
 - Discover profile/pool access and report effective capacity (`min(Quota Free, Total Free)`).
 - If pool/resource output is empty or ambiguous, re-check access here and state uncertainty instead of guessing.
 
+### `references/cli-commands.md`
+Safe end-user OSMO command lookup when no dedicated reference applies.
+- "Check whether I can read from s3://...", "Download this s3:// path", "What is the command for data download?", "How do I list direct storage?", "Set my default pool" — use this for auth/version/profile/data/task syntax.
+- For workflow, app, credential, resource, or troubleshooting details, follow this file's routing to the dedicated reference.
+- If the requested command is `osmo config`, `osmo user`, role/bucket/admin mutation, or Kubernetes administration, treat it as out of scope.
+
+### `references/workflow-commands.md`
+Workflow submit/list/query/log/event/spec subcommand and flag lookup.
+- "Validate this workflow", "Dry run it", "What flags does workflow list support?", "How do I fetch logs?", "Show the rendered spec"
+- Use for command syntax only; use `references/workflow-submit.md`, `references/workflow-status.md`, or `references/troubleshooting.md` for procedures.
+
+### `references/workflow-runtime-commands.md`
+Live workflow runtime operations.
+- "Cancel workflow X", "Exec into task Y", "Port-forward task Z", "Rsync files into this workflow", "Add a tag to this workflow"
+- Ask for confirmation before cancellation and other destructive operations. A
+  bare request like "Cancel workflow X" is not confirmation.
+
 ### `references/workflow-submit.md`
 Submit a supplied or generated workflow.
 - "Submit workflow.yaml", "Pick a free H100 pool", "No need to ask" — read the supplied YAML as-is, choose a pool (use `references/resource-check-format.md` for pool selection), and submit only if authorized.
@@ -101,15 +124,37 @@ Status, logs, links, live metrics, recent workflows, and workflow explanation.
 ### `references/troubleshooting.md`
 Failed, stuck, sparse-log, or misbehaving workflows.
 - "The logs are empty", "Why did it fail?", "Exit code 137/139/143/127" — match the failure signature and propose a concrete fix.
+- For private-image pull failures, establish the failure here, then read `references/workflow-registry-credentials.md`.
+
+### `references/workflow-credentials.md`
+Workflow credential types and generic/data credential setup: `REGISTRY` overview, `GENERIC` for task secrets, and `DATA` for object-storage access.
+- "What credential type do I need?", "Set an API token", "Set a data credential" — check existing credentials and create only the needed workflow credential.
+- Never print secret values; prefer environment variables and ask for secrets only after automatic sources are exhausted.
+
+### `references/workflow-registry-credentials.md`
+Private image-pull and registry credential setup.
+- "Use this private nvcr.io image", "Set up NGC credentials", "Create an OSMO registry credential", "ImagePullBackOff unauthorized", "pull access denied" — check existing registry credentials and create or fix only the needed OSMO registry credential.
+- Registry image-pull credentials are managed by OSMO outside workflow YAML.
 
 ### `references/validation-error-recovery.md`
 Submission capacity validation errors.
 - `osmo workflow submit` returns a capacity validation error — edit only the allowed hard-coded `resources` values and resubmit.
 
 ### `references/workflow-apps.md`
-Create or publish an app from a workflow.
-- "Create an app from this workflow", "Publish this completed run" — create the app only from the selected completed workflow.
-- App creation fails or the source workflow is not complete — explain the prerequisite or error.
+Workflow app lifecycle.
+- "Create an app from this workflow", "Publish this completed run", "List apps", "Show app parameters", "Update app", "Submit app", "Rename/delete app" — use the app lifecycle reference.
+- Ask for confirmation before create/update/submit/rename/delete unless the user already clearly authorized the action.
+
+### `references/workflow-spec.md`
+Workflow YAML schema and field shapes.
+- "Is this workflow YAML valid?", "Add files/environment/resources", "What shape do tasks/resources/groups use?" — use this as a compact field map.
+- For URL inputs/outputs, also read `references/workflow-io-spec.md`; for topology placement, also read `references/workflow-advanced-patterns.md`.
+- For design examples, continue to `references/workflow-patterns.md`; for checkpointing/topology/node exclusion, continue to `references/workflow-advanced-patterns.md`.
+
+### `references/workflow-io-spec.md`
+Workflow data flow, runtime tokens, and Jinja parameter fields.
+- "Where does `default-values` go?", "What shape do inputs/outputs use?", "How do `{{output}}` or `{{input:0}}` work?", "How do I use `--set`?" — use this as the compact IO/template map.
+- For full workflow design examples, continue to `references/workflow-patterns.md`.
 
 ### `references/workflow-patterns.md`
 Workflow structure and authoring patterns.
@@ -124,4 +169,4 @@ Multi-task log summarization.
 - A workflow has two or more tasks and logs are needed — spawn `logs-reader` subagents as directed; do not inline all logs.
 
 ### When NOT to use this skill
-- "What GPUs does NVIDIA sell?", "How do I deploy OSMO?", "Configure Kubernetes taints", "Edit a pod template / pool quota / `osmo config`" — answer with general help or another skill; do not run `osmo`. Server-side config and cluster admin are the OSMO admin surface.
+- "What GPUs does NVIDIA sell?", "How do I deploy OSMO?", "Set up AKS / Kubernetes / NIM Operator infrastructure", "Configure Kubernetes taints", "Edit a pod template / pool quota / `osmo config`" — answer with general help or another skill; do not run `osmo`. Server-side config, cluster admin, and infrastructure scaffolding are outside this skill.

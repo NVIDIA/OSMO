@@ -1,0 +1,3 @@
+Access check successful.
+URI: s3://robotics-artifacts/run-42/
+Access: READ
