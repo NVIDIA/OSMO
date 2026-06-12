@@ -1,20 +1,25 @@
 name: D4 Deployment Test
 
 # D4 deployment-script gate from the deployment-hardening plan
-# (projects/osmo-deployment-tactical-hardening-plan.md). Two modes:
+# (projects/osmo-deployment-tactical-hardening-plan.md). Three modes,
+# each cheaper to set up than the next:
 #
-#   1. `auth-check` (fast, ~2 min): terraform init + plan against the Azure
-#      example module. Confirms OIDC federation to Azure works without
-#      provisioning anything.
-#   2. `full-deployment` (slow, ~45 min): runs
-#      `deployments/scripts/run-deployment-test.sh --provider azure`
+#   1. `init-only` (~30s, no Azure setup at all): terraform init + validate
+#      + fmt against the Azure example module. Provider-download + HCL
+#      syntax check; ZERO Azure API calls. Use this to shake out the
+#      workflow shape before any cloud-side setup.
+#   2. `auth-check` (~2 min, requires OIDC + Azure App Reg): adds
+#      terraform plan. First step that actually touches Azure — confirms
+#      the federated-identity → service-principal → RBAC chain.
+#   3. `full-deployment` (~45 min, requires #2 plus POSTGRES_PASSWORD):
+#      runs `deployments/scripts/run-deployment-test.sh --provider azure`
 #      end-to-end on an ephemeral cluster.
 #
 # Triggers:
 #   - workflow_dispatch (manual; lets us shake out auth before wiring
 #     into schedule / release-cut triggers).
 #
-# After the auth-check mode passes once, follow-ups:
+# After auth-check passes once, follow-ups:
 #   - Add `schedule:` cron for nightly (NIGHTLY="deployment-test" 04:30 UTC).
 #   - Add `release:` trigger so each $CI_COMMIT_TAG runs full-deployment.
 
@@ -25,8 +30,9 @@ on:
         description: 'What to run'
         type: choice
         required: true
-        default: auth-check
+        default: init-only
         options:
+          - init-only
           - auth-check
           - full-deployment
 
@@ -49,8 +55,37 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
-  # Fast path — terraform init + plan only. Provisions nothing. Used to
-  # confirm OIDC + provider auth before paying the full ~45 min cost.
+  # Cheapest mode — no Azure setup needed. terraform init downloads the
+  # azurerm provider plugin from the Terraform Registry (HTTPS, no Azure
+  # API call). terraform validate + fmt are purely local. Use this first
+  # to confirm the workflow YAML, the runner, the working-directory, and
+  # the HCL all parse cleanly before any cloud-side setup.
+  init-only:
+    if: ${{ github.event.inputs.mode == 'init-only' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: deployments/terraform/azure/example
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: terraform init (no Azure auth required)
+        run: terraform init -input=false
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive -no-color
+
+  # Fast path — terraform init + plan. Plan IS the first step that
+  # actually talks to Azure (lists existing resources). Requires the
+  # full OIDC + App Reg + RBAC setup. Provisions nothing.
   auth-check:
     if: ${{ github.event.inputs.mode == 'auth-check' }}
     runs-on: ubuntu-latest
