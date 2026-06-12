@@ -231,16 +231,46 @@ jobs:
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
 
+      # Postgres password: ephemeral per-run, since the entire Postgres
+      # instance is destroyed at teardown.
+      - name: generate per-run postgres password
+        id: gen_pg
+        run: |
+          PG_PASS="$(openssl rand -base64 32 | tr -d '/=+' | head -c 32)Aa1!"
+          echo "::add-mask::$PG_PASS"
+          echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
+
+      # TEMPORARY SCAFFOLDING -----------------------------------------------
+      # run-deployment-test.sh hard-codes `--skip-terraform` for Azure (the
+      # design intent is "AKS + Postgres + Redis provisioned externally,
+      # this just deploys OSMO onto it"). For automated CI verification
+      # we don't have that external infra yet, so the workflow self-
+      # provisions: terraform apply BEFORE the wrapper, terraform destroy
+      # AFTER. Remove these two scaffolding steps once a long-running
+      # internal-ci AKS is set up (the wrapper invocation in the middle
+      # stays unchanged).
+      - name: TEMP — terraform apply (provision AKS + Postgres + Redis)
+        working-directory: deployments/terraform/azure/example
+        run: |
+          set -euo pipefail
+          terraform init -input=false
+          terraform apply -input=false -auto-approve -no-color \
+            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+            -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
+            -var "azure_region=${AZURE_REGION}" \
+            -var "cluster_name=${AZURE_CLUSTER_NAME}" \
+            -var "postgres_password=${PG_PASS}"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+          PG_PASS: ${{ steps.gen_pg.outputs.value }}
+      # --------------------------------------------------------------------
+
       - name: run-deployment-test.sh --provider azure
         id: run_deploy
         run: |
           set -o pipefail
-          # The Postgres flex instance is ephemeral — provisioned at deploy
-          # and destroyed at teardown. Generate a per-run random password
-          # so no static credential needs to live in repo Secrets.
-          POSTGRES_PASSWORD="$(openssl rand -base64 32 | tr -d '/=+' | head -c 32)Aa1!"
-          export POSTGRES_PASSWORD
-
           mkdir -p "$RUN_DIR"
           bash deployments/scripts/run-deployment-test.sh --provider azure
         env:
@@ -248,6 +278,29 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+          POSTGRES_PASSWORD: ${{ steps.gen_pg.outputs.value }}
+
+      # TEMPORARY SCAFFOLDING — pairs with the apply step above. Runs
+      # unconditionally on success OR failure so we never leak an AKS +
+      # Postgres + Redis pair after a verification run.
+      - name: TEMP — terraform destroy (always)
+        if: always()
+        working-directory: deployments/terraform/azure/example
+        run: |
+          set -euo pipefail
+          terraform destroy -input=false -auto-approve -no-color \
+            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+            -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
+            -var "azure_region=${AZURE_REGION}" \
+            -var "cluster_name=${AZURE_CLUSTER_NAME}" \
+            -var "postgres_password=${PG_PASS}" \
+            || echo "::warning::terraform destroy failed — manual cleanup may be required on $AZURE_RESOURCE_GROUP"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+          PG_PASS: ${{ steps.gen_pg.outputs.value }}
+      # --------------------------------------------------------------------
 
       # Surface the last 200 lines of each stage log inline in the workflow
       # output so most failures can be triaged WITHOUT downloading the
