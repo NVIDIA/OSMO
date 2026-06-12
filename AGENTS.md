@@ -109,7 +109,6 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | Library | Key Classes | Purpose |
 |---------|-------------|---------|
 | `lib/data/storage/` | `Client`, `StorageBackend`, `ExecutorParameters`, `StoragePath` | Multi-cloud storage SDK (S3, Azure, GCS, Swift, TOS). Parallel multiprocess+multithread executor. Streaming upload/download. |
-| `lib/data/dataset/` | `Manager` | Dataset lifecycle (upload, download, migrate) built on storage SDK. |
 | `lib/utils/` | `LoginManager`, `ServiceClient`, `OSMOError` hierarchy | Client SDK for HTTP/WebSocket requests with JWT auth. Error types, logging, validation, credential management. |
 | `lib/rsync/` | `RsyncClient` | File watch-based rsync with debounce/reconciliation. Port forwarding for remote access. |
 
@@ -132,12 +131,11 @@ Entry point: `cli.py` → `main_parser.py` (argparse). Subcommand modules:
 | -------------------------------------------------------------------------------------------------------------- | -------------------------------- |
 | `workflow.py`                                                                                                  | submit, list, cancel, exec, logs |
 | `data.py`                                                                                                      | upload, download, list, delete   |
-| `dataset.py`                                                                                                   | Dataset management               |
 | `app.py`                                                                                                       | App submission/management        |
 | `config.py`                                                                                                    | Service configuration            |
 | `profile.py`                                                                                                   | User profiles                    |
 | `login.py`                                                                                                     | Authentication                   |
-| `pool.py`, `resources.py`, `user.py`, `credential.py`, `access_token.py`, `bucket.py`, `task.py`, `version.py` | Supporting commands              |
+| `pool.py`, `resources.py`, `user.py`, `credential.py`, `access_token.py`, `task.py`, `version.py` | Supporting commands              |
 | `backend.py`                                                                                                   | Backend cluster management       |
 
 Features: Tab completion (shtab), response formatting (`formatters.py`), spec editor (`editor.py`), PyInstaller packaging (`cli_builder.py`, `packaging/`).
@@ -248,4 +246,3 @@ Workflow Execution:
 - **Tests**: Bazel test rules, pytest + testcontainers (Python), testcontainers-go (Go), Vitest + Playwright (frontend)
 - **Container images**: Built via `rules_oci` (amd64, arm64), distroless base from NVIDIA NGC
 - **API spec**: OpenAPI auto-generated from FastAPI via `bazel run //src/scripts:export_openapi`
-

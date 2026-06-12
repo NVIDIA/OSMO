@@ -30,11 +30,9 @@ osmo_py_library(
     srcs = [
         "access_token.py",
         "app.py",
-        "bucket.py",
         "config.py",
         "credential.py",
         "data.py",
-        "dataset.py",
         "editor.py",
         "formatters.py",
         "login.py",

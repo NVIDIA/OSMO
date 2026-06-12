@@ -22,7 +22,6 @@ osmo_py_library(
     name = "data",
     srcs = glob(["*.py"]),
     deps = [
-        "//src/lib/data/dataset",
         "//src/lib/data/storage",
     ],
 )
