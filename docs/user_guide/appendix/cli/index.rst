@@ -25,10 +25,8 @@ CLI Reference
   :maxdepth: 1
 
   cli_app
-  cli_bucket
   cli_credential
   cli_data
-  cli_dataset
   cli_login
   cli_logout
   cli_pool
