@@ -39,7 +39,7 @@ type InputOutput interface {
 
 type InputType interface {
 	GetFolder() string
-	CreateMount(c net.Conn, inputPath string, osmoChan chan string,
+	Download(c net.Conn, inputPath string, osmoChan chan string,
 		metricChan chan metrics.Metric, retryId string, groupName string, taskName string,
 		inputIndex int)
 }
@@ -62,7 +62,7 @@ type TaskInput struct {
 func (f TaskInput) GetLogInfo() string       { return f.Name }
 func (f TaskInput) GetUrlIdentifier() string { return f.Url }
 func (f TaskInput) GetFolder() string        { return f.Folder }
-func (f TaskInput) CreateMount(c net.Conn, inputPath string,
+func (f TaskInput) Download(c net.Conn, inputPath string,
 	osmoChan chan string, metricChan chan metrics.Metric,
 	retryId string, groupName string, taskName string, inputIndex int) {
 
@@ -147,7 +147,7 @@ type UrlInput struct {
 func (f UrlInput) GetLogInfo() string       { return f.Url }
 func (f UrlInput) GetUrlIdentifier() string { return f.Url }
 func (f UrlInput) GetFolder() string        { return f.Folder }
-func (f UrlInput) CreateMount(c net.Conn, inputPath string,
+func (f UrlInput) Download(c net.Conn, inputPath string,
 	osmoChan chan string, metricChan chan metrics.Metric,
 	retryId string, groupName string, taskName string, inputIndex int) {
 

@@ -1093,7 +1093,7 @@ func downloadInputs(c net.Conn, inputs common.ArrayFlags, inputPath string,
 			copyFile(userConfig, configLoc)
 		}
 
-		inputInfo.CreateMount(c, inputPath, osmoChan,
+		inputInfo.Download(c, inputPath, osmoChan,
 			metricChan, retryId, groupName, taskName, inputIndex)
 	}
 	log.Println("All Inputs Gathered")
