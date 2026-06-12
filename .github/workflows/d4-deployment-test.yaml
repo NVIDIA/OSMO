@@ -49,21 +49,15 @@ on:
 
 # OIDC federation to Azure — no static secrets in this workflow.
 # `id-token: write` lets the runner mint a JWT that Azure trusts via the
-# Federated Identity Credential configured on the App Registration.
+# Federated Identity Credential configured on the App Registration. The
+# federated credential is bound to the `internal-ci` GitHub environment
+# (subject = `repo:NVIDIA/OSMO:environment:internal-ci`), so the auth-check
+# and full-deployment jobs must declare `environment: internal-ci` for the
+# subject claim to match. Environment-scoped Variables (vars.AZURE_*)
+# also resolve only inside jobs with that environment.
 permissions:
   id-token: write
   contents: read
-
-# Azure-side env vars consumed by every terraform-touching step.
-# ARM_USE_OIDC=true tells azurerm provider to mint+present the OIDC JWT
-# instead of expecting a client secret. ARM_CLIENT_ID / ARM_TENANT_ID /
-# ARM_SUBSCRIPTION_ID identify the App Registration + target subscription.
-# All come from repo-level Variables (no Secrets needed for OIDC).
-env:
-  ARM_USE_OIDC: true
-  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
   # Cheapest mode — no Azure setup needed. terraform init downloads the
@@ -104,6 +98,12 @@ jobs:
     if: ${{ github.event.inputs.mode == 'auth-check' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: internal-ci
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     defaults:
       run:
         working-directory: deployments/terraform/azure/example
@@ -127,7 +127,7 @@ jobs:
             -no-color
         env:
           RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'East US' }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
 
   # Full deployment-test gate. Provisions a real cluster, deploys OSMO,
   # runs OETF smoke + scenarios, tears down. Long-running.
@@ -135,6 +135,12 @@ jobs:
     if: ${{ github.event.inputs.mode == 'full-deployment' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment: internal-ci
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -167,7 +173,7 @@ jobs:
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'East US' }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-d4-ephemeral' }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
