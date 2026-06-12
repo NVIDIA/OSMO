@@ -154,8 +154,25 @@ jobs:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      # Put RUN_DIR inside the workspace so upload-artifact can find it.
+      # run-deployment-test.sh reads $RUN_DIR if set (otherwise defaults
+      # to $REPO_ROOT/runs/deployment-test-<provider>, which on a GHA
+      # runner resolves OUTSIDE the workspace and gets dropped by the
+      # default artifact-path glob).
+      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
     steps:
       - uses: actions/checkout@v4
+
+      # OIDC-federated `az` login for the Azure CLI. deploy-osmo-minimal.sh
+      # runs `az` commands during its pre-flight + storage configuration
+      # phases (the azurerm terraform provider has its own ARM_USE_OIDC
+      # auth path, but `az` doesn't pick that up — it needs its own login).
+      - name: azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -180,13 +197,51 @@ jobs:
           sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
           sudo chmod +x /usr/local/bin/helm
 
-      - name: run-deployment-test.sh --provider azure
+      # Snapshot the deploy environment up-front so failures are easy to
+      # triage from the log without re-running. Includes az identity, tool
+      # versions, target RG status, env vars (sans secrets).
+      - name: environment snapshot
         run: |
+          echo "::group::az identity (whoami)"
+          az account show -o table || true
+          echo "::endgroup::"
+
+          echo "::group::tool versions"
+          terraform version
+          kubectl version --client --output=yaml | head -8
+          helm version --short
+          az version 2>&1 | head -10
+          echo "::endgroup::"
+
+          echo "::group::target resource group"
+          az group show --name "$AZURE_RESOURCE_GROUP" -o table || \
+            echo "(resource group not found — would be created on apply)"
+          echo "::endgroup::"
+
+          echo "::group::env (non-secret)"
+          echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
+          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP"
+          echo "AZURE_REGION=$AZURE_REGION"
+          echo "AZURE_CLUSTER_NAME=$AZURE_CLUSTER_NAME"
+          echo "RUN_DIR=$RUN_DIR"
+          echo "::endgroup::"
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+
+      - name: run-deployment-test.sh --provider azure
+        id: run_deploy
+        run: |
+          set -o pipefail
           # The Postgres flex instance is ephemeral — provisioned at deploy
           # and destroyed at teardown. Generate a per-run random password
           # so no static credential needs to live in repo Secrets.
           POSTGRES_PASSWORD="$(openssl rand -base64 32 | tr -d '/=+' | head -c 32)Aa1!"
           export POSTGRES_PASSWORD
+
+          mkdir -p "$RUN_DIR"
           bash deployments/scripts/run-deployment-test.sh --provider azure
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -194,11 +249,33 @@ jobs:
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
 
+      # Surface the last 200 lines of each stage log inline in the workflow
+      # output so most failures can be triaged WITHOUT downloading the
+      # artifact. The artifact step below still uploads everything.
+      - name: dump stage logs (on failure)
+        if: failure()
+        run: |
+          set +e
+          for f in deploy.log oetf.log teardown.log deployment-test-result.json junit.xml; do
+            path="$RUN_DIR/$f"
+            if [ -f "$path" ]; then
+              echo "::group::$f (tail 200)"
+              tail -200 "$path"
+              echo "::endgroup::"
+            else
+              echo "::group::$f"
+              echo "(missing — stage did not reach this log)"
+              echo "::endgroup::"
+            fi
+          done
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: deployment-test-run-${{ github.run_id }}
+          # RUN_DIR is workspace-relative now; glob it broadly so even
+          # partial-run logs make it into the artifact.
           path: |
-            runs/**/*.log
-            runs/**/*.json
+            runs/deployment-test-azure/**
           retention-days: 14
+          if-no-files-found: warn
