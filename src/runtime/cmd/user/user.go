@@ -61,10 +61,9 @@ func handleExit() {
 }
 
 func createOutLogsStream(outChan chan messages.Request) func(*exec.Cmd, *bufio.Scanner,
-	sync.WaitGroup, chan bool) {
+	*sync.WaitGroup, chan bool) {
 	streamOutLogs := func(cmd *exec.Cmd, scanner *bufio.Scanner,
-		waitStreamLogs sync.WaitGroup, timeoutChan chan bool) {
-		waitStreamLogs.Add(1)
+		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool) {
 		defer waitStreamLogs.Done()
 		for scanner.Scan() {
 			outChan <- messages.MessageOutRequest(scanner.Text())
@@ -77,9 +76,8 @@ func createOutLogsStream(outChan chan messages.Request) func(*exec.Cmd, *bufio.S
 	return streamOutLogs
 }
 
-func createErrLogsStream(errChan chan messages.Request) func(*bufio.Scanner, sync.WaitGroup) {
-	streamErrLogs := func(scanner *bufio.Scanner, waitStreamLogs sync.WaitGroup) {
-		waitStreamLogs.Add(1)
+func createErrLogsStream(errChan chan messages.Request) func(*bufio.Scanner, *sync.WaitGroup) {
+	streamErrLogs := func(scanner *bufio.Scanner, waitStreamLogs *sync.WaitGroup) {
 		defer waitStreamLogs.Done()
 		for scanner.Scan() {
 			errChan <- messages.MessageErrRequest(scanner.Text())
