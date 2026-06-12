@@ -50,7 +50,6 @@ func CtrlParse() CtrlArgs {
 	inputPath := flag.String("inputPath", "", "Input Folder.")
 	outputPath := flag.String("outputPath", "", "Output Folder.")
 	metadataFile := flag.String("metadataFile", "", "Default Metadata to apply to Ctrlset.")
-	flag.String("downloadType", "download", "Deprecated. Runtime inputs always download.")
 	timeout := flag.Int("timeout", 60, "Wait time (m) to connect to the OSMO service.")
 	unixTimeout := flag.Int("unixTimeout", 120, "osmo_exec wait time (m) for the unix connection.")
 	execTimeout := flag.Int("execTimeout", 5, "osmo_exec wait time (m) for the exec connection.")
@@ -62,7 +61,6 @@ func CtrlParse() CtrlArgs {
 		"service (in milliseconds)")
 	logsBufferSize := flag.Int("logsBufferSize", 10000, "The capacity of circular buffer for "+
 		"storing messages.")
-	flag.Int("cacheSize", 0, "Deprecated. Runtime inputs always download.")
 	flag.Parse()
 
 	// logSource is also the name of the task in the workflow
