@@ -1,27 +1,34 @@
-name: D4 Deployment Test
+name: Deployment Test
 
-# D4 deployment-script gate from the deployment-hardening plan
-# (projects/osmo-deployment-tactical-hardening-plan.md). Three modes,
-# each cheaper to set up than the next:
+# Cloud deployment-test gate. Runs `deployments/scripts/run-deployment-test.sh`
+# end-to-end against an ephemeral cloud cluster (Azure today; other providers
+# follow). Three modes, each cheaper to set up than the next:
 #
-#   1. `init-only` (~30s, no Azure setup at all): terraform init + validate
-#      + fmt against the Azure example module. Provider-download + HCL
-#      syntax check; ZERO Azure API calls. Use this to shake out the
-#      workflow shape before any cloud-side setup.
-#   2. `auth-check` (~2 min, requires OIDC + Azure App Reg): adds
-#      terraform plan. First step that actually touches Azure — confirms
-#      the federated-identity → service-principal → RBAC chain.
-#   3. `full-deployment` (~45 min, requires #2 plus POSTGRES_PASSWORD):
-#      runs `deployments/scripts/run-deployment-test.sh --provider azure`
-#      end-to-end on an ephemeral cluster.
+#   1. `init-only` (~30s, no cloud setup): terraform init + validate + fmt
+#      against the Azure example module. Provider-download + HCL syntax check;
+#      ZERO Azure API calls. Use this to shake out the workflow shape before
+#      any cloud-side setup.
+#   2. `auth-check` (~2 min, requires OIDC + Azure App Reg): adds terraform
+#      plan. First step that actually touches Azure — confirms the federated-
+#      identity → service-principal → RBAC chain.
+#   3. `full-deployment` (~45 min, requires #2 plus POSTGRES_PASSWORD): runs
+#      `deployments/scripts/run-deployment-test.sh --provider azure` end-to-end.
 #
 # Triggers:
-#   - workflow_dispatch (manual; lets us shake out auth before wiring
-#     into schedule / release-cut triggers).
+#   - `workflow_dispatch` — once this file lands on the default branch, the
+#     "Run workflow" button in Actions becomes available for all three modes.
+#   - `pull_request` — auto-runs `init-only` on every push that touches the
+#     workflow, the wrapper script, or the Azure terraform module. The two
+#     heavier modes are gated behind PR labels (see below) so they don't burn
+#     Azure quota on every push.
+#
+# PR-label triggers (work pre-merge when the dispatcher isn't registered yet):
+#   - `ci:run-auth-check`       → auth-check fires on the next PR push
+#   - `ci:run-full-deployment`  → full-deployment fires on the next PR push
 #
 # After auth-check passes once, follow-ups:
 #   - Add `schedule:` cron for nightly (NIGHTLY="deployment-test" 04:30 UTC).
-#   - Add `release:` trigger so each $CI_COMMIT_TAG runs full-deployment.
+#   - Add `release:` trigger so each release tag runs full-deployment.
 
 on:
   workflow_dispatch:
@@ -35,24 +42,20 @@ on:
           - init-only
           - auth-check
           - full-deployment
-  # Auto-trigger on PRs that touch this workflow, the deployment-test
-  # wrapper, or the Azure terraform module. Always runs `init-only` (no
-  # cloud auth needed). After this workflow merges to main, the
-  # workflow_dispatch trigger above becomes usable via the Actions UI /
-  # API for the heavier modes.
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
     paths:
-      - '.github/workflows/d4-deployment-test.yaml'
+      - '.github/workflows/deployment-test.yaml'
       - 'deployments/scripts/run-deployment-test.sh'
       - 'deployments/terraform/azure/**'
 
 # OIDC federation to Azure — no static secrets in this workflow.
 # `id-token: write` lets the runner mint a JWT that Azure trusts via the
-# Federated Identity Credential configured on the App Registration. The
-# federated credential is bound to the `internal-ci` GitHub environment
-# (subject = `repo:NVIDIA/OSMO:environment:internal-ci`), so the auth-check
-# and full-deployment jobs must declare `environment: internal-ci` for the
+# Federated Identity Credential on the App Registration. The federated
+# credential is bound to the `internal-ci` GitHub environment (subject =
+# `repo:NVIDIA/OSMO:environment:internal-ci`), so the auth-check and
+# full-deployment jobs must declare `environment: internal-ci` for the
 # subject claim to match. Environment-scoped Variables (vars.AZURE_*)
 # also resolve only inside jobs with that environment.
 permissions:
@@ -62,11 +65,11 @@ permissions:
 jobs:
   # Cheapest mode — no Azure setup needed. terraform init downloads the
   # azurerm provider plugin from the Terraform Registry (HTTPS, no Azure
-  # API call). terraform validate + fmt are purely local. Use this first
-  # to confirm the workflow YAML, the runner, the working-directory, and
-  # the HCL all parse cleanly before any cloud-side setup.
+  # API call). terraform validate + fmt are purely local.
   init-only:
-    if: ${{ github.event_name == 'pull_request' || github.event.inputs.mode == 'init-only' }}
+    if: >
+      ${{ github.event_name == 'pull_request'
+          || github.event.inputs.mode == 'init-only' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
@@ -85,17 +88,20 @@ jobs:
       - name: terraform validate
         run: terraform validate -no-color
 
-      # fmt is informational only — formatting drift in the existing
-      # Azure example is out of scope for this PR and the run-deployment-test
+      # fmt is informational only — formatting drift in the existing Azure
+      # example is out of scope for this PR and the run-deployment-test
       # wrapper doesn't care about cosmetic formatting.
       - name: terraform fmt -check (informational)
         run: terraform fmt -check -recursive -no-color || true
 
-  # Fast path — terraform init + plan. Plan IS the first step that
-  # actually talks to Azure (lists existing resources). Requires the
-  # full OIDC + App Reg + RBAC setup. Provisions nothing.
+  # First step that actually talks to Azure — terraform plan reads the
+  # resource group via the azurerm_resource_group data source. Requires
+  # the full OIDC + App Reg + RBAC setup. Provisions nothing.
   auth-check:
-    if: ${{ github.event.inputs.mode == 'auth-check' }}
+    if: >
+      ${{ github.event.inputs.mode == 'auth-check'
+          || (github.event_name == 'pull_request'
+              && contains(github.event.pull_request.labels.*.name, 'ci:run-auth-check')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: internal-ci
@@ -132,7 +138,10 @@ jobs:
   # Full deployment-test gate. Provisions a real cluster, deploys OSMO,
   # runs OETF smoke + scenarios, tears down. Long-running.
   full-deployment:
-    if: ${{ github.event.inputs.mode == 'full-deployment' }}
+    if: >
+      ${{ github.event.inputs.mode == 'full-deployment'
+          || (github.event_name == 'pull_request'
+              && contains(github.event.pull_request.labels.*.name, 'ci:run-full-deployment')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: internal-ci
@@ -174,7 +183,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-d4-ephemeral' }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
       - uses: actions/upload-artifact@v4
