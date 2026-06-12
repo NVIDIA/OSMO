@@ -35,6 +35,17 @@ on:
           - init-only
           - auth-check
           - full-deployment
+  # Auto-trigger on PRs that touch this workflow, the deployment-test
+  # wrapper, or the Azure terraform module. Always runs `init-only` (no
+  # cloud auth needed). After this workflow merges to main, the
+  # workflow_dispatch trigger above becomes usable via the Actions UI /
+  # API for the heavier modes.
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/d4-deployment-test.yaml'
+      - 'deployments/scripts/run-deployment-test.sh'
+      - 'deployments/terraform/azure/**'
 
 # OIDC federation to Azure — no static secrets in this workflow.
 # `id-token: write` lets the runner mint a JWT that Azure trusts via the
@@ -61,7 +72,7 @@ jobs:
   # to confirm the workflow YAML, the runner, the working-directory, and
   # the HCL all parse cleanly before any cloud-side setup.
   init-only:
-    if: ${{ github.event.inputs.mode == 'init-only' }}
+    if: ${{ github.event_name == 'pull_request' || github.event.inputs.mode == 'init-only' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
