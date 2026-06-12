@@ -1,0 +1,132 @@
+name: D4 Deployment Test
+
+# D4 deployment-script gate from the deployment-hardening plan
+# (projects/osmo-deployment-tactical-hardening-plan.md). Two modes:
+#
+#   1. `auth-check` (fast, ~2 min): terraform init + plan against the Azure
+#      example module. Confirms OIDC federation to Azure works without
+#      provisioning anything.
+#   2. `full-deployment` (slow, ~45 min): runs
+#      `deployments/scripts/run-deployment-test.sh --provider azure`
+#      end-to-end on an ephemeral cluster.
+#
+# Triggers:
+#   - workflow_dispatch (manual; lets us shake out auth before wiring
+#     into schedule / release-cut triggers).
+#
+# After the auth-check mode passes once, follow-ups:
+#   - Add `schedule:` cron for nightly (NIGHTLY="deployment-test" 04:30 UTC).
+#   - Add `release:` trigger so each $CI_COMMIT_TAG runs full-deployment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'What to run'
+        type: choice
+        required: true
+        default: auth-check
+        options:
+          - auth-check
+          - full-deployment
+
+# OIDC federation to Azure — no static secrets in this workflow.
+# `id-token: write` lets the runner mint a JWT that Azure trusts via the
+# Federated Identity Credential configured on the App Registration.
+permissions:
+  id-token: write
+  contents: read
+
+# Azure-side env vars consumed by every terraform-touching step.
+# ARM_USE_OIDC=true tells azurerm provider to mint+present the OIDC JWT
+# instead of expecting a client secret. ARM_CLIENT_ID / ARM_TENANT_ID /
+# ARM_SUBSCRIPTION_ID identify the App Registration + target subscription.
+# All come from repo-level Variables (no Secrets needed for OIDC).
+env:
+  ARM_USE_OIDC: true
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  # Fast path — terraform init + plan only. Provisions nothing. Used to
+  # confirm OIDC + provider auth before paying the full ~45 min cost.
+  auth-check:
+    if: ${{ github.event.inputs.mode == 'auth-check' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: deployments/terraform/azure/example
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform plan (-var subscription_id, -var resource_group_name)
+        run: |
+          terraform plan \
+            -input=false \
+            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+            -var "resource_group_name=${RESOURCE_GROUP}" \
+            -var "azure_region=${AZURE_REGION}" \
+            -no-color
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'East US' }}
+
+  # Full deployment-test gate. Provisions a real cluster, deploys OSMO,
+  # runs OETF smoke + scenarios, tears down. Long-running.
+  full-deployment:
+    if: ${{ github.event.inputs.mode == 'full-deployment' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: install kubectl + helm
+        run: |
+          set -euo pipefail
+
+          KUBECTL_VERSION=v1.31.0
+          curl -fsSLo /usr/local/bin/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            | awk '{print $1"  /usr/local/bin/kubectl"}' | sudo tee /tmp/k.sha | sha256sum -c -
+          sudo chmod +x /usr/local/bin/kubectl
+
+          HELM_VERSION=v3.16.2
+          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
+          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+          sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          sudo chmod +x /usr/local/bin/helm
+
+      - name: run-deployment-test.sh --provider azure
+        run: |
+          bash deployments/scripts/run-deployment-test.sh --provider azure
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'East US' }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-d4-ephemeral' }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployment-test-run-${{ github.run_id }}
+          path: |
+            runs/**/*.log
+            runs/**/*.json
+          retention-days: 14
