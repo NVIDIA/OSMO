@@ -34,6 +34,7 @@ go_library(
 go_test(
     name = "data_test",
     srcs = [
+        "data_runtime_test.go",
         "input_output_test.go",
     ],
     embed = [":data"],

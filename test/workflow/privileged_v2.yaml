@@ -1,0 +1,51 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: privileged
+  resources:
+    privileged-task-resource:
+      cpu: 1
+      platform: {{ platform }}
+      memory: {{ memory }}
+      storage: 2Gi
+  tasks:
+  - args:
+    - /tmp/entry.sh
+    command:
+    - /bin/bash
+    files:
+    - contents: |
+        set -ex
+
+        apt update
+        apt install -y iproute2
+        ip link add dummy0 type dummy >/dev/null
+        if [[ $? -eq 0 ]]; then
+            # clean the dummy0 link
+            ip link delete dummy0 >/dev/null
+            echo "The task is invoked with privileged flag"
+            exit 0
+        else
+            echo "The task has no privileged access"
+            exit 1
+        fi
+      path: /tmp/entry.sh
+    image: ubuntu:22.04
+    name: privileged-task
+    privileged: {{ priv_flag }}
+    resource: privileged-task-resource
+  timeout:
+    queue_timeout: 1h
+    exec_timeout: 10m
+default-values:
+  memory: 1Gi
+  priv_flag: true
+  platform: agx-orin-jp6

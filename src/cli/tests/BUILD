@@ -59,16 +59,6 @@ py_test(
 )
 
 py_test(
-    name = "test_bucket",
-    srcs = [
-        "test_bucket.py"
-    ],
-    deps = [
-        "//src/cli:cli_lib",
-    ]
-)
-
-py_test(
     name = "test_credential",
     srcs = [
         "test_credential.py"

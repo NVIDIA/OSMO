@@ -107,6 +107,12 @@ case "$cmd $sub" in
       badimage-train-1)
         emit_fixture "workflow_query_badimage.json"
         ;;
+      private-image-1)
+        emit_fixture "workflow_query_private_image.json"
+        ;;
+      gr00t-app-run-1)
+        emit_fixture "workflow_query_app_run.json"
+        ;;
       sdg-train-1)
         emit_fixture "workflow_query_sdg.json"
         ;;
@@ -122,6 +128,9 @@ case "$cmd $sub" in
         ;;
       badimage-train-1)
         emit_fixture "workflow_logs_badimage.txt"
+        ;;
+      private-image-1)
+        emit_fixture "workflow_logs_private_image.txt"
         ;;
       *)
         emit_fixture "workflow_logs.txt" "workflow_logs_single_task.txt"
@@ -139,6 +148,9 @@ case "$cmd $sub" in
       badimage-train-1)
         emit_fixture "workflow_events_badimage.txt"
         ;;
+      private-image-1)
+        emit_fixture "workflow_events_private_image.txt"
+        ;;
       *)
         emit_fixture "workflow_events.txt"
         ;;
@@ -152,10 +164,16 @@ case "$cmd $sub" in
       sdg-train-1)
         emit_fixture "workflow_spec_sdg.yaml"
         ;;
+      private-image-1)
+        emit_fixture "workflow_spec_private_image.yaml"
+        ;;
       *)
         emit_fixture "workflow_spec_template.yaml"
         ;;
     esac
+    ;;
+  "workflow validate")
+    emit_fixture "workflow_validate_response.txt"
     ;;
   "workflow submit")
     case "$3" in
@@ -181,6 +199,33 @@ case "$cmd $sub" in
     ;;
   "app create")
     emit_fixture "app_create_response.txt"
+    ;;
+  "app list")
+    emit_fixture "app_list_response.txt"
+    ;;
+  "app show")
+    emit_fixture "app_show_response.txt"
+    ;;
+  "app info")
+    emit_fixture "app_info_response.txt"
+    ;;
+  "app spec")
+    emit_fixture "app_spec_response.yaml"
+    ;;
+  "app submit")
+    emit_fixture "app_submit_response.txt"
+    ;;
+  "credential list")
+    emit_fixture "credential_list_response.txt"
+    ;;
+  "credential set")
+    emit_fixture "credential_set_response.txt"
+    ;;
+  "data download")
+    emit_fixture "data_download_response.txt"
+    ;;
+  "data check")
+    emit_fixture "data_check_response.txt"
     ;;
   "version "|"version")
     echo "mock-osmo 0.0.0"

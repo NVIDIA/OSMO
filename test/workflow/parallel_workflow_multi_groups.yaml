@@ -1,0 +1,91 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: parallel-workflow-v2-multi-group
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: {{platform}}
+
+  groups:
+  # First run a client/server pair together
+  - name: server-client-group
+    tasks:
+    - name: server
+      image: busybox
+      command: ['/bin/sh']
+      args: ['/tmp/server.sh']
+      files:
+      - localpath: scripts/server.sh
+        path: /tmp/server.sh
+      - contents: hello
+        path: /tmp/hello.txt
+      lead: true
+      resource: default
+    - name: client
+      image: busybox
+      command: ['/bin/sh']
+      args: ['/tmp/client.sh']
+      files:
+      - localpath: scripts/client.sh
+        path: /tmp/client.sh
+      name: client
+      resource: default
+
+  # Then run a task which echos hello
+  - name: echo-hello-group-1
+    tasks:
+    - name: echo-hello-1
+      image: busybox
+      command: [sh]
+      args: [/tmp/run.sh]
+      files:
+      - contents: |
+          echo "Data from echo-hello-1" > {{output}}/test_read.txt
+        path: /tmp/run.sh
+      - path: '{{output}}/metadata.yaml'
+        contents: |
+          id: {{workflow_id}}
+      resource: default
+      outputs:
+      - dataset:
+          name: {{bucket}}/multi_group_workflow_test_DS
+          metadata:
+          - metadata.yaml
+  - name: echo-hello-group-2
+    tasks:
+    - name: echo-hello-2
+      image: busybox
+      command: [sh]
+      args: [/tmp/run.sh]
+      files:
+      - contents: |
+          echo "Hello from echo-hello-2"
+          if [ ! -f "{{input:1}}/multi_group_workflow_test_DS/test_read.txt" ]; then
+              echo "Error: {{input:1}}/multi_group_workflow_test_DS/test_read.txt does not exist"
+              exit 1
+          fi
+          head -1 {{input:1}}/multi_group_workflow_test_DS/test_read.txt
+        path: /tmp/run.sh
+      resource: default
+      inputs:
+      - task: echo-hello-1
+      - dataset:
+          name: {{bucket}}/multi_group_workflow_test_DS
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  platform: cpu-x86
+  bucket: osmo

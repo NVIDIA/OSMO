@@ -51,6 +51,8 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 |-----------|-------------|---------|
 | `services.configFile.enabled` | Enable external configuration file loading | `false` |
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
+| `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
+| `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
 
 ### Database Migration Settings (pgroll)
 
@@ -301,7 +303,7 @@ Benefits of the separate gateway model:
 | `gateway.envoy.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
 | `gateway.envoy.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA | `80` |
 | `gateway.envoy.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
-| `gateway.envoy.image` | Envoy image | `envoyproxy/envoy:v1.29.0` |
+| `gateway.envoy.image` | Envoy image | `envoyproxy/envoy:v1.38.1` |
 | `gateway.envoy.logLevel` | Envoy log level | `info` |
 | `gateway.envoy.listenerPort` | Listener port | `8080` |
 | `gateway.envoy.maxHeadersSizeKb` | Max header size in KB | `128` |
@@ -325,14 +327,15 @@ Benefits of the separate gateway model:
 
 Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap is updated, Envoy automatically reloads listeners and clusters without a pod restart.
 
-**Identity header trust by mode.** The gateway either trusts or strips client-supplied `x-osmo-{user,roles,allowed-pools}` headers based on whether `gateway.oauth2Proxy.enabled` or `gateway.authz.enabled` is `true`:
+**Identity header trust by mode.** The gateway either trusts or strips client-supplied `x-osmo-*` identity/context headers based on whether any gateway auth source is configured:
 
-| `oauth2Proxy.enabled` | `authz.enabled` | Identity headers from clients |
-|---|---|---|
-| `true` (default) | `true` (default) | Stripped at the HCM `internal_only_headers` layer **and** by the Lua filter. ext_authz (the authz sidecar) is the only source. Production posture. |
-| `true` | `false` | Same — both strip mechanisms still run. |
-| `false` | `true` | Same — both strip mechanisms still run. |
-| `false` | `false` (minimal mode) | **Trusted.** Both strip mechanisms are skipped so dev-mode CLI's `x-osmo-user: <name>` flows through. `defaultIdentity` is only injected via `ADD_IF_ABSENT` when the client did not set its own. **Any caller with network access to the gateway can claim any user, role, or pool — only safe on clusters whose gateway is not exposed to untrusted networks.** |
+| `oauth2Proxy.enabled` | `authz.enabled` | `jwt.providers` | Identity headers from clients |
+|---|---|---|---|
+| `true` (default) | `true` (default) | any | Stripped by Envoy's native header sanitization. ext_authz (the authz sidecar) is the canonical identity source. Production posture. |
+| `true` | `false` | any | Stripped by Envoy's native header sanitization. |
+| `false` | `true` | any | Stripped by Envoy's native header sanitization. |
+| `false` | `false` | non-empty | Stripped by Envoy's native header sanitization so JWT claims are the identity source. |
+| `false` | `false` | empty (minimal mode) | **Trusted.** Identity-header sanitization is skipped so dev-mode CLI's `x-osmo-user: <name>` flows through. `defaultIdentity` is only injected via `ADD_IF_ABSENT` when the client did not set its own. **Any caller with network access to the gateway can claim any user, role, or pool — only safe on clusters whose gateway is not exposed to untrusted networks.** |
 
 #### Gateway Upstreams
 

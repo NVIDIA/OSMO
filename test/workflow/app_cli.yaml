@@ -1,0 +1,36 @@
+#####################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: app-cli
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: {{platform}}
+  tasks:
+  - name: app-cli
+    image: ubuntu:22.04
+    resource: default
+    args: ['/tmp/osmo_app_test.sh', '{{app_name}}']
+    command: ['/bin/bash']
+    files:
+    - localpath: scripts/app_cli.sh
+      path: /tmp/osmo_app_test.sh
+    - localpath: scripts/app_spec.yaml
+      path: /tmp/app_spec.yaml
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  app_name: integration_test_app
+  platform: cpu-x86

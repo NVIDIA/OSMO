@@ -1,0 +1,40 @@
+[
+  {
+    "name": "Image pull failure",
+    "messageRegex": "(?i)FAILED_IMAGE_PULL|imagepullbackoff|manifest unknown",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Pool unavailable",
+    "messageRegex": "(?i)no pool selected|pool not found|FAILED_QUEUE_TIMEOUT",
+    "matchedStatuses": ["failed", "broken"]
+  },
+  {
+    "name": "Auth failure",
+    "messageRegex": "(?i)\\b(401|403)\\b|unauthorized|forbidden|token (expired|invalid)",
+    "matchedStatuses": ["failed", "broken"]
+  },
+  {
+    "name": "Network / Access gate",
+    "messageRegex": "(?i)cloudflareaccess|scheme isn't ws or wss|connection refused",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Timeout",
+    "messageRegex": "(?i)FAILED_EXEC_TIMEOUT|FAILED_QUEUE_TIMEOUT|timeout",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Server 5xx",
+    "messageRegex": "(?i)FAILED_SERVER_ERROR|status code 5\\d\\d",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Test framework error",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Test failure",
+    "matchedStatuses": ["failed"]
+  }
+]

@@ -18,7 +18,6 @@ SPDX-License-Identifier: Apache-2.0
 
 import argparse
 import asyncio
-import collections
 import datetime
 import fcntl
 import logging
@@ -28,11 +27,10 @@ import re
 import signal
 import struct
 import sys
-import tempfile
 import termios
 import time
 import tty
-from typing import Any, Dict, List, Tuple, TypeAlias
+from typing import Any, Dict, List, Tuple
 
 import pydantic
 import requests  # type: ignore
@@ -43,9 +41,8 @@ import websockets.exceptions
 import yaml
 import texttable  # type: ignore
 
-from src.cli import dataset, pool
+from src.cli import pool
 from src.lib import rsync
-from src.lib.data import storage
 from src.lib.utils import (client, common, osmo_errors, paths, port_forward, priority as wf_priority,
                         validation, workflow as workflow_utils)
 
@@ -770,28 +767,6 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
 
 
     load_local_files(workflow_path, updated_workflow_dict)
-
-    localpath_dataset_inputs = _parse_localpath_dataset_inputs(
-        workflow_path,
-        updated_workflow_dict,
-    )
-
-    if len(localpath_dataset_inputs) > 0:
-        # Uploading localpath dataset is very expensive...
-        # So we validate the workflow before the upload.
-        params['validation_only'] = True
-        result = service_client.request(client.RequestMethod.POST, f'api/pool/{args.pool}/workflow',
-                                        payload=template_data.to_dict(), params=params)
-        params['validation_only'] = False
-
-        # The workflow is valid, upload localpath dataset inputs and update workflow spec
-        _upload_localpath_dataset_inputs(
-            service_client,
-            localpath_dataset_inputs,
-            updated_workflow_dict['workflow']['name'],
-            args.format_type == 'json',
-        )
-
     template_data.file = yaml.dump(updated_workflow_dict)
 
     try:
@@ -1203,109 +1178,6 @@ def load_local_files(workflow_file: str, workflow: Dict):
     # Substitute local file in all tasks
     for task in tasks:
         _load_local_files_helper(workflow_file, task)
-
-
-DatasetName: TypeAlias = str
-DatasetInput: TypeAlias = Dict
-Localpath: TypeAlias = str
-LocalpathInputs: TypeAlias = Dict[Localpath, List[DatasetInput]]
-LocalpathDatasetInputs: TypeAlias = Dict[DatasetName, LocalpathInputs]
-
-
-def _parse_localpath_dataset_inputs(
-    workflow_file: str,
-    workflow: Dict,
-) -> LocalpathDatasetInputs:
-    localpath_dataset_inputs: LocalpathDatasetInputs = \
-        collections.defaultdict[DatasetName, LocalpathInputs](
-            lambda: collections.defaultdict[Localpath, List[DatasetInput]](list))
-
-    # For v1 spec, and 'tasks' section of v2 spec
-    tasks = workflow['workflow'].get('tasks', [])
-    # For 'groups' section of v2 spec
-    for group in workflow['workflow'].get('groups', []):
-        tasks += group.get('tasks', [])
-
-    for task in tasks:
-        for task_input in task.get('inputs', []):
-            if 'dataset' not in task_input:
-                continue
-
-            input_dataset = task_input['dataset']
-            if 'localpath' not in input_dataset:
-                continue
-
-            dataset_name = input_dataset['name']
-            if ':' in dataset_name:
-                raise osmo_errors.OSMOSubmissionError(
-                    'Localpath Dataset name cannot contain tag or version id!')
-
-            localpath = paths.get_absolute_path(
-                input_dataset['localpath'],
-                workflow_file,
-            )
-
-            if not os.path.exists(localpath):
-                raise osmo_errors.OSMOSubmissionError(
-                    f'The localpath {localpath} does not exist!')
-
-            localpath_dataset_inputs[dataset_name][localpath].append(input_dataset)
-
-    return localpath_dataset_inputs
-
-
-def _upload_localpath_dataset_inputs(
-    service_client: client.ServiceClient,
-    localpath_dataset_inputs: LocalpathDatasetInputs,
-    workflow_name: str,
-    quiet: bool,
-):
-    """
-    For each dataset name, localpath; create a dataset version.
-    """
-    for dataset_name, dataset_inputs in localpath_dataset_inputs.items():
-
-        for local_path, input_datasets in dataset_inputs.items():
-
-            # Create metadata file for the localpath dataset
-            with tempfile.NamedTemporaryFile(suffix='.yaml', mode='w') as metadata_file:
-                dataset_metadata_info = {
-                    'default': {
-                        'workflow_name': workflow_name,
-                        'localpath_dataset': True,
-                        'localpath': local_path,
-                    }
-                }
-                yaml.dump(dataset_metadata_info, metadata_file)
-
-                # TODO: Optimize this to not upload if there exists an existing version
-                #       that has the same dataset digest as current upload.
-                upload_results = dataset.upload_dataset(
-                    service_client,
-                    dataset_name,
-                    [local_path],
-                    metadata=[metadata_file.name],
-                    quiet=quiet,
-                    executor_params=storage.ExecutorParameters(
-                        num_threads=storage.DEFAULT_NUM_THREADS,
-                    ),
-                )
-
-            if not upload_results:
-                raise osmo_errors.OSMOSubmissionError('Failed to upload localpath dataset inputs!')
-
-            if 'version_id' in upload_results:
-                uploaded_version = upload_results['version_id']
-            else:
-                raise osmo_errors.OSMOSubmissionError(
-                    'Failed to get version of localpath dataset upload!')
-
-            # Backfill dataset name and regex
-            for input_dataset in input_datasets:
-                if ':' in input_dataset['name']:
-                    input_dataset['name'] = input_dataset['name'].split(':')[0]
-                input_dataset['name'] += f':{uploaded_version}'
-                del input_dataset['localpath']
 
 
 async def _connect_stdin_stdout() -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:

@@ -133,10 +133,9 @@ func (f WebsocketConnectionInfo) TimeLeft() time.Duration {
 var WebsocketConnection WebsocketConnectionInfo
 
 func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
-	*bufio.Scanner, sync.WaitGroup, chan bool) {
+	*bufio.Scanner, *sync.WaitGroup, chan bool) {
 	streamOutCommand := func(cmd *exec.Cmd, scanner *bufio.Scanner,
-		waitStreamLogs sync.WaitGroup, timeoutChan chan bool) {
-		waitStreamLogs.Add(1)
+		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool) {
 		defer waitStreamLogs.Done()
 
 		lastMessageTime := time.Now()
@@ -178,9 +177,8 @@ func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
 	return streamOutCommand
 }
 
-func createErrCommandStream(osmoChan chan string) func(*bufio.Scanner, sync.WaitGroup) {
-	streamErrCommand := func(scanner *bufio.Scanner, waitStreamLogs sync.WaitGroup) {
-		waitStreamLogs.Add(1)
+func createErrCommandStream(osmoChan chan string) func(*bufio.Scanner, *sync.WaitGroup) {
+	streamErrCommand := func(scanner *bufio.Scanner, waitStreamLogs *sync.WaitGroup) {
 		defer waitStreamLogs.Done()
 		for scanner.Scan() {
 			log.Println(scanner.Text())

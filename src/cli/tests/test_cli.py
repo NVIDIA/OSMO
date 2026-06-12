@@ -19,7 +19,7 @@ import argparse
 import unittest
 from unittest import mock
 
-from src.cli import workflow
+from src.cli import main_parser, workflow
 from src.lib.rsync import rsync
 
 class TestPortParse(unittest.TestCase):
@@ -155,6 +155,20 @@ class TestAsyncioEntrypoints(unittest.TestCase):
             )
 
         self.assertEqual(download_task.await_count, 1)
+
+
+class TestRemovedCommands(unittest.TestCase):
+    def test_dataset_command_is_not_registered(self):
+        parser = main_parser.create_cli_parser()
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["dataset", "list"])
+
+    def test_bucket_command_is_not_registered(self):
+        parser = main_parser.create_cli_parser()
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["bucket", "list"])
 
 
 if __name__ == "__main__":

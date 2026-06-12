@@ -22,10 +22,10 @@ from unittest import mock
 
 import pydantic
 
-from src.lib.utils import credentials, osmo_errors
+from src.lib.utils import credentials, osmo_errors, priority as wf_priority
 from src.lib.utils.osmo_errors import OSMOResourceError
 from src.utils import connectors
-from src.utils.job import task, kb_objects
+from src.utils.job import jobs, task, kb_objects
 
 
 class ShortenNameToFitKbTest(unittest.TestCase):
@@ -92,6 +92,100 @@ class CreateLoginDictTest(unittest.TestCase):
         result = task.create_login_dict(user='bob', url='https://example.com')
         self.assertNotIn('token_login', result)
         self.assertNotIn('osmo_token', result)
+
+
+class RetryTaskK8sResourcesTest(unittest.TestCase):
+    """Tests for retry resource reconciliation."""
+
+    def test_retry_task_recreates_generated_file_secrets(self):
+        workflow_uuid = 'a' * 32
+        task_db_key = 'c' * 32
+        group_uuid = 'd' * 32
+        user = 'alice'
+        database = mock.Mock()
+        context = mock.Mock(postgres=database)
+        progress_writer = mock.Mock()
+        k8s_factory = kb_objects.K8sObjectFactory('default-scheduler')
+        file_mount = kb_objects.FileMount(
+            group_uid=group_uuid,
+            path='/workspace/run.sh',
+            content='ZWNobyBoZWxsbwo=',
+            k8s_factory=k8s_factory,
+        )
+        pod_labels = {
+            'osmo.workflow_uuid': workflow_uuid,
+            'osmo.group_uuid': group_uuid,
+            'osmo.group_name': 'group',
+            'osmo.submitted_by': user,
+            'osmo.task_name': 'worker',
+            'osmo.retry_id': '1',
+        }
+        pod = {
+            'apiVersion': 'v1',
+            'kind': 'Pod',
+            'metadata': {'name': 'retry-pod', 'labels': pod_labels},
+            'spec': {},
+        }
+
+        spec = task.TaskSpec(
+            name='worker',
+            image='ubuntu:22.04',
+            command=['/bin/sh'],
+            backend='default',
+        )
+        group = mock.Mock()
+        group.name = 'group'
+        group.group_uuid = group_uuid
+        group.spec.tasks = [spec]
+        group.convert_to_pod_spec.return_value = (pod, {'run.sh': file_mount}, None)
+
+        new_task = mock.Mock()
+        new_task.name = 'worker'
+        new_task.task_uuid = 'b' * 32
+        new_task.task_db_key = 'e' * 32
+        new_task.retry_id = 1
+        task_obj = mock.Mock()
+        task_obj.name = 'worker'
+        task_obj.task_db_key = task_db_key
+        task_obj.retry_id = 0
+        task_obj.create_new.return_value = new_task
+        workflow_obj = mock.Mock()
+        workflow_obj.plugins = mock.Mock()
+        workflow_obj.priority = wf_priority.WorkflowPriority.NORMAL
+        update_job = jobs.UpdateGroup(
+            workflow_id='workflow-1',
+            workflow_uuid=workflow_uuid,
+            group_name='group',
+            task_name='worker',
+            retry_id=0,
+            status=task.TaskGroupStatus.RESCHEDULED,
+            user=user,
+        )
+
+        with mock.patch.object(
+            task.TaskGroup, 'fetch_metadata_from_db', return_value=group
+        ), mock.patch.object(
+            jobs.RescheduleTask, 'send_job_to_queue', autospec=True
+        ) as send_job:
+            update_job._retry_task(  # pylint: disable=protected-access
+                task_obj,
+                group,
+                'default',
+                mock.Mock(max_error_log_lines=1000),
+                mock.Mock(),
+                context,
+                progress_writer,
+                workflow_obj,
+                k8s_factory,
+            )
+
+        reschedule_job = send_job.call_args.args[0]
+        resources = reschedule_job.create_job.k8s_resources
+        self.assertEqual(['Secret', 'Pod'], [resource['kind'] for resource in resources])
+        self.assertEqual(file_mount.name, resources[0]['metadata']['name'])
+        self.assertEqual(pod_labels, resources[0]['metadata']['labels'])
+        self.assertEqual(pod, resources[1])
+        self.assertEqual(2, progress_writer.report_progress.call_count)
 
 
 class CreateConfigDictTest(unittest.TestCase):
@@ -381,128 +475,6 @@ class TaskInputOutputTest(unittest.TestCase):
     def test_hash_differs_for_different_tasks(self):
         spec_a = task.TaskInputOutput(task='task1')
         spec_b = task.TaskInputOutput(task='task2')
-        self.assertNotEqual(hash(spec_a), hash(spec_b))
-
-
-class DatasetInputOutputTest(unittest.TestCase):
-    """Tests for DatasetInputOutput field validators."""
-
-    def _make(self, **fields) -> task.DatasetInputOutput:
-        defaults = {'name': 'mydataset'}
-        defaults.update(fields)
-        return task.DatasetInputOutput(dataset=defaults)
-
-    def test_valid_name_passes(self):
-        spec = self._make(name='valid-name_1')
-        self.assertEqual(spec.dataset.name, 'valid-name_1')
-
-    def test_invalid_name_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(name='!!bad!!')
-
-    def test_empty_path_passes(self):
-        spec = self._make(path='')
-        self.assertEqual(spec.dataset.path, '')
-
-    def test_valid_path_passes(self):
-        spec = self._make(path='subdir/file.txt')
-        self.assertEqual(spec.dataset.path, 'subdir/file.txt')
-
-    def test_invalid_path_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(path='bad?path')
-
-    def test_invalid_metadata_path_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(metadata=['bad,path'])
-
-    def test_valid_metadata_passes(self):
-        spec = self._make(metadata=['meta/info.json'])
-        self.assertEqual(spec.dataset.metadata, ['meta/info.json'])
-
-    def test_invalid_label_path_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(labels=['bad<path'])
-
-    def test_valid_labels_passes(self):
-        spec = self._make(labels=['mylabel/subdir'])
-        self.assertEqual(spec.dataset.labels, ['mylabel/subdir'])
-
-    def test_empty_regex_passes(self):
-        spec = self._make(regex='')
-        self.assertEqual(spec.dataset.regex, '')
-
-    def test_invalid_regex_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(regex='[unclosed')
-
-    def test_hash_uses_name_and_path(self):
-        spec_a = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p1'}
-        )
-        spec_b = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p1'}
-        )
-        self.assertEqual(hash(spec_a), hash(spec_b))
-
-    def test_hash_differs_for_different_path(self):
-        spec_a = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p1'}
-        )
-        spec_b = task.DatasetInputOutput(
-            dataset={'name': 'mydataset', 'path': 'p2'}
-        )
-        self.assertNotEqual(hash(spec_a), hash(spec_b))
-
-
-class UpdateDatasetOutputTest(unittest.TestCase):
-    """Tests for UpdateDatasetOutput field validators."""
-
-    def _make(self, **fields) -> task.UpdateDatasetOutput:
-        defaults = {'name': 'mydataset'}
-        defaults.update(fields)
-        return task.UpdateDatasetOutput(update_dataset=defaults)
-
-    def test_valid_name_passes(self):
-        spec = self._make(name='dataset-1')
-        self.assertEqual(spec.update_dataset.name, 'dataset-1')
-
-    def test_invalid_name_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(name='!!bad!!')
-
-    def test_valid_paths_passes(self):
-        spec = self._make(paths=['dir/file.txt'])
-        self.assertEqual(spec.update_dataset.paths, ['dir/file.txt'])
-
-    def test_invalid_paths_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(paths=['bad?path'])
-
-    def test_invalid_metadata_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(metadata=['bad,path'])
-
-    def test_valid_metadata_passes(self):
-        spec = self._make(metadata=['meta/file.json'])
-        self.assertEqual(spec.update_dataset.metadata, ['meta/file.json'])
-
-    def test_invalid_labels_raises(self):
-        with self.assertRaises(pydantic.ValidationError):
-            self._make(labels=['bad<label'])
-
-    def test_valid_labels_passes(self):
-        spec = self._make(labels=['mylabel'])
-        self.assertEqual(spec.update_dataset.labels, ['mylabel'])
-
-    def test_hash_uses_name(self):
-        spec_a = task.UpdateDatasetOutput(update_dataset={'name': 'ds-1'})
-        spec_b = task.UpdateDatasetOutput(update_dataset={'name': 'ds-1'})
-        self.assertEqual(hash(spec_a), hash(spec_b))
-
-    def test_hash_differs_for_different_name(self):
-        spec_a = task.UpdateDatasetOutput(update_dataset={'name': 'ds-1'})
-        spec_b = task.UpdateDatasetOutput(update_dataset={'name': 'ds-2'})
         self.assertNotEqual(hash(spec_a), hash(spec_b))
 
 
@@ -992,11 +964,11 @@ class TaskSpecParseTest(unittest.TestCase):
             workflow_id='wf-123', host_tokens={'host:peer': 'peer.example'})
         self.assertEqual(parsed.args, ['--host=peer.example'])
 
-    def test_input_index_token_substituted_for_dataset_input(self):
+    def test_input_index_token_substituted_for_url_input(self):
         spec = task.TaskSpec(
             name='mytask', image='ubuntu', command=['ls'],
             args=['{{ input:0 }}'],
-            inputs=[task.DatasetInputOutput(dataset={'name': 'mydataset'})])
+            inputs=[task.URLInputOutput(url='s3://bucket/path')])
         parsed = spec.parse(workflow_id='wf-123', host_tokens={})
         self.assertEqual(
             parsed.args, [f'{kb_objects.DATA_LOCATION}/input/0'])

@@ -35,7 +35,6 @@ kind: Deployment
 metadata:
   name: {{ $gwName }}-envoy
 spec:
-  replicas: {{ $gw.envoy.scaling.minReplicas }}
   selector:
     matchLabels:
       {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 6 }}
@@ -186,6 +185,7 @@ metadata:
     alb.ingress.kubernetes.io/group.name: {{ $gw.envoy.ingress.albAnnotations.groupName | default "osmo" }}
     alb.ingress.kubernetes.io/group.order: {{ $gw.envoy.ingress.albAnnotations.groupOrder | default "10" | quote }}
     alb.ingress.kubernetes.io/certificate-arn: {{ $gw.envoy.ingress.albAnnotations.sslCertArn }}
+    alb.ingress.kubernetes.io/healthcheck-path: /api/version
     {{- end }}
     {{- range $k, $v := $gw.envoy.ingress.annotations }}
     {{ $k }}: {{ $v | quote }}
@@ -256,7 +256,6 @@ kind: Deployment
 metadata:
   name: {{ $gwName }}-oauth2-proxy
 spec:
-  replicas: {{ $gw.oauth2Proxy.scaling.minReplicas }}
   selector:
     matchLabels:
       {{- include "osmo.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 6 }}
@@ -432,7 +431,6 @@ kind: Deployment
 metadata:
   name: {{ $gwName }}-authz
 spec:
-  replicas: {{ $gw.authz.scaling.minReplicas }}
   selector:
     matchLabels:
       {{- include "osmo.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 6 }}

@@ -1,0 +1,33 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: osmo-client-test
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: cpu-x86
+  tasks:
+  - name: task1
+    resource: default
+    image: ubuntu:22.04
+    args: ['/tmp/run.sh']
+    command: ['sh']
+    files:
+    - contents: |
+        set -e
+        echo "Running osmo dataset list"
+        osmo dataset list --all-users --name test_DS
+      path: /tmp/run.sh
+  timeout:
+    queue_timeout: 1h
+    exec_timeout: 10m

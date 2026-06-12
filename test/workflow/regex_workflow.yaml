@@ -1,0 +1,75 @@
+#####################################################################################
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: regex-workflow
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: cpu-x86
+  tasks:
+  - name: create-files
+    image: ubuntu:22.04
+    command: [sh]
+    args: [/tmp/run.sh]
+    files:
+    - contents: |
+        echo "Hello from create"
+        echo "Hello from create" > {{output}}/t.txt
+        echo "Data from task 1" > {{output}}/t1.txt
+        echo "Data from task 1" > {{output}}/bad.my
+        mkdir {{output}}/inside
+        echo "Data from task 1" > {{output}}/inside/t2.txt
+      path: /tmp/run.sh
+    resource: default
+    outputs:
+    - dataset:
+        name: {{bucket}}/regex_test_DS
+        regex: .*\.txt$
+  - name: download-files
+    image: ubuntu:22.04
+    args: ['$(FILE_PATH)']
+    command: ['sh']
+    environment:
+      FILE_PATH: /tmp/run.sh
+    files:
+    - contents: |
+        ls -R {{input:0}}
+        echo ""
+        ls -R {{input:1}}
+
+        mkdir /tmp/test
+        echo "Hello from create" > /tmp/test/t.txt
+        echo "Data from task 1" > /tmp/test/t1.txt
+        mkdir /tmp/test/inside
+        echo "Data from task 1" > /tmp/test/inside/t2.txt
+
+        set +e
+
+        diff -qr {{input:1}}/regex_test_DS /tmp/test/
+        if [ $? -ne 0 ]; then
+          echo "Downloaded folder doesn't match expected"
+          exit 1
+        fi
+      path: /tmp/run.sh
+    resource: default
+    inputs:
+    - task: create-files
+    - dataset:
+        name: {{bucket}}/regex_test_DS
+        regex: .*\.txt$
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 1h
+
+default-values:
+  bucket: osmo

@@ -1,0 +1,22 @@
+workflow:
+  name: private-image-1
+  tasks:
+  - name: train
+    image: nvcr.io/nvidia/gr00t:1.5.0
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    files:
+    - contents: |
+        #!/bin/bash
+        set -e
+        python -m gr00t.train --output {{output}}/model
+      path: /tmp/entry.sh
+    outputs:
+    - dataset:
+        name: private-image-output
+  resources:
+    default:
+      cpu: 32
+      gpu: 4
+      memory: 256Gi
+      storage: 500Gi

@@ -9,7 +9,7 @@ schema (`question` / `expected_skill` / `expected_script` / `ground_truth` /
 ```text
 evals/
 ├── README.md                    # this file
-├── evals.json                   # 22 eval definitions (NVIDIA schema)
+├── evals.json                   # 34 eval definitions (NVIDIA schema)
 ├── environment/
 │   └── Dockerfile               # eval runtime image (mock osmo on PATH)
 └── files/
@@ -20,6 +20,11 @@ evals/
         │                        # (includes workflow_query_oom.json, workflow_events_oom.txt,
         │                        #  workflow_query_tool.json, workflow_logs_tool.txt,
         │                        #  workflow_query_badimage.json, workflow_events_badimage.txt,
+        │                        #  workflow_query_private_image.json,
+        │                        #  workflow_events_private_image.txt,
+        │                        #  credential_list_response.txt,
+        │                        #  app_submit_response.txt, workflow_validate_response.txt,
+        │                        #  data_download_response.txt, data_check_response.txt,
         │                        #  workflow_logs_badimage.txt, workflow_query_sdg.json,
         │                        #  workflow_spec_sdg.yaml, and others)
         ├── submit_ok/           # canned `osmo workflow submit` success response
@@ -35,7 +40,7 @@ them at the agent's cwd.
 
 ## Eval set
 
-22 evals total — 17 positives (`expected_skill` is `osmo-user`) and 5 negatives
+34 evals total — 26 positives (`expected_skill` is `osmo-user`) and 8 negatives
 (`expected_skill` is `null`). See `evals.json` for the full set.
 
 ## How the eval environment works
@@ -70,7 +75,23 @@ everything under `evals/files/` automatically.
   submit and succeeds on resubmit; the sizing math is graded by the eval
   judge, not by the mock inspecting the edited YAML.
 
-- **App creation** is now covered (eval 019).
+- **App creation** is covered (eval 019). App discovery/parameter inspection
+  and app submission are covered by eval 030.
+
+- **Workflow credential setup** is covered by eval 027. The eval environment
+  sets `NGC_CLI_API_KEY=mock-ngc-api-key-do-not-print`; agents must use it
+  without printing its value.
+
+- **Private registry ImagePullBackOff diagnosis** is covered by eval 028.
+
+- **Workflow validate / dry-run behavior** is covered by eval 029.
+
+- **Direct data download/check command selection** is covered by evals 032 and
+  033.
+
+- **Physical AI infrastructure boundaries** are covered by evals 025, 026, and
+  035. These prevent `osmo-user` from absorbing Azure AKS, NIM Operator, and
+  Kubernetes image-pull-secret setup.
 
 ## Coverage notes
 
@@ -89,7 +110,7 @@ evolves. To refresh:
    `osmo workflow query <name>`, etc.
 2. Redact any user-identifiable fields (`submitted_by`, internal hostnames)
    to placeholder values that match the existing fixtures.
-3. Replace the fixture file and re-run the eval suite to confirm all 22
+3. Replace the fixture file and re-run the eval suite to confirm all 34
    cases still pass.
 
 Longer-term we should validate fixtures in CI against the OSMO OpenAPI

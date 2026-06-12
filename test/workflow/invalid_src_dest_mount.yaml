@@ -1,0 +1,32 @@
+#####################################################################################
+# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+version: 2
+workflow:
+  name: invalid-src-dest-mount
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+      platform: cpu-x86
+  tasks:
+  - name: task1
+    image: ubuntu:22.04
+    command: [sh]
+    args: [/tmp/run.sh]
+    volumeMounts: ['/opt:/home/foo:/bad_mount']
+    files:
+    - contents: |
+        echo "Bad mount test"
+      path: /tmp/run.sh
+    resource: default
+  timeout:
+    queue_timeout: 1h
+    exec_timeout: 10m
