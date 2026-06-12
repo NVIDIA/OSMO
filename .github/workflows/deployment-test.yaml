@@ -123,13 +123,17 @@ jobs:
       - name: terraform init
         run: terraform init -input=false
 
-      - name: terraform plan (-var subscription_id, -var resource_group_name)
+      - name: terraform plan (against osmo-deployment-ci-rg, plan-only)
         run: |
+          # postgres_password is a TF input without a default — pass a
+          # placeholder so plan can complete. The value would only matter
+          # at `terraform apply` time (which auth-check never runs).
           terraform plan \
             -input=false \
             -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
             -var "resource_group_name=${RESOURCE_GROUP}" \
             -var "azure_region=${AZURE_REGION}" \
+            -var "postgres_password=auth-check-placeholder-not-applied" \
             -no-color
         env:
           RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
