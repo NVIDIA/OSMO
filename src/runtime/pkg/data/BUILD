@@ -21,8 +21,7 @@ go_library(
     srcs = [
         "data.go",
         "input_output.go",
-        "storage_backends.go"
-        ],
+    ],
     importpath = "go.corp.nvidia.com/osmo/runtime/pkg/data",
     visibility = ["//visibility:public"],
     deps = [
@@ -36,7 +35,6 @@ go_test(
     name = "data_test",
     srcs = [
         "data_runtime_test.go",
-        "data_test.go",
         "input_output_test.go",
     ],
     embed = [":data"],
