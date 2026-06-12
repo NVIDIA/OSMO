@@ -182,13 +182,17 @@ jobs:
 
       - name: run-deployment-test.sh --provider azure
         run: |
+          # The Postgres flex instance is ephemeral — provisioned at deploy
+          # and destroyed at teardown. Generate a per-run random password
+          # so no static credential needs to live in repo Secrets.
+          POSTGRES_PASSWORD="$(openssl rand -base64 32 | tr -d '/=+' | head -c 32)Aa1!"
+          export POSTGRES_PASSWORD
           bash deployments/scripts/run-deployment-test.sh --provider azure
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
       - uses: actions/upload-artifact@v4
         if: always()
