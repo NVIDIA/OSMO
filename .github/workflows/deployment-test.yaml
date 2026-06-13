@@ -147,11 +147,14 @@ jobs:
           || (github.event_name == 'pull_request'
               && contains(github.event.pull_request.labels.*.name, 'ci:run-full-deployment')) }}
     runs-on: ubuntu-latest
-    # Budget: terraform apply ~10 min + wrapper deploy/verify ~30 min +
-    # terraform destroy ~10 min = ~50 min nominal. Bump to 90 for slow-
-    # Azure days. After the TEMP scaffolding goes away the budget drops
-    # to ~30 min total.
-    timeout-minutes: 90
+    # Budget while TEMP scaffolding is in place:
+    #   cleanup leftovers (~30 min worst-case if AKS is mid-delete)
+    #   + terraform apply (~15 min)
+    #   + wrapper deploy/verify (~30 min)
+    #   + terraform destroy (~15 min)
+    # = ~90 min nominal. 120 leaves headroom for slow-Azure days.
+    # After the TEMP scaffolding goes away the budget drops to ~30 min.
+    timeout-minutes: 120
     environment: internal-ci
     env:
       ARM_USE_OIDC: true
@@ -278,8 +281,8 @@ jobs:
             az resource delete --ids "$id" --no-wait 2>&1 | head -2 || true
           done <<< "$IDS"
 
-          echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 15 min)"
-          deadline=$(( $(date +%s) + 900 ))
+          echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 30 min; AKS deletion alone can take 15+)"
+          deadline=$(( $(date +%s) + 1800 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
             count=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
             echo "  $(date -u +%H:%M:%S) remaining: $count"
