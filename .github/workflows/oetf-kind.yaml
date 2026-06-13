@@ -100,22 +100,10 @@ jobs:
             exit 3
           fi
 
-      - name: Detect OETF framework presence
-        id: oetf
-        run: |
-          # The OETF framework lands in a separate PR (#1062). Until that
-          # merges, //test/oetf:deploy_and_run doesn't exist on main, and
-          # this workflow has nothing to verify against the PR-merged tree.
-          # Skip cleanly rather than failing red.
-          if [ -f test/oetf/BUILD ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::OETF framework not present in tree; skipping deploy_and_run."
-          fi
+      - name: Disk space (pre-deploy)
+        run: df -h /
 
       - name: Build osmo CLI
-        if: steps.oetf.outputs.present == 'true'
         run: |
           # CLI-mode scenarios (e.g. router-connectivity, smoke:cli-checks)
           # need an `osmo` binary to invoke. Build from //src/cli and expose
@@ -126,7 +114,7 @@ jobs:
           /usr/local/bin/osmo --help >/dev/null
 
       - name: Run OETF deploy_and_run on KIND
-        if: steps.oetf.outputs.present == 'true'
+        id: deploy_and_run
         run: |
           # --jobs=1 serializes the test suite. The KIND-deployed
           # quick-start chart runs a single ingress-nginx replica with
@@ -134,15 +122,120 @@ jobs:
           # intermittently 504. Trade-off: longer wall clock; in exchange
           # we get deterministic green. Lift back to default jobs once the
           # chart's kind profile bumps ingress replicas.
-          bazel run //test/oetf:deploy_and_run -- \
-            --env kind --tags kind \
-            --jobs 1 \
-            --output-json kind-smoke-result.json
+          #
+          # `time` writes total wall clock to the step log so regressions
+          # past the ~15-min PR-gate budget show up in the run timeline,
+          # not just per-step in the Actions UI. EXIT trap so the timing
+          # block lands on the failure path too (default `set -e` would
+          # otherwise skip the cat after a bazel non-zero exit).
+          #
+          # --keep + --keep-on-failure: leave the cluster intact on either
+          # deploy or test failure so the "Diagnose KIND state on failure"
+          # step below can capture pod state. The explicit "Cleanup KIND
+          # cluster" step (if: always()) tears it down afterward.
+          trap '
+            echo "::group::deploy_and_run wall clock"
+            cat /tmp/oetf.time 2>/dev/null || echo "(no timing file written)"
+            echo "::endgroup::"
+          ' EXIT
+          /usr/bin/time -p -o /tmp/oetf.time \
+            bazel run //test/oetf:deploy_and_run -- \
+              --env kind --tags kind \
+              --jobs 1 \
+              --keep --keep-on-failure \
+              --output-json kind-smoke-result.json
+
+      - name: Diagnose KIND state on failure
+        if: failure() && steps.deploy_and_run.outcome == 'failure'
+        # Triggered only on deploy_and_run failure — preserves the cluster's
+        # post-mortem state for inspection BEFORE the cleanup step deletes
+        # it. Each subsection is wrapped in ::group:: so reviewers can fold
+        # what they don't need. `|| true` everywhere — diagnostic must
+        # never mask the real failure.
+        run: |
+          echo "::group::All pods (kubectl get pods -A -o wide)"
+          kubectl get pods -A -o wide || true
+          echo "::endgroup::"
+
+          echo "::group::Recent events (last 100, sorted by lastTimestamp)"
+          kubectl get events -A --sort-by=.lastTimestamp 2>/dev/null | tail -100 || true
+          echo "::endgroup::"
+
+          echo "::group::Non-Ready pod descriptions (osmo + kai-scheduler + ingress-nginx + kube-system)"
+          for ns in osmo kai-scheduler ingress-nginx kube-system; do
+            # `kubectl get pods` field-selector can't filter on .status.conditions; do it in jsonpath.
+            not_ready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+            also_unready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.containerStatuses[*].ready==false)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+            for pod in $(printf '%s\n%s\n' "$not_ready" "$also_unready" | sort -u); do
+              [ -z "$pod" ] && continue
+              echo "--- $ns/$pod ---"
+              kubectl describe pod -n "$ns" "$pod" 2>/dev/null || true
+            done
+          done
+          echo "::endgroup::"
+
+          echo "::group::Non-Ready pod logs (last 200 lines, with --previous on crash)"
+          for ns in osmo kai-scheduler ingress-nginx; do
+            not_ready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+            also_unready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.containerStatuses[*].ready==false)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+            for pod in $(printf '%s\n%s\n' "$not_ready" "$also_unready" | sort -u); do
+              [ -z "$pod" ] && continue
+              echo "--- $ns/$pod (current) ---"
+              kubectl logs -n "$ns" "$pod" --all-containers --tail=200 2>/dev/null || true
+              echo "--- $ns/$pod (previous, if crash-looped) ---"
+              kubectl logs -n "$ns" "$pod" --all-containers --previous --tail=200 2>/dev/null || true
+            done
+          done
+          echo "::endgroup::"
+
+          echo "::group::Helm releases (helm list -A)"
+          helm list -A || true
+          echo "::endgroup::"
+
+          echo "::group::Disk space"
+          df -h /
+          echo "::endgroup::"
 
       - name: Cleanup KIND cluster
         if: always()
         run: |
           kind delete clusters --all || true
+
+      - name: Write run summary to GitHub step summary
+        if: always()
+        # Surfaces the [PASS]/[FAIL] table on the PR check UI so reviewers
+        # see results without scrolling the 10-min step log. Reads from
+        # kind-smoke-result.json (always written by oetf:run, even on test
+        # failure) and falls back to a deploy-failure note if missing.
+        run: |
+          set -euo pipefail
+          {
+            echo "## OETF KIND results"
+            echo
+            if [ -s kind-smoke-result.json ]; then
+              # jq is preinstalled on ubuntu-latest runners.
+              total=$(jq -r '.total' kind-smoke-result.json)
+              passed=$(jq -r '.passed' kind-smoke-result.json)
+              failed=$(jq -r '.failed' kind-smoke-result.json)
+              errored=$(jq -r '.errored' kind-smoke-result.json)
+              skipped=$(jq -r '.skipped' kind-smoke-result.json)
+              echo "**Total ${total}  Passed ${passed}  Failed ${failed}  Errors ${errored}  Skipped ${skipped}**"
+              echo
+              echo "| Result | Test | Duration |"
+              echo "| --- | --- | --- |"
+              # `.target` is the bazel label (e.g. //test/smoke:api-checks); fall back to `.name` for ad-hoc tests.
+              jq -r '.results[] | "| \(.status|ascii_upcase) | \(if .target != "" then .target else .name end) | \(.time | tonumber | (. * 100 | round / 100))s |"' kind-smoke-result.json
+            else
+              echo "_No kind-smoke-result.json — deploy likely failed before tests ran. See \"Diagnose KIND state\" step above._"
+            fi
+            echo
+            if [ -s /tmp/oetf.time ]; then
+              echo "### Wall clock"
+              echo '```'
+              cat /tmp/oetf.time
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload OETF result JSON
         if: always()
