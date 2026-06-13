@@ -138,12 +138,16 @@ jobs:
             cat /tmp/oetf.time 2>/dev/null || echo "(no timing file written)"
             echo "::endgroup::"
           ' EXIT
+          # `bazel run` cwd is the runfiles sandbox, NOT the workspace root —
+          # a relative `--output-json` path lands somewhere inside bazel-out
+          # where actions/upload-artifact + the summary step can't find it.
+          # Pass an absolute path under $GITHUB_WORKSPACE instead.
           /usr/bin/time -p -o /tmp/oetf.time \
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
               --jobs 1 \
               --keep --keep-on-failure \
-              --output-json kind-smoke-result.json
+              --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 
       - name: Diagnose KIND state on failure
         if: failure() && steps.deploy_and_run.outcome == 'failure'
