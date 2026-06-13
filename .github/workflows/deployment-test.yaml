@@ -331,22 +331,23 @@ jobs:
 
           echo "▶ $(date -u +%H:%M:%S) terraform apply (streaming, line-flushed)"
           echo "::group::terraform apply (streaming)"
-          # Add `ts` line-prefixing if moreutils is available so each apply
-          # progress line has a UTC timestamp; fall back to raw output.
+          # aks_private_cluster_enabled=false: the AKS module defaults to a
+          # private cluster (API server reachable only via privatelink). The
+          # GitHub-hosted runner is on the public internet and can't resolve
+          # the privatelink FQDN, so direct kubectl calls fail. Public API
+          # server is fine for an ephemeral verification cluster.
+          TF_VARS=(
+            -var "subscription_id=${ARM_SUBSCRIPTION_ID}"
+            -var "resource_group_name=${AZURE_RESOURCE_GROUP}"
+            -var "azure_region=${AZURE_REGION}"
+            -var "cluster_name=${AZURE_CLUSTER_NAME}"
+            -var "postgres_password=${PG_PASS}"
+            -var "aks_private_cluster_enabled=false"
+          )
           if command -v ts >/dev/null; then
-            terraform apply -input=false -auto-approve -no-color \
-              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
-              -var "azure_region=${AZURE_REGION}" \
-              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
-              -var "postgres_password=${PG_PASS}" 2>&1 | ts '[%H:%M:%S]'
+            terraform apply -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]'
           else
-            terraform apply -input=false -auto-approve -no-color \
-              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
-              -var "azure_region=${AZURE_REGION}" \
-              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
-              -var "postgres_password=${PG_PASS}"
+            terraform apply -input=false -auto-approve -no-color "${TF_VARS[@]}"
           fi
           echo "::endgroup::"
 
@@ -437,21 +438,19 @@ jobs:
           echo "::notice::terraform destroy starting — expected ~10–15 min"
           echo "▶ $(date -u +%H:%M:%S) terraform destroy (streaming)"
           echo "::group::terraform destroy (streaming)"
+          TF_VARS=(
+            -var "subscription_id=${ARM_SUBSCRIPTION_ID}"
+            -var "resource_group_name=${AZURE_RESOURCE_GROUP}"
+            -var "azure_region=${AZURE_REGION}"
+            -var "cluster_name=${AZURE_CLUSTER_NAME}"
+            -var "postgres_password=${PG_PASS}"
+            -var "aks_private_cluster_enabled=false"
+          )
           if command -v ts >/dev/null; then
-            terraform destroy -input=false -auto-approve -no-color \
-              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
-              -var "azure_region=${AZURE_REGION}" \
-              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
-              -var "postgres_password=${PG_PASS}" 2>&1 | ts '[%H:%M:%S]' \
+            terraform destroy -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]' \
               || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
           else
-            terraform destroy -input=false -auto-approve -no-color \
-              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
-              -var "azure_region=${AZURE_REGION}" \
-              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
-              -var "postgres_password=${PG_PASS}" \
+            terraform destroy -input=false -auto-approve -no-color "${TF_VARS[@]}" \
               || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
           fi
           echo "::endgroup::"
