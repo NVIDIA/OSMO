@@ -147,7 +147,11 @@ jobs:
           || (github.event_name == 'pull_request'
               && contains(github.event.pull_request.labels.*.name, 'ci:run-full-deployment')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Budget: terraform apply ~10 min + wrapper deploy/verify ~30 min +
+    # terraform destroy ~10 min = ~50 min nominal. Bump to 90 for slow-
+    # Azure days. After the TEMP scaffolding goes away the budget drops
+    # to ~30 min total.
+    timeout-minutes: 90
     environment: internal-ci
     env:
       ARM_USE_OIDC: true
@@ -267,6 +271,20 @@ jobs:
           PG_PASS: ${{ steps.gen_pg.outputs.value }}
       # --------------------------------------------------------------------
 
+      # The GitHub OIDC JWT minted at job start has only ~5 minutes of
+      # validity. The terraform apply step above takes ~10 min, so by the
+      # time the wrapper runs its first `az aks command invoke`, the
+      # client_assertion cached by the initial `azure/login` is stale and
+      # Azure rejects with:
+      #   AADSTS700024: Client assertion is not within its valid time range
+      # Re-running azure/login@v2 mints a fresh JWT + access token.
+      - name: azure login (re-mint JWT post-apply)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
       - name: run-deployment-test.sh --provider azure
         id: run_deploy
         run: |
@@ -305,8 +323,10 @@ jobs:
       # Surface the last 200 lines of each stage log inline in the workflow
       # output so most failures can be triaged WITHOUT downloading the
       # artifact. The artifact step below still uploads everything.
-      - name: dump stage logs (on failure)
-        if: failure()
+      # Fires on failure OR cancellation (timeout cancels but doesn't
+      # technically fail; we still want the inline tail).
+      - name: dump stage logs (on failure or cancellation)
+        if: failure() || cancelled()
         run: |
           set +e
           for f in deploy.log oetf.log teardown.log deployment-test-result.json junit.xml; do
