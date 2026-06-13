@@ -282,11 +282,29 @@ jobs:
           done <<< "$IDS"
 
           echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 30 min; AKS deletion alone can take 15+)"
+          # Re-fire deletes every 5 min on whatever's still there. Some
+          # resources (NAT public IPs, NICs) can't delete until their
+          # parents (NAT gateway, AKS node pool) finish — the initial
+          # fire is rejected but a later one succeeds. Without re-fire,
+          # they'd sit stuck forever.
           deadline=$(( $(date +%s) + 1800 ))
+          last_refire=$(date +%s)
           while [ "$(date +%s)" -lt "$deadline" ]; do
             count=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
             echo "  $(date -u +%H:%M:%S) remaining: $count"
             [ "$count" = "0" ] && break
+
+            now=$(date +%s)
+            if [ "$count" != "0" ] && [ "$count" != "?" ] && [ $(( now - last_refire )) -ge 300 ]; then
+              echo "  $(date -u +%H:%M:%S) ↻ re-firing deletes on $count remaining resource(s)"
+              IDS_NOW=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query '[].id' -o tsv || true)
+              while IFS= read -r id; do
+                [ -z "$id" ] && continue
+                az resource delete --ids "$id" --no-wait 2>&1 | head -1 || true
+              done <<< "$IDS_NOW"
+              last_refire=$now
+            fi
+
             sleep 30
           done
 
