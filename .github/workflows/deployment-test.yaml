@@ -253,17 +253,97 @@ jobs:
       # AFTER. Remove these two scaffolding steps once a long-running
       # internal-ci AKS is set up (the wrapper invocation in the middle
       # stays unchanged).
+      # If a prior verification run was killed mid-destroy (e.g. job
+      # timeout), Azure resources may exist in the RG without matching
+      # terraform state — and `terraform apply` would then fail with
+      # "Resource already exists, import into state". Wipe all
+      # non-RG resources to start from a clean slate.
+      - name: TEMP — pre-apply cleanup (delete leftover resources in RG)
+        run: |
+          set -euo pipefail
+          echo "▶ $(date -u +%H:%M:%S) checking for leftover resources in $AZURE_RESOURCE_GROUP"
+          IDS=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query '[].id' -o tsv || true)
+          if [ -z "$IDS" ]; then
+            echo "::notice::resource group is clean — nothing to delete"
+            exit 0
+          fi
+          echo "::warning::found $(echo "$IDS" | wc -l) leftover resource(s) from a prior partial run"
+          echo "::group::leftover resources"
+          echo "$IDS"
+          echo "::endgroup::"
+
+          echo "▶ $(date -u +%H:%M:%S) firing async deletes (--no-wait)"
+          while IFS= read -r id; do
+            [ -z "$id" ] && continue
+            az resource delete --ids "$id" --no-wait 2>&1 | head -2 || true
+          done <<< "$IDS"
+
+          echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 15 min)"
+          deadline=$(( $(date +%s) + 900 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            count=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
+            echo "  $(date -u +%H:%M:%S) remaining: $count"
+            [ "$count" = "0" ] && break
+            sleep 30
+          done
+
+          remaining=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
+          if [ "$remaining" != "0" ]; then
+            echo "::error::cleanup timed out — $remaining resource(s) still present"
+            az resource list --resource-group "$AZURE_RESOURCE_GROUP" -o table
+            exit 1
+          fi
+          echo "::notice::cleanup complete"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
       - name: TEMP — terraform apply (provision AKS + Postgres + Redis)
         working-directory: deployments/terraform/azure/example
         run: |
           set -euo pipefail
-          terraform init -input=false
-          terraform apply -input=false -auto-approve -no-color \
-            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-            -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
-            -var "azure_region=${AZURE_REGION}" \
-            -var "cluster_name=${AZURE_CLUSTER_NAME}" \
-            -var "postgres_password=${PG_PASS}"
+
+          echo "::notice::terraform apply starting — expected ~10–15 min (AKS provisioning dominates wall time)"
+          echo "▶ $(date -u +%H:%M:%S) terraform init"
+          echo "::group::terraform init"
+          terraform init -input=false -no-color | ts '[%H:%M:%S]' || terraform init -input=false -no-color
+          echo "::endgroup::"
+
+          echo "▶ $(date -u +%H:%M:%S) terraform apply (streaming, line-flushed)"
+          echo "::group::terraform apply (streaming)"
+          # Add `ts` line-prefixing if moreutils is available so each apply
+          # progress line has a UTC timestamp; fall back to raw output.
+          if command -v ts >/dev/null; then
+            terraform apply -input=false -auto-approve -no-color \
+              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
+              -var "azure_region=${AZURE_REGION}" \
+              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
+              -var "postgres_password=${PG_PASS}" 2>&1 | ts '[%H:%M:%S]'
+          else
+            terraform apply -input=false -auto-approve -no-color \
+              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
+              -var "azure_region=${AZURE_REGION}" \
+              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
+              -var "postgres_password=${PG_PASS}"
+          fi
+          echo "::endgroup::"
+
+          echo "▶ $(date -u +%H:%M:%S) terraform apply complete; resource summary:"
+          echo "::group::resources provisioned (terraform state list)"
+          terraform state list || true
+          echo "::endgroup::"
+
+          # Step-summary panel — shows up on the run's overview page so
+          # users don't have to read the raw log to see what landed.
+          {
+            echo "### TEMP terraform apply"
+            echo ""
+            echo "- AKS: \`${AZURE_CLUSTER_NAME}\` in \`${AZURE_RESOURCE_GROUP}\` (${AZURE_REGION})"
+            echo "- Postgres flex: \`${AZURE_CLUSTER_NAME}-postgres\`"
+            echo "- Redis: \`${AZURE_CLUSTER_NAME}-redis\`"
+            echo "- finished at: $(date -u +%H:%M:%SZ)"
+          } >> "$GITHUB_STEP_SUMMARY"
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
@@ -289,8 +369,35 @@ jobs:
         id: run_deploy
         run: |
           set -o pipefail
+
+          echo "::notice::run-deployment-test.sh starting — expected ~10–30 min (chart install + verify-hello + teardown)"
+          echo "▶ $(date -u +%H:%M:%S) starting wrapper"
+          echo ""
+          echo "Stages the wrapper will emit:"
+          echo "  [1/3] bootstrap   — refresh kubectl creds, reachability check"
+          echo "  [2/3] deploy      — deploy-osmo-minimal.sh: chart install + verify.sh"
+          echo "  [3/3] teardown    — uninstall OSMO from the cluster (cluster itself stays)"
+          echo ""
+          echo "Watch for: 'Stage start: <name>' / 'Stage pass: <name> (<duration>s)' lines"
+          echo ""
+
           mkdir -p "$RUN_DIR"
           bash deployments/scripts/run-deployment-test.sh --provider azure
+
+          echo ""
+          echo "▶ $(date -u +%H:%M:%S) wrapper completed"
+
+          # Step-summary panel — show the categorized result so users see
+          # at a glance whether the wrapper passed end-to-end.
+          if [ -f "$RUN_DIR/deployment-test-result.json" ]; then
+            {
+              echo "### Deployment wrapper result"
+              echo ""
+              echo '```json'
+              cat "$RUN_DIR/deployment-test-result.json"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
@@ -306,13 +413,43 @@ jobs:
         working-directory: deployments/terraform/azure/example
         run: |
           set -euo pipefail
-          terraform destroy -input=false -auto-approve -no-color \
-            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-            -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
-            -var "azure_region=${AZURE_REGION}" \
-            -var "cluster_name=${AZURE_CLUSTER_NAME}" \
-            -var "postgres_password=${PG_PASS}" \
-            || echo "::warning::terraform destroy failed — manual cleanup may be required on $AZURE_RESOURCE_GROUP"
+          echo "::notice::terraform destroy starting — expected ~10–15 min"
+          echo "▶ $(date -u +%H:%M:%S) terraform destroy (streaming)"
+          echo "::group::terraform destroy (streaming)"
+          if command -v ts >/dev/null; then
+            terraform destroy -input=false -auto-approve -no-color \
+              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
+              -var "azure_region=${AZURE_REGION}" \
+              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
+              -var "postgres_password=${PG_PASS}" 2>&1 | ts '[%H:%M:%S]' \
+              || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
+          else
+            terraform destroy -input=false -auto-approve -no-color \
+              -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+              -var "resource_group_name=${AZURE_RESOURCE_GROUP}" \
+              -var "azure_region=${AZURE_REGION}" \
+              -var "cluster_name=${AZURE_CLUSTER_NAME}" \
+              -var "postgres_password=${PG_PASS}" \
+              || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
+          fi
+          echo "::endgroup::"
+
+          echo "▶ $(date -u +%H:%M:%S) post-destroy resource count:"
+          REMAINING=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
+          echo "  $REMAINING resource(s) still in $AZURE_RESOURCE_GROUP"
+
+          # Step-summary panel.
+          {
+            echo "### TEMP terraform destroy"
+            echo ""
+            echo "- resources remaining in \`${AZURE_RESOURCE_GROUP}\`: ${REMAINING}"
+            echo "- finished at: $(date -u +%H:%M:%SZ)"
+            if [ "$REMAINING" != "0" ]; then
+              echo ""
+              echo "⚠️ Next run's pre-apply cleanup step will wipe these."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
