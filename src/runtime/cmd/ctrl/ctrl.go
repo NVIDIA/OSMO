@@ -19,7 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/tls"
 	"encoding/binary"
@@ -33,7 +32,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -51,7 +49,6 @@ import (
 	"go.corp.nvidia.com/osmo/runtime/pkg/rsync"
 
 	"github.com/gorilla/websocket"
-	"gopkg.in/yaml.v3"
 )
 
 const BUFFERSIZE int = 32 * 1024
@@ -1075,25 +1072,12 @@ func copyFile(src string, dest string) {
 }
 
 func downloadInputs(c net.Conn, inputs common.ArrayFlags, inputPath string,
-	downloadType string, osmoChan chan string, metricChan chan metrics.Metric, retryId string,
-	groupName string, taskName string, userConfig string, serviceConfig string, configLoc string,
-	cacheSize int) {
+	osmoChan chan string, metricChan chan metrics.Metric, retryId string,
+	groupName string, taskName string, userConfig string, serviceConfig string, configLoc string) {
 
-	inputType := "Mounting"
-	if downloadType == data.Download {
-		inputType = "Downloading"
-	} else {
-		// This is required for FUSE to properly work. Some machines already have /etc/mtab configured
-		if _, statErr := os.Stat("/etc/mtab"); errors.Is(statErr, os.ErrNotExist) {
-			if err := os.Symlink("/proc/mounts", "/etc/mtab"); err != nil {
-				osmo_errors.SetExitCode(osmo_errors.MOUNT_FAILED_CODE)
-				panic(fmt.Sprintf("Failed to create symlink /etc/mtab -> /proc/mounts: %v", err))
-			}
-		}
-	}
+	inputType := "Downloading"
 	osmoChan <- inputType + " Start"
 
-	numInputs := len(inputs)
 	for inputIndex, line := range inputs {
 		log.Printf("%s %s", inputType, line)
 		osmoChan <- inputType + " " + data.ParseInputOutput(line).GetLogInfo()
@@ -1109,23 +1093,8 @@ func downloadInputs(c net.Conn, inputs common.ArrayFlags, inputPath string,
 			copyFile(userConfig, configLoc)
 		}
 
-		// Open data config file
-		yfile, err := os.ReadFile(configLoc)
-		if err != nil {
-			osmo_errors.SetExitCode(osmo_errors.DOWNLOAD_FAILED_CODE)
-			panic(fmt.Sprintf("Cannot open config file: %s", err.Error()))
-		}
-
-		var configFile data.ConfigInfo
-		err = yaml.Unmarshal(yfile, &configFile)
-		if err != nil {
-			osmo_errors.SetExitCode(osmo_errors.DOWNLOAD_FAILED_CODE)
-			panic(fmt.Sprintf("Cannot read config file: %s", err.Error()))
-		}
-
-		inputInfo.CreateMount(c, inputPath, configFile, osmoChan,
-			metricChan, retryId, groupName, taskName, downloadType, inputIndex,
-			cacheSize/numInputs)
+		inputInfo.Download(c, inputPath, osmoChan,
+			metricChan, retryId, groupName, taskName, inputIndex)
 	}
 	log.Println("All Inputs Gathered")
 	osmoChan <- "All Inputs Gathered"
@@ -1167,21 +1136,7 @@ func uploadOutputs(c net.Conn, outputs common.ArrayFlags,
 			copyFile(userConfig, configLoc)
 		}
 
-		// TODO: Make each if statement a generalized function in outputInfo
-		// Set the metadata file for datasets
-		if datasetInfo, isTypeDataset := outputInfo.(*data.DatasetOutput); isTypeDataset {
-			datasetInfo.MetadataFile = metadataFile
-			datasetInfo.UploadFolder(c, outputPath, osmoChan, metricChan, retryId, groupName,
-				taskName, outputType.GetUrlIdentifier(), outputIndex)
-
-		} else if updateDatasetInfo, isTypeUpdateDataset :=
-			outputInfo.(*data.UpdateDatasetOutput); isTypeUpdateDataset {
-
-			updateDatasetInfo.MetadataFile = metadataFile
-			updateDatasetInfo.UploadFolder(c, outputPath, osmoChan, metricChan, retryId, groupName,
-				taskName, outputType.GetUrlIdentifier(), outputIndex)
-
-		} else if kpiInfo, isTypeKpi := outputInfo.(*data.KpiOutput); isTypeKpi {
+		if kpiInfo, isTypeKpi := outputInfo.(*data.KpiOutput); isTypeKpi {
 			kpiPath := outputPath + kpiInfo.Path
 			if _, err := os.Stat(kpiPath); errors.Is(err, os.ErrNotExist) {
 				osmoChan <- fmt.Sprintf("KPI file: %s does not exist", kpiPath)
@@ -1198,74 +1153,6 @@ func uploadOutputs(c net.Conn, outputs common.ArrayFlags,
 	}
 
 	osmoChan <- "All Outputs Uploaded"
-}
-
-func cleanupMounts(downloadType string) {
-	if downloadType == "download" {
-		return
-	}
-
-	// Keep attempting to unmount until no matching mounts remain
-	for {
-		mountPoints := findMountPointsForCleanup(downloadType)
-		if len(mountPoints) == 0 {
-			break
-		}
-		for _, mp := range mountPoints {
-			// Use the setuid FUSE helper explicitly per request
-			fuserMountPath := common.ResolveCommandPath("FUSERMOUNT_PATH", "fusermount", "/usr/bin/fusermount")
-			cmd := exec.Command(fuserMountPath, "-u", mp)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				log.Printf("Failed to unmount %s: %v: %s", mp, err, strings.TrimSpace(string(output)))
-			} else {
-				log.Printf("Unmounted %s", mp)
-			}
-		}
-	}
-}
-
-// findMountPointsForCleanup parses /proc/mounts and returns mountpoints that correspond
-func findMountPointsForCleanup(downloadType string) []string {
-	file, err := os.Open("/proc/mounts")
-	if err != nil {
-		log.Printf("Unable to open /proc/mounts: %v", err)
-		return nil
-	}
-	defer file.Close()
-
-	var mountPoints []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-		// Fast path: skip lines that do not contain the downloadType at all
-		if !strings.Contains(line, downloadType) {
-			continue
-		}
-		// /proc/mounts format: src dst fstype options dump fsck
-		// Fields are space-separated; spaces in paths are escaped as \040
-		parts := strings.Fields(line)
-		if len(parts) < 4 {
-			continue
-		}
-		dst := unescapeMountField(parts[1])
-		mountPoints = append(mountPoints, dst)
-	}
-	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading /proc/mounts: %v", err)
-	}
-	return mountPoints
-}
-
-func unescapeMountField(s string) string {
-	// Handle common escapes used in /proc/mounts
-	s = strings.ReplaceAll(s, "\\040", " ")
-	s = strings.ReplaceAll(s, "\\011", "\t")
-	s = strings.ReplaceAll(s, "\\012", "\n")
-	s = strings.ReplaceAll(s, "\\134", "\\")
-	return s
 }
 
 // Block until barrier has been met
@@ -1392,12 +1279,10 @@ func main() {
 
 	go sendLogs(cmdArgs.LogSource, logQueue, logsPeriodMs, stopSendLogs)
 
-	defer cleanupMounts(cmdArgs.DownloadType)
 	sigintCatch := make(chan os.Signal, 1)
 	signal.Notify(sigintCatch, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigintCatch
-		cleanupMounts(cmdArgs.DownloadType)
 		os.Exit(1)
 	}()
 
@@ -1418,9 +1303,8 @@ func main() {
 	// Send files to be downloaded
 	inputStartTime := time.Now().Format("2006-01-02 15:04:05.000")
 	downloadInputs(unixConn, cmdArgs.Inputs, cmdArgs.InputPath,
-		cmdArgs.DownloadType, downloadChan, metricChan, cmdArgs.RetryId, cmdArgs.GroupName,
-		cmdArgs.LogSource, cmdArgs.UserConfig, cmdArgs.ServiceConfig, cmdArgs.ConfigLoc,
-		cmdArgs.CacheSize)
+		downloadChan, metricChan, cmdArgs.RetryId, cmdArgs.GroupName,
+		cmdArgs.LogSource, cmdArgs.UserConfig, cmdArgs.ServiceConfig, cmdArgs.ConfigLoc)
 	inputEndTime := time.Now().Format("2006-01-02 15:04:05.000")
 	downloadTimes := metrics.GroupMetrics{
 		RetryId:    cmdArgs.RetryId,

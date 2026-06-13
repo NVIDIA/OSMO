@@ -64,12 +64,10 @@ type CtrlArgs struct {
 	UserConfig         string
 	ServiceConfig      string
 	MetadataFile       string
-	DownloadType       string
 	Timeout            time.Duration
 	UnixTimeout        time.Duration
 	ExecTimeout        time.Duration
 	DataTimeout        time.Duration
 	LogsPeriod         int
 	LogsBufferSize     int
-	CacheSize          int
 }
