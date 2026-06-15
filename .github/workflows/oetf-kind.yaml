@@ -100,6 +100,29 @@ jobs:
             exit 3
           fi
 
+      - name: Free runner disk for --build-local
+        # Reclaim ~22-25 GB by removing pre-installed tooling the OETF
+        # gate doesn't use. Pairs with the intra-step host-docker cleanup
+        # in local_images.build_and_load (docker rmi + tarball delete per
+        # image after kind-load), needed because the chart's 6-node KIND
+        # profile duplicates every loaded image into 6 separate
+        # containerd content stores. Without both mitigations the runner
+        # crashes mid-job with "No space left on device" (measured #29,
+        # #31, #32).
+        run: |
+          set -euo pipefail
+          for d in /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                   /opt/hostedtoolcache/PyPy /opt/hostedtoolcache/CodeQL \
+                   /opt/google/chrome /opt/microsoft /opt/az /opt/pipx \
+                   /opt/swift /usr/local/share/boost \
+                   /usr/local/share/powershell; do
+            if [ -d "$d" ]; then
+              sudo rm -rf "$d" &
+            fi
+          done
+          wait
+          sudo docker image prune -af >/dev/null 2>&1 || true
+
       - name: Disk space (pre-deploy)
         run: df -h /
 
@@ -116,53 +139,51 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --jobs=1 serializes the test suite. The KIND-deployed
-          # quick-start chart runs a single ingress-nginx replica with
-          # default resources; parallel scenario submits saturate it and
-          # intermittently 504. Trade-off: longer wall clock; in exchange
-          # we get deterministic green. Lift back to default jobs once the
-          # chart's kind profile bumps ingress replicas.
+          # --build-local: build the 9 OSMO service images from PR source
+          # and kind-load them, instead of pulling nvcr.io/nvidia/osmo:6.2
+          # from NGC. Disk strategy on hosted ubuntu-latest:
+          #   - "Free runner disk" step above: reclaim 22-25 GB on /
+          #   - --build-images skips web-ui (saves ~8 GB Next.js intermediates
+          #     + 6-node image duplication)
+          #   - --extra-set web-ui.services.ui.replicas=0 scales the chart's
+          #     web-ui Deployment to zero so kubectl wait still succeeds
+          #   - local_images.build_and_load now docker-rmi's the host's copy
+          #     and deletes the bazel-out tarball after each per-image
+          #     kind-load completes (saves ~10-15 GB intra-step)
+          #
+          # Scenario set narrowed for PR-gate cost: smoke (api-checks +
+          # websocket-checks, ~5s) covers service+router+logger HTTP/WS;
+          # templates + mount-validation (~6s) submit workflows so
+          # backend-listener / backend-worker / osmo_ctrl runtime get
+          # touched.
+          #
+          # --jobs=1 serializes: chart's single-replica ingress-nginx 504s
+          # under parallel scenario submits.
           #
           # `time` writes total wall clock to the step log so regressions
-          # past the ~15-min PR-gate budget show up in the run timeline,
-          # not just per-step in the Actions UI. EXIT trap so the timing
-          # block lands on the failure path too (default `set -e` would
-          # otherwise skip the cat after a bazel non-zero exit).
+          # past the ~15-min PR-gate budget show up in the run timeline.
+          # EXIT trap so the timing block lands on the failure path too.
           #
           # --keep + --keep-on-failure: leave the cluster intact on either
           # deploy or test failure so the "Diagnose KIND state on failure"
-          # step below can capture pod state. The explicit "Cleanup KIND
-          # cluster" step (if: always()) tears it down afterward.
-          #
-          # NOTE on --build-local: not enabled. Measured five times on
-          # hosted ubuntu-latest with progressively more aggressive disk
-          # mitigations (runs #26, #28, #29, #31, #32); each ended with
-          # the Actions runner process crashing on `No space left on
-          # device` mid-job, before cleanup/diagnostic steps could run.
-          # Chart's 6-node KIND profile duplicates every loaded image
-          # into 6 separate containerd content stores; 9 service images
-          # (each ~500 MB) plus web-ui (~300 MB) overrun the runner's
-          # 145-GB volume even after reclaiming ~22 GB of pre-installed
-          # tooling AND skipping the web-ui build AND scaling its chart
-          # Deployment to 0. ubuntu-latest's /mnt is on the same physical
-          # device as / (confirmed via df -h showing /dev/root for both),
-          # so docker storage relocation didn't add headroom either.
-          # Enabling --build-local needs single-node KIND profile +
-          # chart-side scheduling override, OR a larger / self-hosted
-          # runner. Tracked as follow-up.
+          # step below can capture pod state.
           trap '
             echo "::group::deploy_and_run wall clock"
             cat /tmp/oetf.time 2>/dev/null || echo "(no timing file written)"
             echo "::endgroup::"
+            echo "::group::Disk space (post-run)"
+            df -h /
+            echo "::endgroup::"
           ' EXIT
-          # `bazel run` cwd is the runfiles sandbox, NOT the workspace root —
-          # a relative `--output-json` path lands somewhere inside bazel-out
-          # where actions/upload-artifact + the summary step can't find it.
-          # Pass an absolute path under $GITHUB_WORKSPACE instead.
           /usr/bin/time -p -o /tmp/oetf.time \
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
+              --target-pattern //test/smoke/... \
+              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
               --jobs 1 \
+              --build-local \
+              --build-images service,agent,logger,worker,delayed-job-monitor,router,authz-sidecar,backend-listener,backend-worker \
+              --extra-set web-ui.services.ui.replicas=0 \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 

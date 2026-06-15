@@ -225,6 +225,23 @@ def build_and_load(
             ["kind", "load", "docker-image", image.docker_tag, "--name", cluster_name],
             check=True,
         )
+        # Each KIND node now owns its own containerd copy; the host's docker
+        # daemon copy and the on-disk tarball are redundant. Reclaim them.
+        # On hosted CI (e.g. GHA ubuntu-latest 145 GB / volume) the
+        # 9 × 6-node duplication crowds out the runner mid-run without
+        # this intra-step cleanup. `|| true` is intentional — cleanup
+        # failure must not break the build flow.
+        subprocess.run(
+            ["docker", "rmi", "-f", image.docker_tag],
+            check=False, cwd=workspace,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        try:
+            tarball_abs = os.path.join(workspace, tarball) if not os.path.isabs(tarball) else tarball
+            if os.path.isfile(tarball_abs):
+                os.remove(tarball_abs)
+        except OSError:
+            pass
 
     # Cap concurrency at 8: docker load is I/O-bound and `kind load`
     # serializes inside containerd anyway; more workers buy nothing.
