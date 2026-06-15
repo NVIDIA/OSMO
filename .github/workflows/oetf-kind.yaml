@@ -212,6 +212,11 @@ jobs:
           # a relative `--output-json` path lands somewhere inside bazel-out
           # where actions/upload-artifact + the summary step can't find it.
           # Pass an absolute path under $GITHUB_WORKSPACE instead.
+          # --build-images excludes web-ui: a Next.js multi-stage docker
+          # buildx adds ~5 GB intermediate + ~500 MB tarball + ~300 MB
+          # image × 6 KIND nodes (~8 GB total). Smoke tests hit no UI
+          # endpoint, so scale the web-ui Deployment to 0 via --extra-set
+          # — kubectl wait then treats Available as trivially true.
           /usr/bin/time -p -o /tmp/oetf.time \
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
@@ -219,6 +224,8 @@ jobs:
               --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
               --jobs 1 \
               --build-local \
+              --build-images service,agent,logger,worker,delayed-job-monitor,router,authz-sidecar,backend-listener,backend-worker \
+              --extra-set web-ui.services.ui.replicas=0 \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 
