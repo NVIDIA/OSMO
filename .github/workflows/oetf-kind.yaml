@@ -100,67 +100,8 @@ jobs:
             exit 3
           fi
 
-      - name: Free runner disk + relocate docker to /mnt
-        # Two-pronged disk headroom for --build-local:
-        #
-        # 1. Reclaim ~30 GB on / by removing pre-installed tooling the OETF
-        #    gate doesn't use (dotnet, Android SDK, GHC, PyPy cache,
-        #    CodeQL, boost, swift, az, microsoft tools).
-        #
-        # 2. Move /var/lib/docker to /mnt (the runner's separate ~80 GB
-        #    ephemeral SSD), then restart docker. KIND nodes are docker
-        #    containers and their containerd content stores grow on the
-        #    docker storage root — without this move, even after step 1
-        #    the 6-node × 9-image duplication exhausts / and the runner
-        #    process itself crashes mid-job (measured: runs #26, #29).
-        run: |
-          set -euo pipefail
-          echo "::group::Before reclaim"
-          df -h / /mnt 2>/dev/null || df -h /
-          echo "::endgroup::"
-
-          echo "::group::Reclaim ~30 GB on /"
-          for d in /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                   /opt/hostedtoolcache/PyPy /opt/hostedtoolcache/CodeQL \
-                   /opt/google/chrome /opt/microsoft /opt/az /opt/pipx \
-                   /opt/swift /usr/local/share/boost \
-                   /usr/local/share/powershell; do
-            if [ -d "$d" ]; then
-              sudo rm -rf "$d" &
-            fi
-          done
-          wait
-          sudo docker image prune -af >/dev/null 2>&1 || true
-          echo "::endgroup::"
-
-          echo "::group::Relocate /var/lib/docker → /mnt/docker"
-          if [ -d /mnt ] && [ "$(stat -c '%a' /mnt 2>/dev/null || echo 0)" != "0" ]; then
-            sudo systemctl stop docker docker.socket containerd 2>/dev/null || true
-            sudo mkdir -p /mnt/docker
-            # Rsync (not mv) so we preserve the live /var/lib/docker tree
-            # while validating it copied cleanly; remove only after success.
-            sudo rsync -aHAX --delete /var/lib/docker/ /mnt/docker/
-            sudo rm -rf /var/lib/docker
-            sudo ln -s /mnt/docker /var/lib/docker
-            sudo systemctl start docker
-            # docker.socket comes up via docker.service activation.
-            for _ in $(seq 1 30); do
-              docker info >/dev/null 2>&1 && break
-              sleep 1
-            done
-            echo "docker now backed by:"
-            docker info 2>/dev/null | grep -E '^ (Docker Root Dir|Storage Driver):'
-          else
-            echo "WARN: /mnt not available; staying on / (build-local may fail on disk)"
-          fi
-          echo "::endgroup::"
-
-          echo "::group::After reclaim + relocate"
-          df -h / /mnt 2>/dev/null || df -h /
-          echo "::endgroup::"
-
       - name: Disk space (pre-deploy)
-        run: df -h / /mnt 2>/dev/null || df -h /
+        run: df -h /
 
       - name: Build osmo CLI
         run: |
@@ -175,34 +116,40 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --build-local: build the 9 OSMO service images + web-ui from
-          # the PR's source and kind-load them, instead of helm pulling
-          # nvcr.io/nvidia/osmo:6.2 from NGC. Disk pressure is real on
-          # hosted ubuntu-latest — see the "Free runner disk + relocate
-          # docker to /mnt" step above for the two-pronged mitigation
-          # (reclaim ~30 GB + move docker storage off / to the runner's
-          # /mnt ephemeral volume).
-          #
-          # Scenario set is curated for PR-gate cost: smoke (api-checks +
-          # websocket-checks, ~5s) covers service+router+logger HTTP/WS
-          # surfaces; templates + mount-validation (~6s) submit workflows
-          # so backend-listener / backend-worker / osmo_ctrl runtime get
-          # touched too. Slow scenarios (router-connectivity 140s,
-          # serial-workflow-mounting 60s, logger-connectivity 30s) stay
-          # out of the gate.
-          #
-          # --jobs=1 serializes: the chart's single-replica ingress-nginx
-          # 504s under parallel scenario submits. With 4 short tests,
-          # parallelism saves <10s anyway.
+          # --jobs=1 serializes the test suite. The KIND-deployed
+          # quick-start chart runs a single ingress-nginx replica with
+          # default resources; parallel scenario submits saturate it and
+          # intermittently 504. Trade-off: longer wall clock; in exchange
+          # we get deterministic green. Lift back to default jobs once the
+          # chart's kind profile bumps ingress replicas.
           #
           # `time` writes total wall clock to the step log so regressions
-          # past the ~15-min PR-gate budget show up in the run timeline.
-          # EXIT trap so the timing block lands on the failure path too.
+          # past the ~15-min PR-gate budget show up in the run timeline,
+          # not just per-step in the Actions UI. EXIT trap so the timing
+          # block lands on the failure path too (default `set -e` would
+          # otherwise skip the cat after a bazel non-zero exit).
           #
           # --keep + --keep-on-failure: leave the cluster intact on either
           # deploy or test failure so the "Diagnose KIND state on failure"
           # step below can capture pod state. The explicit "Cleanup KIND
           # cluster" step (if: always()) tears it down afterward.
+          #
+          # NOTE on --build-local: not enabled. Measured five times on
+          # hosted ubuntu-latest with progressively more aggressive disk
+          # mitigations (runs #26, #28, #29, #31, #32); each ended with
+          # the Actions runner process crashing on `No space left on
+          # device` mid-job, before cleanup/diagnostic steps could run.
+          # Chart's 6-node KIND profile duplicates every loaded image
+          # into 6 separate containerd content stores; 9 service images
+          # (each ~500 MB) plus web-ui (~300 MB) overrun the runner's
+          # 145-GB volume even after reclaiming ~22 GB of pre-installed
+          # tooling AND skipping the web-ui build AND scaling its chart
+          # Deployment to 0. ubuntu-latest's /mnt is on the same physical
+          # device as / (confirmed via df -h showing /dev/root for both),
+          # so docker storage relocation didn't add headroom either.
+          # Enabling --build-local needs single-node KIND profile +
+          # chart-side scheduling override, OR a larger / self-hosted
+          # runner. Tracked as follow-up.
           trap '
             echo "::group::deploy_and_run wall clock"
             cat /tmp/oetf.time 2>/dev/null || echo "(no timing file written)"
@@ -212,20 +159,10 @@ jobs:
           # a relative `--output-json` path lands somewhere inside bazel-out
           # where actions/upload-artifact + the summary step can't find it.
           # Pass an absolute path under $GITHUB_WORKSPACE instead.
-          # --build-images excludes web-ui: a Next.js multi-stage docker
-          # buildx adds ~5 GB intermediate + ~500 MB tarball + ~300 MB
-          # image × 6 KIND nodes (~8 GB total). Smoke tests hit no UI
-          # endpoint, so scale the web-ui Deployment to 0 via --extra-set
-          # — kubectl wait then treats Available as trivially true.
           /usr/bin/time -p -o /tmp/oetf.time \
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
-              --target-pattern //test/smoke/... \
-              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
               --jobs 1 \
-              --build-local \
-              --build-images service,agent,logger,worker,delayed-job-monitor,router,authz-sidecar,backend-listener,backend-worker \
-              --extra-set web-ui.services.ui.replicas=0 \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 
