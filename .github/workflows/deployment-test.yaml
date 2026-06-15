@@ -213,10 +213,16 @@ jobs:
           echo "tag=${TAG_BASE}-amd64"                >> "$GITHUB_OUTPUT"
 
       # Minimal --no-gpu image set: 8 service images + client + init-container.
-      # Skip GPU validators and tflops benchmark — not exercised by verify-hello.
+      # The public repo has no //ci:push_images orchestrator (that's GitLab-CI
+      # only — it lives in the internal repo's `ci/` dir). Iterate the
+      # per-target oci_push rules directly. Each accepts --repository and
+      # --tag at `bazel run` time, so we don't need to mutate the constants
+      # repo to redirect from nvcr.io to ghcr.io.
       - name: Build and push OSMO images
         env:
           REMOTE_CACHE: ${{ secrets.BAZEL_REMOTE_CACHE_URL }}
+          REG: ${{ steps.tag.outputs.registry }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -euo pipefail
           CACHE_FLAG=()
@@ -226,11 +232,30 @@ jobs:
           else
             echo "::warning::BAZEL_REMOTE_CACHE_URL not set — cold build will be slow (~60 min)"
           fi
-          bazel run --config=ci "${CACHE_FLAG[@]}" //ci:push_images -- \
-            --registry_path "${{ steps.tag.outputs.registry }}" \
-            --tag_override "${{ steps.tag.outputs.tag_base }}" \
-            --target_cpu_arch x86_64 \
-            --images service logger agent authz-sidecar router worker delayed-job-monitor web-ui init-container client
+
+          push_one() {
+            local target="$1" image="$2"
+            echo "::group::$image → $REG/$image:$TAG"
+            echo "▶ $(date -u +%H:%M:%S) bazel run $target"
+            bazel run --config=ci "${CACHE_FLAG[@]}" "$target" -- \
+              --repository "$REG/$image" \
+              --tag "$TAG"
+            echo "::endgroup::"
+          }
+
+          # SERVICE_IMAGES (per chart's deployment templates)
+          push_one //src/service/core:service_push_x86_64                   service
+          push_one //src/service/logger:logger_push_x86_64                  logger
+          push_one //src/service/agent:agent_service_push_x86_64            agent
+          push_one //src/service/authz_sidecar:authz_sidecar_push_x86_64    authz-sidecar
+          push_one //src/service/router:router_push_x86_64                  router
+          push_one //src/service/worker:worker_push_x86_64                  worker
+          push_one //src/service/delayed_job_monitor:delayed_job_monitor_push_x86_64  delayed-job-monitor
+          # web-ui uses sh_binary + docker buildx (not oci_push); same flag shape
+          push_one //src/ui:build_push_web_ui_x86_64                        web-ui
+          # BACKEND_IMAGES the chart's backend_images.{init,client} reference
+          push_one //src/cli:cli_push_x86_64                                client
+          push_one //src/runtime:init_push_x86_64                           init-container
 
       # GitHub Container Registry creates packages as PRIVATE on first push.
       # Subsequent pushes inherit visibility. AKS would hit ImagePullBackOff
