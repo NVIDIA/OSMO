@@ -222,10 +222,21 @@ def _build_kind_adapter(args: argparse.Namespace, env: EnvironmentConfig) -> Kin
     image_tag = getattr(args, "image_tag", "")
     pre_install_hook = None
     build_local = getattr(args, "build_local", False)
+    use_local_registry = getattr(args, "use_local_registry", False) and build_local
     if build_local:
-        image_location = local_images.image_location()
+        # Registry mode publishes images to localhost:5001/osmo and the
+        # chart pulls from there; legacy --build-local stays on osmo.local
+        # (pseudo-prefix never actually contacted thanks to IfNotPresent).
+        image_location = (
+            local_images.registry_image_location()
+            if use_local_registry
+            else local_images.image_location()
+        )
         image_tag = local_images.image_tag()
-        pre_install_hook = _make_build_local_hook(getattr(args, "build_images", "all"))
+        pre_install_hook = _make_build_local_hook(
+            getattr(args, "build_images", "all"),
+            use_local_registry=use_local_registry,
+        )
     return KindAdapter(
         mode=getattr(args, "mode", None) or env.mode,
         image_location=image_location,
@@ -235,6 +246,7 @@ def _build_kind_adapter(args: argparse.Namespace, env: EnvironmentConfig) -> Kin
         install_metrics_server=getattr(args, "with_metrics_server", False),
         pre_install_hook=pre_install_hook,
         build_local=build_local,
+        use_local_registry=use_local_registry,
     )
 
 
@@ -257,12 +269,19 @@ def _build_custom_teardown_adapter(env: EnvironmentConfig) -> NoopAdapter:
     return NoopAdapter()
 
 
-def _make_build_local_hook(image_selector: str):
-    """Return a pre_install_hook callable that builds + kind-loads local images.
+def _make_build_local_hook(image_selector: str, use_local_registry: bool = False):
+    """Return a pre_install_hook callable that builds + ships local images.
 
     The 9 Python services build via bazel + oci_load + tarball; the web-ui
     builds via docker buildx (multi-stage Next.js Dockerfile). Independent
     pipelines, run concurrently for ~halved wall-clock vs. sequential.
+
+    Two delivery paths:
+      - default: ``kind load docker-image`` into every KIND node.
+      - ``use_local_registry=True``: docker push to a host-side ``registry:2``
+        container that the KIND nodes pull from on-demand. The 6x node-side
+        containerd duplication is replaced with single-copy registry
+        storage; required on disk-constrained CI runners.
     """
     def _hook(cluster_name: str) -> None:
         arch = local_images.detect_arch()
@@ -272,10 +291,19 @@ def _make_build_local_hook(image_selector: str):
 
         tasks = []
         if selected_services:
-            tasks.append(("services", lambda: local_images.build_and_load(
-                selected_services, cluster_name, arch=arch,
-            )))
+            if use_local_registry:
+                tasks.append(("services", lambda: local_images.build_and_push_to_registry(
+                    selected_services, arch=arch,
+                )))
+            else:
+                tasks.append(("services", lambda: local_images.build_and_load(
+                    selected_services, cluster_name, arch=arch,
+                )))
         if build_ui:
+            # web-ui still uses build_and_load_ui (docker buildx + kind
+            # load). Registry-push path for UI is a follow-up — the Next.js
+            # build is the biggest single space hit, but only one image
+            # so the multiplier is much smaller than for the services.
             tasks.append(("web-ui", lambda: local_images.build_and_load_ui(
                 cluster_name, arch=arch,
             )))

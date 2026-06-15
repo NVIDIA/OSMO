@@ -185,6 +185,13 @@ class KindAdapter:
     # ``osmo.local`` isn't actually contacted) and skips the web-ui Deployment
     # (we don't build the UI image locally — only the 9 Python services).
     build_local: bool = False
+    # When True (paired with build_local), publish locally-built images to a
+    # host-side ``registry:2`` container that KIND nodes pull from on-demand
+    # via containerdConfigPatches. Replaces `kind load docker-image` (which
+    # duplicates each image into every node's containerd content store) and
+    # is required on disk-constrained CI runners — see local_images for the
+    # full rationale.
+    use_local_registry: bool = False
     # Injected for tests — callables matching subprocess.run / urllib.request.urlopen.
     subprocess_runner: Optional[Callable[..., Any]] = None
     url_opener: Optional[Callable[..., Any]] = None
@@ -412,8 +419,22 @@ class KindAdapter:
         )
         if cluster_name in existing.splitlines():
             logger.info("▶ KIND cluster '%s' already exists — reusing", cluster_name)
+            if self.use_local_registry and self.build_local:
+                # Make sure the per-node hosts.toml is in place even when
+                # we're reusing an existing cluster (defensive: a previous
+                # run may have failed before wiring).
+                local_images.ensure_local_registry()
+                local_images.connect_registry_to_kind(cluster_name)
             return True
         config_path = self.kind_config_path or _default_kind_config_path()
+        if self.use_local_registry and self.build_local:
+            # Start the registry container BEFORE the cluster comes up so
+            # the post-create wiring can connect it to the kind network.
+            local_images.ensure_local_registry()
+            # Inject containerdConfigPatches so each node's containerd looks
+            # under /etc/containerd/certs.d/ — the per-node hosts.toml we
+            # write next must be backed by this config-path mode.
+            config_path = local_images.patched_kind_config_with_registry(config_path)
         # Don't pre-check ``os.path.isfile(config_path)``: kind's own error
         # message ("could not find a config file…") is already actionable,
         # and a TOCTOU pre-check duplicates the failure mode without adding
@@ -422,6 +443,8 @@ class KindAdapter:
             ["kind", "create", "cluster", "--name", cluster_name, "--config", config_path],
             "Creating KIND cluster",
         )
+        if self.use_local_registry and self.build_local:
+            local_images.connect_registry_to_kind(cluster_name)
         return False
 
     def _helm_repo_add(self) -> None:

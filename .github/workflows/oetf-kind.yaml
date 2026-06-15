@@ -139,17 +139,22 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --build-local: build the 9 OSMO service images from PR source
-          # and kind-load them, instead of pulling nvcr.io/nvidia/osmo:6.2
-          # from NGC. Disk strategy on hosted ubuntu-latest:
-          #   - "Free runner disk" step above: reclaim 22-25 GB on /
-          #   - --build-images skips web-ui (saves ~8 GB Next.js intermediates
-          #     + 6-node image duplication)
-          #   - --extra-set web-ui.services.ui.replicas=0 scales the chart's
-          #     web-ui Deployment to zero so kubectl wait still succeeds
-          #   - local_images.build_and_load now docker-rmi's the host's copy
-          #     and deletes the bazel-out tarball after each per-image
-          #     kind-load completes (saves ~10-15 GB intra-step)
+          # --build-local + --use-local-registry: build 9 OSMO service images
+          # from PR source, push to a host-side `registry:2` container, KIND
+          # nodes pull from it on-demand. Replaces `kind load docker-image`
+          # which duplicates each image into every node's containerd content
+          # store (6 nodes × 9 images = 54 image-copies — overruns hosted
+          # ubuntu-latest's 145 GB disk). With registry mode each KIND node
+          # only pulls images its pods actually schedule (1-2 nodes per
+          # image under the chart's node_group selectors), dropping the
+          # multiplier from 6x to 1-2x.
+          #
+          # --build-images skips web-ui (saves ~8 GB Next.js intermediates
+          # + 6-node duplication; UI still uses the kind-load path).
+          # --extra-set web-ui.services.ui.replicas=0 scales the chart's
+          # web-ui Deployment to zero so kubectl wait still succeeds.
+          #
+          # "Free runner disk" step above reclaims 22-25 GB pre-deploy.
           #
           # Scenario set narrowed for PR-gate cost: smoke (api-checks +
           # websocket-checks, ~5s) covers service+router+logger HTTP/WS;
@@ -181,7 +186,7 @@ jobs:
               --target-pattern //test/smoke/... \
               --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
               --jobs 1 \
-              --build-local \
+              --build-local --use-local-registry \
               --build-images service,agent,logger,worker,delayed-job-monitor,router,authz-sidecar,backend-listener,backend-worker \
               --extra-set web-ui.services.ui.replicas=0 \
               --keep --keep-on-failure \

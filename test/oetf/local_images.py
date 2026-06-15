@@ -249,6 +249,215 @@ def build_and_load(
         list(pool.map(_load_one, images, tarball_paths))
 
 
+# --- Local-registry push path (used when --build-local --use-local-registry) ---
+#
+# The default build_and_load path uses `kind load docker-image` which copies
+# each image into every KIND node's separate containerd content store. With
+# the chart's 6-node profile and 9 service images that is 54 image-copies
+# of duplicated storage, which exhausts the disk on small CI runners
+# (e.g. GitHub Actions ubuntu-latest 145 GB).
+#
+# The registry path replaces `kind load` with a `docker push` to a host-
+# local `registry:2` container. KIND nodes are configured (via
+# `containerdConfigPatches` + a per-node `hosts.toml`) to resolve
+# `localhost:5001` to that registry. Each node then pulls *only* the images
+# its pods schedule — for our chart that's 1-2 nodes per image, dropping
+# the on-disk multiplier from 6x to 1-2x.
+
+LOCAL_REGISTRY_NAME = "kind-registry"
+LOCAL_REGISTRY_PORT_HOST = 5001
+LOCAL_REGISTRY_PORT_CONTAINER = 5000
+LOCAL_REGISTRY_HOSTNAME = LOCAL_REGISTRY_NAME  # how KIND nodes reach it via docker network
+LOCAL_REGISTRY_IMAGE_LOCATION = f"localhost:{LOCAL_REGISTRY_PORT_HOST}/osmo"
+
+
+def registry_image_location() -> str:
+    """Return the ``global.osmoImageLocation`` value when using the local registry."""
+    return LOCAL_REGISTRY_IMAGE_LOCATION
+
+
+def build_and_push_to_registry(
+    images: List[ImageSpec],
+    arch: HostArch,
+) -> None:
+    """Build each image via bazel, retag for the local registry, and docker push.
+
+    Single bazel build (same as :func:`build_and_load`) materializes
+    tarballs, docker-loads each, retags from ``osmo.local/<svc>:tag`` to
+    ``localhost:5001/osmo/<svc>:tag``, and docker-pushes. The local
+    ``registry:2`` container deduplicates layers across images, so the
+    on-host registry storage is much smaller than the union of individual
+    OCI tarballs would be.
+
+    The host's docker daemon copies + bazel-out tarballs are deleted
+    immediately after each successful push — they aren't needed once the
+    layer is in the registry, and CI runners with tight disk budgets
+    benefit from the intra-step reclaim.
+    """
+    if not images:
+        return
+    workspace = os.environ.get("BUILD_WORKSPACE_DIRECTORY", os.getcwd())
+    platforms = _platforms_flag(arch)
+    targets = [image.bazel_target for image in images]
+
+    logger.info("▶ Building %d image(s) for registry push: %s",
+                len(images), ", ".join(i.short_name for i in images))
+    subprocess.run(
+        ["bazel", "build", platforms,
+         "--remote_download_outputs=all",
+         "--output_groups=+tarball", *targets],
+        check=True, cwd=workspace,
+    )
+    tarball_paths = _tarball_paths(targets, platforms, workspace)
+
+    def _push_one(image: ImageSpec, tarball: str) -> None:
+        # docker_tag is the bazel oci_load tag (osmo.local/<svc>:<arch-tag>).
+        registry_tag = image.docker_tag.replace(
+            image_location(), LOCAL_REGISTRY_IMAGE_LOCATION,
+        )
+        logger.info("▶ docker load -i %s", tarball)
+        subprocess.run(["docker", "load", "-i", tarball], check=True, cwd=workspace)
+        logger.info("▶ docker tag %s %s", image.docker_tag, registry_tag)
+        subprocess.run(
+            ["docker", "tag", image.docker_tag, registry_tag],
+            check=True, cwd=workspace,
+        )
+        logger.info("▶ docker push %s", registry_tag)
+        subprocess.run(
+            ["docker", "push", registry_tag],
+            check=True, cwd=workspace,
+        )
+        # Reclaim host docker storage + bazel-out tarball — registry has
+        # the layers now. `|| true`-style: cleanup must not break the run.
+        for tag in (image.docker_tag, registry_tag):
+            subprocess.run(
+                ["docker", "rmi", "-f", tag],
+                check=False, cwd=workspace,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        try:
+            tarball_abs = (
+                os.path.join(workspace, tarball)
+                if not os.path.isabs(tarball) else tarball
+            )
+            if os.path.isfile(tarball_abs):
+                os.remove(tarball_abs)
+        except OSError:
+            pass
+
+    # Concurrency cap matches build_and_load: registry pushes are
+    # I/O-bound on the same host docker daemon + bazel-out filesystem.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(images), 8)) as pool:
+        list(pool.map(_push_one, images, tarball_paths))
+
+
+def ensure_local_registry() -> None:
+    """Start the ``kind-registry`` container if it isn't already running.
+
+    Idempotent: a no-op when the container already exists. Listens on
+    ``127.0.0.1:5001`` so the host can `docker push` to it; KIND nodes
+    reach it as ``http://kind-registry:5000`` after the kind docker
+    network is connected (see :func:`connect_registry_to_kind`).
+    """
+    inspect = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", LOCAL_REGISTRY_NAME],
+        check=False, capture_output=True, text=True,
+    )
+    running = inspect.returncode == 0 and inspect.stdout.strip() == "true"
+    if running:
+        logger.info("▶ kind-registry already running — reusing")
+        return
+    if inspect.returncode == 0:
+        # Exists but stopped — remove so we get a clean port binding.
+        subprocess.run(
+            ["docker", "rm", "-f", LOCAL_REGISTRY_NAME],
+            check=False, capture_output=True,
+        )
+    logger.info("▶ Starting kind-registry container (registry:2)")
+    subprocess.run(
+        ["docker", "run", "-d", "--restart=always",
+         "-p", f"127.0.0.1:{LOCAL_REGISTRY_PORT_HOST}:{LOCAL_REGISTRY_PORT_CONTAINER}",
+         "--network", "bridge",
+         "--name", LOCAL_REGISTRY_NAME,
+         "registry:2"],
+        check=True, capture_output=True,
+    )
+
+
+def connect_registry_to_kind(cluster_name: str) -> None:
+    """Connect the registry container to the kind docker network + write per-node
+    containerd ``hosts.toml`` so `localhost:5001` resolves to the registry.
+
+    Must run AFTER the KIND cluster is created (the ``kind`` docker network
+    only exists once `kind create cluster` has run) and BEFORE helm install
+    (kubelet needs the registry mapping in place when it pulls pod images).
+
+    The KIND config must already include a ``containerdConfigPatches:``
+    entry enabling ``config_path = "/etc/containerd/certs.d"`` — see
+    :func:`patched_kind_config_with_registry`.
+    """
+    # Connect the registry to the kind network if not already connected. The
+    # docker network connect command errors with "already exists in network"
+    # if re-run; suppress that idempotently.
+    subprocess.run(
+        ["docker", "network", "connect", "kind", LOCAL_REGISTRY_NAME],
+        check=False, capture_output=True,
+    )
+
+    # Per-node containerd hosts.toml: map localhost:5001 -> kind-registry:5000.
+    hosts_toml = (
+        f'[host."http://{LOCAL_REGISTRY_HOSTNAME}:{LOCAL_REGISTRY_PORT_CONTAINER}"]\n'
+    )
+    nodes_out = subprocess.run(
+        ["kind", "get", "nodes", "--name", cluster_name],
+        check=True, capture_output=True, text=True,
+    )
+    nodes = [n.strip() for n in nodes_out.stdout.splitlines() if n.strip()]
+    cert_dir = f"/etc/containerd/certs.d/localhost:{LOCAL_REGISTRY_PORT_HOST}"
+    for node in nodes:
+        logger.info("▶ Wiring containerd hosts.toml on %s", node)
+        subprocess.run(
+            ["docker", "exec", node, "mkdir", "-p", cert_dir],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["docker", "exec", "-i", node,
+             "sh", "-c", f'cat > {cert_dir}/hosts.toml'],
+            check=True, input=hosts_toml, text=True, capture_output=True,
+        )
+
+
+def patched_kind_config_with_registry(source_path: str) -> str:
+    """Return a path to a KIND config that adds ``containerdConfigPatches``.
+
+    Reads ``source_path`` (the bundled kind-osmo-cluster-config.yaml), and
+    writes a copy to ``$TMPDIR`` with an injected ``containerdConfigPatches``
+    block. The original config stays untouched — internal callers that
+    don't use the registry are unaffected.
+
+    Uses the standard KIND local-registry patch (config_path mode) so the
+    per-node ``hosts.toml`` written by :func:`connect_registry_to_kind`
+    takes effect.
+    """
+    import tempfile
+    with open(source_path, "r", encoding="utf-8") as src:
+        content = src.read()
+    patch = (
+        "\ncontainerdConfigPatches:\n"
+        "  - |-\n"
+        '    [plugins."io.containerd.grpc.v1.cri".registry]\n'
+        '      config_path = "/etc/containerd/certs.d"\n'
+    )
+    # Append at end; YAML parses top-level keys in any order.
+    out_fd, out_path = tempfile.mkstemp(prefix="kind-osmo-registry-", suffix=".yaml")
+    os.close(out_fd)
+    with open(out_path, "w", encoding="utf-8") as dst:
+        dst.write(content)
+        if "containerdConfigPatches" not in content:
+            dst.write(patch)
+    return out_path
+
+
 def _tarball_paths(
     bazel_targets: List[str], platforms: str, workspace: str,
 ) -> List[str]:
