@@ -58,6 +58,6 @@ mypy_cli(
         type_requirement("types-urllib3"),
         type_requirement("types-aiofiles"),
     ],
-    python_version = "3.14.2",
+    python_version = "3.14.4",
     tags = ["no-mypy"],
 )

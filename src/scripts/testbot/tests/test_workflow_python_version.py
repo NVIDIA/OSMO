@@ -12,12 +12,12 @@ import re
 import unittest
 from pathlib import Path
 
-# MODULE.bazel example: `python.toolchain(python_version = "3.14.2", ...)`.
+# MODULE.bazel example: `python.toolchain(python_version = "3.14.4", ...)`.
 _CANONICAL_PYTHON_RE = re.compile(
     r'python\.toolchain\([^)]*python_version\s*=\s*"([\d.]+)"',
     re.DOTALL,
 )
-# Workflow example: `python-version: '3.14.2'`.
+# Workflow example: `python-version: '3.14.4'`.
 _WORKFLOW_PYTHON_RE = re.compile(r"""python-version:\s*['"]([\d.]+)['"]""")
 
 
