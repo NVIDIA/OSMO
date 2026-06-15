@@ -49,8 +49,7 @@ deployments/
 ├── terraform/         # Raw Terraform configurations
 │   ├── azure/         # Azure infrastructure modules
 │   └── aws/           # AWS infrastructure modules
-├── charts/            # Helm charts for OSMO components
-└── brev/              # Brev.dev deployment configs
+└── charts/            # Helm charts for OSMO components
 ```
 
 ## Deployment Options
@@ -125,10 +124,23 @@ For a direct Helm install, deploy the charts in this order:
 ```bash
 kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
+BACKEND_OPERATOR_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
 kubectl create secret generic backend-operator-password \
   --namespace osmo \
-  --from-literal=password=osmo \
+  --from-literal=password="$BACKEND_OPERATOR_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
+
+if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
+  MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
+  MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
+  MEK_FILE=$(mktemp)
+  printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
+  kubectl create configmap mek-config \
+    --namespace osmo \
+    --from-file=mek.yaml="$MEK_FILE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  rm -f "$MEK_FILE"
+fi
 
 helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
 helm repo update osmo
@@ -144,7 +156,22 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
   --wait
 ```
 
-The `quick-start-values.yaml` files preserve the local-development settings from the former umbrella chart. For production, replace them with environment-specific values for your hostname, identity provider, databases, Redis, object storage, and backend credentials.
+After installing the CLI and logging in, set the demo pool and LocalStack data credential:
+
+```bash
+osmo login http://quick-start.osmo --method=dev --username=testuser
+osmo profile set pool default
+osmo credential set osmo --type DATA --payload \
+  access_key_id=test \
+  access_key=test \
+  endpoint=s3://osmo \
+  override_url=http://localstack-s3.osmo:4566 \
+  region=us-east-1
+```
+
+The `quick-start-values.yaml` files preserve the local-development settings from the former umbrella chart. They use the chart-managed LocalStack S3 service, so `scripts/configure-storage.sh` is not needed for this local flow. For production, replace them with environment-specific values for your hostname, identity provider, databases, Redis, object storage, and backend credentials. If you use the charts directly with external object storage, run `scripts/configure-storage.sh` before the service Helm install and pass the generated values file after your base values file.
+
+These values assume the OSMO images are pullable without a registry Secret. If your registry requires credentials, create a Kubernetes image pull Secret and pass `--set global.imagePullSecret=<secret-name>` to both chart installs.
 
 ## Supported Platforms
 

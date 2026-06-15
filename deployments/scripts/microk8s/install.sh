@@ -41,7 +41,7 @@ command -v microk8s &>/dev/null || need_snap=true
 command -v kubectl  &>/dev/null || need_snap=true
 command -v helm     &>/dev/null || need_snap=true
 if [[ "$need_snap" == "true" ]] && ! command -v snap &>/dev/null; then
-    # Many cloud Ubuntu images (incl. Brev NemoClaw) ship without snapd.
+    # Many cloud Ubuntu images ship without snapd.
     # Install inline so the script runs end-to-end on a clean instance.
     echo "==> Installing snapd (required for microk8s/kubectl/helm)"
     apt-get update -qq

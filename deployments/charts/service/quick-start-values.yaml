@@ -27,6 +27,9 @@ global:
     node_group: service
 
 services:
+  configFile:
+    enabled: true
+
   postgres:
     enabled: true
     imagePullPolicy: IfNotPresent

@@ -20,12 +20,15 @@
 
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
-For a local deployment that previously used quick-start values, install this chart first with `quick-start-values.yaml`, then install the `backend-operator` chart with its matching values file:
+For a local deployment that previously used quick-start values, create the
+namespaces, `backend-operator-password` Secret, and `mek-config` ConfigMap from
+[../README.md](../README.md), then install this chart first with
+`quick-start-values.yaml`. Install the `backend-operator` chart with its
+matching values file after the service release is available:
 
 ```bash
 helm upgrade --install osmo osmo/service \
   --namespace osmo \
-  --create-namespace \
   -f quick-start-values.yaml \
   --wait
 ```

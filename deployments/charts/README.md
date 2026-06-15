@@ -32,15 +32,29 @@ The former quick-start values are preserved as chart-specific values files:
 - `service/quick-start-values.yaml`
 - `backend-operator/quick-start-values.yaml`
 
-Create the namespaces and the local backend-operator password secret:
+Create the namespaces, the local backend-operator password secret, and the MEK
+ConfigMap used by the service pods:
 
 ```bash
 kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
+BACKEND_OPERATOR_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
 kubectl create secret generic backend-operator-password \
   --namespace osmo \
-  --from-literal=password=osmo \
+  --from-literal=password="$BACKEND_OPERATOR_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
+
+if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
+  MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
+  MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
+  MEK_FILE=$(mktemp)
+  printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
+  kubectl create configmap mek-config \
+    --namespace osmo \
+    --from-file=mek.yaml="$MEK_FILE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  rm -f "$MEK_FILE"
+fi
 ```
 
 Install the service chart:
@@ -74,6 +88,30 @@ echo "127.0.0.1 localstack-s3.osmo" | sudo tee -a /etc/hosts
 ```
 
 The service chart exposes the gateway through NodePort `30080` in these values. A KIND cluster must map host port `80` to that NodePort for `http://quick-start.osmo` access without port forwarding.
+
+After installing the CLI and logging in, set the local demo defaults:
+
+```bash
+osmo login http://quick-start.osmo --method=dev --username=testuser
+osmo profile set pool default
+osmo credential set osmo --type DATA --payload \
+  access_key_id=test \
+  access_key=test \
+  endpoint=s3://osmo \
+  override_url=http://localstack-s3.osmo:4566 \
+  region=us-east-1
+```
+
+The quick-start values use the chart-managed LocalStack S3 service and already
+include OSMO's workflow, log, app, and dataset storage config. Do not run
+`deployments/scripts/configure-storage.sh` for this local flow. If you replace
+LocalStack with an external S3, Azure Blob, or BYO storage backend, run
+`deployments/scripts/configure-storage.sh` before the service Helm install and
+pass its generated values file after your base values file.
+
+These values assume the OSMO images are pullable without a registry Secret. If
+your registry requires credentials, create a Kubernetes image pull Secret and
+pass `--set global.imagePullSecret=<secret-name>` to both chart installs.
 
 ## Production Shape
 

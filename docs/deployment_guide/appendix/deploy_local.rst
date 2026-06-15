@@ -275,28 +275,41 @@ the charts independently managed.
 
 .. code-block:: bash
 
-   $ mkdir -p osmo-values
-   $ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/service/quick-start-values.yaml \
+   mkdir -p osmo-values
+   curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/service/quick-start-values.yaml \
      -o osmo-values/service.yaml
-   $ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/backend-operator/quick-start-values.yaml \
+   curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/backend-operator/quick-start-values.yaml \
      -o osmo-values/backend-operator.yaml
 
-   $ kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
-   $ kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
-   $ kubectl create secret generic backend-operator-password \
+   kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
+   kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
+   BACKEND_OPERATOR_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
+   kubectl create secret generic backend-operator-password \
      --namespace osmo \
-     --from-literal=password=osmo \
+     --from-literal=password="$BACKEND_OPERATOR_PASSWORD" \
      --dry-run=client -o yaml | kubectl apply -f -
 
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-   $ helm repo update osmo
-   $ helm upgrade --install osmo osmo/service \
+   if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
+     MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
+     MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
+     MEK_FILE=$(mktemp)
+     printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
+     kubectl create configmap mek-config \
+       --namespace osmo \
+       --from-file=mek.yaml="$MEK_FILE" \
+       --dry-run=client -o yaml | kubectl apply -f -
+     rm -f "$MEK_FILE"
+   fi
+
+   helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   helm repo update osmo
+   helm upgrade --install osmo osmo/service \
      --namespace osmo \
      -f osmo-values/service.yaml \
      --wait \
      --timeout 25m
 
-   $ helm upgrade --install osmo-backend-operator osmo/backend-operator \
+   helm upgrade --install osmo-backend-operator osmo/backend-operator \
      --namespace osmo \
      -f osmo-values/backend-operator.yaml \
      --wait \
@@ -308,6 +321,13 @@ the charts independently managed.
    .. code-block:: bash
 
       $ kubectl get pods --namespace osmo
+
+.. note::
+   The quick-start values use chart-managed LocalStack storage, so you do not
+   need to run ``deployments/scripts/configure-storage.sh`` for this local
+   flow. If your image registry requires credentials, create a Kubernetes image
+   pull Secret and pass ``--set global.imagePullSecret=<secret-name>`` to both
+   chart installs.
 
 Step 4: Configure Access
 =========================
@@ -330,14 +350,22 @@ Download and install the OSMO command-line interface:
 
    $ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
 
-Step 6: Log In to OSMO
-=======================
+Step 6: Log In and Configure Local Credentials
+==============================================
 
-Authenticate with your local OSMO instance:
+Authenticate with your local OSMO instance, set the default pool, and register
+the LocalStack data credential used by the CLI for dataset upload and download:
 
 .. code-block:: bash
 
    $ osmo login http://quick-start.osmo --method=dev --username=testuser
+   $ osmo profile set pool default
+   $ osmo credential set osmo --type DATA --payload \
+     access_key_id=test \
+     access_key=test \
+     endpoint=s3://osmo \
+     override_url=http://localstack-s3.osmo:4566 \
+     region=us-east-1
 
 .. admonition:: Success!
    :class: tip
