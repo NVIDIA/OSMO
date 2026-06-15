@@ -592,6 +592,50 @@ def build_and_load_ui(
     )
 
 
+def build_and_push_ui_to_registry(arch: HostArch) -> None:
+    """Build the web-ui image and push to the local registry.
+
+    Mirrors :func:`build_and_load_ui` but skips ``kind load`` in favor of
+    a ``docker push`` to ``localhost:5001/osmo/web-ui:latest-<arch>``. The
+    chart's ingress-nginx has a hard ``wait-for-web-ui`` init container
+    dependency, so the web-ui Deployment must actually come up — scaling
+    it to ``replicas=0`` deadlocks the entire stack. Pushing to the
+    registry keeps disk impact to a single host-side copy (no 6x KIND-
+    node duplication).
+
+    Cleans up host docker storage after push: the registry has the layers
+    now, and the built image alone is ~3 GB.
+    """
+    workspace = os.environ.get("BUILD_WORKSPACE_DIRECTORY", os.getcwd())
+    ui_dir = _ui_dir(workspace)
+    buildx_platform = _buildx_platform(arch)
+    registry_tag = (
+        f"{LOCAL_REGISTRY_IMAGE_LOCATION}/web-ui:latest-{arch}"
+    )
+
+    logger.info("▶ Building web-ui (%s, docker buildx --load) for registry push",
+                buildx_platform)
+    subprocess.run(
+        ["docker", "buildx", "build",
+         "--platform", buildx_platform,
+         "-t", registry_tag,
+         "--load",
+         ui_dir],
+        check=True, cwd=workspace,
+    )
+    logger.info("▶ docker push %s", registry_tag)
+    subprocess.run(
+        ["docker", "push", registry_tag],
+        check=True, cwd=workspace,
+    )
+    # Reclaim host docker storage — registry has the layers now.
+    subprocess.run(
+        ["docker", "rmi", "-f", registry_tag],
+        check=False, cwd=workspace,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+
 def image_tag(arch: HostArch | None = None) -> str:
     """Return the tag to use for ``global.osmoImageTag`` when deploying local."""
     return f"latest-{arch or detect_arch()}"

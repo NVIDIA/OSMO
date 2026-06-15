@@ -140,19 +140,20 @@ jobs:
         id: deploy_and_run
         run: |
           # --build-local + --use-local-registry: build 9 OSMO service images
-          # from PR source, push to a host-side `registry:2` container, KIND
-          # nodes pull from it on-demand. Replaces `kind load docker-image`
-          # which duplicates each image into every node's containerd content
-          # store (6 nodes × 9 images = 54 image-copies — overruns hosted
-          # ubuntu-latest's 145 GB disk). With registry mode each KIND node
-          # only pulls images its pods actually schedule (1-2 nodes per
-          # image under the chart's node_group selectors), dropping the
-          # multiplier from 6x to 1-2x.
+          # + web-ui from PR source, push to a host-side `registry:2`
+          # container, KIND nodes pull from it on-demand. Replaces `kind
+          # load docker-image` which duplicates each image into every node's
+          # containerd content store (6 nodes × 10 images = 60 image-copies
+          # — overruns hosted ubuntu-latest's 145 GB disk). With registry
+          # mode each KIND node only pulls images its pods actually
+          # schedule (1-2 nodes per image under the chart's node_group
+          # selectors), dropping the multiplier from 6x to 1-2x.
           #
-          # --build-images skips web-ui (saves ~8 GB Next.js intermediates
-          # + 6-node duplication; UI still uses the kind-load path).
-          # --extra-set web-ui.services.ui.replicas=0 scales the chart's
-          # web-ui Deployment to zero so kubectl wait still succeeds.
+          # web-ui IS built and pushed: ingress-nginx has a hard
+          # `wait-for-web-ui` init container that polls osmo-ui:80, so
+          # scaling web-ui to 0 deadlocks the chart (verified empirically
+          # in run #35). Registry-push UI keeps the chart whole at ~1 GB
+          # host disk vs the prior ~5 GB kind-load duplication.
           #
           # "Free runner disk" step above reclaims 22-25 GB pre-deploy.
           #
@@ -187,8 +188,6 @@ jobs:
               --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
               --jobs 1 \
               --build-local --use-local-registry \
-              --build-images service,agent,logger,worker,delayed-job-monitor,router,authz-sidecar,backend-listener,backend-worker \
-              --extra-set web-ui.services.ui.replicas=0 \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 

@@ -300,13 +300,14 @@ def _make_build_local_hook(image_selector: str, use_local_registry: bool = False
                     selected_services, cluster_name, arch=arch,
                 )))
         if build_ui:
-            # web-ui still uses build_and_load_ui (docker buildx + kind
-            # load). Registry-push path for UI is a follow-up — the Next.js
-            # build is the biggest single space hit, but only one image
-            # so the multiplier is much smaller than for the services.
-            tasks.append(("web-ui", lambda: local_images.build_and_load_ui(
-                cluster_name, arch=arch,
-            )))
+            if use_local_registry:
+                tasks.append(("web-ui", lambda: local_images.build_and_push_ui_to_registry(
+                    arch=arch,
+                )))
+            else:
+                tasks.append(("web-ui", lambda: local_images.build_and_load_ui(
+                    cluster_name, arch=arch,
+                )))
 
         if not tasks:
             return
