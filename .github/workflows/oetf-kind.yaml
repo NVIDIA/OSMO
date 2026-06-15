@@ -100,6 +100,25 @@ jobs:
             exit 3
           fi
 
+      - name: Free runner disk for --build-local
+        # The 9 OSMO service OCI tarballs + 6 KIND nodes each loading them
+        # into their own containerd content store consumed 76 GB on prior
+        # measurement runs, against an 87-GB free baseline — ran out at
+        # `kind load backend-worker`. Reclaim ~25-30 GB of pre-installed
+        # tooling we don't use (dotnet, Android SDK, GHC, PyPy cache,
+        # CodeQL) so the build has headroom on the standard ubuntu-latest
+        # 145-GB volume.
+        run: |
+          set -euo pipefail
+          for d in /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                   /opt/hostedtoolcache/PyPy /opt/hostedtoolcache/CodeQL; do
+            if [ -d "$d" ]; then
+              sudo rm -rf "$d" &
+            fi
+          done
+          wait
+          sudo docker image prune -af >/dev/null 2>&1 || true
+
       - name: Disk space (pre-deploy)
         run: df -h /
 
@@ -116,12 +135,27 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --jobs=1 serializes the test suite. The KIND-deployed
-          # quick-start chart runs a single ingress-nginx replica with
-          # default resources; parallel scenario submits saturate it and
-          # intermittently 504. Trade-off: longer wall clock; in exchange
-          # we get deterministic green. Lift back to default jobs once the
-          # chart's kind profile bumps ingress replicas.
+          # --build-local: build the 9 OSMO service images + the web-ui
+          # locally from PR source and kind-load them, instead of helm
+          # pulling nvcr.io/nvidia/osmo:6.2 from NGC. Without this the
+          # gate would still pass when PR src/ changes regress service
+          # code — the chart would ignore the tree and use the released
+          # images. The "Free runner disk for --build-local" step above
+          # is paired with this: the 9 OCI tarballs + 6-node KIND content-
+          # store duplication consumed 76 GB on a prior unsuccessful run,
+          # so we reclaim 25-30 GB of pre-installed tooling for headroom.
+          #
+          # Scenario set is curated for PR-gate cost: smoke (api-checks +
+          # websocket-checks, ~5s) covers the service+router+logger HTTP/
+          # WS surfaces; templates + mount-validation (~6s) submit
+          # workflows so backend-listener / backend-worker / osmo_ctrl
+          # runtime get touched too. Slow scenarios (router-connectivity
+          # 140s, serial-workflow-mounting 60s, logger-connectivity 30s)
+          # stay out of the gate — they belong in a nightly/manual run.
+          #
+          # --jobs=1 serializes: the chart's single-replica ingress-nginx
+          # 504s under parallel scenario submits. With 4 tests at ~3s
+          # each, parallelism would save <10s anyway.
           #
           # `time` writes total wall clock to the step log so regressions
           # past the ~15-min PR-gate budget show up in the run timeline,
@@ -133,23 +167,6 @@ jobs:
           # deploy or test failure so the "Diagnose KIND state on failure"
           # step below can capture pod state. The explicit "Cleanup KIND
           # cluster" step (if: always()) tears it down afterward.
-          #
-          # NOTE on --build-local: not enabled here. Measured cost on
-          # hosted ubuntu-latest in run #26 (sha bdeb6b9): bazel-built 9
-          # OCI images in 7m9s (cold cache), then `kind load` filled the
-          # runner disk and the build aborted at 15m15s with `no space
-          # left on device` while loading backend-worker into the 6-node
-          # cluster. Two upstream blockers also surface: test/oetf/
-          # local_images.py hardcodes the UI source path to
-          # `external/src/ui` (internal-repo layout — fails immediately
-          # on the public checkout), and the chart's default KIND profile
-          # spawns 6 node containers that duplicate every image's
-          # containerd storage 6x — quickly exhausts the ~145 GB runner
-          # disk. Enabling --build-local will need either a larger
-          # runner, a single-node KIND profile, or a runner-disk
-          # reclamation step (delete /opt/ghc, /usr/share/dotnet, etc.)
-          # — and the local_images.py path fix. Tracking as a follow-up
-          # so this gate ships now against released NGC images.
           trap '
             echo "::group::deploy_and_run wall clock"
             cat /tmp/oetf.time 2>/dev/null || echo "(no timing file written)"
@@ -162,7 +179,10 @@ jobs:
           /usr/bin/time -p -o /tmp/oetf.time \
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
+              --target-pattern //test/smoke/... \
+              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
               --jobs 1 \
+              --build-local \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 

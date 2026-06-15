@@ -280,17 +280,27 @@ def _tarballs_by_target_name(cquery_files_output: str) -> Dict[str, str]:
 
 
 WEB_UI_DOCKER_TAG_TEMPLATE = "osmo.local/web-ui:latest-{arch}"
-_UI_SOURCE_RELPATH = "external/src/ui"
+# Two layouts are valid: the internal overlay mounts the public OSMO repo at
+# external/ (UI lives at external/src/ui), while a standalone public checkout
+# has UI directly at src/ui. Tried in order — first existing path wins.
+_UI_SOURCE_RELPATH_CANDIDATES = ("external/src/ui", "src/ui")
 
 
 def _ui_dir(workspace: str) -> str:
-    """Resolve the UI source directory.
+    """Resolve the UI source directory for the current workspace layout.
 
-    The Bazel workspace is laid out with the OSMO submodule at
-    ``external/`` — UI source is ``external/src/ui``. This helper centralizes
-    the path so tests and callers don't string-build it.
+    Internal overlay: ``<workspace>/external/src/ui``.
+    Public standalone checkout: ``<workspace>/src/ui``.
+
+    Falls back to the first candidate if neither exists so the downstream
+    ``docker buildx build`` produces the same actionable "path not found"
+    error a hardcoded path would have produced.
     """
-    return os.path.join(workspace, _UI_SOURCE_RELPATH)
+    for candidate in _UI_SOURCE_RELPATH_CANDIDATES:
+        path = os.path.join(workspace, candidate)
+        if os.path.isdir(path):
+            return path
+    return os.path.join(workspace, _UI_SOURCE_RELPATH_CANDIDATES[0])
 
 
 def _buildx_platform(arch: HostArch) -> str:
