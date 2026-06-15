@@ -28,7 +28,9 @@ jobs:
   oetf-kind:
     name: oetf:deploy_and_run --env kind --tags kind
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Bumped to 90m while measuring cold --build-local cost. Will be
+    # tightened back once warm-cache timing is known.
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
