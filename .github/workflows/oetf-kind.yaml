@@ -116,12 +116,25 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --jobs=1 serializes the test suite. The KIND-deployed
-          # quick-start chart runs a single ingress-nginx replica with
-          # default resources; parallel scenario submits saturate it and
-          # intermittently 504. Trade-off: longer wall clock; in exchange
-          # we get deterministic green. Lift back to default jobs once the
-          # chart's kind profile bumps ingress replicas.
+          # --build-local: build the 9 OSMO service images + the web-ui
+          # locally from PR source (via bazel oci_load + docker buildx) and
+          # kind-load them, instead of helm pulling nvcr.io/nvidia/osmo:6.2
+          # from NGC. Without this, the gate would still pass even when
+          # PR src/ changes regress service code — the chart would just
+          # pull released images and ignore the tree.
+          #
+          # Scenario set is curated for PR-gate cost: smoke (api-checks +
+          # websocket-checks, ~5s) covers the service+router+logger HTTP
+          # surfaces; templates + mount-validation (~6s) exercise workflow
+          # submission so backend-listener / backend-worker / osmo_ctrl
+          # get touched too. Slow scenarios (router-connectivity 140s,
+          # serial-workflow-mounting 60s, logger-connectivity 30s) and
+          # negative-path scenarios stay out of the gate — they belong in
+          # a nightly/manual full run.
+          #
+          # --jobs=1 still serializes: the chart's single-replica
+          # ingress-nginx 504s under parallel scenario submits. With only
+          # 4 tests at ~3s each, parallelism would save <10s anyway.
           #
           # `time` writes total wall clock to the step log so regressions
           # past the ~15-min PR-gate budget show up in the run timeline,
@@ -145,7 +158,10 @@ jobs:
           /usr/bin/time -p -o /tmp/oetf.time \
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
+              --target-pattern //test/smoke/... \
+              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
               --jobs 1 \
+              --build-local \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 
