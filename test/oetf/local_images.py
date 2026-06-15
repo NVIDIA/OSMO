@@ -201,8 +201,16 @@ def build_and_load(
 
     logger.info("▶ Building %d image(s): %s",
                 len(images), ", ".join(i.short_name for i in images))
+    # --remote_download_outputs=all overrides the project's default
+    # `build --remote_download_outputs=minimal` in .bazelrc — without it,
+    # disk-cache hits leave tarball.tar as a reference-only artifact and
+    # the downstream `docker load -i bazel-out/.../tarball.tar` fails with
+    # `no such file or directory`. Surfaces only when the disk cache is
+    # warm (cold runs execute the action locally and materialize anyway).
     subprocess.run(
-        ["bazel", "build", platforms, "--output_groups=+tarball", *targets],
+        ["bazel", "build", platforms,
+         "--remote_download_outputs=all",
+         "--output_groups=+tarball", *targets],
         check=True, cwd=workspace,
     )
     tarball_paths = _tarball_paths(targets, platforms, workspace)
