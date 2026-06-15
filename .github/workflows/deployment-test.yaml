@@ -137,9 +137,127 @@ jobs:
           RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
 
-  # Full deployment-test gate. Provisions a real cluster, deploys OSMO,
-  # runs OETF smoke + scenarios, tears down. Long-running.
+  # Build OSMO service + backend images from THIS PR's source and push them
+  # to ghcr.io so the deployment-test below verifies the actual diff, not
+  # whatever's currently published at nvcr.io/nvidia/osmo:latest. Without
+  # this job the gate is meaningless for service-code PRs (it always tests
+  # the published `latest`, never the proposed change). Sequenced before
+  # full-deployment via `needs:`.
+  build-images:
+    if: >
+      ${{ github.event.inputs.mode == 'full-deployment'
+          || (github.event_name == 'pull_request'
+              && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_registry: ${{ steps.tag.outputs.registry }}
+      image_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      # rules_oci + ~10 service images on a stock GHA runner needs ~25 GB
+      # of free disk; default ubuntu-latest is ~14 GB free. Same recipe
+      # as pr-checks.yaml's ci-public.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune --all --force || true
+          df -h
+
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      # Same setup-bazel pin + external-cache manifest as pr-checks.yaml.
+      # disk-cache is keyed per-workflow so we don't share cache state with
+      # ci-public/ci-internal (different bazel targets, different shape).
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}-images
+          repository-cache: true
+          external-cache: |
+            manifest:
+              osmo_python_deps: src/locked_requirements.txt
+              osmo_tests_python_deps: src/tests/locked_requirements.txt
+              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+              pylint_python_deps: bzl/linting/locked_requirements.txt
+              io_bazel_rules_go: src/runtime/go.mod
+              bazel_gazelle: src/runtime/go.sum
+
+      # GHCR auth for rules_oci's `oci_push` (reads ~/.docker/config.json).
+      # GITHUB_TOKEN gets packages:write for this repo automatically.
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag layout: ghcr.io/<owner>/osmo-ci/<image>:pr-<num>-<attempt>-amd64
+      # The `-amd64` suffix is appended by rules_oci's per-arch oci_push;
+      # we expose the FULL tag (with suffix) so downstream uses match the
+      # actual remote tag.
+      - id: tag
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || github.run_id }}"
+          ATTEMPT="${{ github.run_attempt }}"
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          TAG_BASE="pr-${PR_NUM}-${ATTEMPT}"
+          echo "registry=ghcr.io/${OWNER_LC}/osmo-ci" >> "$GITHUB_OUTPUT"
+          echo "tag_base=${TAG_BASE}"                 >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG_BASE}-amd64"                >> "$GITHUB_OUTPUT"
+
+      # Minimal --no-gpu image set: 8 service images + client + init-container.
+      # Skip GPU validators and tflops benchmark — not exercised by verify-hello.
+      - name: Build and push OSMO images
+        env:
+          REMOTE_CACHE: ${{ secrets.BAZEL_REMOTE_CACHE_URL }}
+        run: |
+          set -euo pipefail
+          CACHE_FLAG=()
+          if [[ -n "${REMOTE_CACHE:-}" ]]; then
+            CACHE_FLAG=(--remote_cache="$REMOTE_CACHE")
+            echo "::notice::Using bazel remote cache"
+          else
+            echo "::warning::BAZEL_REMOTE_CACHE_URL not set — cold build will be slow (~60 min)"
+          fi
+          bazel run --config=ci "${CACHE_FLAG[@]}" //ci:push_images -- \
+            --registry_path "${{ steps.tag.outputs.registry }}" \
+            --tag_override "${{ steps.tag.outputs.tag_base }}" \
+            --target_cpu_arch x86_64 \
+            --images service logger agent authz-sidecar router worker delayed-job-monitor web-ui init-container client
+
+      # GitHub Container Registry creates packages as PRIVATE on first push.
+      # Subsequent pushes inherit visibility. AKS would hit ImagePullBackOff
+      # without auth, which is why the full-deployment job pre-creates an
+      # imagePullSecret using GITHUB_TOKEN. (Setting packages to public is
+      # an admin-only API call requiring admin:packages PAT scope — out of
+      # this workflow's permissions surface.)
+      - name: Step summary
+        run: |
+          {
+            echo "### OSMO images built from source"
+            echo ""
+            echo "- Registry: \`${{ steps.tag.outputs.registry }}\`"
+            echo "- Tag: \`${{ steps.tag.outputs.tag }}\`"
+            echo "- Source SHA: \`${{ github.sha }}\`"
+            echo ""
+            echo "Packages pushed:"
+            for img in service logger agent authz-sidecar router worker delayed-job-monitor web-ui init-container client; do
+              echo "  - \`${{ steps.tag.outputs.registry }}/$img:${{ steps.tag.outputs.tag }}\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Full deployment-test gate. Provisions a real cluster, deploys OSMO
+  # using the PR-built images from build-images above, runs verify-hello,
+  # tears down. Long-running.
   full-deployment:
+    needs: build-images
     if: >
       ${{ github.event.inputs.mode == 'full-deployment'
           || (github.event_name == 'pull_request'
@@ -165,6 +283,21 @@ jobs:
       # runner resolves OUTSIDE the workspace and gets dropped by the
       # default artifact-path glob).
       RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
+      # Point the deploy chain at PR-built images (from the build-images
+      # job) instead of the published nvcr.io/nvidia/osmo:latest. Read by
+      # deploy-k8s.sh as env vars and threaded into --set global.osmoImage*
+      # and backend_images.{init,client}.
+      OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
+      OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
+      # Pre-created in the "GHCR pull secret" step below, then consumed by
+      # deploy-k8s.sh (which sets --set global.imagePullSecret=$NGC_SECRET_NAME
+      # for the chart). The "NGC" name is legacy — the variable accepts
+      # any registry's docker-registry secret.
+      NGC_SECRET_NAME: ghcr-pull
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -388,6 +521,62 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Wire kubectl to the freshly-applied AKS, then pre-create a
+      # docker-registry secret in every OSMO namespace pointing at GHCR.
+      # deploy-k8s.sh's NGC-secret logic (lines 540-573) skips its own
+      # `kubectl create secret docker-registry` path when the named secret
+      # already exists in any OSMO namespace; pre-creating in all three
+      # makes that path a no-op AND avoids needing to leak NGC_API_KEY into
+      # this workflow.
+      #
+      # GITHUB_TOKEN is short-lived (job-bounded), but kubelet only resolves
+      # the secret at pod-create time; once an image layer is on the node,
+      # subsequent pulls hit the local cache. Verify-hello completes within
+      # job lifetime, so the token's validity window is sufficient.
+      - name: wire kubectl + pre-create GHCR pull secret
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "▶ $(date -u +%H:%M:%S) az aks get-credentials"
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_CLUSTER_NAME" \
+            --overwrite-existing \
+            --admin
+
+          kubectl cluster-info | head -3
+
+          echo "▶ $(date -u +%H:%M:%S) ensuring OSMO namespaces exist"
+          for ns in osmo-minimal osmo-operator osmo-workflows; do
+            kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+          done
+
+          echo "▶ $(date -u +%H:%M:%S) creating GHCR pull secret '$NGC_SECRET_NAME' in each namespace"
+          for ns in osmo-minimal osmo-operator osmo-workflows; do
+            kubectl create secret docker-registry "$NGC_SECRET_NAME" \
+              --docker-server=ghcr.io \
+              --docker-username="$GHCR_USERNAME" \
+              --docker-password="$GHCR_PASSWORD" \
+              --namespace "$ns" \
+              --dry-run=client -o yaml \
+              | kubectl apply -f -
+          done
+
+          echo "::notice::Pre-created $NGC_SECRET_NAME (ghcr.io) in osmo-minimal/osmo-operator/osmo-workflows"
+
+          {
+            echo "### GHCR pull secret"
+            echo ""
+            echo "- name: \`$NGC_SECRET_NAME\`"
+            echo "- registry: \`ghcr.io\`"
+            echo "- images expected: \`$OSMO_IMAGE_REGISTRY/*:$OSMO_IMAGE_TAG\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: run-deployment-test.sh --provider azure
         id: run_deploy
