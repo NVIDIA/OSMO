@@ -1,0 +1,22 @@
+Skip py_image_layer venv interpreter shims.
+
+rules_python 2.0.x creates .venv/bin/python* shims as symlinks to the
+interpreter repository. The py_image_layer default mtree split treats these as
+regular files, but tar actions do not have the symlink target as an input and
+fail when reading the mtree. The actual interpreter is already captured by the
+interpreter layer, so skip these generated shims.
+
+diff --git a/py/private/py_image_layer.bzl b/py/private/py_image_layer.bzl
+--- a/py/private/py_image_layer.bzl
++++ b/py/private/py_image_layer.bzl
+@@ -84,4 +84,10 @@ awk < $< 'BEGIN {
+     if ($$1 ~ "\\.whl$$") {
+         next
+     }
++    # Exclude generated venv interpreter shims. The actual interpreter is
++    # grouped separately by default_layer_groups, while these shims can be
++    # symlinks to external repos that are not tar action inputs.
++    if ($$1 ~ "\\.venv/bin/python([0-9.]*)?$$") {
++        next
++    }
+     # Move everything under the specified root
