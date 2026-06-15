@@ -62,7 +62,7 @@ The script orchestrates these phases:
 |---|---|
 | `azure` | Cloud install on Azure AKS with managed PostgreSQL + Redis. Optional GPU node pool + Blob storage account when `--gpu-node-pool` and `storage_account_enabled=true`. |
 | `aws` | Cloud install on AWS EKS with RDS + ElastiCache. Optional GPU node group via `--gpu-node-pool`. |
-| `microk8s` | Single-node K8s on a Brev/local Ubuntu box. The script bootstraps MicroK8s itself (snapd, addons, optional NVIDIA addon). |
+| `microk8s` | Single-node K8s on a local Ubuntu box. The script bootstraps MicroK8s itself (snapd, addons, optional NVIDIA addon). |
 | `byo` | A cluster you already have. Skips bootstrap and TF entirely. Required env vars: `POSTGRES_HOST POSTGRES_USERNAME POSTGRES_PASSWORD POSTGRES_DB_NAME REDIS_HOST REDIS_PORT REDIS_PASSWORD` (`IS_PRIVATE_CLUSTER` optional, defaults to false). |
 
 ## Required user inputs (ask these BEFORE invoking the script)
