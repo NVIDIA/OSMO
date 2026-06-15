@@ -6,7 +6,6 @@ filegroup(
     srcs = glob(
         [
             "*.yaml",
-            "*.yml",
         ],
     ),
     visibility = ["//src/scripts/testbot/tests:__pkg__"],
