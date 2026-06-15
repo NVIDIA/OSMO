@@ -22,11 +22,12 @@ name: Deployment Test
 #     heavier modes are gated behind PR labels (see below) so they don't burn
 #     Azure quota on every push.
 #
-# PR-label triggers (work pre-merge when the dispatcher isn't registered yet):
-#   - `ci:run-auth-check`       → auth-check fires on the next PR push
-#   - `ci:run-full-deployment`  → full-deployment fires on the next PR push
+# PR-label trigger (works pre-merge when the dispatcher isn't registered yet):
+#   - `ci:azure-deployment` → full-deployment fires on the next PR push
+# auth-check is workflow_dispatch only — it's a developer-driven smoke for
+# the OIDC chain, not something we want to run automatically per PR.
 #
-# After auth-check passes once, follow-ups:
+# Follow-ups once full-deployment is healthy:
 #   - Add `schedule:` cron for nightly (NIGHTLY="deployment-test" 04:30 UTC).
 #   - Add `release:` trigger so each release tag runs full-deployment.
 
@@ -98,10 +99,7 @@ jobs:
   # resource group via the azurerm_resource_group data source. Requires
   # the full OIDC + App Reg + RBAC setup. Provisions nothing.
   auth-check:
-    if: >
-      ${{ github.event.inputs.mode == 'auth-check'
-          || (github.event_name == 'pull_request'
-              && contains(github.event.pull_request.labels.*.name, 'ci:run-auth-check')) }}
+    if: ${{ github.event.inputs.mode == 'auth-check' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: internal-ci
@@ -145,7 +143,7 @@ jobs:
     if: >
       ${{ github.event.inputs.mode == 'full-deployment'
           || (github.event_name == 'pull_request'
-              && contains(github.event.pull_request.labels.*.name, 'ci:run-full-deployment')) }}
+              && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
     runs-on: ubuntu-latest
     # Budget while TEMP scaffolding is in place:
     #   cleanup leftovers (~30 min worst-case if AKS is mid-delete)
