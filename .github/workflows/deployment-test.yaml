@@ -256,6 +256,14 @@ jobs:
           # BACKEND_IMAGES the chart's backend_images.{init,client} reference
           push_one //src/cli:cli_push_x86_64                                client
           push_one //src/runtime:init_push_x86_64                           init-container
+          # backend-operator chart deploys these two: without them, the
+          # operator install hits ImagePullBackOff and helm `--wait` times
+          # out with `context deadline exceeded`. backend-test-runner is
+          # only spawned at test-run time (not at install) and stays at
+          # nvcr.io defaults unless --backend-test-runner-* overrides flow
+          # in — skip for now to keep the build minimal.
+          push_one //src/operator:backend_listener_push_x86_64              backend-listener
+          push_one //src/operator:backend_worker_push_x86_64                backend-worker
 
       # GitHub Container Registry creates packages as PRIVATE on first push.
       # Subsequent pushes inherit visibility. AKS would hit ImagePullBackOff
