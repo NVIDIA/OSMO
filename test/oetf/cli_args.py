@@ -100,6 +100,15 @@ def add_deploy_args(parser: argparse.ArgumentParser) -> None:
              "(default: all).",
     )
     parser.add_argument(
+        "--use-local-registry", action="store_true",
+        help="KIND --build-local: push built images to a local docker "
+             "registry that all KIND nodes pull from, instead of "
+             "`kind load docker-image` which duplicates each image into "
+             "every node's containerd. Required for environments where "
+             "the 6-node × 9-image kind-load footprint exceeds available "
+             "disk (e.g. hosted GitHub Actions ubuntu-latest runners).",
+    )
+    parser.add_argument(
         "--with-metrics-server", action="store_true",
         help="KIND only: install metrics-server (opt-in; adds ~1min to deploy).",
     )
