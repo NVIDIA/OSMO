@@ -129,8 +129,9 @@ class TestBuildAndLoad(unittest.TestCase):
         with patch("subprocess.run", side_effect=self._fake_run(calls, specs)):
             local_images.build_and_load(specs, cluster_name="osmo", arch="arm64")
 
-        # 1 batched bazel build + 1 batched cquery + (docker load + kind load) per image.
-        self.assertEqual(len(calls), 6)
+        # 1 batched bazel build + 1 batched cquery + (docker load + kind load
+        # + docker rmi) per image. The trailing docker rmi reclaims host disk
+        # after each kind-load — important on disk-constrained CI runners.
         self.assertEqual(calls[0][:2], ["bazel", "build"])
         self.assertIn("--platforms=@osmo_workspace//bzl/platforms:linux_arm64", calls[0])
         self.assertIn("--output_groups=+tarball", calls[0])
@@ -141,6 +142,9 @@ class TestBuildAndLoad(unittest.TestCase):
         rest = calls[2:]
         self.assertEqual(sum(1 for c in rest if c[:3] == ["docker", "load", "-i"]), 2)
         self.assertEqual(sum(1 for c in rest if c[:3] == ["kind", "load", "docker-image"]), 2)
+        # Per-image host-docker cleanup so the host's image storage doesn't
+        # grow alongside the KIND-node containerd copies.
+        self.assertEqual(sum(1 for c in rest if c[:3] == ["docker", "rmi", "-f"]), 2)
 
     def test_x86_64_uses_linux_x86_64_platforms_flag(self):
         specs = local_images.image_specs("x86_64")[:1]

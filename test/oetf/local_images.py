@@ -32,6 +32,7 @@ import logging
 import os
 import platform
 import subprocess
+import tempfile
 from typing import Dict, List, Literal
 
 HostArch = Literal["arm64", "x86_64"]
@@ -237,7 +238,9 @@ def build_and_load(
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         try:
-            tarball_abs = os.path.join(workspace, tarball) if not os.path.isabs(tarball) else tarball
+            tarball_abs = (
+                tarball if os.path.isabs(tarball) else os.path.join(workspace, tarball)
+            )
             if os.path.isfile(tarball_abs):
                 os.remove(tarball_abs)
         except OSError:
@@ -439,7 +442,6 @@ def patched_kind_config_with_registry(source_path: str) -> str:
     per-node ``hosts.toml`` written by :func:`connect_registry_to_kind`
     takes effect.
     """
-    import tempfile
     with open(source_path, "r", encoding="utf-8") as src:
         content = src.read()
     patch = (
