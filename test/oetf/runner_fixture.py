@@ -114,6 +114,42 @@ def _workspace_root() -> str:
     return os.getcwd()
 
 
+def _caller_runfiles_repo_root() -> Optional[str]:
+    """Return the runfiles repo dir (``<TEST_SRCDIR>/<repo>``) that owns the caller.
+
+    Required because under bzlmod, ``TEST_WORKSPACE`` is always ``_main``
+    regardless of which module the test target actually lives in. A test
+    target in ``@osmo_workspace//scenarios:app-cli`` runs from
+    ``<TEST_SRCDIR>/osmo_workspace+/test/scenarios/app_cli.py`` and its
+    data deps land under ``<TEST_SRCDIR>/osmo_workspace+/...`` — but
+    ``_workspace_root()`` would point at ``<TEST_SRCDIR>/_main/`` and miss
+    them entirely. Walk the call stack to the first non-fixture frame,
+    then walk that file's path upward until its parent is ``TEST_SRCDIR``;
+    that parent's direct child IS the runfiles repo dir we want.
+
+    Returns ``None`` if not running under ``bazel test`` (i.e. no
+    ``TEST_SRCDIR``) or if no caller file is reachable from the
+    ``TEST_SRCDIR`` tree (shouldn't happen in practice).
+    """
+    test_srcdir = os.environ.get("TEST_SRCDIR")
+    if not test_srcdir:
+        return None
+    srcdir_abs = os.path.abspath(test_srcdir)
+    for frame in inspect.stack()[1:]:
+        filename = frame.filename
+        if not filename.endswith(".py") or "runner_fixture" in filename:
+            continue
+        path = os.path.abspath(filename)
+        while True:
+            parent = os.path.dirname(path)
+            if parent == srcdir_abs:
+                return path
+            if parent == path:  # reached "/" without finding srcdir_abs
+                break
+            path = parent
+    return None
+
+
 def curl_until(url: str, match: str, deadline_seconds: int) -> None:
     """Poll `curl -fsS <url>` until body contains `match`, or raise.
 
@@ -435,6 +471,19 @@ class RunnerFixture(OetfFixture):
         # not explicitly caller-relative (./ or ../). Covers validation/...,
         # test/..., transfer_service/..., etc.
         if "/" in spec_path and not spec_path.startswith(("./", "../")):
+            # Under bazel test in bzlmod, TEST_WORKSPACE is always "_main"
+            # regardless of which module the test target lives in. So
+            # _workspace_root() always points at <TEST_SRCDIR>/_main, even
+            # for tests in dep modules like @osmo_workspace+ that bring
+            # their own data via test/workflow/*. Try the caller's repo
+            # root first (derived from the test_runner.py file's path
+            # under <TEST_SRCDIR>/<repo>/...) and fall back to
+            # _workspace_root for backwards compatibility.
+            caller_root = _caller_runfiles_repo_root()
+            if caller_root:
+                candidate = os.path.join(caller_root, spec_path)
+                if os.path.exists(candidate):
+                    return candidate
             return os.path.join(_workspace_root(), spec_path)
         # Caller-relative: resolve against the test_runner.py file's directory.
         for frame in inspect.stack()[1:]:
@@ -510,21 +559,36 @@ class WorkflowBuilder:
             if os.path.exists(task_py_path):
                 spec_content = _inject_task_files(spec_content, task_py_path)
 
+            # Auto-inject the fixture's default platform/bucket as workflow
+            # variables when the caller hasn't set them explicitly. Lets
+            # scenarios that use ``{{platform}}`` / ``{{bucket}}`` placeholders
+            # work across env presets (KIND → cpu, staging → x86-5090,
+            # nightly → whatever the env exports via OETF_DEFAULT_*) without
+            # every scenario having to call ``.args("platform=...")``.
+            # Extras are harmless — the submit API ignores variables the YAML
+            # doesn't reference.
+            args = list(self._args)
+            arg_keys = {a.split("=", 1)[0] for a in args if "=" in a}
+            if "platform" not in arg_keys:
+                args.append(f"platform={self._fixture.default_platform}")
+            if "bucket" not in arg_keys and self._fixture.default_bucket:
+                args.append(f"bucket={self._fixture.default_bucket}")
+
             if self._client in {"cli", "hybrid"}:
                 workflow_id = _submit_via_cli(
-                    spec_content, self._spec_path, self._pool, self._args,
+                    spec_content, self._spec_path, self._pool, args,
                     self._fixture.config,
                 )
             else:
                 # API path: inline localpaths via load_local_files, then POST.
                 spec_content = _resolve_localpath_files(
                     spec_content, self._spec_path,
-                    self._fixture.service_client, self._pool, self._args,
+                    self._fixture.service_client, self._pool, args,
                 )
                 response = self._fixture.service_client.request(
                     method=RequestMethod.POST,
                     endpoint=f"api/pool/{self._pool}/workflow",
-                    payload={"file": spec_content, "set_variables": self._args},
+                    payload={"file": spec_content, "set_variables": args},
                 )
                 workflow_id = response.get("name", "")
                 if not workflow_id:
