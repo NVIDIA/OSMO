@@ -349,6 +349,27 @@ jobs:
         with:
           terraform_version: 1.9.8
 
+      # bazel is needed in this job because the wrapper's stage_oetf_smoke
+      # invokes `bazel run //test/oetf:run` inline. Same setup pattern as
+      # build-images + pr-checks.yaml. disk-cache key is shared with the
+      # build-images job so the bazel artifacts produced there speed up
+      # OETF target builds here.
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}-images
+          repository-cache: true
+          external-cache: |
+            manifest:
+              osmo_python_deps: src/locked_requirements.txt
+              osmo_tests_python_deps: src/tests/locked_requirements.txt
+              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+              pylint_python_deps: bzl/linting/locked_requirements.txt
+              io_bazel_rules_go: src/runtime/go.mod
+              bazel_gazelle: src/runtime/go.sum
+
       - name: install kubectl + helm
         run: |
           set -euo pipefail
@@ -660,11 +681,16 @@ jobs:
           # `platform_workflow_allocatable_fields`, which DOES depend on
           # node count + daemon overhead. Pod logs confirmed K8_CPU < 1.0
           # on a 2-node Standard_D4s_v3 cluster.
-          # SKIP_OETF=1: this PR's branch doesn't yet contain test/oetf/
-          # (was merged in #1062, may not be in this branch's tree). The
-          # OETF smoke stage looks for it, fails, and we don't need it for
-          # verifying the d4 wrapper itself.
-          SKIP_OETF: "1"
+          # OETF lives at <repo>/test/oetf in the public repo; the wrapper's
+          # REPO_ROOT computation (SCRIPT_DIR/../../..) assumes external/
+          # submodule wrapping and overshoots by one level on a standalone
+          # checkout, so override OETF_REPO_ROOT explicitly. test/oetf BUILD
+          # files in this repo tag tests with `kind` (= "validated against
+          # cpu-mode chart deploy") — that's the right tag for our --no-gpu
+          # Azure deploy too. Default `smoke` tag matches no tests on this
+          # branch and would silently run 0.
+          OETF_REPO_ROOT: ${{ github.workspace }}
+          OETF_TAGS: kind
           # SKIP_TEARDOWN=1: the wrapper's teardown re-invokes
           # deploy-osmo-minimal.sh --destroy which (despite --skip-terraform)
           # appears to destroy cloud resources too, taking ~75 min. Our
