@@ -636,6 +636,10 @@ stage_oetf_smoke() {
     # caller can override via $OETF_TAGS; default falls back from smoke to
     # `cli` (a real scenario test that exercises OSMO workflow submission).
     local oetf_tags="${OETF_TAGS:-smoke}"
+    # --pool: without it, OETF's `osmo` CLI invocations error with
+    # `No pool selected!` because the dev-auth admin user has no
+    # default pool stored. The chart's default pool name is `default`.
+    local oetf_pool="${OETF_POOL:-default}"
     (
         cd "$oetf_repo"
         bazel run "$oetf_pkg" -- \
@@ -643,6 +647,7 @@ stage_oetf_smoke() {
             --url "$osmo_url" \
             --auth-method dev \
             --auth-username admin \
+            --pool "$oetf_pool" \
             --tags "$oetf_tags" \
             --output-json "$RUN_DIR/oetf-result.json"
     ) 2>&1 | tee "$OETF_LOG"

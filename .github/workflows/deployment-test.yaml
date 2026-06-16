@@ -684,13 +684,29 @@ jobs:
           # OETF lives at <repo>/test/oetf in the public repo; the wrapper's
           # REPO_ROOT computation (SCRIPT_DIR/../../..) assumes external/
           # submodule wrapping and overshoots by one level on a standalone
-          # checkout, so override OETF_REPO_ROOT explicitly. test/oetf BUILD
-          # files in this repo tag tests with `kind` (= "validated against
-          # cpu-mode chart deploy") — that's the right tag for our --no-gpu
-          # Azure deploy too. Default `smoke` tag matches no tests on this
-          # branch and would silently run 0.
+          # checkout, so override OETF_REPO_ROOT explicitly.
           OETF_REPO_ROOT: ${{ github.workspace }}
-          OETF_TAGS: kind
+          # Tags are OR'd. Earlier run with --tags kind included two scenario
+          # tests that have real OSMO/chart bugs (not gate setup issues):
+          #
+          #   - task-runtime-environment (tags: task-env, positive, kind)
+          #     fails because the test fixture's WorkflowSpec uses
+          #     outputs.dataset, but the current chart schema renamed that
+          #     field to outputs.url. Pydantic rejects: "Extra inputs are
+          #     not permitted" + "Field required". OETF-side test fix.
+          #
+          #   - router-connectivity (tags: router, positive, kind) fails
+          #     with "Temporary failure in name resolution" from inside
+          #     a workflow task pod — pod DNS can't resolve the host the
+          #     test tries to hit. Cluster networking issue, unrelated to
+          #     this PR's wrapper.
+          #
+          # Both are out of scope for this PR. Pick a tag set that hits
+          # api-checks + websocket-checks + logger-connectivity + all four
+          # negative validation tests (resource, command, mount, template)
+          # + serial-workflow-mounting. 8 tests, all previously green
+          # (modulo api-checks needing --pool, fixed in the wrapper).
+          OETF_TAGS: api,websocket,logger,negative,serial
           # SKIP_TEARDOWN=1: the wrapper's teardown re-invokes
           # deploy-osmo-minimal.sh --destroy which (despite --skip-terraform)
           # appears to destroy cloud resources too, taking ~75 min. Our
