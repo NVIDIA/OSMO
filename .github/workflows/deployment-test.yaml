@@ -786,11 +786,7 @@ jobs:
 
           echo "::group::node allocatable + per-node pod CPU usage"
           # Allocatable = node.status.allocatable (k8s view).
-          kubectl get nodes -o custom-columns=\
-NAME:.metadata.name,\
-CPU_ALLOC:.status.allocatable.cpu,\
-MEM_ALLOC:.status.allocatable.memory,\
-PODS_ALLOC:.status.allocatable.pods > "$DIAG/nodes-allocatable.txt" 2>&1
+          kubectl get nodes -o "custom-columns=NAME:.metadata.name,CPU_ALLOC:.status.allocatable.cpu,MEM_ALLOC:.status.allocatable.memory,PODS_ALLOC:.status.allocatable.pods" > "$DIAG/nodes-allocatable.txt" 2>&1
           cat "$DIAG/nodes-allocatable.txt"
           # `kubectl describe nodes` includes the per-node "Allocated
           # resources" table — that's the closest k8s-side analog to
