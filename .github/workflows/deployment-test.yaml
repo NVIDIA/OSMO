@@ -601,6 +601,28 @@ jobs:
             kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           done
 
+          # Chart-generated workflow task pods set `runtimeClassName: nvidia`
+          # because in GPU deploys gpu-operator provides that RuntimeClass.
+          # On CPU-only deploys (--no-gpu), without the stub k8s admission
+          # rejects pods with `RuntimeClass "nvidia" not found` (HTTP 403)
+          # and verify-hello ends in FAILED_SERVER_ERROR.
+          #
+          # Mirror OETF's KindAdapter._apply_nvidia_runtimeclass_stub:
+          # create a `nvidia` RuntimeClass that points at the default
+          # `runc` handler. (See test/oetf/deploy_adapters/kind_adapter.py
+          # for the canonical version.)
+          echo "▶ $(date -u +%H:%M:%S) applying nvidia RuntimeClass stub (CPU-mode shim)"
+          # printf instead of heredoc — heredoc body inside a yaml `run: |`
+          # block inherits the yaml's leading whitespace, which kubectl can
+          # tolerate (it's uniform) but is fragile and editor-hostile.
+          printf '%s\n' \
+            'apiVersion: node.k8s.io/v1' \
+            'kind: RuntimeClass' \
+            'metadata:' \
+            '  name: nvidia' \
+            'handler: runc' \
+            | kubectl apply -f -
+
           echo "▶ $(date -u +%H:%M:%S) creating GHCR pull secret '$NGC_SECRET_NAME' in each namespace"
           for ns in osmo-minimal osmo-operator osmo-workflows; do
             kubectl create secret docker-registry "$NGC_SECRET_NAME" \
