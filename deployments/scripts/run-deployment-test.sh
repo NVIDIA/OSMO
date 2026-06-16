@@ -517,7 +517,12 @@ stage_deploy() {
                 --helm-set services.worker.resources.requests.cpu=100m
                 --helm-set services.agent.resources.requests.cpu=100m
                 --helm-set services.router.resources.requests.cpu=100m
-                --helm-set 'services.configs.podTemplates.default_ctrl.spec.containers[0].resources.requests.cpu=100m'
+                # default_ctrl pod template override (osmo-ctrl sidecar
+                # requests.cpu → 100m). Has to come via --helm-values not
+                # --helm-set because helm replaces list elements wholesale —
+                # `--set …containers[0]...cpu=100m` wipes the container's
+                # `name` and limits, breaking the configmap loader's schema.
+                --helm-values "${SCRIPT_DIR}/../../ci/deployment-test/azure-overrides.yaml"
             )
             ;;
         *)
