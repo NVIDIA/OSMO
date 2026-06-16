@@ -517,7 +517,7 @@ stage_deploy() {
                 --helm-set services.worker.resources.requests.cpu=100m
                 --helm-set services.agent.resources.requests.cpu=100m
                 --helm-set services.router.resources.requests.cpu=100m
-                --helm-set 'services.configs.workflow.podTemplates.default_ctrl.spec.containers[0].resources.requests.cpu=100m'
+                --helm-set 'services.configs.podTemplates.default_ctrl.spec.containers[0].resources.requests.cpu=100m'
             )
             ;;
         *)
