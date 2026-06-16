@@ -498,17 +498,21 @@ jobs:
           # Var overrides:
           # - aks_private_cluster_enabled=false: GitHub runners are on the
           #   public internet, can't resolve privatelink AKS FQDN.
-          # - node_instance_type=Standard_D4s_v3: default Standard_D2s_v3
-          #   gives 2 vCPU/node, ~1 schedulable after daemonsets + osmo
-          #   pods. verify-hello (cpu=1) then fails OSMO's strict-LE
-          #   resource assertion ("Value 1.0 too high for CPU").
-          # - node_group_min_size=3: with 2 autoscaled nodes the agent's
-          #   platform_workflow_allocatable_fields drops below 1 vCPU
-          #   (Azure daemons + OSMO system pods eat the headroom on a
-          #   single 4-vCPU node), so 1.0 LE K8_CPU fails. Three nodes
-          #   give the workflow scheduler enough room to land a cpu=1
-          #   task. Empirically confirmed via `osmo resource list` in
-          #   the next diagnostic dump.
+          # - node_instance_type=Standard_D8s_v3: tried D4s_v3 (4 vCPU,
+          #   3860m allocatable) first — even after the wrapper's helm-set
+          #   reductions K8_CPU still resolved to 0 and verify-hello got
+          #   rejected with "Value 1.0 too high for CPU". The cause is
+          #   the math in OSMO's K8_CPU = int(allocatable.cpu) − ctrl.cpu
+          #   − math.ceil(non_workflow_usage): each node already has
+          #   ~1.3 vCPU consumed by Azure daemons (ama-logs 170m, coredns
+          #   200m, metrics-server 314m, npm 50m, kube-proxy 100m, etc.)
+          #   plus our OSMO system pods. math.ceil(1.3) = 2; int(3 − 0.1
+          #   − 2) = 0. Bumping to D8s_v3 (8 vCPU, 7860m allocatable)
+          #   gives int(7 − 0.1 − 2) = 4, plenty of headroom. Cost is
+          #   ~2× per minute but the run is ~10 min cheaper because
+          #   pods schedule faster and helm waits less.
+          # - node_group_min_size=3: kept at 3 for headroom across
+          #   scenario tests; verify-hello alone would land on 1.
           TF_VARS=(
             -var "subscription_id=${ARM_SUBSCRIPTION_ID}"
             -var "resource_group_name=${AZURE_RESOURCE_GROUP}"
@@ -516,7 +520,7 @@ jobs:
             -var "cluster_name=${AZURE_CLUSTER_NAME}"
             -var "postgres_password=${PG_PASS}"
             -var "aks_private_cluster_enabled=false"
-            -var "node_instance_type=Standard_D4s_v3"
+            -var "node_instance_type=Standard_D8s_v3"
             -var "node_group_min_size=3"
           )
           if command -v ts >/dev/null; then
@@ -847,7 +851,7 @@ jobs:
             -var "cluster_name=${AZURE_CLUSTER_NAME}"
             -var "postgres_password=${PG_PASS}"
             -var "aks_private_cluster_enabled=false"
-            -var "node_instance_type=Standard_D4s_v3"
+            -var "node_instance_type=Standard_D8s_v3"
             -var "node_group_min_size=3"
           )
           if command -v ts >/dev/null; then
