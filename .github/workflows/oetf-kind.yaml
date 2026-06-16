@@ -298,3 +298,5 @@ jobs:
           name: bazel-testlogs
           path: bazel-testlogs/
           if-no-files-found: warn
+
+# Warm-run trigger (no behavior change).
