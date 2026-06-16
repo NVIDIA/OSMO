@@ -32,6 +32,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          # No git push from this job — drop the auto-injected token from
+          # the workspace so artifact uploads (kind-smoke-result,
+          # bazel-testlogs) can't accidentally include or leak it.
+          persist-credentials: false
 
       - name: Install kind
         run: |
@@ -285,7 +290,7 @@ jobs:
 
       - name: Upload OETF result JSON
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: kind-smoke-result
           path: kind-smoke-result.json
@@ -293,7 +298,7 @@ jobs:
 
       - name: Upload bazel test logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: bazel-testlogs
           path: bazel-testlogs/
