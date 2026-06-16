@@ -727,16 +727,21 @@ jobs:
             | sort | tee "$DIAG/image-refs.txt"
           echo "::endgroup::"
 
-          echo "::group::OSMO service-pod logs (tail 300 per app label)"
+          echo "::group::OSMO pod logs (every pod in osmo-* namespaces, tail 500)"
+          # Iterate pods by name — label-matching is fragile because the
+          # chart labels are `app: osmo-<svc>` not just `app: <svc>`, and
+          # backend-operator uses `app: osmo-operator-*`. Pod-name iteration
+          # is also resilient to chart label drift.
           for ns in osmo-minimal osmo-operator osmo-workflows; do
-            for app in service logger agent authz-sidecar router worker delayed-job-monitor gateway backend-listener backend-worker osmo-operator; do
-              out=$(kubectl logs -l app="$app" -n "$ns" --tail=300 --all-containers --prefix --ignore-errors=true 2>&1)
-              if [[ -n "$out" && "$out" != *"No resources found"* && "$out" != *"error"*"resource"* ]]; then
-                echo "$out" > "$DIAG/applog-${ns}-${app}.log"
-              fi
-            done
+            kubectl get pods -n "$ns" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null \
+              | while read -r pod; do
+                  [[ -z "$pod" ]] && continue
+                  kubectl logs "$pod" -n "$ns" --tail=500 --all-containers --prefix --timestamps \
+                    > "$DIAG/podlog-${ns}-${pod}.log" 2>&1
+                done
           done
-          ls -la "$DIAG"/applog-*.log 2>/dev/null | tee "$DIAG/applog-index.txt"
+          ls -la "$DIAG"/podlog-*.log 2>/dev/null > "$DIAG/podlog-index.txt"
+          cat "$DIAG/podlog-index.txt"
           echo "::endgroup::"
 
           echo "::group::helm releases + resolved values"
@@ -750,11 +755,19 @@ jobs:
           done < <(helm list -A -o json 2>/dev/null | jq -r '.[] | "\(.name)|\(.namespace)"')
           echo "::endgroup::"
 
-          echo "::group::OSMO CLI workflow status (best-effort)"
+          echo "::group::OSMO CLI workflow info (best-effort — port-forward may be dead post-wrapper)"
           if command -v osmo >/dev/null 2>&1; then
-            # Port-forward may be dead post-wrapper; skip on failure.
-            timeout 30 osmo workflow status verify-hello-1 > "$DIAG/osmo-verify-hello-status.txt" 2>&1 || true
+            # Re-establish port-forward to gateway, since the wrapper's own
+            # watchdog port-forward was torn down when verify.sh exited.
+            kubectl port-forward -n osmo-minimal svc/osmo-gateway 9100:80 > /dev/null 2>&1 &
+            PF_PID=$!
+            sleep 3
+            export OSMO_SERVICE_URL="http://localhost:9100"
+            # `query` is the right subcommand (CLI has no `status`).
+            timeout 30 osmo workflow query  verify-hello-1 > "$DIAG/osmo-verify-hello-query.txt"  2>&1 || true
+            timeout 30 osmo workflow events verify-hello-1 > "$DIAG/osmo-verify-hello-events.txt" 2>&1 || true
             timeout 30 osmo workflow logs   verify-hello-1 > "$DIAG/osmo-verify-hello-logs.txt"   2>&1 || true
+            kill $PF_PID 2>/dev/null || true
           else
             echo "osmo CLI not on PATH (deploy-osmo-minimal.sh installs it; wrapper may have skipped)" \
               > "$DIAG/osmo-cli-missing.txt"
