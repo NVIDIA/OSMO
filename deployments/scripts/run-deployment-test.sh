@@ -554,30 +554,53 @@ stage_oetf_smoke() {
             osmo_url="http://localhost"
             ;;
         azure)
-            # The chart's LB Service is `osmo-gateway` (not `osmo-gateway-envoy`
-            # — the envoy suffix is only on the internal ClusterIP Service in
-            # KIND deploys). Allow either name for forward-compat.
-            log_info "Locating OSMO gateway LoadBalancer external IP (up to 3m)"
-            local lb_ip=""
-            local lb_svc=""
-            local deadline=$((SECONDS + 180))
-            while [[ $SECONDS -lt $deadline ]]; do
-                for candidate in osmo-gateway osmo-gateway-envoy; do
-                    lb_ip=$(kubectl get svc -n "$OSMO_NAMESPACE" "$candidate" \
-                        -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
-                    if [[ -n "$lb_ip" ]]; then
-                        lb_svc="$candidate"
-                        break 2
-                    fi
-                done
-                sleep 5
+            # Tried hitting the Azure LB external IP directly first
+            # (osmo-gateway Service is LoadBalancer type). The IP shows
+            # up in kubectl get svc within ~30s, but actual reachability
+            # from the GitHub runner takes longer to settle: every OETF
+            # bazel test got `ConnectTimeoutError(timeout=60)` to the
+            # LB on port 80. The cluster's verify-hello check (verify.sh)
+            # had no such issue because it goes via kubectl port-forward.
+            # Mirror that: start a localhost port-forward to osmo-gateway
+            # and point OETF at localhost. Robust to any LB-propagation
+            # delay or NSG quirk.
+            local pf_port="${OSMO_OETF_PF_PORT:-9100}"
+            log_info "Starting kubectl port-forward for OETF: localhost:${pf_port} → osmo-gateway:80"
+            local pf_svc=""
+            for candidate in osmo-gateway osmo-gateway-envoy; do
+                if kubectl get svc -n "$OSMO_NAMESPACE" "$candidate" >/dev/null 2>&1; then
+                    pf_svc="$candidate"; break
+                fi
             done
-            if [[ -z "$lb_ip" ]]; then
-                log_error "Neither osmo-gateway nor osmo-gateway-envoy reported an LB IP within 3m"
+            if [[ -z "$pf_svc" ]]; then
+                log_error "Neither osmo-gateway nor osmo-gateway-envoy found in $OSMO_NAMESPACE"
                 return 1
             fi
-            log_info "Resolved $lb_svc external IP = $lb_ip"
-            osmo_url="http://${lb_ip}"
+            # nohup + & so the PF outlives this function's subshells.
+            # Also drop output to a per-run log so we can debug PF crashes.
+            nohup kubectl port-forward -n "$OSMO_NAMESPACE" \
+                "svc/${pf_svc}" "${pf_port}:80" \
+                > "$RUN_DIR/oetf-pf.log" 2>&1 &
+            local pf_pid=$!
+            # Smoke the PF before we hand off to OETF; OETF will retry on
+            # its own but a hard-fail here surfaces PF problems immediately.
+            local pf_ready=""
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+                if curl -sS -o /dev/null -m 2 "http://localhost:${pf_port}/api/version" 2>/dev/null; then
+                    pf_ready=1; break
+                fi
+                sleep 1
+            done
+            if [[ -z "$pf_ready" ]]; then
+                log_error "port-forward to ${pf_svc}:80 didn't become reachable on localhost:${pf_port}; check $RUN_DIR/oetf-pf.log"
+                kill "$pf_pid" 2>/dev/null || true
+                return 1
+            fi
+            log_info "Port-forward healthy (PID=$pf_pid). OETF will use http://localhost:${pf_port}"
+            # Ensure PF dies on function return (success OR failure).
+            # Bash RETURN trap is per-function — re-arm here.
+            trap "kill $pf_pid 2>/dev/null || true" RETURN
+            osmo_url="http://localhost:${pf_port}"
             ;;
         *)
             osmo_url="http://localhost"
