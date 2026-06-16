@@ -1541,15 +1541,42 @@ class PostgresConnector:
 
     def get_registry_cred(self, user: str, registry: str) -> Any:
         """ Fetch docker credentials by registry name. """
+        registry = common.normalize_registry_scope(registry)
         select_data_cmd = PostgresSelectCommand(
             table='credential',
-            conditions=['user_name = %s', 'profile = %s'],
-            condition_args=[user, registry])
+            conditions=['user_name = %s', 'cred_type = %s', 'profile = %s'],
+            condition_args=[user, CredentialType.REGISTRY.value, registry])
         row = self.execute_fetch_command(*select_data_cmd.get_args())
         if row:
             return self.decrypt_credential(row[0])
         else:
             return None
+
+    def get_all_registry_creds(self, user: str) -> Dict[str, Dict[str, str]]:
+        """ Fetch all Docker registry credentials for a user by scope. """
+        select_data_cmd = PostgresSelectCommand(
+            table='credential',
+            conditions=['user_name = %s', 'cred_type = %s'],
+            condition_args=[user, CredentialType.REGISTRY.value])
+        rows = self.execute_fetch_command(*select_data_cmd.get_args())
+        return {
+            row.profile: self.decrypt_credential(row)
+            for row in rows
+            if row.profile
+        }
+
+    def get_matching_registry_creds(
+        self,
+        user: str,
+        image_info: common.DockerImageInfo,
+    ) -> List[Tuple[str, Dict[str, str]]]:
+        """ Fetch all Docker registry credentials matching an image. """
+        registry_creds = self.get_all_registry_creds(user)
+        return [
+            (registry_scope, registry_creds[registry_scope])
+            for registry_scope in common.matching_registry_scopes(
+                image_info, registry_creds.keys())
+        ]
 
     def get_workflow_service_url(self) -> str:
         """ Get the workflow service url. """

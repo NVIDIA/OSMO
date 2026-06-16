@@ -104,6 +104,46 @@ class TestCommon(unittest.TestCase):
                 self.assertEqual(result.tag, exp_tag, f'tag mismatch for {image}')
                 self.assertEqual(result.digest, exp_digest, f'digest mismatch for {image}')
 
+    def test_normalize_registry_scope_preserves_path(self):
+        self.assertEqual(common.normalize_registry_scope('docker.io'), common.DEFAULT_REGISTRY)
+        self.assertEqual(
+            common.normalize_registry_scope('https://nvcr.io/nvstaging/osmo/'),
+            'nvcr.io/nvstaging/osmo')
+        self.assertEqual(
+            common.normalize_registry_scope('localhost:5000/team/image'),
+            'localhost:5000/team/image')
+
+    def test_registry_scope_matches_image_by_path_segment(self):
+        image_info = common.docker_parse('nvcr.io/nvstaging/osmo/app:latest')
+
+        self.assertTrue(common.registry_scope_matches_image('nvcr.io', image_info))
+        self.assertTrue(
+            common.registry_scope_matches_image('nvcr.io/nvstaging/osmo', image_info))
+        self.assertFalse(
+            common.registry_scope_matches_image('nvcr.io/nvstaging/isaac', image_info))
+        self.assertFalse(
+            common.registry_scope_matches_image('nvcr.io/nvstaging/osmosis', image_info))
+
+    def test_matching_registry_scopes_returns_most_specific_first(self):
+        image_info = common.docker_parse('nvcr.io/nvstaging/osmo/app:latest')
+
+        matches = common.matching_registry_scopes(image_info, [
+            'nvcr.io',
+            'nvcr.io/nvstaging/isaac',
+            'nvcr.io/nvstaging/osmo',
+        ])
+
+        self.assertEqual(matches, ['nvcr.io/nvstaging/osmo', 'nvcr.io'])
+
+    def test_image_registry_scope_includes_non_default_port(self):
+        image_info = common.docker_parse('registry.example.com:5000/org/image:v1')
+
+        self.assertEqual(
+            common.image_registry_scope(image_info),
+            'registry.example.com:5000/org/image')
+        self.assertTrue(
+            common.registry_scope_matches_image('registry.example.com:5000/org', image_info))
+
 
 class TestPydanticEncoder(unittest.TestCase):
     """ Tests for pydantic_encoder. """

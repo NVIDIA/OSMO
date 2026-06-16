@@ -15,6 +15,7 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import base64
 import copy
 import datetime
 from typing import Any, Dict, List, Union, cast
@@ -24,6 +25,10 @@ import unittest
 from src.lib.utils import common, credentials
 from src.utils.job import task, kb_objects
 from src.utils import connectors
+
+
+def docker_auth(username: str, auth: str) -> str:
+    return base64.b64encode(f'{username}:{auth}'.encode('utf-8')).decode('utf-8')
 
 
 def create_lvm_volume(name: str, size: str):
@@ -480,6 +485,85 @@ def _make_group(ignore_nonlead: bool = True) -> task.TaskGroup:
         downstream_groups=set(),
         database=mock.create_autospec(connectors.PostgresConnector, instance=True),
     )
+
+
+class TaskGroupRegistryCredsTest(unittest.TestCase):
+    """Tests for Docker registry credential selection."""
+
+    def _make_group(self, images: List[str]) -> task.TaskGroup:
+        spec = task.TaskGroupSpec(
+            name='test-group',
+            tasks=[
+                task.TaskSpec(
+                    name=f'task-{index}',
+                    image=image,
+                    command=['echo'],
+                    lead=index == 0,
+                )
+                for index, image in enumerate(images)
+            ],
+        )
+        return task.TaskGroup(
+            name='test-group',
+            group_uuid=common.generate_unique_id(),
+            spec=spec,
+            tasks=[],
+            remaining_upstream_groups=set(),
+            downstream_groups=set(),
+            database=mock.create_autospec(connectors.PostgresConnector, instance=True),
+        )
+
+    def test_get_registry_creds_includes_all_matching_path_scopes(self):
+        group = self._make_group(['nvcr.io/nvstaging/osmo/app:latest'])
+        cast(mock.MagicMock, group.database.get_all_registry_creds).return_value = {
+            'nvcr.io': {'username': 'root-user', 'auth': 'root-token'},
+            'nvcr.io/nvstaging/osmo': {'username': 'osmo-user', 'auth': 'osmo-token'},
+            'nvcr.io/nvstaging/isaac': {'username': 'isaac-user', 'auth': 'isaac-token'},
+        }
+        workflow_config = mock.MagicMock()
+        workflow_config.backend_images.credential = None
+
+        registry_creds_user, registry_cred_osmo = group._get_registry_creds(
+            'alice', workflow_config)
+
+        self.assertIsNone(registry_cred_osmo)
+        self.assertEqual(registry_creds_user, {
+            'nvcr.io': {'auth': docker_auth('root-user', 'root-token')},
+            'nvcr.io/nvstaging/osmo': {'auth': docker_auth('osmo-user', 'osmo-token')},
+        })
+
+    def test_get_registry_creds_handles_different_paths_same_host(self):
+        group = self._make_group([
+            'nvcr.io/nvstaging/osmo/app:latest',
+            'nvcr.io/nvidia/toolkit:latest',
+        ])
+        cast(mock.MagicMock, group.database.get_all_registry_creds).return_value = {
+            'nvcr.io/nvstaging': {'username': 'staging-user', 'auth': 'staging-token'},
+            'nvcr.io/nvidia': {'username': 'nvidia-user', 'auth': 'nvidia-token'},
+        }
+        workflow_config = mock.MagicMock()
+        workflow_config.backend_images.credential = None
+
+        registry_creds_user, _ = group._get_registry_creds('alice', workflow_config)
+
+        self.assertEqual(registry_creds_user, {
+            'nvcr.io/nvstaging': {'auth': docker_auth('staging-user', 'staging-token')},
+            'nvcr.io/nvidia': {'auth': docker_auth('nvidia-user', 'nvidia-token')},
+        })
+
+    def test_get_registry_creds_normalizes_osmo_credential_scope(self):
+        group = self._make_group(['ubuntu:latest'])
+        cast(mock.MagicMock, group.database.get_all_registry_creds).return_value = {}
+        workflow_config = mock.MagicMock()
+        workflow_config.backend_images.credential.registry = 'https://nvcr.io/osmo/'
+        workflow_config.backend_images.credential.username = 'osmo-user'
+        workflow_config.backend_images.credential.auth.get_secret_value.return_value = 'osmo-token'
+
+        _, registry_cred_osmo = group._get_registry_creds('alice', workflow_config)
+
+        self.assertEqual(registry_cred_osmo, {
+            'nvcr.io/osmo': {'auth': docker_auth('osmo-user', 'osmo-token')},
+        })
 
 
 class AggregateStatusTest(unittest.TestCase):
