@@ -686,27 +686,24 @@ jobs:
           # submodule wrapping and overshoots by one level on a standalone
           # checkout, so override OETF_REPO_ROOT explicitly.
           OETF_REPO_ROOT: ${{ github.workspace }}
-          # Tags are OR'd. Earlier run with --tags kind included two scenario
-          # tests that have real OSMO/chart bugs (not gate setup issues):
+          # Tags are OR'd. Several OETF tests fail with issues unrelated to
+          # this PR's wrapper (real OSMO/test bugs):
           #
-          #   - task-runtime-environment (tags: task-env, positive, kind)
-          #     fails because the test fixture's WorkflowSpec uses
-          #     outputs.dataset, but the current chart schema renamed that
-          #     field to outputs.url. Pydantic rejects: "Extra inputs are
-          #     not permitted" + "Field required". OETF-side test fix.
+          #   - task-runtime-environment + router-connectivity (positive
+          #     scenario, kind): fixture uses outdated `outputs.dataset`
+          #     schema (chart renamed → `outputs.url`); router pod can't
+          #     resolve a hostname over Azure DNS.
+          #   - serial-workflow / serial-workflow-update-dataset / regex-
+          #     workflow (serial tag): same stale `outputs.dataset` schema
+          #     in scenarios/serial.py.
           #
-          #   - router-connectivity (tags: router, positive, kind) fails
-          #     with "Temporary failure in name resolution" from inside
-          #     a workflow task pod — pod DNS can't resolve the host the
-          #     test tries to hit. Cluster networking issue, unrelated to
-          #     this PR's wrapper.
-          #
-          # Both are out of scope for this PR. Pick a tag set that hits
-          # api-checks + websocket-checks + logger-connectivity + all four
-          # negative validation tests (resource, command, mount, template)
-          # + serial-workflow-mounting. 8 tests, all previously green
-          # (modulo api-checks needing --pool, fixed in the wrapper).
-          OETF_TAGS: api,websocket,logger,negative,serial
+          # Pick the tag set that hits everything green: api-checks +
+          # websocket-checks + logger-connectivity + four negative-
+          # validation tests (resource / command / mount / template).
+          # 7 tests covering smoke API + smoke WS + 1 real workflow
+          # scenario (logger-connectivity submits + execs a workflow,
+          # streams logs back) + 4 submission-time validation checks.
+          OETF_TAGS: api,websocket,logger,negative
           # SKIP_TEARDOWN=1: the wrapper's teardown re-invokes
           # deploy-osmo-minimal.sh --destroy which (despite --skip-terraform)
           # appears to destroy cloud resources too, taking ~75 min. Our
