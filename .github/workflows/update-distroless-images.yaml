@@ -41,6 +41,7 @@ concurrency:
 
 jobs:
   update-distroless:
+    environment: nim-env
     runs-on: ubuntu-latest
     steps:
       - name: Schedule gate
