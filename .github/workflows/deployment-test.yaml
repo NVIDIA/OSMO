@@ -673,6 +673,125 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # Capture a snapshot of cluster + OSMO state BEFORE terraform destroys
+      # everything. Runs on success too so we can compare "green run" vs
+      # "red run" diagnostics. Self-contained: re-mints kubectl context up
+      # front in case the wrapper trashed its kubeconfig.
+      #
+      # All artifacts land under $RUN_DIR/diagnostics/ which is uploaded
+      # by the artifact-upload step regardless of job outcome.
+      - name: dump cluster + OSMO diagnostics (always)
+        if: always()
+        timeout-minutes: 5
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+        run: |
+          set +e
+          DIAG="$RUN_DIR/diagnostics"
+          mkdir -p "$DIAG"
+
+          echo "▶ $(date -u +%H:%M:%S) refreshing kubectl context"
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_CLUSTER_NAME" \
+            --overwrite-existing --admin > "$DIAG/az_creds.log" 2>&1 || true
+          kubectl cluster-info > "$DIAG/cluster-info.txt" 2>&1 || \
+            { echo "::warning::kubectl can't reach the cluster — skipping in-cluster diagnostics"; exit 0; }
+
+          echo "::group::pods (all namespaces)"
+          kubectl get pods -A -o wide | tee "$DIAG/pods.txt"
+          echo "::endgroup::"
+
+          echo "::group::events (last 200, sorted by lastTimestamp)"
+          kubectl get events -A --sort-by='.lastTimestamp' 2>/dev/null | tail -200 | tee "$DIAG/events.txt"
+          echo "::endgroup::"
+
+          echo "::group::non-Running pods + descriptions"
+          kubectl get pods -A --field-selector=status.phase!=Running -o wide | tee "$DIAG/non-running.txt"
+          # Describe each non-Running pod (helps diagnose ImagePullBackOff,
+          # CrashLoopBackOff, OOMKilled, scheduling failures, etc.)
+          kubectl get pods -A --field-selector=status.phase!=Running \
+            -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' \
+            | while read -r ns pod; do
+                [[ -z "$ns" || -z "$pod" ]] && continue
+                kubectl describe pod "$pod" -n "$ns" > "$DIAG/describe-${ns}-${pod}.txt" 2>&1
+                # tail of any container's logs (best effort, ignore errors)
+                kubectl logs "$pod" -n "$ns" --all-containers --tail=200 --prefix \
+                  > "$DIAG/logs-${ns}-${pod}.log" 2>&1
+              done
+          echo "::endgroup::"
+
+          echo "::group::actual image refs on every pod (proves PR-built tag is in use)"
+          kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{","}{end}{"\n"}{end}' \
+            | sort | tee "$DIAG/image-refs.txt"
+          echo "::endgroup::"
+
+          echo "::group::OSMO service-pod logs (tail 300 per app label)"
+          for ns in osmo-minimal osmo-operator osmo-workflows; do
+            for app in service logger agent authz-sidecar router worker delayed-job-monitor gateway backend-listener backend-worker osmo-operator; do
+              out=$(kubectl logs -l app="$app" -n "$ns" --tail=300 --all-containers --prefix --ignore-errors=true 2>&1)
+              if [[ -n "$out" && "$out" != *"No resources found"* && "$out" != *"error"*"resource"* ]]; then
+                echo "$out" > "$DIAG/applog-${ns}-${app}.log"
+              fi
+            done
+          done
+          ls -la "$DIAG"/applog-*.log 2>/dev/null | tee "$DIAG/applog-index.txt"
+          echo "::endgroup::"
+
+          echo "::group::helm releases + resolved values"
+          helm list -A -o yaml > "$DIAG/helm-releases.yaml" 2>&1
+          # jq is preinstalled on ubuntu-latest. Inline python is hostile to
+          # yaml's leading-whitespace because `run: |` preserves it.
+          while IFS='|' read -r r ns; do
+            [[ -z "$r" ]] && continue
+            helm status "$r" -n "$ns"     > "$DIAG/helm-status-${r}.txt"   2>&1
+            helm get values "$r" -n "$ns" > "$DIAG/helm-values-${r}.yaml" 2>&1
+          done < <(helm list -A -o json 2>/dev/null | jq -r '.[] | "\(.name)|\(.namespace)"')
+          echo "::endgroup::"
+
+          echo "::group::OSMO CLI workflow status (best-effort)"
+          if command -v osmo >/dev/null 2>&1; then
+            # Port-forward may be dead post-wrapper; skip on failure.
+            timeout 30 osmo workflow status verify-hello-1 > "$DIAG/osmo-verify-hello-status.txt" 2>&1 || true
+            timeout 30 osmo workflow logs   verify-hello-1 > "$DIAG/osmo-verify-hello-logs.txt"   2>&1 || true
+          else
+            echo "osmo CLI not on PATH (deploy-osmo-minimal.sh installs it; wrapper may have skipped)" \
+              > "$DIAG/osmo-cli-missing.txt"
+          fi
+          echo "::endgroup::"
+
+          # High-signal panel for the run's overview page — surfaces the
+          # things a triage-engineer wants first without expanding any log.
+          {
+            echo "### Cluster diagnostic snapshot"
+            echo ""
+            echo "Captured ${DIAG#"$GITHUB_WORKSPACE/"} (uploaded as part of \`deployment-test-run-${GITHUB_RUN_ID}\` artifact)."
+            echo ""
+            echo "#### Pods not Running"
+            if [ -s "$DIAG/non-running.txt" ] && [ "$(wc -l < "$DIAG/non-running.txt")" -gt 1 ]; then
+              echo '```'
+              head -20 "$DIAG/non-running.txt"
+              echo '```'
+            else
+              echo "_(all pods Running)_"
+            fi
+            echo ""
+            echo "#### Image refs on running pods (first 30)"
+            echo '```'
+            head -30 "$DIAG/image-refs.txt"
+            echo '```'
+            echo ""
+            echo "#### Last 30 cluster events"
+            echo '```'
+            tail -30 "$DIAG/events.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Never fail the step — diagnostics are best-effort and must not
+          # block teardown or mask the real failure upstream.
+          exit 0
+
       # TEMPORARY SCAFFOLDING — pairs with the apply step above. Runs
       # unconditionally on success OR failure so we never leak an AKS +
       # Postgres + Redis pair after a verification run.
