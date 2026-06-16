@@ -501,8 +501,14 @@ jobs:
           # - node_instance_type=Standard_D4s_v3: default Standard_D2s_v3
           #   gives 2 vCPU/node, ~1 schedulable after daemonsets + osmo
           #   pods. verify-hello (cpu=1) then fails OSMO's strict-LE
-          #   resource assertion ("Value 1.0 too high for CPU"). The
-          #   wrapper's helm-set overrides are tuned for 4 vCPU nodes.
+          #   resource assertion ("Value 1.0 too high for CPU").
+          # - node_group_min_size=3: with 2 autoscaled nodes the agent's
+          #   platform_workflow_allocatable_fields drops below 1 vCPU
+          #   (Azure daemons + OSMO system pods eat the headroom on a
+          #   single 4-vCPU node), so 1.0 LE K8_CPU fails. Three nodes
+          #   give the workflow scheduler enough room to land a cpu=1
+          #   task. Empirically confirmed via `osmo resource list` in
+          #   the next diagnostic dump.
           TF_VARS=(
             -var "subscription_id=${ARM_SUBSCRIPTION_ID}"
             -var "resource_group_name=${AZURE_RESOURCE_GROUP}"
@@ -511,6 +517,7 @@ jobs:
             -var "postgres_password=${PG_PASS}"
             -var "aks_private_cluster_enabled=false"
             -var "node_instance_type=Standard_D4s_v3"
+            -var "node_group_min_size=3"
           )
           if command -v ts >/dev/null; then
             terraform apply -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]'
@@ -619,16 +626,14 @@ jobs:
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           POSTGRES_PASSWORD: ${{ steps.gen_pg.outputs.value }}
-          # The wrapper's verify-hello check submits a workflow whose `hello`
-          # task requests cpu=1. OSMO's resource assertion compares against
-          # the default platform's cpu limit (1.0 by chart default) using
-          # strict-LE, so 1.0 NOT< 1.0 and the submission is rejected. This
-          # is independent of the AKS node size — the assertion checks the
-          # platform spec, not the K8s allocatable. Tolerate so the wrapper
-          # continues past verify-hello. Real fix lives in the chart's
-          # default platform spec (raise cpu limit) or in verify-hello.yaml
-          # (request cpu<1) — separate from this PR.
-          OSMO_TOLERATE_VERIFY_FAILURE: "1"
+          # verify-hello must pass cleanly now that the system pool is
+          # 3 nodes (node_group_min_size=3). Earlier comments here said
+          # "the assertion checks the platform spec, not K8s allocatable" —
+          # that was wrong. The default_cpu rule is `LE USER_CPU K8_CPU`
+          # and K8_CPU resolves from the agent's
+          # `platform_workflow_allocatable_fields`, which DOES depend on
+          # node count + daemon overhead. Pod logs confirmed K8_CPU < 1.0
+          # on a 2-node Standard_D4s_v3 cluster.
           # SKIP_OETF=1: this PR's branch doesn't yet contain test/oetf/
           # (was merged in #1062, may not be in this branch's tree). The
           # OETF smoke stage looks for it, fails, and we don't need it for
@@ -755,7 +760,7 @@ jobs:
           done < <(helm list -A -o json 2>/dev/null | jq -r '.[] | "\(.name)|\(.namespace)"')
           echo "::endgroup::"
 
-          echo "::group::OSMO CLI workflow info (best-effort — port-forward may be dead post-wrapper)"
+          echo "::group::OSMO CLI workflow + resource snapshot (best-effort)"
           if command -v osmo >/dev/null 2>&1; then
             # Re-establish port-forward to gateway, since the wrapper's own
             # watchdog port-forward was torn down when verify.sh exited.
@@ -764,14 +769,37 @@ jobs:
             sleep 3
             export OSMO_SERVICE_URL="http://localhost:9100"
             # `query` is the right subcommand (CLI has no `status`).
-            timeout 30 osmo workflow query  verify-hello-1 > "$DIAG/osmo-verify-hello-query.txt"  2>&1 || true
-            timeout 30 osmo workflow events verify-hello-1 > "$DIAG/osmo-verify-hello-events.txt" 2>&1 || true
-            timeout 30 osmo workflow logs   verify-hello-1 > "$DIAG/osmo-verify-hello-logs.txt"   2>&1 || true
+            timeout 30 osmo workflow query    verify-hello-1 > "$DIAG/osmo-verify-hello-query.txt"   2>&1 || true
+            timeout 30 osmo workflow events   verify-hello-1 > "$DIAG/osmo-verify-hello-events.txt"  2>&1 || true
+            timeout 30 osmo workflow logs     verify-hello-1 > "$DIAG/osmo-verify-hello-logs.txt"    2>&1 || true
+            # `resource list` exposes platform_workflow_allocatable_fields
+            # the agent has published — direct read of K8_CPU/K8_MEMORY
+            # values used by the strict-LE resource-validation assertions.
+            timeout 30 osmo resource list  -t json > "$DIAG/osmo-resource-list.json"  2>&1 || true
+            timeout 30 osmo pool list      -t json > "$DIAG/osmo-pool-list.json"      2>&1 || true
             kill $PF_PID 2>/dev/null || true
           else
             echo "osmo CLI not on PATH (deploy-osmo-minimal.sh installs it; wrapper may have skipped)" \
               > "$DIAG/osmo-cli-missing.txt"
           fi
+          echo "::endgroup::"
+
+          echo "::group::node allocatable + per-node pod CPU usage"
+          # Allocatable = node.status.allocatable (k8s view).
+          kubectl get nodes -o custom-columns=\
+NAME:.metadata.name,\
+CPU_ALLOC:.status.allocatable.cpu,\
+MEM_ALLOC:.status.allocatable.memory,\
+PODS_ALLOC:.status.allocatable.pods > "$DIAG/nodes-allocatable.txt" 2>&1
+          cat "$DIAG/nodes-allocatable.txt"
+          # `kubectl describe nodes` includes the per-node "Allocated
+          # resources" table — that's the closest k8s-side analog to
+          # OSMO's K8_CPU calculation. Single file per node.
+          kubectl get nodes -o name 2>/dev/null \
+            | while read -r node; do
+                name="${node#node/}"
+                kubectl describe "$node" > "$DIAG/describe-node-${name}.txt" 2>&1
+              done
           echo "::endgroup::"
 
           # High-signal panel for the run's overview page — surfaces the
@@ -824,6 +852,7 @@ jobs:
             -var "postgres_password=${PG_PASS}"
             -var "aks_private_cluster_enabled=false"
             -var "node_instance_type=Standard_D4s_v3"
+            -var "node_group_min_size=3"
           )
           if command -v ts >/dev/null; then
             terraform destroy -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]' \
