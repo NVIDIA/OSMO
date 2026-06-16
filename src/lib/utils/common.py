@@ -459,6 +459,8 @@ def normalize_registry_scope(registry_scope: str) -> str:
     parsed = urlparse(scope if '://' in scope else f'//{scope}')
     if parsed.netloc:
         registry = registry_parse(parsed.netloc)
+        if registry.endswith(':443'):
+            registry = registry[:-4]
         path = parsed.path.strip('/')
         if path:
             return f'{registry}/{path}'

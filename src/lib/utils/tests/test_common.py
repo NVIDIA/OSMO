@@ -112,6 +112,9 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(
             common.normalize_registry_scope('localhost:5000/team/image'),
             'localhost:5000/team/image')
+        self.assertEqual(
+            common.normalize_registry_scope('registry.example.com:443/team/image'),
+            'registry.example.com/team/image')
 
     def test_registry_scope_matches_image_by_path_segment(self):
         image_info = common.docker_parse('nvcr.io/nvstaging/osmo/app:latest')
