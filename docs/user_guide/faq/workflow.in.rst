@@ -196,10 +196,10 @@ How to mount datasets inside the workflow?
 
 Mounting inputs inside a workflow is not supported. Contact your admin to setup NAS or LFS support.
 
-How to update datasets inside the workflow?
--------------------------------------------
+How to update data inside the workflow?
+---------------------------------------
 
-Multiple tasks of a workflow or multiple workflows can operate and update the same dataset. See :ref:`Update Dataset <cli_reference_dataset_update>`.
+Write task outputs to ``{{output}}`` or configured workflow output paths. See :ref:`workflow_spec_inputs_and_outputs`.
 
 How to Handle Failed Tasks?
 ---------------------------

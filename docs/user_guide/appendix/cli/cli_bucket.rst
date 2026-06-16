@@ -15,18 +15,6 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-:tocdepth: 3
+:orphan:
 
-.. _cli_reference_bucket:
-
-================================================
-osmo bucket
-================================================
-
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: bucket
-   :ref-prefix: cli_reference_bucket
-   :argument-anchor:
+The ``osmo bucket`` CLI has been removed. Use :ref:`osmo data <cli_reference_data>` instead.
