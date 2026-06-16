@@ -481,11 +481,24 @@ stage_deploy() {
             # so do NOT pin to NodePort here.
             #
             # Chart defaults reserve 1 full CPU each for logger / service /
-            # worker / agent with minReplicas=3 on logger. On a 3-node
-            # Standard_D4s_v3 system pool (4 vCPU each, ~2 schedulable after
-            # daemonsets) that saturates every node per OSMO's strict-LE
-            # resource assertion ("Value 1.0 too high for CPU"). Reduce
-            # OSMO-system requests so verify-hello (cpu=1) can fit alongside.
+            # worker / agent with minReplicas=3 on logger, AND 1 full CPU
+            # for the osmo-ctrl sidecar of every workflow pod (chart
+            # path: services.configs.workflow.podTemplates.default_ctrl.
+            # spec.containers[0].resources.requests.cpu = "1"). On a
+            # 3-node Standard_D4s_v3 system pool (4 vCPU each, ~3
+            # schedulable after Azure daemons) the K8_CPU placeholder
+            # (= node.allocatable.cpu − default_ctrl.requests.cpu −
+            # non_workflow_usage; see postgres.py
+            # construct_updated_allocatables) drops below 1.0, so the
+            # strict-LE rule `USER_CPU LE K8_CPU` rejects every
+            # cpu=1 task ("Value 1.0 too high for CPU").
+            #
+            # Two reductions:
+            #   - OSMO-service requests → 100m  (was 1 each → 5 × 1 = 5 CPU)
+            #   - osmo-ctrl sidecar request → 100m (was 1 per workflow task)
+            # The chart's CPU LIMIT on ctrl/user still tracks USER_CPU,
+            # so the user's task still gets its full requested CPU budget
+            # at runtime; only the SCHEDULING request shrinks.
             args=(
                 --provider azure
                 --non-interactive
@@ -504,6 +517,7 @@ stage_deploy() {
                 --helm-set services.worker.resources.requests.cpu=100m
                 --helm-set services.agent.resources.requests.cpu=100m
                 --helm-set services.router.resources.requests.cpu=100m
+                --helm-set 'services.configs.workflow.podTemplates.default_ctrl.spec.containers[0].resources.requests.cpu=100m'
             )
             ;;
         *)
