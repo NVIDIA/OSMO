@@ -15,7 +15,7 @@ workflow:
       cpu: 1
       storage: 2Gi
       memory: 1Gi
-      platform: cpu-x86
+      platform: {{platform}}
   tasks:
   - name: task1
     image: busybox

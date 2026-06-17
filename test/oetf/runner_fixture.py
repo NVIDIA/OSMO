@@ -341,8 +341,15 @@ def _submit_via_cli(
         ]
         if args:
             argv.extend(["--set"] + list(args))
+        # cwd=temp_dir so the CLI resolves `localpath:` references against
+        # the staged copies in `temp_dir` (see _copy_localpath_files_to_dir,
+        # which rewrites every localpath to its basename and copies the
+        # source files alongside the rewritten spec). Without this, the CLI
+        # looks under the bazel test sandbox's cwd and fails with
+        # "The localpath <name> does not exist!".
         result = subprocess.run(
             argv, capture_output=True, text=True, check=False,
+            cwd=temp_dir,
         )
         if result.returncode != 0:
             _raise_cli_submission_error(result)
@@ -377,10 +384,34 @@ def _copy_localpath_files_to_dir(
 
 
 def _raise_cli_submission_error(result: subprocess.CompletedProcess) -> None:
-    """Translate a failing `osmo workflow submit` into OSMOError / OSMOSubmissionError."""
-    stderr = (result.stderr or "")[:500]
-    stdout = (result.stdout or "")[:500]
-    body = stderr or stdout
+    """Translate a failing `osmo workflow submit` into OSMOError / OSMOSubmissionError.
+
+    The CLI emits an "Error message:" line on stdout for submission failures
+    (validation errors, missing localpaths, etc.) and prints a "New client X
+    available" warning to stderr on every invocation. If we look only at
+    stderr we usually miss the real cause and surface just the noise. Build
+    the error body from both streams, filter the version-warning noise out
+    of stderr, and keep enough context to pinpoint the failure.
+    """
+    raw_stderr = result.stderr or ""
+    raw_stdout = result.stdout or ""
+    # Drop the multi-line "WARNING: New client X.Y.Z available..." chunks so
+    # the truncated body shows the real error instead. The warning runs from
+    # 'WARNING: New client' through the install URL line.
+    cleaned_stderr_lines = []
+    skip = False
+    for line in raw_stderr.splitlines():
+        if line.startswith("WARNING: New client"):
+            skip = True
+            continue
+        if skip:
+            if line.startswith("curl ") and "install.sh" in line:
+                skip = False
+            continue
+        cleaned_stderr_lines.append(line)
+    stderr = "\n".join(cleaned_stderr_lines).strip()[:1000]
+    stdout = raw_stdout.strip()[:1000]
+    body = "\n".join(filter(None, [stderr, stdout])) or "(no output captured)"
     status_match = _CLI_STATUS_CODE_PATTERN.search(stderr)
     status_code = int(status_match.group(1)) if status_match else 0
     if status_code == 429 or "429" in stderr:

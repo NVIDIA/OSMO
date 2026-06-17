@@ -20,7 +20,7 @@ workflow:
       cpu: 4
       storage: 10Gi
       memory: 4Gi
-      platform: cpu-x86
+      platform: {{platform}}
   tasks:
   - name: task1
     image: ubuntu:22.04
