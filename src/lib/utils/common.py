@@ -97,7 +97,7 @@ OLD_UUID_REGEX = r'[a-z2-7]{26}'
 UuidPattern = Annotated[
     str,
     pydantic.Field(
-        pattern=f'^{UUID_REGEX}|{OLD_UUID_REGEX}|{GROUP_UUID_REGEX}$')]
+        pattern=f'^(?:{UUID_REGEX}|{OLD_UUID_REGEX}|{GROUP_UUID_REGEX})$')]
 
 WFID_REGEX = r'[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?-\d+$'
 RESOURCE_REGEX = r'(?P<size>(\d+(?:\.\d+)?))(?P<unit>([a-zA-Z]*))'
