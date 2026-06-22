@@ -87,7 +87,7 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 |-----------|---------|
 | `auth/` | JWT token lifecycle, access token CRUD, user management, role assignment |
 | `workflow/` | Workflow submit/list/cancel, resource quota, pool allocation, task coordination, credential management |
-| `config/` | Service/workflow/dataset configuration CRUD with versioning and history. Pod templates, resource validation rules, pool/backend config |
+| `config/` | Service/workflow configuration CRUD with versioning and history. Pod templates, resource validation rules, pool/backend config. Dataset config is deprecated; stale ConfigMap `dataset` blocks are ignored. |
 | `data/` | Dataset/collection management, versioning with tags, multi-backend storage, streaming downloads |
 | `app/` | Workflow app lifecycle (create, version, rename, delete), YAML spec validation |
 | `profile/` | User profile/preferences, token identity, role/pool visibility |

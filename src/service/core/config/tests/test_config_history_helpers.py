@@ -47,14 +47,14 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
         SELECT * FROM (
             SELECT config_type, name, revision, username, created_at, tags, description, data
             FROM config_history
-            WHERE TRUE AND deleted_at IS NULL
+            WHERE config_type = ANY(%s) AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT 10 OFFSET 0
         ) AS ch
         ORDER BY created_at DESC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, ())
+        self.assertEqual(params, (lowercase_config_types,))
 
     def test_config_types_filter(self):
         """Test query construction with config_types filter."""
@@ -90,14 +90,14 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
         SELECT * FROM (
             SELECT config_type, name, revision, username, created_at, tags, description, data
             FROM config_history
-            WHERE name = %s AND deleted_at IS NULL
+            WHERE config_type = ANY(%s) AND name = %s AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT 20 OFFSET 0
         ) AS ch
         ORDER BY created_at ASC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, (name,))
+        self.assertEqual(params, (lowercase_config_types, name))
 
     def test_revision_filter(self):
         """Test query construction with revision filter."""
@@ -111,14 +111,14 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
         SELECT * FROM (
             SELECT config_type, name, revision, username, created_at, tags, description, data
             FROM config_history
-            WHERE revision = %s AND deleted_at IS NULL
+            WHERE config_type = ANY(%s) AND revision = %s AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT 20 OFFSET 0
         ) AS ch
         ORDER BY created_at ASC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, (5,))
+        self.assertEqual(params, (lowercase_config_types, 5))
 
     def test_at_timestamp_filter(self):
         """Test query construction with at_timestamp filter using DISTINCT ON."""
@@ -135,13 +135,13 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
                 SELECT DISTINCT ON (config_type)
                     config_type, name, revision, username, created_at, tags, description, data
                 FROM config_history
-                WHERE created_at <= %s AND deleted_at IS NULL
+                WHERE config_type = ANY(%s) AND created_at <= %s AND deleted_at IS NULL
                 ORDER BY config_type, created_at DESC
             ) AS ch
             ORDER BY created_at ASC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, (at_time,))
+        self.assertEqual(params, (lowercase_config_types, at_time))
 
     def test_at_timestamp_with_filters(self):
         """Test query construction with at_timestamp and additional filters."""

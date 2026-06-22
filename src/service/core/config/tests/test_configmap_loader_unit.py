@@ -565,12 +565,14 @@ class TestConfigMapWatcherStart(unittest.TestCase):
             path = temp.name
         try:
             watcher = configmap_loader.ConfigMapWatcher(path, postgres=None)
-            watcher.start()
-            snapshot = configmap_guard.get_snapshot()
-            self.assertIsNotNone(snapshot)
-            assert snapshot is not None
-            self.assertNotIn('dataset', snapshot)
-            watcher.stop()
+            try:
+                watcher.start()
+                snapshot = configmap_guard.get_snapshot()
+                self.assertIsNotNone(snapshot)
+                assert snapshot is not None
+                self.assertNotIn('dataset', snapshot)
+            finally:
+                watcher.stop()
         finally:
             os.unlink(path)
 
