@@ -20,7 +20,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
   tasks:
   - name: stage-1
     image: ubuntu:22.04

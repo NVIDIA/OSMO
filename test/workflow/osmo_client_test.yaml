@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
   tasks:
   - name: task1
     resource: default

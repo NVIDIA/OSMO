@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
   tasks:
   - name: dataset-cli
     image: ubuntu:22.04
@@ -33,5 +32,4 @@ workflow:
     exec_timeout: 10m
     queue_timeout: 1h
 default-values:
-  platform: cpu-x86
   bucket: osmo

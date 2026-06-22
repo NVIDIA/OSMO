@@ -586,38 +586,21 @@ class WorkflowBuilder:
             if os.path.exists(task_py_path):
                 spec_content = _inject_task_files(spec_content, task_py_path)
 
-            # Auto-inject the fixture's default platform/bucket as workflow
-            # variables when the caller hasn't set them explicitly. Lets
-            # scenarios that use ``{{platform}}`` / ``{{bucket}}`` placeholders
-            # work across env presets (KIND → cpu, staging → x86-5090,
-            # nightly → whatever the env exports via OETF_DEFAULT_*) without
-            # every scenario having to call ``.args("platform=...")``.
-            # Extras are harmless — the submit API ignores variables the YAML
-            # doesn't reference.
-            args = list(self._args)
-            arg_keys = {a.split("=", 1)[0] for a in args}
-            for key, value in (
-                ("platform", self._fixture.default_platform),
-                ("bucket", self._fixture.default_bucket),
-            ):
-                if value and key not in arg_keys:
-                    args.append(f"{key}={value}")
-
             if self._client in {"cli", "hybrid"}:
                 workflow_id = _submit_via_cli(
-                    spec_content, self._spec_path, self._pool, args,
+                    spec_content, self._spec_path, self._pool, self._args,
                     self._fixture.config,
                 )
             else:
                 # API path: inline localpaths via load_local_files, then POST.
                 spec_content = _resolve_localpath_files(
                     spec_content, self._spec_path,
-                    self._fixture.service_client, self._pool, args,
+                    self._fixture.service_client, self._pool, self._args,
                 )
                 response = self._fixture.service_client.request(
                     method=RequestMethod.POST,
                     endpoint=f"api/pool/{self._pool}/workflow",
-                    payload={"file": spec_content, "set_variables": args},
+                    payload={"file": spec_content, "set_variables": self._args},
                 )
                 workflow_id = response.get("name", "")
                 if not workflow_id:

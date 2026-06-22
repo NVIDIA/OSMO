@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
   tasks:
   - name: task1
     image: ubuntu:22.04
@@ -101,4 +100,3 @@ workflow:
 default-values:
   bucket: osmo
   download_type: download
-  platform: cpu-x86

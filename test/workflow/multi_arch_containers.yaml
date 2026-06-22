@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 2Gi
       memory: 2Gi
-      platform: {{platform}}
     arm64:
       cpu: 1
       storage: 2Gi

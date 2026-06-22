@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
   tasks:
   - name: app-cli
     image: ubuntu:22.04
@@ -33,4 +32,3 @@ workflow:
 
 default-values:
   app_name: integration_test_app
-  platform: cpu-x86

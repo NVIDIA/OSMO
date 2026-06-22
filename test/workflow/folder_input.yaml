@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
   groups:
   - name: {{workflow_name}}-group
     tasks:
@@ -125,5 +124,4 @@ workflow:
 
 default-values:
   workflow_name: folder-input-test
-  platform: cpu-x86
   bucket: osmo
