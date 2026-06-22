@@ -17,7 +17,6 @@ import os
 import pathlib
 import tempfile
 import unittest
-from typing import Dict
 from unittest.mock import MagicMock
 
 import yaml
@@ -31,6 +30,7 @@ from test.oetf.runner_fixture import (
     _format_seen_checkpoints,
     _inject_task_files,
     _iter_checkpoints,
+    _runfiles_repo_root_for,
 )
 
 
@@ -460,62 +460,55 @@ class TestRunnerFixtureDefaults(unittest.TestCase):
         self.assertEqual(f.default_bucket, "my-test-bucket")
 
 
-class CallerRunfilesRepoRootTest(unittest.TestCase):
-    """_caller_runfiles_repo_root walks from the caller's __file__ up to the
-    immediate child of TEST_SRCDIR. Required because bzlmod sets
-    TEST_WORKSPACE=_main for every test regardless of which module owns it,
-    so the framework can't rely on _workspace_root() alone to find data
-    deps that live in @osmo_workspace+ (or any other dep module).
+class RunfilesRepoRootForTest(unittest.TestCase):
+    """_runfiles_repo_root_for is the pure path-math used by
+    _caller_runfiles_repo_root. Required because under bzlmod TEST_WORKSPACE
+    is always _main regardless of which module the test target lives in,
+    so the framework can't trust _workspace_root() alone to find data deps
+    in @osmo_workspace+ or any other dep module.
     """
 
-    def setUp(self):
-        self._saved = os.environ.get("TEST_SRCDIR")
-        self._tmp = tempfile.TemporaryDirectory()
-
-    def tearDown(self):
-        if self._saved is None:
-            os.environ.pop("TEST_SRCDIR", None)
-        else:
-            os.environ["TEST_SRCDIR"] = self._saved
-        self._tmp.cleanup()
-
-    def _call_from(self, repo_subpath: str):
-        """Simulate a test file sitting at <TEST_SRCDIR>/<repo_subpath>/foo.py.
-
-        Invokes _caller_runfiles_repo_root via exec() from a synthesized
-        file path so inspect.stack() sees the expected filename.
-        """
-        srcdir = self._tmp.name
-        os.environ["TEST_SRCDIR"] = srcdir
-        target = os.path.join(srcdir, repo_subpath, "fake_test.py")
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        pathlib.Path(target).write_text(
-            "from test.oetf.runner_fixture import _caller_runfiles_repo_root\n"
-            "RESULT = _caller_runfiles_repo_root()\n"
-        )
-        namespace: Dict[str, object] = {}
-        exec(  # pylint: disable=exec-used
-            compile(pathlib.Path(target).read_text(), target, "exec"),
-            namespace,
-        )
-        return namespace["RESULT"]
-
     def test_returns_repo_dir_for_main_module(self):
-        result = self._call_from("_main/test/scenarios")
-        self.assertEqual(result, os.path.join(self._tmp.name, "_main"))
+        srcdir = "/srcdir"
+        self.assertEqual(
+            _runfiles_repo_root_for("/srcdir/_main/test/scenarios/foo.py", srcdir),
+            "/srcdir/_main",
+        )
 
     def test_returns_repo_dir_for_dep_module_bzlmod(self):
         # Under bzlmod, dep modules' runfiles dirs are named "<name>+".
-        result = self._call_from("osmo_workspace+/test/scenarios")
-        self.assertEqual(result, os.path.join(self._tmp.name, "osmo_workspace+"))
+        self.assertEqual(
+            _runfiles_repo_root_for(
+                "/srcdir/osmo_workspace+/test/scenarios/foo.py", "/srcdir",
+            ),
+            "/srcdir/osmo_workspace+",
+        )
 
     def test_walks_up_through_nested_dirs(self):
-        result = self._call_from("osmo_workspace+/test/scenarios/app_cli/sub/dir")
-        self.assertEqual(result, os.path.join(self._tmp.name, "osmo_workspace+"))
+        self.assertEqual(
+            _runfiles_repo_root_for(
+                "/srcdir/osmo_workspace+/test/scenarios/app_cli/sub/dir/foo.py",
+                "/srcdir",
+            ),
+            "/srcdir/osmo_workspace+",
+        )
+
+    def test_returns_none_when_filename_outside_srcdir(self):
+        self.assertIsNone(_runfiles_repo_root_for("/elsewhere/foo.py", "/srcdir"))
+
+
+class CallerRunfilesRepoRootTest(unittest.TestCase):
+    """_caller_runfiles_repo_root reads TEST_SRCDIR and dispatches to the
+    pure helper above using the call stack's first non-fixture frame.
+    """
 
     def test_returns_none_without_test_srcdir(self):
-        os.environ.pop("TEST_SRCDIR", None)
-        self.assertIsNone(_caller_runfiles_repo_root())
+        saved = os.environ.pop("TEST_SRCDIR", None)
+        try:
+            self.assertIsNone(_caller_runfiles_repo_root())
+        finally:
+            if saved is not None:
+                os.environ["TEST_SRCDIR"] = saved
 
 
 if __name__ == "__main__":

@@ -114,6 +114,23 @@ def _workspace_root() -> str:
     return os.getcwd()
 
 
+def _runfiles_repo_root_for(filename: str, test_srcdir: str) -> Optional[str]:
+    """Pure helper: the runfiles repo dir under ``test_srcdir`` that contains ``filename``.
+
+    Returns ``None`` if ``filename`` isn't reachable from ``test_srcdir``
+    (i.e. their common path isn't ``test_srcdir``).
+    """
+    srcdir_abs = os.path.abspath(test_srcdir)
+    try:
+        rel = os.path.relpath(os.path.abspath(filename), srcdir_abs)
+    except ValueError:  # different drives on Windows
+        return None
+    first, _, _ = rel.partition(os.sep)
+    if not first or first == "..":
+        return None
+    return os.path.join(srcdir_abs, first)
+
+
 def _caller_runfiles_repo_root() -> Optional[str]:
     """Return the runfiles repo dir (``<TEST_SRCDIR>/<repo>``) that owns the caller.
 
@@ -123,30 +140,20 @@ def _caller_runfiles_repo_root() -> Optional[str]:
     ``<TEST_SRCDIR>/osmo_workspace+/test/scenarios/app_cli.py`` and its
     data deps land under ``<TEST_SRCDIR>/osmo_workspace+/...`` — but
     ``_workspace_root()`` would point at ``<TEST_SRCDIR>/_main/`` and miss
-    them entirely. Walk the call stack to the first non-fixture frame,
-    then walk that file's path upward until its parent is ``TEST_SRCDIR``;
-    that parent's direct child IS the runfiles repo dir we want.
+    them entirely. Walk the call stack to the first non-fixture frame and
+    map its path under ``TEST_SRCDIR`` to the runfiles repo dir.
 
-    Returns ``None`` if not running under ``bazel test`` (i.e. no
-    ``TEST_SRCDIR``) or if no caller file is reachable from the
-    ``TEST_SRCDIR`` tree (shouldn't happen in practice).
+    Returns ``None`` if not running under ``bazel test`` (no
+    ``TEST_SRCDIR``) or no caller file lives under it.
     """
     test_srcdir = os.environ.get("TEST_SRCDIR")
     if not test_srcdir:
         return None
-    srcdir_abs = os.path.abspath(test_srcdir)
     for frame in inspect.stack()[1:]:
         filename = frame.filename
         if not filename.endswith(".py") or "runner_fixture" in filename:
             continue
-        path = os.path.abspath(filename)
-        while True:
-            parent = os.path.dirname(path)
-            if parent == srcdir_abs:
-                return path
-            if parent == path:  # reached "/" without finding srcdir_abs
-                break
-            path = parent
+        return _runfiles_repo_root_for(filename, test_srcdir)
     return None
 
 
@@ -341,11 +348,10 @@ def _submit_via_cli(
         ]
         if args:
             argv.extend(["--set"] + list(args))
-        # cwd=temp_dir so the CLI resolves `localpath:` references against
-        # the staged copies in `temp_dir` (see _copy_localpath_files_to_dir,
-        # which rewrites every localpath to its basename and copies the
-        # source files alongside the rewritten spec). Without this, the CLI
-        # looks under the bazel test sandbox's cwd and fails with
+        # cwd=temp_dir so the CLI resolves dataset-block `localpath:` refs
+        # (which it joins with cwd, not the workflow file dir) against the
+        # staged copies _copy_localpath_files_to_dir wrote. Without this
+        # the CLI looks under the bazel sandbox's cwd and fails with
         # "The localpath <name> does not exist!".
         result = subprocess.run(
             argv, capture_output=True, text=True, check=False,
@@ -383,35 +389,25 @@ def _copy_localpath_files_to_dir(
     return _LOCALPATH_PATTERN.sub(replace, spec_content)
 
 
+_CLI_VERSION_WARNING_PATTERN = re.compile(
+    r"^WARNING: New client.*?^curl .*?install\.sh[^\n]*\n?",
+    re.DOTALL | re.MULTILINE,
+)
+
+
 def _raise_cli_submission_error(result: subprocess.CompletedProcess) -> None:
     """Translate a failing `osmo workflow submit` into OSMOError / OSMOSubmissionError.
 
     The CLI emits an "Error message:" line on stdout for submission failures
-    (validation errors, missing localpaths, etc.) and prints a "New client X
-    available" warning to stderr on every invocation. If we look only at
-    stderr we usually miss the real cause and surface just the noise. Build
-    the error body from both streams, filter the version-warning noise out
-    of stderr, and keep enough context to pinpoint the failure.
+    (validation errors, missing localpaths, etc.) and prints a multi-line
+    "New client X available" warning to stderr on every invocation. If we
+    look only at stderr we usually miss the real cause and surface just the
+    noise. Strip the version warning from stderr and build the error body
+    from both streams so the actual failure is visible.
     """
-    raw_stderr = result.stderr or ""
-    raw_stdout = result.stdout or ""
-    # Drop the multi-line "WARNING: New client X.Y.Z available..." chunks so
-    # the truncated body shows the real error instead. The warning runs from
-    # 'WARNING: New client' through the install URL line.
-    cleaned_stderr_lines = []
-    skip = False
-    for line in raw_stderr.splitlines():
-        if line.startswith("WARNING: New client"):
-            skip = True
-            continue
-        if skip:
-            if line.startswith("curl ") and "install.sh" in line:
-                skip = False
-            continue
-        cleaned_stderr_lines.append(line)
-    stderr = "\n".join(cleaned_stderr_lines).strip()[:1000]
-    stdout = raw_stdout.strip()[:1000]
-    body = "\n".join(filter(None, [stderr, stdout])) or "(no output captured)"
+    stderr = _CLI_VERSION_WARNING_PATTERN.sub("", result.stderr or "").strip()[:1000]
+    stdout = (result.stdout or "").strip()[:1000]
+    body = "\n".join(s for s in (stderr, stdout) if s) or "(no output captured)"
     status_match = _CLI_STATUS_CODE_PATTERN.search(stderr)
     status_code = int(status_match.group(1)) if status_match else 0
     if status_code == 429 or "429" in stderr:
@@ -599,11 +595,13 @@ class WorkflowBuilder:
             # Extras are harmless — the submit API ignores variables the YAML
             # doesn't reference.
             args = list(self._args)
-            arg_keys = {a.split("=", 1)[0] for a in args if "=" in a}
-            if "platform" not in arg_keys:
-                args.append(f"platform={self._fixture.default_platform}")
-            if "bucket" not in arg_keys and self._fixture.default_bucket:
-                args.append(f"bucket={self._fixture.default_bucket}")
+            arg_keys = {a.split("=", 1)[0] for a in args}
+            for key, value in (
+                ("platform", self._fixture.default_platform),
+                ("bucket", self._fixture.default_bucket),
+            ):
+                if value and key not in arg_keys:
+                    args.append(f"{key}={value}")
 
             if self._client in {"cli", "hybrid"}:
                 workflow_id = _submit_via_cli(
