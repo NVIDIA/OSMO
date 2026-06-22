@@ -31,6 +31,24 @@ IGNORE_PATTERNS = [
     "deployments/**",
 ]
 
+# Paths excluded because the dataset / data-service feature is being
+# deprecated (WIP). The bulk of the surface — the FastAPI module
+# `src/service/core/data/` (#1119) and the frontend (#1093) — is
+# already gone; the CLI entry point and any pre-emptive return of
+# `dataset` directories follow. New tests on this surface would be
+# churn against code that's moving out. Remove this list when the
+# deprecation lands and the remaining files are deleted.
+#
+# Notably NOT excluded: `src/lib/data/storage/**`. That's the
+# multi-cloud storage SDK and it survives the dataset deprecation —
+# workflow_service / app_service / ctrl_websocket all import it.
+DEPRECATED_DATASET_PATTERNS = [
+    "src/cli/data.py",
+    "src/cli/dataset*.py",
+    "src/lib/data/dataset/**",
+    "src/service/core/data/**",
+]
+
 SKIP_BASENAME_PATTERNS = [
     "*generated.ts",
     "*_pb2.py",
@@ -78,8 +96,13 @@ def _is_ignored(file_path: str) -> bool:
     - Files inside any tests/ directory (fixtures, helpers, etc.)
     - Scripts, build config, and deployment files
     - Generated code, test files, __init__.py, BUILD
+    - Dataset / data-service paths under active deprecation
+      (see DEPRECATED_DATASET_PATTERNS)
     """
     for pattern in IGNORE_PATTERNS:
+        if fnmatch.fnmatch(file_path, pattern):
+            return True
+    for pattern in DEPRECATED_DATASET_PATTERNS:
         if fnmatch.fnmatch(file_path, pattern):
             return True
     basename = file_path.rsplit("/", maxsplit=1)[-1]
