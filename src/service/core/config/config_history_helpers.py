@@ -23,11 +23,6 @@ from src.service.core.config import objects
 from src.utils import connectors
 
 
-_SUPPORTED_CONFIG_HISTORY_TYPES = [
-    config_type.value.lower() for config_type in config_history.ConfigHistoryType
-]
-
-
 def build_get_configs_history_query(
     params: objects.ConfigHistoryQueryParams,
 ) -> Tuple[str, Tuple]:
@@ -44,17 +39,15 @@ def build_get_configs_history_query(
     query_conditions: list[str] = []
     query_params: Tuple = ()
 
-    config_types = (
-        [config_type.value.lower() for config_type in params.config_types]
-        if params.config_types
-        else _SUPPORTED_CONFIG_HISTORY_TYPES
-    )
-    if len(config_types) == 1:
-        query_conditions.append('config_type = %s')
-        query_params = query_params + (config_types[0],)
-    else:
-        query_conditions.append('config_type = ANY(%s)')
-        query_params = query_params + (config_types,)
+    if params.config_types:
+        if len(params.config_types) == 1:
+            query_conditions.append('config_type = %s')
+            query_params = query_params + \
+                (params.config_types[0].value.lower(),)
+        else:
+            query_conditions.append('config_type = ANY(%s)')
+            query_params = query_params + \
+                ([t.value.lower() for t in params.config_types],)
 
     if params.name is not None:
         query_conditions.append('name = %s')

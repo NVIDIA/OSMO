@@ -18,10 +18,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import datetime
 import unittest
-from unittest import mock
 
 from src.lib.utils import config_history
-from src.service.core.config import config_history_helpers, config_service, objects
+from src.service.core.config import config_history_helpers, objects
 from src.utils.connectors.postgres import ListOrder
 
 
@@ -47,14 +46,14 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
         SELECT * FROM (
             SELECT config_type, name, revision, username, created_at, tags, description, data
             FROM config_history
-            WHERE config_type = ANY(%s) AND deleted_at IS NULL
+            WHERE TRUE AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT 10 OFFSET 0
         ) AS ch
         ORDER BY created_at DESC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, (lowercase_config_types,))
+        self.assertEqual(params, ())
 
     def test_config_types_filter(self):
         """Test query construction with config_types filter."""
@@ -90,14 +89,14 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
         SELECT * FROM (
             SELECT config_type, name, revision, username, created_at, tags, description, data
             FROM config_history
-            WHERE config_type = ANY(%s) AND name = %s AND deleted_at IS NULL
+            WHERE name = %s AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT 20 OFFSET 0
         ) AS ch
         ORDER BY created_at ASC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, (lowercase_config_types, name))
+        self.assertEqual(params, (name,))
 
     def test_revision_filter(self):
         """Test query construction with revision filter."""
@@ -111,14 +110,14 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
         SELECT * FROM (
             SELECT config_type, name, revision, username, created_at, tags, description, data
             FROM config_history
-            WHERE config_type = ANY(%s) AND revision = %s AND deleted_at IS NULL
+            WHERE revision = %s AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT 20 OFFSET 0
         ) AS ch
         ORDER BY created_at ASC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, (lowercase_config_types, 5))
+        self.assertEqual(params, (5,))
 
     def test_at_timestamp_filter(self):
         """Test query construction with at_timestamp filter using DISTINCT ON."""
@@ -135,13 +134,13 @@ class TestConfigHistoryQueryBuilder(unittest.TestCase):
                 SELECT DISTINCT ON (config_type)
                     config_type, name, revision, username, created_at, tags, description, data
                 FROM config_history
-                WHERE config_type = ANY(%s) AND created_at <= %s AND deleted_at IS NULL
+                WHERE created_at <= %s AND deleted_at IS NULL
                 ORDER BY config_type, created_at DESC
             ) AS ch
             ORDER BY created_at ASC
         '''
         self.assertEqual(query.strip(), expected_query.strip())
-        self.assertEqual(params, (lowercase_config_types, at_time))
+        self.assertEqual(params, (at_time,))
 
     def test_at_timestamp_with_filters(self):
         """Test query construction with at_timestamp and additional filters."""
@@ -270,48 +269,6 @@ class TestConfigHistoryQueryParams(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             objects.ConfigHistoryQueryParams(at_timestamp=base_time, created_after=base_time)
         self.assertIn('Cannot specify both at_timestamp and created_after', str(context.exception))
-
-
-class TestConfigHistoryResponse(unittest.TestCase):
-    """Test suite for config history response shaping."""
-
-    def test_omits_unsupported_legacy_config_types(self):
-        mock_postgres = mock.MagicMock()
-        mock_postgres.execute_fetch_command.return_value = [
-            {
-                'config_type': 'dataset',
-                'name': '',
-                'revision': 1,
-                'username': 'system',
-                'created_at': base_time,
-                'description': 'Legacy dataset config',
-                'tags': ['initial-config'],
-                'data': {'default_bucket': 'legacy'},
-            },
-            {
-                'config_type': 'service',
-                'name': '',
-                'revision': 1,
-                'username': 'system',
-                'created_at': base_time,
-                'description': 'Initial configuration',
-                'tags': ['initial-config'],
-                'data': {},
-            },
-        ]
-
-        with mock.patch.object(
-                config_service.connectors.PostgresConnector,
-                'get_instance',
-                return_value=mock_postgres):
-            response = config_service.get_configs_history(
-                objects.ConfigHistoryQueryParams(omit_data=True))
-
-        self.assertEqual(len(response.configs), 1)
-        self.assertEqual(
-            response.configs[0].config_type,
-            config_history.ConfigHistoryType.SERVICE,
-        )
 
 
 if __name__ == '__main__':

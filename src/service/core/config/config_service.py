@@ -23,7 +23,7 @@ from typing import Annotated, Any, Dict, List, Mapping
 import fastapi
 import pydantic
 
-from src.lib.utils import common, config_history, osmo_errors
+from src.lib.utils import common, osmo_errors
 from src.utils.job import workflow
 from src.service.core.config import (
     config_history_helpers, configmap_guard, helpers, objects
@@ -37,11 +37,6 @@ from src.utils import connectors
 router = fastapi.APIRouter(
     tags=['Config API']
 )
-
-_SUPPORTED_CONFIG_HISTORY_TYPES = {
-    config_type.value.lower() for config_type in config_history.ConfigHistoryType
-}
-
 
 class ConfigNameType(enum.Enum):
     """ Represents the config type for checking name. """
@@ -1036,24 +1031,21 @@ def get_configs_history(
 
     postgres = connectors.PostgresConnector.get_instance()
     results = postgres.execute_fetch_command(query, params, return_raw=True)
-    configs = []
-    for row in results:
-        if row['config_type'] not in _SUPPORTED_CONFIG_HISTORY_TYPES:
-            continue
-        configs.append(
-            objects.ConfigHistory(
-                config_type=row['config_type'].upper(),
-                name=row['name'],
-                revision=row['revision'],
-                username=row['username'],
-                created_at=row['created_at'],
-                description=row['description'],
-                tags=row['tags'],
-                data=config_history_helpers.transform_config_data(
-                    postgres, row['config_type'], row['data']
-                ) if not query_params.omit_data else None,
-            )
+    configs = [
+        objects.ConfigHistory(
+            config_type=row['config_type'].upper(),
+            name=row['name'],
+            revision=row['revision'],
+            username=row['username'],
+            created_at=row['created_at'],
+            description=row['description'],
+            tags=row['tags'],
+            data=config_history_helpers.transform_config_data(
+                postgres, row['config_type'], row['data']
+            ) if not query_params.omit_data else None,
         )
+        for row in results
+    ]
 
     return objects.GetConfigsHistoryResponse(configs=configs)
 
