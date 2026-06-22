@@ -143,7 +143,7 @@ type RolePolicy struct {
 	Actions RoleActions `json:"actions"`
 
 	// Resources is the list of resource patterns this policy applies to.
-	// Examples: ["*"], ["workflow/*"], ["pool/production"], ["bucket/data-generation"]
+	// Examples: ["*"], ["workflow/*"], ["pool/production"], ["config/service"]
 	// If empty, the policy applies to all resources ("*").
 	Resources []string `json:"resources,omitempty"`
 }

@@ -42,9 +42,6 @@ class ApiChecks(SmokeFixture):
     def test_app_list(self):
         self.http("GET", "/api/app").expect_ok()
 
-    def test_bucket_list(self):
-        self.http("GET", "/api/bucket").expect_ok()
-
     def test_config_service(self):
         self.http("GET", "/api/configs/service").expect_ok()
 

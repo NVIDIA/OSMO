@@ -42,7 +42,6 @@ osmo_py_library(
         "//src/service/core/app",
         "//src/service/core/auth",
         "//src/service/core/config",
-        "//src/service/core/data",
         "//src/service/core/profile",
         "//src/service/core/workflow",
         "//src/service/logger:ctrl_websocket",

@@ -298,8 +298,8 @@ func TestUpdateRolePolicies_Integration_PersistsPolicies(t *testing.T) {
 		Policies: []roles.RolePolicy{
 			{
 				Effect:    roles.EffectAllow,
-				Actions:   roles.RoleActions{{Action: "dataset:Read"}},
-				Resources: []string{"bucket/public"},
+				Actions:   roles.RoleActions{{Action: "app:Read"}},
+				Resources: []string{"app/training"},
 			},
 			{
 				Effect:    roles.EffectDeny,
@@ -335,13 +335,13 @@ func TestUpdateRolePolicies_Integration_PersistsPolicies(t *testing.T) {
 			got.Policies[0].Effect, roles.EffectAllow)
 	}
 	if len(got.Policies[0].Actions) != 1 ||
-		got.Policies[0].Actions[0].Action != "dataset:Read" {
-		t.Errorf("Policies[0].Actions = %v, want [dataset:Read]",
+		got.Policies[0].Actions[0].Action != "app:Read" {
+		t.Errorf("Policies[0].Actions = %v, want [app:Read]",
 			got.Policies[0].Actions)
 	}
 	if len(got.Policies[0].Resources) != 1 ||
-		got.Policies[0].Resources[0] != "bucket/public" {
-		t.Errorf("Policies[0].Resources = %v, want [bucket/public]",
+		got.Policies[0].Resources[0] != "app/training" {
+		t.Errorf("Policies[0].Resources = %v, want [app/training]",
 			got.Policies[0].Resources)
 	}
 

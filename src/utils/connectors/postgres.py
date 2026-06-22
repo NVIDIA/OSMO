@@ -4863,7 +4863,6 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     'app:*',
                     'auth:Token',
                     'credentials:*',
-                    'dataset:*',
                     'pool:List',
                     'profile:Read',
                     'profile:Update',
