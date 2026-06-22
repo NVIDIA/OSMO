@@ -33,7 +33,7 @@ import { setupDefaultMocks, setupPools } from "@/e2e/utils/mock-setup";
  * - Config panel: Target Pool (combobox), Priority Level (radiogroup), action buttons
  * - Action buttons: Cancel, Preview, Submit + dropdown with Validate
  * - API: POST /api/pool/{pool}/workflow with params: priority, dry_run, validation_only
- * - Localpath detection: files[].localpath and dataset.localpath block Submit/Preview
+ * - Localpath detection: files[].localpath blocks Submit/Preview
  *
  * Pool selection flow:
  * - useSubmitWorkflowForm → useProfile() → GET /api/profile/settings → profile.pool = default pool
@@ -275,21 +275,4 @@ test.describe("Submit Workflow Localpath Warnings", () => {
     ).toBeVisible({ timeout: 5_000 });
   });
 
-  test("shows dataset localpath warning when spec contains dataset localpath", async ({ page }) => {
-    // ARRANGE
-    const overlay = await openFormView(page);
-
-    // ACT — type a spec with dataset localpath
-    const editor = overlay.getByRole("textbox", { name: "YAML workflow specification editor" });
-    await editor.click();
-    await page.keyboard.press("Meta+a");
-    await page.keyboard.type(
-      "workflow:\n  tasks:\n  - name: train\n    dataset:\n      localpath: /local/dataset",
-    );
-
-    // ASSERT — dataset localpath warning appears
-    await expect(
-      overlay.getByText("Local dataset path not supported").first(),
-    ).toBeVisible({ timeout: 5_000 });
-  });
 });

@@ -21,14 +21,13 @@ describe("detectLocalpathUsage", () => {
   // ── Early exit ───────────────────────────────────────────────────────────
 
   describe("early exit", () => {
-    it("returns both false for empty string", () => {
+    it("returns false for empty string", () => {
       expect(detectLocalpathUsage("")).toEqual({
         hasFileLocalpath: false,
-        hasDatasetLocalpath: false,
       });
     });
 
-    it("returns both false when localpath: is absent", () => {
+    it("returns false when localpath: is absent", () => {
       const spec = [
         "workflow:",
         "  name: test",
@@ -40,15 +39,13 @@ describe("detectLocalpathUsage", () => {
       ].join("\n");
       expect(detectLocalpathUsage(spec)).toEqual({
         hasFileLocalpath: false,
-        hasDatasetLocalpath: false,
       });
     });
 
-    it("returns both false when localpath appears without colon", () => {
+    it("returns false when localpath appears without colon", () => {
       const spec = ["  files:", "  - path: /tmp/localpath_example"].join("\n");
       expect(detectLocalpathUsage(spec)).toEqual({
         hasFileLocalpath: false,
-        hasDatasetLocalpath: false,
       });
     });
   });
@@ -138,47 +135,6 @@ describe("detectLocalpathUsage", () => {
     });
   });
 
-  // ── hasDatasetLocalpath ──────────────────────────────────────────────────
-
-  describe("hasDatasetLocalpath", () => {
-    describe("detects localpath: inside dataset block", () => {
-      it("directly under dataset:", () => {
-        const spec = ["  - dataset:", "      localpath: /data"].join("\n");
-        expect(detectLocalpathUsage(spec).hasDatasetLocalpath).toBe(true);
-      });
-
-      it("after sibling key name: under dataset:", () => {
-        const spec = ["  - dataset:", "      name: my-ds", "      localpath: /data"].join("\n");
-        expect(detectLocalpathUsage(spec).hasDatasetLocalpath).toBe(true);
-      });
-
-      it("dataset: without list dash", () => {
-        const spec = ["  dataset:", "    localpath: /data"].join("\n");
-        expect(detectLocalpathUsage(spec).hasDatasetLocalpath).toBe(true);
-      });
-
-      it("dataset: at column 0", () => {
-        const spec = ["dataset:", "  localpath: /data"].join("\n");
-        expect(detectLocalpathUsage(spec).hasDatasetLocalpath).toBe(true);
-      });
-    });
-
-    describe("ignores localpath: outside dataset block", () => {
-      it("dataset: with no localpath: child", () => {
-        const spec = ["  - dataset:", "      name: my-ds"].join("\n");
-        expect(detectLocalpathUsage(spec)).toEqual({
-          hasFileLocalpath: false,
-          hasDatasetLocalpath: false,
-        });
-      });
-
-      it("localpath: in unrelated block", () => {
-        const spec = ["  - dataset:", "      name: my-ds", "  other:", "    localpath: /should/not/match"].join("\n");
-        expect(detectLocalpathUsage(spec).hasDatasetLocalpath).toBe(false);
-      });
-    });
-  });
-
   // ── Context tracking ─────────────────────────────────────────────────────
 
   describe("context tracking", () => {
@@ -215,21 +171,22 @@ describe("detectLocalpathUsage", () => {
       expect(detectLocalpathUsage(spec).hasFileLocalpath).toBe(true);
     });
 
-    it("detects both warnings in same spec", () => {
-      const spec = ["  files:", "  - localpath: /file", "  inputs:", "  - dataset:", "      localpath: /data"].join(
-        "\n",
-      );
+    it("ignores dataset localpath blocks", () => {
+      const spec = ["  inputs:", "  - dataset:", "      localpath: /data"].join("\n");
       expect(detectLocalpathUsage(spec)).toEqual({
-        hasFileLocalpath: true,
-        hasDatasetLocalpath: true,
+        hasFileLocalpath: false,
       });
     });
 
-    it("dataset context replaces files context", () => {
+    it("dataset block does not replace files context", () => {
       const spec = ["  files:", "  - path: /tmp/a.sh", "  - dataset:", "      localpath: /data"].join("\n");
       const result = detectLocalpathUsage(spec);
       expect(result.hasFileLocalpath).toBe(false);
-      expect(result.hasDatasetLocalpath).toBe(true);
+    });
+
+    it("resumes file localpath detection after an ignored nested block", () => {
+      const spec = ["  files:", "  - dataset:", "      localpath: /data", "  - localpath: /real-file"].join("\n");
+      expect(detectLocalpathUsage(spec).hasFileLocalpath).toBe(true);
     });
   });
 
@@ -254,7 +211,7 @@ describe("detectLocalpathUsage", () => {
       const result = detectLocalpathUsage(spec);
       const elapsed = performance.now() - start;
 
-      expect(result).toEqual({ hasFileLocalpath: false, hasDatasetLocalpath: false });
+      expect(result).toEqual({ hasFileLocalpath: false });
       expect(elapsed).toBeLessThan(50);
     });
   });

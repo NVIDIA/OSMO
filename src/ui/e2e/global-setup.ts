@@ -35,7 +35,7 @@ const E2E_DIR = path.join(process.cwd(), "e2e");
  *
  * Runs after webServer starts but before any test (Playwright guarantees this).
  */
-const ROUTES = ["/", "/pools", "/resources", "/workflows", "/occupancy", "/datasets", "/profile"];
+const ROUTES = ["/", "/pools", "/resources", "/workflows", "/occupancy", "/profile"];
 
 const MOCK_API_PORT = 9999;
 

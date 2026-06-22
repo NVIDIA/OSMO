@@ -153,7 +153,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
 
       {/* Action bar */}
       <div className="flex shrink-0 flex-col gap-2 border-t border-zinc-200 px-7 py-4 dark:border-zinc-700/60">
-        {/* Localpath blocking errors — one banner per violation */}
+        {/* Localpath blocking errors */}
         {localpathWarnings.hasFileLocalpath && (
           <div
             className="flex flex-col gap-1 rounded border border-red-200 bg-red-50 px-3 py-2 dark:border-red-700/50 dark:bg-red-900/20"
@@ -173,26 +173,6 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             </p>
           </div>
         )}
-        {localpathWarnings.hasDatasetLocalpath && (
-          <div
-            className="flex flex-col gap-1 rounded border border-red-200 bg-red-50 px-3 py-2 dark:border-red-700/50 dark:bg-red-900/20"
-            role="alert"
-            aria-live="polite"
-          >
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-red-800 dark:text-red-300">
-              <TriangleAlert
-                className="size-3 shrink-0"
-                aria-hidden="true"
-              />
-              Local dataset path not supported
-            </div>
-            <p className="text-[11px] text-red-700 dark:text-red-400">
-              <Token>dataset.localpath</Token> requires filesystem access. Upload the dataset first, or submit via{" "}
-              <Token>osmo workflow submit</Token>.
-            </p>
-          </div>
-        )}
-
         {/* Dry run error */}
         {dryRunError && (
           <div className="flex items-start gap-1.5 rounded bg-red-50 px-3 py-1.5 font-mono text-[11px] text-red-700 dark:bg-red-900/30 dark:text-red-300">

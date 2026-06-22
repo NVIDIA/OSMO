@@ -263,11 +263,11 @@ export interface ProfileUpdate {
 // =============================================================================
 
 /**
- * Bucket information with dataset path and metadata.
+ * Bucket information with storage path and metadata.
  */
 export interface Bucket {
   name: string; // Bucket identifier
-  path: string; // Full dataset path (e.g., "s3://my-bucket/datasets")
+  path: string; // Full storage path
   description: string; // Bucket description
   mode: string; // Access mode
   defaultCredential: boolean; // Whether it uses default credentials

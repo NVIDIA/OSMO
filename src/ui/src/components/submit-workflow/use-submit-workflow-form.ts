@@ -145,7 +145,7 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
 
   // ── Derived flags ─────────────────────────────────────────────────────────
 
-  const hasLocalpathBlock = localpathWarnings.hasFileLocalpath || localpathWarnings.hasDatasetLocalpath;
+  const hasLocalpathBlock = localpathWarnings.hasFileLocalpath;
 
   const canSubmit = pool.length > 0 && spec.trim().length > 0 && !isPending && !hasLocalpathBlock;
   const canDryRun =

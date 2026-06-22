@@ -22,8 +22,6 @@ import {
   getGetWorkflowApiWorkflowNameGetMockHandler,
   getSubmitWorkflowApiPoolPoolNameWorkflowPostMockHandler,
   getGetBucketInfoApiBucketGetMockHandler,
-  getListDatasetFromBucketApiBucketListDatasetGetMockHandler,
-  getGetInfoApiBucketBucketDatasetNameInfoGetMockHandler,
   getGetPoolQuotasApiPoolQuotaGetMockHandler,
   getGetResourcesApiResourcesGetMockHandler,
   getGetNotificationSettingsApiProfileSettingsGetMockHandler,
@@ -39,7 +37,6 @@ import { generateYamlSpec, generateTemplateSpec } from "@/mocks/generators/spec-
 import { logGenerator } from "@/mocks/generators/log-generator";
 import { eventGenerator } from "@/mocks/generators/event-generator";
 import { bucketGenerator } from "@/mocks/generators/bucket-generator";
-import { datasetGenerator } from "@/mocks/generators/dataset-generator";
 import { profileGenerator } from "@/mocks/generators/profile-generator";
 import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
@@ -211,25 +208,8 @@ export const handlers = [
     resourceGenerator.handleListResources(request, poolGenerator.getPoolNames()),
   ),
 
-  // Buckets and datasets
+  // Buckets
   getGetBucketInfoApiBucketGetMockHandler(bucketGenerator.handleListBuckets),
-  getListDatasetFromBucketApiBucketListDatasetGetMockHandler(datasetGenerator.handleListDatasets),
-  getGetInfoApiBucketBucketDatasetNameInfoGetMockHandler(datasetGenerator.handleGetDatasetInfo),
-  http.get("*/api/datasets/location-files", datasetGenerator.handleGetLocationFiles),
-  // http.all needed because http.head() doesn't reliably intercept HEAD via mock tunnel
-  http.all("*/proxy/dataset/file", datasetGenerator.handleFileProxy),
-  http.head("*/api/bucket/:bucket/dataset/:name/preview", datasetGenerator.handleFilePreviewHead),
-  http.get("*/api/bucket/:bucket/dataset/:name/preview", datasetGenerator.handleFilePreviewGet),
-  // Service-proxied manifest endpoint (private-bucket support, see PR #795).
-  http.get("*/api/bucket/:bucket/dataset/:name/manifest", async ({ request, params }) => {
-    const url = new URL(request.url);
-    const version = url.searchParams.get("version") ?? "1";
-    const datasetName = Array.isArray(params.name) ? params.name[0] : params.name;
-    const bucketName = Array.isArray(params.bucket) ? params.bucket[0] : params.bucket;
-    const locationUrl = `s3://${bucketName}/datasets/${datasetName}/v${version}/`;
-    const items = datasetGenerator.generateFlatManifest(datasetName ?? "", bucketName ?? "", locationUrl);
-    return HttpResponse.json(items);
-  }),
 
   // Profile and credentials
   getGetNotificationSettingsApiProfileSettingsGetMockHandler(profileGenerator.handleGetSettings),

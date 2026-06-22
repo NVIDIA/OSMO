@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Page } from "@playwright/test";
-import type { PoolResponse, ResourcesResponse, SrcServiceCoreWorkflowObjectsListResponse, DataListResponse } from "@/lib/api/generated";
+import type { PoolResponse, ResourcesResponse, SrcServiceCoreWorkflowObjectsListResponse } from "@/lib/api/generated";
 import { createLoginInfo, createVersion } from "@/mocks/factories";
 
 // ── Pre-serialized static responses ───────────────────────────────────────────
@@ -174,18 +174,4 @@ export async function setupOccupancy(
 
   await page.route("**/api/task?*", (route) => route.fulfill(response));
   await page.route("**/api/task", (route) => route.fulfill(response));
-}
-
-// ── Datasets ────────────────────────────────────────────────────────────────
-
-export async function setupDatasets(
-  page: Page,
-  data: DataListResponse | ApiError,
-): Promise<void> {
-  const response =
-    "detail" in data
-      ? { status: data.status, contentType: CT_JSON, body: JSON.stringify({ detail: data.detail }) }
-      : { status: 200, contentType: CT_JSON, body: JSON.stringify(data) };
-
-  await page.route("**/api/bucket/list_dataset*", (route) => route.fulfill(response));
 }
