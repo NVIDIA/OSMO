@@ -15,7 +15,7 @@ while ! nslookup {{host:server}} > /dev/null ; do
     echo "Server pod not started in time!"
     exit 1
   fi
-  retries=$(($retries - 1))
+  retries=$((retries - 1))
   sleep 1
 done
 
@@ -28,7 +28,7 @@ while ! nc -w 30 {{host:server}} 24831 > tmp/tcp_echo.txt ; do
     echo "Could not connect to server in time!"
     exit 1
   fi
-  retries=$(($retries - 1))
+  retries=$((retries - 1))
   sleep 1
 done
 

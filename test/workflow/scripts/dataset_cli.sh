@@ -246,6 +246,11 @@ echo "[Inspect Done]"
 # Delete Dataset
 echo "[Delete Start] Delete Dataset"
 osmo dataset delete ${BUCKET_NAME}/${DATASET_NAME}_{{workflow_id}} --force --all
+if [ $? -ne 0 ]; then
+    echo "[Delete Failed] osmo dataset delete returned non-zero — post-delete checks below would be misleading"
+    fail=1
+fi
+echo "[Delete Done]"
 
 echo "[Info] Get Deleted Dataset Info"
 osmo dataset info ${BUCKET_NAME}/${DATASET_NAME}_{{workflow_id}}
