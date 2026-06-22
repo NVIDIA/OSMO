@@ -217,21 +217,11 @@ def setup_parser(parser: argparse._SubParsersAction):
         nargs='+',
         help=(
             'List of key-value pairs.\n'
-            'The tabulated information illustrates the mandatory and optional keys for the '
-            'payload corresponding to each type of credential:\n'
-            '\n'
-            # pylint: disable=line-too-long
-            '+-----------------+-------------------------------------+--------------------------------------+\n'
-            '| Credential Type | Mandatory keys                      | Optional keys                        |\n'
-            '+-----------------+-------------------------------------+--------------------------------------+\n'
-            '| REGISTRY        | auth                                | registry, username                   |\n'
-            '+-----------------+-------------------------------------+--------------------------------------+\n'
-            '| DATA            | access_key_id, access_key, endpoint | region, override_url, addressing_style |\n'
-            '+-----------------+-------------------------------------+--------------------------------------+\n'
-            '| GENERIC         |                                     |                                      |\n'
-            '+-----------------+-------------------------------------+--------------------------------------+\n'
-            # pylint: enable=line-too-long
-            '\n'
+            'Payload keys by credential type:\n'
+            '- REGISTRY: required auth; optional registry and username.\n'
+            '- DATA: required access_key_id, access_key, and endpoint; optional region, '
+            'override_url, and addressing_style.\n'
+            '- GENERIC: any key-value pairs your workflow expects.\n'
         ),
     )
     set_group.add_argument('--payload-file', dest='payload_file', type=str, nargs='+',
