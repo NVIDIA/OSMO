@@ -52,6 +52,7 @@ go_test(
     name = "roles_integration_test",
     srcs = [
         "roles_integration_test.go",
+        "user_role_sync_integration_test.go",
     ],
     gotags = ["integration"],
     tags = [
