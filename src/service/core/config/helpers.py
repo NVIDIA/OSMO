@@ -153,7 +153,7 @@ def patch_configs(
         request: The request object containing the config values to patch.
         config_type: The type of configuration to update.
         username: The username of the user updating the config.
-        name: The name of the config to patch. Used for updating a specific bucket in a dataset.
+        name: The name of the config to patch.
 
     Returns:
         Dict containing the updated configuration fields.
@@ -182,23 +182,10 @@ def patch_configs(
             config_class = connectors.ServiceConfig
         elif config_type == connectors.ConfigType.WORKFLOW:
             config_class = connectors.WorkflowConfig
-        elif config_type == connectors.ConfigType.DATASET:
-            config_class = connectors.DatasetConfig
         else:
             raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
 
         configs = config_class(**updated_configs_fields)
-
-        if config_type == connectors.ConfigType.DATASET and isinstance(
-                configs, connectors.DatasetConfig):
-            try:
-                for _, bucket_config in configs.buckets.items():
-                    connectors.BucketMode(bucket_config.mode.lower())
-                    bucket_config.mode = bucket_config.mode.lower()
-            except ValueError as _:
-                raise osmo_errors.OSMOUserError(
-                    f'Bucket mode {bucket_config.mode} is not valid. Valid modes are '
-                    f'{', '.join([member.value for member in connectors.BucketMode])}')
 
         updated_configs = configs.serialize(postgres)
         for key, value in updated_configs.items():
@@ -448,29 +435,6 @@ def create_pool_config_history_entry(
         name=name,
         username=username,
         data=pools,
-        description=description,
-        tags=tags,
-    )
-
-
-def create_dataset_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a dataset config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    dataset_configs = postgres.get_dataset_configs().model_dump(
-        by_alias=True, exclude_unset=True
-    )
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.DATASET,
-        name=name,
-        username=username,
-        data=dataset_configs,
         description=description,
         tags=tags,
     )

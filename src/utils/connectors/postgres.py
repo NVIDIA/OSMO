@@ -43,8 +43,6 @@ from jwcrypto import jwe  # type: ignore
 from jwcrypto.common import JWException  # type: ignore
 
 from src.utils import configmap_state
-from src.lib.data import storage
-from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
                            osmo_errors, role, version)
 from src.utils import auth, notify
@@ -67,14 +65,12 @@ class ConfigType(enum.Enum):
     """ Type of Config to fetch or set """
     SERVICE = 'SERVICE'
     WORKFLOW = 'WORKFLOW'
-    DATASET = 'DATASET'
 
 
 class ConfigHistoryType(enum.Enum):
     """ Type of configs supported by config history """
     SERVICE = 'SERVICE'
     WORKFLOW = 'WORKFLOW'
-    DATASET = 'DATASET'
     BACKEND = 'BACKEND'
     POOL = 'POOL'
     POD_TEMPLATE = 'POD_TEMPLATE'
@@ -613,9 +609,6 @@ class PostgresConnector:
         elif config_type == ConfigType.WORKFLOW:
             hints = typing.get_type_hints(WorkflowConfig)
             config_class = WorkflowConfig
-        elif config_type == ConfigType.DATASET:
-            hints = typing.get_type_hints(DatasetConfig)
-            config_class = DatasetConfig
         else:
             raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
 
@@ -635,7 +628,6 @@ class PostgresConnector:
         config_key_map = {
             ConfigType.SERVICE: ('service', ServiceConfig),
             ConfigType.WORKFLOW: ('workflow', WorkflowConfig),
-            ConfigType.DATASET: ('dataset', DatasetConfig),
         }
         key, config_class = config_key_map[config_type]
         config_data = snapshot.get(key, {})
@@ -646,9 +638,6 @@ class PostgresConnector:
 
     def get_workflow_configs(self) -> 'WorkflowConfig':
         return self.get_configs(ConfigType.WORKFLOW)
-
-    def get_dataset_configs(self) -> 'DatasetConfig':
-        return self.get_configs(ConfigType.DATASET)
 
     def get_method(self) -> Optional[Literal['dev']]:
         return self.config.method
@@ -1328,8 +1317,6 @@ class PostgresConnector:
 
         workflow_configs = WorkflowConfig()
 
-        dataset_configs = DatasetConfig()
-
         def set_default_values(configs: 'DynamicConfig', config_type: ConfigType):
             for key, value in configs.plaintext_dict(by_alias=True).items():
                 if isinstance(value, str):
@@ -1339,7 +1326,6 @@ class PostgresConnector:
 
         set_default_values(service_configs, ConfigType.SERVICE)
         set_default_values(workflow_configs, ConfigType.WORKFLOW)
-        set_default_values(dataset_configs, ConfigType.DATASET)
 
         self.create_default_roles()
 
@@ -1348,7 +1334,6 @@ class PostgresConnector:
         for config_type in [
             ConfigHistoryType.SERVICE,
             ConfigHistoryType.WORKFLOW,
-            ConfigHistoryType.DATASET,
             ConfigHistoryType.BACKEND,
             ConfigHistoryType.POOL,
             ConfigHistoryType.POD_TEMPLATE,
@@ -1372,10 +1357,6 @@ class PostgresConnector:
                 )
             elif config_type == ConfigHistoryType.WORKFLOW:
                 data = self.get_workflow_configs().plaintext_dict(
-                    exclude_unset=True, by_alias=True
-                )
-            elif config_type == ConfigHistoryType.DATASET:
-                data = self.get_dataset_configs().plaintext_dict(
                     exclude_unset=True, by_alias=True
                 )
             elif config_type == ConfigHistoryType.BACKEND:
@@ -1492,16 +1473,7 @@ class PostgresConnector:
                 endpoint=profile,
                 **self.decrypt_credential(row[0]),
             )
-        else:
-            # Check default bucket creds
-            for bucket in self.get_dataset_configs().buckets.values():
-                bucket_info = storage.construct_storage_backend(bucket.dataset_path)
-                if bucket_info.profile == profile:
-                    if bucket.default_credential:
-                        return _resolve_bucket_credential(bucket, bucket_info.profile)
-                    break
-
-            return None
+        return None
 
     def get_all_data_creds(self, user: str) -> Dict[str, credentials.StaticDataCredential]:
         """ Fetch all data credentials for user. """
@@ -1519,12 +1491,6 @@ class PostgresConnector:
             for cred in rows
         }
 
-        # Add default bucket creds
-        for bucket in self.get_dataset_configs().buckets.values():
-            bucket_info = storage.construct_storage_backend(bucket.dataset_path)
-            if bucket_info.profile not in user_creds and bucket.default_credential:
-                user_creds[bucket_info.profile] = _resolve_bucket_credential(
-                    bucket, bucket_info.profile)
         return user_creds
 
     def get_generic_cred(self, user: str, cred_name: str) -> Any:
@@ -1674,10 +1640,6 @@ class UserProfile(pydantic.BaseModel):
     pool: str | None = None
 
     @classmethod
-    def default_bucket(cls, database: PostgresConnector) -> Optional[str]:
-        return database.get_dataset_configs().default_bucket
-
-    @classmethod
     def default_profile(cls, user_name: str) -> 'UserProfile':
         return UserProfile(
             username=user_name,
@@ -1699,14 +1661,6 @@ class UserProfile(pydantic.BaseModel):
             fields.append(key)
             values.append(value)
 
-        # Validate bucket is valid
-        if 'bucket' in setting:
-            postgres = PostgresConnector.get_instance()
-            dataset_config = postgres.get_dataset_configs()
-            if setting['bucket'] not in dataset_config.buckets:
-                raise osmo_errors.OSMOUserError(
-                    f'Bucket {setting['bucket']} does not exist. Use the "osmo bucket list" CLI '
-                    ' to see all available buckets.')
         if 'pool' in setting:
             postgres = PostgresConnector.get_instance()
             Pool.fetch_from_db(postgres, setting['pool'])
@@ -1738,7 +1692,6 @@ class UserProfile(pydantic.BaseModel):
         except IndexError as _:
             # Default values
             UserProfile.insert_default_profile(database, user_name)
-            # Fetch default bucket
             return default_profile
 
         if row.email_notification is None:
@@ -2691,59 +2644,6 @@ class DataConfig(ExtraArgBaseModel):
     download_type: DownloadType = DownloadType.DOWNLOAD
 
 
-class BucketModeAccess(enum.Enum):
-    """ Parameter if operation needs read or write access """
-    READ = 'read'
-    WRITE = 'write'
-
-
-class BucketMode(enum.Enum):
-    """ Permission for read-only, read-write, or write-only on bucket """
-    READ_ONLY = 'read-only'
-    READ_WRITE = 'read-write'
-
-
-def _resolve_bucket_credential(
-    bucket: 'BucketConfig',
-    profile: str,
-) -> credentials.StaticDataCredential:
-    """Resolve a bucket's default_credential, rebinding it to the bucket's profile and region."""
-    credential = bucket.default_credential
-    if credential is None:
-        raise ValueError(f'No default credential configured for bucket with profile {profile}')
-    return credentials.StaticDataCredential(
-        endpoint=profile,
-        region=bucket.region,
-        access_key_id=credential.access_key_id,
-        access_key=credential.access_key,
-        override_url=credential.override_url,
-        addressing_style=credential.addressing_style,
-    )
-
-
-class BucketConfig(ExtraArgBaseModel):
-    """
-    Class to store the name of the bucket and the dataset path
-    """
-    dataset_path: constants.StorageBackendPattern
-    region: str = constants.DEFAULT_BOTO3_REGION
-    description: str = ''
-    # Mode for read-only or read-write or write-only
-    mode: str = BucketMode.READ_WRITE.value
-    # Default cred to use is a static credential
-    # Only applies to workflow operations, NOT user cli since we cannot forward the credential
-    # to the user
-    default_credential: credentials.StaticDataCredential | None = None
-
-    def valid_access(self, bucket_name: str, access_type: BucketModeAccess):
-        if not ((access_type == BucketModeAccess.READ and\
-                self.mode in (BucketMode.READ_ONLY.value, BucketMode.READ_WRITE.value))
-            or (access_type == BucketModeAccess.WRITE and\
-                self.mode == BucketMode.READ_WRITE.value)):
-            raise osmo_errors.OSMOUsageError(f'Bucket {bucket_name} mode is {self.mode}. '
-                                             f'Cannot be accessed by {access_type} api.')
-
-
 class DynamicConfig(ExtraArgBaseModel):
     """ Manages the dynamic configs for the postgres database. """
 
@@ -3084,24 +2984,6 @@ class WorkflowConfig(DynamicConfig):
     def get_type(self) -> ConfigType:
         """ Returns what ConfigType applies to this Dynamic Config """
         return ConfigType.WORKFLOW
-
-
-class DatasetConfig(DynamicConfig):
-    """ Stores any dataset configs External Admins control """
-    # Datasets
-    buckets: Dict[str, BucketConfig] = {}
-    default_bucket: str = ''
-
-    def get_bucket_config(self, bucket: str) -> BucketConfig:
-        if not bucket:
-            bucket = self.default_bucket
-        if bucket in self.buckets:
-            return self.buckets[bucket]
-        raise osmo_errors.OSMOServerError(f'Bucket {bucket} is not set in the configs')
-
-    def get_type(self) -> ConfigType:
-        """ Returns what ConfigType applies to this Dynamic Config """
-        return ConfigType.DATASET
 
 
 class ResourceValidation(pydantic.BaseModel):

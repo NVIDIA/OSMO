@@ -23,7 +23,7 @@ from typing import Annotated, Any, Dict, List, Mapping
 import fastapi
 import pydantic
 
-from src.lib.utils import common, osmo_errors
+from src.lib.utils import common, config_history, osmo_errors
 from src.utils.job import workflow
 from src.service.core.config import (
     config_history_helpers, configmap_guard, helpers, objects
@@ -37,6 +37,10 @@ from src.utils import connectors
 router = fastapi.APIRouter(
     tags=['Config API']
 )
+
+_SUPPORTED_CONFIG_HISTORY_TYPES = {
+    config_type.value.lower() for config_type in config_history.ConfigHistoryType
+}
 
 
 class ConfigNameType(enum.Enum):
@@ -116,90 +120,6 @@ def patch_workflow_configs(
     """Patch workflow configurations"""
 
     return helpers.patch_configs(request, connectors.ConfigType.WORKFLOW, username)
-
-
-@router.get(
-    '/api/configs/dataset',
-    response_model=connectors.DatasetConfig,
-)
-def read_dataset_configs() -> connectors.DatasetConfig:
-    """Read all the dataset configurations"""
-    postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_dataset_configs()
-
-
-@router.put('/api/configs/dataset')
-def put_dataset_configs(
-    request: objects.PutDatasetRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-) -> Dict:
-    """Put dataset configurations"""
-
-    return helpers.put_configs(request, connectors.ConfigType.DATASET, username)
-
-
-@router.patch('/api/configs/dataset')
-def patch_dataset_configs(
-    request: objects.PatchConfigRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-) -> Dict:
-    """Patch dataset configurations"""
-
-    return helpers.patch_configs(request, connectors.ConfigType.DATASET, username)
-
-
-@router.patch('/api/configs/dataset/{name}')
-def patch_dataset(
-    name: str,
-    request: objects.PatchDatasetRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-) -> Dict:
-    """Patch dataset configuration for a specific bucket"""
-    patch_config_request = objects.PatchConfigRequest(
-        configs_dict={'buckets': {name: request.configs_dict}},
-        description=request.description or f'Patch dataset bucket {name}',
-        tags=request.tags,
-    )
-    return helpers.patch_configs(
-        patch_config_request, connectors.ConfigType.DATASET, username, name
-    )
-
-
-@router.delete('/api/configs/dataset/{name}')
-def delete_dataset(
-    name: str,
-    request: objects.ConfigsRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-):
-    """Delete dataset configuration for a specific bucket"""
-    configmap_guard.reject_if_configmap_mode(username)
-    postgres = connectors.PostgresConnector.get_instance()
-
-    try:
-        current_dataset_config = postgres.get_dataset_configs()
-    except osmo_errors.OSMOUserError:
-        current_dataset_config = None
-
-    # Check if the bucket exists
-    if current_dataset_config and name not in current_dataset_config.buckets:
-        raise osmo_errors.OSMOUserError(f'Bucket {name} not found in dataset configuration')
-
-    # Remove the bucket from the dataset configuration
-    if current_dataset_config:
-        del current_dataset_config.buckets[name]
-
-        # Serialize and save the updated configuration
-        updated_configs = current_dataset_config.serialize(postgres)
-        for key, value in updated_configs.items():
-            postgres.set_config(key, value, connectors.ConfigType.DATASET)
-
-    # Record the change in the config history
-    helpers.create_dataset_config_history_entry(
-        name,
-        username,
-        request.description or f'Delete dataset bucket {name}',
-        tags=request.tags,
-    )
 
 
 # API is only used in dev mode
@@ -1116,21 +1036,24 @@ def get_configs_history(
 
     postgres = connectors.PostgresConnector.get_instance()
     results = postgres.execute_fetch_command(query, params, return_raw=True)
-    configs = [
-        objects.ConfigHistory(
-            config_type=row['config_type'].upper(),
-            name=row['name'],
-            revision=row['revision'],
-            username=row['username'],
-            created_at=row['created_at'],
-            description=row['description'],
-            tags=row['tags'],
-            data=config_history_helpers.transform_config_data(
-                postgres, row['config_type'], row['data']
-            ) if not query_params.omit_data else None,
+    configs = []
+    for row in results:
+        if row['config_type'] not in _SUPPORTED_CONFIG_HISTORY_TYPES:
+            continue
+        configs.append(
+            objects.ConfigHistory(
+                config_type=row['config_type'].upper(),
+                name=row['name'],
+                revision=row['revision'],
+                username=row['username'],
+                created_at=row['created_at'],
+                description=row['description'],
+                tags=row['tags'],
+                data=config_history_helpers.transform_config_data(
+                    postgres, row['config_type'], row['data']
+                ) if not query_params.omit_data else None,
+            )
         )
-        for row in results
-    ]
 
     return objects.GetConfigsHistoryResponse(configs=configs)
 
@@ -1192,18 +1115,6 @@ def rollback_config(
                 tags=request.tags
             ),
             connectors.ConfigType.WORKFLOW,
-            username,
-            # The config from history is already serialized, so we don't need to serialize it again
-            should_serialize=False
-        )
-    elif request.config_type == connectors.ConfigHistoryType.DATASET:
-        helpers.put_configs(
-            objects.PutConfigsRequest(
-                configs=connectors.DatasetConfig.from_db(history_entry['data']),
-                description=description,
-                tags=request.tags
-            ),
-            connectors.ConfigType.DATASET,
             username,
             # The config from history is already serialized, so we don't need to serialize it again
             should_serialize=False

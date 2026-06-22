@@ -18,9 +18,10 @@ SPDX-License-Identifier: Apache-2.0
 
 import datetime
 import unittest
+from unittest import mock
 
 from src.lib.utils import config_history
-from src.service.core.config import config_history_helpers, objects
+from src.service.core.config import config_history_helpers, config_service, objects
 from src.utils.connectors.postgres import ListOrder
 
 
@@ -269,6 +270,48 @@ class TestConfigHistoryQueryParams(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             objects.ConfigHistoryQueryParams(at_timestamp=base_time, created_after=base_time)
         self.assertIn('Cannot specify both at_timestamp and created_after', str(context.exception))
+
+
+class TestConfigHistoryResponse(unittest.TestCase):
+    """Test suite for config history response shaping."""
+
+    def test_omits_unsupported_legacy_config_types(self):
+        mock_postgres = mock.MagicMock()
+        mock_postgres.execute_fetch_command.return_value = [
+            {
+                'config_type': 'dataset',
+                'name': '',
+                'revision': 1,
+                'username': 'system',
+                'created_at': base_time,
+                'description': 'Legacy dataset config',
+                'tags': ['initial-config'],
+                'data': {'default_bucket': 'legacy'},
+            },
+            {
+                'config_type': 'service',
+                'name': '',
+                'revision': 1,
+                'username': 'system',
+                'created_at': base_time,
+                'description': 'Initial configuration',
+                'tags': ['initial-config'],
+                'data': {},
+            },
+        ]
+
+        with mock.patch.object(
+                config_service.connectors.PostgresConnector,
+                'get_instance',
+                return_value=mock_postgres):
+            response = config_service.get_configs_history(
+                objects.ConfigHistoryQueryParams(omit_data=True))
+
+        self.assertEqual(len(response.configs), 1)
+        self.assertEqual(
+            response.configs[0].config_type,
+            config_history.ConfigHistoryType.SERVICE,
+        )
 
 
 if __name__ == '__main__':

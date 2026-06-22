@@ -105,7 +105,7 @@ class TestConfigmapState(unittest.TestCase):
 class TestResolveSecretFileReferences(unittest.TestCase):
     """Tests for _resolve_secret_file_references (unchanged logic)."""
 
-    def test_resolve_dataset_secret_files_success(self):
+    def test_resolve_nested_secret_files_success(self):
         secret_data = {
             'access_key_id': 'AKIAIOSFODNN7EXAMPLE',
             'access_key': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
@@ -543,6 +543,33 @@ class TestConfigMapWatcherStart(unittest.TestCase):
             watcher.start()
             self.assertTrue(configmap_guard.is_configmap_mode())
             self.assertIsNotNone(watcher._observer)
+            watcher.stop()
+        finally:
+            os.unlink(path)
+
+    def test_start_ignores_stale_dataset_config(self):
+        config: Dict[str, Any] = {
+            'dataset': {
+                'default_bucket': 'legacy',
+                'buckets': {
+                    'legacy': {
+                        'dataset_path': 's3://legacy-bucket/datasets',
+                    },
+                },
+            },
+            'pod_templates': {'default_ctrl': {'spec': {'containers': []}}},
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp:
+            yaml.dump(config, temp)
+            path = temp.name
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(path, postgres=None)
+            watcher.start()
+            snapshot = configmap_guard.get_snapshot()
+            self.assertIsNotNone(snapshot)
+            assert snapshot is not None
+            self.assertNotIn('dataset', snapshot)
             watcher.stop()
         finally:
             os.unlink(path)
