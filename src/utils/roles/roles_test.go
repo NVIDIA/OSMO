@@ -542,10 +542,10 @@ func TestRole_FullParsing(t *testing.T) {
 			},
 			{
 				"actions": [
-					{"action": "config:Read"},
-					{"action": "config:Update"}
+					{"action": "app:Read"},
+					{"action": "app:Update"}
 				],
-				"resources": ["config/service", "config/workflow"]
+				"resources": ["app/training", "app/simulation"]
 			}
 		],
 		"immutable": false
@@ -596,13 +596,13 @@ func TestRole_FullParsing(t *testing.T) {
 	if len(policy2.Actions) != 2 {
 		t.Errorf("len(Policies[1].Actions) = %d, want 2", len(policy2.Actions))
 	}
-	expectedActions2 := []string{"config:Read", "config:Update"}
+	expectedActions2 := []string{"app:Read", "app:Update"}
 	for i, action := range policy2.Actions {
 		if action.Action != expectedActions2[i] {
 			t.Errorf("Policies[1].Actions[%d].Action = %q, want %q", i, action.Action, expectedActions2[i])
 		}
 	}
-	expectedResources2 := []string{"config/service", "config/workflow"}
+	expectedResources2 := []string{"app/training", "app/simulation"}
 	if len(policy2.Resources) != 2 {
 		t.Errorf("len(Policies[1].Resources) = %d, want 2", len(policy2.Resources))
 	} else {
@@ -624,7 +624,7 @@ func TestRole_BackwardsCompatibility(t *testing.T) {
 			{
 				"actions": [
 					{"base": "http", "path": "/api/workflow/*", "method": "*"},
-					{"base": "http", "path": "/api/configs", "method": "GET"}
+					{"base": "http", "path": "/api/legacy/*", "method": "GET"}
 				]
 			}
 		],
@@ -676,8 +676,8 @@ func TestRole_BackwardsCompatibility(t *testing.T) {
 	if action2.Base != "http" {
 		t.Errorf("action2.Base = %q, want %q", action2.Base, "http")
 	}
-	if action2.Path != "/api/configs" {
-		t.Errorf("action2.Path = %q, want %q", action2.Path, "/api/configs")
+	if action2.Path != "/api/legacy/*" {
+		t.Errorf("action2.Path = %q, want %q", action2.Path, "/api/legacy/*")
 	}
 	if action2.Method != "GET" {
 		t.Errorf("action2.Method = %q, want %q", action2.Method, "GET")
@@ -699,7 +699,7 @@ func TestRole_MixedActionsInPolicy(t *testing.T) {
 				"actions": [
 					{"action": "workflow:Create"},
 					{"base": "http", "path": "/api/legacy/*", "method": "GET"},
-					{"action": "config:Read"}
+					{"action": "app:Read"}
 				],
 				"resources": ["*"]
 			}
@@ -738,8 +738,8 @@ func TestRole_MixedActionsInPolicy(t *testing.T) {
 	if !policy.Actions[2].IsSemanticAction() {
 		t.Errorf("action[2] should be semantic")
 	}
-	if policy.Actions[2].Action != "config:Read" {
-		t.Errorf("action[2].Action = %q, want %q", policy.Actions[2].Action, "config:Read")
+	if policy.Actions[2].Action != "app:Read" {
+		t.Errorf("action[2].Action = %q, want %q", policy.Actions[2].Action, "app:Read")
 	}
 }
 
@@ -807,11 +807,11 @@ func TestResourcePatterns(t *testing.T) {
 		{"workflow/abc123"},
 		{"pool/default"},
 		{"pool/production/*"},
-		{"config/service"},
+		{"app/training"},
 		{"backend/gb200-testing"},
 		{"config/service"},
 		{"pool/production", "pool/staging"},
-		{"config/service", "config/workflow", "config/backend"},
+		{"app/training", "app/simulation", "app/validation"},
 	}
 
 	for _, resources := range resourcePatterns {

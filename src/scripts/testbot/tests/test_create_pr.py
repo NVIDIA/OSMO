@@ -660,8 +660,8 @@ class TestTestToSourcePath(unittest.TestCase):
 
     def test_python_nested_tests_dir(self):
         self.assertEqual(
-            _test_to_source_path("src/service/core/config/tests/test_config_service.py"),
-            "src/service/core/config/config_service.py",
+            _test_to_source_path("src/service/core/example/tests/test_example_service.py"),
+            "src/service/core/example/example_service.py",
         )
 
     def test_go_test_strips_test_suffix(self):
