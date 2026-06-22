@@ -124,13 +124,7 @@ func TestExtractResourceFromPath(t *testing.T) {
 			action:       ActionWorkflowRead,
 			wantResource: "pool/*",
 		},
-		// Self-scoped resources (dataset, config)
-		{
-			name:         "dataset with name returns dataset scope",
-			path:         "/api/bucket/my-bucket",
-			action:       ActionDatasetRead,
-			wantResource: "bucket/my-bucket",
-		},
+		// Self-scoped resources (config)
 		{
 			name:         "config with ID returns config scope",
 			path:         "/api/configs/my-config",
@@ -996,33 +990,6 @@ func TestMatchResourceTrailingWildcard(t *testing.T) {
 			resource: "pool/team-b",
 			want:     false,
 		},
-		{
-			name:     "pool trailing wildcard does not match different scope",
-			pattern:  "pool/team-a*",
-			resource: "bucket/team-a-gpu-03",
-			want:     false,
-		},
-
-		// Bucket resources
-		{
-			name:     "bucket trailing wildcard matches longer name",
-			pattern:  "bucket/data-v*",
-			resource: "bucket/data-v2-archive",
-			want:     true,
-		},
-		{
-			name:     "bucket trailing wildcard matches exact prefix",
-			pattern:  "bucket/data-v*",
-			resource: "bucket/data-v",
-			want:     true,
-		},
-		{
-			name:     "bucket trailing wildcard does not match different prefix",
-			pattern:  "bucket/data-v*",
-			resource: "bucket/logs-v2",
-			want:     false,
-		},
-
 		// Config resources
 		{
 			name:     "config trailing wildcard matches longer name",
@@ -1145,45 +1112,6 @@ func TestCheckPolicyAccessTrailingWildcardPool(t *testing.T) {
 	result = CheckPolicyAccess(ctx, converted, "/api/pool/team-b/workflow", "POST", nil)
 	if result.Allowed {
 		t.Errorf("want denied for pool/team-b, got allowed")
-	}
-}
-
-// TestCheckPolicyAccessTrailingWildcardBucket verifies end-to-end that
-// trailing wildcard resources work for dataset/bucket operations.
-func TestCheckPolicyAccessTrailingWildcardBucket(t *testing.T) {
-	role := &Role{
-		Name: "test-bucket-role",
-		Policies: []RolePolicy{
-			{
-				Effect:    EffectAllow,
-				Actions:   []RoleAction{{Action: "dataset:*"}},
-				Resources: []string{"bucket/data-v*"},
-			},
-		},
-	}
-	converted := ConvertRoleToSemantic(role)
-	if converted == nil {
-		t.Fatal("ConvertRoleToSemantic returned nil")
-	}
-
-	ctx := context.Background()
-
-	// GET /api/bucket/data-v2-archive should be allowed
-	result := CheckPolicyAccess(ctx, converted, "/api/bucket/data-v2-archive", "GET", nil)
-	if !result.Allowed {
-		t.Errorf("want allowed for bucket/data-v2-archive, got denied")
-	}
-
-	// GET /api/bucket/data-v should be allowed
-	result = CheckPolicyAccess(ctx, converted, "/api/bucket/data-v", "GET", nil)
-	if !result.Allowed {
-		t.Errorf("want allowed for bucket/data-v, got denied")
-	}
-
-	// GET /api/bucket/logs-v2 should be denied
-	result = CheckPolicyAccess(ctx, converted, "/api/bucket/logs-v2", "GET", nil)
-	if result.Allowed {
-		t.Errorf("want denied for bucket/logs-v2, got allowed")
 	}
 }
 
@@ -1364,13 +1292,6 @@ func TestEmptyResourcesAcrossActionTypes(t *testing.T) {
 			wantAllowed: false,
 		},
 		{
-			name:        "dataset:* on specific bucket (scoped) denied",
-			action:      "dataset:*",
-			path:        "/api/bucket/my-bucket",
-			method:      "GET",
-			wantAllowed: false,
-		},
-		{
 			name:        "config:* on specific config (scoped) denied",
 			action:      "config:*",
 			path:        "/api/configs/my-config",
@@ -1388,13 +1309,6 @@ func TestEmptyResourcesAcrossActionTypes(t *testing.T) {
 			name:        "*:* on specific config (scoped) denied",
 			action:      "*:*",
 			path:        "/api/configs/my-config",
-			method:      "GET",
-			wantAllowed: false,
-		},
-		{
-			name:        "*:* on specific bucket (scoped) denied",
-			action:      "*:*",
-			path:        "/api/bucket/my-bucket",
 			method:      "GET",
 			wantAllowed: false,
 		},

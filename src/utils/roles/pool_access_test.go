@@ -136,11 +136,11 @@ func TestGetAllowedPools(t *testing.T) {
 			name: "non-workflow actions do not grant pool access",
 			roles: []*Role{
 				{
-					Name: "dataset-only",
+					Name: "app-only",
 					Policies: []RolePolicy{
 						{
 							Effect:    EffectAllow,
-							Actions:   RoleActions{{Action: ActionDatasetRead}},
+							Actions:   RoleActions{{Action: ActionAppRead}},
 							Resources: []string{"*"},
 						},
 					},
@@ -802,7 +802,7 @@ func TestCheckActionOnResource(t *testing.T) {
 				Policies: []RolePolicy{
 					{
 						Effect:    EffectAllow,
-						Actions:   RoleActions{{Action: ActionDatasetRead}},
+						Actions:   RoleActions{{Action: ActionAppRead}},
 						Resources: []string{"*"},
 					},
 				},

@@ -182,13 +182,13 @@ func TestCheckPolicyAccess(t *testing.T) {
 				Policies: []roles.RolePolicy{
 					{
 						Actions: []roles.RoleAction{
-							// Use bucket path which supports multiple methods
-							{Base: "http", Path: "/api/bucket/*", Method: "*"},
+							// Use auth token path which supports multiple methods
+							{Base: "http", Path: "/api/auth/access_token", Method: "*"},
 						},
 					},
 				},
 			},
-			path:       "/api/bucket/my-bucket",
+			path:       "/api/auth/access_token",
 			method:     "POST",
 			wantAccess: true,
 		},
@@ -276,7 +276,7 @@ func TestCheckPolicyAccess(t *testing.T) {
 					},
 					{
 						Actions: []roles.RoleAction{
-							{Base: "http", Path: "/api/bucket/*", Method: "Post"},
+							{Base: "http", Path: "/api/credentials/*", Method: "Delete"},
 						},
 					},
 				},
@@ -297,13 +297,13 @@ func TestCheckPolicyAccess(t *testing.T) {
 					},
 					{
 						Actions: []roles.RoleAction{
-							{Base: "http", Path: "/api/bucket/*", Method: "Post"},
+							{Base: "http", Path: "/api/credentials/*", Method: "Delete"},
 						},
 					},
 				},
 			},
-			path:       "/api/bucket/my-bucket",
-			method:     "POST",
+			path:       "/api/credentials/my-credential",
+			method:     "DELETE",
 			wantAccess: true,
 		},
 		{
@@ -401,7 +401,7 @@ func TestCheckPolicyAccess(t *testing.T) {
 				Policies: []roles.RolePolicy{
 					{
 						Actions: []roles.RoleAction{
-							{Action: "bucket:Read"},
+							{Action: "profile:Read"},
 						},
 						Resources: []string{"*"},
 					},

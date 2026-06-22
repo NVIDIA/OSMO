@@ -34,7 +34,6 @@ class TestDefaultRoleMerge(unittest.TestCase):
                     actions=[
                         'app:*',
                         'credentials:*',
-                        'dataset:*',
                         'pool:List',
                         'profile:Read',
                         'profile:Update',
@@ -53,7 +52,6 @@ class TestDefaultRoleMerge(unittest.TestCase):
                     actions=[
                         'app:*',
                         'credentials:*',
-                        'dataset:*',
                         'pool:List',
                         'profile:Read',
                         'profile:Update',
@@ -267,7 +265,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
             name='osmo-user',
             description='Standard user role',
             policies=[
-                role.RolePolicy(actions=['app:*', 'dataset:*'], resources=['*']),
+                role.RolePolicy(actions=['app:*', 'credentials:*'], resources=['*']),
             ],
         )
 
@@ -275,7 +273,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
 
         self.assertTrue(did_update)
         self.assertEqual(len(existing_role.policies), 1)
-        self.assertEqual(existing_role.policies[0].actions, ['app:*', 'dataset:*'])
+        self.assertEqual(existing_role.policies[0].actions, ['app:*', 'credentials:*'])
         self.assertEqual(existing_role.policies[0].resources, ['*'])
 
     def test_copies_default_policies_when_existing_role_has_none(self):
@@ -297,7 +295,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
         self.assertTrue(did_update)
         self.assertEqual(existing_role.policies[0].actions, ['app:*'])
         self.assertEqual(existing_role.policies[0].resources, ['*'])
-        existing_role.policies[0].actions.append('dataset:*')
+        existing_role.policies[0].actions.append('credentials:*')
         self.assertEqual(default_role.policies[0].actions, ['app:*'])
 
     def test_returns_false_when_both_existing_and_default_have_no_policies(self):
@@ -345,7 +343,6 @@ class TestDefaultRoleMerge(unittest.TestCase):
                 'app:*',
                 'auth:Token',
                 'credentials:*',
-                'dataset:*',
                 'pool:List',
                 'profile:Read',
                 'profile:Update',

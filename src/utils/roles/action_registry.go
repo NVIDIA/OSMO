@@ -40,7 +40,6 @@ const (
 	resourceTypeApp         = "app"
 	resourceTypeResources   = "resources"
 	resourceTypeRouter      = "router"
-	resourceTypeDataset     = "dataset"
 	resourceTypeConfig      = "config"
 	resourceTypeProfile     = "profile"
 	resourceTypeWorkflow    = "workflow"
@@ -57,7 +56,6 @@ const (
 	ResourceTypeApp         ResourceType = resourceTypeApp
 	ResourceTypeResources   ResourceType = resourceTypeResources
 	ResourceTypeRouter      ResourceType = resourceTypeRouter
-	ResourceTypeDataset     ResourceType = resourceTypeDataset
 	ResourceTypeConfig      ResourceType = resourceTypeConfig
 	ResourceTypeProfile     ResourceType = resourceTypeProfile
 	ResourceTypeWorkflow    ResourceType = resourceTypeWorkflow
@@ -76,12 +74,6 @@ const (
 	ActionWorkflowExec        = resourceTypeWorkflow + ":Exec"
 	ActionWorkflowPortForward = resourceTypeWorkflow + ":PortForward"
 	ActionWorkflowRsync       = resourceTypeWorkflow + ":Rsync"
-
-	// Dataset actions
-	ActionDatasetList   = resourceTypeDataset + ":List"
-	ActionDatasetRead   = resourceTypeDataset + ":Read"
-	ActionDatasetWrite  = resourceTypeDataset + ":Write"
-	ActionDatasetDelete = resourceTypeDataset + ":Delete"
 
 	// Credentials actions
 	ActionCredentialsCreate = resourceTypeCredentials + ":Create"
@@ -215,20 +207,6 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/pool", Methods: []string{"GET"}},
 		{Path: "/api/pool_quota", Methods: []string{"GET"}},
 	},
-	// ==================== DATASET ====================
-	ActionDatasetList: {
-		{Path: "/api/bucket", Methods: []string{"GET"}},
-	},
-	ActionDatasetRead: {
-		{Path: "/api/bucket/*", Methods: []string{"GET"}},
-	},
-	ActionDatasetWrite: {
-		{Path: "/api/bucket/*", Methods: []string{"POST", "PUT"}},
-	},
-	ActionDatasetDelete: {
-		{Path: "/api/bucket/*", Methods: []string{"DELETE"}},
-	},
-
 	// ==================== CREDENTIALS ====================
 	ActionCredentialsCreate: {
 		{Path: "/api/credentials", Methods: []string{"POST"}},
@@ -616,7 +594,7 @@ func MatchMethod(requestMethod string, allowedMethods []string) bool {
 // extractResourceFromPath extracts the scoped resource identifier from the path
 // based on the Resource-Action Model's scope definitions:
 //   - Global/public resources return "" (empty) - no resource check needed
-//   - Self-scoped resources (bucket, config) return "{scope}/{id}"
+//   - Self-scoped resources (config) return "{scope}/{id}"
 //   - User-scoped resources (profile, auth token) return "user/{id}"
 //   - Pool-scoped resources (workflow, task) return "pool/{pool_name}" via DB lookup
 //   - Internal resources return "backend/{id}"
@@ -639,13 +617,6 @@ func extractResourceFromPath(
 	// Determine resource identifier based on resource type
 	// Global/public resources don't require resource checks - access is action-based only
 	switch resourceType {
-	case ResourceTypeDataset:
-		// Dataset-scoped resources - the resource ID IS the scope (scope prefix stays "bucket")
-		if actionName == "List" {
-			return ""
-		}
-		return "bucket/" + extractScopedResourceID(parts, "bucket")
-
 	case ResourceTypeConfig:
 		// Config-scoped resources - the resource ID IS the scope
 		// Path uses "configs" (plural) in the URL
@@ -1255,7 +1226,7 @@ func matchSemanticAction(pattern, action string) bool {
 //   - "*" matches everything
 //   - "pool/*" matches all resources in pool scope
 //   - "pool/team-a*" matches all resources with prefix "pool/team-a"
-//   - "bucket/my-bucket" matches exact resource
+//   - "config/service" matches exact resource
 func matchResource(pattern, resource string) bool {
 	// Empty resource means no scope check is needed - always matches
 	if resource == "" {

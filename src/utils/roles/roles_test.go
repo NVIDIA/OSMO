@@ -542,10 +542,10 @@ func TestRole_FullParsing(t *testing.T) {
 			},
 			{
 				"actions": [
-					{"action": "dataset:Read"},
-					{"action": "dataset:List"}
+					{"action": "config:Read"},
+					{"action": "config:Update"}
 				],
-				"resources": ["bucket/public", "bucket/shared"]
+				"resources": ["config/service", "config/workflow"]
 			}
 		],
 		"immutable": false
@@ -596,13 +596,13 @@ func TestRole_FullParsing(t *testing.T) {
 	if len(policy2.Actions) != 2 {
 		t.Errorf("len(Policies[1].Actions) = %d, want 2", len(policy2.Actions))
 	}
-	expectedActions2 := []string{"dataset:Read", "dataset:List"}
+	expectedActions2 := []string{"config:Read", "config:Update"}
 	for i, action := range policy2.Actions {
 		if action.Action != expectedActions2[i] {
 			t.Errorf("Policies[1].Actions[%d].Action = %q, want %q", i, action.Action, expectedActions2[i])
 		}
 	}
-	expectedResources2 := []string{"bucket/public", "bucket/shared"}
+	expectedResources2 := []string{"config/service", "config/workflow"}
 	if len(policy2.Resources) != 2 {
 		t.Errorf("len(Policies[1].Resources) = %d, want 2", len(policy2.Resources))
 	} else {
@@ -624,7 +624,7 @@ func TestRole_BackwardsCompatibility(t *testing.T) {
 			{
 				"actions": [
 					{"base": "http", "path": "/api/workflow/*", "method": "*"},
-					{"base": "http", "path": "/api/bucket", "method": "GET"}
+					{"base": "http", "path": "/api/configs", "method": "GET"}
 				]
 			}
 		],
@@ -676,8 +676,8 @@ func TestRole_BackwardsCompatibility(t *testing.T) {
 	if action2.Base != "http" {
 		t.Errorf("action2.Base = %q, want %q", action2.Base, "http")
 	}
-	if action2.Path != "/api/bucket" {
-		t.Errorf("action2.Path = %q, want %q", action2.Path, "/api/bucket")
+	if action2.Path != "/api/configs" {
+		t.Errorf("action2.Path = %q, want %q", action2.Path, "/api/configs")
 	}
 	if action2.Method != "GET" {
 		t.Errorf("action2.Method = %q, want %q", action2.Method, "GET")
@@ -699,7 +699,7 @@ func TestRole_MixedActionsInPolicy(t *testing.T) {
 				"actions": [
 					{"action": "workflow:Create"},
 					{"base": "http", "path": "/api/legacy/*", "method": "GET"},
-					{"action": "dataset:Read"}
+					{"action": "config:Read"}
 				],
 				"resources": ["*"]
 			}
@@ -738,8 +738,8 @@ func TestRole_MixedActionsInPolicy(t *testing.T) {
 	if !policy.Actions[2].IsSemanticAction() {
 		t.Errorf("action[2] should be semantic")
 	}
-	if policy.Actions[2].Action != "dataset:Read" {
-		t.Errorf("action[2].Action = %q, want %q", policy.Actions[2].Action, "dataset:Read")
+	if policy.Actions[2].Action != "config:Read" {
+		t.Errorf("action[2].Action = %q, want %q", policy.Actions[2].Action, "config:Read")
 	}
 }
 
@@ -756,10 +756,6 @@ func TestSemanticActionFormats(t *testing.T) {
 		"workflow:Exec",
 		"workflow:PortForward",
 		"workflow:Rsync",
-		"dataset:Create",
-		"dataset:Read",
-		"dataset:Delete",
-		"dataset:List",
 		"pool:Read",
 		"internal:Operator",
 		"internal:Logger",
@@ -811,11 +807,11 @@ func TestResourcePatterns(t *testing.T) {
 		{"workflow/abc123"},
 		{"pool/default"},
 		{"pool/production/*"},
-		{"bucket/data-generation"},
+		{"config/service"},
 		{"backend/gb200-testing"},
 		{"config/service"},
 		{"pool/production", "pool/staging"},
-		{"bucket/public", "bucket/shared", "bucket/private"},
+		{"config/service", "config/workflow", "config/backend"},
 	}
 
 	for _, resources := range resourcePatterns {

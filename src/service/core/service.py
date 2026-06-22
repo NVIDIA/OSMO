@@ -42,7 +42,6 @@ from src.service.core.config import (
     config_service, configmap_loader,
     helpers as config_helpers, objects as config_objects,
 )
-from src.service.core.data import data_service, query
 from src.service.core.profile import profile_service
 from src.service.core.workflow import (
     helpers, objects, workflow_service, workflow_metrics
@@ -159,7 +158,6 @@ app.include_router(workflow_service.router)
 app.include_router(workflow_service.router_credentials)
 app.include_router(workflow_service.router_resource)
 app.include_router(workflow_service.router_pool)
-app.include_router(data_service.router)
 app.include_router(profile_service.router)
 
 
@@ -501,9 +499,6 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     # Store on app state to prevent GC from killing the watcher thread.
     target_app.state.config_watcher = configmap_loader.start_config_watcher(
         config.config_file, postgres, is_api_service=True)
-
-    # Instantiate QueryParser
-    query.QueryParser()
 
     if config.method != 'dev':
         FastAPIInstrumentor().instrument_app(
