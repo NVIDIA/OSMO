@@ -1,0 +1,9 @@
+{
+  "operations": [
+    {
+      "sql": {
+        "up": "DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'configs') THEN DELETE FROM public.configs WHERE type = 'DATASET'; END IF; END $$"
+      }
+    }
+  ]
+}
