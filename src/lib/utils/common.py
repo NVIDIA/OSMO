@@ -65,24 +65,6 @@ NAME_REGEX = fr'(?P<name>{NAME_COMPONENT}(/{NAME_COMPONENT})*)'
 TAG_REGEX = r'(?P<tag>[a-zA-Z0-9_][a-zA-Z0-9._-]*)'
 DIGEST_REGEX = r'(?P<digest>[A-Za-z0-9_+.-]+:[A-Fa-f0-9]+)'
 
-# Regex rules for datasets
-DATASET_NAME_COMPONENT = r'[a-zA-Z0-9_-]+'
-DATASET_NAME_REGEX = fr'^{DATASET_NAME_COMPONENT}$'
-DATASET_BUCKET_TAG_REGEX = r'^([a-zA-Z0-9_-]*)$'
-DATASET_BUCKET_NAME_TAG_REGEX = \
-    fr'^((?P<bucket>{DATASET_NAME_COMPONENT})/)' +\
-    fr'?(?P<name>{DATASET_NAME_COMPONENT})' +\
-    fr'(:(?P<tag>{DATASET_BUCKET_TAG_REGEX[1:-1]}))?$'
-
-# Regex rules for datasets in workflow spec
-DATASET_NAME_IN_WORKFLOW_COMPONENT = r'[a-zA-Z0-9_{}-]+'
-DATASET_NAME_IN_WORKFLOW_REGEX = fr'^{DATASET_NAME_IN_WORKFLOW_COMPONENT}$'
-DATASET_BUCKET_TAG_IN_WORKFLOW_REGEX = r'^([a-zA-Z0-9_{}-]*)$'
-DATASET_BUCKET_NAME_TAG_IN_WORKFLOW_REGEX =\
-    fr'^((?P<bucket>{DATASET_NAME_IN_WORKFLOW_COMPONENT})/)?' +\
-    fr'(?P<name>{DATASET_NAME_IN_WORKFLOW_COMPONENT})' +\
-    fr'(:(?P<tag>{DATASET_BUCKET_TAG_IN_WORKFLOW_REGEX[1:-1]}))?$'
-
 # Regex rules for apps
 APP_NAME_REGEX = r'(?:[a-zA-Z0-9_-]+)'
 APP_NAME_VALIDATION_REGEX = fr'^{APP_NAME_REGEX}$'
@@ -187,45 +169,6 @@ def pydantic_encoder(obj):
     elif isinstance(obj, bytes):
         return obj.decode('utf-8', errors='replace')
     raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
-
-
-class DatasetStructure:
-    """ Splits Dataset Bucket, Name, and Tag. """
-
-    bucket: str = ''
-    name: str
-    tag: str = ''
-
-    def __init__(self, name: str, workflow_spec: bool = False):
-        if workflow_spec:
-            parsed_name = re.fullmatch(DATASET_BUCKET_NAME_TAG_IN_WORKFLOW_REGEX, name)
-
-            if not parsed_name:
-                raise osmo_errors.OSMOUserError('Name, Tag, and Bucket can only consist of lower '
-                                                'and upper case letters, numbers, "-", "_", '
-                                                '"{", and "}".')
-        else:
-            parsed_name = re.fullmatch(DATASET_BUCKET_NAME_TAG_REGEX, name)
-
-            if not parsed_name:
-                raise osmo_errors.OSMOUserError('Name, Tag, and Bucket can only consist of lower '
-                                                'and upper case letters, numbers, "-" and "_".')
-
-        self.bucket = '' if not parsed_name.group('bucket') else parsed_name.group('bucket')
-        self.name = parsed_name.group('name')
-        self.tag = '' if not parsed_name.group('tag') else parsed_name.group('tag')
-
-    @property
-    def full_name(self) -> str:
-        output_name = self.name
-        if self.bucket:
-            output_name = f'{self.bucket}/{output_name}'
-        if self.tag:
-            output_name = f'{output_name}:{self.tag}'
-        return output_name
-
-    def to_dict(self):
-        return {'name': self.name, 'tag': self.tag}
 
 
 class AppStructure:

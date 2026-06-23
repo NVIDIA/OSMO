@@ -57,25 +57,6 @@ const (
 	URLOperation     string = "Url"
 )
 
-type VersionInfo struct {
-	Size         int
-	Checksum     string
-	Uri          string
-	HashLocation string `json:"hash_location"`
-	Name         string
-	Version      string
-}
-
-type DatasetInfo struct {
-	Type         string
-	Versions     []VersionInfo
-	HashLocation string `json:"hash_location"`
-}
-
-type DatasetStartInfo struct {
-	VersionID string `json:"version_id"`
-}
-
 type WebsocketConnectionInfo struct {
 	// task:<folder>,<url>,<regex>
 	IsBroken            bool
@@ -415,24 +396,6 @@ func UploadData(
 		osmo_errors.UPLOAD_FAILED_CODE)
 
 	return CollectBenchmarkMetrics(benchmarkPath)
-}
-
-func SendDatasetSizeAndChecksum(c net.Conn, dataset string, osmoChan chan string) string {
-	// Prints Dataset information and Returns the Version URI
-	commandArgs := []string{"osmo", "dataset", "info", dataset,
-		"--format-type", "json", "-c", "1"}
-	outb := RunOSMOCommandWithRetry(commandArgs, 5, osmoChan, osmo_errors.UPLOAD_FAILED_CODE)
-
-	var datasetInfo DatasetInfo
-	json.Unmarshal(outb.Bytes(), &datasetInfo)
-	if len(datasetInfo.Versions) == 0 {
-		osmoChan <- "Dataset " + dataset + " info is Empty"
-		return ""
-	} else {
-		osmoChan <- "Size: " + strconv.Itoa(datasetInfo.Versions[0].Size) +
-			"B   Checksum: " + datasetInfo.Versions[0].Checksum
-		return datasetInfo.Versions[0].Uri
-	}
 }
 
 func PrintDirContents(c net.Conn, path string, maxLevel int, osmoChan chan string) {
