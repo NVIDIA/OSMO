@@ -48,10 +48,6 @@ UPDATE_CONFIG_API_MAPPING: Dict[
         'default': {'method': client.RequestMethod.PATCH, 'payload_key': 'configs_dict'},
         'named': None,  # Named configs not supported
     },
-    config_history.ConfigHistoryType.DATASET: {
-        'default': {'method': client.RequestMethod.PATCH, 'payload_key': 'configs_dict'},
-        'named': {'method': client.RequestMethod.PATCH, 'payload_key': 'configs_dict'},
-    },
     config_history.ConfigHistoryType.BACKEND: {
         'default': None,  # Whole config not supported
         'named': {'method': client.RequestMethod.POST, 'payload_key': 'configs'},
@@ -85,7 +81,6 @@ UPDATE_CONFIG_API_MAPPING: Dict[
 
 DELETE_CONFIG_SUPPORTED_TYPES: Set[config_history.ConfigHistoryType] = {
     config_history.ConfigHistoryType.BACKEND,
-    config_history.ConfigHistoryType.DATASET,
     config_history.ConfigHistoryType.POOL,
     config_history.ConfigHistoryType.POD_TEMPLATE,
     config_history.ConfigHistoryType.GROUP_TEMPLATE,
@@ -304,11 +299,6 @@ def _fetch_data_from_config(config_info: Any) -> Any:
     # `osmo config show/update POOL my-pool` nice
     if isinstance(config_info, dict) and 'pools' in config_info:
         config_info = config_info['pools']
-
-    # Check if this is a datasets config, which makes
-    # `osmo config show/update DATASET my-dataset` nice
-    if isinstance(config_info, dict) and 'buckets' in config_info:
-        config_info = config_info['buckets']
 
     # Check if this is a list of objects with 'name' field
     # which makes `osmo config show/update BACKEND my-backend` and

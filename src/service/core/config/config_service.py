@@ -38,7 +38,6 @@ router = fastapi.APIRouter(
     tags=['Config API']
 )
 
-
 class ConfigNameType(enum.Enum):
     """ Represents the config type for checking name. """
     POD_TEMPLATE = 'Pod template'
@@ -116,90 +115,6 @@ def patch_workflow_configs(
     """Patch workflow configurations"""
 
     return helpers.patch_configs(request, connectors.ConfigType.WORKFLOW, username)
-
-
-@router.get(
-    '/api/configs/dataset',
-    response_model=connectors.DatasetConfig,
-)
-def read_dataset_configs() -> connectors.DatasetConfig:
-    """Read all the dataset configurations"""
-    postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_dataset_configs()
-
-
-@router.put('/api/configs/dataset')
-def put_dataset_configs(
-    request: objects.PutDatasetRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-) -> Dict:
-    """Put dataset configurations"""
-
-    return helpers.put_configs(request, connectors.ConfigType.DATASET, username)
-
-
-@router.patch('/api/configs/dataset')
-def patch_dataset_configs(
-    request: objects.PatchConfigRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-) -> Dict:
-    """Patch dataset configurations"""
-
-    return helpers.patch_configs(request, connectors.ConfigType.DATASET, username)
-
-
-@router.patch('/api/configs/dataset/{name}')
-def patch_dataset(
-    name: str,
-    request: objects.PatchDatasetRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-) -> Dict:
-    """Patch dataset configuration for a specific bucket"""
-    patch_config_request = objects.PatchConfigRequest(
-        configs_dict={'buckets': {name: request.configs_dict}},
-        description=request.description or f'Patch dataset bucket {name}',
-        tags=request.tags,
-    )
-    return helpers.patch_configs(
-        patch_config_request, connectors.ConfigType.DATASET, username, name
-    )
-
-
-@router.delete('/api/configs/dataset/{name}')
-def delete_dataset(
-    name: str,
-    request: objects.ConfigsRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-):
-    """Delete dataset configuration for a specific bucket"""
-    configmap_guard.reject_if_configmap_mode(username)
-    postgres = connectors.PostgresConnector.get_instance()
-
-    try:
-        current_dataset_config = postgres.get_dataset_configs()
-    except osmo_errors.OSMOUserError:
-        current_dataset_config = None
-
-    # Check if the bucket exists
-    if current_dataset_config and name not in current_dataset_config.buckets:
-        raise osmo_errors.OSMOUserError(f'Bucket {name} not found in dataset configuration')
-
-    # Remove the bucket from the dataset configuration
-    if current_dataset_config:
-        del current_dataset_config.buckets[name]
-
-        # Serialize and save the updated configuration
-        updated_configs = current_dataset_config.serialize(postgres)
-        for key, value in updated_configs.items():
-            postgres.set_config(key, value, connectors.ConfigType.DATASET)
-
-    # Record the change in the config history
-    helpers.create_dataset_config_history_entry(
-        name,
-        username,
-        request.description or f'Delete dataset bucket {name}',
-        tags=request.tags,
-    )
 
 
 # API is only used in dev mode
@@ -1192,18 +1107,6 @@ def rollback_config(
                 tags=request.tags
             ),
             connectors.ConfigType.WORKFLOW,
-            username,
-            # The config from history is already serialized, so we don't need to serialize it again
-            should_serialize=False
-        )
-    elif request.config_type == connectors.ConfigHistoryType.DATASET:
-        helpers.put_configs(
-            objects.PutConfigsRequest(
-                configs=connectors.DatasetConfig.from_db(history_entry['data']),
-                description=description,
-                tags=request.tags
-            ),
-            connectors.ConfigType.DATASET,
             username,
             # The config from history is already serialized, so we don't need to serialize it again
             should_serialize=False

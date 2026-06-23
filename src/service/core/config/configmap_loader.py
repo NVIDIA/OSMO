@@ -225,16 +225,13 @@ class ConfigMapWatcher:
             return LoadResult.PERMANENT_FAILURE
 
         managed_configs = raw_config
+        # Dataset config is deprecated; tolerate stale ConfigMap blocks without loading them.
+        managed_configs.pop('dataset', None)
 
         # Resolve secret file references (reads mounted K8s Secret files)
         for section in managed_configs.values():
             if isinstance(section, dict):
                 _resolve_secret_file_references(section)
-
-        # Dataset-specific: default endpoint from dataset_path
-        dataset_section = managed_configs.get('dataset')
-        if isinstance(dataset_section, dict):
-            _default_dataset_credential_endpoints(dataset_section)
 
         # Validate ConfigMap-provided fields BEFORE injecting runtime
         # fields. Runtime fields (service_auth) are already validated
@@ -356,7 +353,7 @@ def start_config_watcher(
 # ---------------------------------------------------------------------------
 
 _EXPECTED_CONFIG_KEYS = {
-    'service', 'workflow', 'dataset', 'resource_validations', 'pod_templates',
+    'service', 'workflow', 'resource_validations', 'pod_templates',
     'group_templates', 'backends', 'backend_tests', 'pools', 'roles',
 }
 
@@ -395,7 +392,6 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
     for config_key, config_class in [
         ('service', connectors.ServiceConfig),
         ('workflow', connectors.WorkflowConfig),
-        ('dataset', connectors.DatasetConfig),
     ]:
         section = managed_configs.get(config_key)
         if not section:
@@ -871,14 +867,3 @@ def _resolve_secret_directory(current_value: Dict[str, Any],
     current_value.update(fields)
     logging.info('Loaded %d secret fields for %s from %s',
                  len(fields), path_label, dir_path)
-
-
-def _default_dataset_credential_endpoints(config_data: Dict[str, Any]) -> None:
-    """Dataset-specific: default 'endpoint' from 'dataset_path' for each bucket credential."""
-    buckets = config_data.get('buckets', {})
-    for bucket_config in buckets.values():
-        if not isinstance(bucket_config, dict):
-            continue
-        credential = bucket_config.get('default_credential')
-        if isinstance(credential, dict) and 'endpoint' not in credential:
-            credential['endpoint'] = bucket_config.get('dataset_path', '')

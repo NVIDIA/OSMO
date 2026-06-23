@@ -163,18 +163,6 @@ class PutWorkflowRequest(PutConfigsRequest):
     configs: connectors.WorkflowConfig
 
 
-class PutDatasetRequest(PutConfigsRequest):
-    """Request body for updating dataset configurations with history tracking metadata."""
-
-    configs: connectors.DatasetConfig
-
-
-class PatchDatasetRequest(ConfigsRequest):
-    """Request body for patching a dataset bucket configuration with history tracking metadata."""
-
-    configs_dict: Dict[str, Any]
-
-
 class PatchConfigRequest(ConfigsRequest):
     """Request body for patching configurations with history tracking metadata."""
 

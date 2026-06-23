@@ -26,7 +26,6 @@ class ConfigHistoryType(enum.Enum):
     """ Type of configs supported by config history """
     SERVICE = 'SERVICE'
     WORKFLOW = 'WORKFLOW'
-    DATASET = 'DATASET'
     BACKEND = 'BACKEND'
     POOL = 'POOL'
     POD_TEMPLATE = 'POD_TEMPLATE'
