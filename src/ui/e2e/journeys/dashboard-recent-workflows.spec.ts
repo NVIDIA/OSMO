@@ -15,18 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createPoolResponse,
-  createWorkflowsResponse,
-  PoolStatus,
-  WorkflowStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupPools,
-  setupProfile,
-  setupWorkflows,
-} from "@/e2e/utils/mock-setup";
+import { createPoolResponse, createWorkflowsResponse, PoolStatus, WorkflowStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupProfile, setupWorkflows } from "@/e2e/utils/mock-setup";
 
 /**
  * Dashboard Recent Workflow Interaction Tests
@@ -57,9 +47,7 @@ test.describe("Dashboard Recent Workflow Interactions", () => {
     await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "my-training-job", status: WorkflowStatus.RUNNING, user: "alice" },
-      ]),
+      createWorkflowsResponse([{ name: "my-training-job", status: WorkflowStatus.RUNNING, user: "alice" }]),
     );
 
     // ACT
@@ -154,7 +142,6 @@ test.describe("Dashboard Profile Pool Filtering", () => {
             username: "restricted-user",
             email_notification: true,
             slack_notification: false,
-            bucket: "",
             pool: "prod",
           },
           roles: [],

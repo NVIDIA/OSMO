@@ -20,7 +20,6 @@ import { ProfilePageTitle } from "@/features/profile/components/profile-page-tit
 import { ProfileNavigation } from "@/features/profile/components/profile-navigation";
 import { UserInfoSection } from "@/features/profile/components/user-info-section";
 import { NotificationsSection } from "@/features/profile/components/notifications-section";
-import { BucketsSection } from "@/features/profile/components/buckets-section";
 import { PoolsSection } from "@/features/profile/components/pools-section";
 import { CredentialsSection } from "@/features/profile/components/credentials-section";
 import { NotificationsSkeleton } from "@/features/profile/components/skeletons/notifications-skeleton";
@@ -49,12 +48,6 @@ export function ProfileLayout() {
             <InlineErrorBoundary title="Unable to load pools">
               <Suspense fallback={<SelectionSkeleton />}>
                 <PoolsSection />
-              </Suspense>
-            </InlineErrorBoundary>
-
-            <InlineErrorBoundary title="Unable to load buckets">
-              <Suspense fallback={<SelectionSkeleton />}>
-                <BucketsSection />
               </Suspense>
             </InlineErrorBoundary>
 

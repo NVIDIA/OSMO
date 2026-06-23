@@ -232,10 +232,6 @@ export interface UserProfile {
     email: boolean;
     slack: boolean;
   };
-  bucket: {
-    default: string;
-    accessible: string[]; // List of bucket names user has access to
-  };
   pool: {
     default: string;
     accessible: string[]; // List of pool names user has access to
@@ -249,9 +245,6 @@ export interface ProfileUpdate {
   notifications?: {
     email?: boolean;
     slack?: boolean;
-  };
-  bucket?: {
-    default?: string;
   };
   pool?: {
     default?: string;

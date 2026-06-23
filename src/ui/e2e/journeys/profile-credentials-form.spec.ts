@@ -43,26 +43,13 @@ async function setupProfileSettings(
     profile: {
       email_notification: true,
       slack_notification: false,
-      bucket: "default-bucket",
       pool: "default-pool",
       ...overrides.profile,
     },
     roles: overrides.roles ?? [],
     pools: overrides.pools ?? ["pool-alpha"],
   });
-  await page.route("**/api/profile/settings*", (route) =>
-    route.fulfill({ status: 200, contentType: CT_JSON, body }),
-  );
-}
-
-async function setupBuckets(page: Parameters<typeof setupDefaultMocks>[0]) {
-  const body = JSON.stringify({
-    buckets: [{ name: "default-bucket", path: "s3://default-bucket", description: "", mode: "rw", default_credential: false }],
-    default: "default-bucket",
-  });
-  await page.route("**/api/bucket*", (route) =>
-    route.fulfill({ status: 200, contentType: CT_JSON, body }),
-  );
+  await page.route("**/api/profile/settings*", (route) => route.fulfill({ status: 200, contentType: CT_JSON, body }));
 }
 
 async function setupCredentials(
@@ -88,7 +75,6 @@ test.describe("Credential Form Type Switching", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
     await setupCredentials(page, []);
   });
 
@@ -151,14 +137,11 @@ test.describe("Credential Delete Confirmation", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
   });
 
   test("clicking delete on a credential shows confirmation dialog", async ({ page }) => {
     // ARRANGE — existing credential
-    await setupCredentials(page, [
-      { cred_name: "my-docker-cred", cred_type: "REGISTRY" },
-    ]);
+    await setupCredentials(page, [{ cred_name: "my-docker-cred", cred_type: "REGISTRY" }]);
 
     // ACT
     await page.goto("/profile");
@@ -179,9 +162,7 @@ test.describe("Credential Delete Confirmation", () => {
 
   test("cancel button in delete dialog closes without deleting", async ({ page }) => {
     // ARRANGE
-    await setupCredentials(page, [
-      { cred_name: "keep-this-cred", cred_type: "DATA" },
-    ]);
+    await setupCredentials(page, [{ cred_name: "keep-this-cred", cred_type: "DATA" }]);
 
     // ACT
     await page.goto("/profile");
@@ -224,7 +205,6 @@ test.describe("Credential Error States", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
   });
 
   test("shows error state when credentials API fails", async ({ page }) => {

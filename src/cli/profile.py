@@ -42,15 +42,14 @@ def setup_parser(parser: argparse._SubParsersAction):
     set_parser = subparsers.add_parser(
         'set', help='Set profile settings.',
         formatter_class=argparse.RawTextHelpFormatter,
-        epilog='Ex. osmo profile set bucket my_bucket\n'
-               'Ex. osmo profile set pool my_pool\n'
+        epilog='Ex. osmo profile set pool my_pool\n'
                'Ex. osmo profile set notifications email true # Enable only email notifications\n'
                'Ex. osmo profile set notifications slack false # Disable slack notifications'
         )
     set_parser.add_argument('setting',
-                            choices=['notifications', 'bucket', 'pool'],
+                            choices=['notifications', 'pool'],
                             help='Field to set')
-    set_parser.add_argument('value', help='Type of notification, or name of bucket/pool')
+    set_parser.add_argument('value', help='Type of notification, or name of pool')
     set_parser.add_argument('enabled',
                             choices=['true', 'false'], nargs='?',
                             help='Enable or disable, strictly for notifications.')
@@ -83,8 +82,6 @@ def _run_setting_set(service_client: client.ServiceClient, args: argparse.Namesp
         else:
             print(f'Invalid type of notification: {args.value}. Must be slack or email.')
             sys.exit(1)
-    elif args.setting == 'bucket':
-        payload['bucket'] = args.value
     elif args.setting == 'pool':
         payload['pool'] = args.value
 
@@ -113,8 +110,6 @@ def _run_setting_list(service_client: client.ServiceClient, args: argparse.Names
         print('notifications:\n'
               f'{common.TAB}email: {profile_result.get('email_notification', '')}\n'
               f'{common.TAB}slack: {profile_result.get('slack_notification', '')}\n'
-              'bucket:\n'
-              f'{common.TAB}default: {profile_result.get('bucket', '')}\n'
               'pool:\n'
               f'{common.TAB}default: {profile_result.get('pool', '')}\n'
               f'{common.TAB}accessible:')

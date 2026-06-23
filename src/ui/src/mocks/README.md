@@ -58,8 +58,6 @@ These endpoints have been verified against `generated.ts` and match the backend 
 | `GET /api/pool_quota` | `PoolResponse` | Pool quotas with node_sets structure |
 | `GET /api/pool` | `text/plain` | Pool names (not detailed info) |
 | `GET /api/resources` | `ResourcesResponse` | Resource entries |
-| `GET /api/bucket` | `BucketInfoResponse` | Bucket list |
-| `GET /api/bucket/:bucket/query` | artifacts | Query bucket contents |
 | `POST /api/workflow/:name/exec/task/:taskName` | `RouterResponse` | Create exec session |
 | `POST /api/workflow/:name/webserver/:taskName` | port forward info | Create port forward |
 | `GET /api/profile/settings` | settings object | User settings |
