@@ -31,6 +31,17 @@ class SerialWorkflows(RunnerFixture):
     # test_serial_workflow_nonroot stays internal — needs a non-root container
     # image.
 
+    def test_serial_workflow_update_dataset(self):
+        self.workflow("test/workflow/serial_workflow_update_dataset.yaml") \
+            .expect_completed()
+
+    # test_serial_workflow_multi_arch stays internal — needs a heterogeneous
+    # pool not present in the public quick-start chart.
+
+    def test_regex_workflow(self):
+        self.workflow("test/workflow/regex_workflow.yaml") \
+            .expect_completed()
+
 
 if __name__ == "__main__":
     unittest.main()

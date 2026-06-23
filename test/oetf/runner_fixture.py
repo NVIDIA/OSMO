@@ -315,7 +315,7 @@ def _read_file(path: str) -> str:
         return ""
 
 
-# --- CLI-mode submission (for scenarios whose spec uses dataset localpaths) ---
+# --- CLI-mode submission (for scenarios whose spec uses localpaths) ---
 
 _LOCALPATH_PATTERN = re.compile(r"^\s*localpath:\s*(.+)$", re.MULTILINE)
 _CLI_STATUS_CODE_PATTERN = re.compile(r"status code[:\s]+(\d+)", re.IGNORECASE)
@@ -330,10 +330,9 @@ def _submit_via_cli(
 ) -> str:
     """Submit a workflow through the osmo CLI. Returns the workflow_id.
 
-    CLI submission (as opposed to the API path) walks dataset localpath
-    directories and uploads files via the CLI's own transfer logic — the
-    API submit can't do this. Query/logs/cancel continue through the HTTP
-    API regardless, so this only affects the submission step.
+    CLI submission (as opposed to the API path) can stage localpath entries
+    through the CLI's own transfer logic. Query/logs/cancel continue through
+    the HTTP API regardless, so this only affects the submission step.
     """
     login_cli_to(config)
     cli_path = resolve_osmo_cli(config)

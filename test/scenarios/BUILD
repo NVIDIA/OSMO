@@ -78,11 +78,13 @@ oetf_scenario_test(
 # Each target runs exactly one unittest method (via args=[<Class.test_*>])
 # so `bazel test` can parallelize them. Target name = sluggified test name.
 
-# test_serial_workflow_nonroot (a non-root container image image) stays
-# internal.
+# test_serial_workflow_nonroot (a non-root container image image) and
+# test_serial_workflow_multi_arch (heterogeneous pool) stay internal.
 _SERIAL = [
     "test_serial_workflow",
     "test_serial_workflow_mounting",
+    "test_serial_workflow_update_dataset",
+    "test_regex_workflow",
 ]
 
 # Tests in this set additionally get the `kind` tag — verified to pass
@@ -121,6 +123,7 @@ _PARALLEL = [
 # test_data_storage_provider (internal git clone) and test_checkpoint_data
 # (an internal object-storage backend-specific code path) stay internal.
 _DATA_STORAGE = [
+    "test_data_cli",
     "test_workflow_cli",
     "test_app_cli",
 ]
@@ -173,3 +176,16 @@ _ERROR_HANDLING = [
 # test_python_library_data_test (internal Artifactory), test_multi_arch_containers
 # (heterogeneous pool), and test_transfer_service_workflow (internal
 # transfer_service runfiles) stay internal.
+_ADVANCED = [
+    "test_folder_input",
+]
+
+[
+    oetf_scenario_test(
+        name = t.removeprefix("test_").replace("_", "-"),
+        src = "advanced.py",
+        test_filter = "AdvancedWorkflows." + t,
+        tags = ["advanced"],
+    )
+    for t in _ADVANCED
+]
