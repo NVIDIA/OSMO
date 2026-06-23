@@ -1,0 +1,11 @@
+apiVersion: spike.osmo.nvidia.com/v1alpha1
+kind: OSMOWorkflow
+metadata:
+  name: osmo-rust-spike-e2e
+  namespace: osmo-exp
+spec:
+  clusterID: osmo-backend
+  namespace: osmo-phase1a
+  ttlSecondsAfterFinished: 300
+  taskGroups:
+  - name: hello

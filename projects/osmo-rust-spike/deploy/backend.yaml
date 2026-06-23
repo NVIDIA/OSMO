@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: osmo-exp
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: osmo-phase1a
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: osmo-rust-spike-backend
+  namespace: osmo-exp
+imagePullSecrets:
+- name: nvcr-secret
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: osmo-rust-spike-backend
+rules:
+- apiGroups:
+  - spike.osmo.nvidia.com
+  resources:
+  - osmotaskgroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - spike.osmo.nvidia.com
+  resources:
+  - osmotaskgroups/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: osmo-rust-spike-backend
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: osmo-rust-spike-backend
+subjects:
+- kind: ServiceAccount
+  name: osmo-rust-spike-backend
+  namespace: osmo-exp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: osmo-rust-spike-backend
+  namespace: osmo-exp
+  labels:
+    app.kubernetes.io/name: osmo-rust-spike
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: osmo-rust-spike
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: osmo-rust-spike
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: osmo-rust-spike-backend
+      containers:
+      - name: spike
+        image: nvcr.io/nvstaging/osmo/osmo-rust-spike:phase0-2-sync-20260623-1115
+        imagePullPolicy: Always
+        env:
+        - name: RUST_LOG
+          value: info
+        - name: OSMO_SPIKE_ROLE
+          value: backend
+        - name: CLUSTER_ID
+          value: osmo-backend
+        - name: BACKEND_NAMESPACE
+          value: osmo-phase1a
+        - name: OPERATOR_URL
+          value: https://internal-k8s-osmo2-e4b528e936-1201595997.us-west-2.elb.amazonaws.com
+        - name: OPERATOR_AUTHORITY
+          value: osmo-rust-spike.osmo.nvidia.com
+        - name: CLUSTER_TOKEN
+          value: osmo-spike-token

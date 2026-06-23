@@ -1,0 +1,282 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmoworkflows.spike.osmo.nvidia.com
+spec:
+  group: spike.osmo.nvidia.com
+  scope: Namespaced
+  names:
+    plural: osmoworkflows
+    singular: osmoworkflow
+    kind: OSMOWorkflow
+    shortNames:
+    - owf
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Cluster
+      type: string
+      jsonPath: .spec.clusterID
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            required:
+            - clusterID
+            - namespace
+            - taskGroups
+            properties:
+              clusterID:
+                type: string
+              namespace:
+                type: string
+              ttlSecondsAfterFinished:
+                type: integer
+                format: int64
+              taskGroups:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  required:
+                  - name
+                  properties:
+                    name:
+                      type: string
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              message:
+                type: string
+              completionTime:
+                type: string
+                format: date-time
+              groups:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    otgName:
+                      type: string
+                    namespace:
+                      type: string
+                    phase:
+                      type: string
+                    message:
+                      type: string
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmotaskgroups.spike.osmo.nvidia.com
+spec:
+  group: spike.osmo.nvidia.com
+  scope: Namespaced
+  names:
+    plural: osmotaskgroups
+    singular: osmotaskgroup
+    kind: OSMOTaskGroup
+    shortNames:
+    - otg
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Workflow
+      type: string
+      jsonPath: .spec.workflowName
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            required:
+            - workflowName
+            - groupName
+            - clusterID
+            - targetNamespace
+            properties:
+              workflowName:
+                type: string
+              groupName:
+                type: string
+              clusterID:
+                type: string
+              targetNamespace:
+                type: string
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              message:
+                type: string
+              observedTime:
+                type: string
+                format: date-time
+              observedGeneration:
+                type: integer
+                format: int64
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmoclusters.spike.osmo.nvidia.com
+spec:
+  group: spike.osmo.nvidia.com
+  scope: Namespaced
+  names:
+    plural: osmoclusters
+    singular: osmocluster
+    kind: OSMOCluster
+    shortNames:
+    - ocluster
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: LastSeen
+      type: date
+      jsonPath: .status.lastSeenTime
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            required:
+            - clusterID
+            properties:
+              clusterID:
+                type: string
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              lastSeenTime:
+                type: string
+                format: date-time
+              message:
+                type: string
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmopools.spike.osmo.nvidia.com
+spec:
+  group: spike.osmo.nvidia.com
+  scope: Namespaced
+  names:
+    plural: osmopools
+    singular: osmopool
+    kind: OSMOPool
+    shortNames:
+    - opool
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Cluster
+      type: string
+      jsonPath: .spec.clusterRef
+    - name: Namespace
+      type: string
+      jsonPath: .spec.namespace
+    - name: Scheduler
+      type: string
+      jsonPath: .spec.schedulerType
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            required:
+            - clusterRef
+            - namespace
+            - schedulerType
+            - maintenance
+            properties:
+              clusterRef:
+                type: string
+              namespace:
+                type: string
+              schedulerType:
+                type: string
+              maintenance:
+                type: boolean
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              message:
+                type: string

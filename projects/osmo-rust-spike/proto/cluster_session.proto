@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package osmo.spike.v1;
+
+service ClusterSession {
+  rpc OpenSession(stream BackendEnvelope) returns (stream ControlEnvelope);
+}
+
+message BackendEnvelope {
+  oneof msg {
+    Hello hello = 1;
+    TaskGroupAck ack = 2;
+    TaskGroupStatus status = 3;
+    Heartbeat heartbeat = 4;
+  }
+}
+
+message ControlEnvelope {
+  oneof msg {
+    HelloAck hello_ack = 1;
+    TaskGroupSync task_group_sync = 2;
+    ResyncRequest resync_request = 4;
+    Heartbeat heartbeat = 5;
+  }
+}
+
+message Hello {
+  string cluster_id = 1;
+  string token = 2;
+}
+
+message HelloAck {
+  string cluster_id = 1;
+  string message = 2;
+}
+
+message DesiredTaskGroup {
+  string workflow_name = 1;
+  string task_group_name = 2;
+  string task_group_namespace = 3;
+  string uid = 4;
+  int64 generation = 5;
+}
+
+message TaskGroupSync {
+  string cluster_id = 1;
+  bool full = 2;
+  repeated DesiredTaskGroup task_groups = 3;
+  repeated string prune_workflows = 4;
+  int64 unix_seconds = 5;
+}
+
+message TaskGroupAck {
+  string workflow_name = 1;
+  string task_group_name = 2;
+  string task_group_namespace = 3;
+  int64 observed_generation = 4;
+  bool ok = 5;
+  string message = 6;
+}
+
+message TaskGroupStatus {
+  string workflow_name = 1;
+  string task_group_name = 2;
+  string task_group_namespace = 3;
+  string phase = 4;
+  string message = 5;
+}
+
+message ResyncRequest {}
+
+message Heartbeat {
+  int64 unix_seconds = 1;
+}
