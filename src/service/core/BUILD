@@ -28,7 +28,6 @@ osmo_py_library(
         "service.py",
     ],
     deps = [
-        requirement("diskcache"),
         requirement("fastapi"),
         requirement("redis"),
         requirement("opentelemetry-instrumentation-fastapi"),

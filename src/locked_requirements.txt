@@ -331,10 +331,6 @@ cryptography==46.0.7 \
     #   jwcrypto
     #   msal
     #   pyjwt
-diskcache==5.6.3 \
-    --hash=sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc \
-    --hash=sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19
-    # via -r requirements.txt
 durationpy==0.10 \
     --hash=sha256:1fa6893409a6e739c9c72334fc65cca1f355dbdd93405d30f726deb5bde42fba \
     --hash=sha256:3b41e1b601234296b4fb368338fdcd3e13e0b4fb5b67345948f4f2bf9868b286
