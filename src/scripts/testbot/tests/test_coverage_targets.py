@@ -71,6 +71,57 @@ class TestIsIgnored(unittest.TestCase):
     def test_allows_runtime_go(self):
         self.assertFalse(_is_ignored("src/runtime/cmd/ctrl/main.go"))
 
+    # === IGNORE_PATTERNS "Deprecation in flight" block ===
+    # See coverage_targets.py — paths under active feature deprecation
+    # are filtered from the picker's candidate list. Currently scoped
+    # to the dataset / data-service feature (#1093 removed the
+    # frontend, #1119 removed the backend); future deprecations
+    # append in the same block. These tests guard both the filtered
+    # patterns and a few false-positive risks (storage SDK, unrelated
+    # CLI entries).
+
+    def test_dataset_cli_entry_point_stays_testable(self):
+        # src/cli/data.py is staying — it's being repurposed during
+        # the transition rather than deleted. Guard against a future
+        # well-meaning glob that would re-filter it.
+        self.assertFalse(_is_ignored("src/cli/data.py"))
+
+    def test_ignores_future_dataset_cli_files(self):
+        # Pattern is `src/cli/dataset*.py` — any future re-introduction
+        # of dataset-named CLI files during the WIP transition stays
+        # filtered.
+        self.assertTrue(_is_ignored("src/cli/dataset_helpers.py"))
+
+    def test_ignores_data_service_module_preemptively(self):
+        # src/service/core/data/ was removed in #1119 but the pattern
+        # stays so the deprecation doesn't silently flap back into
+        # the testbot's queue if any file lands there during WIP.
+        self.assertTrue(
+            _is_ignored("src/service/core/data/data_service.py"),
+        )
+
+    def test_ignores_dataset_lib_module_preemptively(self):
+        self.assertTrue(
+            _is_ignored("src/lib/data/dataset/manager.py"),
+        )
+
+    def test_storage_sdk_is_not_filtered(self):
+        # `src/lib/data/storage/**` is the multi-cloud storage SDK,
+        # imported by workflow/app/logger services — it survives the
+        # dataset deprecation and must remain testable.
+        self.assertFalse(
+            _is_ignored("src/lib/data/storage/backends/s3.py"),
+        )
+        self.assertFalse(
+            _is_ignored("src/lib/data/storage/client.py"),
+        )
+
+    def test_unrelated_cli_files_are_not_filtered(self):
+        # Don't over-match — `src/cli/workflow.py`, `src/cli/login.py`,
+        # etc. are not dataset-related and should still be considered.
+        self.assertFalse(_is_ignored("src/cli/workflow.py"))
+        self.assertFalse(_is_ignored("src/cli/login.py"))
+
 
 class TestLinesToRanges(unittest.TestCase):
     """Tests for _lines_to_ranges conversion."""
