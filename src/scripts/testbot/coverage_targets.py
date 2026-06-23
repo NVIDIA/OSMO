@@ -39,11 +39,12 @@ IGNORE_PATTERNS = [
     #
     # Dataset / data-service: #1093 removed the frontend; #1119
     # removed the backend bucket API and the 1373-line
-    # src/service/core/data/data_service.py. src/cli/data.py is next.
-    # NOT included: src/lib/data/storage/** — the multi-cloud storage
-    # SDK survives the deprecation (workflow_service / app_service /
-    # ctrl_websocket all import it).
-    "src/cli/data.py",
+    # src/service/core/data/data_service.py.
+    # NOT included:
+    #   - src/cli/data.py — staying, repurposed during the transition.
+    #   - src/lib/data/storage/** — the multi-cloud storage SDK
+    #     survives the deprecation (workflow_service / app_service /
+    #     ctrl_websocket all import it).
     "src/cli/dataset*.py",
     "src/lib/data/dataset/**",
     "src/service/core/data/**",

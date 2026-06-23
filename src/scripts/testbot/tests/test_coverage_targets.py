@@ -80,10 +80,11 @@ class TestIsIgnored(unittest.TestCase):
     # patterns and a few false-positive risks (storage SDK, unrelated
     # CLI entries).
 
-    def test_ignores_dataset_cli_entry_point(self):
-        # src/cli/data.py is the CLI surface for the deprecated
-        # dataset feature.
-        self.assertTrue(_is_ignored("src/cli/data.py"))
+    def test_dataset_cli_entry_point_stays_testable(self):
+        # src/cli/data.py is staying — it's being repurposed during
+        # the transition rather than deleted. Guard against a future
+        # well-meaning glob that would re-filter it.
+        self.assertFalse(_is_ignored("src/cli/data.py"))
 
     def test_ignores_future_dataset_cli_files(self):
         # Pattern is `src/cli/dataset*.py` — any future re-introduction
