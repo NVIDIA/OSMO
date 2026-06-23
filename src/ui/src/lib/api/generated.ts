@@ -62,7 +62,7 @@ export interface AssignRoleRequest {
 }
 
 /**
- * Store a public/private key pair 
+ * Store a public/private key pair
  */
 export interface AsymmetricKeyPair {
   public_key: string;
@@ -72,7 +72,7 @@ export interface AsymmetricKeyPair {
 export type AuthenticationConfigKeys = {[key: string]: AsymmetricKeyPair};
 
 /**
- * Store info needed to login 
+ * Store info needed to login
  */
 export interface LoginInfo {
   device_endpoint?: string | null;
@@ -84,7 +84,7 @@ export interface LoginInfo {
 }
 
 /**
- * Store info needed to generate and validate idtokens 
+ * Store info needed to generate and validate idtokens
  */
 export interface AuthenticationConfig {
   keys: AuthenticationConfigKeys;
@@ -98,7 +98,7 @@ export interface AuthenticationConfig {
 }
 
 /**
- * Defines the type of scheduler used by the backend 
+ * Defines the type of scheduler used by the backend
  */
 export type BackendSchedulerType = typeof BackendSchedulerType[keyof typeof BackendSchedulerType];
 
@@ -119,7 +119,7 @@ export interface BackendSchedulerSettings {
 export type BackendNodeConditionsRules = {[key: string]: string} | null;
 
 /**
- * Settings for backend node conditions. 
+ * Settings for backend node conditions.
  */
 export interface BackendNodeConditions {
   rules?: BackendNodeConditionsRules;
@@ -127,7 +127,7 @@ export interface BackendNodeConditions {
 }
 
 /**
- * Object storing backend info. 
+ * Object storing backend info.
  */
 export interface Backend {
   name: string;
@@ -161,7 +161,7 @@ export interface BackendConfig {
 }
 
 /**
- * Resource type for BackendResource. 
+ * Resource type for BackendResource.
  */
 export type BackendResourceType = typeof BackendResourceType[keyof typeof BackendResourceType];
 
@@ -175,7 +175,7 @@ export const BackendResourceType = {
 export type BackendTestsParsedPodTemplate = { [key: string]: unknown };
 
 /**
- * Represents a test config. 
+ * Represents a test config.
  */
 export interface BackendTests {
   /** @minLength 1 */
@@ -189,93 +189,6 @@ export interface BackendTests {
   /** @minItems 1 */
   common_pod_template: string[];
   parsed_pod_template?: BackendTestsParsedPodTemplate;
-}
-
-export type BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostSetLabel = { [key: string]: unknown };
-
-export type BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostSetMetadata = { [key: string]: unknown };
-
-export interface BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost {
-  set_label?: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostSetLabel;
-  set_metadata?: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostSetMetadata;
-}
-
-/**
- * Object storing execution cluster node resource information. 
- */
-export interface DatasetStructure {
-  /** @pattern ^[a-zA-Z0-9_-]+$ */
-  name: string;
-  /** @pattern ^([a-zA-Z0-9_-]*)$ */
-  tag: string;
-}
-
-export interface BodyCreateCollectionApiBucketBucketDatasetNameCollectPost {
-  datasets: DatasetStructure[];
-}
-
-export interface BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost {
-  add_datasets?: DatasetStructure[];
-  remove_datasets?: DatasetStructure[];
-}
-
-export type BodyUploadDatasetApiBucketBucketDatasetNamePostMetadata = { [key: string]: unknown };
-
-export type BodyUploadDatasetApiBucketBucketDatasetNamePostLabels = { [key: string]: unknown };
-
-export interface BodyUploadDatasetApiBucketBucketDatasetNamePost {
-  metadata?: BodyUploadDatasetApiBucketBucketDatasetNamePostMetadata;
-  labels?: BodyUploadDatasetApiBucketBucketDatasetNamePostLabels;
-}
-
-/**
- * Static data credentials (i.e. credentials with access_key_id and access_key) for a data backend.
- */
-export interface StaticDataCredential {
-  /** The OSMO storage URI for the data service (e.g., s3://bucket). For S3-compatible services with HTTP endpoints, set 'override_url' separately rather than pasting the full HTTPS URL here. */
-  endpoint: string;
-  /** The region for the data service */
-  region?: string | null;
-  /** HTTP service URL for S3-compatible providers (e.g., http://minio:9000, https://s3-compat.example.com). Leave unset for native AWS S3, GCS, Azure, etc. */
-  override_url?: string | null;
-  /** S3 request addressing style for S3-compatible providers. Use 'virtual' for providers such as CoreWeave CAIOS that reject path-style requests, or 'path' for localstack/MinIO-style endpoints. */
-  addressing_style?: 'virtual' | 'path' | 'auto' | null;
-  /** The authentication key for a data backend */
-  access_key_id: string;
-  /** The encrypted authentication secret for a data backend */
-  access_key: string;
-}
-
-/**
- * Class to store the name of the bucket and the dataset path
- */
-export interface BucketConfig {
-  /** @pattern (^swift://[^/,;*]+(/[^/,;*]+){2,}/*$|^s3://[^/,;*]+(/[^/,;*]+)*\/*$|^gs://[^/,;*]+(/[^/,;*]+)*\/*$|^tos://[^/,;*]+(/[^/,;*]+)+/*$|^azure://[^/,;*]+(/[^/,;*]+)+/*$) */
-  dataset_path: string;
-  region?: string;
-  description?: string;
-  mode?: string;
-  default_credential?: StaticDataCredential | null;
-}
-
-/**
- * Object storing Upload Response. 
- */
-export interface BucketInfoEntry {
-  path: string;
-  description: string;
-  mode: string;
-  default_cred: boolean;
-}
-
-export type BucketInfoResponseBuckets = {[key: string]: BucketInfoEntry};
-
-/**
- * Object storing Upload Response. 
- */
-export interface BucketInfoResponse {
-  default?: string | null;
-  buckets: BucketInfoResponseBuckets;
 }
 
 /**
@@ -296,14 +209,14 @@ export interface BulkAssignResponse {
 }
 
 /**
- * Object storing workflow name. 
+ * Object storing workflow name.
  */
 export interface CancelResponse {
   name: string;
 }
 
 /**
- * Config for storing information regarding CLI storage. 
+ * Config for storing information regarding CLI storage.
  */
 export interface CliConfig {
   latest_version?: string | null;
@@ -320,7 +233,7 @@ export interface ConfigDiffResponse {
 }
 
 /**
- * Type of configs supported by config history 
+ * Type of configs supported by config history
  */
 export type SrcLibUtilsConfigHistoryConfigHistoryType = typeof SrcLibUtilsConfigHistoryConfigHistoryType[keyof typeof SrcLibUtilsConfigHistoryConfigHistoryType];
 
@@ -328,7 +241,6 @@ export type SrcLibUtilsConfigHistoryConfigHistoryType = typeof SrcLibUtilsConfig
 export const SrcLibUtilsConfigHistoryConfigHistoryType = {
   SERVICE: 'SERVICE',
   WORKFLOW: 'WORKFLOW',
-  DATASET: 'DATASET',
   BACKEND: 'BACKEND',
   POOL: 'POOL',
   POD_TEMPLATE: 'POD_TEMPLATE',
@@ -369,7 +281,7 @@ export interface CreateUserRequest {
 }
 
 /**
- * Stores registries/data which do not do validation 
+ * Stores registries/data which do not do validation
  */
 export interface CredentialConfig {
   disable_registry_validation?: string[];
@@ -379,14 +291,14 @@ export interface CredentialConfig {
 export type CredentialGetResponseCredentialsItem = {[key: string]: string | null};
 
 /**
- * Credential Response. 
+ * Credential Response.
  */
 export interface CredentialGetResponse {
   credentials: CredentialGetResponseCredentialsItem[];
 }
 
 /**
- * Authentication information for a Docker registry. 
+ * Authentication information for a Docker registry.
  */
 export interface UserRegistryCredential {
   /** The Docker registry URL */
@@ -398,7 +310,7 @@ export interface UserRegistryCredential {
 }
 
 /**
- * Authentication information for a data service. 
+ * Authentication information for a data service.
  */
 export interface UserDataCredential {
   /** The OSMO storage URI for the data service (e.g., s3://bucket). For S3-compatible services with HTTP endpoints, set 'override_url' separately rather than pasting the full HTTPS URL here. */
@@ -421,7 +333,7 @@ export interface UserDataCredential {
 export type UserCredentialCredential = {[key: string]: string};
 
 /**
- * Generic authentication information. 
+ * Generic authentication information.
  */
 export interface UserCredential {
   /** The credential dictionary that contains authentication information */
@@ -429,7 +341,7 @@ export interface UserCredential {
 }
 
 /**
- * Credential options 
+ * Credential options
  */
 export interface CredentialOptions {
   /** Authentication information for a Docker registry */
@@ -441,29 +353,21 @@ export interface CredentialOptions {
 }
 
 /**
- * Object storing Tag Response. 
+ * Static data credentials (i.e. credentials with access_key_id and access_key) for a data backend.
  */
-export interface DataTagResponse {
-  version_id: string;
-  tags: string[];
-}
-
-export type DataMetadataResponseMetadata = { [key: string]: unknown };
-
-/**
- * Object storing Label/Metadata Response. 
- */
-export interface DataMetadataResponse {
-  metadata: DataMetadataResponseMetadata;
-}
-
-/**
- * Object storing Tag/Label/Metadata Response. 
- */
-export interface DataAttributeResponse {
-  tag_response?: DataTagResponse | null;
-  label_response?: DataMetadataResponse | null;
-  metadata_response?: DataMetadataResponse | null;
+export interface StaticDataCredential {
+  /** The OSMO storage URI for the data service (e.g., s3://bucket). For S3-compatible services with HTTP endpoints, set 'override_url' separately rather than pasting the full HTTPS URL here. */
+  endpoint: string;
+  /** The region for the data service */
+  region?: string | null;
+  /** HTTP service URL for S3-compatible providers (e.g., http://minio:9000, https://s3-compat.example.com). Leave unset for native AWS S3, GCS, Azure, etc. */
+  override_url?: string | null;
+  /** S3 request addressing style for S3-compatible providers. Use 'virtual' for providers such as CoreWeave CAIOS that reject path-style requests, or 'path' for localstack/MinIO-style endpoints. */
+  addressing_style?: 'virtual' | 'path' | 'auto' | null;
+  /** The authentication key for a data backend */
+  access_key_id: string;
+  /** The encrypted authentication secret for a data backend */
+  access_key: string;
 }
 
 /**
@@ -487,7 +391,7 @@ export interface DefaultDataCredential {
 }
 
 /**
- * Type of Config to fetch or set 
+ * Type of Config to fetch or set
  */
 export type DownloadType = typeof DownloadType[keyof typeof DownloadType];
 
@@ -497,7 +401,7 @@ export const DownloadType = {
 } as const;
 
 /**
- * Config for storing information about data. 
+ * Config for storing information about data.
  */
 export interface DataConfig {
   credential?: StaticDataCredential | DefaultDataCredential | null;
@@ -505,181 +409,6 @@ export interface DataConfig {
   websocket_timeout?: number;
   data_timeout?: number;
   download_type?: DownloadType;
-}
-
-/**
- * Object storing Download Response. 
- */
-export interface DataDeleteResponse {
-  versions?: string[];
-  delete_locations?: string[];
-  cleaned_size?: number;
-}
-
-/**
- * Object storing Download Response. 
- */
-export interface DataDownloadResponse {
-  dataset_names: string[];
-  dataset_versions: string[];
-  locations: string[];
-  new_locations: string[];
-  is_collection: boolean;
-}
-
-/**
- * Object storing Info Element. 
- */
-export interface DataInfoCollectionEntry {
-  name: string;
-  version: string;
-  location: string;
-  uri: string;
-  hash_location?: string | null;
-  size: number;
-}
-
-export type DataInfoDatasetEntryMetadata = { [key: string]: unknown };
-
-/**
- * The status of a dataset / dataset version.
- */
-export type DatasetStatus = typeof DatasetStatus[keyof typeof DatasetStatus];
-
-
-export const DatasetStatus = {
-  PENDING: 'PENDING',
-  READY: 'READY',
-  PENDING_DELETE: 'PENDING_DELETE',
-  DELETED: 'DELETED',
-} as const;
-
-/**
- * Object storing Info Element. 
- */
-export interface DataInfoDatasetEntry {
-  name: string;
-  version: string;
-  status: DatasetStatus;
-  created_by: string;
-  created_date: string;
-  last_used: string;
-  size: number;
-  checksum: string;
-  location: string;
-  uri: string;
-  metadata: DataInfoDatasetEntryMetadata;
-  tags: string[];
-  collections: string[];
-}
-
-export type DataInfoResponseLabels = { [key: string]: unknown };
-
-export type DatasetType = typeof DatasetType[keyof typeof DatasetType];
-
-
-export const DatasetType = {
-  COLLECTION: 'COLLECTION',
-  DATASET: 'DATASET',
-} as const;
-
-/**
- * Object storing Data Info Elements. 
- */
-export interface DataInfoResponse {
-  name: string;
-  id: string;
-  bucket: string;
-  created_by?: string | null;
-  created_date?: string | null;
-  hash_location?: string | null;
-  hash_location_size?: number | null;
-  labels: DataInfoResponseLabels;
-  type: DatasetType;
-  versions: (DataInfoDatasetEntry | DataInfoCollectionEntry)[];
-}
-
-/**
- * Object storing Data List Element. 
- */
-export interface DataListEntry {
-  name: string;
-  id: string;
-  bucket: string;
-  create_time: string;
-  last_created?: string | null;
-  hash_location?: string | null;
-  hash_location_size?: number | null;
-  version_id?: string | null;
-  type: DatasetType;
-}
-
-/**
- * Object storing Data List Elements. 
- */
-export interface DataListResponse {
-  datasets: DataListEntry[];
-}
-
-export type DatasetQueryType = typeof DatasetQueryType[keyof typeof DatasetQueryType];
-
-
-export const DatasetQueryType = {
-  VERSION: 'VERSION',
-  DATASET: 'DATASET',
-} as const;
-
-/**
- * Object storing Dataset and Dataset Version Info. 
- */
-export interface DataQueryResponse {
-  type: DatasetQueryType;
-  datasets: (DataInfoResponse | DataInfoDatasetEntry)[];
-}
-
-/**
- * Object storing Info Element. 
- */
-export interface DataUpdateEntry {
-  dataset_name: string;
-  version: string;
-}
-
-/**
- * Object storing Info Element. 
- */
-export interface DataUpdateResponse {
-  versions: DataUpdateEntry[];
-}
-
-/**
- * Object storing Upload Response. 
- */
-export interface DataUploadResponse {
-  version_id: string;
-  region?: string;
-  storage_path?: string;
-  manifest_path?: string;
-}
-
-export type DatasetConfigInputBuckets = {[key: string]: BucketConfig};
-
-/**
- * Stores any dataset configs External Admins control 
- */
-export interface DatasetConfigInput {
-  buckets?: DatasetConfigInputBuckets;
-  default_bucket?: string;
-}
-
-export type DatasetConfigOutputBuckets = {[key: string]: BucketConfig};
-
-/**
- * Stores any dataset configs External Admins control 
- */
-export interface DatasetConfigOutput {
-  buckets?: DatasetConfigOutputBuckets;
-  default_bucket?: string;
 }
 
 /**
@@ -700,7 +429,7 @@ export interface EditResponse {
 }
 
 /**
- * Represents the types of statuses a pool can have. 
+ * Represents the types of statuses a pool can have.
  */
 export type PoolStatus = typeof PoolStatus[keyof typeof PoolStatus];
 
@@ -722,7 +451,7 @@ export interface PoolResourceCountable {
 }
 
 /**
- * Resources allocated to the pool, for schedulers that support this feature 
+ * Resources allocated to the pool, for schedulers that support this feature
  */
 export interface PoolResources {
   gpu?: PoolResourceCountable | null;
@@ -739,7 +468,7 @@ export interface TopologyKey {
 export type PlatformEditableDefaultVariables = { [key: string]: unknown };
 
 /**
- * Single Platform Entry 
+ * Single Platform Entry
  */
 export interface PlatformEditable {
   description?: string;
@@ -812,7 +541,7 @@ export interface GetConfigsHistoryResponse {
 }
 
 /**
- * Represents the status of a task group 
+ * Represents the status of a task group
  */
 export type TaskGroupStatus = typeof TaskGroupStatus[keyof typeof TaskGroupStatus];
 
@@ -841,7 +570,7 @@ export const TaskGroupStatus = {
 } as const;
 
 /**
- * Represents the queryed group information. 
+ * Represents the queryed group information.
  */
 export interface TaskQueryResponse {
   name: string;
@@ -869,7 +598,7 @@ export interface TaskQueryResponse {
 }
 
 /**
- * Represents the queryed task information. 
+ * Represents the queryed task information.
  */
 export interface GroupQueryResponse {
   name: string;
@@ -905,14 +634,14 @@ export interface JwtTokenResponse {
 }
 
 /**
- * Object storing info for all backends. 
+ * Object storing info for all backends.
  */
 export interface ListBackendsResponse {
   backends: Backend[];
 }
 
 /**
- * Represents the list order for the database. 
+ * Represents the list order for the database.
  */
 export type ListOrder = typeof ListOrder[keyof typeof ListOrder];
 
@@ -923,7 +652,7 @@ export const ListOrder = {
 } as const;
 
 /**
- * Entry for task list API results, aggregated by workflow. 
+ * Entry for task list API results, aggregated by workflow.
  */
 export interface ListTaskAggregatedEntry {
   user: string;
@@ -941,7 +670,7 @@ export interface ListTaskAggregatedResponse {
 }
 
 /**
- * Entry for task list API results. 
+ * Entry for task list API results.
  */
 export interface ListTaskEntry {
   user: string;
@@ -972,7 +701,7 @@ export interface ListTaskResponse {
 }
 
 /**
- * Entry for task list API results. 
+ * Entry for task list API results.
  */
 export interface ListTaskSummaryEntry {
   user: string;
@@ -989,14 +718,14 @@ export interface ListTaskSummaryResponse {
 }
 
 /**
- * Config for storing information about data. 
+ * Config for storing information about data.
  */
 export interface LogConfig {
   credential?: StaticDataCredential | DefaultDataCredential | null;
 }
 
 /**
- * Single Platform Entry 
+ * Single Platform Entry
  */
 export interface PlatformMinimal {
   description?: string;
@@ -1060,7 +789,7 @@ export const OperatorType = {
 } as const;
 
 /**
- * Authentication information for a Docker registry. 
+ * Authentication information for a Docker registry.
  */
 export interface RegistryCredential {
   /** The Docker registry URL */
@@ -1103,17 +832,6 @@ export interface PatchConfigRequest {
   configs_dict: PatchConfigRequestConfigsDict;
 }
 
-export type PatchDatasetRequestConfigsDict = { [key: string]: unknown };
-
-/**
- * Request body for patching a dataset bucket configuration with history tracking metadata.
- */
-export interface PatchDatasetRequest {
-  description?: string | null;
-  tags?: string[] | null;
-  configs_dict: PatchDatasetRequestConfigsDict;
-}
-
 export type PatchPoolRequestConfigsDict = { [key: string]: unknown };
 
 /**
@@ -1134,7 +852,7 @@ export type PlatformInputParsedPodTemplate = { [key: string]: unknown };
 export type PlatformInputParsedPodTemplateForAccounting = { [key: string]: unknown };
 
 /**
- * Single Toleration Entry 
+ * Single Toleration Entry
  */
 export interface Toleration {
   key: string;
@@ -1154,7 +872,7 @@ export interface ResourceAssertion {
 }
 
 /**
- * Single Platform Entry 
+ * Single Platform Entry
  */
 export interface PlatformInput {
   description?: string;
@@ -1181,7 +899,7 @@ export type PlatformOutputParsedPodTemplate = { [key: string]: unknown };
 export type PlatformOutputParsedPodTemplateForAccounting = { [key: string]: unknown };
 
 /**
- * Single Platform Entry 
+ * Single Platform Entry
  */
 export interface PlatformOutput {
   description?: string;
@@ -1200,7 +918,7 @@ export interface PlatformOutput {
 }
 
 /**
- * Stores a single allowed path for rsync 
+ * Stores a single allowed path for rsync
  */
 export interface RsyncAllowedPath {
   path: string;
@@ -1210,7 +928,7 @@ export interface RsyncAllowedPath {
 export type RsyncConfigAllowedPaths = {[key: string]: RsyncAllowedPath};
 
 /**
- * Stores all configs for rsync 
+ * Stores all configs for rsync
  */
 export interface RsyncConfig {
   enabled?: boolean;
@@ -1249,14 +967,14 @@ export interface RsyncConfig {
 }
 
 /**
- * Stores any plugins configs 
+ * Stores any plugins configs
  */
 export interface PluginsConfigInput {
   rsync?: RsyncConfig;
 }
 
 /**
- * Stores any plugins configs 
+ * Stores any plugins configs
  */
 export interface PluginsConfigOutput {
   rsync?: RsyncConfig;
@@ -1286,7 +1004,7 @@ export type PoolInputParsedGroupTemplatesItem = { [key: string]: unknown };
 export type PoolInputPlatforms = {[key: string]: PlatformInput};
 
 /**
- * Single Pool Entry 
+ * Single Pool Entry
  */
 export interface PoolInput {
   name?: string;
@@ -1328,7 +1046,7 @@ export type PoolOutputParsedGroupTemplatesItem = { [key: string]: unknown };
 export type PoolOutputPlatforms = {[key: string]: PlatformOutput};
 
 /**
- * Single Pool Entry 
+ * Single Pool Entry
  */
 export interface PoolOutput {
   name?: string;
@@ -1358,7 +1076,7 @@ export interface PoolOutput {
 }
 
 /**
- * Object storing resource usage information. 
+ * Object storing resource usage information.
  */
 export interface ResourceUsage {
   quota_used: string;
@@ -1374,7 +1092,7 @@ export type PoolResourceUsageDefaultExitActions = {[key: string]: string};
 export type PoolResourceUsagePlatforms = {[key: string]: PlatformMinimal};
 
 /**
- * Object storing pool information. 
+ * Object storing pool information.
  */
 export interface PoolResourceUsage {
   name?: string;
@@ -1396,7 +1114,7 @@ export interface PoolResourceUsage {
 }
 
 /**
- * Object storing pool node set information. 
+ * Object storing pool node set information.
  */
 export interface PoolNodeSetResourceUsage {
   pools: PoolResourceUsage[];
@@ -1407,7 +1125,7 @@ export type PoolResourcesEntryUsageFields = { [key: string]: unknown };
 export type PoolResourcesEntryAllocatableFields = { [key: string]: unknown };
 
 /**
- * Entry for resources API results. 
+ * Entry for resources API results.
  */
 export interface PoolResourcesEntry {
   pool: string;
@@ -1419,14 +1137,14 @@ export interface PoolResourcesEntry {
 }
 
 /**
- * Object storing execution cluster node resource information. 
+ * Object storing execution cluster node resource information.
  */
 export interface PoolResourcesResponse {
   pools: PoolResourcesEntry[];
 }
 
 /**
- * Object storing pool information. 
+ * Object storing pool information.
  */
 export interface PoolResponse {
   node_sets: PoolNodeSetResourceUsage[];
@@ -1443,18 +1161,17 @@ export interface PostBackendRequest {
 }
 
 /**
- * Provides all User Profile Information 
+ * Provides all User Profile Information
  */
 export interface UserProfile {
   username?: string | null;
   email_notification?: boolean | null;
   slack_notification?: boolean | null;
-  bucket?: string | null;
   pool?: string | null;
 }
 
 /**
- * Identity when the request is authenticated with an access token. 
+ * Identity when the request is authenticated with an access token.
  */
 export interface TokenIdentity {
   name: string;
@@ -1490,15 +1207,6 @@ export interface PutBackendTestsRequest {
   description?: string | null;
   tags?: string[] | null;
   configs: PutBackendTestsRequestConfigs;
-}
-
-/**
- * Request body for updating dataset configurations with history tracking metadata.
- */
-export interface PutDatasetRequest {
-  description?: string | null;
-  tags?: string[] | null;
-  configs: DatasetConfigInput;
 }
 
 export type PutGroupTemplateRequestConfigs = { [key: string]: unknown };
@@ -1664,7 +1372,7 @@ export interface PutRolesRequest {
 }
 
 /**
- * Stores any configs OSMO Admins control 
+ * Stores any configs OSMO Admins control
  */
 export interface ServiceConfigInput {
   service_base_url?: string;
@@ -1684,7 +1392,7 @@ export interface PutServiceRequest {
 }
 
 /**
- * Config for workflow storage info. 
+ * Config for workflow storage info.
  */
 export interface WorkflowInfo {
   tags?: string[];
@@ -1704,7 +1412,7 @@ export interface UserWorkflowLimitConfig {
 }
 
 /**
- * Stores any workflow configs External Admins control 
+ * Stores any workflow configs External Admins control
  */
 export interface WorkflowConfigInput {
   workflow_data?: DataConfig;
@@ -1783,7 +1491,7 @@ export type ResourcesEntryLabelFields = { [key: string]: unknown } | null;
 export type ResourcesEntryPoolPlatformLabels = {[key: string]: string[]};
 
 /**
- * Entry for resources API results. 
+ * Entry for resources API results.
  */
 export interface ResourcesEntry {
   hostname: string;
@@ -1804,7 +1512,7 @@ export interface ResourcesEntry {
 }
 
 /**
- * Object storing execution cluster node resource information. 
+ * Object storing execution cluster node resource information.
  */
 export interface ResourcesResponse {
   resources: ResourcesEntry[];
@@ -1850,7 +1558,7 @@ export interface RollbackConfigRequest {
 }
 
 /**
- * Router Information Response. 
+ * Router Information Response.
  */
 export interface RouterResponse {
   router_address: string;
@@ -1859,7 +1567,7 @@ export interface RouterResponse {
 }
 
 /**
- * Stores any configs OSMO Admins control 
+ * Stores any configs OSMO Admins control
  */
 export interface ServiceConfigOutput {
   service_base_url?: string;
@@ -1870,7 +1578,7 @@ export interface ServiceConfigOutput {
 }
 
 /**
- * Object storing workflow name, logs, and spec after submission. 
+ * Object storing workflow name, logs, and spec after submission.
  */
 export interface SubmitResponse {
   name: string;
@@ -1881,7 +1589,7 @@ export interface SubmitResponse {
 }
 
 /**
- * Entry for task GET API result. 
+ * Entry for task GET API result.
  */
 export interface TaskEntry {
   workflow_id: string;
@@ -1897,7 +1605,7 @@ export interface TaskEntry {
 }
 
 /**
- * Template Spec. 
+ * Template Spec.
  */
 export interface TemplateSpec {
   file: string;
@@ -1989,7 +1697,7 @@ export interface VerbosePoolConfig {
 }
 
 /**
- * A class to maintain version information. 
+ * A class to maintain version information.
  */
 export interface Version {
   major: string;
@@ -1999,7 +1707,7 @@ export interface Version {
 }
 
 /**
- * Stores any workflow configs External Admins control 
+ * Stores any workflow configs External Admins control
  */
 export interface WorkflowConfigOutput {
   workflow_data?: DataConfig;
@@ -2029,7 +1737,7 @@ export interface WorkflowConfigOutput {
 }
 
 /**
- * Represents the state of plugins in a workflow upon submission. 
+ * Represents the state of plugins in a workflow upon submission.
  */
 export interface WorkflowPlugins {
   rsync?: boolean;
@@ -2048,7 +1756,7 @@ export const WorkflowPriority = {
 } as const;
 
 /**
- * Represents the status of a workflow. 
+ * Represents the status of a workflow.
  */
 export type WorkflowStatus = typeof WorkflowStatus[keyof typeof WorkflowStatus];
 
@@ -2073,7 +1781,7 @@ export const WorkflowStatus = {
 } as const;
 
 /**
- * Represents the queryed workflow information. 
+ * Represents the queryed workflow information.
  */
 export interface WorkflowQueryResponse {
   name: string;
@@ -2124,7 +1832,7 @@ export interface SrcServiceCoreAppObjectsListResponse {
 }
 
 /**
- * Entry for list API results. 
+ * Entry for list API results.
  */
 export interface SrcServiceCoreWorkflowObjectsListEntry {
   user: string;
@@ -2160,12 +1868,6 @@ export type PatchServiceConfigsApiConfigsServicePatch200 = { [key: string]: unkn
 export type PutWorkflowConfigsApiConfigsWorkflowPut200 = { [key: string]: unknown };
 
 export type PatchWorkflowConfigsApiConfigsWorkflowPatch200 = { [key: string]: unknown };
-
-export type PutDatasetConfigsApiConfigsDatasetPut200 = { [key: string]: unknown };
-
-export type PatchDatasetConfigsApiConfigsDatasetPatch200 = { [key: string]: unknown };
-
-export type PatchDatasetApiConfigsDatasetNamePatch200 = { [key: string]: unknown };
 
 export type ListPoolsApiConfigsPoolGetParams = {
 verbose?: boolean;
@@ -2446,84 +2148,6 @@ priority?: WorkflowPriority;
 env_vars?: string[];
 };
 
-export type GetBucketInfoApiBucketGetParams = {
-default_only?: boolean;
-};
-
-export type UploadDatasetApiBucketBucketDatasetNamePostParams = {
-/**
- * @pattern ^([a-zA-Z0-9_-]*)$
- */
-tag?: string;
-description?: string;
-resume?: boolean;
-finish?: boolean;
-version_id?: string;
-checksum?: string;
-size?: number;
-update_dataset_size?: number;
-};
-
-export type DownloadApiBucketBucketDatasetNameGetParams = {
-tag?: string | null;
-};
-
-export type DeleteDatasetApiBucketBucketDatasetNameDeleteParams = {
-tag?: string | null;
-all_flag?: boolean;
-finish?: boolean;
-};
-
-export type MigrateDatasetApiBucketBucketDatasetNameMigratePostParams = {
-tag?: string | null;
-};
-
-export type ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams = {
-tag?: string | null;
-new_name?: string | null;
-set_tag?: string[];
-delete_tag?: string[];
-delete_label?: string[];
-delete_metadata?: string[];
-};
-
-export type GetInfoApiBucketBucketDatasetNameInfoGetParams = {
-tag?: string | null;
-all_flag?: boolean;
-count?: number;
-order?: ListOrder;
-};
-
-export type GetManifestApiBucketBucketDatasetNameManifestGetParams = {
-version: string;
-};
-
-export type GetFileContentApiBucketBucketDatasetNameFileContentGetParams = {
-storage_path: string;
-filename?: string | null;
-};
-
-export type GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams = {
-storage_path: string;
-filename?: string | null;
-};
-
-export type ListDatasetFromBucketApiBucketListDatasetGetParams = {
-name?: string | null;
-user?: string[] | null;
-buckets?: string[];
-dataset_type?: DatasetType | null;
-latest_before?: string | null;
-latest_after?: string | null;
-all_users?: boolean;
-order?: ListOrder;
-count?: number;
-};
-
-export type QueryDatasetApiBucketBucketQueryGetParams = {
-command?: string;
-};
-
 export type SetNotificationSettingsApiProfileSettingsPostParams = {
 set_default_backend?: boolean;
 };
@@ -2543,22 +2167,22 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 export const getReadServiceConfigsApiConfigsServiceGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/service`
 }
 
 export const readServiceConfigsApiConfigsServiceGet = async ( options?: RequestInit): Promise<ServiceConfigOutput> => {
-  
+
   return customFetch<ServiceConfigOutput>(getReadServiceConfigsApiConfigsServiceGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -2569,7 +2193,7 @@ export const getReadServiceConfigsApiConfigsServiceGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getReadServiceConfigsApiConfigsServiceGetQueryOptions = <TData = Awaited<ReturnType<typeof readServiceConfigsApiConfigsServiceGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readServiceConfigsApiConfigsServiceGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -2577,13 +2201,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadServiceConfigsApiConfigsServiceGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readServiceConfigsApiConfigsServiceGet>>> = ({ signal }) => readServiceConfigsApiConfigsServiceGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readServiceConfigsApiConfigsServiceGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -2622,7 +2246,7 @@ export function useReadServiceConfigsApiConfigsServiceGet<TData = Awaited<Return
 
 export function useReadServiceConfigsApiConfigsServiceGet<TData = Awaited<ReturnType<typeof readServiceConfigsApiConfigsServiceGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readServiceConfigsApiConfigsServiceGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadServiceConfigsApiConfigsServiceGetQueryOptions(options)
@@ -2654,15 +2278,15 @@ export const invalidateReadServiceConfigsApiConfigsServiceGet = async (
 export const getPutServiceConfigsApiConfigsServicePutUrl = () => {
 
 
-  
+
 
   return `/api/configs/service`
 }
 
 export const putServiceConfigsApiConfigsServicePut = async (putServiceRequest: PutServiceRequest, options?: RequestInit): Promise<PutServiceConfigsApiConfigsServicePut200> => {
-  
+
   return customFetch<PutServiceConfigsApiConfigsServicePut200>(getPutServiceConfigsApiConfigsServicePutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -2670,7 +2294,7 @@ export const putServiceConfigsApiConfigsServicePut = async (putServiceRequest: P
       putServiceRequest,)
   }
 );}
-  
+
 
 
 
@@ -2685,7 +2309,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putServiceConfigsApiConfigsServicePut>>, {data: PutServiceRequest}> = (props) => {
@@ -2696,7 +2320,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2718,7 +2342,7 @@ export const usePutServiceConfigsApiConfigsServicePut = <TError = HTTPValidation
       > => {
       return useMutation(getPutServiceConfigsApiConfigsServicePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Patch service configurations
  * @summary Patch Service Configs
@@ -2726,15 +2350,15 @@ export const usePutServiceConfigsApiConfigsServicePut = <TError = HTTPValidation
 export const getPatchServiceConfigsApiConfigsServicePatchUrl = () => {
 
 
-  
+
 
   return `/api/configs/service`
 }
 
 export const patchServiceConfigsApiConfigsServicePatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<PatchServiceConfigsApiConfigsServicePatch200> => {
-  
+
   return customFetch<PatchServiceConfigsApiConfigsServicePatch200>(getPatchServiceConfigsApiConfigsServicePatchUrl(),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -2742,7 +2366,7 @@ export const patchServiceConfigsApiConfigsServicePatch = async (patchConfigReque
       patchConfigRequest,)
   }
 );}
-  
+
 
 
 
@@ -2757,7 +2381,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchServiceConfigsApiConfigsServicePatch>>, {data: PatchConfigRequest}> = (props) => {
@@ -2768,7 +2392,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2790,7 +2414,7 @@ export const usePatchServiceConfigsApiConfigsServicePatch = <TError = HTTPValida
       > => {
       return useMutation(getPatchServiceConfigsApiConfigsServicePatchMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Read all the workflow configurations
  * @summary Read Workflow Configs
@@ -2798,22 +2422,22 @@ export const usePatchServiceConfigsApiConfigsServicePatch = <TError = HTTPValida
 export const getReadWorkflowConfigsApiConfigsWorkflowGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/workflow`
 }
 
 export const readWorkflowConfigsApiConfigsWorkflowGet = async ( options?: RequestInit): Promise<WorkflowConfigOutput> => {
-  
+
   return customFetch<WorkflowConfigOutput>(getReadWorkflowConfigsApiConfigsWorkflowGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -2824,7 +2448,7 @@ export const getReadWorkflowConfigsApiConfigsWorkflowGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getReadWorkflowConfigsApiConfigsWorkflowGetQueryOptions = <TData = Awaited<ReturnType<typeof readWorkflowConfigsApiConfigsWorkflowGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readWorkflowConfigsApiConfigsWorkflowGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -2832,13 +2456,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadWorkflowConfigsApiConfigsWorkflowGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readWorkflowConfigsApiConfigsWorkflowGet>>> = ({ signal }) => readWorkflowConfigsApiConfigsWorkflowGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readWorkflowConfigsApiConfigsWorkflowGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -2877,7 +2501,7 @@ export function useReadWorkflowConfigsApiConfigsWorkflowGet<TData = Awaited<Retu
 
 export function useReadWorkflowConfigsApiConfigsWorkflowGet<TData = Awaited<ReturnType<typeof readWorkflowConfigsApiConfigsWorkflowGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readWorkflowConfigsApiConfigsWorkflowGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadWorkflowConfigsApiConfigsWorkflowGetQueryOptions(options)
@@ -2909,15 +2533,15 @@ export const invalidateReadWorkflowConfigsApiConfigsWorkflowGet = async (
 export const getPutWorkflowConfigsApiConfigsWorkflowPutUrl = () => {
 
 
-  
+
 
   return `/api/configs/workflow`
 }
 
 export const putWorkflowConfigsApiConfigsWorkflowPut = async (putWorkflowRequest: PutWorkflowRequest, options?: RequestInit): Promise<PutWorkflowConfigsApiConfigsWorkflowPut200> => {
-  
+
   return customFetch<PutWorkflowConfigsApiConfigsWorkflowPut200>(getPutWorkflowConfigsApiConfigsWorkflowPutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -2925,7 +2549,7 @@ export const putWorkflowConfigsApiConfigsWorkflowPut = async (putWorkflowRequest
       putWorkflowRequest,)
   }
 );}
-  
+
 
 
 
@@ -2940,7 +2564,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putWorkflowConfigsApiConfigsWorkflowPut>>, {data: PutWorkflowRequest}> = (props) => {
@@ -2951,7 +2575,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2973,7 +2597,7 @@ export const usePutWorkflowConfigsApiConfigsWorkflowPut = <TError = HTTPValidati
       > => {
       return useMutation(getPutWorkflowConfigsApiConfigsWorkflowPutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Patch workflow configurations
  * @summary Patch Workflow Configs
@@ -2981,15 +2605,15 @@ export const usePutWorkflowConfigsApiConfigsWorkflowPut = <TError = HTTPValidati
 export const getPatchWorkflowConfigsApiConfigsWorkflowPatchUrl = () => {
 
 
-  
+
 
   return `/api/configs/workflow`
 }
 
 export const patchWorkflowConfigsApiConfigsWorkflowPatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<PatchWorkflowConfigsApiConfigsWorkflowPatch200> => {
-  
+
   return customFetch<PatchWorkflowConfigsApiConfigsWorkflowPatch200>(getPatchWorkflowConfigsApiConfigsWorkflowPatchUrl(),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -2997,7 +2621,7 @@ export const patchWorkflowConfigsApiConfigsWorkflowPatch = async (patchConfigReq
       patchConfigRequest,)
   }
 );}
-  
+
 
 
 
@@ -3012,7 +2636,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchWorkflowConfigsApiConfigsWorkflowPatch>>, {data: PatchConfigRequest}> = (props) => {
@@ -3023,7 +2647,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -3045,408 +2669,7 @@ export const usePatchWorkflowConfigsApiConfigsWorkflowPatch = <TError = HTTPVali
       > => {
       return useMutation(getPatchWorkflowConfigsApiConfigsWorkflowPatchMutationOptions(options), queryClient);
     }
-    
-/**
- * Read all the dataset configurations
- * @summary Read Dataset Configs
- */
-export const getReadDatasetConfigsApiConfigsDatasetGetUrl = () => {
 
-
-  
-
-  return `/api/configs/dataset`
-}
-
-export const readDatasetConfigsApiConfigsDatasetGet = async ( options?: RequestInit): Promise<DatasetConfigOutput> => {
-  
-  return customFetch<DatasetConfigOutput>(getReadDatasetConfigsApiConfigsDatasetGetUrl(),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getReadDatasetConfigsApiConfigsDatasetGetQueryKey = () => {
-    return [
-    `/api/configs/dataset`
-    ] as const;
-    }
-
-    
-export const getReadDatasetConfigsApiConfigsDatasetGetQueryOptions = <TData = Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getReadDatasetConfigsApiConfigsDatasetGetQueryKey();
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>> = ({ signal }) => readDatasetConfigsApiConfigsDatasetGet({ signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ReadDatasetConfigsApiConfigsDatasetGetQueryResult = NonNullable<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>>
-export type ReadDatasetConfigsApiConfigsDatasetGetQueryError = unknown
-
-
-export function useReadDatasetConfigsApiConfigsDatasetGet<TData = Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>,
-          TError,
-          Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useReadDatasetConfigsApiConfigsDatasetGet<TData = Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>,
-          TError,
-          Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useReadDatasetConfigsApiConfigsDatasetGet<TData = Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Read Dataset Configs
- */
-
-export function useReadDatasetConfigsApiConfigsDatasetGet<TData = Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readDatasetConfigsApiConfigsDatasetGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getReadDatasetConfigsApiConfigsDatasetGetQueryOptions(options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @summary Read Dataset Configs
- */
-export const invalidateReadDatasetConfigsApiConfigsDatasetGet = async (
- queryClient: QueryClient,  options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getReadDatasetConfigsApiConfigsDatasetGetQueryKey() }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * Put dataset configurations
- * @summary Put Dataset Configs
- */
-export const getPutDatasetConfigsApiConfigsDatasetPutUrl = () => {
-
-
-  
-
-  return `/api/configs/dataset`
-}
-
-export const putDatasetConfigsApiConfigsDatasetPut = async (putDatasetRequest: PutDatasetRequest, options?: RequestInit): Promise<PutDatasetConfigsApiConfigsDatasetPut200> => {
-  
-  return customFetch<PutDatasetConfigsApiConfigsDatasetPut200>(getPutDatasetConfigsApiConfigsDatasetPutUrl(),
-  {      
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      putDatasetRequest,)
-  }
-);}
-  
-
-
-
-export const getPutDatasetConfigsApiConfigsDatasetPutMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putDatasetConfigsApiConfigsDatasetPut>>, TError,{data: PutDatasetRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof putDatasetConfigsApiConfigsDatasetPut>>, TError,{data: PutDatasetRequest}, TContext> => {
-
-const mutationKey = ['putDatasetConfigsApiConfigsDatasetPut'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putDatasetConfigsApiConfigsDatasetPut>>, {data: PutDatasetRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  putDatasetConfigsApiConfigsDatasetPut(data,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PutDatasetConfigsApiConfigsDatasetPutMutationResult = NonNullable<Awaited<ReturnType<typeof putDatasetConfigsApiConfigsDatasetPut>>>
-    export type PutDatasetConfigsApiConfigsDatasetPutMutationBody = PutDatasetRequest
-    export type PutDatasetConfigsApiConfigsDatasetPutMutationError = HTTPValidationError
-
-    /**
- * @summary Put Dataset Configs
- */
-export const usePutDatasetConfigsApiConfigsDatasetPut = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putDatasetConfigsApiConfigsDatasetPut>>, TError,{data: PutDatasetRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof putDatasetConfigsApiConfigsDatasetPut>>,
-        TError,
-        {data: PutDatasetRequest},
-        TContext
-      > => {
-      return useMutation(getPutDatasetConfigsApiConfigsDatasetPutMutationOptions(options), queryClient);
-    }
-    
-/**
- * Patch dataset configurations
- * @summary Patch Dataset Configs
- */
-export const getPatchDatasetConfigsApiConfigsDatasetPatchUrl = () => {
-
-
-  
-
-  return `/api/configs/dataset`
-}
-
-export const patchDatasetConfigsApiConfigsDatasetPatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<PatchDatasetConfigsApiConfigsDatasetPatch200> => {
-  
-  return customFetch<PatchDatasetConfigsApiConfigsDatasetPatch200>(getPatchDatasetConfigsApiConfigsDatasetPatchUrl(),
-  {      
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      patchConfigRequest,)
-  }
-);}
-  
-
-
-
-export const getPatchDatasetConfigsApiConfigsDatasetPatchMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchDatasetConfigsApiConfigsDatasetPatch>>, TError,{data: PatchConfigRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof patchDatasetConfigsApiConfigsDatasetPatch>>, TError,{data: PatchConfigRequest}, TContext> => {
-
-const mutationKey = ['patchDatasetConfigsApiConfigsDatasetPatch'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchDatasetConfigsApiConfigsDatasetPatch>>, {data: PatchConfigRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  patchDatasetConfigsApiConfigsDatasetPatch(data,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PatchDatasetConfigsApiConfigsDatasetPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchDatasetConfigsApiConfigsDatasetPatch>>>
-    export type PatchDatasetConfigsApiConfigsDatasetPatchMutationBody = PatchConfigRequest
-    export type PatchDatasetConfigsApiConfigsDatasetPatchMutationError = HTTPValidationError
-
-    /**
- * @summary Patch Dataset Configs
- */
-export const usePatchDatasetConfigsApiConfigsDatasetPatch = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchDatasetConfigsApiConfigsDatasetPatch>>, TError,{data: PatchConfigRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof patchDatasetConfigsApiConfigsDatasetPatch>>,
-        TError,
-        {data: PatchConfigRequest},
-        TContext
-      > => {
-      return useMutation(getPatchDatasetConfigsApiConfigsDatasetPatchMutationOptions(options), queryClient);
-    }
-    
-/**
- * Patch dataset configuration for a specific bucket
- * @summary Patch Dataset
- */
-export const getPatchDatasetApiConfigsDatasetNamePatchUrl = (name: string,) => {
-
-
-  
-
-  return `/api/configs/dataset/${name}`
-}
-
-export const patchDatasetApiConfigsDatasetNamePatch = async (name: string,
-    patchDatasetRequest: PatchDatasetRequest, options?: RequestInit): Promise<PatchDatasetApiConfigsDatasetNamePatch200> => {
-  
-  return customFetch<PatchDatasetApiConfigsDatasetNamePatch200>(getPatchDatasetApiConfigsDatasetNamePatchUrl(name),
-  {      
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      patchDatasetRequest,)
-  }
-);}
-  
-
-
-
-export const getPatchDatasetApiConfigsDatasetNamePatchMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchDatasetApiConfigsDatasetNamePatch>>, TError,{name: string;data: PatchDatasetRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof patchDatasetApiConfigsDatasetNamePatch>>, TError,{name: string;data: PatchDatasetRequest}, TContext> => {
-
-const mutationKey = ['patchDatasetApiConfigsDatasetNamePatch'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchDatasetApiConfigsDatasetNamePatch>>, {name: string;data: PatchDatasetRequest}> = (props) => {
-          const {name,data} = props ?? {};
-
-          return  patchDatasetApiConfigsDatasetNamePatch(name,data,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PatchDatasetApiConfigsDatasetNamePatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchDatasetApiConfigsDatasetNamePatch>>>
-    export type PatchDatasetApiConfigsDatasetNamePatchMutationBody = PatchDatasetRequest
-    export type PatchDatasetApiConfigsDatasetNamePatchMutationError = HTTPValidationError
-
-    /**
- * @summary Patch Dataset
- */
-export const usePatchDatasetApiConfigsDatasetNamePatch = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchDatasetApiConfigsDatasetNamePatch>>, TError,{name: string;data: PatchDatasetRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof patchDatasetApiConfigsDatasetNamePatch>>,
-        TError,
-        {name: string;data: PatchDatasetRequest},
-        TContext
-      > => {
-      return useMutation(getPatchDatasetApiConfigsDatasetNamePatchMutationOptions(options), queryClient);
-    }
-    
-/**
- * Delete dataset configuration for a specific bucket
- * @summary Delete Dataset
- */
-export const getDeleteDatasetApiConfigsDatasetNameDeleteUrl = (name: string,) => {
-
-
-  
-
-  return `/api/configs/dataset/${name}`
-}
-
-export const deleteDatasetApiConfigsDatasetNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
-  
-  return customFetch<unknown>(getDeleteDatasetApiConfigsDatasetNameDeleteUrl(name),
-  {      
-    ...options,
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      configsRequest,)
-  }
-);}
-  
-
-
-
-export const getDeleteDatasetApiConfigsDatasetNameDeleteMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDatasetApiConfigsDatasetNameDelete>>, TError,{name: string;data: ConfigsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteDatasetApiConfigsDatasetNameDelete>>, TError,{name: string;data: ConfigsRequest}, TContext> => {
-
-const mutationKey = ['deleteDatasetApiConfigsDatasetNameDelete'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDatasetApiConfigsDatasetNameDelete>>, {name: string;data: ConfigsRequest}> = (props) => {
-          const {name,data} = props ?? {};
-
-          return  deleteDatasetApiConfigsDatasetNameDelete(name,data,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteDatasetApiConfigsDatasetNameDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDatasetApiConfigsDatasetNameDelete>>>
-    export type DeleteDatasetApiConfigsDatasetNameDeleteMutationBody = ConfigsRequest
-    export type DeleteDatasetApiConfigsDatasetNameDeleteMutationError = HTTPValidationError
-
-    /**
- * @summary Delete Dataset
- */
-export const useDeleteDatasetApiConfigsDatasetNameDelete = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDatasetApiConfigsDatasetNameDelete>>, TError,{name: string;data: ConfigsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteDatasetApiConfigsDatasetNameDelete>>,
-        TError,
-        {name: string;data: ConfigsRequest},
-        TContext
-      > => {
-      return useMutation(getDeleteDatasetApiConfigsDatasetNameDeleteMutationOptions(options), queryClient);
-    }
-    
 /**
  * List all backends.
  * @summary List Backends
@@ -3454,22 +2677,22 @@ export const useDeleteDatasetApiConfigsDatasetNameDelete = <TError = HTTPValidat
 export const getListBackendsApiConfigsBackendGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/backend`
 }
 
 export const listBackendsApiConfigsBackendGet = async ( options?: RequestInit): Promise<ListBackendsResponse> => {
-  
+
   return customFetch<ListBackendsResponse>(getListBackendsApiConfigsBackendGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -3480,7 +2703,7 @@ export const getListBackendsApiConfigsBackendGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getListBackendsApiConfigsBackendGetQueryOptions = <TData = Awaited<ReturnType<typeof listBackendsApiConfigsBackendGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBackendsApiConfigsBackendGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -3488,13 +2711,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListBackendsApiConfigsBackendGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listBackendsApiConfigsBackendGet>>> = ({ signal }) => listBackendsApiConfigsBackendGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBackendsApiConfigsBackendGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -3533,7 +2756,7 @@ export function useListBackendsApiConfigsBackendGet<TData = Awaited<ReturnType<t
 
 export function useListBackendsApiConfigsBackendGet<TData = Awaited<ReturnType<typeof listBackendsApiConfigsBackendGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBackendsApiConfigsBackendGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListBackendsApiConfigsBackendGetQueryOptions(options)
@@ -3565,16 +2788,16 @@ export const invalidateListBackendsApiConfigsBackendGet = async (
 export const getUpdateBackendApiConfigsBackendNamePostUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/backend/${name}`
 }
 
 export const updateBackendApiConfigsBackendNamePost = async (name: string,
     postBackendRequest: PostBackendRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getUpdateBackendApiConfigsBackendNamePostUrl(name),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -3582,7 +2805,7 @@ export const updateBackendApiConfigsBackendNamePost = async (name: string,
       postBackendRequest,)
   }
 );}
-  
+
 
 
 
@@ -3597,7 +2820,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBackendApiConfigsBackendNamePost>>, {name: string;data: PostBackendRequest}> = (props) => {
@@ -3608,7 +2831,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -3630,7 +2853,7 @@ export const useUpdateBackendApiConfigsBackendNamePost = <TError = HTTPValidatio
       > => {
       return useMutation(getUpdateBackendApiConfigsBackendNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Get info for a specific backend.
  * @summary Get Backend
@@ -3638,22 +2861,22 @@ export const useUpdateBackendApiConfigsBackendNamePost = <TError = HTTPValidatio
 export const getGetBackendApiConfigsBackendNameGetUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/backend/${name}`
 }
 
 export const getBackendApiConfigsBackendNameGet = async (name: string, options?: RequestInit): Promise<Backend> => {
-  
+
   return customFetch<Backend>(getGetBackendApiConfigsBackendNameGetUrl(name),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -3664,7 +2887,7 @@ export const getGetBackendApiConfigsBackendNameGetQueryKey = (name: string,) => 
     ] as const;
     }
 
-    
+
 export const getGetBackendApiConfigsBackendNameGetQueryOptions = <TData = Awaited<ReturnType<typeof getBackendApiConfigsBackendNameGet>>, TError = HTTPValidationError>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBackendApiConfigsBackendNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -3672,13 +2895,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetBackendApiConfigsBackendNameGetQueryKey(name);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getBackendApiConfigsBackendNameGet>>> = ({ signal }) => getBackendApiConfigsBackendNameGet(name, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBackendApiConfigsBackendNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -3717,7 +2940,7 @@ export function useGetBackendApiConfigsBackendNameGet<TData = Awaited<ReturnType
 
 export function useGetBackendApiConfigsBackendNameGet<TData = Awaited<ReturnType<typeof getBackendApiConfigsBackendNameGet>>, TError = HTTPValidationError>(
  name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBackendApiConfigsBackendNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetBackendApiConfigsBackendNameGetQueryOptions(name,options)
@@ -3749,16 +2972,16 @@ export const invalidateGetBackendApiConfigsBackendNameGet = async (
 export const getDeleteBackendApiConfigsBackendNameDeleteUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/backend/${name}`
 }
 
 export const deleteBackendApiConfigsBackendNameDelete = async (name: string,
     deleteBackendRequest: DeleteBackendRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteBackendApiConfigsBackendNameDeleteUrl(name),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -3766,7 +2989,7 @@ export const deleteBackendApiConfigsBackendNameDelete = async (name: string,
       deleteBackendRequest,)
   }
 );}
-  
+
 
 
 
@@ -3781,7 +3004,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteBackendApiConfigsBackendNameDelete>>, {name: string;data: DeleteBackendRequest}> = (props) => {
@@ -3792,7 +3015,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -3814,7 +3037,7 @@ export const useDeleteBackendApiConfigsBackendNameDelete = <TError = HTTPValidat
       > => {
       return useMutation(getDeleteBackendApiConfigsBackendNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all Pools
  * @summary List Pools
@@ -3823,7 +3046,7 @@ export const getListPoolsApiConfigsPoolGetUrl = (params?: ListPoolsApiConfigsPoo
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -3835,16 +3058,16 @@ export const getListPoolsApiConfigsPoolGetUrl = (params?: ListPoolsApiConfigsPoo
 }
 
 export const listPoolsApiConfigsPoolGet = async (params?: ListPoolsApiConfigsPoolGetParams, options?: RequestInit): Promise<VerbosePoolConfig | EditablePoolConfig> => {
-  
+
   return customFetch<VerbosePoolConfig | EditablePoolConfig>(getListPoolsApiConfigsPoolGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -3855,7 +3078,7 @@ export const getListPoolsApiConfigsPoolGetQueryKey = (params?: ListPoolsApiConfi
     ] as const;
     }
 
-    
+
 export const getListPoolsApiConfigsPoolGetQueryOptions = <TData = Awaited<ReturnType<typeof listPoolsApiConfigsPoolGet>>, TError = HTTPValidationError>(params?: ListPoolsApiConfigsPoolGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPoolsApiConfigsPoolGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -3863,13 +3086,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListPoolsApiConfigsPoolGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listPoolsApiConfigsPoolGet>>> = ({ signal }) => listPoolsApiConfigsPoolGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPoolsApiConfigsPoolGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -3908,7 +3131,7 @@ export function useListPoolsApiConfigsPoolGet<TData = Awaited<ReturnType<typeof 
 
 export function useListPoolsApiConfigsPoolGet<TData = Awaited<ReturnType<typeof listPoolsApiConfigsPoolGet>>, TError = HTTPValidationError>(
  params?: ListPoolsApiConfigsPoolGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPoolsApiConfigsPoolGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListPoolsApiConfigsPoolGetQueryOptions(params,options)
@@ -3940,15 +3163,15 @@ export const invalidateListPoolsApiConfigsPoolGet = async (
 export const getPutPoolsApiConfigsPoolPutUrl = () => {
 
 
-  
+
 
   return `/api/configs/pool`
 }
 
 export const putPoolsApiConfigsPoolPut = async (putPoolsRequest: PutPoolsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutPoolsApiConfigsPoolPutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -3956,7 +3179,7 @@ export const putPoolsApiConfigsPoolPut = async (putPoolsRequest: PutPoolsRequest
       putPoolsRequest,)
   }
 );}
-  
+
 
 
 
@@ -3971,7 +3194,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putPoolsApiConfigsPoolPut>>, {data: PutPoolsRequest}> = (props) => {
@@ -3982,7 +3205,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -4004,7 +3227,7 @@ export const usePutPoolsApiConfigsPoolPut = <TError = HTTPValidationError,
       > => {
       return useMutation(getPutPoolsApiConfigsPoolPutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Read Pool configuration
 
@@ -4017,7 +3240,7 @@ export const getReadPoolApiConfigsPoolNameGetUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -4030,16 +3253,16 @@ export const getReadPoolApiConfigsPoolNameGetUrl = (name: string,
 
 export const readPoolApiConfigsPoolNameGet = async (name: string,
     params?: ReadPoolApiConfigsPoolNameGetParams, options?: RequestInit): Promise<PoolOutput | PoolEditable> => {
-  
+
   return customFetch<PoolOutput | PoolEditable>(getReadPoolApiConfigsPoolNameGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -4051,7 +3274,7 @@ export const getReadPoolApiConfigsPoolNameGetQueryKey = (name: string,
     ] as const;
     }
 
-    
+
 export const getReadPoolApiConfigsPoolNameGetQueryOptions = <TData = Awaited<ReturnType<typeof readPoolApiConfigsPoolNameGet>>, TError = HTTPValidationError>(name: string,
     params?: ReadPoolApiConfigsPoolNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readPoolApiConfigsPoolNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -4060,13 +3283,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadPoolApiConfigsPoolNameGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readPoolApiConfigsPoolNameGet>>> = ({ signal }) => readPoolApiConfigsPoolNameGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readPoolApiConfigsPoolNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -4109,7 +3332,7 @@ export function useReadPoolApiConfigsPoolNameGet<TData = Awaited<ReturnType<type
 export function useReadPoolApiConfigsPoolNameGet<TData = Awaited<ReturnType<typeof readPoolApiConfigsPoolNameGet>>, TError = HTTPValidationError>(
  name: string,
     params?: ReadPoolApiConfigsPoolNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readPoolApiConfigsPoolNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadPoolApiConfigsPoolNameGetQueryOptions(name,params,options)
@@ -4142,16 +3365,16 @@ export const invalidateReadPoolApiConfigsPoolNameGet = async (
 export const getPutPoolApiConfigsPoolNamePutUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/pool/${name}`
 }
 
 export const putPoolApiConfigsPoolNamePut = async (name: string,
     putPoolRequest: PutPoolRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutPoolApiConfigsPoolNamePutUrl(name),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -4159,7 +3382,7 @@ export const putPoolApiConfigsPoolNamePut = async (name: string,
       putPoolRequest,)
   }
 );}
-  
+
 
 
 
@@ -4174,7 +3397,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putPoolApiConfigsPoolNamePut>>, {name: string;data: PutPoolRequest}> = (props) => {
@@ -4185,7 +3408,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -4207,7 +3430,7 @@ export const usePutPoolApiConfigsPoolNamePut = <TError = HTTPValidationError,
       > => {
       return useMutation(getPutPoolApiConfigsPoolNamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Patch Pool configurations
  * @summary Patch Pool
@@ -4215,16 +3438,16 @@ export const usePutPoolApiConfigsPoolNamePut = <TError = HTTPValidationError,
 export const getPatchPoolApiConfigsPoolNamePatchUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/pool/${name}`
 }
 
 export const patchPoolApiConfigsPoolNamePatch = async (name: string,
     patchPoolRequest: PatchPoolRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPatchPoolApiConfigsPoolNamePatchUrl(name),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -4232,7 +3455,7 @@ export const patchPoolApiConfigsPoolNamePatch = async (name: string,
       patchPoolRequest,)
   }
 );}
-  
+
 
 
 
@@ -4247,7 +3470,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchPoolApiConfigsPoolNamePatch>>, {name: string;data: PatchPoolRequest}> = (props) => {
@@ -4258,7 +3481,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -4280,7 +3503,7 @@ export const usePatchPoolApiConfigsPoolNamePatch = <TError = HTTPValidationError
       > => {
       return useMutation(getPatchPoolApiConfigsPoolNamePatchMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete Pool configurations
  * @summary Delete Pool
@@ -4288,16 +3511,16 @@ export const usePatchPoolApiConfigsPoolNamePatch = <TError = HTTPValidationError
 export const getDeletePoolApiConfigsPoolNameDeleteUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/pool/${name}`
 }
 
 export const deletePoolApiConfigsPoolNameDelete = async (name: string,
     configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeletePoolApiConfigsPoolNameDeleteUrl(name),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -4305,7 +3528,7 @@ export const deletePoolApiConfigsPoolNameDelete = async (name: string,
       configsRequest,)
   }
 );}
-  
+
 
 
 
@@ -4320,7 +3543,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePoolApiConfigsPoolNameDelete>>, {name: string;data: ConfigsRequest}> = (props) => {
@@ -4331,7 +3554,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -4353,7 +3576,7 @@ export const useDeletePoolApiConfigsPoolNameDelete = <TError = HTTPValidationErr
       > => {
       return useMutation(getDeletePoolApiConfigsPoolNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Rename Pool
  * @summary Rename Pool
@@ -4361,16 +3584,16 @@ export const useDeletePoolApiConfigsPoolNameDelete = <TError = HTTPValidationErr
 export const getRenamePoolApiConfigsPoolNameRenamePutUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/pool/${name}/rename`
 }
 
 export const renamePoolApiConfigsPoolNameRenamePut = async (name: string,
     renamePoolRequest: RenamePoolRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getRenamePoolApiConfigsPoolNameRenamePutUrl(name),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -4378,7 +3601,7 @@ export const renamePoolApiConfigsPoolNameRenamePut = async (name: string,
       renamePoolRequest,)
   }
 );}
-  
+
 
 
 
@@ -4393,7 +3616,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof renamePoolApiConfigsPoolNameRenamePut>>, {name: string;data: RenamePoolRequest}> = (props) => {
@@ -4404,7 +3627,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -4426,7 +3649,7 @@ export const useRenamePoolApiConfigsPoolNameRenamePut = <TError = HTTPValidation
       > => {
       return useMutation(getRenamePoolApiConfigsPoolNameRenamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all Platforms
  * @summary List Platforms In Pool
@@ -4436,7 +3659,7 @@ export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl = (name: str
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -4449,16 +3672,16 @@ export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl = (name: str
 
 export const listPlatformsInPoolApiConfigsPoolNamePlatformGet = async (name: string,
     params?: ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams, options?: RequestInit): Promise<ListPlatformsInPoolApiConfigsPoolNamePlatformGet200> => {
-  
+
   return customFetch<ListPlatformsInPoolApiConfigsPoolNamePlatformGet200>(getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -4470,7 +3693,7 @@ export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetQueryKey = (name
     ] as const;
     }
 
-    
+
 export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformsInPoolApiConfigsPoolNamePlatformGet>>, TError = HTTPValidationError>(name: string,
     params?: ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformsInPoolApiConfigsPoolNamePlatformGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -4479,13 +3702,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListPlatformsInPoolApiConfigsPoolNamePlatformGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformsInPoolApiConfigsPoolNamePlatformGet>>> = ({ signal }) => listPlatformsInPoolApiConfigsPoolNamePlatformGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformsInPoolApiConfigsPoolNamePlatformGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -4528,7 +3751,7 @@ export function useListPlatformsInPoolApiConfigsPoolNamePlatformGet<TData = Awai
 export function useListPlatformsInPoolApiConfigsPoolNamePlatformGet<TData = Awaited<ReturnType<typeof listPlatformsInPoolApiConfigsPoolNamePlatformGet>>, TError = HTTPValidationError>(
  name: string,
     params?: ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformsInPoolApiConfigsPoolNamePlatformGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListPlatformsInPoolApiConfigsPoolNamePlatformGetQueryOptions(name,params,options)
@@ -4564,7 +3787,7 @@ export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl =
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -4578,16 +3801,16 @@ export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl =
 export const readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet = async (name: string,
     platformName: string,
     params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: RequestInit): Promise<PlatformMinimal | PlatformEditable | PlatformOutput> => {
-  
+
   return customFetch<PlatformMinimal | PlatformEditable | PlatformOutput>(getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl(name,platformName,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -4600,7 +3823,7 @@ export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetQuery
     ] as const;
     }
 
-    
+
 export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetQueryOptions = <TData = Awaited<ReturnType<typeof readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet>>, TError = HTTPValidationError>(name: string,
     platformName: string,
     params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
@@ -4610,13 +3833,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetQueryKey(name,platformName,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet>>> = ({ signal }) => readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet(name,platformName,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name && platformName), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -4663,7 +3886,7 @@ export function useReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet<T
  name: string,
     platformName: string,
     params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetQueryOptions(name,platformName,params,options)
@@ -4698,7 +3921,7 @@ export const getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutUrl = 
     platformName: string,) => {
 
 
-  
+
 
   return `/api/configs/pool/${name}/platform/${platformName}`
 }
@@ -4706,9 +3929,9 @@ export const getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutUrl = 
 export const putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePut = async (name: string,
     platformName: string,
     putPoolPlatformRequest: PutPoolPlatformRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutUrl(name,platformName),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -4716,7 +3939,7 @@ export const putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePut = async 
       putPoolPlatformRequest,)
   }
 );}
-  
+
 
 
 
@@ -4731,7 +3954,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePut>>, {name: string;platformName: string;data: PutPoolPlatformRequest}> = (props) => {
@@ -4742,7 +3965,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -4764,7 +3987,7 @@ export const usePutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePut = <TE
       > => {
       return useMutation(getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Rename Platform
  * @summary Rename Platform In Pool
@@ -4773,7 +3996,7 @@ export const getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRename
     platformName: string,) => {
 
 
-  
+
 
   return `/api/configs/pool/${name}/platform/${platformName}/rename`
 }
@@ -4781,9 +4004,9 @@ export const getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRename
 export const renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePut = async (name: string,
     platformName: string,
     renamePoolPlatformRequest: RenamePoolPlatformRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutUrl(name,platformName),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -4791,7 +4014,7 @@ export const renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePut
       renamePoolPlatformRequest,)
   }
 );}
-  
+
 
 
 
@@ -4806,7 +4029,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePut>>, {name: string;platformName: string;data: RenamePoolPlatformRequest}> = (props) => {
@@ -4817,7 +4040,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -4839,7 +4062,7 @@ export const useRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRename
       > => {
       return useMutation(getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all Pod Template configurations
  * @summary List Pod Templates
@@ -4847,22 +4070,22 @@ export const useRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRename
 export const getListPodTemplatesApiConfigsPodTemplateGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/pod_template`
 }
 
 export const listPodTemplatesApiConfigsPodTemplateGet = async ( options?: RequestInit): Promise<ListPodTemplatesApiConfigsPodTemplateGet200> => {
-  
+
   return customFetch<ListPodTemplatesApiConfigsPodTemplateGet200>(getListPodTemplatesApiConfigsPodTemplateGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -4873,7 +4096,7 @@ export const getListPodTemplatesApiConfigsPodTemplateGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getListPodTemplatesApiConfigsPodTemplateGetQueryOptions = <TData = Awaited<ReturnType<typeof listPodTemplatesApiConfigsPodTemplateGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPodTemplatesApiConfigsPodTemplateGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -4881,13 +4104,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListPodTemplatesApiConfigsPodTemplateGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listPodTemplatesApiConfigsPodTemplateGet>>> = ({ signal }) => listPodTemplatesApiConfigsPodTemplateGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPodTemplatesApiConfigsPodTemplateGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -4926,7 +4149,7 @@ export function useListPodTemplatesApiConfigsPodTemplateGet<TData = Awaited<Retu
 
 export function useListPodTemplatesApiConfigsPodTemplateGet<TData = Awaited<ReturnType<typeof listPodTemplatesApiConfigsPodTemplateGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPodTemplatesApiConfigsPodTemplateGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListPodTemplatesApiConfigsPodTemplateGetQueryOptions(options)
@@ -4958,15 +4181,15 @@ export const invalidateListPodTemplatesApiConfigsPodTemplateGet = async (
 export const getPutPodTemplatesApiConfigsPodTemplatePutUrl = () => {
 
 
-  
+
 
   return `/api/configs/pod_template`
 }
 
 export const putPodTemplatesApiConfigsPodTemplatePut = async (putPodTemplatesRequest: PutPodTemplatesRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutPodTemplatesApiConfigsPodTemplatePutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -4974,7 +4197,7 @@ export const putPodTemplatesApiConfigsPodTemplatePut = async (putPodTemplatesReq
       putPodTemplatesRequest,)
   }
 );}
-  
+
 
 
 
@@ -4989,7 +4212,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putPodTemplatesApiConfigsPodTemplatePut>>, {data: PutPodTemplatesRequest}> = (props) => {
@@ -5000,7 +4223,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -5022,7 +4245,7 @@ export const usePutPodTemplatesApiConfigsPodTemplatePut = <TError = HTTPValidati
       > => {
       return useMutation(getPutPodTemplatesApiConfigsPodTemplatePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Read Pod Template configurations
  * @summary Read Pod Template
@@ -5030,22 +4253,22 @@ export const usePutPodTemplatesApiConfigsPodTemplatePut = <TError = HTTPValidati
 export const getReadPodTemplateApiConfigsPodTemplateNameGetUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/pod_template/${name}`
 }
 
 export const readPodTemplateApiConfigsPodTemplateNameGet = async (name: string, options?: RequestInit): Promise<ReadPodTemplateApiConfigsPodTemplateNameGet200> => {
-  
+
   return customFetch<ReadPodTemplateApiConfigsPodTemplateNameGet200>(getReadPodTemplateApiConfigsPodTemplateNameGetUrl(name),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -5056,7 +4279,7 @@ export const getReadPodTemplateApiConfigsPodTemplateNameGetQueryKey = (name: str
     ] as const;
     }
 
-    
+
 export const getReadPodTemplateApiConfigsPodTemplateNameGetQueryOptions = <TData = Awaited<ReturnType<typeof readPodTemplateApiConfigsPodTemplateNameGet>>, TError = HTTPValidationError>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readPodTemplateApiConfigsPodTemplateNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -5064,13 +4287,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadPodTemplateApiConfigsPodTemplateNameGetQueryKey(name);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readPodTemplateApiConfigsPodTemplateNameGet>>> = ({ signal }) => readPodTemplateApiConfigsPodTemplateNameGet(name, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readPodTemplateApiConfigsPodTemplateNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -5109,7 +4332,7 @@ export function useReadPodTemplateApiConfigsPodTemplateNameGet<TData = Awaited<R
 
 export function useReadPodTemplateApiConfigsPodTemplateNameGet<TData = Awaited<ReturnType<typeof readPodTemplateApiConfigsPodTemplateNameGet>>, TError = HTTPValidationError>(
  name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readPodTemplateApiConfigsPodTemplateNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadPodTemplateApiConfigsPodTemplateNameGetQueryOptions(name,options)
@@ -5141,16 +4364,16 @@ export const invalidateReadPodTemplateApiConfigsPodTemplateNameGet = async (
 export const getPutPodTemplateApiConfigsPodTemplateNamePutUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/pod_template/${name}`
 }
 
 export const putPodTemplateApiConfigsPodTemplateNamePut = async (name: string,
     putPodTemplateRequest: PutPodTemplateRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutPodTemplateApiConfigsPodTemplateNamePutUrl(name),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -5158,7 +4381,7 @@ export const putPodTemplateApiConfigsPodTemplateNamePut = async (name: string,
       putPodTemplateRequest,)
   }
 );}
-  
+
 
 
 
@@ -5173,7 +4396,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putPodTemplateApiConfigsPodTemplateNamePut>>, {name: string;data: PutPodTemplateRequest}> = (props) => {
@@ -5184,7 +4407,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -5206,7 +4429,7 @@ export const usePutPodTemplateApiConfigsPodTemplateNamePut = <TError = HTTPValid
       > => {
       return useMutation(getPutPodTemplateApiConfigsPodTemplateNamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete Pod Template configurations
  * @summary Delete Pod Template
@@ -5214,16 +4437,16 @@ export const usePutPodTemplateApiConfigsPodTemplateNamePut = <TError = HTTPValid
 export const getDeletePodTemplateApiConfigsPodTemplateNameDeleteUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/pod_template/${name}`
 }
 
 export const deletePodTemplateApiConfigsPodTemplateNameDelete = async (name: string,
     configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeletePodTemplateApiConfigsPodTemplateNameDeleteUrl(name),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -5231,7 +4454,7 @@ export const deletePodTemplateApiConfigsPodTemplateNameDelete = async (name: str
       configsRequest,)
   }
 );}
-  
+
 
 
 
@@ -5246,7 +4469,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePodTemplateApiConfigsPodTemplateNameDelete>>, {name: string;data: ConfigsRequest}> = (props) => {
@@ -5257,7 +4480,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -5279,7 +4502,7 @@ export const useDeletePodTemplateApiConfigsPodTemplateNameDelete = <TError = HTT
       > => {
       return useMutation(getDeletePodTemplateApiConfigsPodTemplateNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all Group Template configurations
  * @summary List Group Templates
@@ -5287,22 +4510,22 @@ export const useDeletePodTemplateApiConfigsPodTemplateNameDelete = <TError = HTT
 export const getListGroupTemplatesApiConfigsGroupTemplateGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/group_template`
 }
 
 export const listGroupTemplatesApiConfigsGroupTemplateGet = async ( options?: RequestInit): Promise<ListGroupTemplatesApiConfigsGroupTemplateGet200> => {
-  
+
   return customFetch<ListGroupTemplatesApiConfigsGroupTemplateGet200>(getListGroupTemplatesApiConfigsGroupTemplateGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -5313,7 +4536,7 @@ export const getListGroupTemplatesApiConfigsGroupTemplateGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getListGroupTemplatesApiConfigsGroupTemplateGetQueryOptions = <TData = Awaited<ReturnType<typeof listGroupTemplatesApiConfigsGroupTemplateGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listGroupTemplatesApiConfigsGroupTemplateGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -5321,13 +4544,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListGroupTemplatesApiConfigsGroupTemplateGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listGroupTemplatesApiConfigsGroupTemplateGet>>> = ({ signal }) => listGroupTemplatesApiConfigsGroupTemplateGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGroupTemplatesApiConfigsGroupTemplateGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -5366,7 +4589,7 @@ export function useListGroupTemplatesApiConfigsGroupTemplateGet<TData = Awaited<
 
 export function useListGroupTemplatesApiConfigsGroupTemplateGet<TData = Awaited<ReturnType<typeof listGroupTemplatesApiConfigsGroupTemplateGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listGroupTemplatesApiConfigsGroupTemplateGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListGroupTemplatesApiConfigsGroupTemplateGetQueryOptions(options)
@@ -5398,15 +4621,15 @@ export const invalidateListGroupTemplatesApiConfigsGroupTemplateGet = async (
 export const getPutGroupTemplatesApiConfigsGroupTemplatePutUrl = () => {
 
 
-  
+
 
   return `/api/configs/group_template`
 }
 
 export const putGroupTemplatesApiConfigsGroupTemplatePut = async (putGroupTemplatesRequest: PutGroupTemplatesRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutGroupTemplatesApiConfigsGroupTemplatePutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -5414,7 +4637,7 @@ export const putGroupTemplatesApiConfigsGroupTemplatePut = async (putGroupTempla
       putGroupTemplatesRequest,)
   }
 );}
-  
+
 
 
 
@@ -5429,7 +4652,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putGroupTemplatesApiConfigsGroupTemplatePut>>, {data: PutGroupTemplatesRequest}> = (props) => {
@@ -5440,7 +4663,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -5462,7 +4685,7 @@ export const usePutGroupTemplatesApiConfigsGroupTemplatePut = <TError = HTTPVali
       > => {
       return useMutation(getPutGroupTemplatesApiConfigsGroupTemplatePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Read Group Template configurations
  * @summary Read Group Template
@@ -5470,22 +4693,22 @@ export const usePutGroupTemplatesApiConfigsGroupTemplatePut = <TError = HTTPVali
 export const getReadGroupTemplateApiConfigsGroupTemplateNameGetUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/group_template/${name}`
 }
 
 export const readGroupTemplateApiConfigsGroupTemplateNameGet = async (name: string, options?: RequestInit): Promise<ReadGroupTemplateApiConfigsGroupTemplateNameGet200> => {
-  
+
   return customFetch<ReadGroupTemplateApiConfigsGroupTemplateNameGet200>(getReadGroupTemplateApiConfigsGroupTemplateNameGetUrl(name),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -5496,7 +4719,7 @@ export const getReadGroupTemplateApiConfigsGroupTemplateNameGetQueryKey = (name:
     ] as const;
     }
 
-    
+
 export const getReadGroupTemplateApiConfigsGroupTemplateNameGetQueryOptions = <TData = Awaited<ReturnType<typeof readGroupTemplateApiConfigsGroupTemplateNameGet>>, TError = HTTPValidationError>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readGroupTemplateApiConfigsGroupTemplateNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -5504,13 +4727,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadGroupTemplateApiConfigsGroupTemplateNameGetQueryKey(name);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readGroupTemplateApiConfigsGroupTemplateNameGet>>> = ({ signal }) => readGroupTemplateApiConfigsGroupTemplateNameGet(name, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readGroupTemplateApiConfigsGroupTemplateNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -5549,7 +4772,7 @@ export function useReadGroupTemplateApiConfigsGroupTemplateNameGet<TData = Await
 
 export function useReadGroupTemplateApiConfigsGroupTemplateNameGet<TData = Awaited<ReturnType<typeof readGroupTemplateApiConfigsGroupTemplateNameGet>>, TError = HTTPValidationError>(
  name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readGroupTemplateApiConfigsGroupTemplateNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadGroupTemplateApiConfigsGroupTemplateNameGetQueryOptions(name,options)
@@ -5581,16 +4804,16 @@ export const invalidateReadGroupTemplateApiConfigsGroupTemplateNameGet = async (
 export const getPutGroupTemplateApiConfigsGroupTemplateNamePutUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/group_template/${name}`
 }
 
 export const putGroupTemplateApiConfigsGroupTemplateNamePut = async (name: string,
     putGroupTemplateRequest: PutGroupTemplateRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutGroupTemplateApiConfigsGroupTemplateNamePutUrl(name),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -5598,7 +4821,7 @@ export const putGroupTemplateApiConfigsGroupTemplateNamePut = async (name: strin
       putGroupTemplateRequest,)
   }
 );}
-  
+
 
 
 
@@ -5613,7 +4836,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putGroupTemplateApiConfigsGroupTemplateNamePut>>, {name: string;data: PutGroupTemplateRequest}> = (props) => {
@@ -5624,7 +4847,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -5646,7 +4869,7 @@ export const usePutGroupTemplateApiConfigsGroupTemplateNamePut = <TError = HTTPV
       > => {
       return useMutation(getPutGroupTemplateApiConfigsGroupTemplateNamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete Group Template configurations
  * @summary Delete Group Template
@@ -5654,16 +4877,16 @@ export const usePutGroupTemplateApiConfigsGroupTemplateNamePut = <TError = HTTPV
 export const getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/group_template/${name}`
 }
 
 export const deleteGroupTemplateApiConfigsGroupTemplateNameDelete = async (name: string,
     configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteUrl(name),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -5671,7 +4894,7 @@ export const deleteGroupTemplateApiConfigsGroupTemplateNameDelete = async (name:
       configsRequest,)
   }
 );}
-  
+
 
 
 
@@ -5686,7 +4909,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGroupTemplateApiConfigsGroupTemplateNameDelete>>, {name: string;data: ConfigsRequest}> = (props) => {
@@ -5697,7 +4920,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -5719,7 +4942,7 @@ export const useDeleteGroupTemplateApiConfigsGroupTemplateNameDelete = <TError =
       > => {
       return useMutation(getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all Resource Validation configurations
  * @summary List Resource Validations
@@ -5727,22 +4950,22 @@ export const useDeleteGroupTemplateApiConfigsGroupTemplateNameDelete = <TError =
 export const getListResourceValidationsApiConfigsResourceValidationGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/resource_validation`
 }
 
 export const listResourceValidationsApiConfigsResourceValidationGet = async ( options?: RequestInit): Promise<ListResourceValidationsApiConfigsResourceValidationGet200> => {
-  
+
   return customFetch<ListResourceValidationsApiConfigsResourceValidationGet200>(getListResourceValidationsApiConfigsResourceValidationGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -5753,7 +4976,7 @@ export const getListResourceValidationsApiConfigsResourceValidationGetQueryKey =
     ] as const;
     }
 
-    
+
 export const getListResourceValidationsApiConfigsResourceValidationGetQueryOptions = <TData = Awaited<ReturnType<typeof listResourceValidationsApiConfigsResourceValidationGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listResourceValidationsApiConfigsResourceValidationGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -5761,13 +4984,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListResourceValidationsApiConfigsResourceValidationGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listResourceValidationsApiConfigsResourceValidationGet>>> = ({ signal }) => listResourceValidationsApiConfigsResourceValidationGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listResourceValidationsApiConfigsResourceValidationGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -5806,7 +5029,7 @@ export function useListResourceValidationsApiConfigsResourceValidationGet<TData 
 
 export function useListResourceValidationsApiConfigsResourceValidationGet<TData = Awaited<ReturnType<typeof listResourceValidationsApiConfigsResourceValidationGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listResourceValidationsApiConfigsResourceValidationGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListResourceValidationsApiConfigsResourceValidationGetQueryOptions(options)
@@ -5838,15 +5061,15 @@ export const invalidateListResourceValidationsApiConfigsResourceValidationGet = 
 export const getPutResourceValidationsApiConfigsResourceValidationPutUrl = () => {
 
 
-  
+
 
   return `/api/configs/resource_validation`
 }
 
 export const putResourceValidationsApiConfigsResourceValidationPut = async (putResourceValidationsRequest: PutResourceValidationsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutResourceValidationsApiConfigsResourceValidationPutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -5854,7 +5077,7 @@ export const putResourceValidationsApiConfigsResourceValidationPut = async (putR
       putResourceValidationsRequest,)
   }
 );}
-  
+
 
 
 
@@ -5869,7 +5092,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putResourceValidationsApiConfigsResourceValidationPut>>, {data: PutResourceValidationsRequest}> = (props) => {
@@ -5880,7 +5103,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -5902,7 +5125,7 @@ export const usePutResourceValidationsApiConfigsResourceValidationPut = <TError 
       > => {
       return useMutation(getPutResourceValidationsApiConfigsResourceValidationPutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Read Resource Validation configurations
  * @summary Read Resource Validation
@@ -5910,22 +5133,22 @@ export const usePutResourceValidationsApiConfigsResourceValidationPut = <TError 
 export const getReadResourceValidationApiConfigsResourceValidationNameGetUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/resource_validation/${name}`
 }
 
 export const readResourceValidationApiConfigsResourceValidationNameGet = async (name: string, options?: RequestInit): Promise<ResourceAssertion[]> => {
-  
+
   return customFetch<ResourceAssertion[]>(getReadResourceValidationApiConfigsResourceValidationNameGetUrl(name),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -5936,7 +5159,7 @@ export const getReadResourceValidationApiConfigsResourceValidationNameGetQueryKe
     ] as const;
     }
 
-    
+
 export const getReadResourceValidationApiConfigsResourceValidationNameGetQueryOptions = <TData = Awaited<ReturnType<typeof readResourceValidationApiConfigsResourceValidationNameGet>>, TError = HTTPValidationError>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readResourceValidationApiConfigsResourceValidationNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -5944,13 +5167,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadResourceValidationApiConfigsResourceValidationNameGetQueryKey(name);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readResourceValidationApiConfigsResourceValidationNameGet>>> = ({ signal }) => readResourceValidationApiConfigsResourceValidationNameGet(name, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readResourceValidationApiConfigsResourceValidationNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -5989,7 +5212,7 @@ export function useReadResourceValidationApiConfigsResourceValidationNameGet<TDa
 
 export function useReadResourceValidationApiConfigsResourceValidationNameGet<TData = Awaited<ReturnType<typeof readResourceValidationApiConfigsResourceValidationNameGet>>, TError = HTTPValidationError>(
  name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readResourceValidationApiConfigsResourceValidationNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadResourceValidationApiConfigsResourceValidationNameGetQueryOptions(name,options)
@@ -6021,16 +5244,16 @@ export const invalidateReadResourceValidationApiConfigsResourceValidationNameGet
 export const getPutResourceValidationApiConfigsResourceValidationNamePutUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/resource_validation/${name}`
 }
 
 export const putResourceValidationApiConfigsResourceValidationNamePut = async (name: string,
     putResourceValidationRequest: PutResourceValidationRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutResourceValidationApiConfigsResourceValidationNamePutUrl(name),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6038,7 +5261,7 @@ export const putResourceValidationApiConfigsResourceValidationNamePut = async (n
       putResourceValidationRequest,)
   }
 );}
-  
+
 
 
 
@@ -6053,7 +5276,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putResourceValidationApiConfigsResourceValidationNamePut>>, {name: string;data: PutResourceValidationRequest}> = (props) => {
@@ -6064,7 +5287,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -6086,7 +5309,7 @@ export const usePutResourceValidationApiConfigsResourceValidationNamePut = <TErr
       > => {
       return useMutation(getPutResourceValidationApiConfigsResourceValidationNamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete Resource Validation configurations
  * @summary Delete Resource Validation
@@ -6094,16 +5317,16 @@ export const usePutResourceValidationApiConfigsResourceValidationNamePut = <TErr
 export const getDeleteResourceValidationApiConfigsResourceValidationNameDeleteUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/resource_validation/${name}`
 }
 
 export const deleteResourceValidationApiConfigsResourceValidationNameDelete = async (name: string,
     configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteResourceValidationApiConfigsResourceValidationNameDeleteUrl(name),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6111,7 +5334,7 @@ export const deleteResourceValidationApiConfigsResourceValidationNameDelete = as
       configsRequest,)
   }
 );}
-  
+
 
 
 
@@ -6126,7 +5349,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteResourceValidationApiConfigsResourceValidationNameDelete>>, {name: string;data: ConfigsRequest}> = (props) => {
@@ -6137,7 +5360,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -6159,7 +5382,7 @@ export const useDeleteResourceValidationApiConfigsResourceValidationNameDelete =
       > => {
       return useMutation(getDeleteResourceValidationApiConfigsResourceValidationNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all Roles
  * @summary List Roles
@@ -6167,22 +5390,22 @@ export const useDeleteResourceValidationApiConfigsResourceValidationNameDelete =
 export const getListRolesApiConfigsRoleGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/role`
 }
 
 export const listRolesApiConfigsRoleGet = async ( options?: RequestInit): Promise<RoleOutput[]> => {
-  
+
   return customFetch<RoleOutput[]>(getListRolesApiConfigsRoleGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -6193,7 +5416,7 @@ export const getListRolesApiConfigsRoleGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getListRolesApiConfigsRoleGetQueryOptions = <TData = Awaited<ReturnType<typeof listRolesApiConfigsRoleGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRolesApiConfigsRoleGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -6201,13 +5424,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListRolesApiConfigsRoleGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listRolesApiConfigsRoleGet>>> = ({ signal }) => listRolesApiConfigsRoleGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRolesApiConfigsRoleGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -6246,7 +5469,7 @@ export function useListRolesApiConfigsRoleGet<TData = Awaited<ReturnType<typeof 
 
 export function useListRolesApiConfigsRoleGet<TData = Awaited<ReturnType<typeof listRolesApiConfigsRoleGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRolesApiConfigsRoleGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListRolesApiConfigsRoleGetQueryOptions(options)
@@ -6278,15 +5501,15 @@ export const invalidateListRolesApiConfigsRoleGet = async (
 export const getPutRolesApiConfigsRolePutUrl = () => {
 
 
-  
+
 
   return `/api/configs/role`
 }
 
 export const putRolesApiConfigsRolePut = async (putRolesRequest: PutRolesRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutRolesApiConfigsRolePutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6294,7 +5517,7 @@ export const putRolesApiConfigsRolePut = async (putRolesRequest: PutRolesRequest
       putRolesRequest,)
   }
 );}
-  
+
 
 
 
@@ -6309,7 +5532,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putRolesApiConfigsRolePut>>, {data: PutRolesRequest}> = (props) => {
@@ -6320,7 +5543,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -6342,7 +5565,7 @@ export const usePutRolesApiConfigsRolePut = <TError = HTTPValidationError,
       > => {
       return useMutation(getPutRolesApiConfigsRolePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Read Role
  * @summary Read Role
@@ -6350,22 +5573,22 @@ export const usePutRolesApiConfigsRolePut = <TError = HTTPValidationError,
 export const getReadRoleApiConfigsRoleNameGetUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/role/${name}`
 }
 
 export const readRoleApiConfigsRoleNameGet = async (name: string, options?: RequestInit): Promise<RoleOutput> => {
-  
+
   return customFetch<RoleOutput>(getReadRoleApiConfigsRoleNameGetUrl(name),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -6376,7 +5599,7 @@ export const getReadRoleApiConfigsRoleNameGetQueryKey = (name: string,) => {
     ] as const;
     }
 
-    
+
 export const getReadRoleApiConfigsRoleNameGetQueryOptions = <TData = Awaited<ReturnType<typeof readRoleApiConfigsRoleNameGet>>, TError = HTTPValidationError>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readRoleApiConfigsRoleNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -6384,13 +5607,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadRoleApiConfigsRoleNameGetQueryKey(name);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readRoleApiConfigsRoleNameGet>>> = ({ signal }) => readRoleApiConfigsRoleNameGet(name, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readRoleApiConfigsRoleNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -6429,7 +5652,7 @@ export function useReadRoleApiConfigsRoleNameGet<TData = Awaited<ReturnType<type
 
 export function useReadRoleApiConfigsRoleNameGet<TData = Awaited<ReturnType<typeof readRoleApiConfigsRoleNameGet>>, TError = HTTPValidationError>(
  name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readRoleApiConfigsRoleNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadRoleApiConfigsRoleNameGetQueryOptions(name,options)
@@ -6461,16 +5684,16 @@ export const invalidateReadRoleApiConfigsRoleNameGet = async (
 export const getPutRoleApiConfigsRoleNamePutUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/role/${name}`
 }
 
 export const putRoleApiConfigsRoleNamePut = async (name: string,
     putRoleRequest: PutRoleRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutRoleApiConfigsRoleNamePutUrl(name),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6478,7 +5701,7 @@ export const putRoleApiConfigsRoleNamePut = async (name: string,
       putRoleRequest,)
   }
 );}
-  
+
 
 
 
@@ -6493,7 +5716,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putRoleApiConfigsRoleNamePut>>, {name: string;data: PutRoleRequest}> = (props) => {
@@ -6504,7 +5727,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -6526,7 +5749,7 @@ export const usePutRoleApiConfigsRoleNamePut = <TError = HTTPValidationError,
       > => {
       return useMutation(getPutRoleApiConfigsRoleNamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete Role
  * @summary Delete Role
@@ -6534,16 +5757,16 @@ export const usePutRoleApiConfigsRoleNamePut = <TError = HTTPValidationError,
 export const getDeleteRoleApiConfigsRoleNameDeleteUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/role/${name}`
 }
 
 export const deleteRoleApiConfigsRoleNameDelete = async (name: string,
     configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteRoleApiConfigsRoleNameDeleteUrl(name),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6551,7 +5774,7 @@ export const deleteRoleApiConfigsRoleNameDelete = async (name: string,
       configsRequest,)
   }
 );}
-  
+
 
 
 
@@ -6566,7 +5789,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRoleApiConfigsRoleNameDelete>>, {name: string;data: ConfigsRequest}> = (props) => {
@@ -6577,7 +5800,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -6599,7 +5822,7 @@ export const useDeleteRoleApiConfigsRoleNameDelete = <TError = HTTPValidationErr
       > => {
       return useMutation(getDeleteRoleApiConfigsRoleNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all backend test configurations
  * @summary List Backend Tests
@@ -6607,22 +5830,22 @@ export const useDeleteRoleApiConfigsRoleNameDelete = <TError = HTTPValidationErr
 export const getListBackendTestsApiConfigsBackendTestGetUrl = () => {
 
 
-  
+
 
   return `/api/configs/backend_test`
 }
 
 export const listBackendTestsApiConfigsBackendTestGet = async ( options?: RequestInit): Promise<ListBackendTestsApiConfigsBackendTestGet200> => {
-  
+
   return customFetch<ListBackendTestsApiConfigsBackendTestGet200>(getListBackendTestsApiConfigsBackendTestGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -6633,7 +5856,7 @@ export const getListBackendTestsApiConfigsBackendTestGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getListBackendTestsApiConfigsBackendTestGetQueryOptions = <TData = Awaited<ReturnType<typeof listBackendTestsApiConfigsBackendTestGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBackendTestsApiConfigsBackendTestGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -6641,13 +5864,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListBackendTestsApiConfigsBackendTestGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listBackendTestsApiConfigsBackendTestGet>>> = ({ signal }) => listBackendTestsApiConfigsBackendTestGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBackendTestsApiConfigsBackendTestGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -6686,7 +5909,7 @@ export function useListBackendTestsApiConfigsBackendTestGet<TData = Awaited<Retu
 
 export function useListBackendTestsApiConfigsBackendTestGet<TData = Awaited<ReturnType<typeof listBackendTestsApiConfigsBackendTestGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBackendTestsApiConfigsBackendTestGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListBackendTestsApiConfigsBackendTestGetQueryOptions(options)
@@ -6718,15 +5941,15 @@ export const invalidateListBackendTestsApiConfigsBackendTestGet = async (
 export const getPutBackendTestsApiConfigsBackendTestPutUrl = () => {
 
 
-  
+
 
   return `/api/configs/backend_test`
 }
 
 export const putBackendTestsApiConfigsBackendTestPut = async (putBackendTestsRequest: PutBackendTestsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutBackendTestsApiConfigsBackendTestPutUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6734,7 +5957,7 @@ export const putBackendTestsApiConfigsBackendTestPut = async (putBackendTestsReq
       putBackendTestsRequest,)
   }
 );}
-  
+
 
 
 
@@ -6749,7 +5972,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putBackendTestsApiConfigsBackendTestPut>>, {data: PutBackendTestsRequest}> = (props) => {
@@ -6760,7 +5983,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -6782,7 +6005,7 @@ export const usePutBackendTestsApiConfigsBackendTestPut = <TError = HTTPValidati
       > => {
       return useMutation(getPutBackendTestsApiConfigsBackendTestPutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Read backend test configuration
  * @summary Read Backend Test
@@ -6790,22 +6013,22 @@ export const usePutBackendTestsApiConfigsBackendTestPut = <TError = HTTPValidati
 export const getReadBackendTestApiConfigsBackendTestNameGetUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/backend_test/${name}`
 }
 
 export const readBackendTestApiConfigsBackendTestNameGet = async (name: string, options?: RequestInit): Promise<BackendTests> => {
-  
+
   return customFetch<BackendTests>(getReadBackendTestApiConfigsBackendTestNameGetUrl(name),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -6816,7 +6039,7 @@ export const getReadBackendTestApiConfigsBackendTestNameGetQueryKey = (name: str
     ] as const;
     }
 
-    
+
 export const getReadBackendTestApiConfigsBackendTestNameGetQueryOptions = <TData = Awaited<ReturnType<typeof readBackendTestApiConfigsBackendTestNameGet>>, TError = HTTPValidationError>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readBackendTestApiConfigsBackendTestNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -6824,13 +6047,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getReadBackendTestApiConfigsBackendTestNameGetQueryKey(name);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof readBackendTestApiConfigsBackendTestNameGet>>> = ({ signal }) => readBackendTestApiConfigsBackendTestNameGet(name, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readBackendTestApiConfigsBackendTestNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -6869,7 +6092,7 @@ export function useReadBackendTestApiConfigsBackendTestNameGet<TData = Awaited<R
 
 export function useReadBackendTestApiConfigsBackendTestNameGet<TData = Awaited<ReturnType<typeof readBackendTestApiConfigsBackendTestNameGet>>, TError = HTTPValidationError>(
  name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readBackendTestApiConfigsBackendTestNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReadBackendTestApiConfigsBackendTestNameGetQueryOptions(name,options)
@@ -6901,16 +6124,16 @@ export const invalidateReadBackendTestApiConfigsBackendTestNameGet = async (
 export const getPutBackendTestApiConfigsBackendTestNamePutUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/backend_test/${name}`
 }
 
 export const putBackendTestApiConfigsBackendTestNamePut = async (name: string,
     putBackendTestRequest: PutBackendTestRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPutBackendTestApiConfigsBackendTestNamePutUrl(name),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6918,7 +6141,7 @@ export const putBackendTestApiConfigsBackendTestNamePut = async (name: string,
       putBackendTestRequest,)
   }
 );}
-  
+
 
 
 
@@ -6933,7 +6156,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof putBackendTestApiConfigsBackendTestNamePut>>, {name: string;data: PutBackendTestRequest}> = (props) => {
@@ -6944,7 +6167,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -6966,7 +6189,7 @@ export const usePutBackendTestApiConfigsBackendTestNamePut = <TError = HTTPValid
       > => {
       return useMutation(getPutBackendTestApiConfigsBackendTestNamePutMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Patch backend test configuration
  * @summary Patch Backend Test
@@ -6974,16 +6197,16 @@ export const usePutBackendTestApiConfigsBackendTestNamePut = <TError = HTTPValid
 export const getPatchBackendTestApiConfigsBackendTestNamePatchUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/backend_test/${name}`
 }
 
 export const patchBackendTestApiConfigsBackendTestNamePatch = async (name: string,
     patchBackendTestRequest: PatchBackendTestRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getPatchBackendTestApiConfigsBackendTestNamePatchUrl(name),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -6991,7 +6214,7 @@ export const patchBackendTestApiConfigsBackendTestNamePatch = async (name: strin
       patchBackendTestRequest,)
   }
 );}
-  
+
 
 
 
@@ -7006,7 +6229,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchBackendTestApiConfigsBackendTestNamePatch>>, {name: string;data: PatchBackendTestRequest}> = (props) => {
@@ -7017,7 +6240,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -7039,7 +6262,7 @@ export const usePatchBackendTestApiConfigsBackendTestNamePatch = <TError = HTTPV
       > => {
       return useMutation(getPatchBackendTestApiConfigsBackendTestNamePatchMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete test configuration
  * @summary Delete Backend Test
@@ -7047,16 +6270,16 @@ export const usePatchBackendTestApiConfigsBackendTestNamePatch = <TError = HTTPV
 export const getDeleteBackendTestApiConfigsBackendTestNameDeleteUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/configs/backend_test/${name}`
 }
 
 export const deleteBackendTestApiConfigsBackendTestNameDelete = async (name: string,
     configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteBackendTestApiConfigsBackendTestNameDeleteUrl(name),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -7064,7 +6287,7 @@ export const deleteBackendTestApiConfigsBackendTestNameDelete = async (name: str
       configsRequest,)
   }
 );}
-  
+
 
 
 
@@ -7079,7 +6302,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteBackendTestApiConfigsBackendTestNameDelete>>, {name: string;data: ConfigsRequest}> = (props) => {
@@ -7090,7 +6313,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -7112,7 +6335,7 @@ export const useDeleteBackendTestApiConfigsBackendTestNameDelete = <TError = HTT
       > => {
       return useMutation(getDeleteBackendTestApiConfigsBackendTestNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List history of all configs
  * @summary Get Configs History
@@ -7129,7 +6352,7 @@ export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsH
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -7141,16 +6364,16 @@ export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsH
 }
 
 export const getConfigsHistoryApiConfigsHistoryGet = async (params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: RequestInit): Promise<GetConfigsHistoryResponse> => {
-  
+
   return customFetch<GetConfigsHistoryResponse>(getGetConfigsHistoryApiConfigsHistoryGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -7161,7 +6384,7 @@ export const getGetConfigsHistoryApiConfigsHistoryGetQueryKey = (params?: GetCon
     ] as const;
     }
 
-    
+
 export const getGetConfigsHistoryApiConfigsHistoryGetQueryOptions = <TData = Awaited<ReturnType<typeof getConfigsHistoryApiConfigsHistoryGet>>, TError = HTTPValidationError>(params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfigsHistoryApiConfigsHistoryGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -7169,13 +6392,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetConfigsHistoryApiConfigsHistoryGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getConfigsHistoryApiConfigsHistoryGet>>> = ({ signal }) => getConfigsHistoryApiConfigsHistoryGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConfigsHistoryApiConfigsHistoryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -7214,7 +6437,7 @@ export function useGetConfigsHistoryApiConfigsHistoryGet<TData = Awaited<ReturnT
 
 export function useGetConfigsHistoryApiConfigsHistoryGet<TData = Awaited<ReturnType<typeof getConfigsHistoryApiConfigsHistoryGet>>, TError = HTTPValidationError>(
  params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfigsHistoryApiConfigsHistoryGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetConfigsHistoryApiConfigsHistoryGetQueryOptions(params,options)
@@ -7246,15 +6469,15 @@ export const invalidateGetConfigsHistoryApiConfigsHistoryGet = async (
 export const getRollbackConfigApiConfigsHistoryRollbackPostUrl = () => {
 
 
-  
+
 
   return `/api/configs/history/rollback`
 }
 
 export const rollbackConfigApiConfigsHistoryRollbackPost = async (rollbackConfigRequest: RollbackConfigRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getRollbackConfigApiConfigsHistoryRollbackPostUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -7262,7 +6485,7 @@ export const rollbackConfigApiConfigsHistoryRollbackPost = async (rollbackConfig
       rollbackConfigRequest,)
   }
 );}
-  
+
 
 
 
@@ -7277,7 +6500,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof rollbackConfigApiConfigsHistoryRollbackPost>>, {data: RollbackConfigRequest}> = (props) => {
@@ -7288,7 +6511,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -7310,7 +6533,7 @@ export const useRollbackConfigApiConfigsHistoryRollbackPost = <TError = HTTPVali
       > => {
       return useMutation(getRollbackConfigApiConfigsHistoryRollbackPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete a specific config history revision. This performs a soft delete of the revision.
 
@@ -7327,23 +6550,23 @@ export const getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRe
     revision: number,) => {
 
 
-  
+
 
   return `/api/configs/history/${configType}/revision/${revision}`
 }
 
 export const deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDelete = async (configType: string,
     revision: number, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteUrl(configType,revision),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -7358,7 +6581,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDelete>>, {configType: string;revision: number}> = (props) => {
@@ -7369,13 +6592,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type DeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDelete>>>
-    
+
     export type DeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteMutationError = HTTPValidationError
 
     /**
@@ -7391,7 +6614,7 @@ export const useDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRe
       > => {
       return useMutation(getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Update tags for a specific config history revision.
 
@@ -7409,7 +6632,7 @@ export const getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisi
     revision: number,) => {
 
 
-  
+
 
   return `/api/configs/history/${configType}/revision/${revision}/tags`
 }
@@ -7417,9 +6640,9 @@ export const getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisi
 export const updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPost = async (configType: string,
     revision: number,
     updateConfigTagsRequest: UpdateConfigTagsRequest, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostUrl(configType,revision),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -7427,7 +6650,7 @@ export const updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionT
       updateConfigTagsRequest,)
   }
 );}
-  
+
 
 
 
@@ -7442,7 +6665,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPost>>, {configType: string;revision: number;data: UpdateConfigTagsRequest}> = (props) => {
@@ -7453,7 +6676,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -7475,7 +6698,7 @@ export const useUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisi
       > => {
       return useMutation(getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Returns two config revisions, similar to
 GET /api/configs/history/{config_type}/revision/{revision}, but with obfuscated secret strings
@@ -7495,7 +6718,7 @@ export const getGetConfigDiffApiConfigsDiffGetUrl = (params: GetConfigDiffApiCon
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -7507,16 +6730,16 @@ export const getGetConfigDiffApiConfigsDiffGetUrl = (params: GetConfigDiffApiCon
 }
 
 export const getConfigDiffApiConfigsDiffGet = async (params: GetConfigDiffApiConfigsDiffGetParams, options?: RequestInit): Promise<ConfigDiffResponse> => {
-  
+
   return customFetch<ConfigDiffResponse>(getGetConfigDiffApiConfigsDiffGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -7527,7 +6750,7 @@ export const getGetConfigDiffApiConfigsDiffGetQueryKey = (params?: GetConfigDiff
     ] as const;
     }
 
-    
+
 export const getGetConfigDiffApiConfigsDiffGetQueryOptions = <TData = Awaited<ReturnType<typeof getConfigDiffApiConfigsDiffGet>>, TError = HTTPValidationError>(params: GetConfigDiffApiConfigsDiffGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfigDiffApiConfigsDiffGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -7535,13 +6758,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetConfigDiffApiConfigsDiffGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getConfigDiffApiConfigsDiffGet>>> = ({ signal }) => getConfigDiffApiConfigsDiffGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConfigDiffApiConfigsDiffGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -7580,7 +6803,7 @@ export function useGetConfigDiffApiConfigsDiffGet<TData = Awaited<ReturnType<typ
 
 export function useGetConfigDiffApiConfigsDiffGet<TData = Awaited<ReturnType<typeof getConfigDiffApiConfigsDiffGet>>, TError = HTTPValidationError>(
  params: GetConfigDiffApiConfigsDiffGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfigDiffApiConfigsDiffGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetConfigDiffApiConfigsDiffGetQueryOptions(params,options)
@@ -7615,7 +6838,7 @@ export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetUrl = (params: GetNewJwtT
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -7627,16 +6850,16 @@ export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetUrl = (params: GetNewJwtT
 }
 
 export const getNewJwtTokenApiAuthJwtRefreshTokenGet = async (params: GetNewJwtTokenApiAuthJwtRefreshTokenGetParams, options?: RequestInit): Promise<JwtTokenResponse> => {
-  
+
   return customFetch<JwtTokenResponse>(getGetNewJwtTokenApiAuthJwtRefreshTokenGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -7647,7 +6870,7 @@ export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetQueryKey = (params?: GetN
     ] as const;
     }
 
-    
+
 export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetQueryOptions = <TData = Awaited<ReturnType<typeof getNewJwtTokenApiAuthJwtRefreshTokenGet>>, TError = HTTPValidationError>(params: GetNewJwtTokenApiAuthJwtRefreshTokenGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNewJwtTokenApiAuthJwtRefreshTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -7655,13 +6878,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetNewJwtTokenApiAuthJwtRefreshTokenGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getNewJwtTokenApiAuthJwtRefreshTokenGet>>> = ({ signal }) => getNewJwtTokenApiAuthJwtRefreshTokenGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNewJwtTokenApiAuthJwtRefreshTokenGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -7700,7 +6923,7 @@ export function useGetNewJwtTokenApiAuthJwtRefreshTokenGet<TData = Awaited<Retur
 
 export function useGetNewJwtTokenApiAuthJwtRefreshTokenGet<TData = Awaited<ReturnType<typeof getNewJwtTokenApiAuthJwtRefreshTokenGet>>, TError = HTTPValidationError>(
  params: GetNewJwtTokenApiAuthJwtRefreshTokenGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNewJwtTokenApiAuthJwtRefreshTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetNewJwtTokenApiAuthJwtRefreshTokenGetQueryOptions(params,options)
@@ -7733,7 +6956,7 @@ export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl = (params: PostNewJ
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -7746,9 +6969,9 @@ export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl = (params: PostNewJ
 
 export const postNewJwtTokenApiAuthJwtRefreshTokenPost = async (tokenRequest: TokenRequest,
     params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams, options?: RequestInit): Promise<JwtTokenResponse> => {
-  
+
   return customFetch<JwtTokenResponse>(getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl(params),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -7756,7 +6979,7 @@ export const postNewJwtTokenApiAuthJwtRefreshTokenPost = async (tokenRequest: To
       tokenRequest,)
   }
 );}
-  
+
 
 
 
@@ -7771,7 +6994,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof postNewJwtTokenApiAuthJwtRefreshTokenPost>>, {data: TokenRequest;params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams}> = (props) => {
@@ -7782,7 +7005,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -7804,7 +7027,7 @@ export const usePostNewJwtTokenApiAuthJwtRefreshTokenPost = <TError = HTTPValida
       > => {
       return useMutation(getPostNewJwtTokenApiAuthJwtRefreshTokenPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * API to create a new jwt token from an access token.
 
@@ -7815,7 +7038,7 @@ export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetUrl = (params:
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -7827,16 +7050,16 @@ export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetUrl = (params:
 }
 
 export const getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet = async (params: GetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetParams, options?: RequestInit): Promise<JwtTokenResponse> => {
-  
+
   return customFetch<JwtTokenResponse>(getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -7847,7 +7070,7 @@ export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetQueryKey = (pa
     ] as const;
     }
 
-    
+
 export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetQueryOptions = <TData = Awaited<ReturnType<typeof getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet>>, TError = HTTPValidationError>(params: GetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -7855,13 +7078,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet>>> = ({ signal }) => getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -7900,7 +7123,7 @@ export function useGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet<TData = Aw
 
 export function useGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet<TData = Awaited<ReturnType<typeof getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet>>, TError = HTTPValidationError>(
  params: GetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetQueryOptions(params,options)
@@ -7932,15 +7155,15 @@ export const invalidateGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet = asyn
 export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl = () => {
 
 
-  
+
 
   return `/api/auth/jwt/access_token`
 }
 
 export const postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost = async (tokenRequest: TokenRequest, options?: RequestInit): Promise<JwtTokenResponse> => {
-  
+
   return customFetch<JwtTokenResponse>(getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -7948,7 +7171,7 @@ export const postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost = async (token
       tokenRequest,)
   }
 );}
-  
+
 
 
 
@@ -7963,7 +7186,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost>>, {data: TokenRequest}> = (props) => {
@@ -7974,7 +7197,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -7996,7 +7219,7 @@ export const usePostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost = <TError =
       > => {
       return useMutation(getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * API to create a new access token.
 
@@ -8019,7 +7242,7 @@ export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl = (tokenName
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -8032,16 +7255,16 @@ export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl = (tokenName
 
 export const createAccessTokenApiAuthAccessTokenTokenNamePost = async (tokenName: string,
     params: CreateAccessTokenApiAuthAccessTokenTokenNamePostParams, options?: RequestInit): Promise<string> => {
-  
+
   return customFetch<string>(getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl(tokenName,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8056,7 +7279,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAccessTokenApiAuthAccessTokenTokenNamePost>>, {tokenName: string;params: CreateAccessTokenApiAuthAccessTokenTokenNamePostParams}> = (props) => {
@@ -8067,13 +7290,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateAccessTokenApiAuthAccessTokenTokenNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof createAccessTokenApiAuthAccessTokenTokenNamePost>>>
-    
+
     export type CreateAccessTokenApiAuthAccessTokenTokenNamePostMutationError = HTTPValidationError
 
     /**
@@ -8089,7 +7312,7 @@ export const useCreateAccessTokenApiAuthAccessTokenTokenNamePost = <TError = HTT
       > => {
       return useMutation(getCreateAccessTokenApiAuthAccessTokenTokenNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * API to delete an access token.
  * @summary Delete Access Token
@@ -8097,22 +7320,22 @@ export const useCreateAccessTokenApiAuthAccessTokenTokenNamePost = <TError = HTT
 export const getDeleteAccessTokenApiAuthAccessTokenTokenNameDeleteUrl = (tokenName: string,) => {
 
 
-  
+
 
   return `/api/auth/access_token/${tokenName}`
 }
 
 export const deleteAccessTokenApiAuthAccessTokenTokenNameDelete = async (tokenName: string, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteAccessTokenApiAuthAccessTokenTokenNameDeleteUrl(tokenName),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8127,7 +7350,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAccessTokenApiAuthAccessTokenTokenNameDelete>>, {tokenName: string}> = (props) => {
@@ -8138,13 +7361,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type DeleteAccessTokenApiAuthAccessTokenTokenNameDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAccessTokenApiAuthAccessTokenTokenNameDelete>>>
-    
+
     export type DeleteAccessTokenApiAuthAccessTokenTokenNameDeleteMutationError = HTTPValidationError
 
     /**
@@ -8160,7 +7383,7 @@ export const useDeleteAccessTokenApiAuthAccessTokenTokenNameDelete = <TError = H
       > => {
       return useMutation(getDeleteAccessTokenApiAuthAccessTokenTokenNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all roles assigned to an access token.
 
@@ -8175,22 +7398,22 @@ Returns:
 export const getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetUrl = (tokenName: string,) => {
 
 
-  
+
 
   return `/api/auth/access_token/${tokenName}/roles`
 }
 
 export const listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet = async (tokenName: string, options?: RequestInit): Promise<AccessTokenRolesResponse> => {
-  
+
   return customFetch<AccessTokenRolesResponse>(getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetUrl(tokenName),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8201,7 +7424,7 @@ export const getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetQueryKey 
     ] as const;
     }
 
-    
+
 export const getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetQueryOptions = <TData = Awaited<ReturnType<typeof listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet>>, TError = HTTPValidationError>(tokenName: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -8209,13 +7432,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetQueryKey(tokenName);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet>>> = ({ signal }) => listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet(tokenName, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(tokenName), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -8254,7 +7477,7 @@ export function useListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet<TData
 
 export function useListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet<TData = Awaited<ReturnType<typeof listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet>>, TError = HTTPValidationError>(
  tokenName: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetQueryOptions(tokenName,options)
@@ -8286,22 +7509,22 @@ export const invalidateListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet =
 export const getListAccessTokensApiAuthAccessTokenGetUrl = () => {
 
 
-  
+
 
   return `/api/auth/access_token`
 }
 
 export const listAccessTokensApiAuthAccessTokenGet = async ( options?: RequestInit): Promise<AccessTokenWithRoles[]> => {
-  
+
   return customFetch<AccessTokenWithRoles[]>(getListAccessTokensApiAuthAccessTokenGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8312,7 +7535,7 @@ export const getListAccessTokensApiAuthAccessTokenGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getListAccessTokensApiAuthAccessTokenGetQueryOptions = <TData = Awaited<ReturnType<typeof listAccessTokensApiAuthAccessTokenGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessTokensApiAuthAccessTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -8320,13 +7543,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListAccessTokensApiAuthAccessTokenGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccessTokensApiAuthAccessTokenGet>>> = ({ signal }) => listAccessTokensApiAuthAccessTokenGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAccessTokensApiAuthAccessTokenGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -8365,7 +7588,7 @@ export function useListAccessTokensApiAuthAccessTokenGet<TData = Awaited<ReturnT
 
 export function useListAccessTokensApiAuthAccessTokenGet<TData = Awaited<ReturnType<typeof listAccessTokensApiAuthAccessTokenGet>>, TError = HTTPValidationError>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessTokensApiAuthAccessTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListAccessTokensApiAuthAccessTokenGetQueryOptions(options)
@@ -8427,7 +7650,7 @@ export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostU
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -8441,16 +7664,16 @@ export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostU
 export const adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePost = async (userId: string,
     tokenName: string,
     params: AdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostParams, options?: RequestInit): Promise<string> => {
-  
+
   return customFetch<string>(getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostUrl(userId,tokenName,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8465,7 +7688,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePost>>, {userId: string;tokenName: string;params: AdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostParams}> = (props) => {
@@ -8476,13 +7699,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type AdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePost>>>
-    
+
     export type AdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostMutationError = HTTPValidationError
 
     /**
@@ -8498,7 +7721,7 @@ export const useAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePost 
       > => {
       return useMutation(getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Admin API to delete an access token for a specific user.
 
@@ -8511,23 +7734,23 @@ export const getAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDelet
     tokenName: string,) => {
 
 
-  
+
 
   return `/api/auth/user/${userId}/access_token/${tokenName}`
 }
 
 export const adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDelete = async (userId: string,
     tokenName: string, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteUrl(userId,tokenName),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8542,7 +7765,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDelete>>, {userId: string;tokenName: string}> = (props) => {
@@ -8553,13 +7776,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type AdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDelete>>>
-    
+
     export type AdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteMutationError = HTTPValidationError
 
     /**
@@ -8575,7 +7798,7 @@ export const useAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDelet
       > => {
       return useMutation(getAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Admin API to list all access tokens for a specific user, including their assigned roles.
 
@@ -8589,22 +7812,22 @@ Returns:
 export const getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetUrl = (userId: string,) => {
 
 
-  
+
 
   return `/api/auth/user/${userId}/access_token`
 }
 
 export const adminListAccessTokensApiAuthUserUserIdAccessTokenGet = async (userId: string, options?: RequestInit): Promise<AccessTokenWithRoles[]> => {
-  
+
   return customFetch<AccessTokenWithRoles[]>(getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetUrl(userId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8615,7 +7838,7 @@ export const getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetQueryKey = (
     ] as const;
     }
 
-    
+
 export const getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetQueryOptions = <TData = Awaited<ReturnType<typeof adminListAccessTokensApiAuthUserUserIdAccessTokenGet>>, TError = HTTPValidationError>(userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof adminListAccessTokensApiAuthUserUserIdAccessTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -8623,13 +7846,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetQueryKey(userId);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListAccessTokensApiAuthUserUserIdAccessTokenGet>>> = ({ signal }) => adminListAccessTokensApiAuthUserUserIdAccessTokenGet(userId, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListAccessTokensApiAuthUserUserIdAccessTokenGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -8668,7 +7891,7 @@ export function useAdminListAccessTokensApiAuthUserUserIdAccessTokenGet<TData = 
 
 export function useAdminListAccessTokensApiAuthUserUserIdAccessTokenGet<TData = Awaited<ReturnType<typeof adminListAccessTokensApiAuthUserUserIdAccessTokenGet>>, TError = HTTPValidationError>(
  userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof adminListAccessTokensApiAuthUserUserIdAccessTokenGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetQueryOptions(userId,options)
@@ -8719,7 +7942,7 @@ export const getListUsersApiAuthUserGetUrl = (params?: ListUsersApiAuthUserGetPa
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -8731,16 +7954,16 @@ export const getListUsersApiAuthUserGetUrl = (params?: ListUsersApiAuthUserGetPa
 }
 
 export const listUsersApiAuthUserGet = async (params?: ListUsersApiAuthUserGetParams, options?: RequestInit): Promise<UserListResponse> => {
-  
+
   return customFetch<UserListResponse>(getListUsersApiAuthUserGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8751,7 +7974,7 @@ export const getListUsersApiAuthUserGetQueryKey = (params?: ListUsersApiAuthUser
     ] as const;
     }
 
-    
+
 export const getListUsersApiAuthUserGetQueryOptions = <TData = Awaited<ReturnType<typeof listUsersApiAuthUserGet>>, TError = HTTPValidationError>(params?: ListUsersApiAuthUserGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsersApiAuthUserGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -8759,13 +7982,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListUsersApiAuthUserGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsersApiAuthUserGet>>> = ({ signal }) => listUsersApiAuthUserGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUsersApiAuthUserGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -8804,7 +8027,7 @@ export function useListUsersApiAuthUserGet<TData = Awaited<ReturnType<typeof lis
 
 export function useListUsersApiAuthUserGet<TData = Awaited<ReturnType<typeof listUsersApiAuthUserGet>>, TError = HTTPValidationError>(
  params?: ListUsersApiAuthUserGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsersApiAuthUserGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListUsersApiAuthUserGetQueryOptions(params,options)
@@ -8843,15 +8066,15 @@ Returns:
 export const getCreateUserApiAuthUserPostUrl = () => {
 
 
-  
+
 
   return `/api/auth/user`
 }
 
 export const createUserApiAuthUserPost = async (createUserRequest: CreateUserRequest, options?: RequestInit): Promise<User> => {
-  
+
   return customFetch<User>(getCreateUserApiAuthUserPostUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -8859,7 +8082,7 @@ export const createUserApiAuthUserPost = async (createUserRequest: CreateUserReq
       createUserRequest,)
   }
 );}
-  
+
 
 
 
@@ -8874,7 +8097,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createUserApiAuthUserPost>>, {data: CreateUserRequest}> = (props) => {
@@ -8885,7 +8108,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -8907,7 +8130,7 @@ export const useCreateUserApiAuthUserPost = <TError = HTTPValidationError,
       > => {
       return useMutation(getCreateUserApiAuthUserPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Get a specific user's details including their roles.
 
@@ -8921,22 +8144,22 @@ Returns:
 export const getGetUserApiAuthUserUserIdGetUrl = (userId: string,) => {
 
 
-  
+
 
   return `/api/auth/user/${userId}`
 }
 
 export const getUserApiAuthUserUserIdGet = async (userId: string, options?: RequestInit): Promise<UserWithRoles> => {
-  
+
   return customFetch<UserWithRoles>(getGetUserApiAuthUserUserIdGetUrl(userId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -8947,7 +8170,7 @@ export const getGetUserApiAuthUserUserIdGetQueryKey = (userId: string,) => {
     ] as const;
     }
 
-    
+
 export const getGetUserApiAuthUserUserIdGetQueryOptions = <TData = Awaited<ReturnType<typeof getUserApiAuthUserUserIdGet>>, TError = HTTPValidationError>(userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserApiAuthUserUserIdGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -8955,13 +8178,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetUserApiAuthUserUserIdGetQueryKey(userId);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserApiAuthUserUserIdGet>>> = ({ signal }) => getUserApiAuthUserUserIdGet(userId, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserApiAuthUserUserIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -9000,7 +8223,7 @@ export function useGetUserApiAuthUserUserIdGet<TData = Awaited<ReturnType<typeof
 
 export function useGetUserApiAuthUserUserIdGet<TData = Awaited<ReturnType<typeof getUserApiAuthUserUserIdGet>>, TError = HTTPValidationError>(
  userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserApiAuthUserUserIdGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetUserApiAuthUserUserIdGetQueryOptions(userId,options)
@@ -9035,22 +8258,22 @@ Args:
 export const getDeleteUserApiAuthUserUserIdDeleteUrl = (userId: string,) => {
 
 
-  
+
 
   return `/api/auth/user/${userId}`
 }
 
 export const deleteUserApiAuthUserUserIdDelete = async (userId: string, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getDeleteUserApiAuthUserUserIdDeleteUrl(userId),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -9065,7 +8288,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteUserApiAuthUserUserIdDelete>>, {userId: string}> = (props) => {
@@ -9076,13 +8299,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type DeleteUserApiAuthUserUserIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteUserApiAuthUserUserIdDelete>>>
-    
+
     export type DeleteUserApiAuthUserUserIdDeleteMutationError = HTTPValidationError
 
     /**
@@ -9098,7 +8321,7 @@ export const useDeleteUserApiAuthUserUserIdDelete = <TError = HTTPValidationErro
       > => {
       return useMutation(getDeleteUserApiAuthUserUserIdDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all roles assigned to a user.
 
@@ -9112,22 +8335,22 @@ Returns:
 export const getListUserRolesApiAuthUserUserIdRolesGetUrl = (userId: string,) => {
 
 
-  
+
 
   return `/api/auth/user/${userId}/roles`
 }
 
 export const listUserRolesApiAuthUserUserIdRolesGet = async (userId: string, options?: RequestInit): Promise<UserRolesResponse> => {
-  
+
   return customFetch<UserRolesResponse>(getListUserRolesApiAuthUserUserIdRolesGetUrl(userId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -9138,7 +8361,7 @@ export const getListUserRolesApiAuthUserUserIdRolesGetQueryKey = (userId: string
     ] as const;
     }
 
-    
+
 export const getListUserRolesApiAuthUserUserIdRolesGetQueryOptions = <TData = Awaited<ReturnType<typeof listUserRolesApiAuthUserUserIdRolesGet>>, TError = HTTPValidationError>(userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUserRolesApiAuthUserUserIdRolesGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -9146,13 +8369,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListUserRolesApiAuthUserUserIdRolesGetQueryKey(userId);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listUserRolesApiAuthUserUserIdRolesGet>>> = ({ signal }) => listUserRolesApiAuthUserUserIdRolesGet(userId, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUserRolesApiAuthUserUserIdRolesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -9191,7 +8414,7 @@ export function useListUserRolesApiAuthUserUserIdRolesGet<TData = Awaited<Return
 
 export function useListUserRolesApiAuthUserUserIdRolesGet<TData = Awaited<ReturnType<typeof listUserRolesApiAuthUserUserIdRolesGet>>, TError = HTTPValidationError>(
  userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUserRolesApiAuthUserUserIdRolesGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListUserRolesApiAuthUserUserIdRolesGetQueryOptions(userId,options)
@@ -9231,16 +8454,16 @@ Returns:
 export const getAssignRoleToUserApiAuthUserUserIdRolesPostUrl = (userId: string,) => {
 
 
-  
+
 
   return `/api/auth/user/${userId}/roles`
 }
 
 export const assignRoleToUserApiAuthUserUserIdRolesPost = async (userId: string,
     assignRoleRequest: AssignRoleRequest, options?: RequestInit): Promise<UserRoleAssignment> => {
-  
+
   return customFetch<UserRoleAssignment>(getAssignRoleToUserApiAuthUserUserIdRolesPostUrl(userId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -9248,7 +8471,7 @@ export const assignRoleToUserApiAuthUserUserIdRolesPost = async (userId: string,
       assignRoleRequest,)
   }
 );}
-  
+
 
 
 
@@ -9263,7 +8486,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignRoleToUserApiAuthUserUserIdRolesPost>>, {userId: string;data: AssignRoleRequest}> = (props) => {
@@ -9274,7 +8497,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -9296,7 +8519,7 @@ export const useAssignRoleToUserApiAuthUserUserIdRolesPost = <TError = HTTPValid
       > => {
       return useMutation(getAssignRoleToUserApiAuthUserUserIdRolesPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Remove a role from a user and all their PATs.
 
@@ -9312,23 +8535,23 @@ export const getRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteUrl = (use
     roleName: string,) => {
 
 
-  
+
 
   return `/api/auth/user/${userId}/roles/${roleName}`
 }
 
 export const removeRoleFromUserApiAuthUserUserIdRolesRoleNameDelete = async (userId: string,
     roleName: string, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteUrl(userId,roleName),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -9343,7 +8566,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeRoleFromUserApiAuthUserUserIdRolesRoleNameDelete>>, {userId: string;roleName: string}> = (props) => {
@@ -9354,13 +8577,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type RemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof removeRoleFromUserApiAuthUserUserIdRolesRoleNameDelete>>>
-    
+
     export type RemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteMutationError = HTTPValidationError
 
     /**
@@ -9376,7 +8599,7 @@ export const useRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDelete = <TError
       > => {
       return useMutation(getRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * List all users who have a specific role.
 
@@ -9390,22 +8613,22 @@ Returns:
 export const getListUsersWithRoleApiAuthRolesRoleNameUsersGetUrl = (roleName: string,) => {
 
 
-  
+
 
   return `/api/auth/roles/${roleName}/users`
 }
 
 export const listUsersWithRoleApiAuthRolesRoleNameUsersGet = async (roleName: string, options?: RequestInit): Promise<RoleUsersResponse> => {
-  
+
   return customFetch<RoleUsersResponse>(getListUsersWithRoleApiAuthRolesRoleNameUsersGetUrl(roleName),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -9416,7 +8639,7 @@ export const getListUsersWithRoleApiAuthRolesRoleNameUsersGetQueryKey = (roleNam
     ] as const;
     }
 
-    
+
 export const getListUsersWithRoleApiAuthRolesRoleNameUsersGetQueryOptions = <TData = Awaited<ReturnType<typeof listUsersWithRoleApiAuthRolesRoleNameUsersGet>>, TError = HTTPValidationError>(roleName: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsersWithRoleApiAuthRolesRoleNameUsersGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -9424,13 +8647,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListUsersWithRoleApiAuthRolesRoleNameUsersGetQueryKey(roleName);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsersWithRoleApiAuthRolesRoleNameUsersGet>>> = ({ signal }) => listUsersWithRoleApiAuthRolesRoleNameUsersGet(roleName, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(roleName), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUsersWithRoleApiAuthRolesRoleNameUsersGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -9469,7 +8692,7 @@ export function useListUsersWithRoleApiAuthRolesRoleNameUsersGet<TData = Awaited
 
 export function useListUsersWithRoleApiAuthRolesRoleNameUsersGet<TData = Awaited<ReturnType<typeof listUsersWithRoleApiAuthRolesRoleNameUsersGet>>, TError = HTTPValidationError>(
  roleName: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsersWithRoleApiAuthRolesRoleNameUsersGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListUsersWithRoleApiAuthRolesRoleNameUsersGetQueryOptions(roleName,options)
@@ -9509,16 +8732,16 @@ Returns:
 export const getBulkAssignRoleApiAuthRolesRoleNameUsersPostUrl = (roleName: string,) => {
 
 
-  
+
 
   return `/api/auth/roles/${roleName}/users`
 }
 
 export const bulkAssignRoleApiAuthRolesRoleNameUsersPost = async (roleName: string,
     bulkAssignRequest: BulkAssignRequest, options?: RequestInit): Promise<BulkAssignResponse> => {
-  
+
   return customFetch<BulkAssignResponse>(getBulkAssignRoleApiAuthRolesRoleNameUsersPostUrl(roleName),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -9526,7 +8749,7 @@ export const bulkAssignRoleApiAuthRolesRoleNameUsersPost = async (roleName: stri
       bulkAssignRequest,)
   }
 );}
-  
+
 
 
 
@@ -9541,7 +8764,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkAssignRoleApiAuthRolesRoleNameUsersPost>>, {roleName: string;data: BulkAssignRequest}> = (props) => {
@@ -9552,7 +8775,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -9574,7 +8797,7 @@ export const useBulkAssignRoleApiAuthRolesRoleNameUsersPost = <TError = HTTPVali
       > => {
       return useMutation(getBulkAssignRoleApiAuthRolesRoleNameUsersPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * @summary List Apps
  */
@@ -9590,7 +8813,7 @@ export const getListAppsApiAppGetUrl = (params?: ListAppsApiAppGetParams,) => {
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -9602,16 +8825,16 @@ export const getListAppsApiAppGetUrl = (params?: ListAppsApiAppGetParams,) => {
 }
 
 export const listAppsApiAppGet = async (params?: ListAppsApiAppGetParams, options?: RequestInit): Promise<SrcServiceCoreAppObjectsListResponse> => {
-  
+
   return customFetch<SrcServiceCoreAppObjectsListResponse>(getListAppsApiAppGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -9622,7 +8845,7 @@ export const getListAppsApiAppGetQueryKey = (params?: ListAppsApiAppGetParams,) 
     ] as const;
     }
 
-    
+
 export const getListAppsApiAppGetQueryOptions = <TData = Awaited<ReturnType<typeof listAppsApiAppGet>>, TError = HTTPValidationError>(params?: ListAppsApiAppGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppsApiAppGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -9630,13 +8853,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListAppsApiAppGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listAppsApiAppGet>>> = ({ signal }) => listAppsApiAppGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAppsApiAppGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -9675,7 +8898,7 @@ export function useListAppsApiAppGet<TData = Awaited<ReturnType<typeof listAppsA
 
 export function useListAppsApiAppGet<TData = Awaited<ReturnType<typeof listAppsApiAppGet>>, TError = HTTPValidationError>(
  params?: ListAppsApiAppGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppsApiAppGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListAppsApiAppGetQueryOptions(params,options)
@@ -9708,7 +8931,7 @@ export const getGetAppApiAppUserNameGetUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -9721,16 +8944,16 @@ export const getGetAppApiAppUserNameGetUrl = (name: string,
 
 export const getAppApiAppUserNameGet = async (name: string,
     params?: GetAppApiAppUserNameGetParams, options?: RequestInit): Promise<GetAppResponse> => {
-  
+
   return customFetch<GetAppResponse>(getGetAppApiAppUserNameGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -9742,7 +8965,7 @@ export const getGetAppApiAppUserNameGetQueryKey = (name: string,
     ] as const;
     }
 
-    
+
 export const getGetAppApiAppUserNameGetQueryOptions = <TData = Awaited<ReturnType<typeof getAppApiAppUserNameGet>>, TError = HTTPValidationError>(name: string,
     params?: GetAppApiAppUserNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppApiAppUserNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -9751,13 +8974,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetAppApiAppUserNameGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getAppApiAppUserNameGet>>> = ({ signal }) => getAppApiAppUserNameGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAppApiAppUserNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -9800,7 +9023,7 @@ export function useGetAppApiAppUserNameGet<TData = Awaited<ReturnType<typeof get
 export function useGetAppApiAppUserNameGet<TData = Awaited<ReturnType<typeof getAppApiAppUserNameGet>>, TError = HTTPValidationError>(
  name: string,
     params?: GetAppApiAppUserNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppApiAppUserNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetAppApiAppUserNameGetQueryOptions(name,params,options)
@@ -9834,7 +9057,7 @@ export const getCreateAppApiAppUserNamePostUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -9848,9 +9071,9 @@ export const getCreateAppApiAppUserNamePostUrl = (name: string,
 export const createAppApiAppUserNamePost = async (name: string,
     createAppApiAppUserNamePostBody: string,
     params: CreateAppApiAppUserNamePostParams, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getCreateAppApiAppUserNamePostUrl(name,params),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -9858,7 +9081,7 @@ export const createAppApiAppUserNamePost = async (name: string,
       createAppApiAppUserNamePostBody,)
   }
 );}
-  
+
 
 
 
@@ -9873,7 +9096,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAppApiAppUserNamePost>>, {name: string;data: string;params: CreateAppApiAppUserNamePostParams}> = (props) => {
@@ -9884,7 +9107,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -9906,23 +9129,23 @@ export const useCreateAppApiAppUserNamePost = <TError = HTTPValidationError,
       > => {
       return useMutation(getCreateAppApiAppUserNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * @summary Update App
  */
 export const getUpdateAppApiAppUserNamePatchUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/app/user/${name}`
 }
 
 export const updateAppApiAppUserNamePatch = async (name: string,
     updateAppApiAppUserNamePatchBody: string, options?: RequestInit): Promise<EditResponse> => {
-  
+
   return customFetch<EditResponse>(getUpdateAppApiAppUserNamePatchUrl(name),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -9930,7 +9153,7 @@ export const updateAppApiAppUserNamePatch = async (name: string,
       updateAppApiAppUserNamePatchBody,)
   }
 );}
-  
+
 
 
 
@@ -9945,7 +9168,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAppApiAppUserNamePatch>>, {name: string;data: string}> = (props) => {
@@ -9956,7 +9179,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -9978,7 +9201,7 @@ export const useUpdateAppApiAppUserNamePatch = <TError = HTTPValidationError,
       > => {
       return useMutation(getUpdateAppApiAppUserNamePatchMutationOptions(options), queryClient);
     }
-    
+
 /**
  * @summary Delete App
  */
@@ -9987,7 +9210,7 @@ export const getDeleteAppApiAppUserNameDeleteUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10000,16 +9223,16 @@ export const getDeleteAppApiAppUserNameDeleteUrl = (name: string,
 
 export const deleteAppApiAppUserNameDelete = async (name: string,
     params?: DeleteAppApiAppUserNameDeleteParams, options?: RequestInit): Promise<DeleteAppApiAppUserNameDelete200> => {
-  
+
   return customFetch<DeleteAppApiAppUserNameDelete200>(getDeleteAppApiAppUserNameDeleteUrl(name,params),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10024,7 +9247,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAppApiAppUserNameDelete>>, {name: string;params?: DeleteAppApiAppUserNameDeleteParams}> = (props) => {
@@ -10035,13 +9258,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type DeleteAppApiAppUserNameDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAppApiAppUserNameDelete>>>
-    
+
     export type DeleteAppApiAppUserNameDeleteMutationError = HTTPValidationError
 
     /**
@@ -10057,7 +9280,7 @@ export const useDeleteAppApiAppUserNameDelete = <TError = HTTPValidationError,
       > => {
       return useMutation(getDeleteAppApiAppUserNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * @summary Get App Content
  */
@@ -10066,7 +9289,7 @@ export const getGetAppContentApiAppUserNameSpecGetUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10079,16 +9302,16 @@ export const getGetAppContentApiAppUserNameSpecGetUrl = (name: string,
 
 export const getAppContentApiAppUserNameSpecGet = async (name: string,
     params?: GetAppContentApiAppUserNameSpecGetParams, options?: RequestInit): Promise<void> => {
-  
+
   return customFetch<void>(getGetAppContentApiAppUserNameSpecGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10100,7 +9323,7 @@ export const getGetAppContentApiAppUserNameSpecGetQueryKey = (name: string,
     ] as const;
     }
 
-    
+
 export const getGetAppContentApiAppUserNameSpecGetQueryOptions = <TData = Awaited<ReturnType<typeof getAppContentApiAppUserNameSpecGet>>, TError = HTTPValidationError>(name: string,
     params?: GetAppContentApiAppUserNameSpecGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppContentApiAppUserNameSpecGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -10109,13 +9332,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetAppContentApiAppUserNameSpecGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getAppContentApiAppUserNameSpecGet>>> = ({ signal }) => getAppContentApiAppUserNameSpecGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAppContentApiAppUserNameSpecGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -10158,7 +9381,7 @@ export function useGetAppContentApiAppUserNameSpecGet<TData = Awaited<ReturnType
 export function useGetAppContentApiAppUserNameSpecGet<TData = Awaited<ReturnType<typeof getAppContentApiAppUserNameSpecGet>>, TError = HTTPValidationError>(
  name: string,
     params?: GetAppContentApiAppUserNameSpecGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppContentApiAppUserNameSpecGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetAppContentApiAppUserNameSpecGetQueryOptions(name,params,options)
@@ -10190,16 +9413,16 @@ export const invalidateGetAppContentApiAppUserNameSpecGet = async (
 export const getRenameAppApiAppUserNameRenamePostUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/app/user/${name}/rename`
 }
 
 export const renameAppApiAppUserNameRenamePost = async (name: string,
     renameAppApiAppUserNameRenamePostBody: string, options?: RequestInit): Promise<string> => {
-  
+
   return customFetch<string>(getRenameAppApiAppUserNameRenamePostUrl(name),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -10207,7 +9430,7 @@ export const renameAppApiAppUserNameRenamePost = async (name: string,
       renameAppApiAppUserNameRenamePostBody,)
   }
 );}
-  
+
 
 
 
@@ -10222,7 +9445,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameAppApiAppUserNameRenamePost>>, {name: string;data: string}> = (props) => {
@@ -10233,7 +9456,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -10255,7 +9478,7 @@ export const useRenameAppApiAppUserNameRenamePost = <TError = HTTPValidationErro
       > => {
       return useMutation(getRenameAppApiAppUserNameRenamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Cancels the workflow.
  * @summary Cancel Workflow
@@ -10265,7 +9488,7 @@ export const getCancelWorkflowApiWorkflowNameCancelPostUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10278,16 +9501,16 @@ export const getCancelWorkflowApiWorkflowNameCancelPostUrl = (name: string,
 
 export const cancelWorkflowApiWorkflowNameCancelPost = async (name: string,
     params?: CancelWorkflowApiWorkflowNameCancelPostParams, options?: RequestInit): Promise<CancelResponse> => {
-  
+
   return customFetch<CancelResponse>(getCancelWorkflowApiWorkflowNameCancelPostUrl(name,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10302,7 +9525,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelWorkflowApiWorkflowNameCancelPost>>, {name: string;params?: CancelWorkflowApiWorkflowNameCancelPostParams}> = (props) => {
@@ -10313,13 +9536,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type CancelWorkflowApiWorkflowNameCancelPostMutationResult = NonNullable<Awaited<ReturnType<typeof cancelWorkflowApiWorkflowNameCancelPost>>>
-    
+
     export type CancelWorkflowApiWorkflowNameCancelPostMutationError = HTTPValidationError
 
     /**
@@ -10335,7 +9558,7 @@ export const useCancelWorkflowApiWorkflowNameCancelPost = <TError = HTTPValidati
       > => {
       return useMutation(getCancelWorkflowApiWorkflowNameCancelPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * @summary List Workflow
  */
@@ -10351,7 +9574,7 @@ export const getListWorkflowApiWorkflowGetUrl = (params?: ListWorkflowApiWorkflo
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10363,16 +9586,16 @@ export const getListWorkflowApiWorkflowGetUrl = (params?: ListWorkflowApiWorkflo
 }
 
 export const listWorkflowApiWorkflowGet = async (params?: ListWorkflowApiWorkflowGetParams, options?: RequestInit): Promise<SrcServiceCoreWorkflowObjectsListResponse> => {
-  
+
   return customFetch<SrcServiceCoreWorkflowObjectsListResponse>(getListWorkflowApiWorkflowGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10383,7 +9606,7 @@ export const getListWorkflowApiWorkflowGetQueryKey = (params?: ListWorkflowApiWo
     ] as const;
     }
 
-    
+
 export const getListWorkflowApiWorkflowGetQueryOptions = <TData = Awaited<ReturnType<typeof listWorkflowApiWorkflowGet>>, TError = HTTPValidationError>(params?: ListWorkflowApiWorkflowGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkflowApiWorkflowGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -10391,13 +9614,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListWorkflowApiWorkflowGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listWorkflowApiWorkflowGet>>> = ({ signal }) => listWorkflowApiWorkflowGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWorkflowApiWorkflowGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -10436,7 +9659,7 @@ export function useListWorkflowApiWorkflowGet<TData = Awaited<ReturnType<typeof 
 
 export function useListWorkflowApiWorkflowGet<TData = Awaited<ReturnType<typeof listWorkflowApiWorkflowGet>>, TError = HTTPValidationError>(
  params?: ListWorkflowApiWorkflowGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkflowApiWorkflowGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListWorkflowApiWorkflowGetQueryOptions(params,options)
@@ -10469,23 +9692,23 @@ export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetUrl = (name: string
     taskName: string,) => {
 
 
-  
+
 
   return `/api/workflow/${name}/task/${taskName}`
 }
 
 export const getWorkflowTaskApiWorkflowNameTaskTaskNameGet = async (name: string,
     taskName: string, options?: RequestInit): Promise<TaskEntry> => {
-  
+
   return customFetch<TaskEntry>(getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetUrl(name,taskName),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10497,7 +9720,7 @@ export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetQueryKey = (name: s
     ] as const;
     }
 
-    
+
 export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowTaskApiWorkflowNameTaskTaskNameGet>>, TError = HTTPValidationError>(name: string,
     taskName: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowTaskApiWorkflowNameTaskTaskNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -10506,13 +9729,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetQueryKey(name,taskName);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowTaskApiWorkflowNameTaskTaskNameGet>>> = ({ signal }) => getWorkflowTaskApiWorkflowNameTaskTaskNameGet(name,taskName, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name && taskName), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowTaskApiWorkflowNameTaskTaskNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -10555,7 +9778,7 @@ export function useGetWorkflowTaskApiWorkflowNameTaskTaskNameGet<TData = Awaited
 export function useGetWorkflowTaskApiWorkflowNameTaskTaskNameGet<TData = Awaited<ReturnType<typeof getWorkflowTaskApiWorkflowNameTaskTaskNameGet>>, TError = HTTPValidationError>(
  name: string,
     taskName: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowTaskApiWorkflowNameTaskTaskNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetQueryOptions(name,taskName,options)
@@ -10596,7 +9819,7 @@ export const getListTaskApiTaskGetUrl = (params?: ListTaskApiTaskGetParams,) => 
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10608,16 +9831,16 @@ export const getListTaskApiTaskGetUrl = (params?: ListTaskApiTaskGetParams,) => 
 }
 
 export const listTaskApiTaskGet = async (params?: ListTaskApiTaskGetParams, options?: RequestInit): Promise<ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse> => {
-  
+
   return customFetch<ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse>(getListTaskApiTaskGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10628,7 +9851,7 @@ export const getListTaskApiTaskGetQueryKey = (params?: ListTaskApiTaskGetParams,
     ] as const;
     }
 
-    
+
 export const getListTaskApiTaskGetQueryOptions = <TData = Awaited<ReturnType<typeof listTaskApiTaskGet>>, TError = HTTPValidationError>(params?: ListTaskApiTaskGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTaskApiTaskGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -10636,13 +9859,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListTaskApiTaskGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listTaskApiTaskGet>>> = ({ signal }) => listTaskApiTaskGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTaskApiTaskGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -10681,7 +9904,7 @@ export function useListTaskApiTaskGet<TData = Awaited<ReturnType<typeof listTask
 
 export function useListTaskApiTaskGet<TData = Awaited<ReturnType<typeof listTaskApiTaskGet>>, TError = HTTPValidationError>(
  params?: ListTaskApiTaskGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTaskApiTaskGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListTaskApiTaskGetQueryOptions(params,options)
@@ -10715,7 +9938,7 @@ export const getGetWorkflowApiWorkflowNameGetUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10728,16 +9951,16 @@ export const getGetWorkflowApiWorkflowNameGetUrl = (name: string,
 
 export const getWorkflowApiWorkflowNameGet = async (name: string,
     params?: GetWorkflowApiWorkflowNameGetParams, options?: RequestInit): Promise<WorkflowQueryResponse> => {
-  
+
   return customFetch<WorkflowQueryResponse>(getGetWorkflowApiWorkflowNameGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10749,7 +9972,7 @@ export const getGetWorkflowApiWorkflowNameGetQueryKey = (name: string,
     ] as const;
     }
 
-    
+
 export const getGetWorkflowApiWorkflowNameGetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowApiWorkflowNameGet>>, TError = HTTPValidationError>(name: string,
     params?: GetWorkflowApiWorkflowNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowApiWorkflowNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -10758,13 +9981,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkflowApiWorkflowNameGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowApiWorkflowNameGet>>> = ({ signal }) => getWorkflowApiWorkflowNameGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowApiWorkflowNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -10807,7 +10030,7 @@ export function useGetWorkflowApiWorkflowNameGet<TData = Awaited<ReturnType<type
 export function useGetWorkflowApiWorkflowNameGet<TData = Awaited<ReturnType<typeof getWorkflowApiWorkflowNameGet>>, TError = HTTPValidationError>(
  name: string,
     params?: GetWorkflowApiWorkflowNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowApiWorkflowNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWorkflowApiWorkflowNameGetQueryOptions(name,params,options)
@@ -10842,7 +10065,7 @@ export const getGetWorkflowLogsApiWorkflowNameLogsGetUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10855,16 +10078,16 @@ export const getGetWorkflowLogsApiWorkflowNameLogsGetUrl = (name: string,
 
 export const getWorkflowLogsApiWorkflowNameLogsGet = async (name: string,
     params?: GetWorkflowLogsApiWorkflowNameLogsGetParams, options?: RequestInit): Promise<string> => {
-  
+
   return customFetch<string>(getGetWorkflowLogsApiWorkflowNameLogsGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -10876,7 +10099,7 @@ export const getGetWorkflowLogsApiWorkflowNameLogsGetQueryKey = (name: string,
     ] as const;
     }
 
-    
+
 export const getGetWorkflowLogsApiWorkflowNameLogsGetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowLogsApiWorkflowNameLogsGet>>, TError = HTTPValidationError>(name: string,
     params?: GetWorkflowLogsApiWorkflowNameLogsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowLogsApiWorkflowNameLogsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -10885,13 +10108,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkflowLogsApiWorkflowNameLogsGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowLogsApiWorkflowNameLogsGet>>> = ({ signal }) => getWorkflowLogsApiWorkflowNameLogsGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowLogsApiWorkflowNameLogsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -10934,7 +10157,7 @@ export function useGetWorkflowLogsApiWorkflowNameLogsGet<TData = Awaited<ReturnT
 export function useGetWorkflowLogsApiWorkflowNameLogsGet<TData = Awaited<ReturnType<typeof getWorkflowLogsApiWorkflowNameLogsGet>>, TError = HTTPValidationError>(
  name: string,
     params?: GetWorkflowLogsApiWorkflowNameLogsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowLogsApiWorkflowNameLogsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWorkflowLogsApiWorkflowNameLogsGetQueryOptions(name,params,options)
@@ -10969,7 +10192,7 @@ export const getGetWorkflowPodConditionsApiWorkflowNameEventsGetUrl = (name: str
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10982,16 +10205,16 @@ export const getGetWorkflowPodConditionsApiWorkflowNameEventsGetUrl = (name: str
 
 export const getWorkflowPodConditionsApiWorkflowNameEventsGet = async (name: string,
     params?: GetWorkflowPodConditionsApiWorkflowNameEventsGetParams, options?: RequestInit): Promise<string> => {
-  
+
   return customFetch<string>(getGetWorkflowPodConditionsApiWorkflowNameEventsGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11003,7 +10226,7 @@ export const getGetWorkflowPodConditionsApiWorkflowNameEventsGetQueryKey = (name
     ] as const;
     }
 
-    
+
 export const getGetWorkflowPodConditionsApiWorkflowNameEventsGetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowPodConditionsApiWorkflowNameEventsGet>>, TError = HTTPValidationError>(name: string,
     params?: GetWorkflowPodConditionsApiWorkflowNameEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowPodConditionsApiWorkflowNameEventsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -11012,13 +10235,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkflowPodConditionsApiWorkflowNameEventsGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowPodConditionsApiWorkflowNameEventsGet>>> = ({ signal }) => getWorkflowPodConditionsApiWorkflowNameEventsGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowPodConditionsApiWorkflowNameEventsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -11061,7 +10284,7 @@ export function useGetWorkflowPodConditionsApiWorkflowNameEventsGet<TData = Awai
 export function useGetWorkflowPodConditionsApiWorkflowNameEventsGet<TData = Awaited<ReturnType<typeof getWorkflowPodConditionsApiWorkflowNameEventsGet>>, TError = HTTPValidationError>(
  name: string,
     params?: GetWorkflowPodConditionsApiWorkflowNameEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowPodConditionsApiWorkflowNameEventsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWorkflowPodConditionsApiWorkflowNameEventsGetQueryOptions(name,params,options)
@@ -11096,7 +10319,7 @@ export const getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetUrl = (name: stri
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11109,16 +10332,16 @@ export const getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetUrl = (name: stri
 
 export const getWorkflowErrorLogsApiWorkflowNameErrorLogsGet = async (name: string,
     params?: GetWorkflowErrorLogsApiWorkflowNameErrorLogsGetParams, options?: RequestInit): Promise<string> => {
-  
+
   return customFetch<string>(getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11130,7 +10353,7 @@ export const getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetQueryKey = (name:
     ] as const;
     }
 
-    
+
 export const getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowErrorLogsApiWorkflowNameErrorLogsGet>>, TError = HTTPValidationError>(name: string,
     params?: GetWorkflowErrorLogsApiWorkflowNameErrorLogsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowErrorLogsApiWorkflowNameErrorLogsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -11139,13 +10362,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowErrorLogsApiWorkflowNameErrorLogsGet>>> = ({ signal }) => getWorkflowErrorLogsApiWorkflowNameErrorLogsGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowErrorLogsApiWorkflowNameErrorLogsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -11188,7 +10411,7 @@ export function useGetWorkflowErrorLogsApiWorkflowNameErrorLogsGet<TData = Await
 export function useGetWorkflowErrorLogsApiWorkflowNameErrorLogsGet<TData = Awaited<ReturnType<typeof getWorkflowErrorLogsApiWorkflowNameErrorLogsGet>>, TError = HTTPValidationError>(
  name: string,
     params?: GetWorkflowErrorLogsApiWorkflowNameErrorLogsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowErrorLogsApiWorkflowNameErrorLogsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetQueryOptions(name,params,options)
@@ -11223,7 +10446,7 @@ export const getGetWorkflowSpecApiWorkflowNameSpecGetUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11236,16 +10459,16 @@ export const getGetWorkflowSpecApiWorkflowNameSpecGetUrl = (name: string,
 
 export const getWorkflowSpecApiWorkflowNameSpecGet = async (name: string,
     params?: GetWorkflowSpecApiWorkflowNameSpecGetParams, options?: RequestInit): Promise<string> => {
-  
+
   return customFetch<string>(getGetWorkflowSpecApiWorkflowNameSpecGetUrl(name,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11257,7 +10480,7 @@ export const getGetWorkflowSpecApiWorkflowNameSpecGetQueryKey = (name: string,
     ] as const;
     }
 
-    
+
 export const getGetWorkflowSpecApiWorkflowNameSpecGetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowSpecApiWorkflowNameSpecGet>>, TError = HTTPValidationError>(name: string,
     params?: GetWorkflowSpecApiWorkflowNameSpecGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowSpecApiWorkflowNameSpecGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
@@ -11266,13 +10489,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkflowSpecApiWorkflowNameSpecGetQueryKey(name,params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowSpecApiWorkflowNameSpecGet>>> = ({ signal }) => getWorkflowSpecApiWorkflowNameSpecGet(name,params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowSpecApiWorkflowNameSpecGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -11315,7 +10538,7 @@ export function useGetWorkflowSpecApiWorkflowNameSpecGet<TData = Awaited<ReturnT
 export function useGetWorkflowSpecApiWorkflowNameSpecGet<TData = Awaited<ReturnType<typeof getWorkflowSpecApiWorkflowNameSpecGet>>, TError = HTTPValidationError>(
  name: string,
     params?: GetWorkflowSpecApiWorkflowNameSpecGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowSpecApiWorkflowNameSpecGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWorkflowSpecApiWorkflowNameSpecGetQueryOptions(name,params,options)
@@ -11358,7 +10581,7 @@ export const getTagWorkflowApiWorkflowNameTagPostUrl = (name: string,
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11371,16 +10594,16 @@ export const getTagWorkflowApiWorkflowNameTagPostUrl = (name: string,
 
 export const tagWorkflowApiWorkflowNameTagPost = async (name: string,
     params?: TagWorkflowApiWorkflowNameTagPostParams, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getTagWorkflowApiWorkflowNameTagPostUrl(name,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11395,7 +10618,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof tagWorkflowApiWorkflowNameTagPost>>, {name: string;params?: TagWorkflowApiWorkflowNameTagPostParams}> = (props) => {
@@ -11406,13 +10629,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type TagWorkflowApiWorkflowNameTagPostMutationResult = NonNullable<Awaited<ReturnType<typeof tagWorkflowApiWorkflowNameTagPost>>>
-    
+
     export type TagWorkflowApiWorkflowNameTagPostMutationError = HTTPValidationError
 
     /**
@@ -11428,7 +10651,7 @@ export const useTagWorkflowApiWorkflowNameTagPost = <TError = HTTPValidationErro
       > => {
       return useMutation(getTagWorkflowApiWorkflowNameTagPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Send command to all tasks in a group.
  * @summary Exec Into Group
@@ -11439,7 +10662,7 @@ export const getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostUrl = (name: s
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11453,16 +10676,16 @@ export const getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostUrl = (name: s
 export const execIntoGroupApiWorkflowNameExecGroupGroupNamePost = async (name: string,
     groupName: string,
     params: ExecIntoGroupApiWorkflowNameExecGroupGroupNamePostParams, options?: RequestInit): Promise<ExecIntoGroupApiWorkflowNameExecGroupGroupNamePost200> => {
-  
+
   return customFetch<ExecIntoGroupApiWorkflowNameExecGroupGroupNamePost200>(getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostUrl(name,groupName,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11477,7 +10700,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof execIntoGroupApiWorkflowNameExecGroupGroupNamePost>>, {name: string;groupName: string;params: ExecIntoGroupApiWorkflowNameExecGroupGroupNamePostParams}> = (props) => {
@@ -11488,13 +10711,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type ExecIntoGroupApiWorkflowNameExecGroupGroupNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof execIntoGroupApiWorkflowNameExecGroupGroupNamePost>>>
-    
+
     export type ExecIntoGroupApiWorkflowNameExecGroupGroupNamePostMutationError = HTTPValidationError
 
     /**
@@ -11510,7 +10733,7 @@ export const useExecIntoGroupApiWorkflowNameExecGroupGroupNamePost = <TError = H
       > => {
       return useMutation(getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Exec into a task container.
  * @summary Exec Into Task
@@ -11521,7 +10744,7 @@ export const getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostUrl = (name: stri
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11535,16 +10758,16 @@ export const getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostUrl = (name: stri
 export const execIntoTaskApiWorkflowNameExecTaskTaskNamePost = async (name: string,
     taskName: string,
     params: ExecIntoTaskApiWorkflowNameExecTaskTaskNamePostParams, options?: RequestInit): Promise<RouterResponse> => {
-  
+
   return customFetch<RouterResponse>(getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostUrl(name,taskName,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11559,7 +10782,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof execIntoTaskApiWorkflowNameExecTaskTaskNamePost>>, {name: string;taskName: string;params: ExecIntoTaskApiWorkflowNameExecTaskTaskNamePostParams}> = (props) => {
@@ -11570,13 +10793,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type ExecIntoTaskApiWorkflowNameExecTaskTaskNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof execIntoTaskApiWorkflowNameExecTaskTaskNamePost>>>
-    
+
     export type ExecIntoTaskApiWorkflowNameExecTaskTaskNamePostMutationError = HTTPValidationError
 
     /**
@@ -11592,7 +10815,7 @@ export const useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost = <TError = HTTP
       > => {
       return useMutation(getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Portforward into a task container.
  * @summary Port Forward Task
@@ -11611,7 +10834,7 @@ export const getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl = (name
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11625,16 +10848,16 @@ export const getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl = (name
 export const portForwardTaskApiWorkflowNamePortforwardTaskNamePost = async (name: string,
     taskName: string,
     params?: PortForwardTaskApiWorkflowNamePortforwardTaskNamePostParams, options?: RequestInit): Promise<RouterResponse[] | RouterResponse> => {
-  
+
   return customFetch<RouterResponse[] | RouterResponse>(getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl(name,taskName,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11649,7 +10872,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof portForwardTaskApiWorkflowNamePortforwardTaskNamePost>>, {name: string;taskName: string;params?: PortForwardTaskApiWorkflowNamePortforwardTaskNamePostParams}> = (props) => {
@@ -11660,13 +10883,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type PortForwardTaskApiWorkflowNamePortforwardTaskNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof portForwardTaskApiWorkflowNamePortforwardTaskNamePost>>>
-    
+
     export type PortForwardTaskApiWorkflowNamePortforwardTaskNamePostMutationError = HTTPValidationError
 
     /**
@@ -11682,7 +10905,7 @@ export const usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost = <TError 
       > => {
       return useMutation(getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Hold a webserver connection to a task container.
  * @summary Port Forward Webserver
@@ -11693,7 +10916,7 @@ export const getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostUrl = (n
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11707,16 +10930,16 @@ export const getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostUrl = (n
 export const portForwardWebserverApiWorkflowNameWebserverTaskNamePost = async (name: string,
     taskName: string,
     params: PortForwardWebserverApiWorkflowNameWebserverTaskNamePostParams, options?: RequestInit): Promise<RouterResponse> => {
-  
+
   return customFetch<RouterResponse>(getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostUrl(name,taskName,params),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11731,7 +10954,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof portForwardWebserverApiWorkflowNameWebserverTaskNamePost>>, {name: string;taskName: string;params: PortForwardWebserverApiWorkflowNameWebserverTaskNamePostParams}> = (props) => {
@@ -11742,13 +10965,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type PortForwardWebserverApiWorkflowNameWebserverTaskNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof portForwardWebserverApiWorkflowNameWebserverTaskNamePost>>>
-    
+
     export type PortForwardWebserverApiWorkflowNameWebserverTaskNamePostMutationError = HTTPValidationError
 
     /**
@@ -11764,7 +10987,7 @@ export const usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost = <TErr
       > => {
       return useMutation(getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Rsync into a task container.
  * @summary Rsync Task
@@ -11773,23 +10996,23 @@ export const getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostUrl = (name: string
     taskName: string,) => {
 
 
-  
+
 
   return `/api/workflow/${name}/rsync/task/${taskName}`
 }
 
 export const rsyncTaskApiWorkflowNameRsyncTaskTaskNamePost = async (name: string,
     taskName: string, options?: RequestInit): Promise<RouterResponse> => {
-  
+
   return customFetch<RouterResponse>(getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostUrl(name,taskName),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11804,7 +11027,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof rsyncTaskApiWorkflowNameRsyncTaskTaskNamePost>>, {name: string;taskName: string}> = (props) => {
@@ -11815,13 +11038,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type RsyncTaskApiWorkflowNameRsyncTaskTaskNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof rsyncTaskApiWorkflowNameRsyncTaskTaskNamePost>>>
-    
+
     export type RsyncTaskApiWorkflowNameRsyncTaskTaskNamePostMutationError = HTTPValidationError
 
     /**
@@ -11837,7 +11060,7 @@ export const useRsyncTaskApiWorkflowNameRsyncTaskTaskNamePost = <TError = HTTPVa
       > => {
       return useMutation(getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Get default/all user credentials
  * @summary Get User Credential
@@ -11845,22 +11068,22 @@ export const useRsyncTaskApiWorkflowNameRsyncTaskTaskNamePost = <TError = HTTPVa
 export const getGetUserCredentialApiCredentialsGetUrl = () => {
 
 
-  
+
 
   return `/api/credentials`
 }
 
 export const getUserCredentialApiCredentialsGet = async ( options?: RequestInit): Promise<CredentialGetResponse> => {
-  
+
   return customFetch<CredentialGetResponse>(getGetUserCredentialApiCredentialsGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -11871,7 +11094,7 @@ export const getGetUserCredentialApiCredentialsGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getGetUserCredentialApiCredentialsGetQueryOptions = <TData = Awaited<ReturnType<typeof getUserCredentialApiCredentialsGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserCredentialApiCredentialsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -11879,13 +11102,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetUserCredentialApiCredentialsGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserCredentialApiCredentialsGet>>> = ({ signal }) => getUserCredentialApiCredentialsGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserCredentialApiCredentialsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -11924,7 +11147,7 @@ export function useGetUserCredentialApiCredentialsGet<TData = Awaited<ReturnType
 
 export function useGetUserCredentialApiCredentialsGet<TData = Awaited<ReturnType<typeof getUserCredentialApiCredentialsGet>>, TError = HTTPValidationError>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserCredentialApiCredentialsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetUserCredentialApiCredentialsGetQueryOptions(options)
@@ -11956,16 +11179,16 @@ export const invalidateGetUserCredentialApiCredentialsGet = async (
 export const getSetUserCredentialApiCredentialsCredNamePostUrl = (credName: string,) => {
 
 
-  
+
 
   return `/api/credentials/${credName}`
 }
 
 export const setUserCredentialApiCredentialsCredNamePost = async (credName: string,
     credentialOptions: CredentialOptions, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getSetUserCredentialApiCredentialsCredNamePostUrl(credName),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -11973,7 +11196,7 @@ export const setUserCredentialApiCredentialsCredNamePost = async (credName: stri
       credentialOptions,)
   }
 );}
-  
+
 
 
 
@@ -11988,7 +11211,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserCredentialApiCredentialsCredNamePost>>, {credName: string;data: CredentialOptions}> = (props) => {
@@ -11999,7 +11222,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -12021,7 +11244,7 @@ export const useSetUserCredentialApiCredentialsCredNamePost = <TError = HTTPVali
       > => {
       return useMutation(getSetUserCredentialApiCredentialsCredNamePostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Delete user credentials given the secret_id
  * @summary Delete Users Credential
@@ -12029,22 +11252,22 @@ export const useSetUserCredentialApiCredentialsCredNamePost = <TError = HTTPVali
 export const getDeleteUsersCredentialApiCredentialsCredNameDeleteUrl = (credName: string,) => {
 
 
-  
+
 
   return `/api/credentials/${credName}`
 }
 
 export const deleteUsersCredentialApiCredentialsCredNameDelete = async (credName: string, options?: RequestInit): Promise<CredentialGetResponse> => {
-  
+
   return customFetch<CredentialGetResponse>(getDeleteUsersCredentialApiCredentialsCredNameDeleteUrl(credName),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -12059,7 +11282,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteUsersCredentialApiCredentialsCredNameDelete>>, {credName: string}> = (props) => {
@@ -12070,13 +11293,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type DeleteUsersCredentialApiCredentialsCredNameDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteUsersCredentialApiCredentialsCredNameDelete>>>
-    
+
     export type DeleteUsersCredentialApiCredentialsCredNameDeleteMutationError = HTTPValidationError
 
     /**
@@ -12092,7 +11315,7 @@ export const useDeleteUsersCredentialApiCredentialsCredNameDelete = <TError = HT
       > => {
       return useMutation(getDeleteUsersCredentialApiCredentialsCredNameDeleteMutationOptions(options), queryClient);
     }
-    
+
 /**
  * Returns the information of resources available in different pools.
  * @summary Get Resources
@@ -12109,7 +11332,7 @@ export const getGetResourcesApiResourcesGetUrl = (params?: GetResourcesApiResour
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -12121,16 +11344,16 @@ export const getGetResourcesApiResourcesGetUrl = (params?: GetResourcesApiResour
 }
 
 export const getResourcesApiResourcesGet = async (params?: GetResourcesApiResourcesGetParams, options?: RequestInit): Promise<ResourcesResponse | PoolResourcesResponse> => {
-  
+
   return customFetch<ResourcesResponse | PoolResourcesResponse>(getGetResourcesApiResourcesGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -12141,7 +11364,7 @@ export const getGetResourcesApiResourcesGetQueryKey = (params?: GetResourcesApiR
     ] as const;
     }
 
-    
+
 export const getGetResourcesApiResourcesGetQueryOptions = <TData = Awaited<ReturnType<typeof getResourcesApiResourcesGet>>, TError = HTTPValidationError>(params?: GetResourcesApiResourcesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getResourcesApiResourcesGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -12149,13 +11372,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetResourcesApiResourcesGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourcesApiResourcesGet>>> = ({ signal }) => getResourcesApiResourcesGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getResourcesApiResourcesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -12194,7 +11417,7 @@ export function useGetResourcesApiResourcesGet<TData = Awaited<ReturnType<typeof
 
 export function useGetResourcesApiResourcesGet<TData = Awaited<ReturnType<typeof getResourcesApiResourcesGet>>, TError = HTTPValidationError>(
  params?: GetResourcesApiResourcesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getResourcesApiResourcesGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetResourcesApiResourcesGetQueryOptions(params,options)
@@ -12226,22 +11449,22 @@ export const invalidateGetResourcesApiResourcesGet = async (
 export const getGetOneResourceApiResourcesNameGetUrl = (name: string,) => {
 
 
-  
+
 
   return `/api/resources/${name}`
 }
 
 export const getOneResourceApiResourcesNameGet = async (name: string, options?: RequestInit): Promise<ResourcesResponse> => {
-  
+
   return customFetch<ResourcesResponse>(getGetOneResourceApiResourcesNameGetUrl(name),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -12252,7 +11475,7 @@ export const getGetOneResourceApiResourcesNameGetQueryKey = (name: string,) => {
     ] as const;
     }
 
-    
+
 export const getGetOneResourceApiResourcesNameGetQueryOptions = <TData = Awaited<ReturnType<typeof getOneResourceApiResourcesNameGet>>, TError = HTTPValidationError>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOneResourceApiResourcesNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -12260,13 +11483,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetOneResourceApiResourcesNameGetQueryKey(name);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getOneResourceApiResourcesNameGet>>> = ({ signal }) => getOneResourceApiResourcesNameGet(name, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, enabled: !!(name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOneResourceApiResourcesNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -12305,7 +11528,7 @@ export function useGetOneResourceApiResourcesNameGet<TData = Awaited<ReturnType<
 
 export function useGetOneResourceApiResourcesNameGet<TData = Awaited<ReturnType<typeof getOneResourceApiResourcesNameGet>>, TError = HTTPValidationError>(
  name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOneResourceApiResourcesNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetOneResourceApiResourcesNameGetQueryOptions(name,options)
@@ -12350,7 +11573,7 @@ export const getGetPoolsApiPoolGetUrl = (params?: GetPoolsApiPoolGetParams,) => 
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -12362,16 +11585,16 @@ export const getGetPoolsApiPoolGetUrl = (params?: GetPoolsApiPoolGetParams,) => 
 }
 
 export const getPoolsApiPoolGet = async (params?: GetPoolsApiPoolGetParams, options?: RequestInit): Promise<MinimalPoolConfig> => {
-  
+
   return customFetch<MinimalPoolConfig>(getGetPoolsApiPoolGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -12382,7 +11605,7 @@ export const getGetPoolsApiPoolGetQueryKey = (params?: GetPoolsApiPoolGetParams,
     ] as const;
     }
 
-    
+
 export const getGetPoolsApiPoolGetQueryOptions = <TData = Awaited<ReturnType<typeof getPoolsApiPoolGet>>, TError = HTTPValidationError>(params?: GetPoolsApiPoolGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPoolsApiPoolGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -12390,13 +11613,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetPoolsApiPoolGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getPoolsApiPoolGet>>> = ({ signal }) => getPoolsApiPoolGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPoolsApiPoolGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -12435,7 +11658,7 @@ export function useGetPoolsApiPoolGet<TData = Awaited<ReturnType<typeof getPools
 
 export function useGetPoolsApiPoolGet<TData = Awaited<ReturnType<typeof getPoolsApiPoolGet>>, TError = HTTPValidationError>(
  params?: GetPoolsApiPoolGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPoolsApiPoolGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPoolsApiPoolGetQueryOptions(params,options)
@@ -12475,7 +11698,7 @@ export const getGetPoolQuotasApiPoolQuotaGetUrl = (params?: GetPoolQuotasApiPool
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -12487,16 +11710,16 @@ export const getGetPoolQuotasApiPoolQuotaGetUrl = (params?: GetPoolQuotasApiPool
 }
 
 export const getPoolQuotasApiPoolQuotaGet = async (params?: GetPoolQuotasApiPoolQuotaGetParams, options?: RequestInit): Promise<PoolResponse> => {
-  
+
   return customFetch<PoolResponse>(getGetPoolQuotasApiPoolQuotaGetUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -12507,7 +11730,7 @@ export const getGetPoolQuotasApiPoolQuotaGetQueryKey = (params?: GetPoolQuotasAp
     ] as const;
     }
 
-    
+
 export const getGetPoolQuotasApiPoolQuotaGetQueryOptions = <TData = Awaited<ReturnType<typeof getPoolQuotasApiPoolQuotaGet>>, TError = HTTPValidationError>(params?: GetPoolQuotasApiPoolQuotaGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPoolQuotasApiPoolQuotaGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -12515,13 +11738,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetPoolQuotasApiPoolQuotaGetQueryKey(params);
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getPoolQuotasApiPoolQuotaGet>>> = ({ signal }) => getPoolQuotasApiPoolQuotaGet(params, { signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPoolQuotasApiPoolQuotaGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -12560,7 +11783,7 @@ export function useGetPoolQuotasApiPoolQuotaGet<TData = Awaited<ReturnType<typeo
 
 export function useGetPoolQuotasApiPoolQuotaGet<TData = Awaited<ReturnType<typeof getPoolQuotasApiPoolQuotaGet>>, TError = HTTPValidationError>(
  params?: GetPoolQuotasApiPoolQuotaGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPoolQuotasApiPoolQuotaGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPoolQuotasApiPoolQuotaGetQueryOptions(params,options)
@@ -12602,7 +11825,7 @@ export const getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl = (poolName: string
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -12616,9 +11839,9 @@ export const getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl = (poolName: string
 export const submitWorkflowApiPoolPoolNameWorkflowPost = async (poolName: string,
     templateSpecNull: TemplateSpec | null,
     params?: SubmitWorkflowApiPoolPoolNameWorkflowPostParams, options?: RequestInit): Promise<SubmitResponse> => {
-  
+
   return customFetch<SubmitResponse>(getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl(poolName,params),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -12626,7 +11849,7 @@ export const submitWorkflowApiPoolPoolNameWorkflowPost = async (poolName: string
       templateSpecNull,)
   }
 );}
-  
+
 
 
 
@@ -12641,7 +11864,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitWorkflowApiPoolPoolNameWorkflowPost>>, {poolName: string;data: TemplateSpec | null;params?: SubmitWorkflowApiPoolPoolNameWorkflowPostParams}> = (props) => {
@@ -12652,7 +11875,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -12674,7 +11897,7 @@ export const useSubmitWorkflowApiPoolPoolNameWorkflowPost = <TError = HTTPValida
       > => {
       return useMutation(getSubmitWorkflowApiPoolPoolNameWorkflowPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * This api restarts a failed workflow and then submits it.
  * @summary Restart Workflow
@@ -12683,23 +11906,23 @@ export const getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostUrl =
     workflowId: string,) => {
 
 
-  
+
 
   return `/api/pool/${poolName}/workflow/${workflowId}/restart`
 }
 
 export const restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPost = async (poolName: string,
     workflowId: string, options?: RequestInit): Promise<SubmitResponse> => {
-  
+
   return customFetch<SubmitResponse>(getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostUrl(poolName,workflowId),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -12714,7 +11937,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPost>>, {poolName: string;workflowId: string}> = (props) => {
@@ -12725,13 +11948,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
 
     export type RestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostMutationResult = NonNullable<Awaited<ReturnType<typeof restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPost>>>
-    
+
     export type RestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostMutationError = HTTPValidationError
 
     /**
@@ -12747,1671 +11970,29 @@ export const useRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPost = <T
       > => {
       return useMutation(getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostMutationOptions(options), queryClient);
     }
-    
-/**
- * This api allows users to fetch the default bucket and the list of available buckets.
- * @deprecated
- * @summary Get Bucket Info
- */
-export const getGetBucketInfoApiBucketGetUrl = (params?: GetBucketInfoApiBucketGetParams,) => {
-  const normalizedParams = new URLSearchParams();
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket?${stringifiedParams}` : `/api/bucket`
-}
-
-export const getBucketInfoApiBucketGet = async (params?: GetBucketInfoApiBucketGetParams, options?: RequestInit): Promise<BucketInfoResponse> => {
-  
-  return customFetch<BucketInfoResponse>(getGetBucketInfoApiBucketGetUrl(params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getGetBucketInfoApiBucketGetQueryKey = (params?: GetBucketInfoApiBucketGetParams,) => {
-    return [
-    `/api/bucket`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-    
-export const getGetBucketInfoApiBucketGetQueryOptions = <TData = Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError = HTTPValidationError>(params?: GetBucketInfoApiBucketGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetBucketInfoApiBucketGetQueryKey(params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>> = ({ signal }) => getBucketInfoApiBucketGet(params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBucketInfoApiBucketGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>>
-export type GetBucketInfoApiBucketGetQueryError = HTTPValidationError
-
-
-export function useGetBucketInfoApiBucketGet<TData = Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError = HTTPValidationError>(
- params: undefined |  GetBucketInfoApiBucketGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>,
-          TError,
-          Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBucketInfoApiBucketGet<TData = Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError = HTTPValidationError>(
- params?: GetBucketInfoApiBucketGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>,
-          TError,
-          Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBucketInfoApiBucketGet<TData = Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError = HTTPValidationError>(
- params?: GetBucketInfoApiBucketGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @deprecated
- * @summary Get Bucket Info
- */
-
-export function useGetBucketInfoApiBucketGet<TData = Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError = HTTPValidationError>(
- params?: GetBucketInfoApiBucketGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBucketInfoApiBucketGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetBucketInfoApiBucketGetQueryOptions(params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @deprecated
- * @summary Get Bucket Info
- */
-export const invalidateGetBucketInfoApiBucketGet = async (
- queryClient: QueryClient, params?: GetBucketInfoApiBucketGetParams, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getGetBucketInfoApiBucketGetQueryKey(params) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * This api creates the dataset in the table. If finish is false, it creates the pending
-version. Otherwise, it will set the corresponding version to READY.
- * @deprecated
- * @summary Upload Dataset
- */
-export const getUploadDatasetApiBucketBucketDatasetNamePostUrl = (bucket: string,
-    name: string,
-    params?: UploadDatasetApiBucketBucketDatasetNamePostParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}`
-}
-
-export const uploadDatasetApiBucketBucketDatasetNamePost = async (bucket: string,
-    name: string,
-    bodyUploadDatasetApiBucketBucketDatasetNamePost: BodyUploadDatasetApiBucketBucketDatasetNamePost,
-    params?: UploadDatasetApiBucketBucketDatasetNamePostParams, options?: RequestInit): Promise<DataUploadResponse> => {
-  
-  return customFetch<DataUploadResponse>(getUploadDatasetApiBucketBucketDatasetNamePostUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      bodyUploadDatasetApiBucketBucketDatasetNamePost,)
-  }
-);}
-  
-
-
-
-export const getUploadDatasetApiBucketBucketDatasetNamePostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadDatasetApiBucketBucketDatasetNamePost>>, TError,{bucket: string;name: string;data: BodyUploadDatasetApiBucketBucketDatasetNamePost;params?: UploadDatasetApiBucketBucketDatasetNamePostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof uploadDatasetApiBucketBucketDatasetNamePost>>, TError,{bucket: string;name: string;data: BodyUploadDatasetApiBucketBucketDatasetNamePost;params?: UploadDatasetApiBucketBucketDatasetNamePostParams}, TContext> => {
-
-const mutationKey = ['uploadDatasetApiBucketBucketDatasetNamePost'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadDatasetApiBucketBucketDatasetNamePost>>, {bucket: string;name: string;data: BodyUploadDatasetApiBucketBucketDatasetNamePost;params?: UploadDatasetApiBucketBucketDatasetNamePostParams}> = (props) => {
-          const {bucket,name,data,params} = props ?? {};
-
-          return  uploadDatasetApiBucketBucketDatasetNamePost(bucket,name,data,params,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UploadDatasetApiBucketBucketDatasetNamePostMutationResult = NonNullable<Awaited<ReturnType<typeof uploadDatasetApiBucketBucketDatasetNamePost>>>
-    export type UploadDatasetApiBucketBucketDatasetNamePostMutationBody = BodyUploadDatasetApiBucketBucketDatasetNamePost
-    export type UploadDatasetApiBucketBucketDatasetNamePostMutationError = HTTPValidationError
-
-    /**
- * @deprecated
- * @summary Upload Dataset
- */
-export const useUploadDatasetApiBucketBucketDatasetNamePost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadDatasetApiBucketBucketDatasetNamePost>>, TError,{bucket: string;name: string;data: BodyUploadDatasetApiBucketBucketDatasetNamePost;params?: UploadDatasetApiBucketBucketDatasetNamePostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof uploadDatasetApiBucketBucketDatasetNamePost>>,
-        TError,
-        {bucket: string;name: string;data: BodyUploadDatasetApiBucketBucketDatasetNamePost;params?: UploadDatasetApiBucketBucketDatasetNamePostParams},
-        TContext
-      > => {
-      return useMutation(getUploadDatasetApiBucketBucketDatasetNamePostMutationOptions(options), queryClient);
-    }
-    
-/**
- * This api returns the dataset download response.
- * @deprecated
- * @summary Download
- */
-export const getDownloadApiBucketBucketDatasetNameGetUrl = (bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}`
-}
-
-export const downloadApiBucketBucketDatasetNameGet = async (bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams, options?: RequestInit): Promise<DataDownloadResponse> => {
-  
-  return customFetch<DataDownloadResponse>(getDownloadApiBucketBucketDatasetNameGetUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getDownloadApiBucketBucketDatasetNameGetQueryKey = (bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams,) => {
-    return [
-    `/api/bucket/${bucket}/dataset/${name}`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-    
-export const getDownloadApiBucketBucketDatasetNameGetQueryOptions = <TData = Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError = HTTPValidationError>(bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getDownloadApiBucketBucketDatasetNameGetQueryKey(bucket,name,params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>> = ({ signal }) => downloadApiBucketBucketDatasetNameGet(bucket,name,params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(bucket && name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type DownloadApiBucketBucketDatasetNameGetQueryResult = NonNullable<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>>
-export type DownloadApiBucketBucketDatasetNameGetQueryError = HTTPValidationError
-
-
-export function useDownloadApiBucketBucketDatasetNameGet<TData = Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: undefined |  DownloadApiBucketBucketDatasetNameGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>,
-          TError,
-          Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDownloadApiBucketBucketDatasetNameGet<TData = Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>,
-          TError,
-          Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDownloadApiBucketBucketDatasetNameGet<TData = Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @deprecated
- * @summary Download
- */
-
-export function useDownloadApiBucketBucketDatasetNameGet<TData = Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadApiBucketBucketDatasetNameGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getDownloadApiBucketBucketDatasetNameGetQueryOptions(bucket,name,params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @deprecated
- * @summary Download
- */
-export const invalidateDownloadApiBucketBucketDatasetNameGet = async (
- queryClient: QueryClient, bucket: string,
-    name: string,
-    params?: DownloadApiBucketBucketDatasetNameGetParams, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getDownloadApiBucketBucketDatasetNameGetQueryKey(bucket,name,params) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * This api deletes a Dataset.
- * @deprecated
- * @summary Delete Dataset
- */
-export const getDeleteDatasetApiBucketBucketDatasetNameDeleteUrl = (bucket: string,
-    name: string,
-    params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}`
-}
-
-export const deleteDatasetApiBucketBucketDatasetNameDelete = async (bucket: string,
-    name: string,
-    params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams, options?: RequestInit): Promise<DataDeleteResponse> => {
-  
-  return customFetch<DataDeleteResponse>(getDeleteDatasetApiBucketBucketDatasetNameDeleteUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'DELETE'
-    
-    
-  }
-);}
-  
-
-
-
-export const getDeleteDatasetApiBucketBucketDatasetNameDeleteMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDatasetApiBucketBucketDatasetNameDelete>>, TError,{bucket: string;name: string;params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteDatasetApiBucketBucketDatasetNameDelete>>, TError,{bucket: string;name: string;params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams}, TContext> => {
-
-const mutationKey = ['deleteDatasetApiBucketBucketDatasetNameDelete'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDatasetApiBucketBucketDatasetNameDelete>>, {bucket: string;name: string;params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams}> = (props) => {
-          const {bucket,name,params} = props ?? {};
-
-          return  deleteDatasetApiBucketBucketDatasetNameDelete(bucket,name,params,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteDatasetApiBucketBucketDatasetNameDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDatasetApiBucketBucketDatasetNameDelete>>>
-    
-    export type DeleteDatasetApiBucketBucketDatasetNameDeleteMutationError = HTTPValidationError
-
-    /**
- * @deprecated
- * @summary Delete Dataset
- */
-export const useDeleteDatasetApiBucketBucketDatasetNameDelete = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDatasetApiBucketBucketDatasetNameDelete>>, TError,{bucket: string;name: string;params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteDatasetApiBucketBucketDatasetNameDelete>>,
-        TError,
-        {bucket: string;name: string;params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams},
-        TContext
-      > => {
-      return useMutation(getDeleteDatasetApiBucketBucketDatasetNameDeleteMutationOptions(options), queryClient);
-    }
-    
-/**
- * This api migrates the dataset to a manifest based dataset.
- * @deprecated
- * @summary Migrate Dataset
- */
-export const getMigrateDatasetApiBucketBucketDatasetNameMigratePostUrl = (bucket: string,
-    name: string,
-    params?: MigrateDatasetApiBucketBucketDatasetNameMigratePostParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}/migrate?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}/migrate`
-}
-
-export const migrateDatasetApiBucketBucketDatasetNameMigratePost = async (bucket: string,
-    name: string,
-    params?: MigrateDatasetApiBucketBucketDatasetNameMigratePostParams, options?: RequestInit): Promise<DataDownloadResponse> => {
-  
-  return customFetch<DataDownloadResponse>(getMigrateDatasetApiBucketBucketDatasetNameMigratePostUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'POST'
-    
-    
-  }
-);}
-  
-
-
-
-export const getMigrateDatasetApiBucketBucketDatasetNameMigratePostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof migrateDatasetApiBucketBucketDatasetNameMigratePost>>, TError,{bucket: string;name: string;params?: MigrateDatasetApiBucketBucketDatasetNameMigratePostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof migrateDatasetApiBucketBucketDatasetNameMigratePost>>, TError,{bucket: string;name: string;params?: MigrateDatasetApiBucketBucketDatasetNameMigratePostParams}, TContext> => {
-
-const mutationKey = ['migrateDatasetApiBucketBucketDatasetNameMigratePost'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof migrateDatasetApiBucketBucketDatasetNameMigratePost>>, {bucket: string;name: string;params?: MigrateDatasetApiBucketBucketDatasetNameMigratePostParams}> = (props) => {
-          const {bucket,name,params} = props ?? {};
-
-          return  migrateDatasetApiBucketBucketDatasetNameMigratePost(bucket,name,params,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type MigrateDatasetApiBucketBucketDatasetNameMigratePostMutationResult = NonNullable<Awaited<ReturnType<typeof migrateDatasetApiBucketBucketDatasetNameMigratePost>>>
-    
-    export type MigrateDatasetApiBucketBucketDatasetNameMigratePostMutationError = HTTPValidationError
-
-    /**
- * @deprecated
- * @summary Migrate Dataset
- */
-export const useMigrateDatasetApiBucketBucketDatasetNameMigratePost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof migrateDatasetApiBucketBucketDatasetNameMigratePost>>, TError,{bucket: string;name: string;params?: MigrateDatasetApiBucketBucketDatasetNameMigratePostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof migrateDatasetApiBucketBucketDatasetNameMigratePost>>,
-        TError,
-        {bucket: string;name: string;params?: MigrateDatasetApiBucketBucketDatasetNameMigratePostParams},
-        TContext
-      > => {
-      return useMutation(getMigrateDatasetApiBucketBucketDatasetNameMigratePostMutationOptions(options), queryClient);
-    }
-    
-/**
- * This api can rename a dataset/collection or set/remove tags/labels/metadata.
-If tag is not given, latest tag is selected
- * @deprecated
- * @summary Change Name Tag Label Metadata
- */
-export const getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostUrl = (bucket: string,
-    name: string,
-    params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    const explodeParameters = ["set_tag","delete_tag","delete_label","delete_metadata"];
-
-    if (Array.isArray(value) && explodeParameters.includes(key)) {
-      value.forEach((v) => {
-        normalizedParams.append(key, v === null ? 'null' : v.toString());
-      });
-      return;
-    }
-      
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}/attribute?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}/attribute`
-}
-
-export const changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost = async (bucket: string,
-    name: string,
-    bodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost,
-    params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams, options?: RequestInit): Promise<DataAttributeResponse> => {
-  
-  return customFetch<DataAttributeResponse>(getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      bodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost,)
-  }
-);}
-  
-
-
-
-export const getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost>>, TError,{bucket: string;name: string;data: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost;params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost>>, TError,{bucket: string;name: string;data: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost;params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams}, TContext> => {
-
-const mutationKey = ['changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost>>, {bucket: string;name: string;data: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost;params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams}> = (props) => {
-          const {bucket,name,data,params} = props ?? {};
-
-          return  changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost(bucket,name,data,params,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostMutationResult = NonNullable<Awaited<ReturnType<typeof changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost>>>
-    export type ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostMutationBody = BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost
-    export type ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostMutationError = HTTPValidationError
-
-    /**
- * @deprecated
- * @summary Change Name Tag Label Metadata
- */
-export const useChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost>>, TError,{bucket: string;name: string;data: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost;params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost>>,
-        TError,
-        {bucket: string;name: string;data: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost;params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams},
-        TContext
-      > => {
-      return useMutation(getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostMutationOptions(options), queryClient);
-    }
-    
-/**
- * This api gives info about the Dataset or Dataset Version.
- * @deprecated
- * @summary Get Info
- */
-export const getGetInfoApiBucketBucketDatasetNameInfoGetUrl = (bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}/info?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}/info`
-}
-
-export const getInfoApiBucketBucketDatasetNameInfoGet = async (bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: RequestInit): Promise<DataInfoResponse> => {
-  
-  return customFetch<DataInfoResponse>(getGetInfoApiBucketBucketDatasetNameInfoGetUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getGetInfoApiBucketBucketDatasetNameInfoGetQueryKey = (bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams,) => {
-    return [
-    `/api/bucket/${bucket}/dataset/${name}/info`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-    
-export const getGetInfoApiBucketBucketDatasetNameInfoGetQueryOptions = <TData = Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError = HTTPValidationError>(bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetInfoApiBucketBucketDatasetNameInfoGetQueryKey(bucket,name,params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>> = ({ signal }) => getInfoApiBucketBucketDatasetNameInfoGet(bucket,name,params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(bucket && name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetInfoApiBucketBucketDatasetNameInfoGetQueryResult = NonNullable<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>>
-export type GetInfoApiBucketBucketDatasetNameInfoGetQueryError = HTTPValidationError
-
-
-export function useGetInfoApiBucketBucketDatasetNameInfoGet<TData = Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: undefined |  GetInfoApiBucketBucketDatasetNameInfoGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>,
-          TError,
-          Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInfoApiBucketBucketDatasetNameInfoGet<TData = Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>,
-          TError,
-          Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInfoApiBucketBucketDatasetNameInfoGet<TData = Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @deprecated
- * @summary Get Info
- */
-
-export function useGetInfoApiBucketBucketDatasetNameInfoGet<TData = Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfoApiBucketBucketDatasetNameInfoGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetInfoApiBucketBucketDatasetNameInfoGetQueryOptions(bucket,name,params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @deprecated
- * @summary Get Info
- */
-export const invalidateGetInfoApiBucketBucketDatasetNameInfoGet = async (
- queryClient: QueryClient, bucket: string,
-    name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getGetInfoApiBucketBucketDatasetNameInfoGetQueryKey(bucket,name,params) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * This api returns the manifest for a dataset version.
- * @summary Get Manifest
- */
-export const getGetManifestApiBucketBucketDatasetNameManifestGetUrl = (bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}/manifest?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}/manifest`
-}
-
-export const getManifestApiBucketBucketDatasetNameManifestGet = async (bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams, options?: RequestInit): Promise<unknown[]> => {
-  
-  return customFetch<unknown[]>(getGetManifestApiBucketBucketDatasetNameManifestGetUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getGetManifestApiBucketBucketDatasetNameManifestGetQueryKey = (bucket: string,
-    name: string,
-    params?: GetManifestApiBucketBucketDatasetNameManifestGetParams,) => {
-    return [
-    `/api/bucket/${bucket}/dataset/${name}/manifest`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-    
-export const getGetManifestApiBucketBucketDatasetNameManifestGetQueryOptions = <TData = Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError = HTTPValidationError>(bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetManifestApiBucketBucketDatasetNameManifestGetQueryKey(bucket,name,params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>> = ({ signal }) => getManifestApiBucketBucketDatasetNameManifestGet(bucket,name,params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(bucket && name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetManifestApiBucketBucketDatasetNameManifestGetQueryResult = NonNullable<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>>
-export type GetManifestApiBucketBucketDatasetNameManifestGetQueryError = HTTPValidationError
-
-
-export function useGetManifestApiBucketBucketDatasetNameManifestGet<TData = Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>,
-          TError,
-          Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetManifestApiBucketBucketDatasetNameManifestGet<TData = Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>,
-          TError,
-          Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetManifestApiBucketBucketDatasetNameManifestGet<TData = Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get Manifest
- */
-
-export function useGetManifestApiBucketBucketDatasetNameManifestGet<TData = Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifestApiBucketBucketDatasetNameManifestGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetManifestApiBucketBucketDatasetNameManifestGetQueryOptions(bucket,name,params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @summary Get Manifest
- */
-export const invalidateGetManifestApiBucketBucketDatasetNameManifestGet = async (
- queryClient: QueryClient, bucket: string,
-    name: string,
-    params: GetManifestApiBucketBucketDatasetNameManifestGetParams, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getGetManifestApiBucketBucketDatasetNameManifestGetQueryKey(bucket,name,params) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * Streams file content from storage for the dataset file preview.
-
-storage_path is hash-keyed in the dataset layout (e.g. .../hashes/<etag>),
-so it carries no extension that mimetypes.guess_type can use. The optional
-filename param carries the original name (e.g. 'lipsum.txt') so we can
-return a useful Content-Type. filename is purely for media-type guessing;
-access control still hinges on storage_path's container check.
- * @summary Get File Content
- */
-export const getGetFileContentApiBucketBucketDatasetNameFileContentGetUrl = (bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}/file-content?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}/file-content`
-}
-
-export const getFileContentApiBucketBucketDatasetNameFileContentGet = async (bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams, options?: RequestInit): Promise<unknown> => {
-  
-  return customFetch<unknown>(getGetFileContentApiBucketBucketDatasetNameFileContentGetUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getGetFileContentApiBucketBucketDatasetNameFileContentGetQueryKey = (bucket: string,
-    name: string,
-    params?: GetFileContentApiBucketBucketDatasetNameFileContentGetParams,) => {
-    return [
-    `/api/bucket/${bucket}/dataset/${name}/file-content`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-    
-export const getGetFileContentApiBucketBucketDatasetNameFileContentGetQueryOptions = <TData = Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError = HTTPValidationError>(bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetFileContentApiBucketBucketDatasetNameFileContentGetQueryKey(bucket,name,params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>> = ({ signal }) => getFileContentApiBucketBucketDatasetNameFileContentGet(bucket,name,params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(bucket && name), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetFileContentApiBucketBucketDatasetNameFileContentGetQueryResult = NonNullable<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>>
-export type GetFileContentApiBucketBucketDatasetNameFileContentGetQueryError = HTTPValidationError
-
-
-export function useGetFileContentApiBucketBucketDatasetNameFileContentGet<TData = Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>,
-          TError,
-          Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetFileContentApiBucketBucketDatasetNameFileContentGet<TData = Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>,
-          TError,
-          Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetFileContentApiBucketBucketDatasetNameFileContentGet<TData = Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get File Content
- */
-
-export function useGetFileContentApiBucketBucketDatasetNameFileContentGet<TData = Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError = HTTPValidationError>(
- bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetFileContentApiBucketBucketDatasetNameFileContentGetQueryOptions(bucket,name,params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @summary Get File Content
- */
-export const invalidateGetFileContentApiBucketBucketDatasetNameFileContentGet = async (
- queryClient: QueryClient, bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetParams, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getGetFileContentApiBucketBucketDatasetNameFileContentGetQueryKey(bucket,name,params) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * Streams file content from storage for the dataset file preview.
-
-storage_path is hash-keyed in the dataset layout (e.g. .../hashes/<etag>),
-so it carries no extension that mimetypes.guess_type can use. The optional
-filename param carries the original name (e.g. 'lipsum.txt') so we can
-return a useful Content-Type. filename is purely for media-type guessing;
-access control still hinges on storage_path's container check.
- * @summary Get File Content
- */
-export const getGetFileContentApiBucketBucketDatasetNameFileContentGetHeadUrl = (bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/dataset/${name}/file-content?${stringifiedParams}` : `/api/bucket/${bucket}/dataset/${name}/file-content`
-}
-
-export const getFileContentApiBucketBucketDatasetNameFileContentGetHead = async (bucket: string,
-    name: string,
-    params: GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams, options?: RequestInit): Promise<unknown> => {
-  
-  return customFetch<unknown>(getGetFileContentApiBucketBucketDatasetNameFileContentGetHeadUrl(bucket,name,params),
-  {      
-    ...options,
-    method: 'HEAD'
-    
-    
-  }
-);}
-  
-
-
-
-export const getGetFileContentApiBucketBucketDatasetNameFileContentGetHeadMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGetHead>>, TError,{bucket: string;name: string;params: GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGetHead>>, TError,{bucket: string;name: string;params: GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams}, TContext> => {
-
-const mutationKey = ['getFileContentApiBucketBucketDatasetNameFileContentGetHead'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGetHead>>, {bucket: string;name: string;params: GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams}> = (props) => {
-          const {bucket,name,params} = props ?? {};
-
-          return  getFileContentApiBucketBucketDatasetNameFileContentGetHead(bucket,name,params,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type GetFileContentApiBucketBucketDatasetNameFileContentGetHeadMutationResult = NonNullable<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGetHead>>>
-    
-    export type GetFileContentApiBucketBucketDatasetNameFileContentGetHeadMutationError = HTTPValidationError
-
-    /**
- * @summary Get File Content
- */
-export const useGetFileContentApiBucketBucketDatasetNameFileContentGetHead = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGetHead>>, TError,{bucket: string;name: string;params: GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof getFileContentApiBucketBucketDatasetNameFileContentGetHead>>,
-        TError,
-        {bucket: string;name: string;params: GetFileContentApiBucketBucketDatasetNameFileContentGetHeadParams},
-        TContext
-      > => {
-      return useMutation(getGetFileContentApiBucketBucketDatasetNameFileContentGetHeadMutationOptions(options), queryClient);
-    }
-    
-/**
- * This api returns the list of datasets/colections.
- * @deprecated
- * @summary List Dataset From Bucket
- */
-export const getListDatasetFromBucketApiBucketListDatasetGetUrl = (params?: ListDatasetFromBucketApiBucketListDatasetGetParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    const explodeParameters = ["user","buckets"];
-
-    if (Array.isArray(value) && explodeParameters.includes(key)) {
-      value.forEach((v) => {
-        normalizedParams.append(key, v === null ? 'null' : v.toString());
-      });
-      return;
-    }
-      
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/list_dataset?${stringifiedParams}` : `/api/bucket/list_dataset`
-}
-
-export const listDatasetFromBucketApiBucketListDatasetGet = async (params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: RequestInit): Promise<DataListResponse> => {
-  
-  return customFetch<DataListResponse>(getListDatasetFromBucketApiBucketListDatasetGetUrl(params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getListDatasetFromBucketApiBucketListDatasetGetQueryKey = (params?: ListDatasetFromBucketApiBucketListDatasetGetParams,) => {
-    return [
-    `/api/bucket/list_dataset`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-    
-export const getListDatasetFromBucketApiBucketListDatasetGetQueryOptions = <TData = Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError = HTTPValidationError>(params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListDatasetFromBucketApiBucketListDatasetGetQueryKey(params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>> = ({ signal }) => listDatasetFromBucketApiBucketListDatasetGet(params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListDatasetFromBucketApiBucketListDatasetGetQueryResult = NonNullable<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>>
-export type ListDatasetFromBucketApiBucketListDatasetGetQueryError = HTTPValidationError
-
-
-export function useListDatasetFromBucketApiBucketListDatasetGet<TData = Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError = HTTPValidationError>(
- params: undefined |  ListDatasetFromBucketApiBucketListDatasetGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListDatasetFromBucketApiBucketListDatasetGet<TData = Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError = HTTPValidationError>(
- params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListDatasetFromBucketApiBucketListDatasetGet<TData = Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError = HTTPValidationError>(
- params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @deprecated
- * @summary List Dataset From Bucket
- */
-
-export function useListDatasetFromBucketApiBucketListDatasetGet<TData = Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError = HTTPValidationError>(
- params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDatasetFromBucketApiBucketListDatasetGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getListDatasetFromBucketApiBucketListDatasetGetQueryOptions(params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @deprecated
- * @summary List Dataset From Bucket
- */
-export const invalidateListDatasetFromBucketApiBucketListDatasetGet = async (
- queryClient: QueryClient, params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getListDatasetFromBucketApiBucketListDatasetGetQueryKey(params) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * This api creates a collection from datasets.
- * @deprecated
- * @summary Create Collection
- */
-export const getCreateCollectionApiBucketBucketDatasetNameCollectPostUrl = (bucket: string,
-    name: string,) => {
-
-
-  
-
-  return `/api/bucket/${bucket}/dataset/${name}/collect`
-}
-
-export const createCollectionApiBucketBucketDatasetNameCollectPost = async (bucket: string,
-    name: string,
-    bodyCreateCollectionApiBucketBucketDatasetNameCollectPost: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost, options?: RequestInit): Promise<unknown> => {
-  
-  return customFetch<unknown>(getCreateCollectionApiBucketBucketDatasetNameCollectPostUrl(bucket,name),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      bodyCreateCollectionApiBucketBucketDatasetNameCollectPost,)
-  }
-);}
-  
-
-
-
-export const getCreateCollectionApiBucketBucketDatasetNameCollectPostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCollectionApiBucketBucketDatasetNameCollectPost>>, TError,{bucket: string;name: string;data: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createCollectionApiBucketBucketDatasetNameCollectPost>>, TError,{bucket: string;name: string;data: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost}, TContext> => {
-
-const mutationKey = ['createCollectionApiBucketBucketDatasetNameCollectPost'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCollectionApiBucketBucketDatasetNameCollectPost>>, {bucket: string;name: string;data: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost}> = (props) => {
-          const {bucket,name,data} = props ?? {};
-
-          return  createCollectionApiBucketBucketDatasetNameCollectPost(bucket,name,data,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateCollectionApiBucketBucketDatasetNameCollectPostMutationResult = NonNullable<Awaited<ReturnType<typeof createCollectionApiBucketBucketDatasetNameCollectPost>>>
-    export type CreateCollectionApiBucketBucketDatasetNameCollectPostMutationBody = BodyCreateCollectionApiBucketBucketDatasetNameCollectPost
-    export type CreateCollectionApiBucketBucketDatasetNameCollectPostMutationError = HTTPValidationError
-
-    /**
- * @deprecated
- * @summary Create Collection
- */
-export const useCreateCollectionApiBucketBucketDatasetNameCollectPost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCollectionApiBucketBucketDatasetNameCollectPost>>, TError,{bucket: string;name: string;data: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createCollectionApiBucketBucketDatasetNameCollectPost>>,
-        TError,
-        {bucket: string;name: string;data: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost},
-        TContext
-      > => {
-      return useMutation(getCreateCollectionApiBucketBucketDatasetNameCollectPostMutationOptions(options), queryClient);
-    }
-    
-/**
- * This api queries dataset.
- * @deprecated
- * @summary Query Dataset
- */
-export const getQueryDatasetApiBucketBucketQueryGetUrl = (bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/bucket/${bucket}/query?${stringifiedParams}` : `/api/bucket/${bucket}/query`
-}
-
-export const queryDatasetApiBucketBucketQueryGet = async (bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: RequestInit): Promise<DataQueryResponse> => {
-  
-  return customFetch<DataQueryResponse>(getQueryDatasetApiBucketBucketQueryGetUrl(bucket,params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getQueryDatasetApiBucketBucketQueryGetQueryKey = (bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams,) => {
-    return [
-    `/api/bucket/${bucket}/query`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-    
-export const getQueryDatasetApiBucketBucketQueryGetQueryOptions = <TData = Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError = HTTPValidationError>(bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getQueryDatasetApiBucketBucketQueryGetQueryKey(bucket,params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>> = ({ signal }) => queryDatasetApiBucketBucketQueryGet(bucket,params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(bucket), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type QueryDatasetApiBucketBucketQueryGetQueryResult = NonNullable<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>>
-export type QueryDatasetApiBucketBucketQueryGetQueryError = HTTPValidationError
-
-
-export function useQueryDatasetApiBucketBucketQueryGet<TData = Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError = HTTPValidationError>(
- bucket: string,
-    params: undefined |  QueryDatasetApiBucketBucketQueryGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>,
-          TError,
-          Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useQueryDatasetApiBucketBucketQueryGet<TData = Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError = HTTPValidationError>(
- bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>,
-          TError,
-          Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useQueryDatasetApiBucketBucketQueryGet<TData = Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError = HTTPValidationError>(
- bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @deprecated
- * @summary Query Dataset
- */
-
-export function useQueryDatasetApiBucketBucketQueryGet<TData = Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError = HTTPValidationError>(
- bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof queryDatasetApiBucketBucketQueryGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getQueryDatasetApiBucketBucketQueryGetQueryOptions(bucket,params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @deprecated
- * @summary Query Dataset
- */
-export const invalidateQueryDatasetApiBucketBucketQueryGet = async (
- queryClient: QueryClient, bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getQueryDatasetApiBucketBucketQueryGetQueryKey(bucket,params) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * This api gets the dataset location for CLI validation.
- * @deprecated
- * @summary Get Path Information
- */
-export const getGetPathInformationApiBucketBucketLocationGetUrl = (bucket: string,) => {
-
-
-  
-
-  return `/api/bucket/${bucket}/location`
-}
-
-export const getPathInformationApiBucketBucketLocationGet = async (bucket: string, options?: RequestInit): Promise<unknown> => {
-  
-  return customFetch<unknown>(getGetPathInformationApiBucketBucketLocationGetUrl(bucket),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-  
-
-
-
-
-export const getGetPathInformationApiBucketBucketLocationGetQueryKey = (bucket: string,) => {
-    return [
-    `/api/bucket/${bucket}/location`
-    ] as const;
-    }
-
-    
-export const getGetPathInformationApiBucketBucketLocationGetQueryOptions = <TData = Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError = HTTPValidationError>(bucket: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetPathInformationApiBucketBucketLocationGetQueryKey(bucket);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>> = ({ signal }) => getPathInformationApiBucketBucketLocationGet(bucket, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(bucket), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetPathInformationApiBucketBucketLocationGetQueryResult = NonNullable<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>>
-export type GetPathInformationApiBucketBucketLocationGetQueryError = HTTPValidationError
-
-
-export function useGetPathInformationApiBucketBucketLocationGet<TData = Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError = HTTPValidationError>(
- bucket: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>,
-          TError,
-          Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPathInformationApiBucketBucketLocationGet<TData = Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError = HTTPValidationError>(
- bucket: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>,
-          TError,
-          Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPathInformationApiBucketBucketLocationGet<TData = Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError = HTTPValidationError>(
- bucket: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @deprecated
- * @summary Get Path Information
- */
-
-export function useGetPathInformationApiBucketBucketLocationGet<TData = Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError = HTTPValidationError>(
- bucket: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPathInformationApiBucketBucketLocationGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetPathInformationApiBucketBucketLocationGetQueryOptions(bucket,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-/**
- * @deprecated
- * @summary Get Path Information
- */
-export const invalidateGetPathInformationApiBucketBucketLocationGet = async (
- queryClient: QueryClient, bucket: string, options?: InvalidateOptions
-  ): Promise<QueryClient> => {
-
-  await queryClient.invalidateQueries({ queryKey: getGetPathInformationApiBucketBucketLocationGetQueryKey(bucket) }, options);
-
-  return queryClient;
-}
-
-
-
-/**
- * This api updates a dataset version's checksum and size or collection's datasets.
- * @deprecated
- * @summary Update Collection
- */
-export const getUpdateCollectionApiBucketBucketDatasetNameRecollectPostUrl = (bucket: string,
-    name: string,) => {
-
-
-  
-
-  return `/api/bucket/${bucket}/dataset/${name}/recollect`
-}
-
-export const updateCollectionApiBucketBucketDatasetNameRecollectPost = async (bucket: string,
-    name: string,
-    bodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost: BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost, options?: RequestInit): Promise<DataUpdateResponse> => {
-  
-  return customFetch<DataUpdateResponse>(getUpdateCollectionApiBucketBucketDatasetNameRecollectPostUrl(bucket,name),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      bodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost,)
-  }
-);}
-  
-
-
-
-export const getUpdateCollectionApiBucketBucketDatasetNameRecollectPostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCollectionApiBucketBucketDatasetNameRecollectPost>>, TError,{bucket: string;name: string;data: BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateCollectionApiBucketBucketDatasetNameRecollectPost>>, TError,{bucket: string;name: string;data: BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost}, TContext> => {
-
-const mutationKey = ['updateCollectionApiBucketBucketDatasetNameRecollectPost'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCollectionApiBucketBucketDatasetNameRecollectPost>>, {bucket: string;name: string;data: BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost}> = (props) => {
-          const {bucket,name,data} = props ?? {};
-
-          return  updateCollectionApiBucketBucketDatasetNameRecollectPost(bucket,name,data,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateCollectionApiBucketBucketDatasetNameRecollectPostMutationResult = NonNullable<Awaited<ReturnType<typeof updateCollectionApiBucketBucketDatasetNameRecollectPost>>>
-    export type UpdateCollectionApiBucketBucketDatasetNameRecollectPostMutationBody = BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost
-    export type UpdateCollectionApiBucketBucketDatasetNameRecollectPostMutationError = HTTPValidationError
-
-    /**
- * @deprecated
- * @summary Update Collection
- */
-export const useUpdateCollectionApiBucketBucketDatasetNameRecollectPost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCollectionApiBucketBucketDatasetNameRecollectPost>>, TError,{bucket: string;name: string;data: BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateCollectionApiBucketBucketDatasetNameRecollectPost>>,
-        TError,
-        {bucket: string;name: string;data: BodyUpdateCollectionApiBucketBucketDatasetNameRecollectPost},
-        TContext
-      > => {
-      return useMutation(getUpdateCollectionApiBucketBucketDatasetNameRecollectPostMutationOptions(options), queryClient);
-    }
-    
 /**
  * @summary Get Notification Settings
  */
 export const getGetNotificationSettingsApiProfileSettingsGetUrl = () => {
 
 
-  
+
 
   return `/api/profile/settings`
 }
 
 export const getNotificationSettingsApiProfileSettingsGet = async ( options?: RequestInit): Promise<ProfileResponse> => {
-  
+
   return customFetch<ProfileResponse>(getGetNotificationSettingsApiProfileSettingsGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -14422,7 +12003,7 @@ export const getGetNotificationSettingsApiProfileSettingsGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getGetNotificationSettingsApiProfileSettingsGetQueryOptions = <TData = Awaited<ReturnType<typeof getNotificationSettingsApiProfileSettingsGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettingsApiProfileSettingsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -14430,13 +12011,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetNotificationSettingsApiProfileSettingsGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getNotificationSettingsApiProfileSettingsGet>>> = ({ signal }) => getNotificationSettingsApiProfileSettingsGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettingsApiProfileSettingsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -14475,7 +12056,7 @@ export function useGetNotificationSettingsApiProfileSettingsGet<TData = Awaited<
 
 export function useGetNotificationSettingsApiProfileSettingsGet<TData = Awaited<ReturnType<typeof getNotificationSettingsApiProfileSettingsGet>>, TError = HTTPValidationError>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettingsApiProfileSettingsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetNotificationSettingsApiProfileSettingsGetQueryOptions(options)
@@ -14507,7 +12088,7 @@ export const getSetNotificationSettingsApiProfileSettingsPostUrl = (params?: Set
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -14520,9 +12101,9 @@ export const getSetNotificationSettingsApiProfileSettingsPostUrl = (params?: Set
 
 export const setNotificationSettingsApiProfileSettingsPost = async (userProfile: UserProfile,
     params?: SetNotificationSettingsApiProfileSettingsPostParams, options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getSetNotificationSettingsApiProfileSettingsPostUrl(params),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -14530,7 +12111,7 @@ export const setNotificationSettingsApiProfileSettingsPost = async (userProfile:
       userProfile,)
   }
 );}
-  
+
 
 
 
@@ -14545,7 +12126,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
-      
+
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof setNotificationSettingsApiProfileSettingsPost>>, {data: UserProfile;params?: SetNotificationSettingsApiProfileSettingsPostParams}> = (props) => {
@@ -14556,7 +12137,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-        
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -14578,29 +12159,29 @@ export const useSetNotificationSettingsApiProfileSettingsPost = <TError = HTTPVa
       > => {
       return useMutation(getSetNotificationSettingsApiProfileSettingsPostMutationOptions(options), queryClient);
     }
-    
+
 /**
  * @summary Get Osmo Client Version
  */
 export const getGetOsmoClientVersionClientVersionGetUrl = () => {
 
 
-  
+
 
   return `/client/version`
 }
 
 export const getOsmoClientVersionClientVersionGet = async ( options?: RequestInit): Promise<unknown> => {
-  
+
   return customFetch<unknown>(getGetOsmoClientVersionClientVersionGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -14611,7 +12192,7 @@ export const getGetOsmoClientVersionClientVersionGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getGetOsmoClientVersionClientVersionGetQueryOptions = <TData = Awaited<ReturnType<typeof getOsmoClientVersionClientVersionGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOsmoClientVersionClientVersionGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -14619,13 +12200,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetOsmoClientVersionClientVersionGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getOsmoClientVersionClientVersionGet>>> = ({ signal }) => getOsmoClientVersionClientVersionGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOsmoClientVersionClientVersionGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -14664,7 +12245,7 @@ export function useGetOsmoClientVersionClientVersionGet<TData = Awaited<ReturnTy
 
 export function useGetOsmoClientVersionClientVersionGet<TData = Awaited<ReturnType<typeof getOsmoClientVersionClientVersionGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOsmoClientVersionClientVersionGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetOsmoClientVersionClientVersionGetQueryOptions(options)
@@ -14697,22 +12278,22 @@ slow, no new traffic gets routed, instead of killing the service.
 export const getHealthHealthGetUrl = () => {
 
 
-  
+
 
   return `/health`
 }
 
 export const healthHealthGet = async ( options?: RequestInit): Promise<HealthHealthGet200> => {
-  
+
   return customFetch<HealthHealthGet200>(getHealthHealthGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -14723,7 +12304,7 @@ export const getHealthHealthGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getHealthHealthGetQueryOptions = <TData = Awaited<ReturnType<typeof healthHealthGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof healthHealthGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -14731,13 +12312,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getHealthHealthGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof healthHealthGet>>> = ({ signal }) => healthHealthGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof healthHealthGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -14776,7 +12357,7 @@ export function useHealthHealthGet<TData = Awaited<ReturnType<typeof healthHealt
 
 export function useHealthHealthGet<TData = Awaited<ReturnType<typeof healthHealthGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof healthHealthGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getHealthHealthGetQueryOptions(options)
@@ -14807,22 +12388,22 @@ export const invalidateHealthHealthGet = async (
 export const getGetVersionApiVersionGetUrl = () => {
 
 
-  
+
 
   return `/api/version`
 }
 
 export const getVersionApiVersionGet = async ( options?: RequestInit): Promise<Version> => {
-  
+
   return customFetch<Version>(getGetVersionApiVersionGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -14833,7 +12414,7 @@ export const getGetVersionApiVersionGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getGetVersionApiVersionGetQueryOptions = <TData = Awaited<ReturnType<typeof getVersionApiVersionGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVersionApiVersionGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -14841,13 +12422,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetVersionApiVersionGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getVersionApiVersionGet>>> = ({ signal }) => getVersionApiVersionGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVersionApiVersionGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -14886,7 +12467,7 @@ export function useGetVersionApiVersionGet<TData = Awaited<ReturnType<typeof get
 
 export function useGetVersionApiVersionGet<TData = Awaited<ReturnType<typeof getVersionApiVersionGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVersionApiVersionGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetVersionApiVersionGetQueryOptions(options)
@@ -14918,22 +12499,22 @@ export const invalidateGetVersionApiVersionGet = async (
 export const getGetUsersApiUsersGetUrl = () => {
 
 
-  
+
 
   return `/api/users`
 }
 
 export const getUsersApiUsersGet = async ( options?: RequestInit): Promise<string[]> => {
-  
+
   return customFetch<string[]>(getGetUsersApiUsersGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -14944,7 +12525,7 @@ export const getGetUsersApiUsersGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getGetUsersApiUsersGetQueryOptions = <TData = Awaited<ReturnType<typeof getUsersApiUsersGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersApiUsersGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -14952,13 +12533,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetUsersApiUsersGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsersApiUsersGet>>> = ({ signal }) => getUsersApiUsersGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsersApiUsersGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -14997,7 +12578,7 @@ export function useGetUsersApiUsersGet<TData = Awaited<ReturnType<typeof getUser
 
 export function useGetUsersApiUsersGet<TData = Awaited<ReturnType<typeof getUsersApiUsersGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersApiUsersGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetUsersApiUsersGetQueryOptions(options)
@@ -15029,22 +12610,22 @@ export const invalidateGetUsersApiUsersGet = async (
 export const getGetAvailableWorkflowTagsApiTagGetUrl = () => {
 
 
-  
+
 
   return `/api/tag`
 }
 
 export const getAvailableWorkflowTagsApiTagGet = async ( options?: RequestInit): Promise<GetAvailableWorkflowTagsApiTagGet200> => {
-  
+
   return customFetch<GetAvailableWorkflowTagsApiTagGet200>(getGetAvailableWorkflowTagsApiTagGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -15055,7 +12636,7 @@ export const getGetAvailableWorkflowTagsApiTagGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getGetAvailableWorkflowTagsApiTagGetQueryOptions = <TData = Awaited<ReturnType<typeof getAvailableWorkflowTagsApiTagGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAvailableWorkflowTagsApiTagGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -15063,13 +12644,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetAvailableWorkflowTagsApiTagGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getAvailableWorkflowTagsApiTagGet>>> = ({ signal }) => getAvailableWorkflowTagsApiTagGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAvailableWorkflowTagsApiTagGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -15108,7 +12689,7 @@ export function useGetAvailableWorkflowTagsApiTagGet<TData = Awaited<ReturnType<
 
 export function useGetAvailableWorkflowTagsApiTagGet<TData = Awaited<ReturnType<typeof getAvailableWorkflowTagsApiTagGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAvailableWorkflowTagsApiTagGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetAvailableWorkflowTagsApiTagGetQueryOptions(options)
@@ -15140,22 +12721,22 @@ export const invalidateGetAvailableWorkflowTagsApiTagGet = async (
 export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetUrl = () => {
 
 
-  
+
 
   return `/api/plugins/configs`
 }
 
 export const getWorkflowPluginsConfigsApiPluginsConfigsGet = async ( options?: RequestInit): Promise<PluginsConfigOutput> => {
-  
+
   return customFetch<PluginsConfigOutput>(getGetWorkflowPluginsConfigsApiPluginsConfigsGetUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
-  
+
 
 
 
@@ -15166,7 +12747,7 @@ export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetQueryKey = () => {
     ] as const;
     }
 
-    
+
 export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowPluginsConfigsApiPluginsConfigsGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowPluginsConfigsApiPluginsConfigsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -15174,13 +12755,13 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkflowPluginsConfigsApiPluginsConfigsGetQueryKey();
 
-  
+
 
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowPluginsConfigsApiPluginsConfigsGet>>> = ({ signal }) => getWorkflowPluginsConfigsApiPluginsConfigsGet({ signal, ...requestOptions });
 
-      
 
-      
+
+
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowPluginsConfigsApiPluginsConfigsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
@@ -15219,7 +12800,7 @@ export function useGetWorkflowPluginsConfigsApiPluginsConfigsGet<TData = Awaited
 
 export function useGetWorkflowPluginsConfigsApiPluginsConfigsGet<TData = Awaited<ReturnType<typeof getWorkflowPluginsConfigsApiPluginsConfigsGet>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowPluginsConfigsApiPluginsConfigsGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient 
+ , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWorkflowPluginsConfigsApiPluginsConfigsGetQueryOptions(options)
