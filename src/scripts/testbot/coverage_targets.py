@@ -32,19 +32,10 @@ IGNORE_PATTERNS = [
     "deployments/**",
 
     # --- Deprecation in flight (WIP) ---
-    # Features moving out of the repo. Testing them is churn; the
-    # testbot's limited budget should go to code that's staying. Group
-    # entries by feature so a contiguous chunk drops in one commit
-    # when the deprecation lands.
+    # Group entries by feature so a contiguous chunk drops in one
+    # commit when the deprecation lands.
     #
-    # Dataset / data-service: #1093 removed the frontend; #1119
-    # removed the backend bucket API and the 1373-line
-    # src/service/core/data/data_service.py.
-    # NOT included:
-    #   - src/cli/data.py — staying, repurposed during the transition.
-    #   - src/lib/data/storage/** — the multi-cloud storage SDK
-    #     survives the deprecation (workflow_service / app_service /
-    #     ctrl_websocket all import it).
+    # Dataset / data-service (#1093, #1119):
     "src/cli/dataset*.py",
     "src/lib/data/dataset/**",
     "src/service/core/data/**",
