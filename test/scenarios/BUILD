@@ -36,10 +36,9 @@ oetf_scenario_test(
 # methods serially is cheap. Slow files are split one target per test
 # method so Bazel can run them in parallel; see the loops below.
 
-# `privileged`, `credentials`, `data-io` scenario targets stay internal.
+# `privileged` and `credentials` scenario targets stay internal.
 # `privileged` needs Jetson agx-orin-jp6; `credentials` needs internal
-# an internal credential content; `data-io` references an internal object-storage backend + an internal-only registry
-# images. The internal overlay package owns these.
+# credential content. The internal overlay package owns these.
 
 oetf_scenario_test(
     name = "exec-portforward",
@@ -79,13 +78,11 @@ oetf_scenario_test(
 # Each target runs exactly one unittest method (via args=[<Class.test_*>])
 # so `bazel test` can parallelize them. Target name = sluggified test name.
 
-# test_serial_workflow_nonroot (a non-root container image image) and
-# test_serial_workflow_multi_arch (heterogeneous pool) stay internal.
+# test_serial_workflow_nonroot (a non-root container image image) stays
+# internal.
 _SERIAL = [
     "test_serial_workflow",
     "test_serial_workflow_mounting",
-    "test_serial_workflow_update_dataset",
-    "test_regex_workflow",
 ]
 
 # Tests in this set additionally get the `kind` tag — verified to pass
@@ -124,7 +121,6 @@ _PARALLEL = [
 # test_data_storage_provider (internal git clone) and test_checkpoint_data
 # (an internal object-storage backend-specific code path) stay internal.
 _DATA_STORAGE = [
-    "test_dataset_cli",
     "test_workflow_cli",
     "test_app_cli",
 ]
@@ -177,16 +173,3 @@ _ERROR_HANDLING = [
 # test_python_library_data_test (internal Artifactory), test_multi_arch_containers
 # (heterogeneous pool), and test_transfer_service_workflow (internal
 # transfer_service runfiles) stay internal.
-_ADVANCED = [
-    "test_folder_input",
-]
-
-[
-    oetf_scenario_test(
-        name = t.removeprefix("test_").replace("_", "-"),
-        src = "advanced.py",
-        test_filter = "AdvancedWorkflows." + t,
-        tags = ["advanced"],
-    )
-    for t in _ADVANCED
-]

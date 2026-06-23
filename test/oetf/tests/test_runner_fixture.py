@@ -401,11 +401,11 @@ class WaitForTaskCheckpointTest(unittest.TestCase):
 class TestRunnerFixtureDefaults(unittest.TestCase):
     """OETF_DEFAULT_* env-var-backed RunnerFixture defaults.
 
-    Scenarios in OETF reference ``self.default_image`` / ``default_platform`` /
-    ``default_bucket`` so the same scenario runs against both staging
-    (with Jenkins-injected overrides like python:3.10-slim) and KIND (with
-    the safe defaults below). Verified by direct env-var manipulation rather
-    than mocking, so the property contract is exercised end-to-end.
+    Scenarios in OETF reference ``self.default_image`` / ``default_platform``
+    so the same scenario runs against both staging (with Jenkins-injected
+    overrides like python:3.10-slim) and KIND (with the safe defaults below).
+    Verified by direct env-var manipulation rather than mocking, so the
+    property contract is exercised end-to-end.
     """
 
     def setUp(self):
@@ -413,7 +413,7 @@ class TestRunnerFixtureDefaults(unittest.TestCase):
         # Snapshot env vars we may mutate, restore in tearDown.
         self._saved_env = {
             k: os.environ.get(k) for k in (
-                "OETF_DEFAULT_IMAGE", "OETF_DEFAULT_PLATFORM", "OETF_DEFAULT_BUCKET",
+                "OETF_DEFAULT_IMAGE", "OETF_DEFAULT_PLATFORM",
             )
         }
         for k in self._saved_env:
@@ -449,15 +449,6 @@ class TestRunnerFixtureDefaults(unittest.TestCase):
         os.environ["OETF_DEFAULT_PLATFORM"] = "gpu"
         f = self._bare_fixture()
         self.assertEqual(f.default_platform, "gpu")
-
-    def test_default_bucket_falls_back_to_empty(self):
-        f = self._bare_fixture()
-        self.assertEqual(f.default_bucket, "")
-
-    def test_default_bucket_reads_env_var(self):
-        os.environ["OETF_DEFAULT_BUCKET"] = "my-test-bucket"
-        f = self._bare_fixture()
-        self.assertEqual(f.default_bucket, "my-test-bucket")
 
 
 class RunfilesRepoRootForTest(unittest.TestCase):

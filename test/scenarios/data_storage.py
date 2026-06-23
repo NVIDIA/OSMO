@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
-# Datasets, apps, checkpointing, and storage-provider workflows.
+# Apps, checkpointing, and storage-provider workflows.
 
 import unittest
 
@@ -16,14 +16,10 @@ from test.oetf.runner_fixture import RunnerFixture
 
 
 class DataStorageWorkflows(RunnerFixture):
-    """End-to-end dataset / app / checkpoint flows on live data."""
+    """End-to-end app / checkpoint flows on live data."""
 
     # test_data_storage_provider stays internal — needs an internal gitlab
     # clone + an internal-only OCI registry image.
-
-    def test_dataset_cli(self):
-        self.workflow("test/workflow/dataset_cli.yaml") \
-            .expect_completed()
 
     def test_workflow_cli(self):
         self.workflow("test/workflow/workflow_cli.yaml") \

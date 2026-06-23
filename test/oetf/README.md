@@ -804,7 +804,7 @@ The wrapper (`test/oetf/main.py`) is thin:
 | `--url` | Override the env's URL. Useful for quick-test against an arbitrary instance. |
 | `--auth-method {token,dev}` | Override the env's auth strategy. `token` uses `--auth-token` / `${env.auth.token_env}`; `dev` uses `--auth-username` with no JWT. Auto-adds the `auth` smoke suite to `exclude_tags` when `dev` is chosen (the auth suite needs a real JWT issuer). |
 | `--auth-token`, `--auth-username`, `--pool`, `--local-osmo` | Override env defaults. `--auth-username` is required for `--auth-method=dev`. |
-| `--data-cred-access-key-id`, `--data-cred-access-key`, `--data-cred-endpoint`, `--data-cred-region` | Seed the osmo CLI's DATA credential cache before tests run. Needed for CLI-mode scenarios with `localpath:` datasets. All four required together (or none). |
+| `--data-cred-access-key-id`, `--data-cred-access-key`, `--data-cred-endpoint`, `--data-cred-region` | Seed the osmo CLI's DATA credential cache before tests run. Needed for CLI-mode storage scenarios. All four required together (or none). |
 | `--output-json PATH` | Write per-target results JSON after the run. Jenkins archives this as a build artifact. |
 | `--bazel-arg FLAG` | Extra arg passed verbatim to `bazel test`. Repeat for multiple. |
 | `--verbose` | Enable debug logging. |
@@ -1240,9 +1240,9 @@ test/smoke/                  # Smoke tests.
 test/scenarios/              # Scenario tests.
 ├── BUILD
 ├── serial.py, parallel.py, exit_actions.py, ...    (split into per-test targets)
-├── advanced.py, command_validation.py, data_storage.py, error_handling.py,
-│   exec_portforward.py, mount_validation.py, resource_validation.py,
-│   templates.py
+├── command_validation.py, data_storage.py, error_handling.py,
+│   exec_portforward.py, mount_validation.py, parallel.py,
+│   resource_validation.py, serial.py, templates.py
 ├── logger_connectivity/                            (3-file scenario w/ task.py)
 ├── router_connectivity/
 └── task_runtime_environment/
@@ -1289,7 +1289,7 @@ via `curl -fsSL .../install.sh | bash` (sets `/usr/local/bin/osmo`) or pass
 targets. Verify with `bazel query 'attr(tags, "X", tests(//test/...))'`.
 
 **"Data credential not found for swift://…"** — a CLI-mode scenario tried to
-upload a `localpath:` dataset with no stored credential. Pass all four
+access storage with no stored credential. Pass all four
 `--data-cred-*` flags so the wrapper runs `osmo credential set osmo_cred
 --type DATA …` before `bazel test`. The Jenkins stage does this via the
 `team-osmo` credential.

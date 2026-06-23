@@ -426,11 +426,11 @@ class RunnerFixture(OetfFixture):
     Class attributes set defaults; builder methods override per submission.
     Reads OETF_* env vars in setUp (via OetfFixture).
 
-    Scenario YAMLs and per-method overrides can reference ``self.default_image``,
-    ``self.default_platform``, ``self.default_bucket`` so the same scenario
-    runs on staging (with Jenkins-injected overrides) AND on a public KIND
-    deploy (with the safe defaults below). Set ``OETF_DEFAULT_IMAGE`` /
-    ``OETF_DEFAULT_PLATFORM`` / ``OETF_DEFAULT_BUCKET`` to override.
+    Scenario YAMLs and per-method overrides can reference ``self.default_image``
+    and ``self.default_platform`` so the same scenario runs on staging (with
+    Jenkins-injected overrides) AND on a public KIND deploy (with the safe
+    defaults below). Set ``OETF_DEFAULT_IMAGE`` / ``OETF_DEFAULT_PLATFORM`` to
+    override.
     """
 
     pool: str = "default"     # class-level defaults; overridable in subclasses
@@ -455,15 +455,6 @@ class RunnerFixture(OetfFixture):
         which the public quick-start chart's default pool satisfies.
         """
         return os.environ.get("OETF_DEFAULT_PLATFORM", "cpu")
-
-    @property
-    def default_bucket(self) -> str:
-        """Default object-storage bucket for scenarios that need one.
-
-        Reads ``OETF_DEFAULT_BUCKET`` at access time. Empty string when not
-        set — scenarios that genuinely need a bucket must override or skip.
-        """
-        return os.environ.get("OETF_DEFAULT_BUCKET", "")
 
     def setUp(self) -> None:
         super().setUp()
