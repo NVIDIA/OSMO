@@ -15,12 +15,12 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
+      platform: {{platform}}
   tasks:
   - name: task1
     image: ubuntu:22.04
     command: [sh]
     args: [/tmp/run.sh]
-    downloadType: {{download_type}}
     files:
     - contents: |
         echo "Hello from task1 $(hostname)"
@@ -32,7 +32,6 @@ workflow:
     image: ubuntu:22.04
     args: ['$(FILE_PATH)']
     command: ['sh']
-    downloadType: {{download_type}}
     environment:
       FILE_PATH: /tmp/run.sh
     files:
@@ -52,7 +51,6 @@ workflow:
     image: ubuntu:22.04
     command: ['sh']
     args: ['/tmp/run.sh']
-    downloadType: {{download_type}}
     files:
     - contents: |
         echo "Reading from task 2"
@@ -77,4 +75,4 @@ workflow:
     queue_timeout: 1h
 
 default-values:
-  download_type: download
+  platform: cpu-x86
