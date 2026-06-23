@@ -24,31 +24,25 @@ logger = logging.getLogger(__name__)
 CODECOV_API_BASE = "https://api.codecov.io/api/v2"
 
 IGNORE_PATTERNS = [
+    # --- Permanently uninteresting: tests, build/scripts/deploy infra ---
     "*/tests/*",
     "src/scripts/**",
     "bzl/**",
     "run/**",
     "deployments/**",
-]
 
-# Paths excluded because the underlying feature is being deprecated
-# (WIP). Tests on a moving-out surface would just be churn, and the
-# testbot's limited budget should go to code that's staying.
-#
-# Each block names what's being deprecated, why, and what to keep when
-# tearing the block out. The whole list is intended to shrink over
-# time as deprecations land — keep entries grouped by feature so it's
-# easy to drop a contiguous chunk in one commit.
-#
-# --- Dataset / data-service feature ---
-#   #1093 removed the dataset frontend; #1119 removed the backend
-#   bucket API and the 1373-line src/service/core/data/data_service.py.
-#   src/cli/data.py is next. Notably NOT in the list:
-#   src/lib/data/storage/** — the multi-cloud storage SDK survives the
-#   deprecation (workflow_service / app_service / ctrl_websocket all
-#   import it).
-DEPRECATED_PATTERNS = [
-    # Dataset / data-service
+    # --- Deprecation in flight (WIP) ---
+    # Features moving out of the repo. Testing them is churn; the
+    # testbot's limited budget should go to code that's staying. Group
+    # entries by feature so a contiguous chunk drops in one commit
+    # when the deprecation lands.
+    #
+    # Dataset / data-service: #1093 removed the frontend; #1119
+    # removed the backend bucket API and the 1373-line
+    # src/service/core/data/data_service.py. src/cli/data.py is next.
+    # NOT included: src/lib/data/storage/** — the multi-cloud storage
+    # SDK survives the deprecation (workflow_service / app_service /
+    # ctrl_websocket all import it).
     "src/cli/data.py",
     "src/cli/dataset*.py",
     "src/lib/data/dataset/**",
@@ -102,12 +96,10 @@ def _is_ignored(file_path: str) -> bool:
     - Files inside any tests/ directory (fixtures, helpers, etc.)
     - Scripts, build config, and deployment files
     - Generated code, test files, __init__.py, BUILD
-    - Paths under active deprecation (see DEPRECATED_PATTERNS)
+    - Paths under active feature deprecation
+      (see the "Deprecation in flight" block in IGNORE_PATTERNS)
     """
     for pattern in IGNORE_PATTERNS:
-        if fnmatch.fnmatch(file_path, pattern):
-            return True
-    for pattern in DEPRECATED_PATTERNS:
         if fnmatch.fnmatch(file_path, pattern):
             return True
     basename = file_path.rsplit("/", maxsplit=1)[-1]

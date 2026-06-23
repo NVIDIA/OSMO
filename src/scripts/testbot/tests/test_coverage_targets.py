@@ -71,13 +71,14 @@ class TestIsIgnored(unittest.TestCase):
     def test_allows_runtime_go(self):
         self.assertFalse(_is_ignored("src/runtime/cmd/ctrl/main.go"))
 
-    # === DEPRECATED_PATTERNS filter ===
-    # See coverage_targets.py — paths under active deprecation are
-    # filtered from the picker's candidate list. Currently scoped to
-    # the dataset / data-service feature (#1093 removed the frontend,
-    # #1119 removed the backend); future deprecations append here.
-    # These tests guard both the filtered patterns and a few false-
-    # positive risks (storage SDK, unrelated CLI entries).
+    # === IGNORE_PATTERNS "Deprecation in flight" block ===
+    # See coverage_targets.py — paths under active feature deprecation
+    # are filtered from the picker's candidate list. Currently scoped
+    # to the dataset / data-service feature (#1093 removed the
+    # frontend, #1119 removed the backend); future deprecations
+    # append in the same block. These tests guard both the filtered
+    # patterns and a few false-positive risks (storage SDK, unrelated
+    # CLI entries).
 
     def test_ignores_dataset_cli_entry_point(self):
         # src/cli/data.py is the CLI surface for the deprecated
