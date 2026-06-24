@@ -1,192 +1,70 @@
 # OSMO Rust Spike Design
 
-## Goal
+## Executive Summary
 
-This spike validates a CRD-native OSMO workflow orchestration shape in Rust. The goal is to compare a Rust implementation against the Go/controller-runtime implementation while keeping the same product architecture:
+This branch is a Phase 1A Rust spike for CRD-native OSMO workflow orchestration. It validates that OSMO can move live workflow execution state into Kubernetes CRDs, remove Redis from the execution path, and use a backend TaskGroup Controller connected through ClusterSession to reconcile runtime resources.
 
-- Kubernetes CRDs are the source of truth.
-- Redis is not in the live workflow execution path.
-- PostgreSQL is only a projection target for historical queries.
-- The backend-side component is the TaskGroup Controller.
-- The ClusterSession client is an internal TaskGroup Controller module, not a separate microservice.
+Phase 1A is not the full OSMO 7.0 product surface. It is the smallest deployable slice that proves the control path:
 
-## Phase 1A Scope
+```text
+OSMO YAML or native CRD
+  -> OSMOWorkflow
+  -> control-side desired OSMOTaskGroup
+  -> ClusterSession
+  -> backend mirrored OSMOTaskGroup
+  -> runtime object
+  -> status and cleanup ack back to control
+```
 
-Phase 1A is a deployable Rust spike for the CRD workflow control path, not a full OSMO 7.0 product implementation. It is intentionally scoped to prove:
-
-- OSMO workflow intent can be represented as Kubernetes CRDs.
-- Existing simple OSMO YAML workflows can enter through an API adapter.
-- Pool placement can resolve through `OSMOPool` and `OSMOCluster`.
-- Control and backend clusters can sync desired task groups over ClusterSession.
-- Backend runtime reconciliation can apply Kubernetes Jobs/ConfigMaps and KubeRay RayJobs/RayClusters.
-- Workflow status, cleanup, finalizers, TTL, and stale status protection can work without Redis.
+The spike is production-ready for this scoped Phase 1A validation. It is not claiming full existing OSMO YAML parity, production identity integration, PostgreSQL history projection, Kueue/KAI scheduling, NIM Service support, or multi-cluster scheduling.
 
 Validated artifact:
 
 - Branch: `vpan/rust-osmo-spike`
-- Commit: `3b23b448d9701d6dd9439047035785e9caf68957`
+- Implementation commit: `3b23b448d9701d6dd9439047035785e9caf68957`
 - Image: `nvcr.io/nvstaging/osmo/osmo-rust-spike:phase1-hardened-20260624-0105`
-- Control deployment target: `osmo-stg`, namespace `osmo-exp`
-- Backend deployment target: `osmo-backend`, controller namespace `osmo-exp`, runtime namespace `osmo-phase1a`
+- Control target: `osmo-stg`, namespace `osmo-exp`
+- Backend target: `osmo-backend`, controller namespace `osmo-exp`, runtime namespace `osmo-phase1a`
 - Ingress: existing ALB group `osmo2`, host `osmo-rust-spike.osmo.nvidia.com`
 
-## Architecture
+## Design Position
 
-```text
-API server / CLI
-  -> OSMOWorkflow
-  -> Workflow Controller
-  -> OSMOTaskGroup desired records on the control cluster
-  -> Operator Service ClusterSession sync
-  -> backend TaskGroup Controller
-  -> local OSMOTaskGroup mirrors
-  -> runtime resources
-  -> status back to control OSMOTaskGroup and OSMOWorkflow
-```
+The spike keeps the intended OSMO 7.0 architecture direction:
 
-## CRDs
+- Kubernetes CRDs are the source of truth for active workflow state.
+- Redis is not used for live workflow execution state.
+- PostgreSQL is reserved for historical query projection after Kubernetes cleanup.
+- The backend-side component is the TaskGroup Controller.
+- The ClusterSession client is an internal TaskGroup Controller module, not a separate microservice.
+- Pool placement is represented explicitly through `OSMOPool` and `OSMOCluster`.
 
-- `OSMOWorkflow`: user workflow intent, finalizer, TTL, and aggregate group status.
-- `OSMOTaskGroup`: durable per-group desired work and backend-reported status.
-- `OSMOCluster`: registered backend target and heartbeat/liveness status.
-- `OSMOPool`: minimal pool-to-cluster mapping for parity with the existing pool model.
+The key design boundary is that ClusterSession is transport, not authority. The control cluster owns desired state. The backend reconciles a mirrored copy and reports status with enough identity to let control reject stale updates.
 
-This spike intentionally does not add `OSMOBarrier` or `OSMOTaskAction` CRDs. Barrier/action state should remain part of task group runtime status or spec, not top-level resources.
+## Phase 1A Contract
 
-### OSMOWorkflow Shape
+Phase 1A proves these capabilities end to end:
 
-`OSMOWorkflow.spec` contains:
+- Native `OSMOWorkflow` CRDs can drive backend runtime reconciliation.
+- Simple existing OSMO YAML can be submitted through an API adapter and converted into `OSMOWorkflow`.
+- Jinja/default-values templating can work for the supported YAML subset.
+- `OSMOPool` resolves placement through `OSMOCluster`.
+- Desired task groups can sync from control to backend over ClusterSession.
+- Backend runtime reconciliation can manage ConfigMaps, Jobs, RayJobs, and RayClusters.
+- Workflow status, finalizers, TTL, cleanup acknowledgement, and stale status rejection work without Redis.
 
-- `clusterID`: fallback backend cluster when no pool is used.
-- `namespace`: fallback backend namespace when no pool is used.
-- `ttlSecondsAfterFinished`: optional TTL after terminal workflow status.
-- `taskGroups[]`: desired task group list.
+Phase 1A deliberately fails closed for unsupported behavior. If an OSMO YAML field or runtime type is outside the supported contract, the spike rejects it instead of silently dropping it.
 
-Each task group contains:
+## System Components
 
-- `name`
-- `runtimeType`
-- `runtimeConfig`
-- `poolRef`
-- `renderedObjects`
+### API Server
 
-The CRD constrains `runtimeType` to:
-
-- `osmoContainerGroup`
-- `osmoWorkflow`
-- `kubernetesObjects`
-- `rayJob`
-- `rayCluster`
-
-Unknown runtime types are rejected by CRD validation and also fail closed in the backend if they somehow bypass schema validation.
-
-### OSMOTaskGroup Shape
-
-The control side writes desired `OSMOTaskGroup` records in the control namespace. The backend mirrors those into the runtime namespace.
-
-The mirrored task group carries:
-
-- workflow name and workflow UID
-- desired task group UID
-- desired generation
-- group name
-- resolved cluster ID
-- target namespace
-- runtime type/config/rendered objects
-- pool reference
-
-These identity fields are required for stale status rejection, cleanup ack matching, and spec replacement.
-
-### OSMOPool and OSMOCluster
-
-`OSMOPool` is the Phase 1A bridge to the existing OSMO pool model. A task group with `poolRef: default` resolves:
-
-```text
-OSMOPool/default
-  -> spec.clusterRef
-  -> OSMOCluster/<clusterRef>.spec.clusterID
-  -> spec.namespace
-```
-
-The resolved cluster/namespace are written into the desired `OSMOTaskGroup`. If a task group has no `poolRef` and the default pool is absent, the workflow-level `clusterID` and `namespace` are used as fallback.
-
-## ClusterSession
-
-The session is a sync transport, not the correctness boundary.
-
-Control sends:
-
-- `TaskGroupSync`: current assigned task group snapshot.
-- `ResyncRequest`: request backend to report local status.
-- `Heartbeat`: optional transport-level heartbeat.
-
-Backend sends:
-
-- `TaskGroupAck`: observed generation acknowledgement.
-- `TaskGroupStatus`: runtime/task group status.
-- `CleanupAck`: backend confirmation that mirrored/runtime resources were pruned.
-- `Heartbeat`: cluster liveness signal.
-
-On reconnect, control sends a full task group snapshot. Backend reconciles idempotently and prunes local mirrors that are no longer desired.
-
-Status and cleanup messages carry workflow UID, task group UID, generation, and cluster ID. The control side drops stale status from old sessions or old workflow/task group instances.
-
-### Session Semantics
-
-The control side owns desired state. Backend sessions are disposable:
-
-- On backend connect, control sends a full assigned task group snapshot.
-- On workflow change, control sends the current assigned snapshot for the target cluster.
-- Backend creates or patches local mirrored `OSMOTaskGroup` objects.
-- Backend prunes mirrored task groups not present in a full sync.
-- Backend sends status updates; control accepts them only when workflow UID, task group UID, generation, and cluster ID match current desired state.
-
-The backend ClusterSession client is part of the TaskGroup Controller process. There is no separate session microservice.
-
-## Runtime Types
-
-`OSMOTaskGroup.spec.runtimeType` selects the backend runtime reconciler:
-
-- `kubernetesObjects` / `osmoContainerGroup`: applies rendered Kubernetes objects carried in `renderedObjects`.
-- `rayJob`: applies a KubeRay `RayJob` from `runtimeConfig.spec`.
-- `rayCluster`: applies a KubeRay `RayCluster` from `runtimeConfig.spec`.
-
-The workflow controller preserves `runtimeType`, `runtimeConfig`, `poolRef`, and `renderedObjects` from `OSMOWorkflow.spec.taskGroups[]` into the control-side desired `OSMOTaskGroup`. The ClusterSession transport serializes those payloads to the backend TaskGroup Controller, which applies or deletes runtime resources before reporting success or cleanup ack.
-
-### Backend Runtime Allowlist
-
-Phase 1A intentionally narrows backend RBAC and runtime object support. Rendered Kubernetes objects are allowed only for:
-
-- `v1/ConfigMap`
-- `batch/v1/Job`
-
-Ray runtimes are allowed only through first-class runtime types:
-
-- `rayJob` -> `ray.io/v1 RayJob`
-- `rayCluster` -> `ray.io/v1 RayCluster`
-
-Objects outside that allowlist are rejected. The backend Role is namespace-scoped and does not grant generic write access to Secrets, Services, PVCs, Pods, Deployments, or StatefulSets.
-
-### Runtime Status Mapping
-
-Phase 1A status mapping is:
-
-- `ConfigMap`: succeeded when it exists.
-- `Job`: succeeded on terminal `Complete=True` or successful completion count; failed on terminal `Failed=True`; otherwise running.
-- `RayJob`: succeeded on `status.jobStatus=SUCCEEDED`, failed on `FAILED`, otherwise running.
-- `RayCluster`: succeeded on ready/running states, failed on failed states, otherwise running.
-
-Runtime monitors are keyed by mirrored task group namespace/name. A new sync replaces and aborts the previous monitor for that key, and prune paths abort monitors before deleting runtime resources.
-
-## API Server
-
-The control deployment includes a minimal workflow API:
+The control deployment exposes:
 
 ```text
 POST /api/pool/:pool/workflow
 ```
 
-Request body:
+The API accepts an OSMO workflow YAML string plus template variables:
 
 ```json
 {
@@ -201,19 +79,169 @@ Supported query flags:
 - `dry_run=true`: render the template and return it without creating a CRD.
 - `validation_only=true`: convert to `OSMOWorkflow.spec` and return the generated spec without creating a CRD.
 
-Authentication and authorization:
+Authz is intentionally simple but explicit:
 
-- The API requires `Authorization: Bearer <token>`.
-- Tokens are configured through `API_AUTHZ_POLICY_JSON`.
-- Each token maps to a `subject` and allowed `pools`.
+- Requests require `Authorization: Bearer <token>`.
+- Tokens are configured by `API_AUTHZ_POLICY_JSON`.
+- Each token maps to a subject and an allowed pool list.
 - Submissions to unauthorized pools return HTTP 403.
 - Submitted workflows are annotated with `spike.osmo.nvidia.com/submitted-by=<subject>`.
 
-The policy is loaded at process startup. Token or pool changes require a control deployment rollout in this spike.
+The authz policy is loaded at process startup. Token or pool authorization changes require a control-plane rollout in this spike.
 
-## OSMO YAML Adapter
+### Workflow Controller
 
-The API adapter supports a Phase 1A subset of existing OSMO workflow YAML:
+The control-side controller watches `OSMOWorkflow`. For each workflow generation it:
+
+1. Ensures the workflow finalizer exists.
+2. Resolves each task group's placement through `OSMOPool` and `OSMOCluster`.
+3. Writes desired `OSMOTaskGroup` records in the control namespace.
+4. Sends the assigned task group snapshot to the target backend cluster through ClusterSession.
+5. Aggregates backend status into `OSMOWorkflow.status`.
+6. On deletion or TTL expiry, sends prune targets and waits for backend cleanup acknowledgements before removing the finalizer.
+
+The workflow controller drops backend status when the workflow UID, desired task group UID, generation, or cluster ID does not match current desired state.
+
+### Operator Service and ClusterSession
+
+The control plane exposes a gRPC Operator Service. Backend TaskGroup Controllers connect to it with a ClusterSession stream.
+
+Control sends:
+
+- `TaskGroupSync`: current assigned task group snapshot.
+- `ResyncRequest`: request for backend status.
+- `Heartbeat`: optional transport heartbeat.
+
+Backend sends:
+
+- `TaskGroupAck`: desired generation acknowledgement.
+- `TaskGroupStatus`: runtime status.
+- `CleanupAck`: confirmation that mirrored/runtime resources were pruned.
+- `Heartbeat`: backend liveness signal.
+
+On reconnect, control sends a full snapshot. Backend reconciliation is idempotent and prunes local mirrors that are no longer desired.
+
+### TaskGroup Controller
+
+The backend deployment is the TaskGroup Controller. It contains:
+
+- ClusterSession client loop.
+- Local `OSMOTaskGroup` mirror reconciliation.
+- Runtime object reconciliation.
+- Runtime status monitoring.
+- Cleanup acknowledgement.
+- Heartbeat and reconnect loop.
+
+There is no separate Backend Session Client service.
+
+## CRD Model
+
+The spike uses four CRDs:
+
+- `OSMOWorkflow`: workflow intent, TTL, finalizer, and aggregate status.
+- `OSMOTaskGroup`: durable per-group desired work and backend status.
+- `OSMOCluster`: backend target identity and heartbeat/liveness status.
+- `OSMOPool`: pool-to-cluster mapping.
+
+It intentionally does not add `OSMOBarrier` or `OSMOTaskAction` CRDs. Barrier/action state should remain inside task group spec/status or runtime-specific state rather than becoming top-level API resources.
+
+### OSMOWorkflow
+
+`OSMOWorkflow.spec` contains:
+
+- `clusterID`: fallback backend cluster when no pool is used.
+- `namespace`: fallback backend namespace when no pool is used.
+- `ttlSecondsAfterFinished`: optional TTL after terminal workflow status.
+- `taskGroups[]`: desired task groups.
+
+Each task group contains:
+
+- `name`
+- `runtimeType`
+- `runtimeConfig`
+- `poolRef`
+- `renderedObjects`
+
+`runtimeType` is schema-constrained to:
+
+- `osmoContainerGroup`
+- `osmoWorkflow`
+- `kubernetesObjects`
+- `rayJob`
+- `rayCluster`
+
+Unknown runtime types are rejected by CRD validation and fail closed in the backend if they bypass schema validation.
+
+### OSMOTaskGroup
+
+The control side writes desired `OSMOTaskGroup` records. The backend mirrors them into the runtime namespace.
+
+Mirrored task groups carry:
+
+- workflow name and workflow UID
+- desired task group UID
+- desired generation
+- group name
+- resolved cluster ID
+- target namespace
+- runtime type/config/rendered objects
+- pool reference
+
+Those fields are part of the correctness model. They let the control plane distinguish current status from stale reconnects, replaced task groups, deleted workflows, and old workflow instances with the same name.
+
+### OSMOPool and OSMOCluster
+
+`OSMOPool` is the bridge to the existing OSMO pool concept. A task group with `poolRef: default` resolves as:
+
+```text
+OSMOPool/default
+  -> spec.clusterRef
+  -> OSMOCluster/<clusterRef>.spec.clusterID
+  -> spec.namespace
+```
+
+The resolved cluster and namespace are written to the desired `OSMOTaskGroup`. If a task group has no `poolRef` and the default pool is absent, the workflow-level `clusterID` and `namespace` are used as fallback.
+
+## Runtime Model
+
+`OSMOTaskGroup.spec.runtimeType` selects backend reconciliation.
+
+Supported runtime types:
+
+- `kubernetesObjects`: applies rendered Kubernetes objects from `renderedObjects`.
+- `osmoContainerGroup`: treated as rendered Kubernetes objects for this spike.
+- `osmoWorkflow`: treated as rendered Kubernetes objects for this spike.
+- `rayJob`: applies a KubeRay `RayJob` from `runtimeConfig.spec`.
+- `rayCluster`: applies a KubeRay `RayCluster` from `runtimeConfig.spec`.
+
+### Runtime Allowlist
+
+Phase 1A keeps backend RBAC narrow. Rendered Kubernetes objects may create only:
+
+- `v1/ConfigMap`
+- `batch/v1/Job`
+
+Ray objects are created only through first-class runtime types:
+
+- `rayJob` -> `ray.io/v1 RayJob`
+- `rayCluster` -> `ray.io/v1 RayCluster`
+
+The backend Role is namespace-scoped and does not grant generic write access to Secrets, Services, PVCs, Pods, Deployments, or StatefulSets.
+
+### Runtime Status
+
+Runtime status maps to task group status:
+
+- `ConfigMap`: succeeded when it exists.
+- `Job`: succeeded on terminal `Complete=True` or successful completion count; failed on terminal `Failed=True`; otherwise running.
+- `RayJob`: succeeded on `status.jobStatus=SUCCEEDED`, failed on `FAILED`, otherwise running.
+- `RayCluster`: succeeded on ready/running states, failed on failed states, otherwise running.
+
+Runtime monitors are keyed by mirrored task group namespace/name. A new sync replaces and aborts the previous monitor for that key. Prune paths abort monitors before deleting runtime resources.
+
+## OSMO YAML Support
+
+The API adapter supports a Phase 1A subset of existing OSMO YAML:
 
 - top-level `default-values`
 - `workflow.default-values`
@@ -234,50 +262,43 @@ The API adapter supports a Phase 1A subset of existing OSMO workflow YAML:
 - task `files[].path`
 - task `files[].contents`
 
-Converted tasks become Kubernetes Jobs. Inline files become ConfigMaps mounted into the Job pod. CPU, memory, GPU, and storage are mapped to Kubernetes resource requests/limits where applicable.
+Converted tasks become Kubernetes Jobs. Inline files become ConfigMaps mounted into the Job pod. CPU, memory, GPU, and storage map to Kubernetes resource requests/limits where applicable.
 
-Unsupported fields fail closed instead of being silently ignored. This is intentional so Phase 1A does not pretend to provide full OSMO YAML parity.
+Unsupported fields fail closed. The spike does not silently ignore unsupported OSMO YAML fields.
 
-Explicitly not included in Phase 1A:
+Not included in Phase 1A:
 
 - datasets, inputs, and outputs
 - credentials and ExternalSecrets integration
-- existing pod template/pool execution semantics beyond simple `poolRef`
-- retry policy parity beyond Kubernetes Job defaults
+- full existing pod template behavior
+- full existing pool execution behavior beyond simple `poolRef`
+- retry policy parity beyond Kubernetes Job behavior
 - dependency/barrier semantics beyond grouping into task groups
 - NIM Service runtime
-- Kueue/KAI scheduling integration
+- Kueue/KAI integration
 - multi-cluster scheduling
 - PostgreSQL history projection
 - UI
 
-## Cleanup and TTL
+## Cleanup, TTL, and History
 
-`OSMOWorkflow` finalizers are removed only after backend cleanup acknowledgement. Deletion sends an explicit prune target containing workflow name, workflow UID, and backend namespace. TTL uses the same deletion path, so runtime resources are cleaned by the backend before the workflow disappears.
+Active workflow state lives in Kubernetes. Completed workflow history is expected to be projected to PostgreSQL later; PostgreSQL is not part of the live execution path in this spike.
 
 Cleanup flow:
 
 1. User or TTL deletes `OSMOWorkflow`.
 2. Control records pending cleanup targets in an annotation.
 3. Control sends prune targets through ClusterSession.
-4. Backend aborts active monitors, deletes mirrored task groups, deletes runtime resources, and waits for runtime objects to disappear.
-5. Backend sends `CleanupAck`.
-6. Control removes the pending target.
-7. Control removes the workflow finalizer only after all cleanup targets have acknowledged.
+4. Backend aborts active monitors.
+5. Backend deletes mirrored task groups and runtime objects.
+6. Backend waits for runtime objects to disappear.
+7. Backend sends `CleanupAck`.
+8. Control removes the acknowledged target.
+9. Control removes the workflow finalizer after all targets have acknowledged.
 
-## Backend Shape
+TTL uses the same deletion path, so runtime resources are cleaned by the backend before the workflow disappears.
 
-The backend deployment is the TaskGroup Controller. Internally it contains:
-
-- ClusterSession client loop.
-- Local OSMOTaskGroup mirror reconciler.
-- Runtime reconciler boundary.
-- Status reporter.
-- Heartbeat/reconnect loop.
-
-There is no separate Backend Session Client service in this spike.
-
-## Deployment Manifests
+## Deployment
 
 `deploy/control.yaml` installs:
 
@@ -297,27 +318,27 @@ Secrets:
 - `cluster-token`: shared backend ClusterSession token.
 - `api-authz-policy-json`: JSON policy for workflow API subjects and pool authorization.
 
-## Build Notes
+## Build
 
-The Rust build foundation is intentionally pinned and cache-friendly:
+The Rust build is cache-friendly:
 
 - `Cargo.lock` is checked in.
 - Dockerfile sets `/usr/local/cargo/bin` explicitly in `PATH`.
 - Dockerfile separates dependency build from source build.
 - `.dockerignore` excludes `target` and git metadata from image context.
 
-The first build after dependency/proto changes is still expensive. Source-only changes should reuse the dependency layer.
-
-Apple `container` is supported for local amd64 image builds:
+Apple `container` is the preferred local amd64 image build path:
 
 ```bash
-container build --platform linux/amd64 -t nvcr.io/nvstaging/osmo/osmo-rust-spike:<tag> .
+container build --arch amd64 -t nvcr.io/nvstaging/osmo/osmo-rust-spike:<tag> projects/osmo-rust-spike
 container image push nvcr.io/nvstaging/osmo/osmo-rust-spike:<tag>
 ```
 
+With dependency layers warm, source-only rebuilds have been about 30 seconds.
+
 ## Validation
 
-`deploy/e2e-validate.sh` applies CRDs/deployments and validates the Phase 1A contract end to end.
+`deploy/e2e-validate.sh` validates the Phase 1A contract against `osmo-stg/osmo-exp` and `osmo-backend/osmo-phase1a`.
 
 Validated cases:
 
@@ -340,7 +361,21 @@ export KUBECONFIG="$HOME/.kube/clusters/aws-prod:$HOME/.kube/clusters/aws-stg:$H
 ./deploy/e2e-validate.sh
 ```
 
-Reviewer verdict for commit `3b23b448d9701d6dd9439047035785e9caf68957`: production-ready for the scoped Phase 1A Rust spike.
+Independent reviewer verdict for implementation commit `3b23b448d9701d6dd9439047035785e9caf68957`: production-ready for the scoped Phase 1A Rust spike.
+
+## Decision Points After Phase 1A
+
+The spike answers whether the Rust CRD-native path can work. The next decision is whether to promote this into a Phase 1B implementation track or freeze it as a comparison artifact against the Go/controller-runtime implementation.
+
+Before promotion, decide:
+
+- How much existing OSMO YAML parity is required for initial 7.0.
+- Whether the API auth path moves to real identity now or after the control plane/API design is finalized.
+- Whether runtime status should move from polling monitors to watch-backed reconcilers before productization.
+- Whether image promotion requires digest-pinned manifests.
+- Where PostgreSQL history projection is introduced.
+- How credentials and ExternalSecrets integration enter the design.
+- Where Kueue/KAI scheduling support belongs for Ray and future runtimes.
 
 ## Known Follow-Ups
 
