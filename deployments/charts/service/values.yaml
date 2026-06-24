@@ -473,11 +473,6 @@ services:
       max_exec_timeout: "30d"
       default_exec_timeout: "7d"
 
-    ## Dataset config (buckets, credentials).
-    ## Use credentialSecretName to reference K8s Secrets for bucket creds.
-    ##
-    dataset: {}
-
     ## Pod templates applied to workflow containers.
     ##
     podTemplates:
