@@ -65,18 +65,6 @@ on:
         description: 'E2E-test the Slack notification path. Skips build-images + full-deployment, runs a stub failure job, and exercises notify-slack-on-failure with realistic context. Cheap (~30s) and burns no Azure resources.'
         type: boolean
         default: false
-      delete_slack_ts:
-        description: 'Slack message ts (e.g. 1782335995.156999) to delete via chat.delete. Pair with delete_slack_channel. Useful for cleaning up test-mode messages posted to the wrong channel.'
-        type: string
-        default: ''
-      delete_slack_channel:
-        description: 'Channel ID for delete_slack_ts (e.g. C096VCXRK8U). Required when delete_slack_ts is set.'
-        type: string
-        default: ''
-      inspect_tokens:
-        description: 'Diagnostic: call Slack auth.test with both OSMO_SLACK_BOT_TOKEN and TESTBOT_SLACK_BOT_TOKEN to surface their team/app/scope differences. Temporary scaffolding; will be removed.'
-        type: boolean
-        default: false
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
@@ -1061,90 +1049,6 @@ jobs:
   #     non-zero, notify-slack-on-failure fires with a realistic payload.
   #
   # ─────────────────────────────────────────────────────────────────────────
-
-  # Diagnostic-only — call Slack auth.test on both candidate tokens so we
-  # can see in plain text why OSMO_SLACK_BOT_TOKEN got `not_allowed_token_type`
-  # while TESTBOT_SLACK_BOT_TOKEN succeeded. auth.test returns app_id,
-  # bot_id, team_id, user_id (no scopes directly — but the response
-  # headers `x-oauth-scopes` carry them, which we surface too). TEMPORARY:
-  # remove after the question is answered.
-  inspect-slack-tokens:
-    if: ${{ github.event.inputs.inspect_tokens == 'true' }}
-    runs-on: ubuntu-latest
-    environment: nim-env
-    timeout-minutes: 2
-    steps:
-      - name: auth.test on both tokens
-        env:
-          TESTBOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          OSMO_TOKEN: ${{ secrets.OSMO_SLACK_BOT_TOKEN }}
-        run: |
-          set -uo pipefail
-          probe() {
-            local label="$1" tok="$2"
-            echo "::group::$label"
-            if [[ -z "$tok" ]]; then
-              echo "  (token not set / not visible in this environment)"
-              echo "::endgroup::"
-              return
-            fi
-            # First 4 chars distinguish xoxb-/xoxp-/xapp-/xoxe- prefixes
-            # without leaking the secret.
-            echo "  prefix: ${tok:0:5}..."
-            echo "  length: ${#tok}"
-            # auth.test response carries team_id/app_id/bot_id/user_id +
-            # ok status + error code if rejected. The response also exposes
-            # the granted scopes via the `x-oauth-scopes` HTTP header.
-            resp_headers=$(mktemp)
-            resp_body=$(curl -sS -D "$resp_headers" \
-              -H "Authorization: Bearer $tok" \
-              -H "Content-Type: application/x-www-form-urlencoded" \
-              https://slack.com/api/auth.test)
-            echo "  auth.test body: $resp_body"
-            scopes=$(awk -F': ' 'tolower($1)=="x-oauth-scopes"{print $2}' "$resp_headers" | tr -d '\r')
-            echo "  x-oauth-scopes: ${scopes:-(none returned)}"
-            rm -f "$resp_headers"
-            echo "::endgroup::"
-          }
-          probe "TESTBOT_SLACK_BOT_TOKEN (nim-env-scoped)" "${TESTBOT_TOKEN:-}"
-          probe "OSMO_SLACK_BOT_TOKEN (repo-level)"        "${OSMO_TOKEN:-}"
-
-  # One-shot Slack message deletion. Fires only when delete_slack_ts is
-  # set via workflow_dispatch. Useful for cleaning up test-mode messages
-  # posted to the wrong channel (e.g., when an org-level channel var
-  # routed a test post somewhere unintended). Reuses the same nim-env
-  # secret the notify job uses.
-  delete-slack-message:
-    if: ${{ github.event.inputs.delete_slack_ts != '' }}
-    runs-on: ubuntu-latest
-    environment: nim-env
-    timeout-minutes: 2
-    steps:
-      - name: chat.delete
-        env:
-          TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          CHANNEL: ${{ github.event.inputs.delete_slack_channel }}
-          TS: ${{ github.event.inputs.delete_slack_ts }}
-        run: |
-          set -uo pipefail
-          if [[ -z "$CHANNEL" ]]; then
-            echo "::error::delete_slack_channel input is required when delete_slack_ts is set."
-            exit 1
-          fi
-          payload=$(jq -nc --arg channel "$CHANNEL" --arg ts "$TS" '{channel:$channel, ts:$ts}')
-          echo "Calling chat.delete with: $payload"
-          response=$(curl -fsSL \
-            -H "Authorization: Bearer $TESTBOT_SLACK_BOT_TOKEN" \
-            -H 'Content-Type: application/json; charset=utf-8' \
-            -d "$payload" \
-            https://slack.com/api/chat.delete)
-          echo "Slack response: $response"
-          ok=$(jq -r '.ok' <<<"$response")
-          if [[ "$ok" != "true" ]]; then
-            echo "::error::chat.delete returned ok=$ok"
-            exit 1
-          fi
-          echo "::notice::Deleted message $TS from channel $CHANNEL"
 
   # Stub job that exists only to exercise the slack-notify path end-to-end
   # via workflow_dispatch (test_slack=true). Runs only in that mode and
