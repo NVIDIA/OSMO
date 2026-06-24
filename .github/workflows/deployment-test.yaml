@@ -39,11 +39,8 @@ name: Deployment Test
 #   - notify-slack-on-failure posts to the `osmo-slack-test` channel
 #     (hardcoded; org-level `vars.TESTBOT_SLACK_CHANNEL` points at the
 #     testbot's review-request channel, wrong audience for deploy gate
-#     failures) using the `TESTBOT_SLACK_BOT_TOKEN` secret, scoped to
-#     the `nim-env` environment — same auth surface testbot.yaml uses
-#     (see line 121 of that file). Branch policy on nim-env allows
-#     `main`, `jiaenr/*`, `elookpotts/*`, so both scheduled main runs
-#     and pre-merge e2e dispatches see the secret.
+#     failures) using the `OSMO_SLACK_BOT_TOKEN` repo-level secret
+#     (xoxb- bot token with chat:write scope).
 #   - Fires only on scheduled-run failures. PR-label and workflow_dispatch
 #     runs are interactive and surface their own status.
 #   - If the secret is unset or the API returns non-ok, the step logs a
@@ -1040,7 +1037,7 @@ jobs:
   #
   # Posts to the channel pointed at by `vars.TESTBOT_SLACK_CHANNEL` (fallback
   # `osmo-slack-test`) via Slack `chat.postMessage` using the existing
-  # `TESTBOT_SLACK_BOT_TOKEN` repo secret — same auth surface that
+  # `OSMO_SLACK_BOT_TOKEN` repo secret — same auth surface that
   # testbot.yaml + update-distroless-images.yaml already use.
   #
   # Test path (e2e without burning Azure resources):
@@ -1079,12 +1076,6 @@ jobs:
               || (github.event.inputs.test_slack == 'true'
                   && needs.simulate-failure.result == 'failure') ) }}
     runs-on: ubuntu-latest
-    # nim-env owns TESTBOT_SLACK_BOT_TOKEN (same env testbot.yaml uses).
-    # Branch policy on nim-env allows `main`, `jiaenr/*`, `elookpotts/*` —
-    # confirmed via /environments/nim-env/deployment-branch-policies — so
-    # both scheduled main runs and the e2e workflow_dispatch from this
-    # PR branch can resolve the secret.
-    environment: nim-env
     timeout-minutes: 5
     steps:
       - name: Gather context (commit metadata + commits since previous green run)
@@ -1138,19 +1129,45 @@ jobs:
             compare_label="Recent commits on main"
           fi
 
-          # 3) Persist outputs (escape multi-line values).
+          # 3) Resolve the artifact ID for THIS run so the Slack button
+          # deep-links directly to the artifact's download page. GitHub
+          # has no `#artifacts` anchor on the run page — links with that
+          # fragment land at the top of the page with no scroll. The
+          # working URL shape is:
+          #   https://github.com/<owner>/<repo>/actions/runs/<run_id>/artifacts/<artifact_id>
+          # which renders the artifact's download flow directly. We pick
+          # the first non-expired artifact (full-deployment uploads a
+          # single one named `deployment-test-run-<run_id>`); fall back
+          # to the run page when none is found (e.g. test_slack=true
+          # dispatches that never reach the upload step).
+          artifacts_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                                 -H 'Accept: application/vnd.github+json' \
+                                 "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?per_page=10")
+          artifact_id=$(jq -r '[.artifacts[] | select(.expired==false)] | .[0].id // empty' <<<"$artifacts_resp")
+          artifact_name=$(jq -r '[.artifacts[] | select(.expired==false)] | .[0].name // empty' <<<"$artifacts_resp")
+          if [[ -n "$artifact_id" ]]; then
+            artifact_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}/artifacts/${artifact_id}"
+            artifact_label="Download ${artifact_name}"
+          else
+            artifact_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
+            artifact_label="(no artifact yet — open run page)"
+          fi
+
+          # 4) Persist outputs (escape multi-line values).
           {
             echo "author<<__GHA_EOF__"; echo "$author"; echo "__GHA_EOF__"
             echo "subject<<__GHA_EOF__"; echo "$subject"; echo "__GHA_EOF__"
             echo "short_sha=${SHA:0:7}"
             echo "compare_url=$compare_url"
             echo "compare_label=$compare_label"
+            echo "artifact_url=$artifact_url"
+            echo "artifact_label=$artifact_label"
             echo "is_test=$IS_TEST"
           } >> "$GITHUB_OUTPUT"
 
       - name: Post failure notification to Slack
         env:
-          TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
+          OSMO_SLACK_BOT_TOKEN: ${{ secrets.OSMO_SLACK_BOT_TOKEN }}
           # Hardcoded to osmo-slack-test — the org-level `vars.TESTBOT_SLACK_CHANNEL`
           # points at #osmo-code-reviews (testbot's review-request channel), which
           # is the wrong audience for deployment-gate failures.
@@ -1169,12 +1186,14 @@ jobs:
           WORKFLOW: ${{ github.workflow }}
           COMPARE_URL: ${{ steps.ctx.outputs.compare_url }}
           COMPARE_LABEL: ${{ steps.ctx.outputs.compare_label }}
+          ARTIFACT_URL: ${{ steps.ctx.outputs.artifact_url }}
+          ARTIFACT_LABEL: ${{ steps.ctx.outputs.artifact_label }}
           IS_TEST: ${{ steps.ctx.outputs.is_test }}
           EVENT: ${{ github.event_name }}
         run: |
           set -uo pipefail
-          if [[ -z "${TESTBOT_SLACK_BOT_TOKEN:-}" ]]; then
-            echo "::warning::TESTBOT_SLACK_BOT_TOKEN secret not set — skipping Slack notification."
+          if [[ -z "${OSMO_SLACK_BOT_TOKEN:-}" ]]; then
+            echo "::warning::OSMO_SLACK_BOT_TOKEN secret not set — skipping Slack notification."
             exit 0
           fi
           if [[ -z "${TESTBOT_SLACK_CHANNEL:-}" ]]; then
@@ -1188,7 +1207,11 @@ jobs:
           fi
           commit_url="${SERVER_URL}/${REPO}/commit/${FULL_SHA}"
           workflow_url="${SERVER_URL}/${REPO}/blob/${REF_NAME}/.github/workflows/deployment-test.yaml"
-          artifact_url="${run_url}#artifacts"
+          # artifact_url comes from the "Gather context" step which already
+          # resolved the per-run artifact ID via the GH API. Fallback when
+          # no artifact exists (test_slack=true mode) → the run page itself.
+          artifact_url="${ARTIFACT_URL}"
+          artifact_label="${ARTIFACT_LABEL}"
 
           # Test runs get a clear "this is a test" prefix so they aren't
           # mistaken for real production failures.
@@ -1219,6 +1242,7 @@ jobs:
             --arg commit_url    "$commit_url" \
             --arg workflow_url  "$workflow_url" \
             --arg artifact_url  "$artifact_url" \
+            --arg artifact_label "$artifact_label" \
             --arg compare_url   "$COMPARE_URL" \
             --arg compare_label "$COMPARE_LABEL" \
             --arg run_id        "$RUN_ID" \
@@ -1250,7 +1274,7 @@ jobs:
                       url:  $run_url,
                       style: "danger" },
                     { type: "button",
-                      text: { type: "plain_text", text: "Download artifacts" },
+                      text: { type: "plain_text", text: $artifact_label },
                       url:  $artifact_url },
                     { type: "button",
                       text: { type: "plain_text", text: $compare_label },
@@ -1277,7 +1301,7 @@ jobs:
           # failed run, so log + continue rather than fail.
           if ! response=$(
             curl -fsSL \
-              -H "Authorization: Bearer $TESTBOT_SLACK_BOT_TOKEN" \
+              -H "Authorization: Bearer $OSMO_SLACK_BOT_TOKEN" \
               -H 'Content-Type: application/json; charset=utf-8' \
               -d "$payload" \
               https://slack.com/api/chat.postMessage
