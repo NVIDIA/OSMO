@@ -498,30 +498,36 @@ func TestValidateInputsOutputsAccess_UrlInputFailShortCircuits(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Download / UploadFolder — cover the per-type metric pipelines plus the
 // surrounding folder/log/channel behavior. Each test:
-//  1. Stages a fake `osmo` so DownloadURI / UploadData succeed without doing
+//  1. Redirects BenchmarkPath to a writable tempdir (production default
+//     "/osmo/data/benchmarks/" is not writable in the bazel test sandbox).
+//  2. Stages a fake `osmo` so DownloadURI / UploadData succeed without doing
 //     real work.
-//  2. Pre-populates BenchmarkPath/<expected-folder>/x_benchmark.json with a
+//  3. Pre-populates BenchmarkPath/<expected-folder>/x_benchmark.json with a
 //     payload that has bytes>0, plus an empty-bytes entry to force the
 //     `if benchmark.TotalBytesTransferred == 0 { continue }` skip branch.
-//  3. Invokes the method on a real (temp-dir) inputPath/outputPath.
-//
-// If /osmo/data/benchmarks is not writable in the test sandbox, the helper
-// degrades gracefully: benchmarks come back nil, the metric loop body is
-// skipped, but the surrounding lines (CreateFolder, DownloadURI, log/print
-// calls) are still exercised.
+//  4. Invokes the method on a real (temp-dir) inputPath/outputPath.
 // ---------------------------------------------------------------------------
+
+// redirectBenchmarkPath points BenchmarkPath at a per-test tempdir so the
+// metric loop bodies in TaskInput/TaskOutput/UrlInput/UrlOutput/KpiOutput can
+// execute against pre-staged benchmark files. The original value is restored
+// on test cleanup.
+func redirectBenchmarkPath(t *testing.T) {
+	t.Helper()
+	original := BenchmarkPath
+	BenchmarkPath = t.TempDir() + "/"
+	t.Cleanup(func() { BenchmarkPath = original })
+}
 
 // stageBenchmarkFiles writes one benchmark JSON with bytes=1024 (passes the
 // non-zero check) and one with bytes=0 (skipped via continue) under
-// BenchmarkPath/<folder>. Returns true if both files were written.
-func stageBenchmarkFiles(t *testing.T, folder string) bool {
+// BenchmarkPath/<folder>.
+func stageBenchmarkFiles(t *testing.T, folder string) {
 	t.Helper()
 	dir := BenchmarkPath + folder
 	if err := os.MkdirAll(dir, 0o777); err != nil {
-		t.Logf("skipping benchmark prep for %q: %v", folder, err)
-		return false
+		t.Fatalf("MkdirAll %q: %v", dir, err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 
 	startTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	ok := BenchmarkMetrics{
@@ -545,11 +551,9 @@ func stageBenchmarkFiles(t *testing.T, folder string) bool {
 			t.Fatalf("marshal %s: %v", name, err)
 		}
 		if err := os.WriteFile(filepath.Join(dir, name), body, 0o644); err != nil {
-			t.Logf("write %s failed: %v", name, err)
-			return false
+			t.Fatalf("write %s: %v", name, err)
 		}
 	}
-	return true
 }
 
 // stageNoOpOsmo writes a fake osmo that always exits 0, used for the
@@ -576,8 +580,9 @@ func drainMetricChan(metricChan chan metrics.Metric) []string {
 func TestTaskInput_Download_RunsThroughCreateFolderAndMetricPipeline(t *testing.T) {
 	WebsocketConnection = WebsocketConnectionInfo{}
 	t.Setenv("PATH", stageNoOpOsmo(t))
+	redirectBenchmarkPath(t)
 
-	staged := stageBenchmarkFiles(t, "INPUT_3")
+	stageBenchmarkFiles(t, "INPUT_3")
 
 	inputPath := t.TempDir() + "/"
 	osmoChan := make(chan string, 64)
@@ -597,10 +602,10 @@ func TestTaskInput_Download_RunsThroughCreateFolderAndMetricPipeline(t *testing.
 	}
 
 	urls := drainMetricChan(metricChan)
-	if staged && len(urls) != 1 {
-		t.Errorf("expected 1 metric (zero-bytes skipped), got %d (%v)", len(urls), urls)
+	if len(urls) != 1 {
+		t.Fatalf("expected 1 metric (zero-bytes skipped), got %d (%v)", len(urls), urls)
 	}
-	if staged && urls[0] != ti.Url {
+	if urls[0] != ti.Url {
 		t.Errorf("metric URL = %q, want %q", urls[0], ti.Url)
 	}
 }
@@ -608,8 +613,9 @@ func TestTaskInput_Download_RunsThroughCreateFolderAndMetricPipeline(t *testing.
 func TestTaskOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 	WebsocketConnection = WebsocketConnectionInfo{}
 	t.Setenv("PATH", stageNoOpOsmo(t))
+	redirectBenchmarkPath(t)
 
-	staged := stageBenchmarkFiles(t, "OUTPUT_7")
+	stageBenchmarkFiles(t, "OUTPUT_7")
 
 	outputPath := t.TempDir() + "/"
 	osmoChan := make(chan string, 64)
@@ -620,10 +626,10 @@ func TestTaskOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 		"r2", "g2", "t2", "url-id", 7)
 
 	urls := drainMetricChan(metricChan)
-	if staged && len(urls) != 1 {
-		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	if len(urls) != 1 {
+		t.Fatalf("expected 1 metric, got %d (%v)", len(urls), urls)
 	}
-	if staged && urls[0] != "url-id" {
+	if urls[0] != "url-id" {
 		t.Errorf("metric URL = %q, want %q", urls[0], "url-id")
 	}
 }
@@ -631,9 +637,10 @@ func TestTaskOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 func TestUrlInput_Download_UsesGroupTaskIndexedBenchmarkFolder(t *testing.T) {
 	WebsocketConnection = WebsocketConnectionInfo{}
 	t.Setenv("PATH", stageNoOpOsmo(t))
+	redirectBenchmarkPath(t)
 
 	// UrlInput.Download builds benchmarkFolder as "<group>_<task>_INPUT_<idx>"
-	staged := stageBenchmarkFiles(t, "grp_tsk_INPUT_2")
+	stageBenchmarkFiles(t, "grp_tsk_INPUT_2")
 
 	inputPath := t.TempDir() + "/"
 	osmoChan := make(chan string, 64)
@@ -647,10 +654,10 @@ func TestUrlInput_Download_UsesGroupTaskIndexedBenchmarkFolder(t *testing.T) {
 		t.Errorf("expected CreateFolder to make %q: %v", inputPath+"uin", err)
 	}
 	urls := drainMetricChan(metricChan)
-	if staged && len(urls) != 1 {
-		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	if len(urls) != 1 {
+		t.Fatalf("expected 1 metric, got %d (%v)", len(urls), urls)
 	}
-	if staged && urls[0] != ui.Url {
+	if urls[0] != ui.Url {
 		t.Errorf("metric URL = %q, want %q", urls[0], ui.Url)
 	}
 }
@@ -658,8 +665,9 @@ func TestUrlInput_Download_UsesGroupTaskIndexedBenchmarkFolder(t *testing.T) {
 func TestUrlOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 	WebsocketConnection = WebsocketConnectionInfo{}
 	t.Setenv("PATH", stageNoOpOsmo(t))
+	redirectBenchmarkPath(t)
 
-	staged := stageBenchmarkFiles(t, "OUTPUT_4")
+	stageBenchmarkFiles(t, "OUTPUT_4")
 
 	outputPath := t.TempDir() + "/"
 	osmoChan := make(chan string, 64)
@@ -670,10 +678,10 @@ func TestUrlOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 		"r4", "g4", "t4", "url-id-4", 4)
 
 	urls := drainMetricChan(metricChan)
-	if staged && len(urls) != 1 {
-		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	if len(urls) != 1 {
+		t.Fatalf("expected 1 metric, got %d (%v)", len(urls), urls)
 	}
-	if staged && urls[0] != "url-id-4" {
+	if urls[0] != "url-id-4" {
 		t.Errorf("metric URL = %q, want %q", urls[0], "url-id-4")
 	}
 }
@@ -681,8 +689,9 @@ func TestUrlOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 func TestKpiOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 	WebsocketConnection = WebsocketConnectionInfo{}
 	t.Setenv("PATH", stageNoOpOsmo(t))
+	redirectBenchmarkPath(t)
 
-	staged := stageBenchmarkFiles(t, "OUTPUT_9")
+	stageBenchmarkFiles(t, "OUTPUT_9")
 
 	outputPath := t.TempDir() + "/"
 	osmoChan := make(chan string, 64)
@@ -693,10 +702,10 @@ func TestKpiOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
 		"r5", "g5", "t5", "url-id-9", 9)
 
 	urls := drainMetricChan(metricChan)
-	if staged && len(urls) != 1 {
-		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	if len(urls) != 1 {
+		t.Fatalf("expected 1 metric, got %d (%v)", len(urls), urls)
 	}
-	if staged && urls[0] != "url-id-9" {
+	if urls[0] != "url-id-9" {
 		t.Errorf("metric URL = %q, want %q", urls[0], "url-id-9")
 	}
 }
