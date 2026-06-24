@@ -15,12 +15,15 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
   tasks:
   - name: app-cli
     image: ubuntu:22.04
     resource: default
-    args: ['/tmp/osmo_app_test.sh', '{{app_name}}']
+    # Suffix the app name with {{workflow_id}} so concurrent / re-run
+    # workflows from different submitters don't collide on ownership
+    # (`osmo app delete` rejects deleting someone else's app with 400
+    # "Deleting someone else's app is not supported yet.").
+    args: ['/tmp/osmo_app_test.sh', '{{app_name}}-{{workflow_id}}']
     command: ['/bin/bash']
     files:
     - localpath: scripts/app_cli.sh
@@ -33,4 +36,3 @@ workflow:
 
 default-values:
   app_name: integration_test_app
-  platform: cpu-x86

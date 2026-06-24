@@ -25,7 +25,12 @@ class ApiChecks(SmokeFixture):
         self.http("GET", "/api/version").expect_ok()
 
     def test_list_workflows(self):
-        self.http("GET", "/api/workflow").params(limit=5).expect_ok()
+        # /api/workflow rejects requests without a pool with HTTP 400
+        # ("No pool selected!"). Pass the env's pool explicitly so the
+        # endpoint can scope the listing.
+        self.http("GET", "/api/workflow") \
+            .params(limit=5, pool=self.config.pool) \
+            .expect_ok()
 
     def test_list_pools(self):
         self.http("GET", "/api/pool").expect_ok()
