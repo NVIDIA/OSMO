@@ -13,8 +13,7 @@ workflow:
         python -m isaac.sdg --num-images 1000 --out {{output}}/images
       path: /tmp/entry.sh
     outputs:
-    - dataset:
-        name: oversized-output
+    - url: s3://my-bucket/oversized-output/
   resources:
     default:
       cpu: 300

@@ -204,8 +204,8 @@ prepare mounts). If init fails, the user task never runs.
 
 ### Fix
 - Common init failures:
-  - **Input dataset missing or wrong name** — verify the dataset name in
-    `inputs.dataset.name` matches an existing dataset (`osmo dataset list`).
+  - **Input storage path missing or wrong** — verify the task's `inputs` block
+    points to a valid upstream task output or object storage URL.
   - **Storage backend auth** — credentials for the pool's storage backend may be
     misconfigured; this is an admin issue, ask the user to file a ticket.
   - **Network/permission issue** — events usually carry the underlying error.
@@ -241,11 +241,11 @@ Inter-GPU communication is broken or too slow. Possible causes:
 
 ---
 
-## Output dataset empty or missing after COMPLETED
+## Output data missing after COMPLETED
 
 ### Signature
 - Workflow status `COMPLETED`, exit code `0`.
-- The output dataset listed in the workflow spec exists but is empty, or the
+- The output location listed in the workflow spec exists but is empty, or the
   expected files aren't there.
 - Common: the entry script created a directory like `{{outputs}}` or `output` as a
   literal name on the local filesystem instead of writing to the OSMO-mounted
@@ -253,7 +253,7 @@ Inter-GPU communication is broken or too slow. Possible causes:
 
 ### Diagnosis
 The script didn't write to the OSMO output mount. The workflow's `outputs` are
-declared via `outputs.dataset.name`, and the script is expected to write into the
+declared via the task's `outputs` block, and the script is expected to write into the
 path indicated by the placeholder `{{output}}` (singular).
 
 ### Fix

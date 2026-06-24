@@ -16,8 +16,7 @@ workflow:
         echo "Hello World" > {{output}}/hello.txt
       path: /tmp/entry.sh
     outputs:
-    - dataset:
-        name: hello-world-output
+    - url: s3://my-bucket/hello-world-output/
   resources:
     default:
       cpu: 2

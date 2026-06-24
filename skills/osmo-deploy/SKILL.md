@@ -198,7 +198,7 @@ aws eks describe-cluster --name <cluster> --query "cluster.identity.oidc.issuer"
 
 ## NFS storage account (`--with-nfs-storage`, azure only)
 
-Pass `--with-nfs-storage` on Azure when a downstream skill on the cluster needs an Azure Files Premium NFS-backed `ReadWriteMany` StorageClass. The canonical consumer is NIM Operator multi-node inference (its NIMCache + shared-model volumes are RWX-only per https://docs.nvidia.com/nim-operator/latest/multi-node.html); other RWX users (shared dataset caches, KServe RWX models) need it too.
+Pass `--with-nfs-storage` on Azure when a downstream skill on the cluster needs an Azure Files Premium NFS-backed `ReadWriteMany` StorageClass. The canonical consumer is NIM Operator multi-node inference (its NIMCache + shared-model volumes are RWX-only per https://docs.nvidia.com/nim-operator/latest/multi-node.html); other RWX users (shared data caches, KServe RWX models) need it too.
 
 What osmo provisions: a Premium FileStorage Azure Storage Account (VNet-restricted, output as `nfs_storage_account`) and the four AKS role assignments `file.csi.azure.com` needs to dynamically provision NFS file shares against it — Network Contributor on the VNet, on the AKS NSG, and on the database NSG, plus Storage Account Contributor scoped to the NFS SA. Without all four, dynamic PVC provisioning fails with `LinkedAuthorizationFailed`.
 

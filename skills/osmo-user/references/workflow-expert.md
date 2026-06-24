@@ -38,7 +38,7 @@ Execute these steps using the osmo skill procedures:
 4. **Return** — After successful submission, return a structured response:
    - **Workflow ID** and **pool name**
    - **OSMO Web link**: <workflow overview link>
-   - **Output datasets** the workflow will produce (names from the YAML)
+   - **Output locations** the workflow will produce (task outputs or storage URLs from the YAML)
 
    Do NOT poll or monitor the workflow. Return immediately after submission.
 

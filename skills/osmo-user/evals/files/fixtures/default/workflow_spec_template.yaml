@@ -6,7 +6,7 @@ workflow:
     command: ["bash"]
     args: ["/tmp/entry.sh"]
     environment:
-      DATASET_NAME: gr00t-pick-and-place
+      INPUT_NAME: gr00t-pick-and-place
       EPOCHS: "10"
       BATCH_SIZE: "32"
     files:
@@ -15,17 +15,15 @@ workflow:
         set -e
         echo "Starting GR00T fine-tuning"
         python -m gr00t.train \
-          --dataset /workflow/inputs/dataset \
+          --input-dir {{input:0}} \
           --output {{output}}/model \
           --num-gpus {{num_gpu}}
         echo "Training complete"
       path: /tmp/entry.sh
     inputs:
-    - dataset:
-        name: gr00t-pick-and-place
+    - url: s3://my-bucket/gr00t-pick-and-place/
     outputs:
-    - dataset:
-        name: gr00t-train-1-output
+    - url: s3://my-bucket/gr00t-train-1-output/
   resources:
     default:
       cpu: 32
