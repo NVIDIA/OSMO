@@ -30,15 +30,6 @@ IGNORE_PATTERNS = [
     "bzl/**",
     "run/**",
     "deployments/**",
-
-    # --- Deprecation in flight (WIP) ---
-    # Group entries by feature so a contiguous chunk drops in one
-    # commit when the deprecation lands.
-    #
-    # Dataset / data-service (#1093, #1119):
-    "src/cli/dataset*.py",
-    "src/lib/data/dataset/**",
-    "src/service/core/data/**",
 ]
 
 SKIP_BASENAME_PATTERNS = [
@@ -88,8 +79,6 @@ def _is_ignored(file_path: str) -> bool:
     - Files inside any tests/ directory (fixtures, helpers, etc.)
     - Scripts, build config, and deployment files
     - Generated code, test files, __init__.py, BUILD
-    - Paths under active feature deprecation
-      (see the "Deprecation in flight" block in IGNORE_PATTERNS)
     """
     for pattern in IGNORE_PATTERNS:
         if fnmatch.fnmatch(file_path, pattern):
