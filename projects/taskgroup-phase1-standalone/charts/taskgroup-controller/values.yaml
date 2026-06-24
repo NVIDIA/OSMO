@@ -1,0 +1,60 @@
+replicaCount: 1
+
+image:
+  repository: taskgroup-controller
+  tag: latest
+  pullPolicy: IfNotPresent
+
+computeAgentImage:
+  repository: compute-agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+
+controller:
+  metricsBindAddress: ":8080"
+
+computeAgent:
+  clusterID: compute-a
+  dispatcherURL: http://workflow-controller-dispatcher.osmo-control.svc.cluster.local:8090
+  agentAuth:
+    enabled: false
+    secretName: ""
+    tokenKey: token
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+metrics:
+  service:
+    create: true
+    port: 8080

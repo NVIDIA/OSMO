@@ -1,0 +1,162 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmotaskgroups.workflow.osmo.nvidia.com
+spec:
+  group: workflow.osmo.nvidia.com
+  scope: Namespaced
+  names:
+    plural: osmotaskgroups
+    singular: osmotaskgroup
+    kind: OSMOTaskGroup
+    shortNames:
+    - otg
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Runtime
+      type: string
+      jsonPath: .spec.runtimeType
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            required:
+            - groupName
+            - runtimeType
+            - runtimeConfig
+            properties:
+              workflowRef:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+              groupName:
+                type: string
+              mode:
+                type: string
+                enum:
+                - shadow
+                - active
+              runtimeType:
+                type: string
+              runtimeConfig:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              message:
+                type: string
+              observedGeneration:
+                type: integer
+                format: int64
+              lastReportTime:
+                type: string
+                format: date-time
+              podSummary:
+                type: object
+                properties:
+                  pending:
+                    type: integer
+                    format: int32
+                  running:
+                    type: integer
+                    format: int32
+                  succeeded:
+                    type: integer
+                    format: int32
+                  failed:
+                    type: integer
+                    format: int32
+                  unknown:
+                    type: integer
+                    format: int32
+              tasks:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    podName:
+                      type: string
+                    phase:
+                      type: string
+                    message:
+                      type: string
+                    retryID:
+                      type: integer
+                      format: int32
+              barriers:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    expected:
+                      type: integer
+                      format: int32
+                    arrived:
+                      type: array
+                      items:
+                        type: string
+                    released:
+                      type: boolean
+              runtimeStatus:
+                type: object
+                properties:
+                  podNames:
+                    type: array
+                    items:
+                      type: string
+                  ray:
+                    type: object
+                    properties:
+                      rayClusterName:
+                        type: string
+                      rayJobName:
+                        type: string
+                      jobStatus:
+                        type: string
+                      headReady:
+                        type: boolean
+                      workersDesired:
+                        type: integer
+                        format: int32
+                      workersReady:
+                        type: integer
+                        format: int32
+                      dashboardService:
+                        type: string
+                      dashboardPort:
+                        type: integer
+                        format: int32
+              conditions:
+                type: array
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

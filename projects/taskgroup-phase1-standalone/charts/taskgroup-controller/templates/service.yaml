@@ -1,0 +1,17 @@
+{{- if .Values.metrics.service.create -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "taskgroup-controller.fullname" . }}-metrics
+  labels:
+    {{- include "taskgroup-controller.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: {{ .Values.metrics.service.port }}
+    targetPort: metrics
+  selector:
+    {{- include "taskgroup-controller.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: taskgroup-controller
+{{- end }}

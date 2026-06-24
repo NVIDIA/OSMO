@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "taskgroup-controller.fullname" . }}-compute-agent
+  labels:
+    {{- include "taskgroup-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: compute-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "taskgroup-controller.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: compute-agent
+  template:
+    metadata:
+      labels:
+        {{- include "taskgroup-controller.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: compute-agent
+    spec:
+      serviceAccountName: {{ include "taskgroup-controller.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: compute-agent
+        image: "{{ .Values.computeAgentImage.repository }}:{{ .Values.computeAgentImage.tag }}"
+        imagePullPolicy: {{ .Values.computeAgentImage.pullPolicy }}
+        args:
+        - --cluster-id={{ .Values.computeAgent.clusterID }}
+        - --dispatcher-url={{ .Values.computeAgent.dispatcherURL }}
+        {{- if .Values.computeAgent.agentAuth.enabled }}
+        - --agent-token-file=/var/run/osmo-agent-token/{{ .Values.computeAgent.agentAuth.tokenKey }}
+        {{- end }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        {{- if .Values.computeAgent.agentAuth.enabled }}
+        volumeMounts:
+        - name: osmo-agent-token
+          mountPath: /var/run/osmo-agent-token
+          readOnly: true
+        {{- end }}
+      {{- if .Values.computeAgent.agentAuth.enabled }}
+      volumes:
+      - name: osmo-agent-token
+        secret:
+          secretName: {{ required "computeAgent.agentAuth.secretName is required when computeAgent.agentAuth.enabled=true" .Values.computeAgent.agentAuth.secretName }}
+      {{- end }}

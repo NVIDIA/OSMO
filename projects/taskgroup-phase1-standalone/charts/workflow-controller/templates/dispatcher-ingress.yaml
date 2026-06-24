@@ -1,0 +1,34 @@
+{{- if .Values.dispatcher.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "workflow-controller.fullname" . }}-dispatcher-agent
+  labels:
+    {{- include "workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dispatcher
+  {{- with .Values.dispatcher.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.dispatcher.ingress.className }}
+  ingressClassName: {{ .Values.dispatcher.ingress.className }}
+  {{- end }}
+  rules:
+  {{- range .Values.dispatcher.ingress.hosts }}
+  - {{- if .host }}
+    host: {{ .host | quote }}
+    {{- end }}
+    http:
+      paths:
+      {{- range $.Values.dispatcher.ingress.paths }}
+      - path: {{ .path }}
+        pathType: {{ .pathType }}
+        backend:
+          service:
+            name: {{ include "workflow-controller.fullname" $ }}-dispatcher
+            port:
+              number: {{ $.Values.dispatcher.service.port }}
+      {{- end }}
+  {{- end }}
+{{- end }}

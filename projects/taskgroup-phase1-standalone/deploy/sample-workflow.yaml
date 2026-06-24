@@ -1,0 +1,22 @@
+apiVersion: spikego.osmo.nvidia.com/v1alpha1
+kind: OSMOWorkflow
+metadata:
+  name: osmo-go-spike-e2e
+  namespace: osmo-exp
+spec:
+  clusterID: fallback-cluster-not-used-when-pool-ref-is-set
+  namespace: fallback-namespace-not-used-when-pool-ref-is-set
+  ttlSecondsAfterFinished: 300
+  taskGroups:
+  - name: hello
+    runtimeType: kubernetesObjects
+    poolRef: default
+    renderedObjects:
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: osmo-go-spike-e2e-hello
+      data:
+        workflow: osmo-go-spike-e2e
+        taskGroup: hello
+        status: rendered-object-applied

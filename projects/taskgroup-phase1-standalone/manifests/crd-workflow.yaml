@@ -1,0 +1,130 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflows.workflow.osmo.nvidia.com
+spec:
+  group: workflow.osmo.nvidia.com
+  scope: Namespaced
+  names:
+    plural: workflows
+    singular: workflow
+    kind: Workflow
+    shortNames:
+    - wf
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Cluster
+      type: string
+      jsonPath: .spec.clusterID
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            required:
+            - clusterID
+            - taskGroups
+            properties:
+              clusterID:
+                type: string
+              namespace:
+                type: string
+              mode:
+                type: string
+                enum:
+                - shadow
+                - active
+              owner:
+                type: string
+              pool:
+                type: string
+              priority:
+                type: string
+              source:
+                type: object
+                properties:
+                  format:
+                    type: string
+                  renderedSpecRef:
+                    type: string
+              runtimeType:
+                type: string
+              workflowID:
+                type: string
+              workflowName:
+                type: string
+              taskGroups:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  required:
+                  - name
+                  - runtimeConfig
+                  properties:
+                    name:
+                      type: string
+                    dependsOn:
+                      type: array
+                      items:
+                        type: string
+                    runtimeType:
+                      type: string
+                    runtimeConfig:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              message:
+                type: string
+              observedGeneration:
+                type: integer
+                format: int64
+              groups:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    otgName:
+                      type: string
+                    clusterID:
+                      type: string
+                    namespace:
+                      type: string
+                    phase:
+                      type: string
+                    message:
+                      type: string
+                    lastReportTime:
+                      type: string
+                      format: date-time
+              conditions:
+                type: array
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

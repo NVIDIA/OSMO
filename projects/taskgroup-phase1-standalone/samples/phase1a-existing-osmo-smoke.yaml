@@ -1,0 +1,51 @@
+apiVersion: workflow.osmo.nvidia.com/v1alpha1
+kind: Workflow
+metadata:
+  name: phase1a-existing-osmo-smoke
+  namespace: osmo-exp
+spec:
+  clusterID: osmo-backend
+  namespace: osmo-exp
+  mode: active
+  owner: vivian
+  pool: phase1a
+  priority: normal
+  source:
+    format: osmo.workflow/v2
+    renderedSpecRef: local://samples/phase1a-existing-osmo-smoke.yaml
+  taskGroups:
+  - name: smoke
+    runtimeType: osmo-container-group
+    runtimeConfig:
+      osmo-container-group:
+        pool:
+          name: phase1a
+          backend: osmo-backend
+          platform: cpu
+          generation: smoke
+          podTemplateHash: phase1a-existing-osmo-smoke
+        barrier: false
+        ignoreNonleadStatus: true
+        tasks:
+        - name: hello
+          podName: phase1a-existing-osmo-smoke-pod
+          lead: true
+        renderedObjects:
+        - apiVersion: v1
+          kind: Pod
+          metadata:
+            name: phase1a-existing-osmo-smoke-pod
+            labels:
+              app: osmo
+              workflow.osmo.nvidia.com/runtime-type: osmo-container-group
+              workflow.osmo.nvidia.com/workflow-name: phase1a-existing-osmo-smoke
+              workflow.osmo.nvidia.com/group-name: smoke
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: user
+              image: busybox:1.36
+              command: [sh, -c]
+              args:
+              - |
+                echo "phase1a existing osmo workflow smoke"

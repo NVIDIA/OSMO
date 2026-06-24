@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "taskgroup-controller.fullname" . }}
+  labels:
+    {{- include "taskgroup-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: taskgroup-controller
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "taskgroup-controller.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: taskgroup-controller
+  template:
+    metadata:
+      labels:
+        {{- include "taskgroup-controller.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: taskgroup-controller
+        {{- with .Values.podLabels }}
+        {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "taskgroup-controller.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: taskgroup-controller
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --metrics-bind-address={{ .Values.controller.metricsBindAddress }}
+        ports:
+        - name: metrics
+          containerPort: {{ .Values.metrics.service.port }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

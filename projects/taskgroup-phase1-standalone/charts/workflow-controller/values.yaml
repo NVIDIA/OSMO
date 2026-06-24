@@ -1,0 +1,74 @@
+replicaCount: 1
+
+image:
+  repository: workflow-controller
+  tag: latest
+  pullPolicy: IfNotPresent
+
+dispatcherImage:
+  repository: dispatcher
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+
+controller:
+  clusterID: compute-a
+  dispatcherURL: http://workflow-controller-dispatcher:8090
+  metricsBindAddress: ":8081"
+
+dispatcher:
+  listenAddress: ":8090"
+  stateBackend: configmap
+  agentAuth:
+    enabled: false
+    secretName: ""
+    tokenKey: token
+  service:
+    create: true
+    type: ClusterIP
+    port: 8090
+  ingress:
+    enabled: false
+    className: alb
+    annotations: {}
+    hosts: []
+    paths:
+    - path: /agent
+      pathType: Prefix
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+metrics:
+  service:
+    create: true
+    port: 8081

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "workflow-controller.fullname" . }}-dispatcher
+  labels:
+    {{- include "workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dispatcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "workflow-controller.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dispatcher
+  template:
+    metadata:
+      labels:
+        {{- include "workflow-controller.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dispatcher
+    spec:
+      serviceAccountName: {{ include "workflow-controller.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: dispatcher
+        image: "{{ .Values.dispatcherImage.repository }}:{{ .Values.dispatcherImage.tag }}"
+        imagePullPolicy: {{ .Values.dispatcherImage.pullPolicy }}
+        args:
+        - --listen-address={{ .Values.dispatcher.listenAddress }}
+        - --state-backend={{ .Values.dispatcher.stateBackend }}
+        - --state-namespace=$(POD_NAMESPACE)
+        {{- if .Values.dispatcher.agentAuth.enabled }}
+        - --agent-token-file=/var/run/osmo-agent-token/{{ .Values.dispatcher.agentAuth.tokenKey }}
+        {{- end }}
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - name: http
+          containerPort: {{ .Values.dispatcher.service.port }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        {{- if .Values.dispatcher.agentAuth.enabled }}
+        volumeMounts:
+        - name: osmo-agent-token
+          mountPath: /var/run/osmo-agent-token
+          readOnly: true
+        {{- end }}
+      {{- if .Values.dispatcher.agentAuth.enabled }}
+      volumes:
+      - name: osmo-agent-token
+        secret:
+          secretName: {{ required "dispatcher.agentAuth.secretName is required when dispatcher.agentAuth.enabled=true" .Values.dispatcher.agentAuth.secretName }}
+      {{- end }}

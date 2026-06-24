@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package standalone.taskgroup.v1;
+
+option go_package = "example.com/taskgroup-phase1-standalone/proto";
+
+message OTG {
+  string name = 1;
+  string workflow_id = 2;
+  string workflow_name = 3;
+  string group_name = 4;
+  string mode = 5;
+  string runtime_type = 6;
+  KAIConfig kai = 7;
+}
+
+message KAIConfig {
+  string queue = 1;
+  string priority_class_name = 2;
+  int32 min_member = 3;
+  string scheduler_name = 4;
+  repeated Container containers = 5;
+  repeated KAITopologySubGroup sub_groups = 6;
+  map<string, string> pod_labels = 7;
+  map<string, string> pod_annotations = 8;
+}
+
+message Container {
+  string name = 1;
+  string image = 2;
+  repeated string command = 3;
+  repeated string args = 4;
+}
+
+message KAITopologySubGroup {
+  string name = 1;
+  int32 min_member = 2;
+}
+
+message CreateOTGRequest {
+  string cluster_id = 1;
+  string namespace = 2;
+  OTG otg = 3;
+}
+
+message DeleteOTGRequest {
+  string cluster_id = 1;
+  string namespace = 2;
+  string name = 3;
+}
+
+message GetOTGStatusRequest {
+  string cluster_id = 1;
+  string namespace = 2;
+  string name = 3;
+}
+
+message OTGStatus {
+  string cluster_id = 1;
+  string namespace = 2;
+  string name = 3;
+  string workflow_id = 4;
+  string group_name = 5;
+  string phase = 6;
+  string message = 7;
+}
+
+message CommandResponse {
+  string command_id = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+service Dispatcher {
+  rpc CreateOTG(CreateOTGRequest) returns (CommandResponse);
+  rpc DeleteOTG(DeleteOTGRequest) returns (CommandResponse);
+  rpc GetOTGStatus(GetOTGStatusRequest) returns (OTGStatus);
+}

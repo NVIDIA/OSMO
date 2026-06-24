@@ -1,0 +1,6 @@
+apiVersion: v2
+name: workflow-controller
+description: Standalone Phase 1 control-plane Workflow controller
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

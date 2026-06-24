@@ -1,0 +1,26 @@
+apiVersion: workflow.osmo.nvidia.com/v1alpha1
+kind: OSMOTaskGroup
+metadata:
+  name: otg-smoke
+  namespace: osmo-vpan
+spec:
+  workflowRef:
+    id: manual-smoke
+    name: manual-smoke
+  groupName: smoke
+  mode: active
+  runtimeType: kai
+  runtimeConfig:
+    kai:
+      queue: queue-a
+      schedulerName: kai-scheduler
+      minMember: 1
+      podTemplate:
+        labels:
+          app: osmo
+        containers:
+        - name: user
+          image: busybox
+          command:
+          - sleep
+          - "60"

@@ -1,0 +1,99 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "taskgroup-controller.fullname" . }}
+  labels:
+    {{- include "taskgroup-controller.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - workflow.osmo.nvidia.com
+  resources:
+  - osmotaskgroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - workflow.osmo.nvidia.com
+  resources:
+  - osmotaskgroups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - workflow.osmo.nvidia.com
+  resources:
+  - osmotaskgroups/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - scheduling.run.ai
+  resources:
+  - podgroups
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ray.io
+  resources:
+  - rayclusters
+  - rayjobs
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "taskgroup-controller.fullname" . }}
+  labels:
+    {{- include "taskgroup-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "taskgroup-controller.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "taskgroup-controller.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,92 @@
+apiVersion: workflow.osmo.nvidia.com/v1alpha1
+kind: Workflow
+metadata:
+  name: phase1a-osmo-ray
+  namespace: control
+spec:
+  clusterID: compute-a
+  namespace: osmo-vpan
+  mode: active
+  owner: vivian
+  pool: phase1a
+  priority: normal
+  source:
+    format: osmo.workflow/v2
+    renderedSpecRef: s3://example-osmo-workflows/phase1a-osmo-ray/rendered.yaml
+  taskGroups:
+  - name: prep
+    runtimeType: osmo-container-group
+    runtimeConfig:
+      osmo-container-group:
+        pool:
+          name: phase1a
+          backend: compute-a
+          platform: cpu
+          generation: demo
+          podTemplateHash: demo-prep-template
+        scheduler:
+          type: kai
+          queue: queue-a
+          schedulerName: kai-scheduler
+          minMember: 1
+        barrier: false
+        ignoreNonleadStatus: true
+        tasks:
+        - name: prep
+          podName: phase1a-prep-pod
+          lead: true
+        renderedObjects:
+        - apiVersion: v1
+          kind: Pod
+          metadata:
+            name: phase1a-prep-pod
+            labels:
+              app: osmo
+              workflow.osmo.nvidia.com/runtime-type: osmo-container-group
+              kai.scheduler/queue: queue-a
+              runai/queue: queue-a
+            annotations:
+              pod-group-name: phase1a-prep
+          spec:
+            schedulerName: kai-scheduler
+            restartPolicy: Never
+            containers:
+            - name: user
+              image: busybox
+              command: [sh, -c]
+              args:
+              - |
+                echo "prep complete"
+  - name: ray-train
+    dependsOn:
+    - prep
+    runtimeType: ray
+    runtimeConfig:
+      ray:
+        mode: job
+        rayVersion: "2.9.0"
+        shutdownAfterJob: true
+        pool:
+          name: phase1a
+          backend: compute-a
+          platform: cpu
+          generation: demo
+          podTemplateHash: demo-ray-template
+        scheduler:
+          type: kai
+          queue: queue-a
+          schedulerName: kai-scheduler
+        head:
+          image: rayproject/ray:2.9.0
+          resources:
+            cpu: "1"
+            memory: 2Gi
+        workers:
+        - name: cpu-workers
+          replicas: 1
+          image: rayproject/ray:2.9.0
+          resources:
+            cpu: "1"
+            memory: 2Gi
+        job:
+          entrypoint: python -c "import ray; ray.init(); print('ray phase1a complete')"

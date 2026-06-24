@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: osmo-exp
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: osmo-phase1a-go
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: osmo-go-spike-backend
+  namespace: osmo-exp
+imagePullSecrets:
+- name: nvcr-secret
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: osmo-go-spike-backend
+  namespace: osmo-phase1a-go
+rules:
+- apiGroups:
+  - spikego.osmo.nvidia.com
+  resources:
+  - osmotaskgroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - spikego.osmo.nvidia.com
+  resources:
+  - osmotaskgroups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ray.io
+  resources:
+  - rayjobs
+  - rayclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: osmo-go-spike-backend
+  namespace: osmo-phase1a-go
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: osmo-go-spike-backend
+subjects:
+- kind: ServiceAccount
+  name: osmo-go-spike-backend
+  namespace: osmo-exp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: osmo-go-spike-backend
+  namespace: osmo-exp
+  labels:
+    app.kubernetes.io/name: osmo-go-spike
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: osmo-go-spike
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: osmo-go-spike
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: osmo-go-spike-backend
+      containers:
+      - name: spike
+        image: nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-dev
+        imagePullPolicy: Always
+        env:
+        - name: OSMO_SPIKE_ROLE
+          value: backend
+        - name: CLUSTER_ID
+          value: osmo-backend
+        - name: BACKEND_NAMESPACE
+          value: osmo-phase1a-go
+        - name: OPERATOR_URL
+          value: https://internal-k8s-osmo2-e4b528e936-1201595997.us-west-2.elb.amazonaws.com
+        - name: OPERATOR_AUTHORITY
+          value: osmo-rust-spike.osmo.nvidia.com
+        - name: CLUSTER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: osmo-go-spike-cluster-token
+              key: cluster-token

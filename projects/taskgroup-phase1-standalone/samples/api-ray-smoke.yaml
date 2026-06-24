@@ -1,0 +1,27 @@
+clusterID: osmo-backend
+namespace: osmo-phase1a
+mode: active
+owner: codex-api-phase1a-yaml
+taskGroups:
+  - name: ray-cpu-smoke
+    runtimeType: ray
+    runtimeConfig:
+      ray:
+        mode: job
+        rayVersion: 2.9.0
+        shutdownAfterJob: true
+        head:
+          image: rayproject/ray:2.9.0-py310
+          replicas: 1
+          resources:
+            cpu: "1"
+            memory: 2Gi
+        workers:
+          - name: cpu-worker
+            image: rayproject/ray:2.9.0-py310
+            replicas: 1
+            resources:
+              cpu: "2"
+              memory: 4Gi
+        job:
+          entrypoint: "python -c 'import ray; ray.init(); r = ray.cluster_resources(); print(r); assert r.get(\"CPU\", 0) >= 2'"
