@@ -23,7 +23,7 @@ workflow:
   ##################################################
   - name: prepare-data
     tasks:
-    - name: generate-dataset
+    - name: generate-data
       lead: true
       image: ubuntu:24.04
       command: ["bash", "-c"]
@@ -60,7 +60,7 @@ workflow:
         cat {{input:0}}/data/dataset.csv
         echo "✓ Model A complete!"
       inputs:
-      - task: generate-dataset  # (1)
+      - task: generate-data  # (1)
 
     - name: train-model-b
       image: ubuntu:24.04
@@ -71,4 +71,4 @@ workflow:
         wc -l {{input:0}}/data/dataset.csv
         echo "✓ Model B complete!"
       inputs:
-      - task: generate-dataset
+      - task: generate-data
