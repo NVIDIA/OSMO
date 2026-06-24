@@ -230,12 +230,19 @@ func TestKpiOutput_Accessors(t *testing.T) {
 
 // stageFakeOsmo writes a shell script as the only `osmo` on PATH and returns
 // the directory holding it. Caller is responsible for `t.Setenv("PATH", dir)`.
+// A no-op fake `tree` is also written so PrintDirContents calls during the
+// Download tests resolve via PATH instead of falling through to the absolute
+// /usr/bin/tree fallback, which isn't installed in every CI container.
 func stageFakeOsmo(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
 	fakeOsmo := filepath.Join(dir, "osmo")
 	if err := os.WriteFile(fakeOsmo, []byte(body), 0o755); err != nil {
 		t.Fatalf("write fake osmo: %v", err)
+	}
+	fakeTree := filepath.Join(dir, "tree")
+	if err := os.WriteFile(fakeTree, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake tree: %v", err)
 	}
 	return dir
 }
