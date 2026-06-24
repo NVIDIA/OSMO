@@ -80,8 +80,8 @@ OSMO manages data through an abstraction layer:
   enabling seamless access to inputs and outputs.
 
 **Working with Control Plane**
-  Integrates with the control plane's **Dataset Service** to enable version-controlled storage for
-  training data, models, and artifacts using `content-addressable storage <https://en.wikipedia.org/wiki/Content-addressable_storage>`_.
+  Integrates with the control plane's workflow and storage integrations to manage
+  object-storage-backed inputs, outputs, and artifacts.
 
 
 How It Works

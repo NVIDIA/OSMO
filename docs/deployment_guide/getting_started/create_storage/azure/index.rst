@@ -21,7 +21,7 @@
 Azure Blob Storage
 =============================
 
-To handle who can access Datasets, the necessary Azure resources/policies must be created. This includes
+To control access to workflow data in Azure Blob Storage, the necessary Azure resources and policies must be created. This includes
 
 - An Azure Blob Storage Account
 - An Azure Blob Storage Container

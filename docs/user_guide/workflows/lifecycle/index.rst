@@ -168,7 +168,7 @@ Task Lifecycle
       1. **Input download** - Sidecar container downloads any specified inputs from:
 
          - Upstream task outputs
-         - Datasets
+         - External object storage
          - Cloud storage URLs
 
       2. **Command execution** - Your code runs in the container:
