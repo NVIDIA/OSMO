@@ -84,8 +84,7 @@ workflow:
         <shell script to run>
       path: /tmp/entry.sh
     outputs:
-    - dataset:
-        name: <output-dataset-name>
+    - url: <output-storage-url>
   resources:
     default:
       cpu: <N>
@@ -95,5 +94,5 @@ workflow:
 ```
 
 Use `{{output}}` as a placeholder in the entry script wherever the task should
-write its output data — OSMO replaces this at runtime with the output dataset
+write its output data — OSMO replaces this at runtime with the task's output
 path. Do not use `{{outputs}}` (plural); only `{{output}}` is substituted.

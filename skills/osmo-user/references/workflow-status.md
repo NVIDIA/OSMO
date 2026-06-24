@@ -109,10 +109,11 @@ whether this is quota exhaustion or physical capacity exhaustion. See
 
 After a workflow reaches `COMPLETED`:
 
-1. Offer the output dataset download. Ask: `Would you like me to download the
-   output dataset now?` Default the destination to `~/`. Run:
+1. If the workflow writes to an object storage URL, offer to download the
+   output data. Ask: `Would you like me to download the output data now?`
+   Default the destination to `~/`. Run:
    ```bash
-   osmo dataset download <dataset_name> <path>
+   osmo data download <storage_url> <path>
    ```
 2. Offer to create an OSMO app. Suggest a name derived from the workflow and a
    one-sentence description. If the user agrees, follow "Create an App" in
@@ -129,7 +130,7 @@ terminal state, handle failures, and report the result.
    Ask it to write workflow YAML if needed, check resources, and submit. Do not
    ask it to monitor, poll, or report final results.
 2. The subagent returns the workflow ID, pool name, OSMO Web link, and output
-   datasets.
+   locations.
 3. Monitor inline in the main conversation using "Check Workflow Status". If
    the user gives a cadence, honor it. Otherwise poll every 10-15 seconds for
    smoke tests, simple commands, and jobs expected to finish in minutes; poll
@@ -137,7 +138,7 @@ terminal state, handle failures, and report the result.
    seconds after several unchanged RUNNING or PENDING polls. Report state
    transitions to the user.
 4. If the workflow completes, report the workflow ID, OSMO Web link, output
-   datasets, and completed follow-ups.
+   locations, and completed follow-ups.
 5. If the workflow fails:
    - Fetch logs using the log-fetching rule from "Check Workflow Status".
    - Resume the same `workflow-expert` subagent and pass the logs summary:
@@ -157,7 +158,7 @@ workflow.
 2. Summarize the spec in plain language:
    - What it does
    - How it runs: image, command, entrypoint, and notable environment variables
-   - What it produces: datasets or artifacts
+   - What it produces: data outputs or artifacts
 
 Keep the summary concise. Do not provide a line-by-line YAML walkthrough unless
 the user asks.

@@ -14,12 +14,11 @@ workflow:
         echo "Starting Isaac Sim SDG"
         python -m isaac.sdg \
           --num-images 1000 \
-          --out {{outputs}}/images
+          --out {{output}}/images
         echo "Generation complete"
       path: /tmp/entry.sh
     outputs:
-    - dataset:
-        name: sdg-train-1-output
+    - url: s3://my-bucket/sdg-train-1-output/
   resources:
     default:
       cpu: 16

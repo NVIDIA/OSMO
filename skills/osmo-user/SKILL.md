@@ -52,7 +52,7 @@ Before the first OSMO command in a conversation:
 - Do not edit cluster config, node taints, quota policies, or non-OSMO
   Kubernetes resources. Those are admin-side operations.
 - Do not edit server-side OSMO configuration (`osmo config`): pod or group
-  templates, resource validations, pool/backend config, roles, or dataset
+  templates, resource validations, pool/backend config, roles, or storage
   buckets. That is the OSMO admin surface — say it is out of scope and do not
   attempt it here.
 
