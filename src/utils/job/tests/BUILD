@@ -89,7 +89,6 @@ py_test(
     srcs = [
         "test_kb_objects.py"
     ],
-    tags = ["manual"],
     deps = [
         "//src/utils/job",
     ]

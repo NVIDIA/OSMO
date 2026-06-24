@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_test")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
@@ -27,5 +27,17 @@ osmo_py_test(
         requirement("tqdm"),
     ],
     size = "medium",
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_binary(
+    name = "test_scheduler_none_kind",
+    main = "test_scheduler_none_kind.py",
+    srcs = ["test_scheduler_none_kind.py"],
+    deps = [
+        "//src/lib/utils:priority",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
     visibility = ["//visibility:public"],
 )
