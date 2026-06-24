@@ -29,19 +29,19 @@ workflow:
       command: ["bash", "-c"]
       args:
       - |
-        echo "Generating training dataset..."
+        echo "Generating training data..."
         mkdir -p {{output}}/data
         for i in {1..10}; do
-          echo "sample_$i,value_$i" >> {{output}}/data/dataset.csv
+          echo "sample_$i,value_$i" >> {{output}}/data/training_data.csv
         done
-        echo "✓ Dataset generation complete!"
+        echo "✓ Training data generation complete!"
 
     - name: validate-data
       image: ubuntu:24.04
       command: ["bash", "-c"]
       args:
       - |
-        echo "Validating dataset..."
+        echo "Validating training data..."
         sleep 3
         echo "✓ Validation passed!"
 
@@ -57,7 +57,7 @@ workflow:
       args:
       - |
         echo "Training Model A..."
-        cat {{input:0}}/data/dataset.csv
+        cat {{input:0}}/data/training_data.csv
         echo "✓ Model A complete!"
       inputs:
       - task: generate-data  # (1)
@@ -68,7 +68,7 @@ workflow:
       args:
       - |
         echo "Training Model B..."
-        wc -l {{input:0}}/data/dataset.csv
+        wc -l {{input:0}}/data/training_data.csv
         echo "✓ Model B complete!"
       inputs:
       - task: generate-data
