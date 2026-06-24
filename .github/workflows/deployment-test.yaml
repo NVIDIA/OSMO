@@ -36,13 +36,14 @@ name: Deployment Test
 #     feature branches.
 #
 # Slack notification (failure-only, schedule-only):
-#   - notify-slack-on-failure posts to the channel pointed at by
-#     `vars.TESTBOT_SLACK_CHANNEL` (fallback `osmo-slack-test`) using the
-#     `TESTBOT_SLACK_BOT_TOKEN` secret, scoped to the `nim-env` environment
-#     — same auth surface testbot.yaml uses (see line 121 of that file).
-#     Branch policy on nim-env allows `main`, `jiaenr/*`, `elookpotts/*`,
-#     so both scheduled main runs and pre-merge e2e dispatches see the
-#     secret.
+#   - notify-slack-on-failure posts to the `osmo-slack-test` channel
+#     (hardcoded; org-level `vars.TESTBOT_SLACK_CHANNEL` points at the
+#     testbot's review-request channel, wrong audience for deploy gate
+#     failures) using the `TESTBOT_SLACK_BOT_TOKEN` secret, scoped to
+#     the `nim-env` environment — same auth surface testbot.yaml uses
+#     (see line 121 of that file). Branch policy on nim-env allows
+#     `main`, `jiaenr/*`, `elookpotts/*`, so both scheduled main runs
+#     and pre-merge e2e dispatches see the secret.
 #   - Fires only on scheduled-run failures. PR-label and workflow_dispatch
 #     runs are interactive and surface their own status.
 #   - If the secret is unset or the API returns non-ok, the step logs a
@@ -64,6 +65,14 @@ on:
         description: 'E2E-test the Slack notification path. Skips build-images + full-deployment, runs a stub failure job, and exercises notify-slack-on-failure with realistic context. Cheap (~30s) and burns no Azure resources.'
         type: boolean
         default: false
+      delete_slack_ts:
+        description: 'Slack message ts (e.g. 1782335995.156999) to delete via chat.delete. Pair with delete_slack_channel. Useful for cleaning up test-mode messages posted to the wrong channel.'
+        type: string
+        default: ''
+      delete_slack_channel:
+        description: 'Channel ID for delete_slack_ts (e.g. C096VCXRK8U). Required when delete_slack_ts is set.'
+        type: string
+        default: ''
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
@@ -1049,6 +1058,43 @@ jobs:
   #
   # ─────────────────────────────────────────────────────────────────────────
 
+  # One-shot Slack message deletion. Fires only when delete_slack_ts is
+  # set via workflow_dispatch. Useful for cleaning up test-mode messages
+  # posted to the wrong channel (e.g., when an org-level channel var
+  # routed a test post somewhere unintended). Reuses the same nim-env
+  # secret the notify job uses.
+  delete-slack-message:
+    if: ${{ github.event.inputs.delete_slack_ts != '' }}
+    runs-on: ubuntu-latest
+    environment: nim-env
+    timeout-minutes: 2
+    steps:
+      - name: chat.delete
+        env:
+          TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
+          CHANNEL: ${{ github.event.inputs.delete_slack_channel }}
+          TS: ${{ github.event.inputs.delete_slack_ts }}
+        run: |
+          set -uo pipefail
+          if [[ -z "$CHANNEL" ]]; then
+            echo "::error::delete_slack_channel input is required when delete_slack_ts is set."
+            exit 1
+          fi
+          payload=$(jq -nc --arg channel "$CHANNEL" --arg ts "$TS" '{channel:$channel, ts:$ts}')
+          echo "Calling chat.delete with: $payload"
+          response=$(curl -fsSL \
+            -H "Authorization: Bearer $TESTBOT_SLACK_BOT_TOKEN" \
+            -H 'Content-Type: application/json; charset=utf-8' \
+            -d "$payload" \
+            https://slack.com/api/chat.delete)
+          echo "Slack response: $response"
+          ok=$(jq -r '.ok' <<<"$response")
+          if [[ "$ok" != "true" ]]; then
+            echo "::error::chat.delete returned ok=$ok"
+            exit 1
+          fi
+          echo "::notice::Deleted message $TS from channel $CHANNEL"
+
   # Stub job that exists only to exercise the slack-notify path end-to-end
   # via workflow_dispatch (test_slack=true). Runs only in that mode and
   # immediately exits 1 so notify-slack-on-failure has a "failed needs:"
@@ -1150,7 +1196,10 @@ jobs:
       - name: Post failure notification to Slack
         env:
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          TESTBOT_SLACK_CHANNEL: ${{ vars.TESTBOT_SLACK_CHANNEL || 'osmo-slack-test' }}
+          # Hardcoded to osmo-slack-test — the org-level `vars.TESTBOT_SLACK_CHANNEL`
+          # points at #osmo-code-reviews (testbot's review-request channel), which
+          # is the wrong audience for deployment-gate failures.
+          TESTBOT_SLACK_CHANNEL: 'osmo-slack-test'
           BI_RESULT: ${{ needs.build-images.result }}
           FD_RESULT: ${{ needs.full-deployment.result }}
           REPO: ${{ github.repository }}
