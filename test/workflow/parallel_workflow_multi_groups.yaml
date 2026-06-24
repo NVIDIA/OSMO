@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: {{platform}}
 
   groups:
   # First run a client/server pair together
@@ -75,6 +74,3 @@ workflow:
   timeout:
     exec_timeout: 10m
     queue_timeout: 1h
-
-default-values:
-  platform: cpu-x86

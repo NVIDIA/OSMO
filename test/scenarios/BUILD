@@ -84,12 +84,16 @@ _SERIAL = [
     "test_serial_workflow",
 ]
 
+# Verified to pass against `oetf:deploy --env kind` using the pool default
+# platform selection.
+_KIND_RUNNABLE_SERIAL = ["test_serial_workflow"]
+
 [
     oetf_scenario_test(
         name = t.removeprefix("test_").replace("_", "-"),
         src = "serial.py",
         test_filter = "SerialWorkflows." + t,
-        tags = ["serial"],
+        tags = ["serial"] + (["kind"] if t in _KIND_RUNNABLE_SERIAL else []),
     )
     for t in _SERIAL
 ]
