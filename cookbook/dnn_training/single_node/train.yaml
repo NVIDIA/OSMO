@@ -38,7 +38,7 @@ workflow:
           set -ex
 
           # Directory of training inputs
-          {% if input_dataset %}
+          {% if input_prefix %}
           INPUT_DIR="{{input:0}}"
           {% else %}
           INPUT_DIR="./data"
@@ -64,12 +64,12 @@ workflow:
 
       - path: /tmp/train.py
         localpath: train.py
-    {% if input_dataset %}
+    {% if input_prefix %}
     inputs:
-      - url: {{ storage_url }}/{{ input_dataset }}/
+      - url: {{ storage_url }}/{{ input_prefix }}/
     {% endif %}
     outputs:
-      - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
+      - url: {{ storage_url }}/{{ output_prefix }}/{{workflow_id}}/
     {% if checkpoint_url %}
     checkpoint:
     - path: experiments/checkpoints  # The local path of the checkpoints
@@ -79,6 +79,6 @@ workflow:
     {% endif %}
 
 default-values:
-  input_dataset: ""  # Optional. Name of the input dataset under storage_url.
-  output_dataset: my-trained-model  # Name of the output dataset under storage_url.
+  input_prefix: ""  # Optional. Input prefix under storage_url.
+  output_prefix: my-trained-model  # Output prefix under storage_url.
   checkpoint_url: ""  # The remote path in the data store to checkpoint to

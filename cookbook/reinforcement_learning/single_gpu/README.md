@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Isaac Lab: Training Robot Policy with Reinforcement Learning
 
-This example demonstrates how to run a reinforcement learning training job on a single node using OSMO. It trains a robot policy based on [Stable Baselines 3](https://stable-baselines3.readthedocs.io/en/master/) and showcases key OSMO features including resource management, dataset handling, and TensorBoard integration.
+This example demonstrates how to run a reinforcement learning training job on a single node using OSMO. It trains a robot policy based on [Stable Baselines 3](https://stable-baselines3.readthedocs.io/en/master/) and showcases key OSMO features including resource management, data handling, and TensorBoard integration.
 
 This workflow example contains:
 - `train_policy.yaml`: An OSMO workflow configuration that orchestrates the training job
@@ -32,7 +32,7 @@ This workflow example contains:
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/single_gpu/train_policy.yaml
-osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets
+osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/osmo-data
 ```
 
 ## Open Tensorboard

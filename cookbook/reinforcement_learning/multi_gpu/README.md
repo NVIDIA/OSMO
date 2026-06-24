@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Isaac Lab: Multi-GPU Training Robot Policy with Reinforcement Learning
 
-This example demonstrates how to run a reinforcement learning training job using multiple GPUs on a single node with OSMO. It trains a robot policy based on [RSL-RL](https://github.com/leggedrobotics/rsl_rl) using PyTorch's distributed training capabilities and showcases key OSMO features including multi-GPU resource management, dataset handling, and TensorBoard integration.
+This example demonstrates how to run a reinforcement learning training job using multiple GPUs on a single node with OSMO. It trains a robot policy based on [RSL-RL](https://github.com/leggedrobotics/rsl_rl) using PyTorch's distributed training capabilities and showcases key OSMO features including multi-GPU resource management, data handling, and TensorBoard integration.
 
 This workflow example contains:
 - `train_policy.yaml`: An OSMO workflow configuration that orchestrates the multi-GPU training job
@@ -39,7 +39,7 @@ This workflow example contains:
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/multi_gpu/train_policy.yaml
-osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets
+osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/osmo-data
 ```
 
 ### Customizing GPU Count
@@ -47,5 +47,5 @@ osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets
 To run with a different number of GPUs, override the default value:
 
 ```bash
-osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets num_gpu=4
+osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/osmo-data num_gpu=4
 ```
