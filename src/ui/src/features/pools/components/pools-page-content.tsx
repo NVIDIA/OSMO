@@ -81,7 +81,7 @@ export function PoolsPageContent() {
   // Auto-refresh settings
   const autoRefresh = usePoolsAutoRefresh();
 
-  // Fetch user profile settings for accessible pool names (no buckets needed).
+  // Fetch user profile settings for accessible pool names.
   // Always enabled so data is pre-cached when toggling to "my pools" (avoids reflow).
   const { profile } = useProfile();
   const accessiblePoolNames = useMemo(() => profile?.pool.accessible ?? [], [profile]);

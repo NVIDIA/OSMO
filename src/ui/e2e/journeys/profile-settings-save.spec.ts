@@ -22,12 +22,11 @@ import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
  *
  * Tests save/reset state management for profile settings forms:
  * - Default pool selector and its save/reset behavior
- * - Default bucket selector interaction
  * - Notification toggle persistence (save mutation)
  * - Cross-section isolation (changing one section doesn't affect another)
  *
  * Architecture notes:
- * - Profile page at /profile with 5 sections: UserInfo, Notifications, Pools, Buckets, Credentials
+ * - Profile page at /profile with 4 sections: UserInfo, Notifications, Pools, Credentials
  * - Each section has independent dirty tracking (Save + Reset buttons)
  * - Settings are fetched from GET /api/profile/settings
  * - Settings are saved via PUT /api/profile/settings
@@ -48,7 +47,6 @@ async function setupProfileSettings(
     profile: {
       email_notification: true,
       slack_notification: false,
-      bucket: "default-bucket",
       pool: "default-pool",
       ...overrides.profile,
     },
@@ -68,28 +66,7 @@ async function setupProfileSettings(
   });
 }
 
-async function setupBuckets(
-  page: Parameters<typeof setupDefaultMocks>[0],
-  buckets: Array<{ name: string; path: string }> = [],
-) {
-  const body = JSON.stringify({
-    buckets: buckets.map((b) => ({
-      name: b.name,
-      path: b.path,
-      description: "",
-      mode: "rw",
-      default_credential: false,
-    })),
-    default: buckets[0]?.name ?? "",
-  });
-  await page.route("**/api/bucket*", (route) =>
-    route.fulfill({ status: 200, contentType: CT_JSON, body }),
-  );
-}
-
-async function setupCredentials(
-  page: Parameters<typeof setupDefaultMocks>[0],
-) {
+async function setupCredentials(page: Parameters<typeof setupDefaultMocks>[0]) {
   await page.route("**/api/credentials*", (route) =>
     route.fulfill({
       status: 200,
@@ -103,15 +80,10 @@ test.describe("Profile Notification Save/Reset Flow", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
     await setupProfile(page);
-    await setupBuckets(page, [
-      { name: "default-bucket", path: "s3://default-bucket" },
-    ]);
     await setupCredentials(page);
   });
 
-  test("Save and Reset buttons start disabled with clean state", async ({
-    page,
-  }) => {
+  test("Save and Reset buttons start disabled with clean state", async ({ page }) => {
     // ARRANGE
     await setupProfileSettings(page, {
       profile: { email_notification: true, slack_notification: false },
@@ -122,17 +94,11 @@ test.describe("Profile Notification Save/Reset Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — no dirty state initially
-    await expect(
-      page.getByRole("button", { name: "Save" }).first(),
-    ).toBeDisabled();
-    await expect(
-      page.getByRole("button", { name: "Reset" }).first(),
-    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Save" }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Reset" }).first()).toBeDisabled();
   });
 
-  test("toggling email notification enables Save and Reset", async ({
-    page,
-  }) => {
+  test("toggling email notification enables Save and Reset", async ({ page }) => {
     // ARRANGE
     await setupProfileSettings(page, {
       profile: { email_notification: true, slack_notification: false },
@@ -147,17 +113,11 @@ test.describe("Profile Notification Save/Reset Flow", () => {
     await emailSwitch.click();
 
     // ASSERT — dirty state activates buttons
-    await expect(
-      page.getByRole("button", { name: "Save" }).first(),
-    ).toBeEnabled();
-    await expect(
-      page.getByRole("button", { name: "Reset" }).first(),
-    ).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Save" }).first()).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Reset" }).first()).toBeEnabled();
   });
 
-  test("double-toggling same notification returns to clean state", async ({
-    page,
-  }) => {
+  test("double-toggling same notification returns to clean state", async ({ page }) => {
     // ARRANGE
     await setupProfileSettings(page, {
       profile: { email_notification: true, slack_notification: false },
@@ -171,20 +131,14 @@ test.describe("Profile Notification Save/Reset Flow", () => {
 
     // Toggle on
     await slackSwitch.click();
-    await expect(
-      page.getByRole("button", { name: "Save" }).first(),
-    ).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Save" }).first()).toBeEnabled();
 
     // Toggle back off (same as original)
     await slackSwitch.click();
 
     // ASSERT — back to clean state
-    await expect(
-      page.getByRole("button", { name: "Save" }).first(),
-    ).toBeDisabled();
-    await expect(
-      page.getByRole("button", { name: "Reset" }).first(),
-    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Save" }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Reset" }).first()).toBeDisabled();
   });
 });
 
@@ -192,15 +146,10 @@ test.describe("Profile Pools Section Interaction", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
     await setupProfile(page);
-    await setupBuckets(page, [
-      { name: "default-bucket", path: "s3://default-bucket" },
-    ]);
     await setupCredentials(page);
   });
 
-  test("shows accessible pools list with current default highlighted", async ({
-    page,
-  }) => {
+  test("shows accessible pools list with current default highlighted", async ({ page }) => {
     // ARRANGE
     await setupProfileSettings(page, {
       pools: ["gpu-pool", "cpu-pool", "staging-pool"],
@@ -217,29 +166,6 @@ test.describe("Profile Pools Section Interaction", () => {
     // At least the accessible pools count is shown
     await expect(page.getByText("3 accessible").first()).toBeVisible();
   });
-
-  test("shows Buckets section with multiple buckets", async ({ page }) => {
-    // ARRANGE
-    await setupProfileSettings(page, {
-      profile: { bucket: "my-bucket" },
-    });
-    await setupBuckets(page, [
-      { name: "my-bucket", path: "s3://my-bucket" },
-      { name: "shared-bucket", path: "s3://shared-bucket" },
-      { name: "archive-bucket", path: "s3://archive-bucket" },
-    ]);
-
-    // ACT
-    await page.goto("/profile");
-    await page.waitForLoadState("networkidle");
-    await page.locator("#buckets").scrollIntoViewIfNeeded();
-
-    // ASSERT — Data Buckets section visible with bucket names
-    await expect(page.getByText("Data Buckets").first()).toBeVisible();
-    await expect(page.getByText("my-bucket").first()).toBeVisible();
-    await expect(page.getByText("shared-bucket").first()).toBeVisible();
-    await expect(page.getByText("archive-bucket").first()).toBeVisible();
-  });
 });
 
 test.describe("Profile Section Navigation", () => {
@@ -247,15 +173,10 @@ test.describe("Profile Section Navigation", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page, [
-      { name: "default-bucket", path: "s3://default-bucket" },
-    ]);
     await setupCredentials(page);
   });
 
-  test("clicking Notifications nav button scrolls to notifications section", async ({
-    page,
-  }) => {
+  test("clicking Notifications nav button scrolls to notifications section", async ({ page }) => {
     // ACT
     await page.goto("/profile");
     await page.waitForLoadState("networkidle");
@@ -264,14 +185,10 @@ test.describe("Profile Section Navigation", () => {
     await page.getByRole("button", { name: "Notifications" }).click();
 
     // ASSERT — Notifications section header visible in viewport
-    await expect(
-      page.getByText("Email Notifications").first(),
-    ).toBeVisible();
+    await expect(page.getByText("Email Notifications").first()).toBeVisible();
   });
 
-  test("clicking Credentials nav button scrolls to credentials section", async ({
-    page,
-  }) => {
+  test("clicking Credentials nav button scrolls to credentials section", async ({ page }) => {
     // ACT
     await page.goto("/profile");
     await page.waitForLoadState("networkidle");

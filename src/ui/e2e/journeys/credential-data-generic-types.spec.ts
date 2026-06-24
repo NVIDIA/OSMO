@@ -40,9 +40,7 @@ import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
 
 const CT_JSON = "application/json";
 
-async function setupProfileSettings(
-  page: Parameters<typeof setupDefaultMocks>[0],
-) {
+async function setupProfileSettings(page: Parameters<typeof setupDefaultMocks>[0]) {
   await page.route("**/api/profile/settings*", (route) =>
     route.fulfill({
       status: 200,
@@ -51,24 +49,10 @@ async function setupProfileSettings(
         profile: {
           email_notification: true,
           slack_notification: false,
-          bucket: "default-bucket",
           pool: "default-pool",
         },
         roles: [],
         pools: ["pool-alpha"],
-      }),
-    }),
-  );
-}
-
-async function setupBuckets(page: Parameters<typeof setupDefaultMocks>[0]) {
-  await page.route("**/api/bucket*", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: CT_JSON,
-      body: JSON.stringify({
-        buckets: [{ name: "default-bucket", path: "s3://default-bucket", description: "", mode: "rw", default_credential: false }],
-        default: "default-bucket",
       }),
     }),
   );
@@ -110,7 +94,6 @@ test.describe("Credential Form Data Type Fields", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
     await setupCredentials(page, []);
   });
 
@@ -182,7 +165,6 @@ test.describe("Credential Form Generic Type Fields", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
     await setupCredentials(page, []);
   });
 
@@ -244,9 +226,7 @@ test.describe("Credential Form Generic Type Fields", () => {
     await page.getByRole("option", { name: /generic/i }).click();
 
     // ASSERT — single row's remove button is disabled
-    await expect(
-      page.getByTitle("At least one pair required"),
-    ).toBeDisabled();
+    await expect(page.getByTitle("At least one pair required")).toBeDisabled();
   });
 
   test("Generic type value visibility toggle works", async ({ page }) => {
@@ -295,7 +275,6 @@ test.describe("Credential Type Grouping Display", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
   });
 
   test("credentials are grouped by type with group headers", async ({ page }) => {

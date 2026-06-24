@@ -18,7 +18,7 @@
 
 import { useActiveSection } from "@/features/profile/hooks/use-active-section";
 import { cn } from "@/lib/utils";
-import { User, Bell, Database, Server, Key } from "lucide-react";
+import { User, Bell, Server, Key } from "lucide-react";
 
 interface NavSection {
   id: string;
@@ -30,7 +30,6 @@ const NAV_SECTIONS: NavSection[] = [
   { id: "user-info", label: "User Information", icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "pools", label: "Pools", icon: Server },
-  { id: "buckets", label: "Data Buckets", icon: Database },
   { id: "credentials", label: "Credentials", icon: Key },
 ];
 

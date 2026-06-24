@@ -39,7 +39,7 @@ interface SectionErrorCardProps {
 
 /**
  * Error fallback card for profile sections.
- * Used by CredentialsSection, BucketsSection, PoolsSection, and NotificationsSection.
+ * Used by CredentialsSection, PoolsSection, and NotificationsSection.
  */
 export function SectionErrorCard({
   icon: Icon,

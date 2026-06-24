@@ -62,7 +62,6 @@ async function setupProfileWithDefaultPool(
           username: "test-user",
           email_notification: true,
           slack_notification: false,
-          bucket: "",
           pool: defaultPool,
         },
         roles: [],
@@ -104,10 +103,7 @@ test.describe("Submit Workflow Form Validation", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
     await setupProfileWithDefaultPool(page, "test-pool", ["test-pool"]);
-    await setupPools(
-      page,
-      createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]));
   });
 
   test("Validate option is accessible from dropdown menu", async ({ page }) => {
@@ -185,9 +181,7 @@ test.describe("Submit Workflow Form Validation", () => {
     await page.getByRole("menuitem", { name: /validate/i }).click();
 
     // ASSERT — error message appears
-    await expect(
-      overlay.getByText(/invalid yaml|missing required/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(overlay.getByText(/invalid yaml|missing required/i).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("Preview button shows rendered spec on success", async ({ page }) => {
@@ -216,14 +210,10 @@ test.describe("Submit Workflow Form Validation", () => {
     await page.keyboard.type("workflow:\n  tasks:\n  - name: hello");
 
     // ACT — click Preview
-    await overlay
-      .getByRole("button", { name: "Preview rendered workflow after template substitution" })
-      .click();
+    await overlay.getByRole("button", { name: "Preview rendered workflow after template substitution" }).click();
 
     // ASSERT — preview banner appears
-    await expect(
-      overlay.getByText(/showing rendered workflow/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(overlay.getByText(/showing rendered workflow/i).first()).toBeVisible({ timeout: 5_000 });
 
     // Back to spec button is available
     await expect(overlay.getByText("Back to spec").first()).toBeVisible();
@@ -249,10 +239,7 @@ test.describe("Submit Workflow Localpath Warnings", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
     await setupProfileWithDefaultPool(page, "test-pool", ["test-pool"]);
-    await setupPools(
-      page,
-      createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]));
   });
 
   test("shows file localpath warning when spec contains files localpath", async ({ page }) => {
@@ -270,9 +257,6 @@ test.describe("Submit Workflow Localpath Warnings", () => {
     );
 
     // ASSERT — localpath warning appears
-    await expect(
-      overlay.getByText("Local file injection not supported").first(),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(overlay.getByText("Local file injection not supported").first()).toBeVisible({ timeout: 5_000 });
   });
-
 });

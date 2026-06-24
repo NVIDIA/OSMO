@@ -1636,7 +1636,6 @@ class UserProfile(pydantic.BaseModel):
     username: str | None = None
     email_notification: bool | None = None
     slack_notification: bool | None = None
-    bucket: str | None = None
     pool: str | None = None
 
     @classmethod
@@ -1645,7 +1644,6 @@ class UserProfile(pydantic.BaseModel):
             username=user_name,
             email_notification=False,
             slack_notification=False,
-            bucket=None,
             pool=None)
 
     @classmethod
@@ -1698,14 +1696,11 @@ class UserProfile(pydantic.BaseModel):
             row.email_notification = default_profile.email_notification
         if row.slack_notification is None:
             row.slack_notification = default_profile.slack_notification
-        if not row.bucket:
-            row.bucket = default_profile.bucket
 
         return UserProfile(
             username=row.user_name,
             email_notification=row.email_notification,
             slack_notification=row.slack_notification,
-            bucket=row.bucket,
             pool=row.pool
         )
 
