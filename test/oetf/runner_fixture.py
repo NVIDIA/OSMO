@@ -347,7 +347,7 @@ def _submit_via_cli(
         ]
         if args:
             argv.extend(["--set"] + list(args))
-        # cwd=temp_dir so the CLI resolves dataset-block `localpath:` refs
+        # cwd=temp_dir so the CLI resolves `localpath:` refs
         # (which it joins with cwd, not the workflow file dir) against the
         # staged copies _copy_localpath_files_to_dir wrote. Without this
         # the CLI looks under the bazel sandbox's cwd and fails with
