@@ -1,0 +1,35 @@
+apiVersion: spike.osmo.nvidia.com/v1alpha1
+kind: OSMOWorkflow
+metadata:
+  name: osmo-rust-spike-ray-e2e
+  namespace: osmo-exp
+spec:
+  clusterID: fallback-cluster-not-used-when-pool-ref-is-set
+  namespace: fallback-namespace-not-used-when-pool-ref-is-set
+  ttlSecondsAfterFinished: 300
+  taskGroups:
+  - name: ray-hello
+    runtimeType: rayJob
+    poolRef: default
+    runtimeConfig:
+      name: osmo-rust-spike-ray-hello
+      spec:
+        entrypoint: python -c "print('hello from osmo ray job')"
+        shutdownAfterJobFinishes: true
+        rayClusterSpec:
+          rayVersion: "2.9.0"
+          headGroupSpec:
+            rayStartParams: {}
+            template:
+              spec:
+                containers:
+                - name: ray-head
+                  image: rayproject/ray:2.9.0
+                  resources:
+                    limits:
+                      cpu: "1"
+                      memory: 1Gi
+                    requests:
+                      cpu: "1"
+                      memory: 1Gi
+          workerGroupSpecs: []

@@ -12,6 +12,7 @@ message BackendEnvelope {
     TaskGroupAck ack = 2;
     TaskGroupStatus status = 3;
     Heartbeat heartbeat = 4;
+    CleanupAck cleanup_ack = 5;
   }
 }
 
@@ -40,6 +41,12 @@ message DesiredTaskGroup {
   string task_group_namespace = 3;
   string uid = 4;
   int64 generation = 5;
+  string workflow_uid = 6;
+  string cluster_id = 7;
+  string runtime_type = 8;
+  string runtime_config_json = 9;
+  string pool_ref = 10;
+  string rendered_objects_json = 11;
 }
 
 message TaskGroupSync {
@@ -48,6 +55,14 @@ message TaskGroupSync {
   repeated DesiredTaskGroup task_groups = 3;
   repeated string prune_workflows = 4;
   int64 unix_seconds = 5;
+  repeated PruneWorkflowTarget prune_targets = 6;
+  repeated string prune_namespaces = 7;
+}
+
+message PruneWorkflowTarget {
+  string workflow_name = 1;
+  string workflow_uid = 2;
+  string namespace = 3;
 }
 
 message TaskGroupAck {
@@ -57,6 +72,9 @@ message TaskGroupAck {
   int64 observed_generation = 4;
   bool ok = 5;
   string message = 6;
+  string workflow_uid = 7;
+  string task_group_uid = 8;
+  string cluster_id = 9;
 }
 
 message TaskGroupStatus {
@@ -65,6 +83,19 @@ message TaskGroupStatus {
   string task_group_namespace = 3;
   string phase = 4;
   string message = 5;
+  string workflow_uid = 6;
+  string task_group_uid = 7;
+  int64 observed_generation = 8;
+  string cluster_id = 9;
+}
+
+message CleanupAck {
+  string workflow_name = 1;
+  string workflow_uid = 2;
+  string cluster_id = 3;
+  string namespace = 4;
+  bool ok = 5;
+  string message = 6;
 }
 
 message ResyncRequest {}

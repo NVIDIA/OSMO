@@ -63,6 +63,24 @@ spec:
                   properties:
                     name:
                       type: string
+                    runtimeType:
+                      type: string
+                      enum:
+                      - osmoContainerGroup
+                      - osmoWorkflow
+                      - kubernetesObjects
+                      - rayJob
+                      - rayCluster
+                    runtimeConfig:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    poolRef:
+                      type: string
+                    renderedObjects:
+                      type: array
+                      items:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
           status:
             type: object
             properties:
@@ -73,6 +91,9 @@ spec:
               completionTime:
                 type: string
                 format: date-time
+              observedGeneration:
+                type: integer
+                format: int64
               groups:
                 type: array
                 items:
@@ -140,12 +161,37 @@ spec:
             properties:
               workflowName:
                 type: string
+              workflowUid:
+                type: string
+              desiredTaskGroupUid:
+                type: string
+              desiredGeneration:
+                type: integer
+                format: int64
               groupName:
                 type: string
               clusterID:
                 type: string
               targetNamespace:
                 type: string
+              runtimeType:
+                type: string
+                enum:
+                - osmoContainerGroup
+                - osmoWorkflow
+                - kubernetesObjects
+                - rayJob
+                - rayCluster
+              runtimeConfig:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              poolRef:
+                type: string
+              renderedObjects:
+                type: array
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
           status:
             type: object
             properties:

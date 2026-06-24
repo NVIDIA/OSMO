@@ -17,9 +17,10 @@ imagePullSecrets:
 - name: nvcr-secret
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: osmo-rust-spike-backend
+  namespace: osmo-phase1a
 rules:
 - apiGroups:
   - spike.osmo.nvidia.com
@@ -41,14 +42,52 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ray.io
+  resources:
+  - rayjobs
+  - rayclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: osmo-rust-spike-backend
+  namespace: osmo-phase1a
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: osmo-rust-spike-backend
 subjects:
 - kind: ServiceAccount
@@ -78,7 +117,7 @@ spec:
       serviceAccountName: osmo-rust-spike-backend
       containers:
       - name: spike
-        image: nvcr.io/nvstaging/osmo/osmo-rust-spike:phase0-2-sync-20260623-1115
+        image: nvcr.io/nvstaging/osmo/osmo-rust-spike:phase1-hardened-20260624-0105
         imagePullPolicy: Always
         env:
         - name: RUST_LOG
@@ -94,4 +133,7 @@ spec:
         - name: OPERATOR_AUTHORITY
           value: osmo-rust-spike.osmo.nvidia.com
         - name: CLUSTER_TOKEN
-          value: osmo-spike-token
+          valueFrom:
+            secretKeyRef:
+              name: osmo-rust-spike-cluster-token
+              key: cluster-token

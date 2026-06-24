@@ -1,0 +1,16 @@
+workflow:
+  name: osmo-jinja-api-e2e
+  resources:
+    default:
+      cpu: "{{cpu}}"
+      memory: 128Mi
+  tasks:
+  - name: hello
+    image: ubuntu:24.04
+    command: ["bash"]
+    args: ["-lc", "echo {{message}}"]
+    environment:
+      MESSAGE: "{{message}}"
+  default-values:
+    cpu: 1
+    message: hello-from-jinja

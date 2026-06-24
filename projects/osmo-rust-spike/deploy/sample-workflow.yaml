@@ -4,8 +4,19 @@ metadata:
   name: osmo-rust-spike-e2e
   namespace: osmo-exp
 spec:
-  clusterID: osmo-backend
-  namespace: osmo-phase1a
+  clusterID: fallback-cluster-not-used-when-pool-ref-is-set
+  namespace: fallback-namespace-not-used-when-pool-ref-is-set
   ttlSecondsAfterFinished: 300
   taskGroups:
   - name: hello
+    runtimeType: kubernetesObjects
+    poolRef: default
+    renderedObjects:
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: osmo-rust-spike-e2e-hello
+      data:
+        workflow: osmo-rust-spike-e2e
+        taskGroup: hello
+        status: rendered-object-applied
