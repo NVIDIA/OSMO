@@ -104,10 +104,3 @@ class OSMOBackendError(OSMOError):
 class OSMODataStorageError(OSMOError):
     """ Exception raised for data storage errors. """
     error_code: str = 'DATA_STORAGE'
-
-
-class OSMODatasetError(OSMOError):
-    """
-    Exception raised for dataset errors.
-    """
-    error_code: str = 'DATASET'

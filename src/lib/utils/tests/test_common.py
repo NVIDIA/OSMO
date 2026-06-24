@@ -162,40 +162,6 @@ class TestPydanticEncoder(unittest.TestCase):
             common.pydantic_encoder(object())
 
 
-class TestDatasetStructureWorkflowSpec(unittest.TestCase):
-    """ Tests for DatasetStructure with workflow_spec=True. """
-
-    def test_workflow_spec_allows_braces(self):
-        info = common.DatasetStructure('{bucket}/ds:{tag}', workflow_spec=True)
-        self.assertEqual(info.bucket, '{bucket}')
-        self.assertEqual(info.name, 'ds')
-        self.assertEqual(info.tag, '{tag}')
-
-    def test_workflow_spec_rejects_invalid_chars(self):
-        with self.assertRaises(osmo_errors.OSMOUserError):
-            common.DatasetStructure('bad!name', workflow_spec=True)
-
-    def test_full_name_name_only(self):
-        info = common.DatasetStructure('mydata')
-        self.assertEqual(info.full_name, 'mydata')
-
-    def test_full_name_with_bucket(self):
-        info = common.DatasetStructure('b/mydata')
-        self.assertEqual(info.full_name, 'b/mydata')
-
-    def test_full_name_with_tag(self):
-        info = common.DatasetStructure('mydata:v1')
-        self.assertEqual(info.full_name, 'mydata:v1')
-
-    def test_full_name_with_bucket_and_tag(self):
-        info = common.DatasetStructure('b/mydata:v1')
-        self.assertEqual(info.full_name, 'b/mydata:v1')
-
-    def test_to_dict(self):
-        info = common.DatasetStructure('b/mydata:v1')
-        self.assertEqual(info.to_dict(), {'name': 'mydata', 'tag': 'v1'})
-
-
 class TestAppStructure(unittest.TestCase):
     """ Tests for AppStructure. """
 

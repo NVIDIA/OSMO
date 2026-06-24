@@ -18,15 +18,6 @@ load("//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
-    name = "test_dataset",
-    srcs = ["test_dataset.py"],
-    deps = [
-        "//src/lib/utils:common",
-        "//src/lib/utils:osmo_errors",
-    ]
-)
-
-osmo_py_test(
     name = "test_common",
     srcs = ["test_common.py"],
     deps = [
