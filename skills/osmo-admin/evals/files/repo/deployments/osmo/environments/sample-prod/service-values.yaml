@@ -6,4 +6,4 @@ services:
   configs:
     secretRefs:
       - secretName: osmo-sample-service-auth
-      - secretName: osmo-sample-dataset-s3
+      - secretName: osmo-sample-registry-cred

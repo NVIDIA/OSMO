@@ -100,7 +100,6 @@ the spelling used in the source values file.
 |---|---|---|
 | `services.configs.service` | `service` | CLI version pins, auth metadata, queues |
 | `services.configs.workflow` | `workflow` | workflow defaults, plugins, limits, timeouts |
-| `services.configs.dataset` | `dataset` | dataset buckets and default bucket |
 | `services.configs.pools` | `pools` | pool quotas, templates, platforms, maintenance |
 | `services.configs.podTemplates` | `pod_templates` | task pod overlays and mounts |
 | `services.configs.resourceValidations` | `resource_validations` | submit-time assertions |
@@ -323,7 +322,7 @@ services:
         policies:
           - actions:
               - workflow:*
-              - dataset:read
+              - resources:Read
             resources:
               - pool/example-arm64-cpu*
               - backend/example-backend
@@ -391,19 +390,6 @@ Do not infer storage only from template names. Verify volumes or mounts.
    roles.
 4. Explain that local config changes affect service behavior only after the
    user's own rollout process applies them; it is not a live pod drain.
-
-### Dataset Config
-
-Use `services.configs.dataset.default_bucket` and
-`services.configs.dataset.buckets`.
-
-- Preserve existing buckets and credential references unless the user asks to
-  change them.
-- If adding a bucket, ask for required deployment-specific details such as mode
-  or credential reference when they are missing.
-- Removing a bucket unregisters it from OSMO but does not delete backing
-  storage.
-- If removing the default bucket, ask for the replacement default first.
 
 ### Workflow Config
 

@@ -80,7 +80,7 @@ Use this skill for OSMO admin questions about:
 
 - pool, backend, platform, quota, maintenance, topology, template, or storage
   desired state
-- service config, workflow config, dataset config, backend, role, resource
+- service config, workflow config, backend, role, resource
   validation, pod template, group template, or backend test definitions
 - read-only answers such as which pools are in maintenance, which roles grant
   access, which tests attach to a backend, or which mounts a pool resolves to
@@ -162,7 +162,7 @@ stop gathering and answer.
 Read for service-values work itself: discovering config files under the provided
 root, `services.configs` key mapping, read-only answers, local edits, history
 when available, rollback diffs, safe removals, and admin-flow specifics for
-pool/backend/storage/role/template/validation/workflow/dataset/backend-test
+pool/backend/storage/role/template/validation/workflow/backend-test
 values.
 
 ## Limitations

@@ -6,7 +6,6 @@ data:
   config.yaml: |
     service: {{ .Values.services.configs.service | toYaml | nindent 6 }}
     workflow: {{ .Values.services.configs.workflow | toYaml | nindent 6 }}
-    dataset: {{ .Values.services.configs.dataset | toYaml | nindent 6 }}
     pools: {{ .Values.services.configs.pools | toYaml | nindent 6 }}
     pod_templates: {{ .Values.services.configs.podTemplates | toYaml | nindent 6 }}
     resource_validations: {{ .Values.services.configs.resourceValidations | toYaml | nindent 6 }}
