@@ -119,7 +119,7 @@ Every task follows this four-phase progression:
 
         **OSMO Ctrl** fetches data
 
-        Downloads and extracts input datasets to ``/osmo/data/input``
+        Downloads and extracts task inputs to ``/osmo/data/input``
 
         +++
 
@@ -168,9 +168,9 @@ Your container automatically has access to these paths:
 .. code-block:: text
 
    /osmo/data/
-   ├── input/              ← Read input datasets here
-   │   ├── 0/dataset1/
-   │   └── 1/dataset2/
+   ├── input/              ← Read input data here
+   │   ├── 0/input1/
+   │   └── 1/input2/
    ├── output/             ← Write results here
    │   └── (your artifacts)
    └── socket/             ← Unix socket (managed by OSMO)
@@ -187,8 +187,8 @@ Example Task Configuration
        image: nvcr.io/nvidia/pytorch:24.01-py3
        command: ["python", "train.py"]
        args:
-         - --input={{input:0}}/dataset1
-         - --input={{input:1}}/dataset2
+         - --input={{input:0}}/input1
+         - --input={{input:1}}/input2
          - --output={{output}}/model
 
 Debugging
@@ -235,4 +235,3 @@ Learn More
    - :ref:`Workflow Overview <workflow_overview>` - User guide for writing workflows
    - :ref:`Workflow Lifecycle <workflow_lifecycle>` - Understanding workflow states
    - :ref:`architecture` - Overall OSMO system architecture
-

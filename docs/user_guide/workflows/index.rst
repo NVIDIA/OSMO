@@ -202,8 +202,7 @@ What is a Group?
             - name: task_2
               ...
               outputs:
-              - dataset:
-                  name: dataset_3 # (2)
+              - url: s3://my-bucket/group-1-output/ # (2)
             - name: task_3
               ...
 
@@ -217,8 +216,7 @@ What is a Group?
               lead: true
               ...
               inputs:
-              - dataset:
-                  name: dataset_3 # (3)
+              - task: task_2 # (3)
 
           ################################################
           # Group 3 (runs after group 1)
@@ -230,17 +228,16 @@ What is a Group?
               lead: true
               ...
               inputs:
-              - dataset:
-                  name: dataset_3
+              - task: task_2
             - name: task_6 # (4)
               ...
 
     .. code-annotations::
         1. Every group must have one and only one lead task.
-        2. ``task_2`` outputs ``dataset_3`` which is used as an input for other groups.
-        3. ``group_2`` runs **after** ``group_1`` because of the dependency on ``dataset_3``.
-        4. Despite not having a direct dependency on ``dataset_3``, ``task_6``'s peer task (``task_5``)
-           depends on ``dataset_3``.
+        2. ``task_2`` produces data that downstream groups depend on.
+        3. ``group_2`` runs **after** ``group_1`` because ``task_4`` depends on ``task_2``.
+        4. Despite not having a direct dependency on ``task_2``, ``task_6``'s peer task (``task_5``)
+           depends on ``task_2``.
 
            Therefore, ``group_3`` must run **after** ``group_1``.
 

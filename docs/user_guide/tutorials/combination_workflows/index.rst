@@ -64,13 +64,13 @@ here: :download:`combination_workflow_simple.yaml <../../../../cookbook/tutorial
 
 .. code-annotations::
 
-  1. The ``generate-dataset`` task is an input task for the ``train-model-a`` task. Therefore,
+  1. The ``generate-data`` task is an input task for the ``train-model-a`` task. Therefore,
      the entire group ``train-models`` waits for ``prepare-data`` to complete.
 
 **Execution Flow:**
 
-1. Group ``prepare-data`` starts → ``generate-dataset`` and ``validate-data`` run in parallel.
-2. Task ``generate-dataset`` completes → Group ``train-models`` dependencies are satisfied.
+1. Group ``prepare-data`` starts → ``generate-data`` and ``validate-data`` run in parallel.
+2. Task ``generate-data`` completes → Group ``train-models`` dependencies are satisfied.
 3. Group ``train-models`` starts → ``train-model-a`` and ``train-model-b`` run in parallel.
 
 .. important::

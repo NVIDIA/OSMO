@@ -659,7 +659,7 @@ When creating pages or components that fetch data:
 
 ### Examples by Page Type
 
-**List pages** (datasets, workflows, pools, resources):
+**List pages** (workflows, pools, resources):
 ```tsx
 // Toolbar (compact error)
 <InlineErrorBoundary title="Toolbar error" compact>

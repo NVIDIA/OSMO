@@ -51,7 +51,7 @@ OSMO includes the following roles by default. No configuration is required — t
 
        * Submit/cancel workflows from any pool
        * Create and modify pools
-       * Modify other configuration like workflow and dataset settings
+       * Modify other configuration like workflow and service settings
        * Create, modify and delete roles and policies.
        * Create service account tokens for backend registration
 
@@ -148,7 +148,7 @@ preconfigured roles. For example, you may want to:
 - Restrict users to specific pools
 - Create read-only roles
 - Deny certain operations for specific teams
-- Scope dataset access to particular buckets
+- Scope access to particular pools or config types
 
 If the preconfigured roles meet your needs, you can skip this section.
 
@@ -181,7 +181,7 @@ Action Format
 
 Actions use the semantic format: ``<resource_type>:<action_name>``
 
-- **resource_type**: The category of resource (e.g., ``workflow``, ``pool``, ``dataset``, ``credentials``)
+- **resource_type**: The category of resource (e.g., ``workflow``, ``pool``, ``credentials``, ``config``)
 - **action_name**: The operation (e.g., ``Create``, ``Read``, ``List``, ``Update``, ``Delete``)
 
 Wildcards are supported in action strings:
@@ -194,7 +194,6 @@ Examples:
 
 - ``"workflow:Create"`` -- allow creating workflows
 - ``"pool:List"`` -- allow listing pools
-- ``"dataset:*"`` -- allow all dataset operations
 - ``"*:Read"`` -- allow all read operations
 
 See :ref:`actions_resources_reference` for the complete list of actions.
@@ -207,7 +206,6 @@ Resources scope a policy to specific instances. They use the format ``<scope>/<i
 - ``"*"`` -- matches all resources
 - ``"pool/my-pool"`` -- matches the specific pool ``my-pool``
 - ``"pool/*"`` -- matches all pools
-- ``"bucket/my-data"`` -- matches the specific bucket ``my-data``
 - ``"config/*"`` -- matches all config types
 
 See :ref:`resource_scoping` for details on how different resource types are scoped.
@@ -239,7 +237,7 @@ Policy Examples
 .. dropdown:: Example 1: Basic Role
    :color: info
 
-   This role allows all dataset and credential operations:
+   This role allows all workflow and credential operations:
 
    .. code-block:: json
 
@@ -249,7 +247,7 @@ Policy Examples
         "policies": [
           {
             "actions": [
-                "dataset:*",
+                "workflow:*",
                 "credentials:*"
             ]
           }
@@ -331,7 +329,6 @@ Policy Examples
           },
           {
             "actions": [
-                "dataset:*",
                 "credentials:*",
                 "app:*",
                 "profile:*"
@@ -358,7 +355,7 @@ Add custom roles under ``services.configs.roles`` in your Helm values, then appl
            description: Demo new role
            policies:
              - actions:
-                 - dataset:*
+                 - workflow:*
                  - credentials:*
 
 .. _auto_generating_pool_roles:
@@ -496,31 +493,6 @@ All actions follow the format ``<resource_type>:<action_name>``. When writing po
       * - ``workflow:Rsync``
         - Rsync files to/from a workflow.
         - ``pool/<pool_name>``
-
-.. dropdown:: Dataset Actions
-   :color: info
-
-   Actions for managing dataset buckets. Dataset actions (except ``dataset:List``) are scoped to the specific bucket (e.g., ``bucket/my-data``).
-
-   .. list-table::
-      :header-rows: 1
-      :widths: 30 40 30
-
-      * - **Action**
-        - **Description**
-        - **Resource Scope**
-      * - ``dataset:List``
-        - List all datasets/buckets.
-        - Global (no scope)
-      * - ``dataset:Read``
-        - View a specific dataset/bucket.
-        - ``bucket/<bucket_name>``
-      * - ``dataset:Write``
-        - Create or update a dataset/bucket.
-        - ``bucket/<bucket_name>``
-      * - ``dataset:Delete``
-        - Delete a dataset/bucket.
-        - ``bucket/<bucket_name>``
 
 .. dropdown:: Credentials Actions
    :color: info
@@ -741,9 +713,6 @@ The **Resource Scope** column in the tables above indicates how each action is s
    * - ``pool/<pool_name>``
      - ``pool/my-pool``, ``pool/*``
      - Restricts workflow actions to a specific pool or all pools.
-   * - ``bucket/<bucket_name>``
-     - ``bucket/my-data``, ``bucket/*``
-     - Restricts dataset actions to a specific bucket or all buckets.
    * - ``config/<config_type>``
      - ``config/ROLE``, ``config/WORKFLOW``, ``config/*``
      - Restricts config actions to a specific config type or all types.

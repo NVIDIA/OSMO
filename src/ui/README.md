@@ -106,7 +106,6 @@ pnpm licenses:generate      # Regenerate THIRD_PARTY_LICENSES.md
 src/
 ├── app/                        # Next.js App Router (pages + API routes)
 │   ├── (dashboard)/            # Authenticated pages (route group)
-│   │   ├── datasets/           #   Dataset list + bucket + detail
 │   │   ├── experimental/       #   Experimental features
 │   │   ├── log-viewer/         #   Log viewer
 │   │   ├── pools/              #   Pool management
@@ -116,12 +115,10 @@ src/
 │   ├── api/                    # API route handlers
 │   │   ├── [...path]/          #   Catch-all zero-copy proxy to backend
 │   │   ├── auth/refresh/       #   Token refresh
-│   │   ├── datasets/           #   Dataset file proxy + location files
 │   │   ├── health/             #   Health check
 │   │   └── me/                 #   Current user info (JWT decode)
 │   └── health/                 # Health check page
 ├── features/                   # Feature modules (domain logic + components)
-│   ├── datasets/               #   list/ + detail/
 │   ├── log-viewer/
 │   ├── pools/                  #   components/ + hooks/ + lib/ + stores/ + styles/
 │   ├── profile/                #   components/ + hooks/
@@ -318,7 +315,7 @@ Develop the UI without any backend connection using deterministic synthetic data
 pnpm dev:mock
 ```
 
-The app runs with realistic mock data for all entities (workflows, pools, resources, datasets, buckets, profiles).
+The app runs with realistic mock data for all entities (workflows, pools, resources, credentials, and profiles).
 
 ### How It Works
 
@@ -350,7 +347,7 @@ localStorage.removeItem("mockApi"); location.reload()
 
 ### Configure Data Volume
 
-Use the browser console to stress-test with large datasets:
+Use the browser console to stress-test with large result sets:
 
 ```javascript
 __mockConfig.help()                          // Show help
@@ -372,7 +369,6 @@ src/mocks/
 │   ├── pool-generator.ts
 │   ├── resource-generator.ts
 │   ├── bucket-generator.ts
-│   ├── dataset-generator.ts
 │   ├── log-generator.ts
 │   ├── event-generator.ts
 │   ├── profile-generator.ts

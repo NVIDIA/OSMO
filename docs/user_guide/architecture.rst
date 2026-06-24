@@ -151,10 +151,6 @@ Executing
 
   %%{init: {'theme':'base'}}%%
   sequenceDiagram
-    box Control Plane
-    participant Dataset as Dataset Service
-    end
-
     box Compute Layer
     participant Cluster as Compute Nodes
     end
@@ -163,26 +159,15 @@ Executing
     participant Storage as Storage
     end
 
-    opt When using a dataset⁺
-      Cluster-->>Dataset: Fetches data metadata
-    end
-
     autonumber 1
     Storage->>Cluster: Injects inputs
     Cluster->>Cluster: Executes task
     Cluster->>Storage: Persists outputs
     autonumber off
 
-    opt When using a dataset⁺
-      Cluster-->>Dataset: Writes data metadata
-    end
-
 1. :bdg-primary:`Storage` injects task inputs into the container
 2. :bdg-primary:`Compute Nodes` executes the task using the injected inputs
 3. Task outputs are persisted to :bdg-primary:`Storage` for downstream tasks and external access
-
-  :sup:`+` For ``datasets``, a task uses the :bdg-primary:`Dataset Service` to index the data for
-  efficient storage and retrieval.
 
 Orchestrating
 -------------

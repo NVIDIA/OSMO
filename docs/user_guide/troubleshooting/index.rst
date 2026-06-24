@@ -23,8 +23,6 @@ Troubleshooting
 
 .. include:: credentials.in.rst
 
-.. include:: dataset.in.rst
-
 .. include:: resources.in.rst
 
 .. include:: workflow.in.rst

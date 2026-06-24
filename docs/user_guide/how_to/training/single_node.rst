@@ -58,7 +58,7 @@ Then you can launch the training script in your entry script:
 
         # Launch training
         python3 /tmp/train.py --save-model \
-          --dataset-path $INPUT_DIR \
+          --data-path $INPUT_DIR \
           --tensorboard-log-dir $OUTPUT_DIR/logs \
           --checkpoint-dir $OUTPUT_DIR/checkpoints \
           --model-save-path $OUTPUT_DIR/models
@@ -87,22 +87,21 @@ Based on your training script and available resources, use one or more GPUs.
 Preparing Training Data
 -----------------------
 
-The above example training script will download the public MNIST dataset if not already exists.
+The above example training script will download the public MNIST data if not already exists.
 If you want to use your own data as training input,
-you can use the ``inputs`` field in your task spec to input it as an OSMO dataset.
-Then the input dataset can be referenced in the training script as ``{{input:0}}``:
+you can use the ``inputs`` field in your task spec to pull it from external object storage.
+Then the input can be referenced in the training script as ``{{input:0}}``:
 
 .. code-block:: yaml
 
   tasks:
   - name: train
     inputs:
-    - dataset:
-      name: <my-training-data>
+    - url: s3://my-bucket/training-data/
     files:
     - path: /tmp/entry.sh
       contents: |
-        INPUT_DIR="{{input:0}}/<my-training-data>"  # (1)
+        INPUT_DIR="{{input:0}}"  # (1)
 
         # ...
 
@@ -111,21 +110,20 @@ Then the input dataset can be referenced in the training script as ``{{input:0}}
 
 .. note::
 
-    Refer to :ref:`credentials_data` to create a data credential to manage your datasets.
+    Refer to :ref:`credentials_data` to create a data credential for your storage URL.
 
 Saving Training Results
 -----------------------
 
-To save the trained model as an OSMO dataset, use the ``outputs`` field in your task spec:
+To save the trained model to object storage, use the ``outputs`` field in your task spec:
 
 .. code-block:: yaml
 
   tasks:
   - name: train
     outputs:
-    - dataset:
-        name: my-trained-model
-        path: experiments/models
+    - url: s3://my-bucket/my-trained-model/
+      path: experiments/models
 
 If your training is time consuming and you want to checkpoint intermediate results as the training progresses,
 use the ``checkpoint`` field in your task spec:

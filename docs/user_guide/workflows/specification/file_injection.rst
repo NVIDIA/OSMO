@@ -84,85 +84,15 @@ The following example defines a file with its relative path on the host machine:
 
   The ``localpath`` field only supports files. **NOT** directories.
 
-.. _ds_localpath:
+Directory Inputs
+================
 
-Folder
-=========
+OSMO does not upload local directories during workflow submission.
 
-If you want to transfer a local folder to a task, you can use the ``localpath`` attribute in
-the ``dataset`` input. This is useful for workflows that needs to use a large amount of local data
-without the need for users to manually upload them to the cloud.
+For large inputs, place the data in external object storage and reference it with ``url`` in
+``inputs``, or produce it in an upstream task and consume it through a ``task`` dependency.
 
-To provide a local file or directory as an input, use the ``localpath`` attribute in the dataset input:
+.. seealso::
 
-.. code-block:: yaml
-
-  inputs:
-  - dataset:
-      name : <name>
-      localpath: <path>
-
-The ``localpath`` attribute can be a file or a directory. If it is a directory, all files within
-the directory will be uploaded to the dataset.
-
-If the workflow is defined as follows:
-
-.. code-block:: yaml
-
-  tasks:
-  - name: task-name
-    ...
-    inputs:
-    - dataset:
-        name: bucket/dataset_name
-        localpath: test/folder
-    - dataset:
-        name: bucket/dataset_name
-        localpath: test/folder2
-    - dataset:
-        name: bucket/dataset_name
-        localpath: file.txt
-    - dataset:
-        name: bucket/dataset_name
-        localpath: ./               # Current directory (e.g. /current/workdir)
-
-the final workflow specification will be:
-
-.. code-block:: yaml
-
-  tasks:
-  - name: task-name
-    ...
-    inputs:
-    - dataset:
-        name: bucket/dataset_name:1 # (1)
-    - dataset:
-        name: bucket/dataset_name:2 # (2)
-    - dataset:
-        name: bucket/dataset_name:3 # (3)
-    - dataset:
-        name: bucket/dataset_name:4 # (4)
-
-.. code-annotations::
-
-  1. The folder ``test/folder`` is uploaded to the dataset ``bucket/dataset_name:1``.
-  2. The folder ``test/folder2`` is uploaded to the dataset ``bucket/dataset_name:2``.
-  3. The file ``file.txt`` is uploaded to the dataset ``bucket/dataset_name:3``.
-  4. The folder ``/current/workdir`` is uploaded to the dataset ``bucket/dataset_name:4``.
-
-The uploaded datasets can be referenced in the task like so:
-
-.. list-table:: Using Local Input Datasets (Example)
-  :header-rows: 1
-  :widths: auto
-
-  * - Input
-    - Reference
-  * - ``test/folder``
-    - ``{{input:0}}/dataset_name/folder``
-  * - ``test/folder2``
-    - ``{{input:1}}/dataset_name/folder2``
-  * - ``file.txt``
-    - ``{{input:2}}/dataset_name/file.txt``
-  * - ``./``
-    - ``{{input:3}}/dataset_name/workdir``
+  - See :ref:`workflow_spec_inputs_and_outputs` for supported ``task`` and ``url`` data flows.
+  - See :ref:`submit_cli` for CLI-only features that remain supported during submission.
