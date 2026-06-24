@@ -601,22 +601,6 @@ stage_oetf_smoke() {
             # Bash RETURN trap is per-function — re-arm here.
             trap "kill $pf_pid 2>/dev/null || true" RETURN
             osmo_url="http://localhost:${pf_port}"
-
-            # `osmo profile set pool default` for the admin user so
-            # api-checks' test_list_workflows (`GET /api/workflow`)
-            # works. The server rejects that endpoint without either a
-            # ?pool=… query param or a profile-level default pool.
-            # The --pool CLI flag we pass to OETF only fills tests that
-            # explicitly include it in their request; api-checks doesn't.
-            # Storing the default at the profile level fixes that whole
-            # class of "No pool selected" failures.
-            if command -v osmo >/dev/null 2>&1; then
-                log_info "Setting admin profile default pool=default (fixes api-checks)"
-                osmo login "$osmo_url" --method dev --username admin >/dev/null 2>&1 \
-                    || log_warning "osmo login failed — api-checks may still fail"
-                osmo profile set pool default >/dev/null 2>&1 \
-                    || log_warning "osmo profile set pool failed — api-checks may still fail"
-            fi
             ;;
         *)
             osmo_url="http://localhost"

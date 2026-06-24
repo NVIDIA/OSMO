@@ -686,24 +686,28 @@ jobs:
           # submodule wrapping and overshoots by one level on a standalone
           # checkout, so override OETF_REPO_ROOT explicitly.
           OETF_REPO_ROOT: ${{ github.workspace }}
-          # Tags are OR'd. Several OETF tests fail with issues unrelated to
-          # this PR's wrapper (real OSMO/test bugs):
+          # The `kind` tag in test/oetf BUILD files means "validated
+          # against a CPU-mode chart deploy" — exactly our --no-gpu Azure
+          # setup. Includes smoke (api-checks + websocket-checks),
+          # positive scenarios (logger-connectivity, task-runtime-env,
+          # router-connectivity, serial-workflow-mounting), and the four
+          # negative submission-validation tests.
           #
-          #   - task-runtime-environment + router-connectivity (positive
-          #     scenario, kind): fixture uses outdated `outputs.dataset`
-          #     schema (chart renamed → `outputs.url`); router pod can't
-          #     resolve a hostname over Azure DNS.
-          #   - serial-workflow / serial-workflow-update-dataset / regex-
-          #     workflow (serial tag): same stale `outputs.dataset` schema
-          #     in scenarios/serial.py.
+          # PR #1114 fixed several gate-blocking bugs that previously
+          # forced us to narrow this to `api,websocket,logger,negative`:
+          #   - api-checks/test_list_workflows now passes `pool` query
+          #     param explicitly (no profile-set hack needed).
+          #   - Public scenario YAMLs no longer hardcode `platform: cpu-x86`;
+          #     they fall back to the pool's default_platform.
+          #   - test/workflow/{scripts,input} bundle restored so workflow
+          #     spec fixtures resolve.
+          #   - CLI submit uses cwd=temp_dir + warning-stripped error
+          #     reporting (less noise, more accurate failure messages).
           #
-          # Pick the tag set that hits everything green: api-checks +
-          # websocket-checks + logger-connectivity + four negative-
-          # validation tests (resource / command / mount / template).
-          # 7 tests covering smoke API + smoke WS + 1 real workflow
-          # scenario (logger-connectivity submits + execs a workflow,
-          # streams logs back) + 4 submission-time validation checks.
-          OETF_TAGS: api,websocket,logger,negative
+          # Worth trying the broader `kind` set. If any newly-included
+          # test still fails on a real bug, the diagnostic-dump artifact
+          # will pinpoint which.
+          OETF_TAGS: kind
           # SKIP_TEARDOWN=1: the wrapper's teardown re-invokes
           # deploy-osmo-minimal.sh --destroy which (despite --skip-terraform)
           # appears to destroy cloud resources too, taking ~75 min. Our
