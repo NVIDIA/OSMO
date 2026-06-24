@@ -5,7 +5,8 @@ CONTROL_CONTEXT="${CONTROL_CONTEXT:-osmo-stg}"
 BACKEND_CONTEXT="${BACKEND_CONTEXT:-osmo-backend}"
 CONTROL_NAMESPACE="${CONTROL_NAMESPACE:-osmo-exp}"
 BACKEND_NAMESPACE="${BACKEND_NAMESPACE:-osmo-phase1a-go}"
-IMAGE="${IMAGE:-nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-dev}"
+BACKEND_ALT_NAMESPACE="${BACKEND_ALT_NAMESPACE:-osmo-phase1a-go-alt}"
+IMAGE="${IMAGE:-nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-20260624-011}"
 CLUSTER_TOKEN="${CLUSTER_TOKEN:-osmo-go-spike-token}"
 API_TOKEN="${API_TOKEN:-osmo-go-spike-api-token}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,12 +24,13 @@ apply_with_image() {
   local context="$1"
   local namespace_flag="$2"
   local file="$3"
-  sed "s|nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-dev|${IMAGE}|g" "${file}" | kubectl --context "${context}" ${namespace_flag} apply -f -
+  sed "s|nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-20260624-011|${IMAGE}|g" "${file}" | kubectl --context "${context}" ${namespace_flag} apply -f -
 }
 
 kubectl --context "${CONTROL_CONTEXT}" create namespace "${CONTROL_NAMESPACE}" --dry-run=client -o yaml | kubectl --context "${CONTROL_CONTEXT}" apply -f -
 kubectl --context "${BACKEND_CONTEXT}" create namespace osmo-exp --dry-run=client -o yaml | kubectl --context "${BACKEND_CONTEXT}" apply -f -
 kubectl --context "${BACKEND_CONTEXT}" create namespace "${BACKEND_NAMESPACE}" --dry-run=client -o yaml | kubectl --context "${BACKEND_CONTEXT}" apply -f -
+kubectl --context "${BACKEND_CONTEXT}" create namespace "${BACKEND_ALT_NAMESPACE}" --dry-run=client -o yaml | kubectl --context "${BACKEND_CONTEXT}" apply -f -
 kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" create secret generic osmo-go-spike-cluster-token --from-literal=cluster-token="${CLUSTER_TOKEN}" --from-file=api-authz-policy-json="${api_authz_policy_file}" --dry-run=client -o yaml | kubectl --context "${CONTROL_CONTEXT}" apply -f -
 kubectl --context "${BACKEND_CONTEXT}" -n osmo-exp create secret generic osmo-go-spike-cluster-token --from-literal=cluster-token="${CLUSTER_TOKEN}" --dry-run=client -o yaml | kubectl --context "${BACKEND_CONTEXT}" apply -f -
 
@@ -82,6 +84,25 @@ wait_absent() {
   return 1
 }
 
+wait_absent_ns() {
+  local name="$1"
+  local namespace="$2"
+  local runtime_kind="$3"
+  local runtime_name="$4"
+  for _ in $(seq 1 48); do
+    local wf desired mirror runtime
+    wf="$(kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" get "${WF_RESOURCE}" "${name}" --ignore-not-found 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"
+    desired="$(kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" get "${TG_RESOURCE}" -l "spikego.osmo.nvidia.com/workflow=${name}" --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+    mirror="$(kubectl --context "${BACKEND_CONTEXT}" -n "${namespace}" get "${TG_RESOURCE}" -l "spikego.osmo.nvidia.com/workflow=${name}" --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+    runtime="$(kubectl --context "${BACKEND_CONTEXT}" -n "${namespace}" get "${runtime_kind}" "${runtime_name}" --ignore-not-found 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"
+    if [[ "${wf}" == "0" && "${desired}" == "0" && "${mirror}" == "0" && "${runtime}" == "0" ]]; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
+}
+
 wait_workflow_absent() {
   local name="$1"
   for _ in $(seq 1 48); do
@@ -123,6 +144,8 @@ rm -f "${forbidden_payload}"
 [[ "${forbidden_code}" == "403" ]]
 
 cleanup_workflow osmo-go-spike-e2e
+cleanup_workflow osmo-go-spike-alt-e2e
+cleanup_workflow osmo-go-job-update-e2e
 cleanup_workflow osmo-go-spike-ttl-e2e
 cleanup_workflow osmo-go-spike-ray-e2e
 cleanup_workflow osmo-go-spike-invalid-e2e
@@ -130,15 +153,18 @@ cleanup_workflow hello-osmo
 cleanup_workflow hello-osmo-template
 cleanup_workflow osmo-go-jinja-api-e2e
 wait_workflow_absent osmo-go-spike-e2e
+wait_workflow_absent osmo-go-spike-alt-e2e
+wait_workflow_absent osmo-go-job-update-e2e
 wait_workflow_absent osmo-go-spike-ttl-e2e
 wait_workflow_absent osmo-go-spike-ray-e2e
 wait_workflow_absent osmo-go-spike-invalid-e2e
 wait_workflow_absent hello-osmo
 wait_workflow_absent hello-osmo-template
 wait_workflow_absent osmo-go-jinja-api-e2e
-kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" delete configmap osmo-go-spike-e2e-hello osmo-go-spike-e2e-hello-v2 osmo-go-spike-ttl-e2e-hello --ignore-not-found=true
+kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" delete configmap osmo-go-spike-e2e-hello osmo-go-spike-e2e-hello-v2 osmo-go-spike-ttl-e2e-hello osmo-go-spike-alt-hello-default --ignore-not-found=true
+kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_ALT_NAMESPACE}" delete configmap osmo-go-spike-alt-hello --ignore-not-found=true
 kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" delete rayjob osmo-go-spike-ray-hello --ignore-not-found=true
-kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" delete job hello-osmo-hello hello-osmo-template-hello osmo-go-jinja-api-e2e-hello --ignore-not-found=true
+kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" delete job hello-osmo-hello hello-osmo-template-hello osmo-go-jinja-api-e2e-hello osmo-go-job-update-hello --ignore-not-found=true
 
 kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" apply -f "${ROOT_DIR}/deploy/sample-workflow.yaml"
 for _ in $(seq 1 48); do
@@ -168,6 +194,124 @@ done
 [[ "${phase}" == "Succeeded" && "${cm_status}" == "rendered-object-applied-v2" && "${old_cm}" == "0" ]]
 cleanup_workflow osmo-go-spike-e2e
 wait_absent osmo-go-spike-e2e configmap osmo-go-spike-e2e-hello-v2
+
+cat <<EOF | kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" apply -f -
+apiVersion: spikego.osmo.nvidia.com/v1alpha1
+kind: OSMOPool
+metadata:
+  name: alt
+spec:
+  clusterRef: osmo-backend
+  namespace: ${BACKEND_ALT_NAMESPACE}
+  schedulerType: none
+  maintenance: false
+EOF
+cat <<'EOF' | kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" apply -f -
+apiVersion: spikego.osmo.nvidia.com/v1alpha1
+kind: OSMOWorkflow
+metadata:
+  name: osmo-go-spike-alt-e2e
+spec:
+  clusterID: fallback-cluster-not-used-when-pool-ref-is-set
+  namespace: fallback-namespace-not-used-when-pool-ref-is-set
+  ttlSecondsAfterFinished: 300
+  taskGroups:
+  - name: hello
+    runtimeType: kubernetesObjects
+    poolRef: alt
+    renderedObjects:
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: osmo-go-spike-alt-hello
+      data:
+        workflow: osmo-go-spike-alt-e2e
+        taskGroup: hello
+        status: alt-namespace-applied
+EOF
+for _ in $(seq 1 48); do
+  phase="$(kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" get "${WF_RESOURCE}" osmo-go-spike-alt-e2e -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+  cm_status="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_ALT_NAMESPACE}" get configmap osmo-go-spike-alt-hello -o jsonpath='{.data.status}' 2>/dev/null || true)"
+  wrong_ns_cm="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get configmap osmo-go-spike-alt-hello --ignore-not-found 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"
+  if [[ "${phase}" == "Succeeded" && "${cm_status}" == "alt-namespace-applied" && "${wrong_ns_cm}" == "0" ]]; then
+    break
+  fi
+  sleep 5
+done
+[[ "${phase}" == "Succeeded" && "${cm_status}" == "alt-namespace-applied" && "${wrong_ns_cm}" == "0" ]]
+kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" patch "${WF_RESOURCE}" osmo-go-spike-alt-e2e --type=merge -p '{"spec":{"taskGroups":[{"name":"hello","runtimeType":"kubernetesObjects","poolRef":"default","renderedObjects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"osmo-go-spike-alt-hello-default"},"data":{"workflow":"osmo-go-spike-alt-e2e","taskGroup":"hello","status":"default-namespace-applied"}}]}]}}'
+for _ in $(seq 1 48); do
+  phase="$(kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" get "${WF_RESOURCE}" osmo-go-spike-alt-e2e -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+  default_cm_status="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get configmap osmo-go-spike-alt-hello-default -o jsonpath='{.data.status}' 2>/dev/null || true)"
+  alt_cm_old="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_ALT_NAMESPACE}" get configmap osmo-go-spike-alt-hello --ignore-not-found 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"
+  if [[ "${phase}" == "Succeeded" && "${default_cm_status}" == "default-namespace-applied" && "${alt_cm_old}" == "0" ]]; then
+    break
+  fi
+  sleep 5
+done
+[[ "${phase}" == "Succeeded" && "${default_cm_status}" == "default-namespace-applied" && "${alt_cm_old}" == "0" ]]
+cleanup_workflow osmo-go-spike-alt-e2e
+wait_absent_ns osmo-go-spike-alt-e2e "${BACKEND_ALT_NAMESPACE}" configmap osmo-go-spike-alt-hello
+wait_absent osmo-go-spike-alt-e2e configmap osmo-go-spike-alt-hello-default
+
+cat <<'EOF' | kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" apply -f -
+apiVersion: spikego.osmo.nvidia.com/v1alpha1
+kind: OSMOWorkflow
+metadata:
+  name: osmo-go-job-update-e2e
+spec:
+  clusterID: fallback-cluster-not-used-when-pool-ref-is-set
+  namespace: fallback-namespace-not-used-when-pool-ref-is-set
+  ttlSecondsAfterFinished: 300
+  taskGroups:
+  - name: hello
+    runtimeType: kubernetesObjects
+    poolRef: default
+    renderedObjects:
+    - apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: osmo-go-job-update-hello
+      spec:
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: main
+              image: ubuntu:24.04
+              command: ["bash"]
+              args: ["-lc", "echo v1"]
+              env:
+              - name: VERSION
+                value: v1
+EOF
+for _ in $(seq 1 48); do
+  phase="$(kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" get "${WF_RESOURCE}" osmo-go-job-update-e2e -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+  job_status="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get job osmo-go-job-update-hello -o jsonpath='{.status.succeeded}' 2>/dev/null || true)"
+  job_uid="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get job osmo-go-job-update-hello -o jsonpath='{.metadata.uid}' 2>/dev/null || true)"
+  env_value="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get job osmo-go-job-update-hello -o jsonpath='{.spec.template.spec.containers[0].env[0].value}' 2>/dev/null || true)"
+  if [[ "${phase}" == "Succeeded" && "${job_status}" == "1" && "${env_value}" == "v1" && -n "${job_uid}" ]]; then
+    break
+  fi
+  sleep 5
+done
+[[ "${phase}" == "Succeeded" && "${job_status}" == "1" && "${env_value}" == "v1" && -n "${job_uid}" ]]
+old_job_uid="${job_uid}"
+kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" patch "${WF_RESOURCE}" osmo-go-job-update-e2e --type=merge -p '{"spec":{"taskGroups":[{"name":"hello","runtimeType":"kubernetesObjects","poolRef":"default","renderedObjects":[{"apiVersion":"batch/v1","kind":"Job","metadata":{"name":"osmo-go-job-update-hello"},"spec":{"backoffLimit":0,"template":{"spec":{"restartPolicy":"Never","containers":[{"name":"main","image":"ubuntu:24.04","command":["bash"],"args":["-lc","echo v2"],"env":[{"name":"VERSION","value":"v2"}]}]}}}}]}]}}'
+for _ in $(seq 1 48); do
+  phase="$(kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" get "${WF_RESOURCE}" osmo-go-job-update-e2e -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+  job_status="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get job osmo-go-job-update-hello -o jsonpath='{.status.succeeded}' 2>/dev/null || true)"
+  job_uid="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get job osmo-go-job-update-hello -o jsonpath='{.metadata.uid}' 2>/dev/null || true)"
+  env_value="$(kubectl --context "${BACKEND_CONTEXT}" -n "${BACKEND_NAMESPACE}" get job osmo-go-job-update-hello -o jsonpath='{.spec.template.spec.containers[0].env[0].value}' 2>/dev/null || true)"
+  if [[ "${phase}" == "Succeeded" && "${job_status}" == "1" && "${env_value}" == "v2" && -n "${job_uid}" && "${job_uid}" != "${old_job_uid}" ]]; then
+    break
+  fi
+  sleep 5
+done
+[[ "${phase}" == "Succeeded" && "${job_status}" == "1" && "${env_value}" == "v2" && -n "${job_uid}" && "${job_uid}" != "${old_job_uid}" ]]
+cleanup_workflow osmo-go-job-update-e2e
+wait_absent osmo-go-job-update-e2e job osmo-go-job-update-hello
 
 cat <<'EOF' | kubectl --context "${CONTROL_CONTEXT}" -n "${CONTROL_NAMESPACE}" apply -f -
 apiVersion: spikego.osmo.nvidia.com/v1alpha1

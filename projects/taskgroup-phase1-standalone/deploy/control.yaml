@@ -82,7 +82,7 @@ spec:
       serviceAccountName: osmo-go-spike-control
       containers:
       - name: spike
-        image: nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-dev
+        image: nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-20260624-011
         imagePullPolicy: Always
         env:
         - name: OSMO_SPIKE_ROLE

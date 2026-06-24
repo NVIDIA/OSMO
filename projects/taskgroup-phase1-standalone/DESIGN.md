@@ -6,13 +6,13 @@ This directory now contains a Go implementation of the same Phase 1A workflow-or
 
 Validated image:
 
-- `nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-20260624-005`
+- `nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-20260624-011`
 
 Validated deployment:
 
 - Control: `osmo-stg`, namespace `osmo-exp`
 - Backend controller: `osmo-backend`, namespace `osmo-exp`
-- Backend runtime namespace: `osmo-phase1a-go`
+- Backend runtime namespaces: `osmo-phase1a-go`, `osmo-phase1a-go-alt`
 - Ingress: existing ALB group `osmo2`, host `osmo-rust-spike.osmo.nvidia.com`, gRPC path `/osmo.spikego.v1.ClusterSession`
 
 ## Architecture
@@ -97,6 +97,11 @@ OSMOPool/default
   -> spec.clusterRef: osmo-backend
   -> OSMOCluster/osmo-backend.spec.clusterID: osmo-backend
   -> spec.namespace: osmo-phase1a-go
+
+OSMOPool/alt
+  -> spec.clusterRef: osmo-backend
+  -> OSMOCluster/osmo-backend.spec.clusterID: osmo-backend
+  -> spec.namespace: osmo-phase1a-go-alt
 ```
 
 Resolved placement is written into desired `OSMOTaskGroup.spec.clusterID` and `spec.targetNamespace`.
@@ -146,7 +151,7 @@ On deletion, control computes cleanup targets from resolved placement and sends 
 
 ## Validated Matrix
 
-`deploy/e2e-validate.sh` passed against staging/backend with image `phase1-go-20260624-005`.
+`deploy/e2e-validate.sh` passed against staging/backend with image `phase1-go-20260624-011`.
 
 The validation covers:
 
@@ -161,8 +166,10 @@ The validation covers:
 - custom Jinja-style OSMO YAML with variable override
 - RayJob runtime with KubeRay `HTTPMode`
 - finalizer cleanup and absence of desired/mirror/runtime leftovers
-- TTL cleanup after terminal workflow status
 - pool resolution through `OSMOPool -> OSMOCluster`
+- non-default `OSMOPool.spec.namespace` placement
+- same-name Kubernetes Job mutation with delete/recreate of immutable runtime objects
+- TTL cleanup only after status observes the current workflow generation
 
 ## Production Gaps
 

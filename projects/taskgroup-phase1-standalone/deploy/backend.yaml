@@ -9,6 +9,11 @@ metadata:
   name: osmo-phase1a-go
 ---
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: osmo-phase1a-go-alt
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: osmo-go-spike-backend
@@ -94,6 +99,84 @@ subjects:
   name: osmo-go-spike-backend
   namespace: osmo-exp
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: osmo-go-spike-backend
+  namespace: osmo-phase1a-go-alt
+rules:
+- apiGroups:
+  - spikego.osmo.nvidia.com
+  resources:
+  - osmotaskgroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - spikego.osmo.nvidia.com
+  resources:
+  - osmotaskgroups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ray.io
+  resources:
+  - rayjobs
+  - rayclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: osmo-go-spike-backend
+  namespace: osmo-phase1a-go-alt
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: osmo-go-spike-backend
+subjects:
+- kind: ServiceAccount
+  name: osmo-go-spike-backend
+  namespace: osmo-exp
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -117,7 +200,7 @@ spec:
       serviceAccountName: osmo-go-spike-backend
       containers:
       - name: spike
-        image: nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-dev
+        image: nvcr.io/nvstaging/osmo/osmo-go-spike:phase1-go-20260624-011
         imagePullPolicy: Always
         env:
         - name: OSMO_SPIKE_ROLE

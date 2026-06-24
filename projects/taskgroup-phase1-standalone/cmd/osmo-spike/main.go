@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,6 +47,8 @@ const (
 	finalizer                = "spikego.osmo.nvidia.com/cleanup"
 	submittedByAnnotation    = "spikego.osmo.nvidia.com/submitted-by"
 	cleanupPendingAnnotation = "spikego.osmo.nvidia.com/cleanup-pending-targets"
+	cleanupTargetsAnnotation = "spikego.osmo.nvidia.com/cleanup-targets"
+	specHashAnnotation       = "spikego.osmo.nvidia.com/spec-hash"
 	labelWorkflow            = "spikego.osmo.nvidia.com/workflow"
 	labelTaskGroup           = "spikego.osmo.nvidia.com/taskgroup"
 	labelRole                = "spikego.osmo.nvidia.com/role"
@@ -53,6 +57,8 @@ const (
 	defaultClusterID         = "osmo-backend"
 	defaultRuntimeNamespace  = "osmo-phase1a-go"
 )
+
+var errRuntimeReplacing = errors.New("runtime object replacement in progress")
 
 var (
 	workflowGVR   = schema.GroupVersionResource{Group: apiGroup, Version: apiVersion, Resource: "osmoworkflows"}
@@ -95,19 +101,20 @@ type sessionEnvelope struct {
 }
 
 type taskGroupSnapshot struct {
-	Name            string           `json:"name"`
-	Namespace       string           `json:"namespace"`
-	UID             string           `json:"uid"`
-	Generation      int64            `json:"generation"`
-	WorkflowName    string           `json:"workflowName"`
-	WorkflowUID     string           `json:"workflowUID"`
-	GroupName       string           `json:"groupName"`
-	RuntimeType     string           `json:"runtimeType"`
-	RuntimeConfig   map[string]any   `json:"runtimeConfig,omitempty"`
-	RenderedObjects []map[string]any `json:"renderedObjects,omitempty"`
-	ClusterID       string           `json:"clusterID"`
-	TargetNamespace string           `json:"targetNamespace"`
-	PoolRef         string           `json:"poolRef,omitempty"`
+	Name             string           `json:"name"`
+	Namespace        string           `json:"namespace"`
+	UID              string           `json:"uid"`
+	Generation       int64            `json:"generation"`
+	WorkflowName     string           `json:"workflowName"`
+	WorkflowUID      string           `json:"workflowUID"`
+	GroupName        string           `json:"groupName"`
+	RuntimeType      string           `json:"runtimeType"`
+	RuntimeConfig    map[string]any   `json:"runtimeConfig,omitempty"`
+	RenderedObjects  []map[string]any `json:"renderedObjects,omitempty"`
+	ClusterID        string           `json:"clusterID"`
+	TargetNamespace  string           `json:"targetNamespace"`
+	TargetNamespaces []string         `json:"targetNamespaces,omitempty"`
+	PoolRef          string           `json:"poolRef,omitempty"`
 }
 
 type taskGroupStatus struct {
@@ -326,8 +333,16 @@ func (s *clusterSessionServer) handleStatus(ctx context.Context, status taskGrou
 		}
 		return
 	}
-	if string(tg.GetUID()) != status.TaskGroupUID || tg.GetGeneration() != status.Generation {
-		log.Printf("dropped stale status taskgroup=%s statusUID=%s currentUID=%s statusGen=%d currentGen=%d", status.Name, status.TaskGroupUID, tg.GetUID(), status.Generation, tg.GetGeneration())
+	spec, _, _ := unstructured.NestedMap(tg.Object, "spec")
+	expectedWorkflowUID := stringValue(spec["workflowUid"])
+	expectedClusterID := stringValue(spec["clusterID"])
+	expectedNamespace := stringValue(spec["targetNamespace"])
+	if string(tg.GetUID()) != status.TaskGroupUID ||
+		tg.GetGeneration() != status.Generation ||
+		expectedWorkflowUID != status.WorkflowUID ||
+		expectedClusterID != status.ClusterID ||
+		expectedNamespace != status.Namespace {
+		log.Printf("dropped stale status taskgroup=%s statusUID=%s currentUID=%s statusGen=%d currentGen=%d statusWorkflowUID=%s expectedWorkflowUID=%s statusCluster=%s expectedCluster=%s statusNamespace=%s expectedNamespace=%s", status.Name, status.TaskGroupUID, tg.GetUID(), status.Generation, tg.GetGeneration(), status.WorkflowUID, expectedWorkflowUID, status.ClusterID, expectedClusterID, status.Namespace, expectedNamespace)
 		return
 	}
 	_ = patchStatus(ctx, s.state.client, taskGroupGVR, s.state.namespace, status.Name, map[string]any{
@@ -359,11 +374,19 @@ func (s *clusterSessionServer) handleCleanupAck(ctx context.Context, ack cleanup
 		}
 	}
 	if len(remaining) > 0 {
-		_ = patchMetadata(ctx, s.state.client, workflowGVR, s.state.namespace, ack.WorkflowName, map[string]string{cleanupPendingAnnotation: strings.Join(remaining, ",")}, nil)
+		if err := patchMetadata(ctx, s.state.client, workflowGVR, s.state.namespace, ack.WorkflowName, map[string]string{cleanupPendingAnnotation: strings.Join(remaining, ",")}, nil); err != nil {
+			log.Printf("persist cleanup ack progress failed workflow=%s cluster=%s namespace=%s: %v", ack.WorkflowName, ack.ClusterID, ack.Namespace, err)
+		}
 		return
 	}
-	_ = deleteDesiredForWorkflow(ctx, s.state.client, s.state.namespace, ack.WorkflowName)
-	_ = patchMetadata(ctx, s.state.client, workflowGVR, s.state.namespace, ack.WorkflowName, map[string]string{cleanupPendingAnnotation: ""}, []string{finalizer})
+	if err := deleteDesiredForWorkflow(ctx, s.state.client, s.state.namespace, ack.WorkflowName); err != nil {
+		log.Printf("delete desired taskgroups after cleanup ack failed workflow=%s: %v", ack.WorkflowName, err)
+		return
+	}
+	if err := patchMetadata(ctx, s.state.client, workflowGVR, s.state.namespace, ack.WorkflowName, map[string]string{cleanupPendingAnnotation: ""}, []string{finalizer}); err != nil {
+		log.Printf("remove workflow finalizer after cleanup ack failed workflow=%s: %v", ack.WorkflowName, err)
+		return
+	}
 	log.Printf("cleanup ack complete workflow=%s", ack.WorkflowName)
 }
 
@@ -440,20 +463,25 @@ func reconcileControl(ctx context.Context, state *controlState) error {
 		wf := &list.Items[i]
 		name := wf.GetName()
 		if wf.GetDeletionTimestamp() != nil {
-			targets := cleanupTargetsForWorkflow(ctx, state, wf)
-			if len(targets) == 0 {
-				targets = []cleanupTarget{{WorkflowName: name, WorkflowUID: string(wf.GetUID()), ClusterID: nestedStringDefault(wf.Object, []string{"spec", "clusterID"}, defaultClusterID), Namespace: nestedStringDefault(wf.Object, []string{"spec", "namespace"}, defaultRuntimeNamespace)}}
-			}
-			targetKeys := make([]string, 0, len(targets))
-			for _, target := range targets {
-				targetKeys = append(targetKeys, cleanupKey(target.ClusterID, target.Namespace))
-			}
-			sort.Strings(targetKeys)
 			pending := cleanupPending(wf)
 			sort.Strings(pending)
-			if len(pending) == 0 || strings.Join(pending, ",") != strings.Join(targetKeys, ",") {
+			if len(pending) == 0 {
+				targets, err := cleanupTargetsForWorkflow(ctx, state, wf)
+				if err != nil {
+					return fmt.Errorf("discover cleanup targets for workflow %s: %w", name, err)
+				}
+				if len(targets) == 0 {
+					targets = []cleanupTarget{{WorkflowName: name, WorkflowUID: string(wf.GetUID()), ClusterID: nestedStringDefault(wf.Object, []string{"spec", "clusterID"}, defaultClusterID), Namespace: nestedStringDefault(wf.Object, []string{"spec", "namespace"}, defaultRuntimeNamespace)}}
+				}
+				targetKeys := make([]string, 0, len(targets))
+				for _, target := range targets {
+					targetKeys = append(targetKeys, cleanupKey(target.ClusterID, target.Namespace))
+				}
+				sort.Strings(targetKeys)
 				pending = targetKeys
-				_ = patchMetadata(ctx, state.client, workflowGVR, state.namespace, name, map[string]string{cleanupPendingAnnotation: strings.Join(pending, ",")}, nil)
+				if err := patchMetadata(ctx, state.client, workflowGVR, state.namespace, name, map[string]string{cleanupPendingAnnotation: strings.Join(pending, ",")}, nil); err != nil {
+					return fmt.Errorf("persist cleanup pending targets for workflow %s: %w", name, err)
+				}
 			}
 			for _, key := range pending {
 				clusterID, ns := splitCleanupKey(key)
@@ -464,7 +492,10 @@ func reconcileControl(ctx context.Context, state *controlState) error {
 			continue
 		}
 		if !hasFinalizer(wf, finalizer) {
-			_ = patchMetadata(ctx, state.client, workflowGVR, state.namespace, name, nil, []string{finalizer})
+			if err := patchMetadata(ctx, state.client, workflowGVR, state.namespace, name, nil, []string{finalizer}); err != nil {
+				return fmt.Errorf("add workflow finalizer %s: %w", name, err)
+			}
+			continue
 		}
 		ttlExpired, ttlErr := maybeExpireWorkflow(ctx, state.client, state.namespace, wf)
 		if ttlErr != nil {
@@ -521,6 +552,10 @@ func reconcileWorkflow(ctx context.Context, state *controlState, wf *unstructure
 			clusterID, targetNamespace = resolvedCluster, resolvedNS
 		}
 		name := safeName(wf.GetName() + "-" + groupName)
+		targetNamespaces, err := mergeTargetNamespaces(ctx, state.client, state.namespace, wf, name, clusterID, targetNamespace)
+		if err != nil {
+			return nil, err
+		}
 		renderedObjects, _ := normalizeObjectSlice(tg["renderedObjects"])
 		runtimeConfig, _ := tg["runtimeConfig"].(map[string]any)
 		desired := &unstructured.Unstructured{Object: map[string]any{
@@ -532,15 +567,16 @@ func reconcileWorkflow(ctx context.Context, state *controlState, wf *unstructure
 				"labels":    map[string]any{labelWorkflow: wf.GetName(), labelTaskGroup: groupName, labelRole: "desired", labelManagedBy: managedBy},
 			},
 			"spec": map[string]any{
-				"workflowName":    wf.GetName(),
-				"workflowUid":     string(wf.GetUID()),
-				"groupName":       groupName,
-				"clusterID":       clusterID,
-				"targetNamespace": targetNamespace,
-				"runtimeType":     runtimeType,
-				"runtimeConfig":   runtimeConfig,
-				"renderedObjects": renderedObjects,
-				"poolRef":         poolRef,
+				"workflowName":     wf.GetName(),
+				"workflowUid":      string(wf.GetUID()),
+				"groupName":        groupName,
+				"clusterID":        clusterID,
+				"targetNamespace":  targetNamespace,
+				"targetNamespaces": targetNamespaces,
+				"runtimeType":      runtimeType,
+				"runtimeConfig":    runtimeConfig,
+				"renderedObjects":  renderedObjects,
+				"poolRef":          poolRef,
 			},
 		}}
 		created, err := createOrUpdate(state.client.Resource(taskGroupGVR).Namespace(state.namespace), ctx, desired)
@@ -548,6 +584,10 @@ func reconcileWorkflow(ctx context.Context, state *controlState, wf *unstructure
 			return nil, err
 		}
 		statusPhase, _, _ := unstructured.NestedString(created.Object, "status", "phase")
+		statusObservedGeneration, _, _ := unstructured.NestedInt64(created.Object, "status", "observedGeneration")
+		if statusObservedGeneration != created.GetGeneration() {
+			statusPhase = ""
+		}
 		if statusPhase == "Failed" {
 			phase = "Failed"
 			message = nestedStringDefault(created.Object, []string{"status", "message"}, "taskgroup failed")
@@ -557,6 +597,11 @@ func reconcileWorkflow(ctx context.Context, state *controlState, wf *unstructure
 			}
 		}
 		snapshots = append(snapshots, snapshotFromTaskGroup(created))
+	}
+	if len(snapshots) > 0 {
+		if err := patchMetadata(ctx, state.client, workflowGVR, state.namespace, wf.GetName(), map[string]string{cleanupTargetsAnnotation: mergeCleanupTargetAnnotation(wf, snapshots)}, nil); err != nil {
+			return nil, fmt.Errorf("persist cleanup target history for workflow %s: %w", wf.GetName(), err)
+		}
 	}
 	currentPhase := nestedStringDefault(wf.Object, []string{"status", "phase"}, "")
 	currentCompletion := nestedStringDefault(wf.Object, []string{"status", "completionTime"}, "")
@@ -576,11 +621,12 @@ func snapshotFromTaskGroup(tg *unstructured.Unstructured) taskGroupSnapshot {
 	spec, _, _ := unstructured.NestedMap(tg.Object, "spec")
 	rendered, _ := normalizeObjectSlice(spec["renderedObjects"])
 	cfg, _ := spec["runtimeConfig"].(map[string]any)
+	targetNamespaces := stringSliceStrings(spec["targetNamespaces"])
 	return taskGroupSnapshot{
 		Name: tg.GetName(), Namespace: tg.GetNamespace(), UID: string(tg.GetUID()), Generation: tg.GetGeneration(),
 		WorkflowName: stringValue(spec["workflowName"]), WorkflowUID: stringValue(spec["workflowUid"]), GroupName: stringValue(spec["groupName"]),
 		RuntimeType: stringValue(spec["runtimeType"]), RuntimeConfig: cfg, RenderedObjects: rendered,
-		ClusterID: stringValue(spec["clusterID"]), TargetNamespace: stringValue(spec["targetNamespace"]), PoolRef: stringValue(spec["poolRef"]),
+		ClusterID: stringValue(spec["clusterID"]), TargetNamespace: stringValue(spec["targetNamespace"]), TargetNamespaces: targetNamespaces, PoolRef: stringValue(spec["poolRef"]),
 	}
 }
 
@@ -630,7 +676,11 @@ func runBackendSession(ctx context.Context, dyn dynamic.Interface, clusterID, na
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-statusTicker.C:
-			for _, status := range collectBackendStatuses(ctx, dyn, namespace, clusterID) {
+			for _, snapshot := range lastDesired {
+				if snapshot.ClusterID != clusterID {
+					continue
+				}
+				status := statusForSnapshot(ctx, dyn, backendNamespace(namespace, snapshot), clusterID, snapshot)
 				_ = stream.Send(&sessionEnvelope{Kind: "status", ClusterID: clusterID, Status: &status})
 			}
 		default:
@@ -647,7 +697,10 @@ func runBackendSession(ctx context.Context, dyn dynamic.Interface, clusterID, na
 		}
 		lastDesired = msg.TaskGroups
 		for _, snapshot := range lastDesired {
-			status := statusForSnapshot(ctx, dyn, namespace, clusterID, snapshot)
+			if snapshot.ClusterID != clusterID {
+				continue
+			}
+			status := statusForSnapshot(ctx, dyn, backendNamespace(namespace, snapshot), clusterID, snapshot)
 			_ = stream.Send(&sessionEnvelope{Kind: "status", ClusterID: clusterID, Status: &status})
 		}
 	}
@@ -701,22 +754,46 @@ func applyBackendSync(ctx context.Context, dyn dynamic.Interface, namespace, clu
 		if snapshot.ClusterID != clusterID {
 			continue
 		}
-		desiredNames[snapshot.Name] = true
-		if err := applyMirror(ctx, dyn, namespace, snapshot); err != nil {
+		targetNamespace := backendNamespace(namespace, snapshot)
+		desiredNames[targetNamespace+"/"+snapshot.Name] = true
+		if err := applyMirror(ctx, dyn, targetNamespace, snapshot); err != nil {
 			log.Printf("apply mirror failed taskgroup=%s: %v", snapshot.Name, err)
 			continue
 		}
-		if err := reconcileRuntime(ctx, dyn, namespace, snapshot); err != nil {
+		if err := reconcileRuntime(ctx, dyn, targetNamespace, snapshot); err != nil {
 			log.Printf("reconcile runtime failed taskgroup=%s: %v", snapshot.Name, err)
 		}
 	}
-	list, err := dyn.Resource(taskGroupGVR).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelManagedBy + "=" + managedBy})
-	if err == nil {
-		for i := range list.Items {
-			item := &list.Items[i]
-			if !desiredNames[item.GetName()] {
-				_ = cleanupTaskGroupRuntime(ctx, dyn, namespace, item)
-				_ = dyn.Resource(taskGroupGVR).Namespace(namespace).Delete(ctx, item.GetName(), metav1.DeleteOptions{})
+	sweepNamespaces := map[string]bool{namespace: true}
+	for _, snapshot := range desired {
+		if snapshot.ClusterID == clusterID {
+			sweepNamespaces[backendNamespace(namespace, snapshot)] = true
+			for _, targetNamespace := range snapshot.TargetNamespaces {
+				if targetNamespace != "" {
+					sweepNamespaces[targetNamespace] = true
+				}
+			}
+		}
+	}
+	for _, target := range cleanup {
+		if target.ClusterID == clusterID {
+			sweepNamespaces[target.Namespace] = true
+		}
+	}
+	for sweepNamespace := range sweepNamespaces {
+		list, err := dyn.Resource(taskGroupGVR).Namespace(sweepNamespace).List(ctx, metav1.ListOptions{LabelSelector: labelManagedBy + "=" + managedBy})
+		if err == nil {
+			for i := range list.Items {
+				item := &list.Items[i]
+				if !desiredNames[sweepNamespace+"/"+item.GetName()] {
+					if err := cleanupTaskGroupRuntime(ctx, dyn, sweepNamespace, item); err != nil {
+						log.Printf("cleanup stale taskgroup runtime failed namespace=%s taskgroup=%s: %v", sweepNamespace, item.GetName(), err)
+						continue
+					}
+					if err := dyn.Resource(taskGroupGVR).Namespace(sweepNamespace).Delete(ctx, item.GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+						log.Printf("delete stale taskgroup mirror failed namespace=%s taskgroup=%s: %v", sweepNamespace, item.GetName(), err)
+					}
+				}
 			}
 		}
 	}
@@ -740,6 +817,7 @@ func applyMirror(ctx context.Context, dyn dynamic.Interface, namespace string, s
 			"groupName":           snapshot.GroupName,
 			"clusterID":           snapshot.ClusterID,
 			"targetNamespace":     snapshot.TargetNamespace,
+			"targetNamespaces":    snapshot.TargetNamespaces,
 			"runtimeType":         snapshot.RuntimeType,
 			"runtimeConfig":       snapshot.RuntimeConfig,
 			"renderedObjects":     snapshot.RenderedObjects,
@@ -765,10 +843,17 @@ func reconcileRuntime(ctx context.Context, dyn dynamic.Interface, namespace stri
 		desired, err = applyRayObject(ctx, dyn, namespace, snapshot, "RayCluster", rayClusterGVR)
 	}
 	if err != nil {
+		if errors.Is(err, errRuntimeReplacing) {
+			return patchStatus(ctx, dyn, taskGroupGVR, namespace, snapshot.Name, map[string]any{"phase": "Running", "message": "runtime object replacement in progress"})
+		}
 		_ = patchStatus(ctx, dyn, taskGroupGVR, namespace, snapshot.Name, map[string]any{"phase": "Failed", "message": err.Error()})
 		return err
 	}
 	if err := pruneRuntime(ctx, dyn, namespace, snapshot, desired); err != nil {
+		if errors.Is(err, errRuntimeReplacing) {
+			return patchStatus(ctx, dyn, taskGroupGVR, namespace, snapshot.Name, map[string]any{"phase": "Running", "message": "runtime object pruning in progress"})
+		}
+		_ = patchStatus(ctx, dyn, taskGroupGVR, namespace, snapshot.Name, map[string]any{"phase": "Failed", "message": err.Error()})
 		return err
 	}
 	status := statusForSnapshot(ctx, dyn, namespace, snapshot.ClusterID, snapshot)
@@ -801,8 +886,20 @@ func applyRenderedObjects(ctx context.Context, dyn dynamic.Interface, namespace 
 		labels[labelTaskGroup] = snapshot.GroupName
 		labels[labelManagedBy] = managedBy
 		obj.SetLabels(labels)
+		annotations := obj.GetAnnotations()
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		annotations[specHashAnnotation] = desiredSpecHash(obj)
+		obj.SetAnnotations(annotations)
 		if gvr == jobGVR {
-			if _, err := dyn.Resource(gvr).Namespace(namespace).Get(ctx, obj.GetName(), metav1.GetOptions{}); err == nil {
+			if existing, err := dyn.Resource(gvr).Namespace(namespace).Get(ctx, obj.GetName(), metav1.GetOptions{}); err == nil {
+				if existing.GetAnnotations()[specHashAnnotation] != annotations[specHashAnnotation] {
+					if err := dyn.Resource(gvr).Namespace(namespace).Delete(ctx, obj.GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+						return nil, err
+					}
+					return nil, errRuntimeReplacing
+				}
 				refs = append(refs, runtimeRef{GVR: gvr, Kind: obj.GetKind(), Name: obj.GetName()})
 				continue
 			}
@@ -837,6 +934,21 @@ func applyRayObject(ctx context.Context, dyn dynamic.Interface, namespace string
 		},
 		"spec": spec,
 	}}
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[specHashAnnotation] = desiredSpecHash(obj)
+	obj.SetAnnotations(annotations)
+	if existing, err := dyn.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{}); err == nil {
+		if existing.GetAnnotations()[specHashAnnotation] != annotations[specHashAnnotation] {
+			if err := dyn.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return nil, err
+			}
+			return nil, errRuntimeReplacing
+		}
+		return []runtimeRef{{GVR: gvr, Kind: kind, Name: name}}, nil
+	}
 	if _, err := createOrUpdate(dyn.Resource(gvr).Namespace(namespace), ctx, obj); err != nil {
 		return nil, err
 	}
@@ -851,13 +963,20 @@ func pruneRuntime(ctx context.Context, dyn dynamic.Interface, namespace string, 
 	for _, ref := range []runtimeRef{{GVR: configMapGVR}, {GVR: jobGVR}, {GVR: rayJobGVR}, {GVR: rayClusterGVR}} {
 		list, err := dyn.Resource(ref.GVR).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s,%s=%s,%s=%s", labelManagedBy, managedBy, labelWorkflow, snapshot.WorkflowName, labelTaskGroup, snapshot.GroupName)})
 		if err != nil {
-			continue
+			return fmt.Errorf("list runtime objects for prune %s: %w", ref.GVR.String(), err)
 		}
+		deleted := false
 		for i := range list.Items {
 			item := &list.Items[i]
 			if !keep[ref.GVR.String()+"/"+item.GetName()] {
-				_ = dyn.Resource(ref.GVR).Namespace(namespace).Delete(ctx, item.GetName(), metav1.DeleteOptions{})
+				if err := dyn.Resource(ref.GVR).Namespace(namespace).Delete(ctx, item.GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+					return fmt.Errorf("delete stale runtime object %s/%s: %w", ref.GVR.String(), item.GetName(), err)
+				}
+				deleted = true
 			}
+		}
+		if deleted {
+			return errRuntimeReplacing
 		}
 	}
 	return nil
@@ -953,6 +1072,7 @@ func collectBackendStatuses(ctx context.Context, dyn dynamic.Interface, namespac
 		}
 		snapshot.RuntimeConfig, _ = spec["runtimeConfig"].(map[string]any)
 		snapshot.RenderedObjects, _ = normalizeObjectSlice(spec["renderedObjects"])
+		snapshot.TargetNamespaces = stringSliceStrings(spec["targetNamespaces"])
 		statuses = append(statuses, statusForSnapshot(ctx, dyn, namespace, clusterID, snapshot))
 	}
 	return statuses
@@ -962,10 +1082,12 @@ func cleanupWorkflowRuntime(ctx context.Context, dyn dynamic.Interface, namespac
 	for _, gvr := range []schema.GroupVersionResource{configMapGVR, jobGVR, rayJobGVR, rayClusterGVR, taskGroupGVR} {
 		list, err := dyn.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s,%s=%s", labelManagedBy, managedBy, labelWorkflow, workflowName)})
 		if err != nil {
-			continue
+			return fmt.Errorf("list %s in %s for cleanup: %w", gvr.Resource, namespace, err)
 		}
 		for i := range list.Items {
-			_ = dyn.Resource(gvr).Namespace(namespace).Delete(ctx, list.Items[i].GetName(), metav1.DeleteOptions{})
+			if err := dyn.Resource(gvr).Namespace(namespace).Delete(ctx, list.Items[i].GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("delete %s/%s in %s: %w", gvr.Resource, list.Items[i].GetName(), namespace, err)
+			}
 		}
 	}
 	deadline := time.Now().Add(60 * time.Second)
@@ -973,9 +1095,10 @@ func cleanupWorkflowRuntime(ctx context.Context, dyn dynamic.Interface, namespac
 		remaining := 0
 		for _, gvr := range []schema.GroupVersionResource{configMapGVR, jobGVR, rayJobGVR, rayClusterGVR, taskGroupGVR} {
 			list, err := dyn.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s,%s=%s", labelManagedBy, managedBy, labelWorkflow, workflowName)})
-			if err == nil {
-				remaining += len(list.Items)
+			if err != nil {
+				return fmt.Errorf("verify %s absent in %s: %w", gvr.Resource, namespace, err)
 			}
+			remaining += len(list.Items)
 		}
 		if remaining == 0 {
 			return nil
@@ -991,10 +1114,12 @@ func cleanupTaskGroupRuntime(ctx context.Context, dyn dynamic.Interface, namespa
 	for _, gvr := range []schema.GroupVersionResource{configMapGVR, jobGVR, rayJobGVR, rayClusterGVR} {
 		list, err := dyn.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s,%s=%s,%s=%s", labelManagedBy, managedBy, labelWorkflow, workflow, labelTaskGroup, group)})
 		if err != nil {
-			continue
+			return fmt.Errorf("list %s in %s for taskgroup cleanup: %w", gvr.Resource, namespace, err)
 		}
 		for i := range list.Items {
-			_ = dyn.Resource(gvr).Namespace(namespace).Delete(ctx, list.Items[i].GetName(), metav1.DeleteOptions{})
+			if err := dyn.Resource(gvr).Namespace(namespace).Delete(ctx, list.Items[i].GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("delete %s/%s in %s: %w", gvr.Resource, list.Items[i].GetName(), namespace, err)
+			}
 		}
 	}
 	return nil
@@ -1217,7 +1342,9 @@ func deleteDesiredForWorkflow(ctx context.Context, dyn dynamic.Interface, namesp
 		return err
 	}
 	for i := range list.Items {
-		_ = dyn.Resource(taskGroupGVR).Namespace(namespace).Delete(ctx, list.Items[i].GetName(), metav1.DeleteOptions{})
+		if err := dyn.Resource(taskGroupGVR).Namespace(namespace).Delete(ctx, list.Items[i].GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
 	}
 	return nil
 }
@@ -1228,6 +1355,10 @@ func maybeExpireWorkflow(ctx context.Context, dyn dynamic.Interface, namespace s
 	}
 	phase := nestedStringDefault(wf.Object, []string{"status", "phase"}, "")
 	if phase != "Succeeded" && phase != "Failed" {
+		return false, nil
+	}
+	observedGeneration, _, _ := unstructured.NestedInt64(wf.Object, "status", "observedGeneration")
+	if observedGeneration != wf.GetGeneration() {
 		return false, nil
 	}
 	ttl, _, _ := unstructured.NestedInt64(wf.Object, "spec", "ttlSecondsAfterFinished")
@@ -1269,28 +1400,40 @@ func allowedRenderedGVR(apiVersion, kind string) (schema.GroupVersionResource, b
 	}
 }
 
-func cleanupTargetsForWorkflow(ctx context.Context, state *controlState, wf *unstructured.Unstructured) []cleanupTarget {
-	if list, err := state.client.Resource(taskGroupGVR).Namespace(state.namespace).List(ctx, metav1.ListOptions{LabelSelector: labelWorkflow + "=" + wf.GetName() + "," + labelRole + "=desired"}); err == nil {
-		seen := map[string]cleanupTarget{}
-		for i := range list.Items {
-			spec, _, _ := unstructured.NestedMap(list.Items[i].Object, "spec")
-			clusterID := stringValue(spec["clusterID"])
-			ns := stringValue(spec["targetNamespace"])
-			if clusterID == "" || ns == "" {
-				continue
-			}
-			seen[cleanupKey(clusterID, ns)] = cleanupTarget{WorkflowName: wf.GetName(), WorkflowUID: string(wf.GetUID()), ClusterID: clusterID, Namespace: ns}
-		}
-		if len(seen) > 0 {
-			targets := make([]cleanupTarget, 0, len(seen))
-			for _, target := range seen {
-				targets = append(targets, target)
-			}
-			return targets
+func cleanupTargetsForWorkflow(ctx context.Context, state *controlState, wf *unstructured.Unstructured) ([]cleanupTarget, error) {
+	seen := map[string]cleanupTarget{}
+	for _, key := range annotationList(wf, cleanupTargetsAnnotation) {
+		clusterID, ns := splitCleanupKey(key)
+		if clusterID != "" && ns != "" {
+			seen[key] = cleanupTarget{WorkflowName: wf.GetName(), WorkflowUID: string(wf.GetUID()), ClusterID: clusterID, Namespace: ns}
 		}
 	}
+	list, err := state.client.Resource(taskGroupGVR).Namespace(state.namespace).List(ctx, metav1.ListOptions{LabelSelector: labelWorkflow + "=" + wf.GetName() + "," + labelRole + "=desired"})
+	if err != nil {
+		return nil, fmt.Errorf("list desired taskgroups: %w", err)
+	}
+	for i := range list.Items {
+		spec, _, _ := unstructured.NestedMap(list.Items[i].Object, "spec")
+		clusterID := stringValue(spec["clusterID"])
+		ns := stringValue(spec["targetNamespace"])
+		if clusterID == "" || ns == "" {
+			continue
+		}
+		seen[cleanupKey(clusterID, ns)] = cleanupTarget{WorkflowName: wf.GetName(), WorkflowUID: string(wf.GetUID()), ClusterID: clusterID, Namespace: ns}
+		for _, targetNamespace := range stringSliceStrings(spec["targetNamespaces"]) {
+			if targetNamespace != "" {
+				seen[cleanupKey(clusterID, targetNamespace)] = cleanupTarget{WorkflowName: wf.GetName(), WorkflowUID: string(wf.GetUID()), ClusterID: clusterID, Namespace: targetNamespace}
+			}
+		}
+	}
+	if len(seen) > 0 {
+		targets := make([]cleanupTarget, 0, len(seen))
+		for _, target := range seen {
+			targets = append(targets, target)
+		}
+		return targets, nil
+	}
 	taskGroups, _, _ := unstructured.NestedSlice(wf.Object, "spec", "taskGroups")
-	seen := map[string]cleanupTarget{}
 	for _, raw := range taskGroups {
 		tg, ok := raw.(map[string]any)
 		if !ok {
@@ -1299,9 +1442,11 @@ func cleanupTargetsForWorkflow(ctx context.Context, state *controlState, wf *uns
 		clusterID := nestedStringDefault(wf.Object, []string{"spec", "clusterID"}, defaultClusterID)
 		ns := nestedStringDefault(wf.Object, []string{"spec", "namespace"}, defaultRuntimeNamespace)
 		if stringValue(tg["poolRef"]) != "" {
-			if resolvedCluster, resolvedNS, err := resolvePool(ctx, state.client, state.namespace, stringValue(tg["poolRef"])); err == nil {
-				clusterID, ns = resolvedCluster, resolvedNS
+			resolvedCluster, resolvedNS, err := resolvePool(ctx, state.client, state.namespace, stringValue(tg["poolRef"]))
+			if err != nil {
+				return nil, err
 			}
+			clusterID, ns = resolvedCluster, resolvedNS
 		}
 		seen[cleanupKey(clusterID, ns)] = cleanupTarget{WorkflowName: wf.GetName(), WorkflowUID: string(wf.GetUID()), ClusterID: clusterID, Namespace: ns}
 	}
@@ -1309,11 +1454,15 @@ func cleanupTargetsForWorkflow(ctx context.Context, state *controlState, wf *uns
 	for _, target := range seen {
 		targets = append(targets, target)
 	}
-	return targets
+	return targets, nil
 }
 
 func cleanupPending(wf *unstructured.Unstructured) []string {
-	value := wf.GetAnnotations()[cleanupPendingAnnotation]
+	return annotationList(wf, cleanupPendingAnnotation)
+}
+
+func annotationList(obj metav1.Object, key string) []string {
+	value := obj.GetAnnotations()[key]
 	if value == "" {
 		return nil
 	}
@@ -1325,6 +1474,24 @@ func cleanupPending(wf *unstructured.Unstructured) []string {
 		}
 	}
 	return out
+}
+
+func mergeCleanupTargetAnnotation(wf *unstructured.Unstructured, snapshots []taskGroupSnapshot) string {
+	targets := map[string]bool{}
+	for _, key := range annotationList(wf, cleanupTargetsAnnotation) {
+		targets[key] = true
+	}
+	for _, snapshot := range snapshots {
+		if snapshot.ClusterID != "" && snapshot.TargetNamespace != "" {
+			targets[cleanupKey(snapshot.ClusterID, snapshot.TargetNamespace)] = true
+		}
+	}
+	keys := make([]string, 0, len(targets))
+	for key := range targets {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ",")
 }
 
 func cleanupKey(clusterID, namespace string) string { return clusterID + "/" + namespace }
@@ -1339,6 +1506,49 @@ func splitCleanupKey(key string) (string, string) {
 
 func statusKey(clusterID, namespace, name string) string {
 	return clusterID + "/" + namespace + "/" + name
+}
+
+func backendNamespace(defaultNamespace string, snapshot taskGroupSnapshot) string {
+	if snapshot.TargetNamespace != "" {
+		return snapshot.TargetNamespace
+	}
+	return defaultNamespace
+}
+
+func mergeTargetNamespaces(ctx context.Context, dyn dynamic.Interface, controlNamespace string, wf *unstructured.Unstructured, taskGroupName, clusterID, currentNamespace string) ([]string, error) {
+	namespaces := map[string]bool{}
+	if currentNamespace != "" {
+		namespaces[currentNamespace] = true
+	}
+	for _, key := range annotationList(wf, cleanupTargetsAnnotation) {
+		targetClusterID, targetNamespace := splitCleanupKey(key)
+		if targetClusterID == clusterID && targetNamespace != "" {
+			namespaces[targetNamespace] = true
+		}
+	}
+	existing, err := dyn.Resource(taskGroupGVR).Namespace(controlNamespace).Get(ctx, taskGroupName, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("read existing taskgroup placement history %s: %w", taskGroupName, err)
+	}
+	if err == nil {
+		spec, _, _ := unstructured.NestedMap(existing.Object, "spec")
+		if stringValue(spec["clusterID"]) == clusterID {
+			if previous := stringValue(spec["targetNamespace"]); previous != "" {
+				namespaces[previous] = true
+			}
+			for _, previous := range stringSliceStrings(spec["targetNamespaces"]) {
+				if previous != "" {
+					namespaces[previous] = true
+				}
+			}
+		}
+	}
+	out := make([]string, 0, len(namespaces))
+	for namespace := range namespaces {
+		out = append(out, namespace)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func loadAPIPolicy() map[string]apiPolicyEntry {
@@ -1453,6 +1663,23 @@ func stringSlice(value any) []any {
 	}
 }
 
+func stringSliceStrings(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if value := stringValue(item); value != "" {
+				out = append(out, value)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 func stringValue(value any) string {
 	switch typed := value.(type) {
 	case string:
@@ -1537,6 +1764,19 @@ func deepCopyMap(in map[string]any) map[string]any {
 	out := map[string]any{}
 	_ = json.Unmarshal(data, &out)
 	return out
+}
+
+func desiredSpecHash(obj *unstructured.Unstructured) string {
+	payload := map[string]any{
+		"apiVersion": obj.GetAPIVersion(),
+		"kind":       obj.GetKind(),
+		"name":       obj.GetName(),
+		"spec":       obj.Object["spec"],
+		"data":       obj.Object["data"],
+	}
+	data, _ := json.Marshal(payload)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
