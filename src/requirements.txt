@@ -38,12 +38,12 @@ truststore==0.10.4
 psycopg2-binary==2.9.11
 
 # REST API
-fastapi==0.125.0
+fastapi==0.137.2
 uvicorn[standard]==0.30.1
 h11==0.16.0
 
 # JWT
-pyjwt==2.12.0
+pyjwt==2.13.0
 
 # Requests
 requests==2.32.4
@@ -59,7 +59,7 @@ mypy-boto3-iam==1.38.*
 mypy-boto3-s3==1.38.*
 mypy-boto3-sts==1.38.*
 
-cryptography==46.0.7
+cryptography==48.0.1
 
 # JWE, JWK
 jwcrypto==1.5.6
