@@ -29,11 +29,11 @@ The full tutorial from Isaac Lab can be found [here](https://isaac-sim.github.io
 ## Running the Workflow
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_mimic/groot_mimic.yaml
-osmo workflow submit groot_mimic.yaml --set storage_url=s3://my-bucket/datasets
+osmo workflow submit groot_mimic.yaml --set storage_url=s3://my-bucket/osmo-data
 ```
 
 You can download the generated demonstrations and agent checkpoints from the URL the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
 
 ```bash
-osmo data download s3://my-bucket/datasets/mimic-dataset/<workflow-id>/ ./
+osmo data download s3://my-bucket/osmo-data/groot-mimic/<workflow-id>/ ./
 ```

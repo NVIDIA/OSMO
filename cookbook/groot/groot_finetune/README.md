@@ -25,11 +25,11 @@ This workflow how to perform fine-tuning using [Isaac Groot](https://github.com/
 ## Running the Workflow
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_finetune/groot_finetune.yaml
-osmo workflow submit groot_finetune.yaml --set storage_url=s3://my-bucket/datasets
+osmo workflow submit groot_finetune.yaml --set storage_url=s3://my-bucket/osmo-data
 ```
 
-You can download the generated demonstrations from the URL the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
+You can download the fine-tuned model artifacts from the URL the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
 
 ```bash
-osmo data download s3://my-bucket/datasets/groot-finetune-dataset/<workflow-id>/ ./
+osmo data download s3://my-bucket/osmo-data/groot-finetune/<workflow-id>/ ./
 ```

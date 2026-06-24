@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 2: Convert HDF5 camera observations to MP4 videos
-# Usage: osmo workflow submit 02_hdf5_to_mp4.yaml --pool default --set storage_url=s3://my-bucket/datasets
+# Usage: osmo workflow submit 02_hdf5_to_mp4.yaml --pool default --set storage_url=s3://my-bucket/osmo-data
 
 workflow:
   name: {{ workflow_name }}
@@ -41,9 +41,9 @@ workflow:
           HF_TOKEN: token
 
     inputs:
-    - url: {{ storage_url }}/{{ input_dataset }}/
+    - url: {{ storage_url }}/{{ input_prefix }}/
     outputs:
-    - url: {{ storage_url }}/{{ output_dataset }}/
+    - url: {{ storage_url }}/{{ output_prefix }}/
 
     args:
     - /tmp/entry.sh
@@ -131,5 +131,5 @@ default-values:
   storage: 256Gi
   num_gpu: 1
   num_cpu: 16
-  input_dataset: PhysAI-MimicGen  # Produced by stage 01.
-  output_dataset: PhysAI-MP4Videos  # Consumed by stage 03.
+  input_prefix: PhysAI-MimicGen  # Input prefix produced by stage 01.
+  output_prefix: PhysAI-MP4Videos  # Output prefix consumed by stage 03.

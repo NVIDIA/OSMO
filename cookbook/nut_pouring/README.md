@@ -76,7 +76,7 @@ Pick a base storage URL for the chain (every stage will read from / write to it)
 and upload the seed input HDF5 to `$STORAGE_URL/PhysAI-InputMimic/`:
 
 ```bash
-export STORAGE_URL=s3://my-bucket/datasets
+export STORAGE_URL=s3://my-bucket/osmo-data
 
 curl -O https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/dataset_annotated_gr1_nut_pouring.hdf5
 osmo data upload $STORAGE_URL/PhysAI-InputMimic/ dataset_annotated_gr1_nut_pouring.hdf5
@@ -91,7 +91,7 @@ mkdir -p nut_pouring && cd nut_pouring
 curl https://codeload.github.com/NVIDIA/OSMO/tar.gz/main | tar -xz --strip=4 OSMO-main/cookbook/nut_pouring
 
 # Pick a base URL the entire chain will read from and write to.
-export STORAGE_URL=s3://my-bucket/datasets
+export STORAGE_URL=s3://my-bucket/osmo-data
 
 # Step 1: MimicGen data generation
 osmo workflow submit 01_mimic_generation.yaml --set storage_url=$STORAGE_URL

@@ -27,9 +27,9 @@ workflow:
     args: ["ls -la {{input:0}}/"]
 
     inputs:
-    - url: {{ storage_url }}/large_dataset/
+    - url: {{ storage_url }}/source-data/
       regex: .*\.txt$ # (1)
 
     outputs:
-    - url: {{ storage_url }}/output_dataset/{{workflow_id}}/
+    - url: {{ storage_url }}/filtered-output/{{workflow_id}}/
       regex: .*\.(json|yaml)$ # (2)

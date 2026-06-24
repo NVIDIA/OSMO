@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Gazebo: Generating Synthetic Data
 
-This workflow demonstrates synthetic data generation using the Gazebo simulator. It launches Gazebo with a segmentation world, randomly places objects (vehicles, trees, cones) in the scene, captures synthetic images with semantic labels, and saves them to a dataset.
+This workflow demonstrates synthetic data generation using the Gazebo simulator. It launches Gazebo with a segmentation world, randomly places objects (vehicles, trees, cones) in the scene, captures synthetic images with semantic labels, and writes them to object storage.
 
 ## Files
 
@@ -32,15 +32,15 @@ This workflow demonstrates synthetic data generation using the Gazebo simulator.
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/gazebo_sdg.yaml
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/sdg.py
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/segmentation_world.sdf
-osmo workflow submit gazebo_sdg.yaml --set storage_url=s3://my-bucket/datasets
+osmo workflow submit gazebo_sdg.yaml --set storage_url=s3://my-bucket/osmo-data
 ```
 
-## Downloading Output Dataset
+## Downloading Output
 
 Once the workflow is completed, download the generated data from the URL the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
 
 ```bash
-osmo data download s3://my-bucket/datasets/gazebo-sdg-sample/<workflow-id>/ <local_folder>
+osmo data download s3://my-bucket/osmo-data/gazebo-sdg-sample/<workflow-id>/ <local_folder>
 ```
 
 ## Example Output
