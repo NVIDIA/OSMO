@@ -191,8 +191,8 @@ How to browse previously submitted workflows?
 
 Refer to :ref:`workflow list <cli_reference_workflow_list>` to list workflows.
 
-How to mount datasets inside the workflow?
-------------------------------------------
+How to mount data inside the workflow?
+--------------------------------------
 
 Mounting inputs inside a workflow is not supported. Contact your admin to setup NAS or LFS support.
 
@@ -281,8 +281,10 @@ In case you need to find the IP address of a task, you can use the following com
 How to upload a file/directory as an input to a workflow?
 ---------------------------------------------------------
 
-To upload a file/directory as an input to a workflow, you can use a ``dataset`` input with the
-``localpath`` field. For more information, see :ref:`ds_localpath`.
+Use ``files`` with ``localpath`` when you need to inject individual local files into a task.
+For larger inputs, place the data in external storage and reference it with ``url`` in the task's
+``inputs`` field. For more information, see :ref:`workflow_spec_file_injection` and
+:ref:`workflow_spec_inputs_and_outputs`.
 
 How to debug when preemption occurs?
 ------------------------------------

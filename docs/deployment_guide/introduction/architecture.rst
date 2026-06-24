@@ -71,7 +71,7 @@ The OSMO Service runs on the service cluster (i.e., control plane) and provides 
           • Workflow submission & validation
           • User authentication & authorization
           • Workflow monitoring & management
-          • Dataset operations, inspection
+          • Data and storage configuration management
 
       .. grid-item-card:: :octicon:`workflow` Worker
 
@@ -206,5 +206,4 @@ Authentication
 .. seealso::
 
     To learn more, refer to :doc:`../appendix/authentication/index`
-
 

@@ -32,7 +32,7 @@ SPDX-License-Identifier: Apache-2.0
 | <a href="#roadmap">Roadmap</a>
 
 
-Use OSMO to manage your workflows, version your datasets and even remotely develop on a backend node. Using OSMO's backend configuration, run your workflows seamlessly on any cloud environment. Build a data factory to manage your synthetic and real robot data, train neural networks with experiment tracking, train robot policies with reinforcement learning, evaluate your models and publish the results, test the robot in simulation with software or hardware in loop (HIL) and automate your workflows on any CI/CD systems
+Use OSMO to manage your workflows and even remotely develop on a backend node. Using OSMO's backend configuration, run your workflows seamlessly on any cloud environment. Build a data factory to manage your synthetic and real robot data, train neural networks with experiment tracking, train robot policies with reinforcement learning, evaluate your models and publish the results, test the robot in simulation with software or hardware in loop (HIL), and automate your workflows on CI/CD systems.
 
 <div align="center">
   <img src="./docs/user_guide/overview.svg" width="85%"/>
@@ -65,14 +65,13 @@ workflow:
     inputs:
     - task: train-policy            # Feed the output of the training task into eval
     outputs:
-    - dataset:
-        name: thor-benchmark        # Save the output benchmark into a dataset
+    - url: s3://my-bucket/thor-benchmark/  # Save the benchmark to object storage
 ```
 
 - ✅ **Zero-Code Workflows** – Write workflows in YAML and iterate, not Python scripts
 - ✅ **Truly Portable** – Same workflow runs on laptop (Docker/KIND) or cloud (EKS/AKS/GKE)
 - ✅ **Interactive Development** – Launch VSCode, Jupyter, or SSH & develop remotely on cloud
-- ✅ **Smart Storage** – Content-addressable datasets with deduplication save 10-100x on storage
+- ✅ **Smart Storage** – Move data through upstream task outputs or object storage without rewriting workflows
 - ✅ **Infrastructure-Agnostic** – Workflows never reference specific infrastructure—scale transparently
 
 ### For Platform & Infrastructure Engineers
@@ -118,7 +117,7 @@ OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-co
 |---------------------|----------------------|
 | **Interactively develop** on remote GPU nodes with VSCode, SSH, or Jupyter notebooks | [Interactive Workflows](https://nvidia.github.io/OSMO/main/user_guide/workflows/interactive/index.html) |
 | **Generate synthetic data** at scale using Isaac Sim or custom simulation environments | [Isaac Sim SDG](https://nvidia.github.io/OSMO/main/user_guide/how_to/isaac_sim_sdg.html) |
-| **Train models** with diverse datasets across distributed GPU clusters | [Model Training](https://nvidia.github.io/OSMO/main/user_guide/how_to/training.html) |
+| **Train models** across distributed GPU clusters | [Model Training](https://nvidia.github.io/OSMO/main/user_guide/how_to/training.html) |
 | **Train policies** for robots using data-parallel reinforcement learning | [Reinforcement Learning](https://nvidia.github.io/OSMO/main/user_guide/how_to/reinforcement_learning.html) |
 | **Validate models** in simulation with hardware-in-the-loop testing | [Hardware In The Loop](https://nvidia.github.io/OSMO/main/user_guide/tutorials/hardware_in_the_loop/index.html) |
 | **Transform and post-process data** for iterative improvement | [Working with Data](https://nvidia.github.io/OSMO/main/user_guide/tutorials/data/index.html) |
@@ -176,7 +175,7 @@ Select one of the deployment options below depending on your needs and environme
 |:------------|:--------------------|
 | **Python-Native Workflows** | Define workflows programmatically for developers who prefer code over YAML. Use Python APIs to build dynamic workflows with loops, conditionals, and complex logic that integrate seamlessly with existing Python ML/robotics frameworks. |
 | **Load-Aware Multi-Backend Scheduling** | Automatically optimize cost and performance across compute backends. OSMO selects the best cluster/pool for each workflow based on current utilization, reducing wait times and maximizing cluster efficiency without manual routing. |
-| **High-Performance Data Caching** | Faster data access and broader storage compatibility. Transparent cluster-local caching reduces data transfer time for frequently used datasets, with support for high-performance filesystems (Lustre, NFS) alongside object storage (S3, GCS, Azure). |
+| **High-Performance Data Caching** | Faster data access and broader storage compatibility. Transparent cluster-local caching reduces data transfer time for frequently used inputs, with support for high-performance filesystems (Lustre, NFS) alongside object storage (S3, GCS, Azure). |
 | **Dynamically Changing Workflows** | Adjust workflow scale on-the-fly without restarts or interruptions. Scale running workflows up or down based on changing resource needs, modify parameters without rescheduling tasks, and respond to real-time requirements (e.g., add more GPUs mid-training, reduce simulation parallelism). |
 
 

@@ -77,8 +77,7 @@ and use the training command directly.
 
         path: /tmp/entry.sh
       outputs:
-      - dataset:
-          name: robot-policy-dataset
+      - url: s3://my-bucket/robot-policy/
 
 .. code-annotations::
   1. These are the environment variables required for Isaac Lab to run.
@@ -135,18 +134,18 @@ Open your browser and visit ``http://localhost:6006`` to see the TensorBoard:
 Reviewing Training Results
 --------------------------
 
-The model checkpoints and videos are saved in the `robot-policy-dataset` dataset.
-You can get the checkpoints and videos by downloading the dataset:
+The model checkpoints and videos are saved to the configured storage URL.
+You can download them with the data CLI:
 
 .. code-block:: bash
 
-  osmo dataset download robot-policy-dataset ~/
+  osmo data download s3://my-bucket/robot-policy/ ~/
 
 You will be able to see the checkpoints in the folder structure below, named ``model_<steps>_steps.zip``.
 
 .. code-block:: none
 
-  robot-policy-dataset/
+  robot-policy/
   └── logs/
       └── sb3/
           └── Isaac-Velocity-Flat-Unitree-A1-v0/
@@ -203,7 +202,7 @@ which will train a Franka arm robot to reach target locations. You can modify th
   1. The training script command is updated here to use RSL-RL.
   2. The play script command is also updated here.
 
-After the workflow completes, you can access the results through the dataset as well! This is the video of the
+After the workflow completes, you can access the results in object storage as well. This is the video of the
 Franka arm robot reaching the target locations.
 
 .. image:: images/rl-franka-video-step-0.gif

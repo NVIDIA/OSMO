@@ -21,7 +21,7 @@
 AWS S3
 =============================
 
-To handle who can access Datasets, the necessary AWS resources/policies must be created. This includes
+To control access to workflow data in S3, the necessary AWS resources and policies must be created. This includes
 
 - A S3 Bucket
 - An IAM Policy

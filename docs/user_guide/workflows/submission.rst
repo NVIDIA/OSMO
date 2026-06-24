@@ -137,34 +137,6 @@ Uploading Local Files
 
    See :ref:`workflow_spec_file_injection` for more file injection options.
 
-Uploading Local Directories
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Large datasets or directories** can be uploaded as dataset inputs:
-
-.. code-block:: yaml
-
-   tasks:
-   - name: preprocess
-     image: python:3.10
-     inputs:
-     - dataset:
-         name: my-bucket/training-data
-         localpath: ./data                # Upload entire local directory
-
-.. code-block:: bash
-
-   $ ls data/
-   train/  validation/  test/
-
-   $ osmo workflow submit preprocess.yaml
-   # The CLI uploads the entire data/ directory to the dataset
-
-.. caution::
-
-   Local file uploads happen during submission. For **continuously updating files**,
-   use the rsync feature instead.
-
 Continuous File Sync with Rsync
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -78,7 +78,7 @@ Why Choose OSMO
     .. grid-item-card:: 💾 Smart Storage
         :class-card: sd-border-1
 
-        Content-addressable datasets with **automatic deduplication** save 10-100x on storage costs.
+        Move data through upstream task outputs or object storage without reworking your pipeline.
 
     .. grid-item-card:: 🔧 Interactive Development
         :class-card: sd-border-1
@@ -143,7 +143,7 @@ How It Works
 
         +++
 
-        Versioned datasets, real-time monitoring
+        Object storage outputs, real-time monitoring
 
 **Example Workflow:**
 
@@ -170,8 +170,7 @@ How It Works
        inputs:
         - task: train-policy           # Feed the output of the training task into eval
        outputs:
-        - dataset:
-            name: thor-benchmark       # Save the output benchmark into a dataset
+        - url: s3://my-bucket/thor-benchmark/  # Save the benchmark to object storage
 
 
 Key Benefits
@@ -187,7 +186,7 @@ Key Benefits
      - :doc:`Interactive Workflows <workflows/interactive/index>`
    * - **Generate synthetic data** at scale using Isaac Sim or custom simulation environments
      - :doc:`Isaac Sim SDG <how_to/isaac_sim_sdg>`
-   * - **Train models** with diverse datasets across distributed GPU clusters
+   * - **Train models** across distributed GPU clusters
      - :doc:`Model Training <how_to/training>`
    * - **Train policies** for robots using data-parallel reinforcement learning
      - :doc:`Reinforcement Learning <how_to/reinforcement_learning>`
@@ -208,7 +207,7 @@ Connect any Kubernetes cluster to OSMO—cloud (AWS EKS, Azure AKS, Google GKE),
 
 **Flexible Storage**
 
-Connect any S3-compatible object storage or Azure Blob Storage. Store datasets and models with automatic version control, content-addressable deduplication, and seamless access across all compute backends.
+Connect any S3-compatible object storage or Azure Blob Storage. Store artifacts and models with seamless access across all compute backends.
 
 .. toctree::
   :hidden:

@@ -131,9 +131,8 @@ Once the two-node training is successful, you can scale up the training to more 
       - name: master  # (1)
         lead: true  # (2)
         outputs:  # (3)
-        - dataset:
-            name: {{ output_dataset }}
-            path: models
+        - url: {{ output_url }}
+          path: models
       {% else %}
       - name: worker_{{item}}  # (4)
       {% endif %}
@@ -161,7 +160,7 @@ Once the two-node training is successful, you can scale up the training to more 
     master_port: 29400
     n_epochs: 10
     batch_size: 32
-    output_dataset: my-trained-model  # The name of the output dataset
+    output_url: s3://my-bucket/my-trained-model/
 
 .. code-annotations::
   1. Master task for torchrun

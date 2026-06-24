@@ -59,18 +59,18 @@ variables in your workflow and override them at submission time.
       image: {{training_image}}
       command: ["python", "train.py"]
       args:
-      - "--dataset={{dataset_name}}"
+      - "--input={{input_url}}"
       - "--model={{model_type}}"
       - "--fold={{i}}"
       resource: training
       outputs:
-      - dataset:
-          name: "{{model_type}}_model_fold_{{i}}"
+      - url: "{{output_prefix}}/{{model_type}}/fold-{{i}}/"
     {% endfor %}
 
   default-values:
     workflow_name: ml-training
-    dataset_name: imagenet
+    input_url: s3://my-bucket/imagenet/
+    output_prefix: s3://my-bucket/training-runs
     model_type: resnet50
     num_tasks: 3
     gpu_count: 1
@@ -78,7 +78,7 @@ variables in your workflow and override them at submission time.
 
 This template uses a Jinja ``{% for %}`` loop to create multiple training tasks dynamically.
 Each task gets a unique name with an index (e.g., ``train-model-0``, ``train-model-1``) and
-produces separate output datasets. This is useful for cross-validation, hyperparameter sweeps,
+produces separate output locations. This is useful for cross-validation, hyperparameter sweeps,
 or parallel training runs.
 
 Submit with custom values:
@@ -134,12 +134,10 @@ To inject a local file, use the ``localpath`` attribute in the ``files`` section
 .. warning::
 
   The ``localpath`` field in the ``files`` section only supports **files**, NOT directories.
-  If you need to transfer entire directories, follow :ref:`ds_localpath` for more information.
 
 .. seealso::
 
-   See :ref:`workflow_spec_file_injection` for complete file injection documentation, including
-   how to inject directories using dataset inputs.
+   See :ref:`workflow_spec_file_injection` for complete file injection documentation.
 
 .. _tutorials_advanced_patterns_checkpointing:
 

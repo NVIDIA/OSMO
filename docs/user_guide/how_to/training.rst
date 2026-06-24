@@ -26,7 +26,7 @@ single-node training and progressing to distributed multi-node training and faul
 
 :ref:`training_single_node`
   Learn the fundamentals of running DNN training jobs on OSMO,
-  including launching training scripts, selecting resources, managing data with OSMO datasets,
+  including launching training scripts, selecting resources, wiring inputs and outputs,
   saving outputs and checkpoints, and monitoring training progress with TensorBoard or Weights & Biases.
 
 :ref:`training_multi_node`

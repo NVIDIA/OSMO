@@ -80,8 +80,8 @@ OSMO manages data through an abstraction layer:
   enabling seamless access to inputs and outputs.
 
 **Working with Control Plane**
-  Integrates with the control plane's **Dataset Service** to enable version-controlled storage for
-  training data, models, and artifacts using `content-addressable storage <https://en.wikipedia.org/wiki/Content-addressable_storage>`_.
+  Integrates with the control plane's workflow and storage integrations to manage
+  object-storage-backed inputs, outputs, and artifacts.
 
 
 How It Works
@@ -151,10 +151,6 @@ Executing
 
   %%{init: {'theme':'base'}}%%
   sequenceDiagram
-    box Control Plane
-    participant Dataset as Dataset Service
-    end
-
     box Compute Layer
     participant Cluster as Compute Nodes
     end
@@ -163,26 +159,15 @@ Executing
     participant Storage as Storage
     end
 
-    opt When using a dataset⁺
-      Cluster-->>Dataset: Fetches data metadata
-    end
-
     autonumber 1
     Storage->>Cluster: Injects inputs
     Cluster->>Cluster: Executes task
     Cluster->>Storage: Persists outputs
     autonumber off
 
-    opt When using a dataset⁺
-      Cluster-->>Dataset: Writes data metadata
-    end
-
 1. :bdg-primary:`Storage` injects task inputs into the container
 2. :bdg-primary:`Compute Nodes` executes the task using the injected inputs
 3. Task outputs are persisted to :bdg-primary:`Storage` for downstream tasks and external access
-
-  :sup:`+` For ``datasets``, a task uses the :bdg-primary:`Dataset Service` to index the data for
-  efficient storage and retrieval.
 
 Orchestrating
 -------------

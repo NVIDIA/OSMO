@@ -22,7 +22,7 @@ Isaac Sim: Generating Synthetic Data
 ====================================
 
 In this tutorial, you will generate synthetic data using `Isaac Sim <https://developer.nvidia.com/isaac/sim>`_,
-NVIDIA's robotics simulator. By the end of the tutorial, you will have a dataset of synthetic images of warehouse scenes,
+NVIDIA's robotics simulator. By the end of the tutorial, you will have a directory of synthetic images of warehouse scenes
 that can be used to train neural network models.
 
 The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/synthetic_data_generation/isaac_sim>`_.
@@ -77,8 +77,7 @@ This is the workflow file you will submit to generate synthetic data:
           cp -r /isaac-sim/_out_scene_based_sdg/. {{output}} # (3)
         path: /tmp/entry.sh
       outputs:
-      - dataset:
-          name: isaac-sim-sdg-sample
+      - url: s3://my-bucket/isaac-sim-sdg-sample/
 
 .. code-annotations::
   1. Setting the required environment variables for Isaac Sim to run.
@@ -90,11 +89,11 @@ Running the Workflow
 
 The workflow typically takes **10** minutes to run on a NVIDIA RTX 5090 GPU.
 
-Once the workflow has completed, you can download the dataset by running:
+Once the workflow has completed, you can download the generated files by running:
 
 .. code-block:: bash
 
-  $ osmo dataset download isaac-sim-sdg-sample ~/
+  $ osmo data download s3://my-bucket/isaac-sim-sdg-sample/ ~/
 
 The folder structure will look like this:
 
@@ -131,7 +130,7 @@ And in each of those sub-folders, you will find the following:
       ├── semantic_segmentation_0000.png
       └── ...
 
-Here is some examples of warehouse images from different viewpoints in the dataset:
+Here are examples of warehouse images from different viewpoints in the output directory:
 
 .. list-table::
    :widths: 50 50
@@ -176,9 +175,9 @@ Modify the Isaac Sim command of the entrypoint script:
   1. Notice that the script path is different. Now it is using the object-based SDG example, which lives at `replicator/object_based_sdg/object_based_sdg.py`.
   2. The location where Isaac Sim is writing the data has changed, so the path for the source is updated.
 
-You can update the name of the dataset to distinguish it from the scene-based SDG workflow, and submit the workflow again.
+You can update the output URL to distinguish it from the scene-based SDG workflow, and submit the workflow again.
 
-Once you download the dataset, you can see examples of objects with bounding boxes using domain randomization:
+Once you download the generated files, you can see examples of objects with bounding boxes using domain randomization:
 
 .. list-table::
    :widths: 50 50
