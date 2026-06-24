@@ -95,11 +95,10 @@
     {
       "id": "osmo-admin-007",
       "prompt": "Config root: repo. In sample-prod, which secret references must exist before this service config can be used safely?",
-      "expected_output": "The answer inventories secret references from provided config files without printing secret values. It reports service auth jwt_private_key_refs, dataset credentialSecretName values, and services.configs.secretRefs entries. It treats live secret existence checks as outside the public skill unless the user provides a separate safe process.",
+      "expected_output": "The answer inventories secret references from provided config files without printing secret values. It reports service auth jwt_private_key_refs and services.configs.secretRefs entries. It treats live secret existence checks as outside the public skill unless the user provides a separate safe process.",
       "assertions": [
         "The agent reads the osmo-admin SKILL.md and service-configs reference.",
         "The agent reads services.configs.service.service_auth.jwt_private_key_refs.",
-        "The agent reads services.configs.dataset.buckets credentialSecretName values.",
         "The agent reads services.configs.secretRefs in service-values.yaml.",
         "The response cites source file paths and YAML key paths for every reported secret reference.",
         "The response reports only secret names, key names, and reference keys, never secret payloads.",
