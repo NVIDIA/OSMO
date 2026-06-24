@@ -19,8 +19,16 @@ SPDX-License-Identifier: Apache-2.0
 package data
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
+
+	"go.corp.nvidia.com/osmo/runtime/pkg/common"
+	"go.corp.nvidia.com/osmo/runtime/pkg/metrics"
 )
 
 // ---------------------------------------------------------------------------
@@ -210,3 +218,479 @@ func TestKpiOutput_Accessors(t *testing.T) {
 		t.Errorf("GetUrlIdentifier = %q, want %q", got, "http://m.example/results/m.json")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// ValidateDataAuth — exercises the URL READ/WRITE dispatch, JSON parsing,
+// and pass/fail/unknown status handling. The function shells out to `osmo`,
+// so each test stages a fake `osmo` binary on PATH that emits the JSON
+// payload the test wants to assert against. Non-URL types (TaskInput,
+// TaskOutput, KpiOutput) bypass the shellout entirely, so those tests do
+// not need PATH manipulation.
+// ---------------------------------------------------------------------------
+
+// stageFakeOsmo writes a shell script as the only `osmo` on PATH and returns
+// the directory holding it. Caller is responsible for `t.Setenv("PATH", dir)`.
+func stageFakeOsmo(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	fakeOsmo := filepath.Join(dir, "osmo")
+	if err := os.WriteFile(fakeOsmo, []byte(body), 0o755); err != nil {
+		t.Fatalf("write fake osmo: %v", err)
+	}
+	return dir
+}
+
+func TestValidateDataAuth_TaskInput_ReturnsNilWithoutShellout(t *testing.T) {
+	osmoChan := make(chan string, 16)
+
+	err := ValidateDataAuth(
+		"task:myfolder,http://host/path/data.tar,*.txt", "/cfg.yaml", osmoChan)
+
+	if err != nil {
+		t.Errorf("expected nil for TaskInput, got %v", err)
+	}
+}
+
+func TestValidateDataAuth_TaskOutput_ReturnsNilWithoutShellout(t *testing.T) {
+	osmoChan := make(chan string, 16)
+
+	err := ValidateDataAuth(
+		"task:s3://bucket/output/file", "/cfg.yaml", osmoChan)
+
+	if err != nil {
+		t.Errorf("expected nil for TaskOutput, got %v", err)
+	}
+}
+
+func TestValidateDataAuth_KpiOutput_ReturnsNilWithoutShellout(t *testing.T) {
+	osmoChan := make(chan string, 16)
+
+	err := ValidateDataAuth(
+		"kpi:http://metrics.example,results/metrics.json", "/cfg.yaml", osmoChan)
+
+	if err != nil {
+		t.Errorf("expected nil for KpiOutput, got %v", err)
+	}
+}
+
+func TestValidateDataAuth_UrlInput_PassReturnsNilAndAnnouncesRead(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	dir := stageFakeOsmo(t, "#!/bin/sh\nprintf '{\"status\":\"pass\"}'\n")
+	t.Setenv("PATH", dir)
+
+	err := ValidateDataAuth(
+		"url:inputs,http://example.com/data,*.json", "/cfg.yaml", osmoChan)
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	close(osmoChan)
+	var sawRead, sawSuccess bool
+	for msg := range osmoChan {
+		if strings.Contains(msg, "Validating READ access") {
+			sawRead = true
+		}
+		if strings.Contains(msg, "Data auth validation successful") {
+			sawSuccess = true
+		}
+	}
+	if !sawRead {
+		t.Errorf("expected READ-access announce on osmoChan, got none")
+	}
+	if !sawSuccess {
+		t.Errorf("expected success announce on osmoChan, got none")
+	}
+}
+
+func TestValidateDataAuth_UrlInput_FailReturnsErrorWithDetail(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	dir := stageFakeOsmo(t,
+		"#!/bin/sh\nprintf '{\"status\":\"fail\",\"error\":\"forbidden\"}'\n")
+	t.Setenv("PATH", dir)
+
+	err := ValidateDataAuth(
+		"url:inputs,http://example.com/data,*.json", "/cfg.yaml", osmoChan)
+
+	if err == nil {
+		t.Fatal("expected error for fail status")
+	}
+	if !strings.Contains(err.Error(), "Data auth validation failed") {
+		t.Errorf("expected 'Data auth validation failed' in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "forbidden") {
+		t.Errorf("expected upstream error detail in error, got: %v", err)
+	}
+}
+
+func TestValidateDataAuth_UrlInput_UnknownStatusReturnsError(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	dir := stageFakeOsmo(t,
+		"#!/bin/sh\nprintf '{\"status\":\"weird\"}'\n")
+	t.Setenv("PATH", dir)
+
+	err := ValidateDataAuth(
+		"url:inputs,http://example.com/data,*.json", "/cfg.yaml", osmoChan)
+
+	if err == nil {
+		t.Fatal("expected error for unknown status")
+	}
+	if !strings.Contains(err.Error(), "unknown data auth validation status") {
+		t.Errorf("expected unknown-status error, got: %v", err)
+	}
+}
+
+func TestValidateDataAuth_UrlInput_InvalidJSONReturnsParseError(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	dir := stageFakeOsmo(t, "#!/bin/sh\nprintf 'not-json'\n")
+	t.Setenv("PATH", dir)
+
+	err := ValidateDataAuth(
+		"url:inputs,http://example.com/data,*.json", "/cfg.yaml", osmoChan)
+
+	if err == nil {
+		t.Fatal("expected error for non-JSON response")
+	}
+	if !strings.Contains(err.Error(), "Failed to parse validation response") {
+		t.Errorf("expected parse-failure error, got: %v", err)
+	}
+}
+
+// UrlOutput hits the *UrlOutput switch arm, which dispatches with
+// --access-type WRITE. The fake osmo emits "fail" if WRITE is missing so a
+// regression that swaps READ/WRITE fails this test.
+func TestValidateDataAuth_UrlOutput_PassDispatchesWriteAccess(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	dir := stageFakeOsmo(t, `#!/bin/sh
+for a in "$@"; do
+  if [ "$a" = "WRITE" ]; then
+    printf '{"status":"pass"}'
+    exit 0
+  fi
+done
+printf '{"status":"fail","error":"WRITE access flag missing"}'
+`)
+	t.Setenv("PATH", dir)
+
+	err := ValidateDataAuth(
+		"url:http://example.com/data,*.json", "/cfg.yaml", osmoChan)
+
+	if err != nil {
+		t.Fatalf("expected nil error for WRITE+pass, got %v", err)
+	}
+	close(osmoChan)
+	var sawWrite bool
+	for msg := range osmoChan {
+		if strings.Contains(msg, "Validating WRITE access") {
+			sawWrite = true
+		}
+	}
+	if !sawWrite {
+		t.Errorf("expected WRITE-access announce on osmoChan, got none")
+	}
+}
+
+func TestValidateDataAuth_UrlOutput_FailReturnsErrorWithDetail(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	dir := stageFakeOsmo(t,
+		"#!/bin/sh\nprintf '{\"status\":\"fail\",\"error\":\"denied\"}'\n")
+	t.Setenv("PATH", dir)
+
+	err := ValidateDataAuth(
+		"url:http://example.com/data,*.json", "/cfg.yaml", osmoChan)
+
+	if err == nil {
+		t.Fatal("expected error for fail status on UrlOutput")
+	}
+	if !strings.Contains(err.Error(), "denied") {
+		t.Errorf("expected upstream error detail in error, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ValidateInputsOutputsAccess — wraps ValidateDataAuth in a loop over inputs
+// and outputs. Empty list path emits the bookend messages and returns nil;
+// failure short-circuits and propagates the error.
+// ---------------------------------------------------------------------------
+
+func TestValidateInputsOutputsAccess_EmptyListsAnnouncesAndReturnsNil(t *testing.T) {
+	osmoChan := make(chan string, 16)
+
+	err := ValidateInputsOutputsAccess(
+		common.ArrayFlags{}, common.ArrayFlags{}, "/cfg.yaml", osmoChan)
+	close(osmoChan)
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	var collected []string
+	for msg := range osmoChan {
+		collected = append(collected, msg)
+	}
+	if len(collected) != 2 {
+		t.Fatalf("expected 2 messages (start, end), got %d (%v)", len(collected), collected)
+	}
+	if !strings.Contains(collected[0], "Validating data access permissions") {
+		t.Errorf("expected start message, got %q", collected[0])
+	}
+	if !strings.Contains(collected[len(collected)-1], "All data access validations passed") {
+		t.Errorf("expected end message, got %q", collected[len(collected)-1])
+	}
+}
+
+func TestValidateInputsOutputsAccess_TaskAndKpiItems_ReturnsNilSkippingShellout(t *testing.T) {
+	// Task and Kpi items are no-ops in ValidateDataAuth, so this whole loop
+	// returns nil without ever invoking osmo on PATH.
+	osmoChan := make(chan string, 16)
+
+	inputs := common.ArrayFlags{"task:f,http://h/p/d.tar,*.txt"}
+	outputs := common.ArrayFlags{"task:s3://bucket/file", "kpi:http://m,results/m.json"}
+
+	err := ValidateInputsOutputsAccess(inputs, outputs, "/cfg.yaml", osmoChan)
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestValidateInputsOutputsAccess_UrlInputFailShortCircuits(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	osmoChan := make(chan string, 64)
+
+	dir := stageFakeOsmo(t,
+		"#!/bin/sh\nprintf '{\"status\":\"fail\",\"error\":\"nope\"}'\n")
+	t.Setenv("PATH", dir)
+
+	inputs := common.ArrayFlags{
+		"url:in,http://example.com/data,*.json",
+		// Second input would have run too, but the first error short-circuits.
+		"url:in2,http://example.com/data2,*.json",
+	}
+
+	err := ValidateInputsOutputsAccess(inputs, common.ArrayFlags{}, "/cfg.yaml", osmoChan)
+
+	if err == nil {
+		t.Fatal("expected error to propagate from the first failing item")
+	}
+	if !strings.Contains(err.Error(), "nope") {
+		t.Errorf("expected upstream error detail in propagated error, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Download / UploadFolder — cover the per-type metric pipelines plus the
+// surrounding folder/log/channel behavior. Each test:
+//  1. Stages a fake `osmo` so DownloadURI / UploadData succeed without doing
+//     real work.
+//  2. Pre-populates BenchmarkPath/<expected-folder>/x_benchmark.json with a
+//     payload that has bytes>0, plus an empty-bytes entry to force the
+//     `if benchmark.TotalBytesTransferred == 0 { continue }` skip branch.
+//  3. Invokes the method on a real (temp-dir) inputPath/outputPath.
+//
+// If /osmo/data/benchmarks is not writable in the test sandbox, the helper
+// degrades gracefully: benchmarks come back nil, the metric loop body is
+// skipped, but the surrounding lines (CreateFolder, DownloadURI, log/print
+// calls) are still exercised.
+// ---------------------------------------------------------------------------
+
+// stageBenchmarkFiles writes one benchmark JSON with bytes=1024 (passes the
+// non-zero check) and one with bytes=0 (skipped via continue) under
+// BenchmarkPath/<folder>. Returns true if both files were written.
+func stageBenchmarkFiles(t *testing.T, folder string) bool {
+	t.Helper()
+	dir := BenchmarkPath + folder
+	if err := os.MkdirAll(dir, 0o777); err != nil {
+		t.Logf("skipping benchmark prep for %q: %v", folder, err)
+		return false
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	startTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ok := BenchmarkMetrics{
+		StartTime:             EpochMillis(startTime),
+		EndTime:               EpochMillis(startTime.Add(2 * time.Second)),
+		TotalBytesTransferred: 1024,
+		TotalNumberOfFiles:    3,
+	}
+	zero := BenchmarkMetrics{
+		StartTime:             EpochMillis(startTime),
+		EndTime:               EpochMillis(startTime),
+		TotalBytesTransferred: 0,
+		TotalNumberOfFiles:    0,
+	}
+	for name, payload := range map[string]BenchmarkMetrics{
+		"good_benchmark.json": ok,
+		"zero_benchmark.json": zero,
+	} {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("marshal %s: %v", name, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), body, 0o644); err != nil {
+			t.Logf("write %s failed: %v", name, err)
+			return false
+		}
+	}
+	return true
+}
+
+// stageNoOpOsmo writes a fake osmo that always exits 0, used for the
+// Download/Upload paths that go through RunOSMOCommandStreamingWithRetry.
+// Returns the directory containing the fake binary.
+func stageNoOpOsmo(t *testing.T) string {
+	t.Helper()
+	return stageFakeOsmo(t, "#!/bin/sh\nexit 0\n")
+}
+
+// drainMetricChan converts received metrics into URLs so tests can assert on
+// the metric pipeline without depending on every single field.
+func drainMetricChan(metricChan chan metrics.Metric) []string {
+	var urls []string
+	close(metricChan)
+	for m := range metricChan {
+		if io, ok := m.(metrics.TaskIOMetrics); ok {
+			urls = append(urls, io.URL)
+		}
+	}
+	return urls
+}
+
+func TestTaskInput_Download_RunsThroughCreateFolderAndMetricPipeline(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	t.Setenv("PATH", stageNoOpOsmo(t))
+
+	staged := stageBenchmarkFiles(t, "INPUT_3")
+
+	inputPath := t.TempDir() + "/"
+	osmoChan := make(chan string, 64)
+	metricChan := make(chan metrics.Metric, 8)
+
+	ti := TaskInput{
+		Folder: "fld",
+		Name:   "data.tar",
+		Url:    "s3://bucket/data.tar",
+		Regex:  "",
+	}
+	ti.Download(nil, inputPath, osmoChan, metricChan,
+		"r1", "g1", "t1", 3)
+
+	if _, err := os.Stat(inputPath + "fld"); err != nil {
+		t.Errorf("expected CreateFolder to make %q: %v", inputPath+"fld", err)
+	}
+
+	urls := drainMetricChan(metricChan)
+	if staged && len(urls) != 1 {
+		t.Errorf("expected 1 metric (zero-bytes skipped), got %d (%v)", len(urls), urls)
+	}
+	if staged && urls[0] != ti.Url {
+		t.Errorf("metric URL = %q, want %q", urls[0], ti.Url)
+	}
+}
+
+func TestTaskOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	t.Setenv("PATH", stageNoOpOsmo(t))
+
+	staged := stageBenchmarkFiles(t, "OUTPUT_7")
+
+	outputPath := t.TempDir() + "/"
+	osmoChan := make(chan string, 64)
+	metricChan := make(chan metrics.Metric, 8)
+
+	to := &TaskOutput{Name: "out.bin", Url: "s3://bucket/out.bin"}
+	to.UploadFolder(nil, outputPath, osmoChan, metricChan,
+		"r2", "g2", "t2", "url-id", 7)
+
+	urls := drainMetricChan(metricChan)
+	if staged && len(urls) != 1 {
+		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	}
+	if staged && urls[0] != "url-id" {
+		t.Errorf("metric URL = %q, want %q", urls[0], "url-id")
+	}
+}
+
+func TestUrlInput_Download_UsesGroupTaskIndexedBenchmarkFolder(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	t.Setenv("PATH", stageNoOpOsmo(t))
+
+	// UrlInput.Download builds benchmarkFolder as "<group>_<task>_INPUT_<idx>"
+	staged := stageBenchmarkFiles(t, "grp_tsk_INPUT_2")
+
+	inputPath := t.TempDir() + "/"
+	osmoChan := make(chan string, 64)
+	metricChan := make(chan metrics.Metric, 8)
+
+	ui := UrlInput{Folder: "uin", Url: "s3://bucket/data", Regex: "*.bin"}
+	ui.Download(nil, inputPath, osmoChan, metricChan,
+		"r3", "grp", "tsk", 2)
+
+	if _, err := os.Stat(inputPath + "uin"); err != nil {
+		t.Errorf("expected CreateFolder to make %q: %v", inputPath+"uin", err)
+	}
+	urls := drainMetricChan(metricChan)
+	if staged && len(urls) != 1 {
+		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	}
+	if staged && urls[0] != ui.Url {
+		t.Errorf("metric URL = %q, want %q", urls[0], ui.Url)
+	}
+}
+
+func TestUrlOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	t.Setenv("PATH", stageNoOpOsmo(t))
+
+	staged := stageBenchmarkFiles(t, "OUTPUT_4")
+
+	outputPath := t.TempDir() + "/"
+	osmoChan := make(chan string, 64)
+	metricChan := make(chan metrics.Metric, 8)
+
+	uo := &UrlOutput{Url: "s3://bucket/out", Regex: "*.bin"}
+	uo.UploadFolder(nil, outputPath, osmoChan, metricChan,
+		"r4", "g4", "t4", "url-id-4", 4)
+
+	urls := drainMetricChan(metricChan)
+	if staged && len(urls) != 1 {
+		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	}
+	if staged && urls[0] != "url-id-4" {
+		t.Errorf("metric URL = %q, want %q", urls[0], "url-id-4")
+	}
+}
+
+func TestKpiOutput_UploadFolder_RunsThroughMetricPipeline(t *testing.T) {
+	WebsocketConnection = WebsocketConnectionInfo{}
+	t.Setenv("PATH", stageNoOpOsmo(t))
+
+	staged := stageBenchmarkFiles(t, "OUTPUT_9")
+
+	outputPath := t.TempDir() + "/"
+	osmoChan := make(chan string, 64)
+	metricChan := make(chan metrics.Metric, 8)
+
+	kpi := &KpiOutput{Url: "s3://bucket/kpi", Path: "results/m.json"}
+	kpi.UploadFolder(nil, outputPath, osmoChan, metricChan,
+		"r5", "g5", "t5", "url-id-9", 9)
+
+	urls := drainMetricChan(metricChan)
+	if staged && len(urls) != 1 {
+		t.Errorf("expected 1 metric, got %d (%v)", len(urls), urls)
+	}
+	if staged && urls[0] != "url-id-9" {
+		t.Errorf("metric URL = %q, want %q", urls[0], "url-id-9")
+	}
+}
+
