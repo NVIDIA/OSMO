@@ -601,6 +601,26 @@ stage_oetf_smoke() {
             # Bash RETURN trap is per-function — re-arm here.
             trap "kill $pf_pid 2>/dev/null || true" RETURN
             osmo_url="http://localhost:${pf_port}"
+
+            # Set admin's profile-level default pool. Required because:
+            #   - api-checks/test_list_workflows passes `pool=default` as
+            #     query param, but `/api/workflow` reads `pools` (PLURAL)
+            #     from fastapi.Query — singular is silently ignored
+            #     (workflow_service.py:587). #1114's "fix" used the wrong
+            #     param name; the server-side handler falls through to
+            #     UserProfile.pool lookup, which is empty by default for
+            #     dev-auth admin and raises "No pool selected!"
+            #     (workflow_service.py:609-612).
+            #   - Storing the profile-level default via `osmo profile set
+            #     pool default` fills that fallback so the test passes
+            #     without needing to fix the test query param.
+            if command -v osmo >/dev/null 2>&1; then
+                log_info "Setting admin profile default pool=default (workaround for #1114's wrong-param api-checks fix)"
+                osmo login "$osmo_url" --method dev --username admin >/dev/null 2>&1 \
+                    || log_warning "osmo login failed — api-checks may still fail"
+                osmo profile set pool default >/dev/null 2>&1 \
+                    || log_warning "osmo profile set pool failed — api-checks may still fail"
+            fi
             ;;
         *)
             osmo_url="http://localhost"
