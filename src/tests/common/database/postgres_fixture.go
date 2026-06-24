@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -61,11 +62,11 @@ type PostgresFixture struct {
 type PostgresOption func(*postgresConfig)
 
 type postgresConfig struct {
-	image      string
-	dbName     string
-	user       string
-	password   string
-	initSQL    []string
+	image       string
+	dbName      string
+	user        string
+	password    string
+	initSQL     []string
 	applySchema bool
 }
 
@@ -186,11 +187,16 @@ func StartPostgres(t testing.TB, opts ...PostgresOption) *PostgresFixture {
 		t.Fatalf("failed to get mapped port: %v", err)
 	}
 
+	mappedPortInt, err := strconv.Atoi(mappedPort.Port())
+	if err != nil {
+		t.Fatalf("failed to parse mapped port %q: %v", mappedPort.Port(), err)
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	pgClient, err := osmo_postgres.NewPostgresClient(ctx, osmo_postgres.PostgresConfig{
 		Host:            host,
-		Port:            mappedPort.Int(),
+		Port:            mappedPortInt,
 		Database:        config.dbName,
 		User:            config.user,
 		Password:        config.password,
