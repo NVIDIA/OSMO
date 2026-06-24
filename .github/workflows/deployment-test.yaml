@@ -543,14 +543,18 @@ jobs:
             -var "aks_private_cluster_enabled=false"
             -var "node_instance_type=Standard_D8s_v3"
             -var "node_group_min_size=3"
-            # Two attempts on c31bd00 hit Azure `AllocationFailed` for the
-            # default Managed Redis SKU `ComputeOptimized_X3` in eastus2
-            # ("Request failed due to insufficient capacity. Retry using a
-            # different Azure Managed Redis size, region, or contact Azure
-            # support"). Drop to `Balanced_B0` — the smallest Managed Redis
-            # tier — which provisions out of a less-contended pool and is
-            # more than enough for our verify-hello + OETF smoke workload.
+            # Four consecutive AllocationFailed errors on eastus2 across
+            # two SKUs (ComputeOptimized_X3 ×2, Balanced_B0 ×2) — capacity
+            # exhaustion is region-wide, not SKU-specific:
+            #   "Request failed due to insufficient capacity. Retry using a
+            #    different Azure Managed Redis size, region, or contact
+            #    Azure support."
+            # Place Redis in westus2 (different region than the RG/AKS).
+            # Encrypted + access_keys_authentication is on, so the AKS
+            # pool reaches it over the public endpoint — cross-region is
+            # fine for our test workload. Balanced_B0 stays as the SKU.
             -var "redis_sku_name=Balanced_B0"
+            -var "redis_location=westus2"
           )
           if command -v ts >/dev/null; then
             terraform apply -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]'
@@ -926,14 +930,18 @@ jobs:
             -var "aks_private_cluster_enabled=false"
             -var "node_instance_type=Standard_D8s_v3"
             -var "node_group_min_size=3"
-            # Two attempts on c31bd00 hit Azure `AllocationFailed` for the
-            # default Managed Redis SKU `ComputeOptimized_X3` in eastus2
-            # ("Request failed due to insufficient capacity. Retry using a
-            # different Azure Managed Redis size, region, or contact Azure
-            # support"). Drop to `Balanced_B0` — the smallest Managed Redis
-            # tier — which provisions out of a less-contended pool and is
-            # more than enough for our verify-hello + OETF smoke workload.
+            # Four consecutive AllocationFailed errors on eastus2 across
+            # two SKUs (ComputeOptimized_X3 ×2, Balanced_B0 ×2) — capacity
+            # exhaustion is region-wide, not SKU-specific:
+            #   "Request failed due to insufficient capacity. Retry using a
+            #    different Azure Managed Redis size, region, or contact
+            #    Azure support."
+            # Place Redis in westus2 (different region than the RG/AKS).
+            # Encrypted + access_keys_authentication is on, so the AKS
+            # pool reaches it over the public endpoint — cross-region is
+            # fine for our test workload. Balanced_B0 stays as the SKU.
             -var "redis_sku_name=Balanced_B0"
+            -var "redis_location=westus2"
           )
           if command -v ts >/dev/null; then
             terraform destroy -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]' \

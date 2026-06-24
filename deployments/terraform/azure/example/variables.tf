@@ -247,6 +247,12 @@ variable "redis_version" {
   }
 }
 
+variable "redis_location" {
+  description = "Azure region for the Managed Redis resource. Defaults to the resource group's location when null. Set to a different region (e.g. 'westus2') when the RG's region has Managed Redis capacity pressure — Redis can live in a different region than the RG since the AKS cluster reaches it over the public endpoint."
+  type        = string
+  default     = null
+}
+
 # Log Analytics Variables
 variable "log_analytics_sku" {
   description = "The SKU of the Log Analytics Workspace"
