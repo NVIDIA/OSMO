@@ -28,18 +28,22 @@ name: Deployment Test
 # the OIDC chain, not something we want to run automatically per PR.
 #
 # Scheduled trigger (PRIMARY mode of operation on main):
-#   - Daily at 06:00 UTC. github.event_name='schedule' runs build-images +
-#     full-deployment end-to-end on main, the same path the PR-label gate
-#     exercises. Schedule events fire only from the repo's default branch
-#     (main) — they don't run for forks or feature branches.
+#   - Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
+#     is UTC, doesn't adjust for DST). github.event_name='schedule' runs
+#     build-images + full-deployment end-to-end on main, the same path
+#     the PR-label gate exercises. Schedule events fire only from the
+#     repo's default branch (main) — they don't run for forks or
+#     feature branches.
 #
 # Slack notification (failure-only, schedule-only):
-#   - notify-slack-on-failure posts a brief message to the channel wired
-#     into the `SLACK_WEBHOOK_URL` repo secret when ANY of build-images /
-#     full-deployment fail on a scheduled run. PR-label runs don't notify
-#     (the author already sees the failure on the PR).
-#   - Requires repo secret `SLACK_WEBHOOK_URL` (Slack incoming webhook URL
-#     wired to the osmo-slack-test channel). If unset, the job logs a
+#   - notify-slack-on-failure posts to the channel pointed at by
+#     `vars.TESTBOT_SLACK_CHANNEL` (fallback `osmo-slack-test`) using the
+#     `TESTBOT_SLACK_BOT_TOKEN` repo secret + Slack `chat.postMessage`
+#     API — same plumbing testbot.yaml + update-distroless-images.yaml
+#     already use, so no new auth surface to provision.
+#   - Fires only on scheduled-run failures. PR-label and workflow_dispatch
+#     runs are interactive and surface their own status.
+#   - If the secret is unset or the API returns non-ok, the step logs a
 #     warning and exits 0 — the gate's overall status is unaffected.
 
 on:
@@ -54,6 +58,10 @@ on:
           - init-only
           - auth-check
           - full-deployment
+      test_slack:
+        description: 'E2E-test the Slack notification path. Skips build-images + full-deployment, runs a stub failure job, and exercises notify-slack-on-failure with realistic context. Cheap (~30s) and burns no Azure resources.'
+        type: boolean
+        default: false
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
@@ -62,10 +70,10 @@ on:
       - 'deployments/scripts/run-deployment-test.sh'
       - 'deployments/terraform/azure/**'
   schedule:
-    # Daily at 06:00 UTC (off-peak across AMER/EMEA/APAC working hours).
-    # Cron runs in the GitHub Actions scheduler — fires only on main, not
-    # on feature branches.
-    - cron: '0 6 * * *'
+    # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
+    # is UTC, doesn't track DST). Schedule fires only on main, not on
+    # feature branches.
+    - cron: '0 0 * * *'
 
 # OIDC federation to Azure — no static secrets in this workflow.
 # `id-token: write` lets the runner mint a JWT that Azure trusts via the
@@ -161,10 +169,11 @@ jobs:
   # full-deployment via `needs:`.
   build-images:
     if: >
-      ${{ github.event_name == 'schedule'
-          || github.event.inputs.mode == 'full-deployment'
-          || (github.event_name == 'pull_request'
-              && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
+      ${{ github.event.inputs.test_slack != 'true'
+          && (github.event_name == 'schedule'
+              || github.event.inputs.mode == 'full-deployment'
+              || (github.event_name == 'pull_request'
+                  && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -309,10 +318,11 @@ jobs:
   full-deployment:
     needs: build-images
     if: >
-      ${{ github.event_name == 'schedule'
-          || github.event.inputs.mode == 'full-deployment'
-          || (github.event_name == 'pull_request'
-              && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
+      ${{ github.event.inputs.test_slack != 'true'
+          && (github.event_name == 'schedule'
+              || github.event.inputs.mode == 'full-deployment'
+              || (github.event_name == 'pull_request'
+                  && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment'))) }}
     runs-on: ubuntu-latest
     # Budget while TEMP scaffolding is in place:
     #   cleanup leftovers (~30 min worst-case if AKS is mid-delete)
@@ -1022,78 +1032,141 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  # Post a brief failure summary to Slack when the daily scheduled run
-  # breaks. Gated to scheduled events only — PR-label runs already surface
-  # the failure on the PR itself, and dispatch runs are interactive.
+
+  # ── Slack failure-notification (schedule-only) ───────────────────────────
   #
-  # Requires repo secret `SLACK_WEBHOOK_URL` (Slack incoming-webhook URL
-  # provisioned for the osmo-slack-test channel). Setup:
+  # Posts to the channel pointed at by `vars.TESTBOT_SLACK_CHANNEL` (fallback
+  # `osmo-slack-test`) via Slack `chat.postMessage` using the existing
+  # `TESTBOT_SLACK_BOT_TOKEN` repo secret — same auth surface that
+  # testbot.yaml + update-distroless-images.yaml already use.
   #
-  #   1. Slack: add an Incoming Webhook integration to #osmo-slack-test
-  #      (or create a Slack app with chat:write + add to the channel).
-  #   2. GitHub: Settings → Secrets and variables → Actions → New repository
-  #      secret → Name `SLACK_WEBHOOK_URL`, value = the webhook URL.
+  # Test path (e2e without burning Azure resources):
+  #   `gh workflow run "Deployment Test" --field test_slack=true`
+  #   ↳ build-images + full-deployment both skipped, simulate-failure exits
+  #     non-zero, notify-slack-on-failure fires with a realistic payload.
   #
-  # If the secret is unset the step emits a warning and exits 0 — the gate's
-  # overall conclusion isn't changed by missing-secret state.
+  # ─────────────────────────────────────────────────────────────────────────
+
+  # Stub job that exists only to exercise the slack-notify path end-to-end
+  # via workflow_dispatch (test_slack=true). Runs only in that mode and
+  # immediately exits 1 so notify-slack-on-failure has a "failed needs:"
+  # to react to. On schedule/PR/normal-dispatch this job is skipped.
+  simulate-failure:
+    if: ${{ github.event.inputs.test_slack == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Simulated failure (Slack e2e exercise)
+        run: |
+          echo "::notice::Simulating a deployment-test failure to exercise the Slack notification path."
+          echo "  No Azure resources are touched and no images are built."
+          exit 1
+
   notify-slack-on-failure:
-    needs: [build-images, full-deployment]
-    # always() so this evaluates even when needs failed.
-    # Only act on scheduled runs, only when at least one upstream job
-    # actually failed (skipped/cancelled don't trigger notifications).
+    needs: [build-images, full-deployment, simulate-failure]
+    # always() so this evaluates even when an upstream `needs:` failed.
+    # Fires when:
+    #   - scheduled run AND (build-images OR full-deployment) actually failed
+    #   - OR workflow_dispatch with test_slack=true AND simulate-failure failed
     if: >
       ${{ always()
-          && github.event_name == 'schedule'
-          && (needs.build-images.result == 'failure'
-              || needs.full-deployment.result == 'failure') }}
+          && ( (github.event_name == 'schedule'
+                && (needs.build-images.result == 'failure'
+                    || needs.full-deployment.result == 'failure'))
+              || (github.event.inputs.test_slack == 'true'
+                  && needs.simulate-failure.result == 'failure') ) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Fetch commit metadata for the message body
-        id: commit
+      - name: Gather context (commit metadata + commits since previous green run)
+        id: ctx
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          WORKFLOW_ID: ${{ github.workflow_ref }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+          IS_TEST: ${{ github.event.inputs.test_slack == 'true' }}
         run: |
           set -uo pipefail
-          # GITHUB_TOKEN can read public + same-repo data. We just want the
-          # commit's author display name + the message subject line so devs
-          # can eyeball blame without clicking through.
-          resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
-                       -H 'Accept: application/vnd.github+json' \
-                       "https://api.github.com/repos/${REPO}/commits/${SHA}")
-          author=$(jq -r '.commit.author.name // "unknown"' <<<"$resp")
-          subject=$(jq -r '.commit.message // ""' <<<"$resp" | head -1)
-          # Trim subject to <= 120 chars so the Slack block doesn't sprawl.
+
+          # 1) HEAD commit metadata — author display name + first-line subject.
+          # Daily cron runs land on whatever's on main at fire time. Embed
+          # both so the on-call doesn't have to click through to identify
+          # whose change is suspect.
+          commit_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                              -H 'Accept: application/vnd.github+json' \
+                              "https://api.github.com/repos/${REPO}/commits/${SHA}")
+          author=$(jq -r '.commit.author.name // "unknown"' <<<"$commit_resp")
+          subject=$(jq -r '.commit.message // ""' <<<"$commit_resp" | head -1)
+          # Trim subject to ≤ 120 chars so the Slack block doesn't sprawl.
           if [[ ${#subject} -gt 120 ]]; then subject="${subject:0:117}..."; fi
-          # Persist into outputs without breaking newlines.
+
+          # 2) Find the most recent successful scheduled run BEFORE this
+          # one, then build a compare link spanning every commit that
+          # landed since. Daily cron on a busy repo can easily span 10+
+          # commits — a single "current SHA" link is misleading.
+          # Fall back to a plain "recent commits on main" view when this
+          # is the first scheduled run (no prior green to compare against).
+          wf_name='Deployment Test'
+          wf_runs=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                          -H 'Accept: application/vnd.github+json' \
+                          "https://api.github.com/repos/${REPO}/actions/workflows/deployment-test.yaml/runs?event=schedule&status=success&per_page=2")
+          prev_sha=$(jq -r --arg this "$RUN_ID" \
+            '[.workflow_runs[] | select((.id | tostring) != $this)] | .[0].head_sha // empty' \
+            <<<"$wf_runs")
+          if [[ -n "$prev_sha" && "$prev_sha" != "$SHA" ]]; then
+            compare_url="${SERVER_URL}/${REPO}/compare/${prev_sha}...${SHA}"
+            # Count commits in the range (best-effort).
+            compare_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                                 -H 'Accept: application/vnd.github+json' \
+                                 "https://api.github.com/repos/${REPO}/compare/${prev_sha}...${SHA}")
+            commit_count=$(jq -r '.total_commits // 0' <<<"$compare_resp")
+            compare_label="${commit_count} commits since last green run"
+          else
+            compare_url="${SERVER_URL}/${REPO}/commits/${GITHUB_REF_NAME:-main}"
+            compare_label="Recent commits on main"
+          fi
+
+          # 3) Persist outputs (escape multi-line values).
           {
             echo "author<<__GHA_EOF__"; echo "$author"; echo "__GHA_EOF__"
             echo "subject<<__GHA_EOF__"; echo "$subject"; echo "__GHA_EOF__"
             echo "short_sha=${SHA:0:7}"
+            echo "compare_url=$compare_url"
+            echo "compare_label=$compare_label"
+            echo "is_test=$IS_TEST"
           } >> "$GITHUB_OUTPUT"
 
       - name: Post failure notification to Slack
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
+          TESTBOT_SLACK_CHANNEL: ${{ vars.TESTBOT_SLACK_CHANNEL || 'osmo-slack-test' }}
           BI_RESULT: ${{ needs.build-images.result }}
           FD_RESULT: ${{ needs.full-deployment.result }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          AUTHOR: ${{ steps.commit.outputs.author }}
-          SUBJECT: ${{ steps.commit.outputs.subject }}
-          SHORT_SHA: ${{ steps.commit.outputs.short_sha }}
+          AUTHOR: ${{ steps.ctx.outputs.author }}
+          SUBJECT: ${{ steps.ctx.outputs.subject }}
+          SHORT_SHA: ${{ steps.ctx.outputs.short_sha }}
           FULL_SHA: ${{ github.sha }}
           SERVER_URL: ${{ github.server_url }}
           REF_NAME: ${{ github.ref_name }}
           WORKFLOW: ${{ github.workflow }}
+          COMPARE_URL: ${{ steps.ctx.outputs.compare_url }}
+          COMPARE_LABEL: ${{ steps.ctx.outputs.compare_label }}
+          IS_TEST: ${{ steps.ctx.outputs.is_test }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -uo pipefail
-          if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
-            echo "::warning::SLACK_WEBHOOK_URL secret not set — skipping Slack notification."
-            echo "  Set it under Settings → Secrets and variables → Actions to enable."
+          if [[ -z "${TESTBOT_SLACK_BOT_TOKEN:-}" ]]; then
+            echo "::warning::TESTBOT_SLACK_BOT_TOKEN secret not set — skipping Slack notification."
+            exit 0
+          fi
+          if [[ -z "${TESTBOT_SLACK_CHANNEL:-}" ]]; then
+            echo "::warning::TESTBOT_SLACK_CHANNEL empty — skipping Slack notification."
             exit 0
           fi
 
@@ -1101,41 +1174,63 @@ jobs:
           if [[ -n "${RUN_ATTEMPT:-}" && "${RUN_ATTEMPT}" != "1" ]]; then
             run_url="${run_url}/attempts/${RUN_ATTEMPT}"
           fi
-          rerun_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
           commit_url="${SERVER_URL}/${REPO}/commit/${FULL_SHA}"
           workflow_url="${SERVER_URL}/${REPO}/blob/${REF_NAME}/.github/workflows/deployment-test.yaml"
           artifact_url="${run_url}#artifacts"
 
-          # Block Kit payload — the `text:` top-level field is the fallback
-          # for Slack's mobile/push previews and accessibility readers.
+          # Test runs get a clear "this is a test" prefix so they aren't
+          # mistaken for real production failures.
+          if [[ "$IS_TEST" == "true" ]]; then
+            header_text=":test_tube: [TEST] OSMO deployment-test Slack notification"
+            trigger_label="workflow_dispatch (test_slack=true)"
+            bi_for_payload="(skipped — test mode)"
+            fd_for_payload="(skipped — test mode)"
+          else
+            header_text=":x: OSMO daily deployment-test FAILED"
+            trigger_label="Daily schedule (00:00 UTC = 5pm PDT)"
+            bi_for_payload="$BI_RESULT"
+            fd_for_payload="$FD_RESULT"
+          fi
+
           payload=$(jq -n \
-            --arg branch    "$REF_NAME" \
-            --arg short_sha "$SHORT_SHA" \
-            --arg author    "$AUTHOR" \
-            --arg subject   "$SUBJECT" \
-            --arg bi        "$BI_RESULT" \
-            --arg fd        "$FD_RESULT" \
-            --arg workflow  "$WORKFLOW" \
-            --arg run_url   "$run_url" \
-            --arg commit_url   "$commit_url" \
-            --arg workflow_url "$workflow_url" \
-            --arg artifact_url "$artifact_url" \
-            --arg run_id    "$RUN_ID" \
+            --arg channel       "$TESTBOT_SLACK_CHANNEL" \
+            --arg header_text   "$header_text" \
+            --arg trigger_label "$trigger_label" \
+            --arg branch        "$REF_NAME" \
+            --arg short_sha     "$SHORT_SHA" \
+            --arg author        "$AUTHOR" \
+            --arg subject       "$SUBJECT" \
+            --arg bi            "$bi_for_payload" \
+            --arg fd            "$fd_for_payload" \
+            --arg workflow      "$WORKFLOW" \
+            --arg run_url       "$run_url" \
+            --arg commit_url    "$commit_url" \
+            --arg workflow_url  "$workflow_url" \
+            --arg artifact_url  "$artifact_url" \
+            --arg compare_url   "$COMPARE_URL" \
+            --arg compare_label "$COMPARE_LABEL" \
+            --arg run_id        "$RUN_ID" \
             '{
-              text: ":x: OSMO daily deployment-test FAILED — \($workflow) run #\($run_id) (branch \($branch))",
+              channel: $channel,
+              text: "\($header_text) — \($workflow) run #\($run_id) (branch \($branch))",
               blocks: [
                 { type: "header",
-                  text: { type: "plain_text", text: ":x: OSMO daily deployment-test FAILED" } },
+                  text: { type: "plain_text", text: $header_text } },
                 { type: "section",
                   fields: [
                     { type: "mrkdwn", text: "*Workflow*\n\($workflow)" },
-                    { type: "mrkdwn", text: "*Trigger*\nDaily schedule (06:00 UTC)" },
+                    { type: "mrkdwn", text: "*Trigger*\n\($trigger_label)" },
                     { type: "mrkdwn", text: "*build-images*\n`\($bi)`" },
                     { type: "mrkdwn", text: "*full-deployment*\n`\($fd)`" }
                   ] },
                 { type: "section",
                   text: { type: "mrkdwn",
-                          text: "*Branch:* `\($branch)`\n*Commit:* <\($commit_url)|`\($short_sha)`> by *\($author)*\n>\($subject)" } },
+                          text: "*Branch:* `\($branch)`  •  *Tested commit:* <\($commit_url)|`\($short_sha)`> by *\($author)*\n>\($subject)" } },
+                { type: "context",
+                  elements: [
+                    { type: "mrkdwn",
+                      text: "Daily cron can span many commits since the last green run. Use the *\($compare_label)* button to see everything that landed in between — narrowing blame from a single SHA to the actual contributing change is usually faster from the compare view." }
+                  ] },
                 { type: "actions",
                   elements: [
                     { type: "button",
@@ -1146,8 +1241,8 @@ jobs:
                       text: { type: "plain_text", text: "Download artifacts" },
                       url:  $artifact_url },
                     { type: "button",
-                      text: { type: "plain_text", text: "Commit diff" },
-                      url:  $commit_url },
+                      text: { type: "plain_text", text: $compare_label },
+                      url:  $compare_url },
                     { type: "button",
                       text: { type: "plain_text", text: "Workflow file" },
                       url:  $workflow_url }
@@ -1155,23 +1250,35 @@ jobs:
                 { type: "context",
                   elements: [
                     { type: "mrkdwn",
-                      text: ":bulb: First-look: open the *Download artifacts* button → unzip → check `deployment-test-result.json` (which wrapper stage failed) and `diagnostics/` (cluster state at teardown)." }
+                      text: ":bulb: First-look investigation: open *Download artifacts* → unzip → check `deployment-test-result.json` (which wrapper stage failed) and `diagnostics/` (cluster state at teardown)." }
                   ] }
               ]
             }')
 
-          echo "::group::Slack payload"
-          echo "$payload" | jq .
+          echo "::group::Slack payload (preview)"
+          echo "$payload" | jq -C . | head -80
           echo "::endgroup::"
 
-          http_code=$(curl -sS -o /tmp/slack.resp -w '%{http_code}' \
-            -X POST -H 'Content-Type: application/json' \
-            --data "$payload" "$SLACK_WEBHOOK_URL")
-          echo "Slack POST → HTTP $http_code"
-          cat /tmp/slack.resp
-          echo
-          if [[ "$http_code" != "200" ]]; then
-            echo "::warning::Slack webhook returned HTTP $http_code — notification may not have been delivered."
-            # Don't fail the job on Slack errors; the upstream failure is
-            # already reported via the workflow run status.
+          # Same `chat.postMessage` call pattern that
+          # update-distroless-images.yaml uses (lines 210–224). Stay resilient:
+          # we never want a Slack outage to turn a passed deploy into a
+          # failed run, so log + continue rather than fail.
+          if ! response=$(
+            curl -fsSL \
+              -H "Authorization: Bearer $TESTBOT_SLACK_BOT_TOKEN" \
+              -H 'Content-Type: application/json; charset=utf-8' \
+              -d "$payload" \
+              https://slack.com/api/chat.postMessage
+          ); then
+            echo "::warning::Slack POST failed (network/transport) — message not delivered."
+            exit 0
           fi
+          ok=$(jq -r '.ok' <<<"$response")
+          if [[ "$ok" != "true" ]]; then
+            echo "::warning::Slack chat.postMessage returned ok=$ok — message not delivered."
+            echo "  Full response: $response"
+            exit 0
+          fi
+          ts=$(jq -r '.ts // ""' <<<"$response")
+          ch=$(jq -r '.channel // ""' <<<"$response")
+          echo "::notice::Slack notification posted to channel $ch (ts=$ts)."
