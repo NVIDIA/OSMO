@@ -62,14 +62,6 @@ on:
         description: 'E2E-test the Slack notification path. Skips build-images + full-deployment, runs a stub failure job, and exercises notify-slack-on-failure with realistic context. Cheap (~30s) and burns no Azure resources.'
         type: boolean
         default: false
-      force_notify:
-        description: 'TEMP: also fire notify-slack-on-failure on workflow_dispatch failures (otherwise schedule-only). For testing a genuine deployment-test failure end-to-end.'
-        type: boolean
-        default: false
-      oetf_tags_override:
-        description: 'TEMP: override OETF_TAGS env (e.g. `kind` to include the known-broken router-connectivity + task-runtime-environment tests, producing a real OETF failure for end-to-end Slack testing).'
-        type: string
-        default: ''
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
@@ -752,7 +744,12 @@ jobs:
           # Stay on the narrowed tag set until those three are fixed
           # upstream. 7 tests covering smoke API + smoke WS + 1 real
           # workflow (logger-connectivity) + 4 validation tests.
-          OETF_TAGS: ${{ github.event.inputs.oetf_tags_override || 'api,websocket,logger,negative' }}
+          # TEMP — force OETF failure on the next pull_request run so we can
+          # verify the notify-slack-on-failure path delivers with a real
+          # artifact deep-link. `kind` includes task-runtime-environment +
+          # router-connectivity which are known broken (schema drift + DNS).
+          # Revert to `api,websocket,logger,negative` after the test.
+          OETF_TAGS: kind
           # SKIP_TEARDOWN=1: the wrapper's teardown re-invokes
           # deploy-osmo-minimal.sh --destroy which (despite --skip-terraform)
           # appears to destroy cloud resources too, taking ~75 min. Our
@@ -1083,7 +1080,7 @@ jobs:
                     || needs.full-deployment.result == 'failure'))
               || (github.event.inputs.test_slack == 'true'
                   && needs.simulate-failure.result == 'failure')
-              || (github.event.inputs.force_notify == 'true'
+              || (github.event_name == 'pull_request'
                   && (needs.build-images.result == 'failure'
                       || needs.full-deployment.result == 'failure')) ) }}
     runs-on: ubuntu-latest
