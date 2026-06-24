@@ -27,9 +27,20 @@ name: Deployment Test
 # auth-check is workflow_dispatch only — it's a developer-driven smoke for
 # the OIDC chain, not something we want to run automatically per PR.
 #
-# Follow-ups once full-deployment is healthy:
-#   - Add `schedule:` cron for nightly (NIGHTLY="deployment-test" 04:30 UTC).
-#   - Add `release:` trigger so each release tag runs full-deployment.
+# Scheduled trigger (PRIMARY mode of operation on main):
+#   - Daily at 06:00 UTC. github.event_name='schedule' runs build-images +
+#     full-deployment end-to-end on main, the same path the PR-label gate
+#     exercises. Schedule events fire only from the repo's default branch
+#     (main) — they don't run for forks or feature branches.
+#
+# Slack notification (failure-only, schedule-only):
+#   - notify-slack-on-failure posts a brief message to the channel wired
+#     into the `SLACK_WEBHOOK_URL` repo secret when ANY of build-images /
+#     full-deployment fail on a scheduled run. PR-label runs don't notify
+#     (the author already sees the failure on the PR).
+#   - Requires repo secret `SLACK_WEBHOOK_URL` (Slack incoming webhook URL
+#     wired to the osmo-slack-test channel). If unset, the job logs a
+#     warning and exits 0 — the gate's overall status is unaffected.
 
 on:
   workflow_dispatch:
@@ -50,6 +61,11 @@ on:
       - '.github/workflows/deployment-test.yaml'
       - 'deployments/scripts/run-deployment-test.sh'
       - 'deployments/terraform/azure/**'
+  schedule:
+    # Daily at 06:00 UTC (off-peak across AMER/EMEA/APAC working hours).
+    # Cron runs in the GitHub Actions scheduler — fires only on main, not
+    # on feature branches.
+    - cron: '0 6 * * *'
 
 # OIDC federation to Azure — no static secrets in this workflow.
 # `id-token: write` lets the runner mint a JWT that Azure trusts via the
@@ -145,7 +161,8 @@ jobs:
   # full-deployment via `needs:`.
   build-images:
     if: >
-      ${{ github.event.inputs.mode == 'full-deployment'
+      ${{ github.event_name == 'schedule'
+          || github.event.inputs.mode == 'full-deployment'
           || (github.event_name == 'pull_request'
               && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
     runs-on: ubuntu-latest
@@ -292,7 +309,8 @@ jobs:
   full-deployment:
     needs: build-images
     if: >
-      ${{ github.event.inputs.mode == 'full-deployment'
+      ${{ github.event_name == 'schedule'
+          || github.event.inputs.mode == 'full-deployment'
           || (github.event_name == 'pull_request'
               && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
     runs-on: ubuntu-latest
@@ -1003,3 +1021,157 @@ jobs:
             runs/deployment-test-azure/**
           retention-days: 14
           if-no-files-found: warn
+
+  # Post a brief failure summary to Slack when the daily scheduled run
+  # breaks. Gated to scheduled events only — PR-label runs already surface
+  # the failure on the PR itself, and dispatch runs are interactive.
+  #
+  # Requires repo secret `SLACK_WEBHOOK_URL` (Slack incoming-webhook URL
+  # provisioned for the osmo-slack-test channel). Setup:
+  #
+  #   1. Slack: add an Incoming Webhook integration to #osmo-slack-test
+  #      (or create a Slack app with chat:write + add to the channel).
+  #   2. GitHub: Settings → Secrets and variables → Actions → New repository
+  #      secret → Name `SLACK_WEBHOOK_URL`, value = the webhook URL.
+  #
+  # If the secret is unset the step emits a warning and exits 0 — the gate's
+  # overall conclusion isn't changed by missing-secret state.
+  notify-slack-on-failure:
+    needs: [build-images, full-deployment]
+    # always() so this evaluates even when needs failed.
+    # Only act on scheduled runs, only when at least one upstream job
+    # actually failed (skipped/cancelled don't trigger notifications).
+    if: >
+      ${{ always()
+          && github.event_name == 'schedule'
+          && (needs.build-images.result == 'failure'
+              || needs.full-deployment.result == 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch commit metadata for the message body
+        id: commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          # GITHUB_TOKEN can read public + same-repo data. We just want the
+          # commit's author display name + the message subject line so devs
+          # can eyeball blame without clicking through.
+          resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                       -H 'Accept: application/vnd.github+json' \
+                       "https://api.github.com/repos/${REPO}/commits/${SHA}")
+          author=$(jq -r '.commit.author.name // "unknown"' <<<"$resp")
+          subject=$(jq -r '.commit.message // ""' <<<"$resp" | head -1)
+          # Trim subject to <= 120 chars so the Slack block doesn't sprawl.
+          if [[ ${#subject} -gt 120 ]]; then subject="${subject:0:117}..."; fi
+          # Persist into outputs without breaking newlines.
+          {
+            echo "author<<__GHA_EOF__"; echo "$author"; echo "__GHA_EOF__"
+            echo "subject<<__GHA_EOF__"; echo "$subject"; echo "__GHA_EOF__"
+            echo "short_sha=${SHA:0:7}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post failure notification to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          BI_RESULT: ${{ needs.build-images.result }}
+          FD_RESULT: ${{ needs.full-deployment.result }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          AUTHOR: ${{ steps.commit.outputs.author }}
+          SUBJECT: ${{ steps.commit.outputs.subject }}
+          SHORT_SHA: ${{ steps.commit.outputs.short_sha }}
+          FULL_SHA: ${{ github.sha }}
+          SERVER_URL: ${{ github.server_url }}
+          REF_NAME: ${{ github.ref_name }}
+          WORKFLOW: ${{ github.workflow }}
+        run: |
+          set -uo pipefail
+          if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
+            echo "::warning::SLACK_WEBHOOK_URL secret not set — skipping Slack notification."
+            echo "  Set it under Settings → Secrets and variables → Actions to enable."
+            exit 0
+          fi
+
+          run_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
+          if [[ -n "${RUN_ATTEMPT:-}" && "${RUN_ATTEMPT}" != "1" ]]; then
+            run_url="${run_url}/attempts/${RUN_ATTEMPT}"
+          fi
+          rerun_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
+          commit_url="${SERVER_URL}/${REPO}/commit/${FULL_SHA}"
+          workflow_url="${SERVER_URL}/${REPO}/blob/${REF_NAME}/.github/workflows/deployment-test.yaml"
+          artifact_url="${run_url}#artifacts"
+
+          # Block Kit payload — the `text:` top-level field is the fallback
+          # for Slack's mobile/push previews and accessibility readers.
+          payload=$(jq -n \
+            --arg branch    "$REF_NAME" \
+            --arg short_sha "$SHORT_SHA" \
+            --arg author    "$AUTHOR" \
+            --arg subject   "$SUBJECT" \
+            --arg bi        "$BI_RESULT" \
+            --arg fd        "$FD_RESULT" \
+            --arg workflow  "$WORKFLOW" \
+            --arg run_url   "$run_url" \
+            --arg commit_url   "$commit_url" \
+            --arg workflow_url "$workflow_url" \
+            --arg artifact_url "$artifact_url" \
+            --arg run_id    "$RUN_ID" \
+            '{
+              text: ":x: OSMO daily deployment-test FAILED — \($workflow) run #\($run_id) (branch \($branch))",
+              blocks: [
+                { type: "header",
+                  text: { type: "plain_text", text: ":x: OSMO daily deployment-test FAILED" } },
+                { type: "section",
+                  fields: [
+                    { type: "mrkdwn", text: "*Workflow*\n\($workflow)" },
+                    { type: "mrkdwn", text: "*Trigger*\nDaily schedule (06:00 UTC)" },
+                    { type: "mrkdwn", text: "*build-images*\n`\($bi)`" },
+                    { type: "mrkdwn", text: "*full-deployment*\n`\($fd)`" }
+                  ] },
+                { type: "section",
+                  text: { type: "mrkdwn",
+                          text: "*Branch:* `\($branch)`\n*Commit:* <\($commit_url)|`\($short_sha)`> by *\($author)*\n>\($subject)" } },
+                { type: "actions",
+                  elements: [
+                    { type: "button",
+                      text: { type: "plain_text", text: "View run + logs" },
+                      url:  $run_url,
+                      style: "danger" },
+                    { type: "button",
+                      text: { type: "plain_text", text: "Download artifacts" },
+                      url:  $artifact_url },
+                    { type: "button",
+                      text: { type: "plain_text", text: "Commit diff" },
+                      url:  $commit_url },
+                    { type: "button",
+                      text: { type: "plain_text", text: "Workflow file" },
+                      url:  $workflow_url }
+                  ] },
+                { type: "context",
+                  elements: [
+                    { type: "mrkdwn",
+                      text: ":bulb: First-look: open the *Download artifacts* button → unzip → check `deployment-test-result.json` (which wrapper stage failed) and `diagnostics/` (cluster state at teardown)." }
+                  ] }
+              ]
+            }')
+
+          echo "::group::Slack payload"
+          echo "$payload" | jq .
+          echo "::endgroup::"
+
+          http_code=$(curl -sS -o /tmp/slack.resp -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data "$payload" "$SLACK_WEBHOOK_URL")
+          echo "Slack POST → HTTP $http_code"
+          cat /tmp/slack.resp
+          echo
+          if [[ "$http_code" != "200" ]]; then
+            echo "::warning::Slack webhook returned HTTP $http_code — notification may not have been delivered."
+            # Don't fail the job on Slack errors; the upstream failure is
+            # already reported via the workflow run status.
+          fi
