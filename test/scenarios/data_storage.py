@@ -22,7 +22,7 @@ class DataStorageWorkflows(RunnerFixture):
     # clone + an internal-only OCI registry image.
 
     def test_data_cli(self):
-        self.workflow("test/workflow/dataset_cli.yaml") \
+        self.workflow("test/workflow/data_cli.yaml") \
             .expect_completed()
 
     def test_workflow_cli(self):

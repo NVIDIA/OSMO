@@ -84,17 +84,12 @@ _SERIAL = [
     "test_serial_workflow",
 ]
 
-# Tests in this set additionally get the `kind` tag — verified to pass
-# against `oetf:deploy --env kind` (host-arch only, no NVIDIA-only
-# platforms or registry credentials needed).
-_KIND_RUNNABLE_SERIAL = []
-
 [
     oetf_scenario_test(
         name = t.removeprefix("test_").replace("_", "-"),
         src = "serial.py",
         test_filter = "SerialWorkflows." + t,
-        tags = ["serial"] + (["kind"] if t in _KIND_RUNNABLE_SERIAL else []),
+        tags = ["serial"],
     )
     for t in _SERIAL
 ]
