@@ -191,6 +191,16 @@ How to browse previously submitted workflows?
 
 Refer to :ref:`workflow list <cli_reference_workflow_list>` to list workflows.
 
+How to mount data inside the workflow?
+--------------------------------------
+
+Mounting inputs inside a workflow is not supported. Contact your admin to setup NAS or LFS support.
+
+How to update data inside the workflow?
+---------------------------------------
+
+Write task outputs to ``{{output}}`` or configured workflow output paths. See :ref:`workflow_spec_inputs_and_outputs`.
+
 How to Handle Failed Tasks?
 ---------------------------
 

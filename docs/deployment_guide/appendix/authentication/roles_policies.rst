@@ -237,7 +237,7 @@ Policy Examples
 .. dropdown:: Example 1: Basic Role
    :color: info
 
-   This role allows all workflow and credential operations:
+   This role allows all credential operations:
 
    .. code-block:: json
 
@@ -247,7 +247,6 @@ Policy Examples
         "policies": [
           {
             "actions": [
-                "workflow:*",
                 "credentials:*"
             ]
           }
