@@ -21,10 +21,53 @@
 osmo config tag
 ===============
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: config tag
-   :ref-prefix: cli_reference_config_tag
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=config tag | ref-prefix=cli_reference_config_tag | flags=argument-anchor
+
+Update tags for a config revision. Tags can be used for organizing configs by category and filtering output of ``osmo config history``. Tags do not affect the configuration itself.
+
+.. code-block:: text
+
+   [1;34musage: [0m[35mosmo config tag [-h] config_type [--set SET [SET ...]] [--delete DELETE [DELETE ...]][0m
+
+.. _cli_reference_config_tag_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``config_type``
+    Config to update tags for in format <CONFIG_TYPE>[:<revision>]
+
+.. _cli_reference_config_tag_named_arguments:
+
+Named Arguments
+---------------
+
+``--set, -s``
+    Tags to add to the config history entry
+
+``--delete, -d``
+    Tags to remove from the config history entry
+
+
+
+Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, GROUP_TEMPLATE, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+
+.. rubric:: Examples
+
+View current tags for a revision::
+
+    osmo config history BACKEND -r 5
+
+Update tags by adding and removing::
+
+    osmo config tag BACKEND:5 --set foo --delete test-4 test-3
+
+Verify the updated tags::
+
+    osmo config history BACKEND -r 5
+
+Update tags for current revision::
+
+    osmo config tag BACKEND --set current-tag
+        

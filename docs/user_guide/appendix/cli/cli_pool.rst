@@ -23,10 +23,73 @@
 osmo pool
 ================================================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: pool
-   :ref-prefix: cli_reference_pool
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=pool | ref-prefix=cli_reference_pool | flags=argument-anchor
+
+.. code-block:: text
+
+   [1;34musage: [0m[1;35mosmo pool[0m [[32m-h[0m] [32m{list} ...[0m
+
+.. _cli_reference_pool_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``command``
+    Possible choices: list
+
+Sub-commands
+------------
+
+.. _cli_reference_pool_list:
+
+list
+~~~~
+
+Pool resource display formats::
+
+  Mode           | Description
+  ---------------|----------------------------------------------------
+  Used (default) | Shows the number of GPUs used and total GPUs
+  Free           | Shows the number of GPUs available for use
+
+Display table columns::
+
+  Column          | Description
+  ----------------|----------------------------------------------------
+  Quota Limit     | Max GPUs for HIGH/NORMAL priority workflows
+  Quota Used      | GPUs used by HIGH/NORMAL priority workflows
+  Quota Free      | Available GPUs for HIGH/NORMAL priority workflows
+  Total Capacity  | Total GPUs available on nodes in the pool
+  Total Usage     | Total GPUs used by all workflows in pool
+  Total Free      | Free GPUs on nodes in the pool
+
+
+.. code-block:: text
+
+   [1;34m[0m[1;35mosmo pool list[0m [[32m-h[0m] [[36m--pool [33mPOOL [POOL ...][0m]
+                  [[36m--format-type [33m{json,text}[0m] [[36m--mode [33m{free,used}[0m]
+
+.. _cli_reference_pool_list_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--pool, -p``
+    Display resources for specified pool.
+
+    Default: ``[]``
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+``--mode, -m``
+    Possible choices: free, used
+
+    Show free or used resources (Default used).
+
+    Default: ``'used'``

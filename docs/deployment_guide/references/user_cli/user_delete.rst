@@ -21,10 +21,32 @@
 osmo user delete
 ================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: user delete
-   :ref-prefix: cli_reference_user_delete
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=user delete | ref-prefix=cli_reference_user_delete | flags=argument-anchor
+
+Delete a user and all associated data (tokens, roles, profile).
+
+.. code-block:: text
+
+   [1;34musage: [0m[1;35mosmo user delete[0m [[32m-h[0m] [[36m--force[0m] [32muser_id[0m
+
+.. _cli_reference_user_delete_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``user_id``
+    User ID to delete.
+
+.. _cli_reference_user_delete_named_arguments:
+
+Named Arguments
+---------------
+
+``--force, -f``
+    Skip confirmation prompt.
+
+    Default: ``False``
+
+
+Ex. osmo user delete myuser@example.com

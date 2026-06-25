@@ -23,10 +23,108 @@
 osmo resource
 ================================================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: resource
-   :ref-prefix: cli_reference_resource
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=resource | ref-prefix=cli_reference_resource | flags=argument-anchor
+
+.. code-block:: text
+
+   [1;34musage: [0m[1;35mosmo resource[0m [[32m-h[0m] [32m{list,info} ...[0m
+
+.. _cli_reference_resource_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``command``
+    Possible choices: list, info
+
+Sub-commands
+------------
+
+.. _cli_reference_resource_list:
+
+list
+~~~~
+
+Resource display formats::
+
+  Mode           | Description
+  ---------------|----------------------------------------------------
+  Used (default) | Shows "used/total" (e.g., 40/100 means 40 Gi used
+                 | out of 100 Gi total memory)
+  Free           | Shows available resources as a single number
+                 | (e.g., 60 means 60 Gi of memory is available for use)
+
+This applies to all allocatable resources: CPU, memory, storage, and GPU.
+
+.. code-block:: text
+
+   [1;34m[0m[1;35mosmo resource list[0m [[32m-h[0m] [[36m--pool [33mPOOL [POOL ...][0m]
+                      [[36m--platform [33mPLATFORM [PLATFORM ...][0m] [[36m--all[0m]
+                      [[36m--format-type [33m{json,text}[0m]
+                      [[36m--mode [33m{free,used}[0m]
+
+.. _cli_reference_resource_list_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--pool, -p``
+    Display resources for specified pool.
+
+    Default: ``[]``
+
+``--platform``
+    Display resources for specified platform.
+
+    Default: ``[]``
+
+``--all, -a``
+    Show all resources from all pools.
+
+    Default: ``False``
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+``--mode, -m``
+    Possible choices: free, used
+
+    Show free or used resources (Default used).
+
+    Default: ``'used'``
+
+.. _cli_reference_resource_info:
+
+info
+~~~~
+
+Get resource allocatable and configurations of a node.
+
+.. code-block:: text
+
+   [1;34m[0m[1;35mosmo resource info[0m [[32m-h[0m] [[36m--pool [33mPOOL[0m] [[36m--platform [33mPLATFORM[0m]
+                      [32mnode_name[0m
+
+.. _cli_reference_resource_info_positional_arguments:
+
+Positional Arguments
+^^^^^^^^^^^^^^^^^^^^
+
+``node_name``
+    Name of node.
+
+.. _cli_reference_resource_info_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--pool, -p``
+    Specify the pool to see specific allocatable and configurations.
+
+``--platform, -pl``
+    Specify the platform to see specific allocatable and configurations.

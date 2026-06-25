@@ -21,10 +21,45 @@
 osmo config diff
 ================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: config diff
-   :ref-prefix: cli_reference_config_diff
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=config diff | ref-prefix=cli_reference_config_diff | flags=argument-anchor
+
+Show the difference between two config revisions
+
+Available config types (config_type): BACKEND, BACKEND_TEST, DATASET, GROUP_TEMPLATE, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+
+.. code-block:: text
+
+   [1;34musage: [0m[1;35mosmo config diff[0m [[32m-h[0m] [32mfirst[0m [32m[second][0m
+
+.. _cli_reference_config_diff_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``first``
+    First config to compare. Format: <config_type>[:<revision>] (e.g. BACKEND:3). If no revision is provided, uses the current revision.
+
+``second``
+    Second config to compare. Format: <config_type>[:<revision>] (e.g. BACKEND:6). If no revision is provided, uses the current revision.
+
+
+
+.. rubric:: Examples
+
+Show changes made to the workflow config since revision 15::
+
+  osmo config diff WORKFLOW:15
+
+.. image:: images/config_diff_workflow.png
+    :align: center
+    :class: mb-2
+
+Show changes made between two revisions of the service configuration::
+
+  osmo config diff SERVICE:14 SERVICE:15
+
+.. image:: images/config_diff_service.png
+    :align: center
+    :class: mb-2
+        

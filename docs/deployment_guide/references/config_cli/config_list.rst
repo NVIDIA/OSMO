@@ -21,10 +21,42 @@
 osmo config list
 ================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: config list
-   :ref-prefix: cli_reference_config_list
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=config list | ref-prefix=cli_reference_config_list | flags=argument-anchor
+
+List current configuration revisions for each config type
+
+.. code-block:: text
+
+   [1;34musage: [0m[1;35mosmo config list[0m [[32m-h[0m] [[36m--format-type [33m{json,text}[0m]
+                           [[36m--fit-width[0m]
+
+.. _cli_reference_config_list_named_arguments:
+
+Named Arguments
+---------------
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (default text)
+
+    Default: ``'text'``
+
+``--fit-width``
+    Fit the table width to the terminal width
+
+    Default: ``False``
+
+
+
+.. rubric:: Examples
+
+List configurations in text format (default)::
+
+    osmo config list
+
+List configurations in JSON format::
+
+    osmo config list --format-type json
+        

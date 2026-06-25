@@ -21,10 +21,52 @@
 osmo config delete
 ==================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: config delete
-   :ref-prefix: cli_reference_config_delete
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=config delete | ref-prefix=cli_reference_config_delete | flags=argument-anchor
+
+Delete a named configuration or a specific config revision
+
+.. code-block:: text
+
+   [1;34musage: [0m[35mosmo config delete [-h] config_type [name] [--description DESCRIPTION] [--tags TAGS [TAGS ...]][0m
+
+.. _cli_reference_config_delete_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``config_type``
+    Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a specific revision
+
+``name``
+    Name of the config to delete (required when not deleting a revision)
+
+.. _cli_reference_config_delete_named_arguments:
+
+Named Arguments
+---------------
+
+``--description, -d``
+    Description of the deletion (only used when deleting a named config)
+
+``--tags, -t``
+    Tags for the deletion (only used when deleting a named config)
+
+
+
+Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, GROUP_TEMPLATE, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE
+
+.. rubric:: Examples
+
+Delete a named pool configuration::
+
+    osmo config delete POOL my-pool
+
+Delete a specific revision::
+
+    osmo config delete SERVICE:123
+
+Delete with description and tags::
+
+    osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
+        

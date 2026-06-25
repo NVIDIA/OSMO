@@ -23,10 +23,128 @@
 osmo credential
 ================================================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: credential
-   :ref-prefix: cli_reference_credential
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=credential | ref-prefix=cli_reference_credential | flags=argument-anchor
+
+.. code-block:: text
+
+   [1;34musage: [0m[1;35mosmo credential[0m [[32m-h[0m] [[36m--format-type [33m{json,text}[0m]
+                          [32m{set,list,delete} ...[0m
+
+.. _cli_reference_credential_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``command``
+    Possible choices: set, list, delete
+
+.. _cli_reference_credential_named_arguments:
+
+Named Arguments
+---------------
+
+``--format-type``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+Sub-commands
+------------
+
+.. _cli_reference_credential_set:
+
+set
+~~~
+
+Create or update a credential
+
+.. code-block:: text
+
+   [1;34m[0m[1;35mosmo credential set[0m [[32m-h[0m] [[36m--type [33m{REGISTRY,DATA,GENERIC}[0m]
+                       ([36m--payload [33mPAYLOAD [PAYLOAD ...][0m |
+                       [36m--payload-file [33mPAYLOAD_FILE [PAYLOAD_FILE ...][0m)
+                       [32mname[0m
+
+.. _cli_reference_credential_set_positional_arguments:
+
+Positional Arguments
+^^^^^^^^^^^^^^^^^^^^
+
+``name``
+    Name of the credential.
+
+.. _cli_reference_credential_set_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--type``
+    Possible choices: REGISTRY, DATA, GENERIC
+
+    Type of the credential.
+
+    Default: ``'GENERIC'``
+
+``--payload``
+    List of key-value pairs.
+    The tabulated information illustrates the mandatory and optional keys for the payload corresponding to each type of credential:
+
+    +-----------------+-------------------------------------+--------------------------------------+
+    | Credential Type | Mandatory keys                      | Optional keys                        |
+    +-----------------+-------------------------------------+--------------------------------------+
+    | REGISTRY        | auth                                | registry, username                   |
+    +-----------------+-------------------------------------+--------------------------------------+
+    | DATA            | access_key_id, access_key, endpoint | region, override_url, addressing_style |
+    +-----------------+-------------------------------------+--------------------------------------+
+    | GENERIC         |                                     |                                      |
+    +-----------------+-------------------------------------+--------------------------------------+
+
+
+``--payload-file``
+    List of key-value pairs, but the value provided needs to be a path to a file.
+    Retrieves the value of the secret from a file.
+
+
+Ex. osmo credential set registry_cred_name --type REGISTRY --payload registry=your_registry username=your_username auth=xxxxxx 
+Ex. osmo credential set data_cred_name --type DATA --payload access_key_id=your_s3_username access_key=xxxxxx endpoint=s3://bucket 
+Ex. osmo credential set generic_cred_name --type GENERIC --payload omni_user=your_omni_username omni_pass=xxxxxx 
+Ex. osmo credential set generic_cred_name --type GENERIC --payload-file ssh_public_key=<path to file>
+
+.. _cli_reference_credential_list:
+
+list
+~~~~
+
+List all credentials
+
+.. code-block:: text
+
+   [1;34m[0m[1;35mosmo credential list[0m [[32m-h[0m]
+
+
+Ex. osmo credential list
+
+.. _cli_reference_credential_delete:
+
+delete
+~~~~~~
+
+Delete an existing credential
+
+.. code-block:: text
+
+   [1;34m[0m[1;35mosmo credential delete[0m [[32m-h[0m] [32mname[0m
+
+.. _cli_reference_credential_delete_positional_arguments:
+
+Positional Arguments
+^^^^^^^^^^^^^^^^^^^^
+
+``name``
+    Delete credential with name.
+
+
+Ex. osmo credential delete omni_cred
