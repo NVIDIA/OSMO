@@ -21,10 +21,34 @@
 osmo user get
 =============
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: user get
-   :ref-prefix: cli_reference_user_get
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=user get | ref-prefix=cli_reference_user_get | flags=argument-anchor
+
+Get detailed information about a user including their roles.
+
+.. code-block:: text
+
+   usage: osmo user get [-h] [--format-type {json,text}] user_id
+
+.. _cli_reference_user_get_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``user_id``
+    User ID to get details for.
+
+.. _cli_reference_user_get_named_arguments:
+
+Named Arguments
+---------------
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo user get myuser@example.com

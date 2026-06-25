@@ -21,10 +21,31 @@
 osmo token delete
 =================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: token delete
-   :ref-prefix: cli_reference_token_delete
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=token delete | ref-prefix=cli_reference_token_delete | flags=argument-anchor
+
+Delete an access token for yourself or another user (admin only).
+
+.. code-block:: text
+
+   usage: osmo token delete [-h] [--user USER] name
+
+.. _cli_reference_token_delete_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``name``
+    Name of the token to delete.
+
+.. _cli_reference_token_delete_named_arguments:
+
+Named Arguments
+---------------
+
+``--user, -u``
+    Delete token for a specific user (admin only). By default, deletes token for the current user.
+
+
+Ex. osmo token delete my-token
+Ex. osmo token delete old-token --user other-user@example.com
