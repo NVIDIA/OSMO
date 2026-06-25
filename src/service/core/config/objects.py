@@ -397,7 +397,7 @@ class GetConfigsHistoryResponse(pydantic.BaseModel):
 class RollbackConfigRequest(ConfigsRequest):
     """Request body for config rollback endpoint."""
 
-    config_type: connectors.ConfigHistoryType
+    config_type: connectors.OperableConfigHistoryType
     revision: int = pydantic.Field(gt=0, description='Revision to roll back to')
 
 

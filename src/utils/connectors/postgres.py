@@ -69,6 +69,20 @@ class ConfigType(enum.Enum):
 
 class ConfigHistoryType(enum.Enum):
     """ Type of configs supported by config history """
+    DATASET = 'DATASET'
+    SERVICE = 'SERVICE'
+    WORKFLOW = 'WORKFLOW'
+    BACKEND = 'BACKEND'
+    POOL = 'POOL'
+    POD_TEMPLATE = 'POD_TEMPLATE'
+    GROUP_TEMPLATE = 'GROUP_TEMPLATE'
+    RESOURCE_VALIDATION = 'RESOURCE_VALIDATION'
+    BACKEND_TEST = 'BACKEND_TEST'
+    ROLE = 'ROLE'
+
+
+class OperableConfigHistoryType(enum.Enum):
+    """Type of configs supported by config history mutations."""
     SERVICE = 'SERVICE'
     WORKFLOW = 'WORKFLOW'
     BACKEND = 'BACKEND'

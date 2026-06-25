@@ -1087,7 +1087,7 @@ def rollback_config(
         if request.description else description_base
     )
 
-    if request.config_type == connectors.ConfigHistoryType.SERVICE:
+    if request.config_type == connectors.OperableConfigHistoryType.SERVICE:
         helpers.put_configs(
             objects.PutConfigsRequest(
                 configs=connectors.ServiceConfig.from_db(history_entry['data']),
@@ -1099,7 +1099,7 @@ def rollback_config(
             # The config from history is already serialized, so we don't need to serialize it again
             should_serialize=False
         )
-    elif request.config_type == connectors.ConfigHistoryType.WORKFLOW:
+    elif request.config_type == connectors.OperableConfigHistoryType.WORKFLOW:
         helpers.put_configs(
             objects.PutConfigsRequest(
                 configs=connectors.WorkflowConfig.from_db(history_entry['data']),
@@ -1111,7 +1111,7 @@ def rollback_config(
             # The config from history is already serialized, so we don't need to serialize it again
             should_serialize=False
         )
-    elif request.config_type == connectors.ConfigHistoryType.BACKEND:
+    elif request.config_type == connectors.OperableConfigHistoryType.BACKEND:
         # Delete all existing backends
         existing_backends = connectors.Backend.list_from_db(postgres)
         next_backends = [backend['name'] for backend in history_entry['data']]
@@ -1132,7 +1132,7 @@ def rollback_config(
             ),
             username
         )
-    elif request.config_type == connectors.ConfigHistoryType.POOL:
+    elif request.config_type == connectors.OperableConfigHistoryType.POOL:
         # Delete all existing pools
         existing_pools = connectors.fetch_editable_pool_config(postgres)
         pools_to_remove = [
@@ -1149,7 +1149,7 @@ def rollback_config(
             ),
             username
         )
-    elif request.config_type == connectors.ConfigHistoryType.POD_TEMPLATE:
+    elif request.config_type == connectors.OperableConfigHistoryType.POD_TEMPLATE:
         # Delete all existing pod templates
         existing_pod_templates = connectors.PodTemplate.list_from_db(postgres)
         pod_templates_to_remove = [
@@ -1168,7 +1168,7 @@ def rollback_config(
             ),
             username
         )
-    elif request.config_type == connectors.ConfigHistoryType.GROUP_TEMPLATE:
+    elif request.config_type == connectors.OperableConfigHistoryType.GROUP_TEMPLATE:
         # Delete all existing group templates
         existing_group_templates = connectors.GroupTemplate.list_from_db(postgres)
         group_templates_to_remove = [
@@ -1187,7 +1187,7 @@ def rollback_config(
             ),
             username
         )
-    elif request.config_type == connectors.ConfigHistoryType.RESOURCE_VALIDATION:
+    elif request.config_type == connectors.OperableConfigHistoryType.RESOURCE_VALIDATION:
         # Delete all existing resource validations
         existing_resource_validations = connectors.ResourceValidation.list_from_db(postgres)
         resource_validations_to_remove = [
@@ -1206,7 +1206,7 @@ def rollback_config(
             ),
             username
         )
-    elif request.config_type == connectors.ConfigHistoryType.BACKEND_TEST:
+    elif request.config_type == connectors.OperableConfigHistoryType.BACKEND_TEST:
         # Delete all existing backend tests
         existing_backend_tests = connectors.BackendTests.list_from_db(postgres)
         backend_tests_to_remove = [
@@ -1225,7 +1225,7 @@ def rollback_config(
             ),
             username
         )
-    elif request.config_type == connectors.ConfigHistoryType.ROLE:
+    elif request.config_type == connectors.OperableConfigHistoryType.ROLE:
         # Delete all existing roles
         existing_roles = connectors.Role.list_from_db(postgres)
         next_roles = [role['name'] for role in history_entry['data']]
@@ -1265,7 +1265,7 @@ def delete_config_history_revision(
         OSMOUserError: If the revision doesn't exist or is the current revision
     """
     try:
-        config_type_enum = connectors.ConfigHistoryType[config_type.upper()]
+        config_type_enum = connectors.OperableConfigHistoryType[config_type.upper()]
     except KeyError as e:
         raise osmo_errors.OSMOUserError(f'Invalid config type "{config_type}"') from e
     postgres = connectors.PostgresConnector.get_instance()
@@ -1327,7 +1327,7 @@ def update_config_history_tags(
         OSMOUserError: If the revision doesn't exist or is invalid
     """
     try:
-        config_type_enum = connectors.ConfigHistoryType[config_type.upper()]
+        config_type_enum = connectors.OperableConfigHistoryType[config_type.upper()]
     except KeyError as e:
         raise osmo_errors.OSMOUserError(f'Invalid config type "{config_type}"') from e
     postgres = connectors.PostgresConnector.get_instance()

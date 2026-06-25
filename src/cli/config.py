@@ -27,6 +27,7 @@ from src.cli.formatters import RstStrippingHelpFormatter
 from src.lib.utils import client, common, config_history, osmo_errors, role, validation
 
 CONFIG_TYPES_STRING = ', '.join(config_history.CONFIG_TYPES)
+OPERABLE_CONFIG_TYPES_STRING = ', '.join(config_history.OPERABLE_CONFIG_TYPES)
 
 
 class ConfigApiMapping(TypedDict):
@@ -77,6 +78,7 @@ UPDATE_CONFIG_API_MAPPING: Dict[
         'named': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
     },
 }
+update_choices = sorted([key.value for key in UPDATE_CONFIG_API_MAPPING])
 
 
 DELETE_CONFIG_SUPPORTED_TYPES: Set[config_history.ConfigHistoryType] = {
@@ -222,7 +224,7 @@ def _run_rollback_command(service_client: client.ServiceClient, args: argparse.N
         service_client: The service client instance
         args: Parsed command line arguments
     """
-    revision = config_history.ConfigHistoryRevision(args.revision)
+    revision = config_history.OperableConfigHistoryRevision(args.revision)
     payload = {
         'revision': revision.revision,
         'config_type': revision.config_type.value,
@@ -256,6 +258,7 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
     """
     # Build query parameters
     params: Dict[str, Any] = {
+        'config_types': config_history.OPERABLE_CONFIG_TYPES,
         'omit_data': True,
         'at_timestamp': common.current_time()
     }
@@ -326,10 +329,10 @@ def _get_current_config(
         config_type: The string config type from parsed arguments
         params: Optional query parameters to include in the request
     """
-    if config_type not in [t.value for t in config_history.ConfigHistoryType]:
+    if config_type not in config_history.OPERABLE_CONFIG_TYPES:
         raise osmo_errors.OSMOUserError(
             f'Invalid config type "{config_type}". '
-            f'Available types: {CONFIG_TYPES_STRING}'
+            f'Available types: {OPERABLE_CONFIG_TYPES_STRING}'
         )
     return service_client.request(
         client.RequestMethod.GET, f'api/configs/{config_type.lower()}', params=params
@@ -556,7 +559,7 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
     """
     # Check if config_type contains a revision number (format: CONFIG_TYPE:revision)
     if ':' in args.config:
-        revision = config_history.ConfigHistoryRevision(args.config)
+        revision = config_history.OperableConfigHistoryRevision(args.config)
 
         try:
             service_client.request(
@@ -568,10 +571,10 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
         except Exception as e:
             raise osmo_errors.OSMOUserError(f'Error deleting config revision: {e}')
     else:
-        if args.config not in [t.value for t in config_history.ConfigHistoryType]:
+        if args.config not in config_history.OPERABLE_CONFIG_TYPES:
             raise osmo_errors.OSMOUserError(
                 f'Invalid config type "{args.config}". '
-                f'Available types: {CONFIG_TYPES_STRING}')
+                f'Available types: {OPERABLE_CONFIG_TYPES_STRING}')
 
         # Delete a named config
         if not args.name:
@@ -701,15 +704,15 @@ def _run_tag_command(service_client: client.ServiceClient, args: argparse.Namesp
     # Parse the config identifier
     if ':' in args.config:
         # Format is <CONFIG_TYPE>:<revision>
-        revision = config_history.ConfigHistoryRevision(args.config)
+        revision = config_history.OperableConfigHistoryRevision(args.config)
         config_type = revision.config_type.value.lower()
         revision_num = revision.revision
     else:
         # Format is <CONFIG_TYPE> - use current revision
-        if args.config not in [t.value for t in config_history.ConfigHistoryType]:
+        if args.config not in config_history.OPERABLE_CONFIG_TYPES:
             raise osmo_errors.OSMOUserError(
                 f'Invalid config type "{args.config}". '
-                f'Available types: {CONFIG_TYPES_STRING}')
+                f'Available types: {OPERABLE_CONFIG_TYPES_STRING}')
         config_type = args.config.lower()
         # Get the latest revision
         params = {
@@ -938,7 +941,7 @@ Show a pool configuration with parsed pod templates, group templates, and resour
         usage='osmo config update [-h] config_type [name] [--file FILE] [--description DESCRIPTION]'
               ' [--tags TAGS [TAGS ...]]',
         epilog=f'''
-Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+Available config types (CONFIG_TYPE): {OPERABLE_CONFIG_TYPES_STRING}
 
 Examples
 ========
@@ -958,7 +961,7 @@ Update with description and tags::
     )
     update_parser.add_argument(
         'config',
-        choices=config_history.CONFIG_TYPES,
+        choices=update_choices,
         metavar='config_type',
         help='Config type to update (CONFIG_TYPE)',
     )
@@ -1146,7 +1149,7 @@ View history for a specific time range::
         usage='osmo config rollback [-h] revision [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
         epilog=f'''
-Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+Available config types (CONFIG_TYPE): {OPERABLE_CONFIG_TYPES_STRING}
 
 Examples
 ========
@@ -1239,7 +1242,7 @@ Creating a new backend role::
         usage='osmo config tag [-h] config_type [--set SET [SET ...]] '
               '[--delete DELETE [DELETE ...]]',
         epilog=f'''
-Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+Available config types (CONFIG_TYPE): {OPERABLE_CONFIG_TYPES_STRING}
 
 Examples
 ========

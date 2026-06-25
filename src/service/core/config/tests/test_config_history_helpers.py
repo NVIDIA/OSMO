@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import datetime
 import unittest
 
-from src.lib.utils import config_history
+from src.lib.utils import config_history, osmo_errors
 from src.service.core.config import config_history_helpers, objects
 from src.utils.connectors.postgres import ListOrder
 
@@ -250,6 +250,16 @@ class TestConfigHistoryQueryParams(unittest.TestCase):
         self.assertEqual(
             params.config_types, config_types
         )
+
+    def test_dataset_history_revision_is_read_only(self):
+        """DATASET revisions are valid history ids but not operable ids."""
+        revision = config_history.ConfigHistoryRevision('DATASET:1')
+        self.assertEqual(revision.config_type, config_history.ConfigHistoryType.DATASET)
+        self.assertEqual(revision.revision, 1)
+
+        with self.assertRaises(osmo_errors.OSMOUserError) as context:
+            config_history.OperableConfigHistoryRevision('DATASET:1')
+        self.assertIn('DATASET:1', str(context.exception))
 
     def test_invalid_config_types(self):
         """Test validation of invalid config types."""
