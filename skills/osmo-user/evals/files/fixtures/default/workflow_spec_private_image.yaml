@@ -12,8 +12,8 @@ workflow:
         python -m gr00t.train --output {{output}}/model
       path: /tmp/entry.sh
     outputs:
-    - dataset:
-        name: private-image-output
+    - url:
+        path: s3://my-bucket/private-image-1-output/
   resources:
     default:
       cpu: 32

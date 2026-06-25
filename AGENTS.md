@@ -87,8 +87,8 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 |-----------|---------|
 | `auth/` | JWT token lifecycle, access token CRUD, user management, role assignment |
 | `workflow/` | Workflow submit/list/cancel, resource quota, pool allocation, task coordination, credential management |
-| `config/` | Service/workflow configuration CRUD with versioning and history. Pod templates, resource validation rules, pool/backend config. Dataset config is deprecated; stale ConfigMap `dataset` blocks are ignored. |
-| `data/` | Dataset/collection management, versioning with tags, multi-backend storage, streaming downloads |
+| `config/` | Service/workflow configuration CRUD with versioning and history. Pod templates, resource validation rules, pool/backend config. |
+| `data/` | Workflow data and storage operations built on multi-backend storage. |
 | `app/` | Workflow app lifecycle (create, version, rename, delete), YAML spec validation |
 | `profile/` | User profile/preferences, token identity, role/pool visibility |
 
@@ -164,7 +164,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 
 | Package | Purpose |
 |---------|---------|
-| `roles/` | Semantic RBAC. Actions like `workflow:Create`, `dataset:Read`. LRU cache with TTL. Role sync from IDP. Pool access evaluation. |
+| `roles/` | Semantic RBAC. Actions like `workflow:Create` and `pool:List`. LRU cache with TTL. Role sync from IDP. Pool access evaluation. |
 | `postgres/` | PostgreSQL client with pgx connection pool and pgroll schema version support. |
 | `redis/` | Redis client with optional TLS. |
 | `logging/` | Structured slog handler compatible with Fluent Bit parsers. |
@@ -182,7 +182,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 - **State**: TanStack Query (data fetching), Zustand (UI state), nuqs (URL state)
 - **Testing**: Vitest (unit), Playwright (E2E), MSW (API mocking)
 - **API layer**: OpenAPI-generated types (`lib/api/generated.ts` — DO NOT EDIT) + adapter layer (`lib/api/adapter/`) that bridges backend quirks to UI expectations
-- **Key routes**: pools, resources, workflows, datasets, occupancy, profile, log-viewer (under `app/(dashboard)/`)
+- **Key routes**: pools, resources, workflows, occupancy, profile, log-viewer (under `app/(dashboard)/`)
 - **Import rules**: Absolute imports only (`@/...`), no barrel exports, API types from adapter (not generated)
 
 ### Operator (`operator/`)

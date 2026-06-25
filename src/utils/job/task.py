@@ -2734,7 +2734,7 @@ class TaskGroup(pydantic.BaseModel):
                             '-serviceConfig', service_config_file.path]
 
         # Create default metadata file
-        dataset_metadata_info = {
+        default_metadata_info = {
             'default': {
                 'input_data': input_urls,
                 'wfid': self.workflow_id,
@@ -2742,7 +2742,7 @@ class TaskGroup(pydantic.BaseModel):
             }
         }
         metadata_file = File(path='/metadata',
-                                contents=yaml.dump(dataset_metadata_info))
+                                contents=yaml.dump(default_metadata_info))
         metadata_file.path = f'{kb_objects.DATA_LOCATION}/default_metadata.yaml'
 
         def _build_file_mount(file: File) -> kb_objects.FileMount:
