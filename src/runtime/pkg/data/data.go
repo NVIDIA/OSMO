@@ -50,8 +50,12 @@ const (
 	Download         string = "download"
 	NotApplicable    string = "N/A"
 	BenchmarkSuffix  string = "_benchmark.json"
-	BenchmarkPath    string = "/osmo/data/benchmarks/"
 )
+
+// BenchmarkPath is the directory under which the OSMO data CLI writes its
+// per-transfer benchmark JSON files. Declared as a var (not a const) so tests
+// can redirect it to a writable tempdir; production code never mutates it.
+var BenchmarkPath = "/osmo/data/benchmarks/"
 
 const (
 	URLOperation     string = "Url"

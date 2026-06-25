@@ -40,5 +40,6 @@ go_test(
     embed = [":data"],
     deps = [
         "//src/runtime/pkg/common:common",
+        "//src/runtime/pkg/metrics",
     ],
 )
