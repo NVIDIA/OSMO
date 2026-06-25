@@ -41,6 +41,13 @@ help:
 clean:
 	rm -rf _build
 
+# Freeze the CLI reference pages into static reStructuredText. Run this in the
+# environment of the branch being frozen (so the parser imports), then commit the
+# modified cli_*.rst files so the multiversion build renders them without
+# importing src.
+cli-rst:
+	python generate_cli_rst.py
+
 build:
 	export OSMO_DOMAIN=public && sphinx-build -b html . -w $(ERR_DIR)/build.log $(OUT_DIR)
 	export OSMO_DOMAIN=public && sphinx-build -b markdown . -w $(ERR_DIR)/markdown.log $(OUT_DIR)

@@ -21,10 +21,41 @@
 osmo user list
 ==============
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: user list
-   :ref-prefix: cli_reference_user_list
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=user list | ref-prefix=cli_reference_user_list | flags=argument-anchor
+
+List users with optional filtering.
+
+.. code-block:: text
+
+   usage: osmo user list [-h] [--id-prefix ID_PREFIX]
+                         [--roles ROLES [ROLES ...]] [--count COUNT]
+                         [--format-type {json,text}]
+
+.. _cli_reference_user_list_named_arguments:
+
+Named Arguments
+---------------
+
+``--id-prefix, -p``
+    Filter users whose ID starts with this prefix.
+
+``--roles, -r``
+    Filter users who have ANY of these roles.
+
+``--count, -c``
+    Number of results per page (default: 100).
+
+    Default: ``100``
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo user list
+Ex. osmo user list --id-prefix service-
+Ex. osmo user list --roles osmo-admin osmo-user

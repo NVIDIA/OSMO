@@ -21,10 +21,40 @@
 osmo user create
 ================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: user create
-   :ref-prefix: cli_reference_user_create
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=user create | ref-prefix=cli_reference_user_create | flags=argument-anchor
+
+Create a new user with optional roles.
+
+.. code-block:: text
+
+   usage: osmo user create [-h] [--roles ROLES [ROLES ...]]
+                           [--format-type {json,text}]
+                           user_id
+
+.. _cli_reference_user_create_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``user_id``
+    User ID (e.g., email or username).
+
+.. _cli_reference_user_create_named_arguments:
+
+Named Arguments
+---------------
+
+``--roles, -r``
+    Initial roles to assign to the user.
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo user create myuser@example.com
+Ex. osmo user create service-account --roles osmo-user osmo-ml-team

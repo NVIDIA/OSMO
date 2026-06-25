@@ -21,10 +21,34 @@
 osmo token roles
 ================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: token roles
-   :ref-prefix: cli_reference_token_roles
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=token roles | ref-prefix=cli_reference_token_roles | flags=argument-anchor
+
+List all roles assigned to an access token.
+
+.. code-block:: text
+
+   usage: osmo token roles [-h] [--format-type {json,text}] name
+
+.. _cli_reference_token_roles_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``name``
+    Name of the token.
+
+.. _cli_reference_token_roles_named_arguments:
+
+Named Arguments
+---------------
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo token roles my-token
