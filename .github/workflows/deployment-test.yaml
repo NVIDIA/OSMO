@@ -730,25 +730,19 @@ jobs:
           # submodule wrapping and overshoots by one level on a standalone
           # checkout, so override OETF_REPO_ROOT explicitly.
           OETF_REPO_ROOT: ${{ github.workspace }}
-          # Re-verified on a65e5d2 (post-#1114 rebase): the `kind` tag
-          # set still has the same 3 failures we saw pre-rebase:
-          #   - smoke:api-checks  — #1114 added pool query param but used
-          #     the wrong name (`pool=` singular; server reads `pools=`
-          #     plural at workflow_service.py:587). The wrapper's
-          #     `osmo profile set pool default` workaround (re-instated
-          #     in the same commit) covers this via the server's profile
-          #     fallback path.
-          #   - scenarios:task-runtime-environment — spec.yaml STILL uses
-          #     `outputs: - dataset:` (pre-rename schema); #1114 didn't
-          #     touch this fixture. Pydantic rejects with
-          #     "Extra inputs are not permitted".
-          #   - scenarios:router-connectivity — workflow task pod can't
-          #     resolve a hostname over Azure DNS. Cluster networking
-          #     issue, unrelated to #1114.
-          # Stay on the narrowed tag set until those three are fixed
-          # upstream. 7 tests covering smoke API + smoke WS + 1 real
-          # workflow (logger-connectivity) + 4 validation tests.
-          OETF_TAGS: api,websocket,logger,negative
+          # OETF tag set. The only remaining hole vs the broad `kind` tag
+          # is router-connectivity: its workflow task pod can't resolve a
+          # hostname over Azure CoreDNS — an Azure-specific cluster
+          # networking issue, not an OETF bug. The other previously-broken
+          # positive scenario, task-runtime-environment, was a legacy
+          # `outputs: - dataset:` schema reject; #1128 converted it to
+          # task I/O so it's now green and `task-env` is back in.
+          # api-checks still relies on the wrapper's
+          # `osmo profile set pool default` workaround for the `pool=` vs
+          # `pools=` query-param mismatch introduced by #1114.
+          # 8 tests: smoke api + smoke ws + 2 positive scenarios
+          # (logger-connectivity, task-runtime-environment) + 4 negative.
+          OETF_TAGS: api,websocket,logger,task-env,negative
           # SKIP_TEARDOWN=1: the wrapper's teardown re-invokes
           # deploy-osmo-minimal.sh --destroy which (despite --skip-terraform)
           # appears to destroy cloud resources too, taking ~75 min. Our
