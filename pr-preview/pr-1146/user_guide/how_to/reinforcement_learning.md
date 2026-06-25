@@ -158,11 +158,11 @@ In the videos/play/ sub-directory, you can view the video of the trained policy 
 ## Running Other Reinforcement Learning Examples
 
 Isaac Lab supports other reinforcement learning libraries such as RL Games, RSL-RL, and SKRL too, and you can view
-all the examples in the [Isaac Lab documentation](https://isaac-sim.github.io/IsaacLab/release/2.2.0/source/overview/reinforcement-learning/rl_existing_scripts.html).
+all the examples in the [Isaac Lab documentation](https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html).
 
 In this tutorial we were using Stable Baselines 3 to train the policy, but you can modify the entry script to use other libraries as well.
 
-For example, you can pick the [RSL-RL training script](https://isaac-sim.github.io/IsaacLab/release/2.2.0/source/overview/reinforcement-learning/rl_existing_scripts.html#rsl-rl),
+For example, you can pick the [RSL-RL training script](https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html#rsl-rl),
 which will train a Franka arm robot to reach target locations. You can modify the entry script to call the new training script:
 
 ```bash
