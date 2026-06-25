@@ -36,11 +36,11 @@ name: Deployment Test (Azure)
 #     feature branches.
 #
 # Slack notification (failure-only, schedule-only):
-#   - notify-slack-on-azure-deployment-test-failure posts to
-#     `osmo-slack-test` (hardcoded — the org-level TESTBOT_SLACK_CHANNEL
-#     points at the testbot's review-request channel, wrong audience for
-#     deploy-gate failures) using OSMO_SLACK_BOT_TOKEN (xoxb- bot token
-#     with chat:write scope) via Slack `chat.postMessage`.
+#   - notify-slack-on-azure-deployment-test-failure posts to the channel
+#     named by `vars.CI_SLACK_CHANNEL` (fallback `osmo-slack-test`) using
+#     `OSMO_SLACK_BOT_TOKEN` (xoxb- bot token with chat:write scope) via
+#     Slack `chat.postMessage`. Override at repo/org level when redirecting
+#     the noise (e.g. to #osmo-oncall once this gate goes prod-ready).
 #   - Fires only on scheduled-run failures. PR-label and workflow_dispatch
 #     runs surface their own status interactively.
 #   - If the secret is unset or the API returns non-ok, the step logs a
@@ -1019,10 +1019,9 @@ jobs:
 
   # ── Slack failure-notification (schedule-only) ───────────────────────────
   #
-  # Posts to the channel pointed at by `vars.TESTBOT_SLACK_CHANNEL` (fallback
-  # `osmo-slack-test`) via Slack `chat.postMessage` using the existing
-  # `OSMO_SLACK_BOT_TOKEN` repo secret — same auth surface that
-  # testbot.yaml + update-distroless-images.yaml already use.
+  # Channel comes from `vars.CI_SLACK_CHANNEL` (fallback `osmo-slack-test`)
+  # and the auth comes from `OSMO_SLACK_BOT_TOKEN` — same `chat.postMessage`
+  # plumbing testbot.yaml + update-distroless-images.yaml use.
   #
   # ─────────────────────────────────────────────────────────────────────────
 
@@ -1127,10 +1126,14 @@ jobs:
       - name: Post failure notification to Slack
         env:
           OSMO_SLACK_BOT_TOKEN: ${{ secrets.OSMO_SLACK_BOT_TOKEN }}
-          # Hardcoded to osmo-slack-test — the org-level `vars.TESTBOT_SLACK_CHANNEL`
-          # points at #osmo-code-reviews (testbot's review-request channel), which
-          # is the wrong audience for deployment-gate failures.
-          TESTBOT_SLACK_CHANNEL: 'osmo-slack-test'
+          # `vars.CI_SLACK_CHANNEL` lets the channel be overridden at the
+          # repo/org level without editing this file. Default `osmo-slack-test`
+          # while the gate proves itself; flip to e.g. #osmo-oncall once it's
+          # trusted. Note: the org-level `vars.TESTBOT_SLACK_CHANNEL` is NOT
+          # what we want here — it points at #osmo-code-reviews (testbot's
+          # PR-review channel), which is the wrong audience for deploy-gate
+          # failures.
+          SLACK_CHANNEL: ${{ vars.CI_SLACK_CHANNEL || 'osmo-slack-test' }}
           BI_RESULT: ${{ needs.build-images.result }}
           FD_RESULT: ${{ needs.full-deployment.result }}
           REPO: ${{ github.repository }}
@@ -1172,7 +1175,7 @@ jobs:
           fd_for_payload="$FD_RESULT"
 
           payload=$(jq -n \
-            --arg channel       "$TESTBOT_SLACK_CHANNEL" \
+            --arg channel       "$SLACK_CHANNEL" \
             --arg header_text   "$header_text" \
             --arg trigger_label "$trigger_label" \
             --arg branch        "$REF_NAME" \
