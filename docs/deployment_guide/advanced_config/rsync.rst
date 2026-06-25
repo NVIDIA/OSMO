@@ -202,8 +202,8 @@ Add the ``plugins_config.rsync`` block under ``services.configs.workflow``:
             plugins_config:
               rsync:
                 allowed_paths:
-                  dataset:
-                    path: /mnt/shared/datasets/
+                  shared-data:
+                    path: /mnt/shared/data/
                     writable: true
                   models:
                     path: /mnt/models/
@@ -213,7 +213,7 @@ Add the ``plugins_config.rsync`` block under ``services.configs.workflow``:
 
     .. code-block:: bash
 
-      $ osmo workflow rsync wf-id ~/my/path:/mnt/shared/datasets/
+      $ osmo workflow rsync wf-id ~/my/path:/mnt/shared/data/
       $ osmo workflow rsync wf-id ~/my/path:/mnt/models/
 
 **Step 3: Apply**
@@ -253,7 +253,7 @@ Troubleshooting
    - Set bandwidth limits appropriate to your network capacity
    - Use higher debounce delays (30-60s) for production to reduce API calls
    - Enable telemetry initially to monitor sync behavior
-   - Test rsync with small files before large datasets
+   - Test rsync with small files before large transfers
    - Document custom paths in team onboarding materials
 
 .. warning::

@@ -187,15 +187,15 @@ workflow:
   # Group 1: runs first
   - name: prepare-data
     tasks:
-    - name: generate-dataset
+    - name: generate-data
       lead: true
       image: ubuntu:24.04
       command: ["bash", "-c"]
       args:
       - |
         mkdir -p {{output}}/data
-        echo "sample_1,value_1" >> {{output}}/data/dataset.csv
-        echo "sample_2,value_2" >> {{output}}/data/dataset.csv
+        echo "sample_1,value_1" >> {{output}}/data/training_data.csv
+        echo "sample_2,value_2" >> {{output}}/data/training_data.csv
 
     - name: validate-data
       image: ubuntu:24.04
@@ -211,20 +211,20 @@ workflow:
       command: ["bash", "-c"]
       args:
       - |
-        cat {{input:0}}/data/dataset.csv
+        cat {{input:0}}/data/training_data.csv
         echo "Model A trained"
       inputs:
-      - task: generate-dataset   # establishes group dependency
+      - task: generate-data   # establishes group dependency
 
     - name: train-model-b
       image: ubuntu:24.04
       command: ["bash", "-c"]
       args:
       - |
-        wc -l {{input:0}}/data/dataset.csv
+        wc -l {{input:0}}/data/training_data.csv
         echo "Model B trained"
       inputs:
-      - task: generate-dataset
+      - task: generate-data
 ```
 
 **Execution flow:** `prepare-data` group completes → `train-models` group starts with
@@ -258,17 +258,17 @@ workflow:
     image: {{training_image}}
     command: ["python", "train.py"]
     args:
-    - "--dataset={{dataset_name}}"
+    - "--input={{input_url}}"
     - "--fold={{i}}"
     resource: training
     outputs:
-    - dataset:
-        name: "{{model_type}}_fold_{{i}}"
+    - url: "{{output_prefix}}/{{model_type}}/fold-{{i}}/"
   {% endfor %}
 
 default-values:
   workflow_name: ml-training
-  dataset_name: imagenet
+  input_url: s3://my-bucket/imagenet/
+  output_prefix: s3://my-bucket/training-runs
   model_type: resnet50
   num_tasks: 3
   gpu_count: 1

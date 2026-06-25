@@ -71,6 +71,21 @@ class TestIsIgnored(unittest.TestCase):
     def test_allows_runtime_go(self):
         self.assertFalse(_is_ignored("src/runtime/cmd/ctrl/main.go"))
 
+    def test_data_cli_entry_point_stays_testable(self):
+        self.assertFalse(_is_ignored("src/cli/data.py"))
+
+    def test_storage_sdk_is_not_filtered(self):
+        self.assertFalse(
+            _is_ignored("src/lib/data/storage/backends/s3.py"),
+        )
+        self.assertFalse(
+            _is_ignored("src/lib/data/storage/client.py"),
+        )
+
+    def test_unrelated_cli_files_are_not_filtered(self):
+        self.assertFalse(_is_ignored("src/cli/workflow.py"))
+        self.assertFalse(_is_ignored("src/cli/login.py"))
+
 
 class TestLinesToRanges(unittest.TestCase):
     """Tests for _lines_to_ranges conversion."""

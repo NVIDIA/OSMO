@@ -21,7 +21,7 @@
 Google Cloud Storage
 =============================
 
-To handle who can access Datasets, the necessary Google Cloud resources/policies must be created. This includes
+To control access to workflow data in Google Cloud Storage, the necessary Google Cloud resources and policies must be created. This includes
 
 - A GS Bucket
 - An Special IAM Role (Optional)

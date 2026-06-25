@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 6: Fine-tune GROOT-N1.5 VLA model on prepared dataset
-# Usage: osmo workflow submit 06_groot_finetune.yaml --pool default --set storage_url=s3://my-bucket/datasets
+# Usage: osmo workflow submit 06_groot_finetune.yaml --pool default --set storage_url=s3://my-bucket/osmo-data
 
 workflow:
   groups:
@@ -93,11 +93,11 @@ workflow:
         path: /tmp/entry.sh
       image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
       inputs:
-      - url: {{ storage_url }}/{{ input_dataset }}/
+      - url: {{ storage_url }}/{{ input_prefix }}/
       lead: true
       name: master
       outputs:
-      - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
+      - url: {{ storage_url }}/{{ output_prefix }}/{{workflow_id}}/
   name: groot_finetune_nut_pouring
   resources:
     default:
@@ -110,5 +110,5 @@ workflow:
     queue_timeout: 2d
 
 default-values:
-  input_dataset: PhysAI-LeRobotDataset  # Produced by stage 05.
-  output_dataset: PhysAI-GR00T-Finetuned  # Per-run outputs are written to <output_dataset>/<workflow_id>/.
+  input_prefix: PhysAI-LeRobotDataset  # Input prefix produced by stage 05.
+  output_prefix: PhysAI-GR00T-Finetuned  # Per-run outputs are written to <output_prefix>/<workflow_id>/.

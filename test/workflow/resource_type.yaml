@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 5368709120 # 5Gi
       memory: 1073741824 # 1Gi
-      platform: cpu-x86
   tasks:
   - name: task1
     resource: default

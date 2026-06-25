@@ -25,7 +25,7 @@
             --group-gap: 1em;
             --column-padding: 0.6em 0.5em;
             --task-padding: 0.4em 0.7em;
-            --dataset-padding: 0.6em 0.3em;
+            --artifact-padding: 0.6em 0.3em;
             --border-width: 2px;
             --border-radius: 4px;
             --node-font-size: 0.9em;
@@ -124,7 +124,7 @@
         }
 
         .workflow-groups-container .workflow-task,
-        .workflow-groups-container .workflow-dataset {
+        .workflow-groups-container .workflow-artifact {
             position: relative;
             font-size: var(--node-font-size);
             text-align: center;
@@ -141,18 +141,18 @@
             font-weight: normal;
         }
 
-        .workflow-groups-container .workflow-dataset {
+        .workflow-groups-container .workflow-artifact {
             z-index: 1;
             width: fit-content;
-            padding: var(--dataset-padding);
+            padding: var(--artifact-padding);
             border-left: var(--border-width) solid var(--sd-color-muted);
             border-right: var(--border-width) solid var(--sd-color-muted);
             background: var(--sd-color-card-background);
             color: var(--sd-color-card-text);
         }
 
-        .workflow-groups-container .workflow-dataset::before,
-        .workflow-groups-container .workflow-dataset::after {
+        .workflow-groups-container .workflow-artifact::before,
+        .workflow-groups-container .workflow-artifact::after {
             content: "";
             position: absolute;
             left: calc(-1 * var(--border-width));
@@ -162,12 +162,12 @@
             background: var(--sd-color-card-background);
         }
 
-        .workflow-groups-container .workflow-dataset::before {
+        .workflow-groups-container .workflow-artifact::before {
             top: var(--cylinder-cap-offset);
             border-radius: 50%;
         }
 
-        .workflow-groups-container .workflow-dataset::after {
+        .workflow-groups-container .workflow-artifact::after {
             bottom: var(--cylinder-cap-offset);
             border-top: none;
             border-radius: 0 0 50% 50% / 0 0 50% 50%;
@@ -317,12 +317,12 @@
                             <div class="workflow-group-column-title">Inputs</div>
                             <div style="flex: 0;"></div>
                             <div class="arrow-wrapper">
-                                <div class="workflow-dataset">Dataset 1</div>
+                                <div class="workflow-artifact">Input 1</div>
                                 <div class="diagonal-arrow diagonal-up-1"></div>
                                 <div class="diagonal-arrow diagonal-down-1"></div>
                             </div>
                             <div class="arrow-wrapper">
-                                <div class="workflow-dataset">Dataset 2</div>
+                                <div class="workflow-artifact">Input 2</div>
                                 <div class="diagonal-arrow diagonal-up-2"></div>
                                 <div class="diagonal-arrow diagonal-down-2"></div>
                             </div>
@@ -336,7 +336,7 @@
                         <div class="workflow-group-column">
                             <div class="workflow-group-column-title">Outputs</div>
                             <div style="flex: 0.4;"></div>
-                            <div class="workflow-dataset">Dataset 3</div>
+                            <div class="workflow-artifact">Output A</div>
                         </div>
                     </div>
                 </div>
@@ -361,7 +361,7 @@
                             <div class="workflow-group-column-title">Inputs</div>
                             <div style="flex: 1;"></div>
                             <div class="arrow-wrapper">
-                                <div class="workflow-dataset">Dataset 3</div>
+                                <div class="workflow-artifact">Output A</div>
                                 <div class="horizontal-arrow"></div>
                             </div>
                         </div>
@@ -373,7 +373,7 @@
                         <div class="workflow-group-column">
                             <div class="workflow-group-column-title">Outputs</div>
                             <div style="flex: 1;"></div>
-                            <div class="workflow-dataset">Dataset 4</div>
+                            <div class="workflow-artifact">Output B</div>
                         </div>
                     </div>
                 </div>
@@ -384,7 +384,7 @@
                         <div class="workflow-group-column">
                             <div class="workflow-group-column-title">Inputs</div>
                             <div class="arrow-wrapper">
-                                <div class="workflow-dataset">Dataset 3</div>
+                                <div class="workflow-artifact">Output A</div>
                                 <div class="horizontal-arrow"></div>
                             </div>
                         </div>
@@ -396,7 +396,7 @@
                         <div class="workflow-group-column">
                             <div class="workflow-group-column-title">Outputs</div>
                             <div style="flex: 1;"></div>
-                            <div class="workflow-dataset">Dataset 5</div>
+                            <div class="workflow-artifact">Output C</div>
                         </div>
                     </div>
                 </div>

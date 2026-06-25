@@ -84,7 +84,7 @@ Return your response in this format:
 ## Workflow: <workflow_id>
 
 ### Task: <task_name>  (or "Overall" if un-split)
-- **Stage / progress**: What stage is this task at? (e.g. "downloading dataset",
+- **Stage / progress**: What stage is this task at? (e.g. "downloading input data",
   "training step 840/1000 — 84% complete", "completed successfully")
 - **Key events**: Any notable milestones, warnings, or errors seen in the logs
   (1–3 bullet points, skip if nothing notable)
@@ -102,7 +102,7 @@ Return your response in this format:
   so in one line (e.g. "Container starting, no application output yet").
 - If training is in progress, include the latest step/epoch count and loss if
   visible.
-- If the task completed, say so and note any output dataset paths mentioned.
+- If the task completed, say so and note any output storage paths mentioned.
 - Never dump raw log lines except for error output (up to 50 lines).
 - Keep the entire response under ~300 words so the main agent can use it
   efficiently without hitting context limits.

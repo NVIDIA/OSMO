@@ -368,7 +368,7 @@
         {
           "id": "9d91ae54-e69b-46e8-baee-7a16f044ded1",
           "name": "osmo-user",
-          "description": "A regular user of osmo who can submit and query workflows and datasets",
+          "description": "A regular user of osmo who can submit and query workflows",
           "composite": false,
           "clientRole": true,
           "containerId": "76cd6c90-2b1a-40d8-a1d4-d2469859cac5",

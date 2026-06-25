@@ -54,13 +54,6 @@ def is_regex(regex: str):
         raise argparse.ArgumentTypeError(f'Invalid regex: {regex}')
 
 
-def is_bucket(bucket: str):
-    if re.fullmatch(common.DATASET_NAME_REGEX, bucket):
-        return bucket
-    else:
-        raise argparse.ArgumentTypeError(f'Invalid bucket: {bucket}')
-
-
 def is_storage_path(path: str):
     if re.fullmatch(constants.STORAGE_BACKEND_REGEX, path):
         return path

@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # TorchRun: Training on a Single Node
 
-This example demonstrates how to run a PyTorch training job on a single node using OSMO. It trains a simple CNN on the MNIST dataset and showcases key OSMO features including resource management, dataset handling, checkpointing, and TensorBoard integration.
+This example demonstrates how to run a PyTorch training job on a single node using OSMO. It trains a simple CNN on the MNIST dataset and showcases key OSMO features including resource management, data handling, checkpointing, and TensorBoard integration.
 
 This workflow example contains:
 - `train.py`: A PyTorch training script that trains a CNN on the MNIST dataset
@@ -34,7 +34,7 @@ This workflow example contains:
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/single_node/train.yaml
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/single_node/train.py
-osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets
+osmo workflow submit train.yaml --set storage_url=s3://my-bucket/osmo-data
 ```
 
 ## Open Tensorboard

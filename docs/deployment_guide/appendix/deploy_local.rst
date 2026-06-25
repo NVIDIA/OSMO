@@ -40,7 +40,7 @@ Local deployment provides the complete OSMO experience on your workstation:
 
 ✓ **Real containerized execution** – Your Docker images running in local Kubernetes
 
-✓ **Complete data management** – Local object storage for datasets and artifacts
+✓ **Complete data management** – Local object storage for workflow inputs, outputs, and artifacts
 
 ✓ **The same YAML workflows** that scale to cloud environments
 
@@ -354,7 +354,7 @@ Step 6: Log In and Configure Local Credentials
 ==============================================
 
 Authenticate with your local OSMO instance, set the default pool, and register
-the LocalStack data credential used by the CLI for dataset upload and download:
+the LocalStack data credential used by the CLI for storage upload and download:
 
 .. code-block:: bash
 
@@ -381,7 +381,7 @@ Now that you have OSMO running locally, explore the platform:
 
 2. **Explore the Web UI**: Visit ``http://quick-start.osmo`` to access the OSMO dashboard.
 
-3. **Test Your Own Workflows**: Use your own Docker images and datasets to validate OSMO for your use case.
+3. **Test Your Own Workflows**: Use your own Docker images and storage locations to validate OSMO for your use case.
 
 .. tip::
    **Ready to Scale?**

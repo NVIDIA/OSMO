@@ -24,7 +24,6 @@ export interface MockVolumes {
   pools: number;
   resourcesPerPool: number;
   resourcesGlobal: number;
-  buckets: number;
 }
 
 declare global {
@@ -39,7 +38,6 @@ if (isServer && !globalThis.__mockConfigData) {
     pools: DEFAULT_VOLUME.pools,
     resourcesPerPool: DEFAULT_VOLUME.resourcesPerPool,
     resourcesGlobal: 80,
-    buckets: 50,
   };
 }
 

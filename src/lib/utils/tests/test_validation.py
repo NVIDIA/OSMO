@@ -81,25 +81,6 @@ class TestIsRegex(unittest.TestCase):
             validation.is_regex('[invalid')
 
 
-class TestIsBucket(unittest.TestCase):
-    """Tests for validation.is_bucket."""
-
-    def test_is_bucket_accepts_alphanumeric(self):
-        self.assertEqual(validation.is_bucket('my-bucket_1'), 'my-bucket_1')
-
-    def test_is_bucket_rejects_with_slash(self):
-        with self.assertRaises(argparse.ArgumentTypeError):
-            validation.is_bucket('bucket/path')
-
-    def test_is_bucket_rejects_empty(self):
-        with self.assertRaises(argparse.ArgumentTypeError):
-            validation.is_bucket('')
-
-    def test_is_bucket_rejects_space(self):
-        with self.assertRaises(argparse.ArgumentTypeError):
-            validation.is_bucket('bad bucket')
-
-
 class TestIsStoragePath(unittest.TestCase):
     """Tests for validation.is_storage_path."""
 

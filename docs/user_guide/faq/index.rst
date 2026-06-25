@@ -23,7 +23,5 @@ FAQs
 
 .. include:: workflow.in.rst
 
-.. include:: data.in.rst
-
 .. auto-include:: *.in.rst
-   :exclude: data.in.rst workflow.in.rst
+   :exclude: workflow.in.rst

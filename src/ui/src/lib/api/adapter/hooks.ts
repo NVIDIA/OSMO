@@ -27,7 +27,6 @@ import {
   // Profile/Credentials API
   useGetNotificationSettingsApiProfileSettingsGet,
   useSetNotificationSettingsApiProfileSettingsPost,
-  useGetBucketInfoApiBucketGet,
   useGetUserCredentialApiCredentialsGet,
   useSetUserCredentialApiCredentialsCredNamePost,
   useDeleteUsersCredentialApiCredentialsCredNameDelete,
@@ -37,7 +36,6 @@ import {
   type PoolResourcesResponse as GeneratedPoolResourcesResponse,
   type Version as BackendVersion,
   type ProfileResponse,
-  type BucketInfoResponse,
   type CredentialGetResponse,
 } from "@/lib/api/generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS, QUERY_STALE_TIME } from "@/lib/config";
@@ -723,14 +721,12 @@ export const profileKeys = {
 };
 
 /**
- * Fetch user profile settings (pools, notifications, default bucket).
+ * Fetch user profile settings (pools, notifications).
  *
  * Returns notification preferences and pool settings.
  * Uses GET /api/profile/settings endpoint only.
  *
  * Note: For user's name and email, use useUser() hook which reads from JWT token.
- * Note: For bucket list, use useBuckets() hook separately.
- *
  * @param options.enabled - Whether to enable the query (default: true)
  *
  * @example
@@ -763,70 +759,6 @@ export function useProfile({ enabled = true }: { enabled?: boolean } = {}) {
       refetch: profileQuery.refetch,
     }),
     [profileQuery.data, profileQuery.isLoading, profileQuery.error, profileQuery.refetch],
-  );
-}
-
-/**
- * Fetch available buckets and default bucket.
- *
- * Returns list of accessible buckets with their metadata and the user's default bucket.
- * Uses GET /api/bucket endpoint.
- *
- * @param options.enabled - Whether to enable the query (default: true)
- *
- * @example
- * ```ts
- * const { buckets, defaultBucket, isLoading } = useBuckets();
- * for (const bucket of buckets) {
- *   console.log(`${bucket.name}: ${bucket.path}`);
- * }
- * ```
- */
-export function useBuckets({ enabled = true }: { enabled?: boolean } = {}) {
-  const { data, isLoading, error, refetch } = useGetBucketInfoApiBucketGet(
-    undefined, // No params needed
-    {
-      query: {
-        queryKey: [...profileKeys.all, "buckets"] as const,
-        staleTime: QUERY_STALE_TIME.STANDARD,
-        enabled,
-        select: useCallback((data: BucketInfoResponse) => {
-          const buckets: Array<{
-            name: string;
-            path: string;
-            description: string;
-            mode: string;
-            defaultCredential: boolean;
-          }> = [];
-
-          for (const [name, info] of Object.entries(data.buckets)) {
-            buckets.push({
-              name,
-              path: info.path,
-              description: info.description,
-              mode: info.mode,
-              defaultCredential: info.default_cred,
-            });
-          }
-
-          return {
-            buckets,
-            defaultBucket: data.default || "",
-          };
-        }, []),
-      },
-    },
-  );
-
-  return useMemo(
-    () => ({
-      buckets: data?.buckets ?? [],
-      defaultBucket: data?.defaultBucket ?? "",
-      isLoading,
-      error,
-      refetch,
-    }),
-    [data, isLoading, error, refetch],
   );
 }
 
@@ -902,9 +834,6 @@ export function useUpdateProfile() {
       }
       if (update.notifications?.slack !== undefined) {
         backendPayload.slack_notification = update.notifications.slack;
-      }
-      if (update.bucket?.default !== undefined) {
-        backendPayload.bucket = update.bucket.default;
       }
       if (update.pool?.default !== undefined) {
         backendPayload.pool = update.pool.default;

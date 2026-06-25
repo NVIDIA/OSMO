@@ -40,11 +40,9 @@ workflow:
   resources:
     default:
       cpu: 1
-      platform: {{platform}}
       memory: 1Gi
       storage: 1Gi
   timeout:
     exec_timeout: 10m
     queue_timeout: 1h
 default-values:
-  platform: cpu-x86

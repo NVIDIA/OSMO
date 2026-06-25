@@ -78,7 +78,7 @@ def setup_parser(parser: argparse._SubParsersAction):
                              dest='count',
                              type=validation.positive_integer,
                              default=20,
-                             help='For Datasets. Display the given number of versions. '
+                             help='Display the given number of app versions. '
                                   'Default 20.')
     info_parser.add_argument('--order', '-o', choices=['asc', 'desc'], default='asc',
                              help='Display in the given order. asc means latest at the bottom. '

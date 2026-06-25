@@ -15,23 +15,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  setupDefaultMocks,
-  setupProfile,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**
  * Profile Page Journey Tests
  *
  * Architecture notes:
  * - Profile lives at /profile
- * - ProfileLayout renders: ProfilePageTitle, ProfileNavigation, and 5 sections:
- *   UserInfoSection, NotificationsSection, PoolsSection, BucketsSection, CredentialsSection
+ * - ProfileLayout renders: ProfilePageTitle, ProfileNavigation, and 4 sections:
+ *   UserInfoSection, NotificationsSection, PoolsSection, CredentialsSection
  * - Each section is wrapped in InlineErrorBoundary + Suspense
  * - Sections use intersection observer for lazy loading
  * - API endpoints:
- *   - GET /api/profile/settings → profile data (notifications, pool, bucket defaults, accessible pools)
- *   - GET /api/bucket → available buckets
+ *   - GET /api/profile/settings → profile data (notifications, pool defaults, accessible pools)
  *   - GET /api/credentials → user credentials
  * - User info (name, email) comes from UserProvider (server-side headers), not from API
  * - Auth is disabled in E2E (setupDefaultMocks handles login_info)
@@ -53,7 +49,6 @@ async function setupProfileSettings(
     profile: {
       email_notification: true,
       slack_notification: false,
-      bucket: "default-bucket",
       pool: "default-pool",
       ...overrides.profile,
     },
@@ -61,29 +56,7 @@ async function setupProfileSettings(
     pools: overrides.pools ?? ["pool-alpha", "pool-beta"],
   });
 
-  await page.route("**/api/profile/settings*", (route) =>
-    route.fulfill({ status: 200, contentType: CT_JSON, body }),
-  );
-}
-
-async function setupBuckets(
-  page: Parameters<typeof setupDefaultMocks>[0],
-  buckets: Array<{ name: string; path: string; description?: string }> = [],
-) {
-  const body = JSON.stringify({
-    buckets: buckets.map((b) => ({
-      name: b.name,
-      path: b.path,
-      description: b.description ?? "",
-      mode: "rw",
-      default_credential: false,
-    })),
-    default: buckets[0]?.name ?? "",
-  });
-
-  await page.route("**/api/bucket*", (route) =>
-    route.fulfill({ status: 200, contentType: CT_JSON, body }),
-  );
+  await page.route("**/api/profile/settings*", (route) => route.fulfill({ status: 200, contentType: CT_JSON, body }));
 }
 
 async function setupCredentials(
@@ -96,9 +69,7 @@ async function setupCredentials(
 ) {
   const body = JSON.stringify({ credentials });
 
-  await page.route("**/api/credentials*", (route) =>
-    route.fulfill({ status: 200, contentType: CT_JSON, body }),
-  );
+  await page.route("**/api/credentials*", (route) => route.fulfill({ status: 200, contentType: CT_JSON, body }));
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -108,10 +79,6 @@ test.describe("Profile Page Layout", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page, [
-      { name: "my-bucket", path: "s3://my-bucket" },
-      { name: "shared-bucket", path: "s3://shared-bucket" },
-    ]);
     await setupCredentials(page);
   });
 
@@ -139,11 +106,10 @@ test.describe("Profile Page Layout", () => {
     await page.goto("/profile");
     await page.waitForLoadState("networkidle");
 
-    // ASSERT — all 5 nav items visible
+    // ASSERT — all 4 nav items visible
     await expect(page.getByRole("button", { name: "User Information" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Notifications" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Pools" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Data Buckets" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Credentials" })).toBeVisible();
   });
 });
@@ -153,7 +119,6 @@ test.describe("Profile User Info Section", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
     await setupCredentials(page);
   });
 
@@ -183,7 +148,6 @@ test.describe("Profile Notifications Section", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
     await setupProfile(page);
-    await setupBuckets(page);
     await setupCredentials(page);
   });
 
@@ -249,7 +213,6 @@ test.describe("Profile Pools Section", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
     await setupProfile(page);
-    await setupBuckets(page);
     await setupCredentials(page);
   });
 
@@ -277,7 +240,6 @@ test.describe("Profile Credentials Section", () => {
     await setupDefaultMocks(page);
     await setupProfile(page);
     await setupProfileSettings(page);
-    await setupBuckets(page);
   });
 
   test("shows empty credentials state", async ({ page }) => {
@@ -389,7 +351,6 @@ test.describe("Profile Error States", () => {
         body: JSON.stringify({ detail: "Bad request" }),
       }),
     );
-    await setupBuckets(page);
     await setupCredentials(page);
 
     // ACT
@@ -399,56 +360,5 @@ test.describe("Profile Error States", () => {
     // ASSERT — page must not crash, should show at least User Information (which uses useUser, not profile API)
     await expect(page.locator("body")).not.toBeEmpty();
     await expect(page.getByText("User Information").first()).toBeVisible();
-  });
-});
-
-test.describe("Profile Data Buckets Section", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupDefaultMocks(page);
-    await setupProfile(page);
-    await setupCredentials(page);
-  });
-
-  test("shows Data Buckets section with bucket list", async ({ page }) => {
-    // ARRANGE
-    await setupProfileSettings(page, {
-      profile: { bucket: "my-bucket" },
-    });
-    await setupBuckets(page, [
-      { name: "my-bucket", path: "s3://my-bucket" },
-      { name: "shared-bucket", path: "s3://shared-bucket" },
-    ]);
-
-    // ACT
-    await page.goto("/profile");
-    await page.waitForLoadState("networkidle");
-
-    // Scroll to Buckets section to trigger intersection observer
-    await page.locator("#buckets").scrollIntoViewIfNeeded();
-
-    // ASSERT — section header visible
-    await expect(page.getByText("Data Buckets").first()).toBeVisible();
-  });
-
-  test("shows error when buckets API fails", async ({ page }) => {
-    // ARRANGE
-    await setupProfileSettings(page);
-    await page.route("**/api/bucket*", (route) =>
-      route.fulfill({
-        status: 400,
-        contentType: CT_JSON,
-        body: JSON.stringify({ detail: "Failed to load buckets" }),
-      }),
-    );
-
-    // ACT
-    await page.goto("/profile");
-    await page.waitForLoadState("networkidle");
-
-    // Scroll to Buckets section
-    await page.locator("#buckets").scrollIntoViewIfNeeded();
-
-    // ASSERT — error state shown
-    await expect(page.getByText(/unable to load buckets/i).first()).toBeVisible();
   });
 });

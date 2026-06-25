@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 1: Generate MimicGen dataset from teleop data
-# Usage: osmo workflow submit 01_mimic_generation.yaml --pool default --set storage_url=s3://my-bucket/datasets
+# Usage: osmo workflow submit 01_mimic_generation.yaml --pool default --set storage_url=s3://my-bucket/osmo-data
 
 version: 2
 workflow:
@@ -84,9 +84,9 @@ workflow:
         path: /tmp/nutpour_gr1t2_base_env_cfg.py
       image: {{ image_name }}
       inputs:
-      - url: {{ storage_url }}/{{ input_dataset }}/
+      - url: {{ storage_url }}/{{ input_prefix }}/
       outputs:
-      - url: {{ storage_url }}/{{ output_dataset }}/
+      - url: {{ storage_url }}/{{ output_prefix }}/
       lead: true
       name: mimic_task
   name: isaac_mimic_25
@@ -102,5 +102,5 @@ workflow:
 
 default-values:
   image_name: nvcr.io/nvidia/isaac-lab:2.3.0
-  input_dataset: PhysAI-InputMimic  # Name of the input dataset under storage_url.
-  output_dataset: PhysAI-MimicGen  # Name of the output dataset under storage_url; consumed by stage 02.
+  input_prefix: PhysAI-InputMimic  # Input prefix under storage_url.
+  output_prefix: PhysAI-MimicGen  # Output prefix under storage_url; consumed by stage 02.

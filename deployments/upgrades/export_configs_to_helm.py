@@ -126,7 +126,7 @@ def strip_fields(data, fields):
 
 
 def export_singleton(base_url, headers, config_type, strip):
-    """Export a singleton config (service, workflow, dataset)."""
+    """Export a singleton config (service or workflow)."""
     data = fetch(base_url, f'/api/configs/{config_type}', headers)
     if data is None:
         return None
@@ -271,11 +271,6 @@ def main():
     workflow = export_singleton(base_url, headers, 'workflow', set())
     if workflow:
         configs['workflow'] = workflow
-
-    print('Exporting dataset config...', file=sys.stderr)
-    dataset = export_singleton(base_url, headers, 'dataset', set())
-    if dataset:
-        configs['dataset'] = dataset
 
     # Named configs
     print('Exporting backends...', file=sys.stderr)

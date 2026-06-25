@@ -139,7 +139,7 @@ And then run the Python scripts:
 .. code-block:: bash
 
   $ python scripts/gr00t_finetune.py \
-    --dataset-path ./demo_data/robot_sim.PickNPlace \
+    --data-path ./demo_data/robot_sim.PickNPlace \
     --num-gpus 1 \
     --max-steps 500 \
     --output-dir /tmp/gr00t-1/finetuned-model \

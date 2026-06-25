@@ -59,11 +59,11 @@ class SummarizeLinesTest(unittest.TestCase):
             ..ERROR:root:Server responded with status code 400
             .F..
             ======================================================================
-            FAIL: test_serial_workflow_multi_arch (__main__.SerialWorkflows.test_serial_workflow_multi_arch)
+            FAIL: test_serial_workflow (__main__.SerialWorkflows.test_serial_workflow)
             ----------------------------------------------------------------------
             Traceback (most recent call last):
-              File "<snip>", line 51, in test_serial_workflow_multi_arch
-            AssertionError: Workflow serial-workflow-multi-arch-1842 (https://staging.example/workflows/serial-workflow-multi-arch-1842): expected outcome=completed (status in ['COMPLETED']), got FAILED. First failure: task1: Failure reason:
+              File "<snip>", line 51, in test_serial_workflow
+            AssertionError: Workflow serial-workflow-1842 (https://staging.example/workflows/serial-workflow-1842): expected outcome=completed (status in ['COMPLETED']), got FAILED. First failure: task1: Failure reason:
             - Exit code 510 due to Task osmo-init failure.
 
             ----------------------------------------------------------------------
@@ -72,7 +72,7 @@ class SummarizeLinesTest(unittest.TestCase):
             FAILED (failures=1)
         """)
         result = summarize_lines(log)
-        self.assertIn("test_serial_workflow_multi_arch", result)
+        self.assertIn("test_serial_workflow", result)
         self.assertIn("AssertionError", result)
         self.assertIn("Failure reason:", result)
         # The continuation line with the actual cause must be joined in.

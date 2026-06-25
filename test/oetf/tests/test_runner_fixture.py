@@ -25,10 +25,12 @@ from test.oetf.models import WorkflowServerStatus
 from test.oetf.runner_fixture import (
     RunnerFixture,
     WorkflowHandle,
+    _caller_runfiles_repo_root,
     _find_checkpoint_marker,
     _format_seen_checkpoints,
     _inject_task_files,
     _iter_checkpoints,
+    _runfiles_repo_root_for,
 )
 
 
@@ -399,11 +401,11 @@ class WaitForTaskCheckpointTest(unittest.TestCase):
 class TestRunnerFixtureDefaults(unittest.TestCase):
     """OETF_DEFAULT_* env-var-backed RunnerFixture defaults.
 
-    Scenarios in OETF reference ``self.default_image`` / ``default_platform`` /
-    ``default_bucket`` so the same scenario runs against both staging
-    (with Jenkins-injected overrides like python:3.10-slim) and KIND (with
-    the safe defaults below). Verified by direct env-var manipulation rather
-    than mocking, so the property contract is exercised end-to-end.
+    Scenarios in OETF reference ``self.default_image`` / ``default_platform``
+    so the same scenario runs against both staging (with Jenkins-injected
+    overrides like python:3.10-slim) and KIND (with the safe defaults below).
+    Verified by direct env-var manipulation rather than mocking, so the
+    property contract is exercised end-to-end.
     """
 
     def setUp(self):
@@ -411,7 +413,7 @@ class TestRunnerFixtureDefaults(unittest.TestCase):
         # Snapshot env vars we may mutate, restore in tearDown.
         self._saved_env = {
             k: os.environ.get(k) for k in (
-                "OETF_DEFAULT_IMAGE", "OETF_DEFAULT_PLATFORM", "OETF_DEFAULT_BUCKET",
+                "OETF_DEFAULT_IMAGE", "OETF_DEFAULT_PLATFORM",
             )
         }
         for k in self._saved_env:
@@ -448,14 +450,56 @@ class TestRunnerFixtureDefaults(unittest.TestCase):
         f = self._bare_fixture()
         self.assertEqual(f.default_platform, "gpu")
 
-    def test_default_bucket_falls_back_to_empty(self):
-        f = self._bare_fixture()
-        self.assertEqual(f.default_bucket, "")
 
-    def test_default_bucket_reads_env_var(self):
-        os.environ["OETF_DEFAULT_BUCKET"] = "my-test-bucket"
-        f = self._bare_fixture()
-        self.assertEqual(f.default_bucket, "my-test-bucket")
+class RunfilesRepoRootForTest(unittest.TestCase):
+    """_runfiles_repo_root_for is the pure path-math used by
+    _caller_runfiles_repo_root. Required because under bzlmod TEST_WORKSPACE
+    is always _main regardless of which module the test target lives in,
+    so the framework can't trust _workspace_root() alone to find data deps
+    in @osmo_workspace+ or any other dep module.
+    """
+
+    def test_returns_repo_dir_for_main_module(self):
+        srcdir = "/srcdir"
+        self.assertEqual(
+            _runfiles_repo_root_for("/srcdir/_main/test/scenarios/foo.py", srcdir),
+            "/srcdir/_main",
+        )
+
+    def test_returns_repo_dir_for_dep_module_bzlmod(self):
+        # Under bzlmod, dep modules' runfiles dirs are named "<name>+".
+        self.assertEqual(
+            _runfiles_repo_root_for(
+                "/srcdir/osmo_workspace+/test/scenarios/foo.py", "/srcdir",
+            ),
+            "/srcdir/osmo_workspace+",
+        )
+
+    def test_walks_up_through_nested_dirs(self):
+        self.assertEqual(
+            _runfiles_repo_root_for(
+                "/srcdir/osmo_workspace+/test/scenarios/app_cli/sub/dir/foo.py",
+                "/srcdir",
+            ),
+            "/srcdir/osmo_workspace+",
+        )
+
+    def test_returns_none_when_filename_outside_srcdir(self):
+        self.assertIsNone(_runfiles_repo_root_for("/elsewhere/foo.py", "/srcdir"))
+
+
+class CallerRunfilesRepoRootTest(unittest.TestCase):
+    """_caller_runfiles_repo_root reads TEST_SRCDIR and dispatches to the
+    pure helper above using the call stack's first non-fixture frame.
+    """
+
+    def test_returns_none_without_test_srcdir(self):
+        saved = os.environ.pop("TEST_SRCDIR", None)
+        try:
+            self.assertIsNone(_caller_runfiles_repo_root())
+        finally:
+            if saved is not None:
+                os.environ["TEST_SRCDIR"] = saved
 
 
 if __name__ == "__main__":

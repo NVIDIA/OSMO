@@ -35,7 +35,7 @@ Parallel workflows allow you to:
   Parallel workflows are ideal for:
 
   - Data parallel training
-  - Batch processing large datasets
+  - Batch processing large data collections
   - Independent task execution
   - Map-reduce patterns
   - Distributed training with multiple workers

@@ -228,13 +228,13 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
 
 def setup_parser(parser: argparse._SubParsersAction):
     """
-    Dataset parser setup and run command based on parsing
+    Data parser setup and run command based on parsing.
     Args:
         parser: Reads the CLI to handle which command gets executed.
     """
-    dataset_parser = parser.add_parser('data',
-                                       help='Data CLI.')
-    subparsers = dataset_parser.add_subparsers(dest='command')
+    data_parser = parser.add_parser('data',
+                                    help='Data CLI.')
+    subparsers = data_parser.add_subparsers(dest='command')
     subparsers.required = True
 
     # Handle 'upload' command

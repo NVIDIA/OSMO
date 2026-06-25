@@ -21,7 +21,6 @@ import {
   getListWorkflowApiWorkflowGetMockHandler,
   getGetWorkflowApiWorkflowNameGetMockHandler,
   getSubmitWorkflowApiPoolPoolNameWorkflowPostMockHandler,
-  getGetBucketInfoApiBucketGetMockHandler,
   getGetPoolQuotasApiPoolQuotaGetMockHandler,
   getGetResourcesApiResourcesGetMockHandler,
   getGetNotificationSettingsApiProfileSettingsGetMockHandler,
@@ -36,7 +35,6 @@ import { resourceGenerator } from "@/mocks/generators/resource-generator";
 import { generateYamlSpec, generateTemplateSpec } from "@/mocks/generators/spec-generator";
 import { logGenerator } from "@/mocks/generators/log-generator";
 import { eventGenerator } from "@/mocks/generators/event-generator";
-import { bucketGenerator } from "@/mocks/generators/bucket-generator";
 import { profileGenerator } from "@/mocks/generators/profile-generator";
 import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
@@ -207,9 +205,6 @@ export const handlers = [
   getGetResourcesApiResourcesGetMockHandler(async ({ request }) =>
     resourceGenerator.handleListResources(request, poolGenerator.getPoolNames()),
   ),
-
-  // Buckets
-  getGetBucketInfoApiBucketGetMockHandler(bucketGenerator.handleListBuckets),
 
   // Profile and credentials
   getGetNotificationSettingsApiProfileSettingsGetMockHandler(profileGenerator.handleGetSettings),

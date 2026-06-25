@@ -28,7 +28,7 @@ server-side validation:
 | #   | Bug                                                       | Why it passes validation                                          | Runtime symptom                                                                 | Expected fix                                                                      |
 | --- | --------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | 1   | `jq` used but not installed in `ubuntu:22.04`             | OSMO does not inspect script contents                             | `jq: command not found`, exit code 127                                          | Replace `jq` with pure bash, or prepend `apt-get update && apt-get install -y jq` |
-| 2   | `{{outputs}}` (plural) instead of `{{output}}` (singular) | OSMO does not validate template variables inside `files.contents` | `mkdir` creates a literal `{{outputs}}` directory; output dataset path is wrong | Change all `{{outputs}}` to `{{output}}`                                          |
+| 2   | `{{outputs}}` (plural) instead of `{{output}}` (singular) | OSMO does not validate template variables inside `files.contents` | `mkdir` creates a literal `{{outputs}}` directory; output path is wrong | Change all `{{outputs}}` to `{{output}}`                                          |
 
 **Bug ordering is deliberate.** Bug 1 triggers first because `set -e` aborts
 on the `jq` failure before reaching the `{{outputs}}` lines. This tests
@@ -68,7 +68,7 @@ workflow:
           '{message: "Hello World", host: $host, timestamp: $ts}' \
           > /tmp/report.json
 
-        # Write outputs to the dataset mount
+        # Write outputs to the output mount
         mkdir -p {{outputs}}
         cp /tmp/report.json {{outputs}}/report.json
         echo "Hello World from OSMO!" > {{outputs}}/hello.txt
@@ -76,8 +76,7 @@ workflow:
         echo "Done!"
       path: /tmp/entry.sh
     outputs:
-    - dataset:
-        name: hello-world-test-output
+    - url: s3://my-bucket/hello-world-test-output/
   resources:
     default:
       cpu: 2
@@ -113,7 +112,7 @@ status updates.
 - It checks pool availability, picks a pool with free GPUs, and submits.
 - Submission **succeeds** — no YAML structure or resource validation errors.
 - The workflow expert returns: workflow ID, pool name, monitoring commands,
-  and its agent ID for later resume.
+  output location, and its agent ID for later resume.
 
 **What to verify:**
 - The prompt sent to the workflow expert does NOT include monitoring instructions
@@ -169,7 +168,7 @@ status updates.
   - Workflow ID and COMPLETED status
   - OSMO Web link
   - What the workflow produced
-  - Offers to download the `hello-world-test-output` dataset
+  - Offers to download the output data from `s3://my-bucket/hello-world-test-output/`
 
 ## Success Criteria
 
@@ -206,7 +205,5 @@ status updates.
 
 ## Cleanup
 
-After the test, delete the test workflow and output dataset:
-```bash
-echo "y" | osmo dataset delete hello-world-test-output
-```
+After the test, delete the test workflow and remove the output files from
+`s3://my-bucket/hello-world-test-output/` if needed.

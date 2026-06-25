@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 CODECOV_API_BASE = "https://api.codecov.io/api/v2"
 
 IGNORE_PATTERNS = [
+    # --- Permanently uninteresting: tests, build/scripts/deploy infra ---
     "*/tests/*",
     "src/scripts/**",
     "bzl/**",

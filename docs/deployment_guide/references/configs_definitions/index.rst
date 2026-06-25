@@ -33,8 +33,6 @@ The following table provides a list of API endpoints that admins can use to conf
      - System-wide settings for the OSMO service
    * - :ref:`/api/configs/workflow <workflow_config>`
      - Default settings for workflow execution
-   * - :ref:`/api/configs/dataset <dataset_config>`
-     - Settings for dataset storage and handling
    * - :ref:`/api/configs/backend <backend_config>`
      - Compute backend configurations
    * - :ref:`/api/configs/pool <pool_config>`
@@ -60,7 +58,6 @@ Admins can access the Swagger UI at ``http://osmo.example.com/api/docs`` to use 
 
    service
    workflow
-   dataset
    backend
    pool
    pod_template

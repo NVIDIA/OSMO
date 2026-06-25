@@ -443,7 +443,7 @@ export function transformAllResourcesResponse(response: ResourcesResponse): AllR
  * Transform backend UserProfile to ideal UserProfile type.
  *
  * Note: User's name and email come from JWT token via useUser() hook, not from profile settings.
- * Accessible bucket/pool lists come from ProfileResponse.pools at the parent level.
+ * Accessible pool lists come from ProfileResponse.pools at the parent level.
  *
  * @param data - The raw UserProfile from GET /api/profile/settings
  */
@@ -452,10 +452,6 @@ export function transformUserProfile(data: GeneratedUserProfile): UserProfile {
     notifications: {
       email: Boolean(data.email_notification ?? true),
       slack: Boolean(data.slack_notification ?? false),
-    },
-    bucket: {
-      default: String(data.bucket || ""),
-      accessible: [], // Populated separately from ProfileResponse
     },
     pool: {
       default: String(data.pool || ""),

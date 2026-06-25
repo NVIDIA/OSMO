@@ -114,6 +114,49 @@ def _workspace_root() -> str:
     return os.getcwd()
 
 
+def _runfiles_repo_root_for(filename: str, test_srcdir: str) -> Optional[str]:
+    """Pure helper: the runfiles repo dir under ``test_srcdir`` that contains ``filename``.
+
+    Returns ``None`` if ``filename`` isn't reachable from ``test_srcdir``
+    (i.e. their common path isn't ``test_srcdir``).
+    """
+    srcdir_abs = os.path.abspath(test_srcdir)
+    try:
+        rel = os.path.relpath(os.path.abspath(filename), srcdir_abs)
+    except ValueError:  # different drives on Windows
+        return None
+    first, _, _ = rel.partition(os.sep)
+    if not first or first == "..":
+        return None
+    return os.path.join(srcdir_abs, first)
+
+
+def _caller_runfiles_repo_root() -> Optional[str]:
+    """Return the runfiles repo dir (``<TEST_SRCDIR>/<repo>``) that owns the caller.
+
+    Required because under bzlmod, ``TEST_WORKSPACE`` is always ``_main``
+    regardless of which module the test target actually lives in. A test
+    target in ``@osmo_workspace//scenarios:app-cli`` runs from
+    ``<TEST_SRCDIR>/osmo_workspace+/test/scenarios/app_cli.py`` and its
+    data deps land under ``<TEST_SRCDIR>/osmo_workspace+/...`` — but
+    ``_workspace_root()`` would point at ``<TEST_SRCDIR>/_main/`` and miss
+    them entirely. Walk the call stack to the first non-fixture frame and
+    map its path under ``TEST_SRCDIR`` to the runfiles repo dir.
+
+    Returns ``None`` if not running under ``bazel test`` (no
+    ``TEST_SRCDIR``) or no caller file lives under it.
+    """
+    test_srcdir = os.environ.get("TEST_SRCDIR")
+    if not test_srcdir:
+        return None
+    for frame in inspect.stack()[1:]:
+        filename = frame.filename
+        if not filename.endswith(".py") or "runner_fixture" in filename:
+            continue
+        return _runfiles_repo_root_for(filename, test_srcdir)
+    return None
+
+
 def curl_until(url: str, match: str, deadline_seconds: int) -> None:
     """Poll `curl -fsS <url>` until body contains `match`, or raise.
 
@@ -272,7 +315,7 @@ def _read_file(path: str) -> str:
         return ""
 
 
-# --- CLI-mode submission (for scenarios whose spec uses dataset localpaths) ---
+# --- CLI-mode submission (for scenarios whose spec uses localpaths) ---
 
 _LOCALPATH_PATTERN = re.compile(r"^\s*localpath:\s*(.+)$", re.MULTILINE)
 _CLI_STATUS_CODE_PATTERN = re.compile(r"status code[:\s]+(\d+)", re.IGNORECASE)
@@ -287,10 +330,9 @@ def _submit_via_cli(
 ) -> str:
     """Submit a workflow through the osmo CLI. Returns the workflow_id.
 
-    CLI submission (as opposed to the API path) walks dataset localpath
-    directories and uploads files via the CLI's own transfer logic — the
-    API submit can't do this. Query/logs/cancel continue through the HTTP
-    API regardless, so this only affects the submission step.
+    CLI submission (as opposed to the API path) can stage localpath entries
+    through the CLI's own transfer logic. Query/logs/cancel continue through
+    the HTTP API regardless, so this only affects the submission step.
     """
     login_cli_to(config)
     cli_path = resolve_osmo_cli(config)
@@ -305,8 +347,14 @@ def _submit_via_cli(
         ]
         if args:
             argv.extend(["--set"] + list(args))
+        # cwd=temp_dir so the CLI resolves `localpath:` refs
+        # (which it joins with cwd, not the workflow file dir) against the
+        # staged copies _copy_localpath_files_to_dir wrote. Without this
+        # the CLI looks under the bazel sandbox's cwd and fails with
+        # "The localpath <name> does not exist!".
         result = subprocess.run(
             argv, capture_output=True, text=True, check=False,
+            cwd=temp_dir,
         )
         if result.returncode != 0:
             _raise_cli_submission_error(result)
@@ -340,11 +388,25 @@ def _copy_localpath_files_to_dir(
     return _LOCALPATH_PATTERN.sub(replace, spec_content)
 
 
+_CLI_VERSION_WARNING_PATTERN = re.compile(
+    r"^WARNING: New client.*?^curl .*?install\.sh[^\n]*\n?",
+    re.DOTALL | re.MULTILINE,
+)
+
+
 def _raise_cli_submission_error(result: subprocess.CompletedProcess) -> None:
-    """Translate a failing `osmo workflow submit` into OSMOError / OSMOSubmissionError."""
-    stderr = (result.stderr or "")[:500]
-    stdout = (result.stdout or "")[:500]
-    body = stderr or stdout
+    """Translate a failing `osmo workflow submit` into OSMOError / OSMOSubmissionError.
+
+    The CLI emits an "Error message:" line on stdout for submission failures
+    (validation errors, missing localpaths, etc.) and prints a multi-line
+    "New client X available" warning to stderr on every invocation. If we
+    look only at stderr we usually miss the real cause and surface just the
+    noise. Strip the version warning from stderr and build the error body
+    from both streams so the actual failure is visible.
+    """
+    stderr = _CLI_VERSION_WARNING_PATTERN.sub("", result.stderr or "").strip()[:1000]
+    stdout = (result.stdout or "").strip()[:1000]
+    body = "\n".join(s for s in (stderr, stdout) if s) or "(no output captured)"
     status_match = _CLI_STATUS_CODE_PATTERN.search(stderr)
     status_code = int(status_match.group(1)) if status_match else 0
     if status_code == 429 or "429" in stderr:
@@ -363,11 +425,11 @@ class RunnerFixture(OetfFixture):
     Class attributes set defaults; builder methods override per submission.
     Reads OETF_* env vars in setUp (via OetfFixture).
 
-    Scenario YAMLs and per-method overrides can reference ``self.default_image``,
-    ``self.default_platform``, ``self.default_bucket`` so the same scenario
-    runs on staging (with Jenkins-injected overrides) AND on a public KIND
-    deploy (with the safe defaults below). Set ``OETF_DEFAULT_IMAGE`` /
-    ``OETF_DEFAULT_PLATFORM`` / ``OETF_DEFAULT_BUCKET`` to override.
+    Scenario YAMLs and per-method overrides can reference ``self.default_image``
+    and ``self.default_platform`` so the same scenario runs on staging (with
+    Jenkins-injected overrides) AND on a public KIND deploy (with the safe
+    defaults below). Set ``OETF_DEFAULT_IMAGE`` / ``OETF_DEFAULT_PLATFORM`` to
+    override.
     """
 
     pool: str = "default"     # class-level defaults; overridable in subclasses
@@ -392,15 +454,6 @@ class RunnerFixture(OetfFixture):
         which the public quick-start chart's default pool satisfies.
         """
         return os.environ.get("OETF_DEFAULT_PLATFORM", "cpu")
-
-    @property
-    def default_bucket(self) -> str:
-        """Default object-storage bucket for scenarios that need one.
-
-        Reads ``OETF_DEFAULT_BUCKET`` at access time. Empty string when not
-        set — scenarios that genuinely need a bucket must override or skip.
-        """
-        return os.environ.get("OETF_DEFAULT_BUCKET", "")
 
     def setUp(self) -> None:
         super().setUp()
@@ -435,6 +488,19 @@ class RunnerFixture(OetfFixture):
         # not explicitly caller-relative (./ or ../). Covers validation/...,
         # test/..., transfer_service/..., etc.
         if "/" in spec_path and not spec_path.startswith(("./", "../")):
+            # Under bazel test in bzlmod, TEST_WORKSPACE is always "_main"
+            # regardless of which module the test target lives in. So
+            # _workspace_root() always points at <TEST_SRCDIR>/_main, even
+            # for tests in dep modules like @osmo_workspace+ that bring
+            # their own data via test/workflow/*. Try the caller's repo
+            # root first (derived from the test_runner.py file's path
+            # under <TEST_SRCDIR>/<repo>/...) and fall back to
+            # _workspace_root for backwards compatibility.
+            caller_root = _caller_runfiles_repo_root()
+            if caller_root:
+                candidate = os.path.join(caller_root, spec_path)
+                if os.path.exists(candidate):
+                    return candidate
             return os.path.join(_workspace_root(), spec_path)
         # Caller-relative: resolve against the test_runner.py file's directory.
         for frame in inspect.stack()[1:]:

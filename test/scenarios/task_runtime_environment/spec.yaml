@@ -37,10 +37,6 @@ workflow:
     command: ["python3"]
     args: ["/tmp/oetf/task.py"]
     resource: default
-    outputs:
-    - dataset:
-        name: "{{bucket}}/oetf-task-runtime-environment-probe"
 
 default-values:
-  bucket: osmo
   test_id: "0"

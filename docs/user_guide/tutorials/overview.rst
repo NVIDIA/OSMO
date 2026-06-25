@@ -55,7 +55,7 @@ These tutorials are designed to be completed in order, building your knowledge l
       Learn how to use templates and special tokens in a workflow spec
 
    **4.** :ref:`Working with Data <tutorials_working_with_data>`
-      Understand datasets, inputs, outputs, and data management
+      Understand storage URLs, task inputs, outputs, and data movement
 
 ----
 

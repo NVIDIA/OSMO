@@ -18,7 +18,6 @@ import { faker } from "@faker-js/faker";
 import { HttpResponse, delay } from "msw";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
 import { hashString, getMockDelay } from "@/mocks/utils";
-import { BUCKET_NAMES } from "@/mocks/generators/bucket-generator";
 import type { ProfileResponse, CredentialGetResponse } from "@/lib/api/generated";
 
 const BASE_SEED = 66666;
@@ -27,7 +26,6 @@ export class ProfileGenerator {
   private settings: {
     email_notification?: boolean;
     slack_notification?: boolean;
-    bucket?: string;
     pool?: string;
   } = {};
 
@@ -60,7 +58,6 @@ export class ProfileGenerator {
 
     return {
       default_pool: faker.helpers.arrayElement(MOCK_CONFIG.pools.names),
-      default_bucket: faker.helpers.arrayElement(BUCKET_NAMES),
       default_priority: "NORMAL",
       notifications: {
         email: faker.datatype.boolean({ probability: 0.8 }),
@@ -135,7 +132,6 @@ export class ProfileGenerator {
 
     const emailNotification = this.settings.email_notification ?? settings.notifications.email;
     const slackNotification = this.settings.slack_notification ?? settings.notifications.slack;
-    const defaultBucket = this.settings.bucket ?? settings.default_bucket;
     const defaultPool = this.settings.pool ?? settings.default_pool;
 
     const accessiblePools = pools.includes(defaultPool) ? pools : [defaultPool, ...pools];
@@ -145,7 +141,6 @@ export class ProfileGenerator {
         username: userProfile.email,
         email_notification: emailNotification,
         slack_notification: slackNotification,
-        bucket: defaultBucket,
         pool: defaultPool,
       },
       roles: [],
@@ -159,7 +154,6 @@ export class ProfileGenerator {
     const body = (await request.json()) as Record<string, unknown>;
     if ("email_notification" in body) this.settings.email_notification = body.email_notification as boolean;
     if ("slack_notification" in body) this.settings.slack_notification = body.slack_notification as boolean;
-    if ("bucket" in body) this.settings.bucket = body.bucket as string;
     if ("pool" in body) this.settings.pool = body.pool as string;
 
     return HttpResponse.json({ ...body, updated_at: new Date().toISOString() });

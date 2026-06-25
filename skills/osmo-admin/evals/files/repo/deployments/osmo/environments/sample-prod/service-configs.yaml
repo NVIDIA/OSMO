@@ -32,17 +32,6 @@ services:
               writable: true
       default_backend_image: ghcr.io/example/osmo/backend:6.3.0
       max_workflow_runtime: 30d
-    dataset:
-      default_bucket: main
-      buckets:
-        main:
-          dataset_path: s3://osmo-sample-datasets
-          credentialSecretName: osmo-sample-dataset-s3
-          mode: readwrite
-        archive:
-          dataset_path: s3://osmo-sample-archive
-          credentialSecretName: osmo-sample-dataset-s3
-          mode: readonly
     backends:
       gpu-backend-a:
         scheduler_settings:
@@ -80,7 +69,7 @@ services:
         policies:
           - actions:
               - workflow:*
-              - dataset:read
+              - resources:Read
             resources:
               - pool/gpu-prod*
               - backend/gpu-backend-a

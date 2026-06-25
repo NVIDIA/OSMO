@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { defineConfig } from 'orval';
+import { defineConfig, type MswMockOptions } from 'orval';
+
+const mswMockGenerator = { type: 'msw', delay: 0 } satisfies MswMockOptions;
 
 export default defineConfig({
   osmo: {
@@ -53,8 +55,7 @@ export default defineConfig({
       mode: 'single',
       client: 'fetch',
       mock: {
-        type: 'msw',
-        delay: 0,
+        generators: [mswMockGenerator],
       },
       override: {
         // Use faker for realistic data

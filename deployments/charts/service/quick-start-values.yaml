@@ -93,11 +93,6 @@ services:
         client: nvcr.io/nvidia/osmo/client:latest
       credential_config:
         disable_data_validation: ["s3"]
-    dataset:
-      buckets:
-        osmo:
-          dataset_path: s3://osmo/datasets
-      default_bucket: osmo
     podTemplates:
       default_compute:
         spec:

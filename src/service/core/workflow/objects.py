@@ -933,7 +933,6 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL):
         """
         Validate workflow spec by checking:
-        - if user has the necessary credentials to pull datasets
         - if the workflow can match any resource node that has enough allocatables for the workflow
         - if this workflow's Docker containers can be pull with user and service Docker credentials
 

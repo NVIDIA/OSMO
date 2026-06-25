@@ -15,7 +15,6 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-      platform: cpu-x86
   tasks:
   - name: task1
     image: ubuntu:22.04

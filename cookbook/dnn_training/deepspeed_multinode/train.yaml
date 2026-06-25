@@ -16,7 +16,7 @@
 
 # This workflow has multiple files. Please refer to README for more details.
 # To submit:
-# osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets n_nodes=2 n_gpus_per_node=4 n_epochs=10
+# osmo workflow submit train.yaml --set storage_url=s3://my-bucket/osmo-data n_nodes=2 n_gpus_per_node=4 n_epochs=10
 
 workflow:
   name: deepspeed-sample
@@ -34,7 +34,7 @@ workflow:
     - name: master
       lead: true
       outputs:
-      - url: {{ storage_url }}/{{ dataset }}/{{workflow_id}}/
+      - url: {{ storage_url }}/{{ output_prefix }}/{{workflow_id}}/
     {% else %}
     - name: worker_{{item}}
     {% endif %}
@@ -89,4 +89,4 @@ default-values:
   master_port: 29400
   n_epochs: 10
   batch_size: 32
-  dataset: model-sample  # Name of the output dataset under storage_url.
+  output_prefix: model-sample  # Output prefix under storage_url.

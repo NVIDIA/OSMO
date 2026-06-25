@@ -89,7 +89,7 @@ An action is a string in the format ``<resource_type>:<action_name>``.
    * - **Component**
      - **Description**
    * - ``resource_type``
-     - The type of resource (e.g., ``workflow``, ``pool``, ``dataset``, ``config``). See :ref:`actions_resources_reference`.
+     - The type of resource (e.g., ``workflow``, ``pool``, ``credentials``, ``config``). See :ref:`actions_resources_reference`.
    * - ``action_name``
      - The operation to perform (e.g., ``Create``, ``Read``, ``List``, ``Update``, ``Delete``).
 
@@ -100,4 +100,3 @@ Wildcards are supported:
 - ``*:Read`` -- matches all Read actions across all resource types
 
 See :ref:`actions_resources_reference` for the full list of actions and resource scoping rules.
-

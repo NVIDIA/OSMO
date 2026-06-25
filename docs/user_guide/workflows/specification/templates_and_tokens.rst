@@ -47,14 +47,13 @@ For example:
     tasks:
     - name: ros
       environment:
-        ISAAC_ROS_OVERRIDE_DATASET_ROOT: "{{input:0}}/{{ dataset_name }}" # (2)
+        ISAAC_ROS_OVERRIDE_DATA_ROOT: "{{input:0}}" # (2)
         ISAAC_ROS_OVERRIDE_LOG_FILE: "{{output}}/kpi.json"
       image: "nvcr.io/nvidia/isaac-ros/aarch64-build:latest"
       command: ["/workspaces/isaac_ros-dev/docker/scripts/benchmark-entrypoint.sh"]
       args: ["{{ task_arg }}"] # (3)
       inputs:
-      - dataset:
-          name: {{ dataset_name }} # (4)
+      - url: {{ input_url }} # (4)
     resources:
       default:
         cpu: 7
@@ -65,20 +64,20 @@ For example:
 
   default-values:
     workflow_name: isaac_ros_bi3d_stereo_node_test
-    dataset_name: isaac_ros_benchmark_bi3d_dataset
+    input_url: s3://my-bucket/isaac-ros-benchmark-bi3d/
     task_arg: isaac_ros_bi3d_test.py
 
 .. code-annotations::
   1. Has a default value of ``isaac_ros_bi3d_stereo_node_test``.
-  2. Has a default value of ``isaac_ros_benchmark_bi3d_dataset``.
+  2. Reads from the first input location.
   3. Has a default value of ``isaac_ros_bi3d_test.py``.
-  4. Has a default value of ``isaac_ros_benchmark_bi3d_dataset``.
+  4. Has a default value of ``s3://my-bucket/isaac-ros-benchmark-bi3d/``.
 
 These values can also be overridden in the submit command:
 
 .. code-block:: bash
 
-  $ osmo workflow submit /path/my_workflow.yaml --set workflow_name=another_workflow dataset_name=another_dataset task_arg=another_script.py
+  $ osmo workflow submit /path/my_workflow.yaml --set workflow_name=another_workflow input_url=s3://my-bucket/another-input/ task_arg=another_script.py
 
 Variable naming conventions follow the `PEP8 style guide <https://peps.python.org/pep-0008/>`_.
 
@@ -100,13 +99,12 @@ The example below uses a for loop to create four tasks inside the group:
         {% endif %}
         args: ["{{ task_arg }}"]
         inputs:
-          - dataset:
-              name: {{ dataset_name }}
+          - url: {{ input_url }}
       {% endfor %}
 
   default-values:
     workflow_name: my_workflow
-    dataset_name: my_dataset
+    input_url: s3://my-bucket/my-input/
     task_arg: my_script.py
 
 .. code-annotations::
@@ -143,13 +141,10 @@ The special tokens are:
         command: [sh]
         args: [/tmp/run.sh]
         inputs:
-        - dataset:
-            name: first_input
-        - dataset:
-            name: second_input
+        - url: s3://my-bucket/first-input/
+        - url: s3://my-bucket/second-input/
         outputs:
-        - dataset:
-            name: my_dataset
+        - url: s3://my-bucket/my-output/
         files:
         - contents: |
             echo "Hello from {{workflow_id}}"                                 # (1)
@@ -160,8 +155,8 @@ The special tokens are:
 
   .. code-annotations::
     1. Prints out the workflow ID
-    2. Reads a file called ``file.txt`` in the dataset ``first_input``
-    3. Reads a file called ``file2.txt`` in the dataset ``second_input``
+    2. Reads a file called ``file.txt`` from the first input
+    3. Reads a file called ``file2.txt`` from the second input
     4. Writes the workflow ID to the output folder
 
 .. dropdown:: Example with ``{{host:<task_name>}}``

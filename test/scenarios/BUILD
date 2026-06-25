@@ -36,10 +36,9 @@ oetf_scenario_test(
 # methods serially is cheap. Slow files are split one target per test
 # method so Bazel can run them in parallel; see the loops below.
 
-# `privileged`, `credentials`, `data-io` scenario targets stay internal.
+# `privileged` and `credentials` scenario targets stay internal.
 # `privileged` needs Jetson agx-orin-jp6; `credentials` needs internal
-# an internal credential content; `data-io` references an internal object-storage backend + an internal-only registry
-# images. The internal overlay package owns these.
+# credential content. The internal overlay package owns these.
 
 oetf_scenario_test(
     name = "exec-portforward",
@@ -83,15 +82,11 @@ oetf_scenario_test(
 # test_serial_workflow_multi_arch (heterogeneous pool) stay internal.
 _SERIAL = [
     "test_serial_workflow",
-    "test_serial_workflow_mounting",
-    "test_serial_workflow_update_dataset",
-    "test_regex_workflow",
 ]
 
-# Tests in this set additionally get the `kind` tag — verified to pass
-# against `oetf:deploy --env kind` (host-arch only, no NVIDIA-only
-# platforms or registry credentials needed).
-_KIND_RUNNABLE_SERIAL = ["test_serial_workflow_mounting"]
+# Verified to pass against `oetf:deploy --env kind` using the pool default
+# platform selection.
+_KIND_RUNNABLE_SERIAL = ["test_serial_workflow"]
 
 [
     oetf_scenario_test(
@@ -124,7 +119,7 @@ _PARALLEL = [
 # test_data_storage_provider (internal git clone) and test_checkpoint_data
 # (an internal object-storage backend-specific code path) stay internal.
 _DATA_STORAGE = [
-    "test_dataset_cli",
+    "test_data_cli",
     "test_workflow_cli",
     "test_app_cli",
 ]

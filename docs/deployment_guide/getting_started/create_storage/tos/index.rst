@@ -21,7 +21,7 @@
 Torch Object Storage
 =============================
 
-To handle who can access Datasets, the necessary IAM resources/policies must be created.
+To control access to workflow data in TOS, the necessary IAM resources and policies must be created.
 This includes
 
 - A TOS Bucket

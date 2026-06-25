@@ -259,9 +259,13 @@ azure_find_region_with_gpu_quota() {
     local sku="$1" count="$2" sub="$3"
     if ! [[ "$count" =~ ^[1-9][0-9]*$ ]]; then return 0; fi
     local family vcpus_per_node
-    read -r family vcpus_per_node <<<"$(azure_describe_vm_sku "$sku")"
+    IFS=$'\t' read -r family vcpus_per_node <<<"$(azure_describe_vm_sku "$sku")"
     if [[ -z "$family" || -z "$vcpus_per_node" ]]; then
         log_warning "  az vm list-skus returned no family/vCPU data for '$sku' — auto-search cannot continue."
+        return 0
+    fi
+    if ! [[ "$vcpus_per_node" =~ ^[0-9]+$ ]]; then
+        log_warning "  az vm list-skus returned invalid vCPU data for '$sku': '$vcpus_per_node' — auto-search cannot continue."
         return 0
     fi
     local need=$(( count * vcpus_per_node ))
