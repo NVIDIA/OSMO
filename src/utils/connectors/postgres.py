@@ -85,17 +85,17 @@ HISTORY_ONLY_CONFIG_HISTORY_TYPES = frozenset({
     ConfigHistoryType.DATASET,
 })
 
-class OperableConfigHistoryType(enum.Enum):
-    """Type of configs supported by config history mutations."""
-    SERVICE = ConfigHistoryType.SERVICE.value
-    WORKFLOW = ConfigHistoryType.WORKFLOW.value
-    BACKEND = ConfigHistoryType.BACKEND.value
-    POOL = ConfigHistoryType.POOL.value
-    POD_TEMPLATE = ConfigHistoryType.POD_TEMPLATE.value
-    GROUP_TEMPLATE = ConfigHistoryType.GROUP_TEMPLATE.value
-    RESOURCE_VALIDATION = ConfigHistoryType.RESOURCE_VALIDATION.value
-    BACKEND_TEST = ConfigHistoryType.BACKEND_TEST.value
-    ROLE = ConfigHistoryType.ROLE.value
+# Mypy requires literal enum members, but deriving this enum keeps ConfigHistoryType
+# as the single source of truth for config history type values.
+OperableConfigHistoryType = enum.Enum(  # type: ignore[misc]
+    'OperableConfigHistoryType',
+    {
+        config_type.name: config_type.value for config_type in ConfigHistoryType
+        if config_type not in HISTORY_ONLY_CONFIG_HISTORY_TYPES
+    },
+    module=__name__,
+)
+OperableConfigHistoryType.__doc__ = 'Type of configs supported by config history mutations.'
 
 
 class DownloadType(str, enum.Enum):
