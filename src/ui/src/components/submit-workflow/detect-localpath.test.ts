@@ -171,21 +171,21 @@ describe("detectLocalpathUsage", () => {
       expect(detectLocalpathUsage(spec).hasFileLocalpath).toBe(true);
     });
 
-    it("ignores dataset localpath blocks", () => {
-      const spec = ["  inputs:", "  - dataset:", "      localpath: /data"].join("\n");
+    it("ignores localpath in non-files blocks", () => {
+      const spec = ["  inputs:", "  - path:", "      localpath: /data"].join("\n");
       expect(detectLocalpathUsage(spec)).toEqual({
         hasFileLocalpath: false,
       });
     });
 
-    it("dataset block does not replace files context", () => {
-      const spec = ["  files:", "  - path: /tmp/a.sh", "  - dataset:", "      localpath: /data"].join("\n");
+    it("nested block does not replace files context", () => {
+      const spec = ["  files:", "  - path: /tmp/a.sh", "  - metadata:", "      localpath: /data"].join("\n");
       const result = detectLocalpathUsage(spec);
       expect(result.hasFileLocalpath).toBe(false);
     });
 
     it("resumes file localpath detection after an ignored nested block", () => {
-      const spec = ["  files:", "  - dataset:", "      localpath: /data", "  - localpath: /real-file"].join("\n");
+      const spec = ["  files:", "  - metadata:", "      localpath: /data", "  - localpath: /real-file"].join("\n");
       expect(detectLocalpathUsage(spec).hasFileLocalpath).toBe(true);
     });
   });

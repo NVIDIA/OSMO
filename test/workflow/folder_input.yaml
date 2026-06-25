@@ -1,5 +1,5 @@
 #####################################################################################
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
 # and any modifications thereto. Any use, reproduction, disclosure or
@@ -15,113 +15,116 @@ workflow:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
-  groups:
-  - name: {{workflow_name}}-group
-    tasks:
-    - name: {{workflow_name}}-task-01
-      lead: true
-      image: ubuntu:22.04
-      resource: default
-      args: ['/tmp/run.sh']
-      command: ['/bin/bash']
-      files:
-      - contents: |
-          ls -alR {{input:0}}
+  tasks:
+  - name: prepare-folder-input
+    image: ubuntu:22.04
+    resource: default
+    args: ['/tmp/run.sh']
+    command: ['/bin/bash']
+    files:
+    - contents: |
+        set -euo pipefail
 
-          input_path_1={{input:0}}/{{workflow_name}}/input/folder_input_0
-          input_path_2={{input:0}}/{{workflow_name}}/input/folder_input_1
+        mkdir -p {{output}}/{{workflow_name}}/input/folder_input_0
+        mkdir -p {{output}}/{{workflow_name}}/input/folder_input_1
+        echo "test_file_content" > {{output}}/{{workflow_name}}/input/folder_input_0/test_file.txt
+        echo "test_file_content" > {{output}}/{{workflow_name}}/input/folder_input_1/test_file.txt
+      path: /tmp/run.sh
 
-          for input_path in $input_path_1 $input_path_2; do
-            echo "Validating input_path: $input_path"
+  - name: validate-folder-inputs
+    image: ubuntu:22.04
+    resource: default
+    args: ['/tmp/run.sh']
+    command: ['/bin/bash']
+    files:
+    - contents: |
+        set -euo pipefail
 
-            # Check if the folder_input directory exists
-            if [ ! -d $input_path ]; then
-              echo "Error: $input_path directory does not exist"
-              exit 1
-            else
-              echo "Successfully validated $input_path directory exists"
-            fi
+        ls -alR {{input:0}}
 
-            # Check if the test_file.txt file exists in the folder_input directory
-            if [ ! -f "$input_path/test_file.txt" ]; then
-              echo "Error: $input_path/test_file.txt does not exist"
-              exit 1
-            else
-              echo "Successfully validated $input_path/test_file.txt exists"
-            fi
+        input_path_1={{input:0}}/{{workflow_name}}/input/folder_input_0
+        input_path_2={{input:0}}/{{workflow_name}}/input/folder_input_1
 
-            # Check if the test_file.txt file contains the expected content
-            if [ "$(cat $input_path/test_file.txt)" != "test_file_content" ]; then
-              echo "Error: $input_path/test_file.txt does not contain the expected content"
-              exit 1
-            else
-              echo "Successfully validated $input_path/test_file.txt contains the expected content"
-            fi
+        for input_path in $input_path_1 $input_path_2; do
+          echo "Validating input_path: $input_path"
 
-            echo "Successfully validated input_path: $input_path"
-          done
-        path: /tmp/run.sh
-      inputs:
-      - dataset:
-          name: "{{bucket}}/{{workflow_name}}"
-          localpath: input
-
-    - name: {{workflow_name}}-task-02
-      image: ubuntu:22.04
-      resource: default
-      args: ['/tmp/run.sh']
-      command: ['/bin/bash']
-      files:
-      - contents: |
-          ls -alR {{input:0}}
-
-          input_path={{input:0}}/{{workflow_name}}/folder_input_1
-          invalid_input_path={{input:0}}/{{workflow_name}}/folder_input_0
-
-          echo "input_path: $input_path"
-
-          # Check if the folder_input directory exists
-          if [ ! -d $input_path ]; then
+          if [ ! -d "$input_path" ]; then
             echo "Error: $input_path directory does not exist"
             exit 1
-          else
-            echo "Successfully validated input_path: $input_path"
           fi
 
-          # Check if the test_file.txt file exists in the folder_input directory
           if [ ! -f "$input_path/test_file.txt" ]; then
             echo "Error: $input_path/test_file.txt does not exist"
             exit 1
-          else
-            echo "Successfully validated $input_path/test_file.txt exists"
           fi
 
-          # Check if the test_file.txt file contains the expected content
-          if [ "$(cat $input_path/test_file.txt)" != "test_file_content" ]; then
+          if [ "$(cat "$input_path/test_file.txt")" != "test_file_content" ]; then
             echo "Error: $input_path/test_file.txt does not contain the expected content"
             exit 1
-          else
-            echo "Successfully validated $input_path/test_file.txt contains the expected content"
           fi
 
-          # Check the other folder_input directory is not present
-          if [ -d "$invalid_input_path" ]; then
-            echo "Error: $invalid_input_path directory should not exist"
-            exit 1
-          else
-            echo "Successfully validated $invalid_input_path does not exist"
-          fi
+          echo "Successfully validated input_path: $input_path"
+        done
+      path: /tmp/run.sh
+    inputs:
+    - task: prepare-folder-input
 
-          echo "Successfully validated folder_input"
-        path: /tmp/run.sh
-      inputs:
-      - dataset:
-          name: "{{bucket}}/{{workflow_name}}"
-          localpath: input/folder_input_1
+  - name: select-folder-input
+    image: ubuntu:22.04
+    resource: default
+    args: ['/tmp/run.sh']
+    command: ['/bin/bash']
+    files:
+    - contents: |
+        set -euo pipefail
+
+        mkdir -p {{output}}/{{workflow_name}}
+        cp -R {{input:0}}/{{workflow_name}}/input/folder_input_1 {{output}}/{{workflow_name}}/folder_input_1
+      path: /tmp/run.sh
+    inputs:
+    - task: prepare-folder-input
+
+  - name: validate-selected-folder-input
+    image: ubuntu:22.04
+    resource: default
+    args: ['/tmp/run.sh']
+    command: ['/bin/bash']
+    files:
+    - contents: |
+        set -euo pipefail
+
+        ls -alR {{input:0}}
+
+        input_path={{input:0}}/{{workflow_name}}/folder_input_1
+        invalid_input_path={{input:0}}/{{workflow_name}}/folder_input_0
+
+        if [ ! -d "$input_path" ]; then
+          echo "Error: $input_path directory does not exist"
+          exit 1
+        fi
+
+        if [ ! -f "$input_path/test_file.txt" ]; then
+          echo "Error: $input_path/test_file.txt does not exist"
+          exit 1
+        fi
+
+        if [ "$(cat "$input_path/test_file.txt")" != "test_file_content" ]; then
+          echo "Error: $input_path/test_file.txt does not contain the expected content"
+          exit 1
+        fi
+
+        if [ -d "$invalid_input_path" ]; then
+          echo "Error: $invalid_input_path directory should not exist"
+          exit 1
+        fi
+
+        echo "Successfully validated selected folder input"
+      path: /tmp/run.sh
+    inputs:
+    - task: select-folder-input
   timeout:
     exec_timeout: 10m
     queue_timeout: 1h
 
 default-values:
   workflow_name: folder-input-test
-  bucket: osmo

@@ -80,24 +80,24 @@ class ExcMessageTest(unittest.TestCase):
         """
         formatted = (
             "Traceback (most recent call last):\n"
-            "  File \"x.py\", line 1, in test_dataset_cli\n"
+            "  File \"x.py\", line 1, in test_workflow_cli\n"
             "    .expect_completed()\n"
             "  File \"y.py\", line 2, in expect_completed\n"
             "    self.submit().expect_outcome(\"completed\")\n"
-            "ValueError: Workflow dataset-cli-1099"
-            " (https://staging.example/workflows/dataset-cli-1099)"
+            "ValueError: Workflow workflow-cli-1099"
+            " (https://staging.example/workflows/workflow-cli-1099)"
             " did not reach terminal status within 600s (last status: RUNNING)\n"
             "  workflow message: \n"
-            "  tasks: dataset-cli=RUNNING\n"
+            "  tasks: workflow-cli=RUNNING\n"
             "  recent events (last 5):\n"
-            "    - 2026-04-30 02:14:21+00:00 [dataset-cli] Pulling: ...\n"
-            "    - 2026-04-30 02:14:22+00:00 [dataset-cli] Initialized: True\n"
+            "    - 2026-04-30 02:14:21+00:00 [workflow-cli] Pulling: ...\n"
+            "    - 2026-04-30 02:14:22+00:00 [workflow-cli] Initialized: True\n"
         )
         message = _exc_message(formatted)
         self.assertEqual(
             message,
-            "ValueError: Workflow dataset-cli-1099"
-            " (https://staging.example/workflows/dataset-cli-1099)"
+            "ValueError: Workflow workflow-cli-1099"
+            " (https://staging.example/workflows/workflow-cli-1099)"
             " did not reach terminal status within 600s (last status: RUNNING)",
         )
         # Diagnostic context lines must NOT be in the message.

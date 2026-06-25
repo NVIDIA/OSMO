@@ -168,10 +168,9 @@ def _config_error(message: str, next_step: str) -> NoReturn:
 def seed_data_credential(args: argparse.Namespace, env: Dict[str, str]) -> None:
     """Populate the osmo CLI's DATA cred cache with the supplied key pair.
 
-    Scenarios that submit via CLI with `localpath:` datasets (e.g.
-    folder_input, data-io) upload files to the dataset backend and need a
-    stored credential keyed by endpoint. Without this, Jenkins's fresh
-    sandbox fails with `Data credential not found for <endpoint>`.
+    Scenarios that exercise storage operations through the CLI need a stored
+    credential keyed by endpoint. Without this, Jenkins's fresh sandbox fails
+    with `Data credential not found for <endpoint>`.
 
     Mirrors ci/workflow_runner.py's pre-run credential setup.
     """

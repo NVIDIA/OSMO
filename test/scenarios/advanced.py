@@ -8,9 +8,9 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
-# Advanced / cross-cutting workflows (multi-arch, transfer service, Python SDK).
+# Advanced / cross-cutting workflows.
 #
-# Kept in one file for convenience — each test stands alone but shares no
+# Kept in one file for convenience. Each test stands alone but shares no
 # class-level defaults with its neighbors.
 
 import unittest
@@ -29,10 +29,8 @@ class AdvancedWorkflows(RunnerFixture):
     # transfer_service runfiles which aren't shipped publicly.
 
     def test_folder_input(self):
-        """Dataset localpath upload — requires CLI-mode submission (api-mode
-        can't upload a directory tree)."""
+        """Task-output folder fanout and subfolder selection."""
         self.workflow("test/workflow/folder_input.yaml") \
-            .client("cli") \
             .expect_completed()
 
 

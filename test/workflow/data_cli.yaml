@@ -1,5 +1,5 @@
 #####################################################################################
-# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
 # and any modifications thereto. Any use, reproduction, disclosure or
@@ -9,27 +9,33 @@
 
 version: 2
 workflow:
-  name: dataset-cli
+  name: data-cli
   resources:
     default:
       cpu: 1
       storage: 1Gi
       memory: 1Gi
   tasks:
-  - name: dataset-cli
+  - name: data-cli
     image: ubuntu:22.04
     resource: default
-    args: ['/tmp/osmo_dataset_test.sh', '{{bucket}}']
+    args: ['/tmp/osmo_data_test.sh']
     command: ['/bin/bash']
     files:
-    - localpath: scripts/dataset_cli.sh
-      path: /tmp/osmo_dataset_test.sh
-    - localpath: scripts/dataset_query.txt
-      path: /tmp/dataset_query.txt
-    - localpath: scripts/collection_query.txt
-      path: /tmp/collection_query.txt
+    - contents: |
+        set -euo pipefail
+
+        osmo data --help >/tmp/data_help.txt
+        osmo data upload --help >/tmp/data_upload_help.txt
+        osmo data download --help >/tmp/data_download_help.txt
+        osmo data list --help >/tmp/data_list_help.txt
+        osmo data delete --help >/tmp/data_delete_help.txt
+
+        grep -q "upload" /tmp/data_help.txt
+        grep -q "download" /tmp/data_help.txt
+        grep -q "list" /tmp/data_help.txt
+        grep -q "delete" /tmp/data_help.txt
+      path: /tmp/osmo_data_test.sh
   timeout:
     exec_timeout: 10m
     queue_timeout: 1h
-default-values:
-  bucket: osmo

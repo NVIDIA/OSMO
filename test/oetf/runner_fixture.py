@@ -315,7 +315,7 @@ def _read_file(path: str) -> str:
         return ""
 
 
-# --- CLI-mode submission (for scenarios whose spec uses dataset localpaths) ---
+# --- CLI-mode submission (for scenarios whose spec uses localpaths) ---
 
 _LOCALPATH_PATTERN = re.compile(r"^\s*localpath:\s*(.+)$", re.MULTILINE)
 _CLI_STATUS_CODE_PATTERN = re.compile(r"status code[:\s]+(\d+)", re.IGNORECASE)
@@ -330,10 +330,9 @@ def _submit_via_cli(
 ) -> str:
     """Submit a workflow through the osmo CLI. Returns the workflow_id.
 
-    CLI submission (as opposed to the API path) walks dataset localpath
-    directories and uploads files via the CLI's own transfer logic — the
-    API submit can't do this. Query/logs/cancel continue through the HTTP
-    API regardless, so this only affects the submission step.
+    CLI submission (as opposed to the API path) can stage localpath entries
+    through the CLI's own transfer logic. Query/logs/cancel continue through
+    the HTTP API regardless, so this only affects the submission step.
     """
     login_cli_to(config)
     cli_path = resolve_osmo_cli(config)
@@ -348,7 +347,7 @@ def _submit_via_cli(
         ]
         if args:
             argv.extend(["--set"] + list(args))
-        # cwd=temp_dir so the CLI resolves dataset-block `localpath:` refs
+        # cwd=temp_dir so the CLI resolves `localpath:` refs
         # (which it joins with cwd, not the workflow file dir) against the
         # staged copies _copy_localpath_files_to_dir wrote. Without this
         # the CLI looks under the bazel sandbox's cwd and fails with
@@ -426,11 +425,11 @@ class RunnerFixture(OetfFixture):
     Class attributes set defaults; builder methods override per submission.
     Reads OETF_* env vars in setUp (via OetfFixture).
 
-    Scenario YAMLs and per-method overrides can reference ``self.default_image``,
-    ``self.default_platform``, ``self.default_bucket`` so the same scenario
-    runs on staging (with Jenkins-injected overrides) AND on a public KIND
-    deploy (with the safe defaults below). Set ``OETF_DEFAULT_IMAGE`` /
-    ``OETF_DEFAULT_PLATFORM`` / ``OETF_DEFAULT_BUCKET`` to override.
+    Scenario YAMLs and per-method overrides can reference ``self.default_image``
+    and ``self.default_platform`` so the same scenario runs on staging (with
+    Jenkins-injected overrides) AND on a public KIND deploy (with the safe
+    defaults below). Set ``OETF_DEFAULT_IMAGE`` / ``OETF_DEFAULT_PLATFORM`` to
+    override.
     """
 
     pool: str = "default"     # class-level defaults; overridable in subclasses
@@ -455,15 +454,6 @@ class RunnerFixture(OetfFixture):
         which the public quick-start chart's default pool satisfies.
         """
         return os.environ.get("OETF_DEFAULT_PLATFORM", "cpu")
-
-    @property
-    def default_bucket(self) -> str:
-        """Default object-storage bucket for scenarios that need one.
-
-        Reads ``OETF_DEFAULT_BUCKET`` at access time. Empty string when not
-        set — scenarios that genuinely need a bucket must override or skip.
-        """
-        return os.environ.get("OETF_DEFAULT_BUCKET", "")
 
     def setUp(self) -> None:
         super().setUp()
