@@ -311,12 +311,10 @@ jobs:
   # using the PR-built images from build-images above, runs verify-hello,
   # tears down. Long-running.
   full-deployment:
+    # Gating lives on `build-images` (same conditions); when that job is
+    # skipped this one is too via the `needs:` default behavior. Keeping
+    # the trigger logic in one place avoids the apply/destroy-style copy.
     needs: build-images
-    if: >
-      ${{ github.event_name == 'schedule'
-          || github.event.inputs.mode == 'full-deployment'
-          || (github.event_name == 'pull_request'
-              && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
     runs-on: ubuntu-latest
     # Budget while TEMP scaffolding is in place:
     #   cleanup leftovers (~30 min worst-case if AKS is mid-delete)
@@ -454,6 +452,48 @@ jobs:
           echo "::add-mask::$PG_PASS"
           echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
 
+      # Single source of truth for the TF inputs the apply + destroy steps
+      # use. Writing once to $RUNNER_TEMP avoids the apply-vs-destroy
+      # var drift that bit this gate earlier (e.g. `redis_location` had
+      # to be added in two places). RUNNER_TEMP persists across steps
+      # within the same job.
+      #
+      # Rationale for non-default values:
+      #   - aks_private_cluster_enabled=false  GHA runners are public-net,
+      #                                        can't resolve privatelink.
+      #   - node_instance_type=Standard_D8s_v3 D4s_v3 left K8_CPU=0 after
+      #                                        Azure daemons + OSMO sidecars
+      #                                        (ceil rounding); D8s_v3 ×3
+      #                                        gives ~4 vCPU headroom.
+      #   - node_group_min_size=3              headroom for scenario tests.
+      #   - redis_sku_name=Balanced_B0,        eastus2 Managed Redis hit
+      #     redis_location=westus2             AllocationFailed 4× across
+      #                                        two SKUs; cross-region Redis
+      #                                        works since the chart uses
+      #                                        the public endpoint anyway.
+      - name: build TF var file (consumed by both apply and destroy)
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+          PG_PASS: ${{ steps.gen_pg.outputs.value }}
+        run: |
+          cat > "$RUNNER_TEMP/azure.tfvars" <<TFVARS
+          subscription_id              = "$AZURE_SUBSCRIPTION_ID"
+          resource_group_name          = "$AZURE_RESOURCE_GROUP"
+          azure_region                 = "$AZURE_REGION"
+          cluster_name                 = "$AZURE_CLUSTER_NAME"
+          postgres_password            = "$PG_PASS"
+          aks_private_cluster_enabled  = false
+          node_instance_type           = "Standard_D8s_v3"
+          node_group_min_size          = 3
+          redis_sku_name               = "Balanced_B0"
+          redis_location               = "westus2"
+          TFVARS
+          # The file contains a real password — mask before logging.
+          grep -v postgres_password "$RUNNER_TEMP/azure.tfvars"
+
       # TEMPORARY SCAFFOLDING -----------------------------------------------
       # run-deployment-test.sh hard-codes `--skip-terraform` for Azure (the
       # design intent is "AKS + Postgres + Redis provisioned externally,
@@ -482,11 +522,21 @@ jobs:
           echo "$IDS"
           echo "::endgroup::"
 
+          # Fire all deletes in parallel — each az call enqueues server-side
+          # then returns immediately with --no-wait, but the CLI's own ARM
+          # request still serializes ~500 ms each. Backgrounding ~20 of
+          # them turns 10 s of sequential fire into ~1 s.
+          fire_deletes() {
+            local ids="$1" budget="$2"
+            while IFS= read -r id; do
+              [ -z "$id" ] && continue
+              az resource delete --ids "$id" --no-wait 2>&1 | head -"$budget" &
+            done <<< "$ids"
+            wait
+          }
+
           echo "▶ $(date -u +%H:%M:%S) firing async deletes (--no-wait)"
-          while IFS= read -r id; do
-            [ -z "$id" ] && continue
-            az resource delete --ids "$id" --no-wait 2>&1 | head -2 || true
-          done <<< "$IDS"
+          fire_deletes "$IDS" 2
 
           echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 30 min; AKS deletion alone can take 15+)"
           # Re-fire deletes every 5 min on whatever's still there. Some
@@ -497,27 +547,24 @@ jobs:
           deadline=$(( $(date +%s) + 1800 ))
           last_refire=$(date +%s)
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            count=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
+            # One ARM call gives us both the count and the IDs.
+            ids_now=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query '[].id' -o tsv || true)
+            count=$(echo -n "$ids_now" | grep -c . || true)
             echo "  $(date -u +%H:%M:%S) remaining: $count"
             [ "$count" = "0" ] && break
 
             now=$(date +%s)
-            if [ "$count" != "0" ] && [ "$count" != "?" ] && [ $(( now - last_refire )) -ge 300 ]; then
+            if [ $(( now - last_refire )) -ge 300 ]; then
               echo "  $(date -u +%H:%M:%S) ↻ re-firing deletes on $count remaining resource(s)"
-              IDS_NOW=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query '[].id' -o tsv || true)
-              while IFS= read -r id; do
-                [ -z "$id" ] && continue
-                az resource delete --ids "$id" --no-wait 2>&1 | head -1 || true
-              done <<< "$IDS_NOW"
+              fire_deletes "$ids_now" 1
               last_refire=$now
             fi
 
             sleep 30
           done
 
-          remaining=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
-          if [ "$remaining" != "0" ]; then
-            echo "::error::cleanup timed out — $remaining resource(s) still present"
+          if [ "$count" != "0" ]; then
+            echo "::error::cleanup timed out — $count resource(s) still present"
             az resource list --resource-group "$AZURE_RESOURCE_GROUP" -o table
             exit 1
           fi
@@ -538,50 +585,13 @@ jobs:
 
           echo "▶ $(date -u +%H:%M:%S) terraform apply (streaming, line-flushed)"
           echo "::group::terraform apply (streaming)"
-          # Var overrides:
-          # - aks_private_cluster_enabled=false: GitHub runners are on the
-          #   public internet, can't resolve privatelink AKS FQDN.
-          # - node_instance_type=Standard_D8s_v3: tried D4s_v3 (4 vCPU,
-          #   3860m allocatable) first — even after the wrapper's helm-set
-          #   reductions K8_CPU still resolved to 0 and verify-hello got
-          #   rejected with "Value 1.0 too high for CPU". The cause is
-          #   the math in OSMO's K8_CPU = int(allocatable.cpu) − ctrl.cpu
-          #   − math.ceil(non_workflow_usage): each node already has
-          #   ~1.3 vCPU consumed by Azure daemons (ama-logs 170m, coredns
-          #   200m, metrics-server 314m, npm 50m, kube-proxy 100m, etc.)
-          #   plus our OSMO system pods. math.ceil(1.3) = 2; int(3 − 0.1
-          #   − 2) = 0. Bumping to D8s_v3 (8 vCPU, 7860m allocatable)
-          #   gives int(7 − 0.1 − 2) = 4, plenty of headroom. Cost is
-          #   ~2× per minute but the run is ~10 min cheaper because
-          #   pods schedule faster and helm waits less.
-          # - node_group_min_size=3: kept at 3 for headroom across
-          #   scenario tests; verify-hello alone would land on 1.
-          TF_VARS=(
-            -var "subscription_id=${ARM_SUBSCRIPTION_ID}"
-            -var "resource_group_name=${AZURE_RESOURCE_GROUP}"
-            -var "azure_region=${AZURE_REGION}"
-            -var "cluster_name=${AZURE_CLUSTER_NAME}"
-            -var "postgres_password=${PG_PASS}"
-            -var "aks_private_cluster_enabled=false"
-            -var "node_instance_type=Standard_D8s_v3"
-            -var "node_group_min_size=3"
-            # Four consecutive AllocationFailed errors on eastus2 across
-            # two SKUs (ComputeOptimized_X3 ×2, Balanced_B0 ×2) — capacity
-            # exhaustion is region-wide, not SKU-specific:
-            #   "Request failed due to insufficient capacity. Retry using a
-            #    different Azure Managed Redis size, region, or contact
-            #    Azure support."
-            # Place Redis in westus2 (different region than the RG/AKS).
-            # Encrypted + access_keys_authentication is on, so the AKS
-            # pool reaches it over the public endpoint — cross-region is
-            # fine for our test workload. Balanced_B0 stays as the SKU.
-            -var "redis_sku_name=Balanced_B0"
-            -var "redis_location=westus2"
-          )
+          # Vars are owned by the "build TF var file" step (see above);
+          # both apply and destroy use the same file so they can never
+          # diverge.
           if command -v ts >/dev/null; then
-            terraform apply -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]'
+            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" 2>&1 | ts '[%H:%M:%S]'
           else
-            terraform apply -input=false -auto-approve -no-color "${TF_VARS[@]}"
+            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars"
           fi
           echo "::endgroup::"
 
@@ -940,33 +950,13 @@ jobs:
           echo "::notice::terraform destroy starting — expected ~10–15 min"
           echo "▶ $(date -u +%H:%M:%S) terraform destroy (streaming)"
           echo "::group::terraform destroy (streaming)"
-          TF_VARS=(
-            -var "subscription_id=${ARM_SUBSCRIPTION_ID}"
-            -var "resource_group_name=${AZURE_RESOURCE_GROUP}"
-            -var "azure_region=${AZURE_REGION}"
-            -var "cluster_name=${AZURE_CLUSTER_NAME}"
-            -var "postgres_password=${PG_PASS}"
-            -var "aks_private_cluster_enabled=false"
-            -var "node_instance_type=Standard_D8s_v3"
-            -var "node_group_min_size=3"
-            # Four consecutive AllocationFailed errors on eastus2 across
-            # two SKUs (ComputeOptimized_X3 ×2, Balanced_B0 ×2) — capacity
-            # exhaustion is region-wide, not SKU-specific:
-            #   "Request failed due to insufficient capacity. Retry using a
-            #    different Azure Managed Redis size, region, or contact
-            #    Azure support."
-            # Place Redis in westus2 (different region than the RG/AKS).
-            # Encrypted + access_keys_authentication is on, so the AKS
-            # pool reaches it over the public endpoint — cross-region is
-            # fine for our test workload. Balanced_B0 stays as the SKU.
-            -var "redis_sku_name=Balanced_B0"
-            -var "redis_location=westus2"
-          )
+          # Same tfvars file the apply step used. See the "build TF var
+          # file" step earlier for rationale on each var.
           if command -v ts >/dev/null; then
-            terraform destroy -input=false -auto-approve -no-color "${TF_VARS[@]}" 2>&1 | ts '[%H:%M:%S]' \
+            terraform destroy -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" 2>&1 | ts '[%H:%M:%S]' \
               || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
           else
-            terraform destroy -input=false -auto-approve -no-color "${TF_VARS[@]}" \
+            terraform destroy -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" \
               || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
           fi
           echo "::endgroup::"
@@ -1162,10 +1152,6 @@ jobs:
           set -uo pipefail
           if [[ -z "${OSMO_SLACK_BOT_TOKEN:-}" ]]; then
             echo "::warning::OSMO_SLACK_BOT_TOKEN secret not set — skipping Slack notification."
-            exit 0
-          fi
-          if [[ -z "${TESTBOT_SLACK_CHANNEL:-}" ]]; then
-            echo "::warning::TESTBOT_SLACK_CHANNEL empty — skipping Slack notification."
             exit 0
           fi
 
