@@ -154,6 +154,15 @@ python.single_version_platform_override(
         "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-unknown-linux-gnu-install_only.tar.gz",
     ],
 )
+python.single_version_platform_override(
+    platform = "aarch64-apple-darwin",
+    python_version = PYTHON_VERSION,
+    sha256 = "953db72ff2dea68b5112231b1ba77163ec9114f87c7ece530b3ea742a3b492c5",
+    strip_prefix = "python",
+    urls = [
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-install_only.tar.gz",
+    ],
+)
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
