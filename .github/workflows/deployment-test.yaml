@@ -1,4 +1,4 @@
-name: Deployment Test
+name: Deployment Test (Azure)
 
 # Cloud deployment-test gate. Runs `deployments/scripts/run-deployment-test.sh`
 # end-to-end against an ephemeral cloud cluster (Azure today; other providers
@@ -36,13 +36,13 @@ name: Deployment Test
 #     feature branches.
 #
 # Slack notification (failure-only, schedule-only):
-#   - notify-slack-on-failure posts to the `osmo-slack-test` channel
-#     (hardcoded; org-level `vars.TESTBOT_SLACK_CHANNEL` points at the
-#     testbot's review-request channel, wrong audience for deploy gate
-#     failures) using the `OSMO_SLACK_BOT_TOKEN` repo-level secret
-#     (xoxb- bot token with chat:write scope).
+#   - notify-slack-on-azure-deployment-test-failure posts to
+#     `osmo-slack-test` (hardcoded — the org-level TESTBOT_SLACK_CHANNEL
+#     points at the testbot's review-request channel, wrong audience for
+#     deploy-gate failures) using OSMO_SLACK_BOT_TOKEN (xoxb- bot token
+#     with chat:write scope) via Slack `chat.postMessage`.
 #   - Fires only on scheduled-run failures. PR-label and workflow_dispatch
-#     runs are interactive and surface their own status.
+#     runs surface their own status interactively.
 #   - If the secret is unset or the API returns non-ok, the step logs a
 #     warning and exits 0 — the gate's overall status is unaffected.
 
@@ -58,10 +58,6 @@ on:
           - init-only
           - auth-check
           - full-deployment
-      test_slack:
-        description: 'E2E-test the Slack notification path. Skips build-images + full-deployment, runs a stub failure job, and exercises notify-slack-on-failure with realistic context. Cheap (~30s) and burns no Azure resources.'
-        type: boolean
-        default: false
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
@@ -169,11 +165,10 @@ jobs:
   # full-deployment via `needs:`.
   build-images:
     if: >
-      ${{ github.event.inputs.test_slack != 'true'
-          && (github.event_name == 'schedule'
-              || github.event.inputs.mode == 'full-deployment'
-              || (github.event_name == 'pull_request'
-                  && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment'))) }}
+      ${{ github.event_name == 'schedule'
+          || github.event.inputs.mode == 'full-deployment'
+          || (github.event_name == 'pull_request'
+              && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -318,11 +313,10 @@ jobs:
   full-deployment:
     needs: build-images
     if: >
-      ${{ github.event.inputs.test_slack != 'true'
-          && (github.event_name == 'schedule'
-              || github.event.inputs.mode == 'full-deployment'
-              || (github.event_name == 'pull_request'
-                  && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment'))) }}
+      ${{ github.event_name == 'schedule'
+          || github.event.inputs.mode == 'full-deployment'
+          || (github.event_name == 'pull_request'
+              && contains(github.event.pull_request.labels.*.name, 'ci:azure-deployment')) }}
     runs-on: ubuntu-latest
     # Budget while TEMP scaffolding is in place:
     #   cleanup leftovers (~30 min worst-case if AKS is mid-delete)
@@ -1040,41 +1034,18 @@ jobs:
   # `OSMO_SLACK_BOT_TOKEN` repo secret — same auth surface that
   # testbot.yaml + update-distroless-images.yaml already use.
   #
-  # Test path (e2e without burning Azure resources):
-  #   `gh workflow run "Deployment Test" --field test_slack=true`
-  #   ↳ build-images + full-deployment both skipped, simulate-failure exits
-  #     non-zero, notify-slack-on-failure fires with a realistic payload.
-  #
   # ─────────────────────────────────────────────────────────────────────────
 
-  # Stub job that exists only to exercise the slack-notify path end-to-end
-  # via workflow_dispatch (test_slack=true). Runs only in that mode and
-  # immediately exits 1 so notify-slack-on-failure has a "failed needs:"
-  # to react to. On schedule/PR/normal-dispatch this job is skipped.
-  simulate-failure:
-    if: ${{ github.event.inputs.test_slack == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Simulated failure (Slack e2e exercise)
-        run: |
-          echo "::notice::Simulating a deployment-test failure to exercise the Slack notification path."
-          echo "  No Azure resources are touched and no images are built."
-          exit 1
-
-  notify-slack-on-failure:
-    needs: [build-images, full-deployment, simulate-failure]
+  notify-slack-on-azure-deployment-test-failure:
+    needs: [build-images, full-deployment]
     # always() so this evaluates even when an upstream `needs:` failed.
-    # Fires when:
-    #   - scheduled run AND (build-images OR full-deployment) actually failed
-    #   - OR workflow_dispatch with test_slack=true AND simulate-failure failed
+    # Fires only on scheduled-run failures — PR-label and workflow_dispatch
+    # runs surface their own status interactively.
     if: >
       ${{ always()
-          && ( (github.event_name == 'schedule'
-                && (needs.build-images.result == 'failure'
-                    || needs.full-deployment.result == 'failure'))
-              || (github.event.inputs.test_slack == 'true'
-                  && needs.simulate-failure.result == 'failure') ) }}
+          && github.event_name == 'schedule'
+          && (needs.build-images.result == 'failure'
+              || needs.full-deployment.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1087,7 +1058,6 @@ jobs:
           WORKFLOW_ID: ${{ github.workflow_ref }}
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
-          IS_TEST: ${{ github.event.inputs.test_slack == 'true' }}
         run: |
           set -uo pipefail
 
@@ -1138,8 +1108,8 @@ jobs:
           # which renders the artifact's download flow directly. We pick
           # the first non-expired artifact (full-deployment uploads a
           # single one named `deployment-test-run-<run_id>`); fall back
-          # to the run page when none is found (e.g. test_slack=true
-          # dispatches that never reach the upload step).
+          # to the run page when none is found (e.g. job aborted before
+          # the always() upload step ran).
           artifacts_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
                                  -H 'Accept: application/vnd.github+json' \
                                  "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?per_page=10")
@@ -1162,7 +1132,6 @@ jobs:
             echo "compare_label=$compare_label"
             echo "artifact_url=$artifact_url"
             echo "artifact_label=$artifact_label"
-            echo "is_test=$IS_TEST"
           } >> "$GITHUB_OUTPUT"
 
       - name: Post failure notification to Slack
@@ -1188,7 +1157,6 @@ jobs:
           COMPARE_LABEL: ${{ steps.ctx.outputs.compare_label }}
           ARTIFACT_URL: ${{ steps.ctx.outputs.artifact_url }}
           ARTIFACT_LABEL: ${{ steps.ctx.outputs.artifact_label }}
-          IS_TEST: ${{ steps.ctx.outputs.is_test }}
           EVENT: ${{ github.event_name }}
         run: |
           set -uo pipefail
@@ -1208,24 +1176,14 @@ jobs:
           commit_url="${SERVER_URL}/${REPO}/commit/${FULL_SHA}"
           workflow_url="${SERVER_URL}/${REPO}/blob/${REF_NAME}/.github/workflows/deployment-test.yaml"
           # artifact_url comes from the "Gather context" step which already
-          # resolved the per-run artifact ID via the GH API. Fallback when
-          # no artifact exists (test_slack=true mode) → the run page itself.
+          # resolved the per-run artifact ID via the GH API. Falls back to
+          # the run page when no artifact exists (job died before upload).
           artifact_url="${ARTIFACT_URL}"
           artifact_label="${ARTIFACT_LABEL}"
-
-          # Test runs get a clear "this is a test" prefix so they aren't
-          # mistaken for real production failures.
-          if [[ "$IS_TEST" == "true" ]]; then
-            header_text=":test_tube: [TEST] OSMO deployment-test Slack notification"
-            trigger_label="workflow_dispatch (test_slack=true)"
-            bi_for_payload="(skipped — test mode)"
-            fd_for_payload="(skipped — test mode)"
-          else
-            header_text=":x: OSMO daily deployment-test FAILED"
-            trigger_label="Daily schedule (00:00 UTC = 5pm PDT)"
-            bi_for_payload="$BI_RESULT"
-            fd_for_payload="$FD_RESULT"
-          fi
+          header_text=":x: OSMO Azure deployment-test FAILED"
+          trigger_label="Daily schedule (00:00 UTC = 5pm PDT)"
+          bi_for_payload="$BI_RESULT"
+          fd_for_payload="$FD_RESULT"
 
           payload=$(jq -n \
             --arg channel       "$TESTBOT_SLACK_CHANNEL" \
