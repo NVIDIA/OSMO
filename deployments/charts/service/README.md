@@ -91,8 +91,8 @@ See [../README.md](../README.md) for the full two-chart flow.
 To add new migrations for future releases, drop JSON files into the chart's `migrations/` directory. They are automatically included via `.Files.Glob`.
 
 The current migration set also removes deprecated `DATASET` rows from the PostgreSQL `configs`
-table during upgrade. It does not delete `config_history` audit rows or rewrite ConfigMap-backed
-`dataset:` blocks. ConfigMap mode already ignores stale `dataset:` sections, but admins should
+table and legacy `dataset` rows from `config_history` during upgrade. It does not rewrite
+ConfigMap-backed `dataset:` blocks. ConfigMap mode already ignores stale `dataset:` sections, but admins should
 remove them from Helm values manually.
 
 ### PostgreSQL Settings

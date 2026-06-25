@@ -2,7 +2,7 @@
   "operations": [
     {
       "sql": {
-        "up": "DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'configs') THEN DELETE FROM public.configs WHERE type = 'DATASET'; END IF; END $$"
+        "up": "DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'configs') THEN DELETE FROM public.configs WHERE type = 'DATASET'; END IF; IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'config_history') THEN DELETE FROM public.config_history WHERE lower(config_type) = 'dataset'; END IF; END $$"
       }
     }
   ]

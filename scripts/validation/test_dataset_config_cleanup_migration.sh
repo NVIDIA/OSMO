@@ -250,7 +250,7 @@ INSERT INTO config_history
     (config_type, revision, name, username, created_at, tags, description, data)
 VALUES
     ('dataset', 1, '', 'admin', NOW(), ARRAY['seed'], 'Legacy dataset config', '{"buckets":{}}'),
-    ('dataset', 2, '', 'admin', NOW(), ARRAY['seed'], 'Legacy dataset config update', '{"default_bucket":"osmo"}'),
+    ('DATASET', 2, '', 'admin', NOW(), ARRAY['seed'], 'Legacy dataset config update', '{"default_bucket":"osmo"}'),
     ('service', 1, '', 'admin', NOW(), ARRAY['seed'], 'Service config', '{"service_base_url":"https://osmo.example.test"}'),
     ('workflow', 1, '', 'admin', NOW(), ARRAY['seed'], 'Workflow config', '{"max_num_tasks":100}');
 EOF
@@ -368,12 +368,12 @@ assert_post_migration_state() {
     assert_count "WORKFLOW config rows preserved" \
         "SELECT COUNT(*) FROM configs WHERE type = 'WORKFLOW';" \
         "3"
-    assert_count "dataset config history rows preserved" \
-        "SELECT COUNT(*) FROM config_history WHERE config_type = 'dataset';" \
-        "2"
-    assert_count "total config history rows preserved" \
+    assert_count "dataset config history rows removed" \
+        "SELECT COUNT(*) FROM config_history WHERE lower(config_type) = 'dataset';" \
+        "0"
+    assert_count "total config history rows preserved except dataset rows" \
         "SELECT COUNT(*) FROM config_history;" \
-        "4"
+        "2"
 }
 
 require_tool docker

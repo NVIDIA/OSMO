@@ -296,8 +296,9 @@ services:
   ## Database migration configuration (pgroll)
   ## When enabled, a Helm pre-upgrade hook Job runs migrations before pods are updated.
   ## Uses postgres:15-alpine with pgroll downloaded at runtime.
-  ## The current migration set also removes deprecated DATASET rows from PostgreSQL configs.
-  ## It does not rewrite ConfigMap-backed services.configs.dataset values; remove those manually.
+  ## The current migration set also removes deprecated DATASET rows from PostgreSQL configs
+  ## and legacy dataset rows from config_history. It does not rewrite
+  ## ConfigMap-backed services.configs.dataset values; remove those manually.
   ##
   migration:
     ## Enable the migration Job
