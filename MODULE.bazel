@@ -21,6 +21,8 @@ BASE_IMAGE_URL = "nvcr.io/nvidia/osmo/"
 
 IMAGE_TAG = ""
 
+PYTHON_VERSION = "3.14.6"
+
 ################
 #  Workspace   #
 ################
@@ -77,7 +79,7 @@ bazel_dep(name = "rules_shell", version = "0.7.1")
 ################
 
 bazel_dep(name = "aspect_rules_py", version = "1.11.5")
-bazel_dep(name = "rules_python", version = "2.0.2")
+bazel_dep(name = "rules_python", version = "2.0.3")
 
 single_version_override(
     module_name = "aspect_rules_py",
@@ -106,7 +108,7 @@ python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
     ignore_root_user_error = True,
     is_default = True,
-    python_version = "3.14.4",
+    python_version = PYTHON_VERSION,
 )
 
 # Python coverage tool for `bazel coverage` on CI (Linux x86_64).
@@ -136,7 +138,12 @@ filegroup(
 python.single_version_platform_override(
     coverage_tool = "@python_coverage_linux_x86_64//:coverage",
     platform = "x86_64-unknown-linux-gnu",
-    python_version = "3.14.4",
+    python_version = PYTHON_VERSION,
+    sha256 = "288f0e2c728f2bec803c4bffbd0ad3940190221ef39c1540b69d5e4ad6861b10",
+    strip_prefix = "python",
+    urls = [
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-gnu-install_only.tar.gz",
+    ],
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
@@ -151,7 +158,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_mypy_deps",
-    python_version = "3.14.4",
+    python_version = PYTHON_VERSION,
     requirements_lock = "//bzl/mypy:locked_requirements.txt",
 )
 use_repo(pip, "osmo_mypy_deps")
@@ -166,7 +173,7 @@ pip.parse(
         "30",
     ],
     hub_name = "pylint_python_deps",
-    python_version = "3.14.4",
+    python_version = PYTHON_VERSION,
     requirements_lock = "//bzl/linting:locked_requirements.txt",
 )
 use_repo(pip, "pylint_python_deps")
@@ -181,7 +188,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_python_deps",
-    python_version = "3.14.4",
+    python_version = PYTHON_VERSION,
     requirements_lock = "//src:locked_requirements.txt",
     target_platforms = [
         "{os}_{arch}",
@@ -201,7 +208,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_tests_python_deps",
-    python_version = "3.14.4",
+    python_version = PYTHON_VERSION,
     requirements_lock = "//src/tests:locked_requirements.txt",
 )
 use_repo(pip, "osmo_tests_python_deps")

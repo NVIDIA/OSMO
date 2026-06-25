@@ -12,12 +12,22 @@ import re
 import unittest
 from pathlib import Path
 
-# MODULE.bazel example: `python.toolchain(python_version = "3.14.4", ...)`.
+# MODULE.bazel example: `python.toolchain(python_version = "3.14.6", ...)`.
 _CANONICAL_PYTHON_RE = re.compile(
     r'python\.toolchain\([^)]*python_version\s*=\s*"([\d.]+)"',
     re.DOTALL,
 )
-# Workflow example: `python-version: '3.14.4'`.
+# MODULE.bazel example:
+# `PYTHON_VERSION = "3.14.6"` and `python.toolchain(python_version = PYTHON_VERSION)`.
+_CANONICAL_PYTHON_CONSTANT_RE = re.compile(
+    r'^PYTHON_VERSION\s*=\s*"([\d.]+)"',
+    re.MULTILINE,
+)
+_TOOLCHAIN_PYTHON_CONSTANT_RE = re.compile(
+    r"python\.toolchain\([^)]*python_version\s*=\s*PYTHON_VERSION",
+    re.DOTALL,
+)
+# Workflow example: `python-version: '3.14.6'`.
 _WORKFLOW_PYTHON_RE = re.compile(r"""python-version:\s*['"]([\d.]+)['"]""")
 
 
@@ -45,11 +55,19 @@ class TestWorkflowPythonVersion(unittest.TestCase):
         cls.root = _repo_root()
         module_bazel = (cls.root / "MODULE.bazel").read_text()
         match = _CANONICAL_PYTHON_RE.search(module_bazel)
-        if match is None:
-            raise AssertionError(
-                "Could not find python.toolchain(python_version=...) in MODULE.bazel"
-            )
-        cls.canonical_version = match.group(1)
+        if match is not None:
+            cls.canonical_version = match.group(1)
+            return
+
+        if _TOOLCHAIN_PYTHON_CONSTANT_RE.search(module_bazel):
+            constant_match = _CANONICAL_PYTHON_CONSTANT_RE.search(module_bazel)
+            if constant_match is not None:
+                cls.canonical_version = constant_match.group(1)
+                return
+
+        raise AssertionError(
+            "Could not find python.toolchain(python_version=...) in MODULE.bazel"
+        )
 
     def test_all_workflows_match_canonical_python(self) -> None:
         workflows_dir = self.root / ".github" / "workflows"
