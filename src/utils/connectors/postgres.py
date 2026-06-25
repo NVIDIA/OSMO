@@ -1068,74 +1068,6 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Dataset/Collection Table
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS dataset (
-                name TEXT,
-                id TEXT,
-                created_by TEXT,
-                created_date TIMESTAMP,
-                is_collection BOOLEAN,
-                labels JSONB,
-                hash_location TEXT,
-                hash_location_size BIGINT,
-                last_version INT,
-                bucket TEXT,
-                PRIMARY KEY (id),
-                CONSTRAINT dataset_name_bucket_key UNIQUE(name, bucket)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Dataset Version
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS dataset_version (
-                dataset_id TEXT REFERENCES dataset (id),
-                version_id TEXT,
-                location TEXT, -- stores location of manifest file
-                status TEXT,
-                created_by TEXT,
-                created_date TIMESTAMP,
-                last_used TIMESTAMP,
-                last_updated TIMESTAMP,
-                size BIGINT,
-                checksum TEXT,
-                metadata JSONB,
-                PRIMARY KEY (dataset_id, version_id)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Dataset Tag
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS dataset_tag (
-                dataset_id TEXT,
-                version_id TEXT,
-                tag TEXT,
-                PRIMARY KEY (dataset_id, tag),
-                FOREIGN KEY (dataset_id, version_id)
-                    REFERENCES dataset_version (dataset_id, version_id)
-                    ON UPDATE CASCADE
-                    ON DELETE CASCADE
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Collection
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS collection (
-                id TEXT REFERENCES dataset (id) ON DELETE CASCADE,
-                dataset_id TEXT,
-                version_id TEXT,
-                PRIMARY KEY (id, dataset_id),
-                FOREIGN KEY (dataset_id, version_id)
-                    REFERENCES dataset_version (dataset_id, version_id)
-                    ON UPDATE CASCADE
-                    ON DELETE CASCADE
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
         create_cmd = '''
             do $$
             BEGIN
@@ -1584,10 +1516,6 @@ class PostgresConnector:
                 UNION
                 SELECT DISTINCT submitted_by FROM workflows
                 UNION
-                SELECT DISTINCT created_by FROM dataset
-                UNION
-                SELECT DISTINCT created_by FROM dataset_version
-                UNION
                 SELECT DISTINCT owner FROM apps
                 UNION
                 SELECT DISTINCT created_by FROM app_versions
@@ -1636,7 +1564,6 @@ class UserProfile(pydantic.BaseModel):
     username: str | None = None
     email_notification: bool | None = None
     slack_notification: bool | None = None
-    bucket: str | None = None
     pool: str | None = None
 
     @classmethod
@@ -1645,7 +1572,6 @@ class UserProfile(pydantic.BaseModel):
             username=user_name,
             email_notification=False,
             slack_notification=False,
-            bucket=None,
             pool=None)
 
     @classmethod
@@ -1698,14 +1624,11 @@ class UserProfile(pydantic.BaseModel):
             row.email_notification = default_profile.email_notification
         if row.slack_notification is None:
             row.slack_notification = default_profile.slack_notification
-        if not row.bucket:
-            row.bucket = default_profile.bucket
 
         return UserProfile(
             username=row.user_name,
             email_notification=row.email_notification,
             slack_notification=row.slack_notification,
-            bucket=row.bucket,
             pool=row.pool
         )
 
