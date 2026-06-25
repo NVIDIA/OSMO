@@ -395,11 +395,11 @@ jobs:
           set -euo pipefail
 
           KUBECTL_VERSION=v1.31.0
-          curl -fsSLo /usr/local/bin/kubectl \
+          curl -fsSLo /tmp/kubectl \
             "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
           curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
-            | awk '{print $1"  /usr/local/bin/kubectl"}' | sudo tee /tmp/k.sha | sha256sum -c -
-          sudo chmod +x /usr/local/bin/kubectl
+            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
 
           HELM_VERSION=v3.16.2
           HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
