@@ -103,7 +103,7 @@ osmo credential set osmo --type DATA --payload \
 ```
 
 The quick-start values use the chart-managed LocalStack S3 service and already
-include OSMO's workflow, log, app, and dataset storage config. Do not run
+include OSMO's workflow, log, and app storage config. Do not run
 `deployments/scripts/configure-storage.sh` for this local flow. If you replace
 LocalStack with an external S3, Azure Blob, or BYO storage backend, run
 `deployments/scripts/configure-storage.sh` before the service Helm install and
