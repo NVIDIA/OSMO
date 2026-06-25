@@ -28,3 +28,13 @@ osmo_py_test(
         "//src/utils/connectors",
     ],
 )
+
+osmo_py_test(
+    name = "test_azure",
+    srcs = ["test_azure.py"],
+    deps = [
+        "//src/lib/data/storage/backends",
+        "//src/lib/data/storage/core",
+        "//src/lib/data/storage/credentials",
+    ],
+)
