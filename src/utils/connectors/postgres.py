@@ -81,17 +81,21 @@ class ConfigHistoryType(enum.Enum):
     ROLE = 'ROLE'
 
 
+HISTORY_ONLY_CONFIG_HISTORY_TYPES = frozenset({
+    ConfigHistoryType.DATASET,
+})
+
 class OperableConfigHistoryType(enum.Enum):
     """Type of configs supported by config history mutations."""
-    SERVICE = 'SERVICE'
-    WORKFLOW = 'WORKFLOW'
-    BACKEND = 'BACKEND'
-    POOL = 'POOL'
-    POD_TEMPLATE = 'POD_TEMPLATE'
-    GROUP_TEMPLATE = 'GROUP_TEMPLATE'
-    RESOURCE_VALIDATION = 'RESOURCE_VALIDATION'
-    BACKEND_TEST = 'BACKEND_TEST'
-    ROLE = 'ROLE'
+    SERVICE = ConfigHistoryType.SERVICE.value
+    WORKFLOW = ConfigHistoryType.WORKFLOW.value
+    BACKEND = ConfigHistoryType.BACKEND.value
+    POOL = ConfigHistoryType.POOL.value
+    POD_TEMPLATE = ConfigHistoryType.POD_TEMPLATE.value
+    GROUP_TEMPLATE = ConfigHistoryType.GROUP_TEMPLATE.value
+    RESOURCE_VALIDATION = ConfigHistoryType.RESOURCE_VALIDATION.value
+    BACKEND_TEST = ConfigHistoryType.BACKEND_TEST.value
+    ROLE = ConfigHistoryType.ROLE.value
 
 
 class DownloadType(str, enum.Enum):

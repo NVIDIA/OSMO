@@ -21,6 +21,7 @@ import unittest
 
 from src.lib.utils import config_history, osmo_errors
 from src.service.core.config import config_history_helpers, objects
+from src.utils import connectors
 from src.utils.connectors.postgres import ListOrder
 
 
@@ -260,6 +261,23 @@ class TestConfigHistoryQueryParams(unittest.TestCase):
         with self.assertRaises(osmo_errors.OSMOUserError) as context:
             config_history.OperableConfigHistoryRevision('DATASET:1')
         self.assertIn('DATASET:1', str(context.exception))
+
+    def test_operable_config_history_type_excludes_history_only_types(self):
+        """Operable config history types are derived from history-readable types."""
+        expected_operable_values = {
+            config_type.value
+            for config_type in connectors.ConfigHistoryType
+            if config_type not in connectors.HISTORY_ONLY_CONFIG_HISTORY_TYPES
+        }
+
+        self.assertEqual(
+            {config_type.value for config_type in connectors.OperableConfigHistoryType},
+            expected_operable_values,
+        )
+        self.assertNotIn(
+            connectors.ConfigHistoryType.DATASET.value,
+            {config_type.value for config_type in connectors.OperableConfigHistoryType},
+        )
 
     def test_invalid_config_types(self):
         """Test validation of invalid config types."""
