@@ -72,6 +72,45 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=['initial-config'],
         )
 
+    def test_dataset_config_history_is_readable(self):
+        """Legacy dataset config history rows are readable as archived raw data."""
+        postgres = connectors.PostgresConnector.get_instance()
+        postgres.execute_commit_command(
+            """
+            INSERT INTO config_history
+                (config_type, revision, name, username, created_at, tags, description, data)
+            VALUES
+                (
+                    'dataset',
+                    1,
+                    '',
+                    'system',
+                    NOW(),
+                    ARRAY['legacy'],
+                    'Legacy dataset config',
+                    '{"buckets":{"legacy":{"dataset_path":"s3://legacy-bucket/datasets"}}}'
+                );
+            """,
+            (),
+        )
+
+        history = self._get_config_history(config_types=['DATASET'])
+
+        self.assertEqual(len(history['configs']), 1)
+        entry = history['configs'][0]
+        self.assertEqual(entry['config_type'], 'DATASET')
+        self.assertEqual(entry['data']['buckets']['legacy']['dataset_path'],
+                         's3://legacy-bucket/datasets')
+
+    def test_dataset_config_history_cannot_be_rolled_back(self):
+        """Dataset config history is readable but not a supported rollback target."""
+        response = self.client.post(
+            '/api/configs/history/rollback',
+            json={'config_type': 'DATASET', 'revision': 1},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
     def test_service_config_history(self):
         """Test history entries for service config operations."""
         self._verify_initial_config_entry('SERVICE')
@@ -139,7 +178,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         rollback_tags = ['rollback-test', 'service-rollback']
         config_service.rollback_config(
             request=objects.RollbackConfigRequest(
-                config_type=connectors.ConfigHistoryType.SERVICE,
+                config_type=connectors.OperableConfigHistoryType(
+                    connectors.ConfigHistoryType.SERVICE.value),
                 revision=history['configs'][-2]['revision'],
                 description='Rolling back service config',
                 tags=rollback_tags,
@@ -217,7 +257,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         rollback_tags = ['rollback-test', 'workflow-rollback']
         config_service.rollback_config(
             request=objects.RollbackConfigRequest(
-                config_type=connectors.ConfigHistoryType.WORKFLOW,
+                config_type=connectors.OperableConfigHistoryType(
+                    connectors.ConfigHistoryType.WORKFLOW.value),
                 revision=history['configs'][-2]['revision'],
                 description='Rolling back workflow config',
                 tags=rollback_tags,
@@ -306,7 +347,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         rollback_tags = ['rollback-test', 'backend-rollback']
         config_service.rollback_config(
             request=objects.RollbackConfigRequest(
-                config_type=connectors.ConfigHistoryType.BACKEND,
+                config_type=connectors.OperableConfigHistoryType(
+                    connectors.ConfigHistoryType.BACKEND.value),
                 revision=history['configs'][-2]['revision'],
                 description='Rolling back backend config',
                 tags=rollback_tags,
@@ -390,7 +432,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         rollback_tags = ['rollback-test', 'pool-rollback']
         config_service.rollback_config(
             request=objects.RollbackConfigRequest(
-                config_type=connectors.ConfigHistoryType.POOL,
+                config_type=connectors.OperableConfigHistoryType(
+                    connectors.ConfigHistoryType.POOL.value),
                 revision=history['configs'][-2]['revision'],
                 description='Rolling back pool config',
                 tags=rollback_tags,
@@ -469,7 +512,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         rollback_tags = ['rollback-test', 'pod-template-rollback']
         config_service.rollback_config(
             request=objects.RollbackConfigRequest(
-                config_type=connectors.ConfigHistoryType.POD_TEMPLATE,
+                config_type=connectors.OperableConfigHistoryType(
+                    connectors.ConfigHistoryType.POD_TEMPLATE.value),
                 revision=history['configs'][-2]['revision'],
                 description='Rolling back pod template config',
                 tags=rollback_tags,
@@ -577,7 +621,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         rollback_tags = ['rollback-test', 'resource-validation-rollback']
         config_service.rollback_config(
             request=objects.RollbackConfigRequest(
-                config_type=connectors.ConfigHistoryType.RESOURCE_VALIDATION,
+                config_type=connectors.OperableConfigHistoryType(
+                    connectors.ConfigHistoryType.RESOURCE_VALIDATION.value),
                 revision=history['configs'][-2]['revision'],
                 description='Rolling back resource validation config',
                 tags=rollback_tags,
@@ -670,7 +715,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         rollback_tags = ['rollback-test', 'backend-test-rollback']
         config_service.rollback_config(
             request=objects.RollbackConfigRequest(
-                config_type=connectors.ConfigHistoryType.BACKEND_TEST,
+                config_type=connectors.OperableConfigHistoryType(
+                    connectors.ConfigHistoryType.BACKEND_TEST.value),
                 revision=history['configs'][-2]['revision'],
                 description='Rolling back backend test config',
                 tags=rollback_tags,
@@ -886,7 +932,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         with self.assertRaises(osmo_errors.OSMOUserError) as context:
             config_service.rollback_config(
                 request=objects.RollbackConfigRequest(
-                    config_type=connectors.ConfigHistoryType.SERVICE,
+                    config_type=connectors.OperableConfigHistoryType(
+                        connectors.ConfigHistoryType.SERVICE.value),
                     revision=middle_revision,
                     description='Attempting to roll back to deleted revision',
                 ),
