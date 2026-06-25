@@ -313,58 +313,78 @@ class ArgParseWithPostprocessDirective(ArgParseDirective):
         'argument-anchor': directives.flag,
     })
 
-    def run(self) -> List[nodes.Node]:
-        """Run the directive and postprocess the results."""
+    def _run_live(self) -> List[nodes.Node]:
+        """Render by introspecting the live CLI parser (original behavior)."""
         import importlib
         from sphinxarg.ext import mock
-
-        # Get our custom options before running parent
-        ref_prefix = self.options.get('ref-prefix', '').strip()
-        add_argument_anchors = 'argument-anchor' in self.options
-
-        # Remove our custom options so parent directive doesn't see them
-        options_to_remove = ['ref-prefix', 'argument-anchor']
-        for opt in options_to_remove:
-            self.options.pop(opt, None)
 
         # Temporarily patch the parser factory to preprocess epilogs
         # This converts RST section headers to rubrics before parsing,
         # avoiding "Unexpected section title" warnings.
         original_func = None
         mod = None
+        attr_name = None
 
         if 'module' in self.options and 'func' in self.options:
             module_name = self.options['module']
             attr_name = self.options['func']
 
-            try:
-                with mock(self.config.autodoc_mock_imports):
-                    mod = importlib.import_module(module_name)
-                    if hasattr(mod, attr_name):
-                        original_func = getattr(mod, attr_name)
+            with mock(self.config.autodoc_mock_imports):
+                mod = importlib.import_module(module_name)
+                if hasattr(mod, attr_name):
+                    original_func = getattr(mod, attr_name)
 
-                        def wrapper_func():
-                            if isinstance(original_func, argparse.ArgumentParser):
-                                parser = original_func
-                            else:
-                                parser = original_func()
-                            preprocess_parser_epilogs(parser)
-                            return parser
+                    def wrapper_func():
+                        if isinstance(original_func, argparse.ArgumentParser):
+                            parser = original_func
+                        else:
+                            parser = original_func()
+                        preprocess_parser_epilogs(parser)
+                        return parser
 
-                        setattr(mod, attr_name, wrapper_func)
-            except Exception as e:
-                LOGGER.warning(f"Failed to preprocess epilogs: {e}")
-                original_func = None
+                    setattr(mod, attr_name, wrapper_func)
 
         try:
-            result = super().run()
+            return super().run()
         finally:
             if mod is not None and original_func is not None:
                 setattr(mod, attr_name, original_func)
 
-        # Get environment info
+    def run(self) -> List[nodes.Node]:
+        """Run the directive and postprocess the results."""
+        # Get our custom options before running parent
+        ref_prefix = self.options.get('ref-prefix', '').strip()
+        add_argument_anchors = 'argument-anchor' in self.options
+
+        # Remove our custom options so parent directive doesn't see them
+        for opt in ('ref-prefix', 'argument-anchor'):
+            self.options.pop(opt, None)
+
         env = self.state.document.settings.env
         docname = env.docname
+
+        # Introspect the live CLI. If that fails (e.g. the documented branch's
+        # code is not importable in this build environment) degrade to a warning
+        # so a single page cannot break the entire multiversion build. Frozen
+        # release branches avoid this path entirely by shipping pre-rendered
+        # static rST (see docs/generate_cli_rst.py).
+        try:
+            result = self._run_live()
+        except Exception as exc:  # noqa: BLE001 - directive must not crash build
+            LOGGER.warning(
+                f"Could not generate CLI reference for {docname}: {exc}. "
+                f"Freeze this version's CLI to static rST "
+                f"(see docs/generate_cli_rst.py).",
+                location=docname,
+            )
+            return [
+                nodes.warning(
+                    '',
+                    nodes.paragraph(
+                        text='CLI reference is unavailable for this version.'
+                    ),
+                )
+            ]
 
         # Convert rubrics to proper sections in the result
         for node in result:

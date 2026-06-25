@@ -48,3 +48,22 @@ Check if there are any misspelled words with:
 ```bash
 make spelling
 ```
+
+## Versioned builds and the CLI reference
+
+The deployed site is built with `sphinx-multiversion` (`make build-multiversion`),
+which renders `main` and each `release/*` branch. The CLI reference pages
+introspect the live `src.cli` parser, which only imports cleanly for `main`.
+Older release branches may not import under the current dependencies, so their
+CLI pages are **frozen** to static reStructuredText instead.
+
+When you cut a new release branch (or need to refresh a frozen one), run this in
+that branch's environment (where its dependencies are installed) and commit the
+modified `cli_*.rst` files:
+
+```bash
+make -C docs cli-rst
+```
+
+This rewrites each CLI page from the live parser into static rST (see
+`generate_cli_rst.py`). `main` intentionally stays "live" and is not frozen.
