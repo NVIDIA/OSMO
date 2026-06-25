@@ -221,47 +221,6 @@ def _update_pod_template_config(detected_platform: str) -> None:
         raise RuntimeError(f'Unexpected error updating pod template configuration: {e}') from e
 
 
-def _update_dataset_config(dataset_path: str) -> None:
-    """Update dataset configuration."""
-    logger.info('📁 Updating dataset configuration...')
-
-    try:
-        dataset_config = {
-            'buckets': {
-                'osmo': {
-                    'dataset_path': dataset_path
-                }
-            },
-            'default_bucket': 'osmo'
-        }
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(dataset_config, f, indent=2)
-            dataset_file = f.name
-
-        process = run_command_with_logging([
-            'bazel', 'run', '@osmo_workspace//src/cli', '--', 'config', 'update', 'DATASET',
-            '--file', dataset_file,
-            '--description', 'Add dataset bucket'
-        ], 'Adding dataset configuration')
-
-        try:
-            os.unlink(dataset_file)
-        except OSError:
-            pass
-
-        if not process.has_failed():
-            logger.info('✅ Dataset configuration updated successfully in %.2fs',
-                        process.get_elapsed_time())
-        else:
-            logger.warning('⚠️  Warning: Failed to add dataset configuration')
-            logger.debug('   Check stderr: %s', process.stderr_file)
-
-    except OSError as e:
-        logger.error('❌ Unexpected error updating dataset configuration: %s', e)
-        raise RuntimeError(f'Unexpected error updating dataset configuration: {e}') from e
-
-
 def _update_service_config(mode: str) -> None:
     """Update service configuration."""
     logger.info('🔧 Updating service configuration...')
@@ -412,11 +371,6 @@ def main():
     parser.add_argument(
         '--object-storage-region', default='us-east-1',
         help='Object storage region (default: us-east-1)')
-    parser.add_argument(
-        '--dataset-path',
-        default='s3://osmo/datasets',
-        help='Dataset path (default: s3://osmo/datasets)')
-
     args = parser.parse_args()
 
     logger.setLevel(args.log_level)
@@ -451,9 +405,6 @@ def main():
                 args.image_tag)
 
             _update_pod_template_config(detected_platform)
-            dataset_path = args.dataset_path \
-                if args.dataset_path else posixpath.join(args.object_storage_endpoint, 'datasets')
-            _update_dataset_config(dataset_path)
             _update_service_config(args.mode)
             _update_backend_config(args.mode)
             _set_default_pool()

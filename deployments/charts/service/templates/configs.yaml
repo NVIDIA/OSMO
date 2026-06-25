@@ -39,10 +39,6 @@ data:
     workflow:
       {{- toYaml $cfg.workflow | nindent 6 }}
     {{- end }}
-    {{- if $cfg.dataset }}
-    dataset:
-      {{- toYaml $cfg.dataset | nindent 6 }}
-    {{- end }}
     {{- if $cfg.pools }}
     pools:
       {{- toYaml $cfg.pools | nindent 6 }}
