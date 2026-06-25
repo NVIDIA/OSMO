@@ -32,7 +32,7 @@
  * When backend is fixed, these transforms can be simplified or removed.
  *
  * ✅ Resolved Issues (no longer workarounds here):
- * - Issue #1: Response types for Pool/Resource/Workflow/Dataset/Credential/Profile APIs
+ * - Issue #1: Response types for Pool/Resource/Workflow/Credential/Profile APIs
  *   now use proper $ref schemas via response_model= annotations on FastAPI endpoints.
  * - Issue #4: Version endpoint now has response_model=Version; no runtime type checks needed.
  *

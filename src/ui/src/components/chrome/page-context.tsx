@@ -39,7 +39,7 @@ export interface PageConfig {
   /**
    * Inline breadcrumbs rendered after `breadcrumbs` in the nav flow (no extra margin).
    * Use for dynamic in-page navigation that can't be expressed as BreadcrumbSegment hrefs,
-   * e.g. callback-based path navigation in the dataset file browser.
+   * e.g. callback-based path navigation in a hierarchical file browser.
    */
   trailingBreadcrumbs?: React.ReactNode;
   /** Custom actions to render in the header after the title */
