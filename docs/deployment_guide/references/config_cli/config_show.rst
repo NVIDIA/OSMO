@@ -21,10 +21,40 @@
 osmo config show
 ================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: config show
-   :ref-prefix: cli_reference_config_show
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=config show | ref-prefix=cli_reference_config_show | flags=argument-anchor
+
+Show a configuration or previous revision of a configuration
+
+.. code-block:: text
+
+   usage: osmo config show [-h] config_type [names ...]
+
+.. _cli_reference_config_show_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``config_type``
+    Config to show in format <CONFIG_TYPE>[:<revision>]
+
+``names``
+    Optional names/indices to index into the config. Can be used to show a named config.
+
+
+
+Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+
+.. rubric:: Examples
+
+Show a service configuration in JSON format::
+
+    osmo config show SERVICE
+
+Show the ``default_cpu`` resource validation rule::
+
+    osmo config show RESOURCE_VALIDATION default_cpu
+
+Show the ``user_workflow_limits`` workflow configuration in a previous revision::
+
+    osmo config show WORKFLOW:3 user_workflow_limits

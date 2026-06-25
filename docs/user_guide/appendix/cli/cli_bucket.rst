@@ -23,10 +23,46 @@
 osmo bucket
 ================================================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: bucket
-   :ref-prefix: cli_reference_bucket
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=bucket | ref-prefix=cli_reference_bucket | flags=argument-anchor
+
+.. code-block:: text
+
+   usage: osmo bucket [-h] {list} ...
+
+.. _cli_reference_bucket_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``command``
+    Possible choices: list
+
+Sub-commands
+------------
+
+.. _cli_reference_bucket_list:
+
+list
+~~~~
+
+List available and default buckets
+
+.. code-block:: text
+
+   osmo bucket list [-h] [--format-type {json,text}]
+
+.. _cli_reference_bucket_list_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo bucket list

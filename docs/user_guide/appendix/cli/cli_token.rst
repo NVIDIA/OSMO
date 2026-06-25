@@ -23,10 +23,137 @@
 osmo token
 ================================================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: token
-   :ref-prefix: cli_reference_token
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=token | ref-prefix=cli_reference_token | flags=argument-anchor
+
+.. code-block:: text
+
+   usage: osmo token [-h] {set,delete,list} ...
+
+.. _cli_reference_token_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``command``
+    Possible choices: set, delete, list
+
+Sub-commands
+------------
+
+.. _cli_reference_token_set:
+
+set
+~~~
+
+Set a token for the current user.
+
+.. code-block:: text
+
+   osmo token set [-h] [--expires-at EXPIRES_AT]
+                  [--description DESCRIPTION] [--service]
+                  [--roles ROLES [ROLES ...]]
+                  [--format-type {json,text}]
+                  name
+
+.. _cli_reference_token_set_positional_arguments:
+
+Positional Arguments
+^^^^^^^^^^^^^^^^^^^^
+
+``name``
+    Name of the token.
+
+.. _cli_reference_token_set_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--expires-at, -e``
+    Expiration date of the token. The date is based on UTC time. Format: YYYY-MM-DD
+
+    Default: ``2026-07-26``
+
+``--description, -d``
+    Description of the token.
+
+``--service, -s``
+    Create a service token.
+
+    Default: ``False``
+
+``--roles, -r``
+    Roles for the token. Only applicable for service tokens.
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo token set my-token --expires-at 2026-05-01 --description "My token description"
+
+.. _cli_reference_token_delete:
+
+delete
+~~~~~~
+
+Delete a token for the current user.
+
+.. code-block:: text
+
+   osmo token delete [-h] [--service] name
+
+.. _cli_reference_token_delete_positional_arguments:
+
+Positional Arguments
+^^^^^^^^^^^^^^^^^^^^
+
+``name``
+    Name of the token.
+
+.. _cli_reference_token_delete_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--service, -s``
+    Delete a service token.
+
+    Default: ``False``
+
+
+Ex. osmo token delete my-token
+
+.. _cli_reference_token_list:
+
+list
+~~~~
+
+List all tokens for the current user.
+
+.. code-block:: text
+
+   osmo token list [-h] [--service] [--format-type {json,text}]
+
+.. _cli_reference_token_list_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--service, -s``
+    List all service tokens.
+
+    Default: ``False``
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo token list
