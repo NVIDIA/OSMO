@@ -1,0 +1,239 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: robot-simulation
+
+  timeout:
+    exec_timeout: 15m
+
+  resources:
+    gpu-enabled:
+      cpu: 1
+      gpu: 1
+      storage: 2Gi
+      memory: 4Gi
+      platform: ovx-a40
+
+    robot-edge:
+      cpu: 1
+      storage: 2Gi
+      memory: 4Gi
+      platform: agx-orin-jp6
+
+  groups:
+  - name: robot-hil
+    tasks:
+    - name: model-training
+      lead: true  # (1)
+      image: nvcr.io/nvidia/pytorch:24.01-py3
+      resource: gpu-enabled # (2)
+      command: [bash]
+      args: [/tmp/train.sh]
+      files:
+      - path: /tmp/train.sh
+        contents: |
+          # Helpers
+          wait() { until curl -sfo /dev/null "$1"; do sleep "${2:-1}"; done; }
+          get() { curl -sf "$1"; }
+          file() { echo "e${1}_s${2}"; }
+
+          # Peer task webservers
+          sim="http://{{host:physics-sim}}:8080"
+          ctrl="http://{{host:robot-ctrl}}:9090"
+
+          # Initialize
+          mkdir -p /tmp/model && cd /tmp/model
+          python3 -m http.server 8000 > /dev/null 2>&1 &
+          policy={{initial_policy}} && echo "$policy" > policy.txt && echo "0,0" > step.txt
+          until curl -sf http://localhost:8000/policy.txt > /dev/null; do sleep 1; done
+          echo "[TRAIN] Starting with threshold: ${policy}m"
+          wait $sim/ready && wait $ctrl/ready
+
+          # Main training loop
+          prev_adj=0
+          for epoch in $(seq 1 {{max_epochs}}); do
+            echo "=== Epoch $epoch ==="
+            success=0 && jumped_early=0 && reaction_too_late=0 && missed_jump=0
+
+            # Move simulation forward
+            for step in $(seq 1 {{steps_per_epoch}}); do
+              echo "$epoch,$step" > step.txt
+              wait $sim/$(file $epoch $step).csv 1
+              case $(get $sim/$(file $epoch $step).csv | cut -d',' -f4) in
+                success) ((success++));;
+                jumped_early) ((jumped_early++));;
+                reaction_too_late) ((reaction_too_late++));;
+                missed_jump) ((missed_jump++));;
+              esac
+            done
+
+            # Evaluate policy and check convergence
+            accuracy=$((success * 100 / {{steps_per_epoch}}))
+            echo "[TRAIN] Accuracy: ${accuracy}% | Early: ${jumped_early}, Reaction: ${reaction_too_late}, Missed: ${missed_jump}"
+            [ $accuracy -ge {{target_accuracy}} ] && echo "[TRAIN] Converged on policy: ${policy}m!" && break
+
+            # Adjust policy based on error types
+            error_diff=$((jumped_early - reaction_too_late - missed_jump))
+            if [ $error_diff -gt 3 ]; then
+              adj=-3  # Strong signal: decrease policy
+            elif [ $error_diff -gt 0 ]; then
+              adj=-2  # Weak signal: decrease policy
+            elif [ $error_diff -lt -3 ]; then
+              adj=3   # Strong signal: increase policy
+            elif [ $error_diff -lt 0 ]; then
+              adj=2   # Weak signal: increase policy
+            else
+              adj=$((-1 + RANDOM % 3))  # Balanced: small random
+            fi
+
+            # Dampen adjustment if direction changed (prevent oscillation)
+            if [ $((prev_adj * adj)) -lt 0 ]; then
+              adj=$((adj / 2))
+              echo "[TRAIN] Direction change detected, dampening adjustment"
+            fi
+
+            prev_adj=$adj
+            policy=$((policy + adj))
+            [ $policy -lt {{min_policy}} ] && policy={{min_policy}}
+            [ $policy -gt {{max_policy}} ] && policy={{max_policy}}
+            echo "[TRAIN] Adjusted by ${adj}m -> New threshold: ${policy}m"
+            echo "$policy" > policy.txt
+          done
+
+    - name: physics-sim
+      image: nvcr.io/nvidia/pytorch:24.01-py3
+      resource: gpu-enabled  # (2)
+      command: [bash]
+      args: [/tmp/sim.sh]
+      files:
+      - path: /tmp/sim.sh
+        contents: |
+          # Helpers
+          wait() { until curl -sfo /dev/null "$1"; do sleep "${2:-1}"; done; }
+          get() { curl -sf "$1"; }
+          file() { echo "e${1}_s${2}"; }
+
+          # Peer task webservers
+          train="http://{{host:model-training}}:8000"
+          ctrl="http://{{host:robot-ctrl}}:9090"
+
+          # Initialize
+          mkdir -p /tmp/sim && cd /tmp/sim
+          python3 -m http.server 8080 > /dev/null 2>&1 &
+          touch ready && until curl -sf http://localhost:8080/ready > /dev/null; do sleep 1; done
+          last="0,0"
+
+          while true; do
+            current=$(get $train/step.txt)
+            [ -z "$current" -o "$current" = "$last" ] && sleep 1 && continue
+            last=$current && IFS=',' read epoch step <<< "$current"
+
+            # Generate random obstacle
+            width=$((1 + RANDOM % {{obstacle_width}}))
+            dist=$(({{min_obstacle_distance}} + RANDOM % ({{max_obstacle_distance}} - {{min_obstacle_distance}} + 1)))
+            echo "${dist},${width}" > $(file $epoch $step)_state.txt
+
+            # Wait for robot decision
+            wait $ctrl/$(file $epoch $step)_act.txt 1 && action=$(get $ctrl/$(file $epoch $step)_act.txt)
+
+            # Evaluate action: two constraints create optimal policy window
+            # 1. Reaction time penalty when dist < safe_reaction_distance
+            # 2. Physical clearance requires dist + width <= jump_distance
+            if [ "$action" = "JUMP" ]; then
+              reaction_fail=0
+              if [ $dist -lt {{safe_reaction_distance}} ]; then
+                threshold=$((({{safe_reaction_distance}} - dist) * {{reaction_penalty_per_meter}}))
+                [ $((RANDOM % 100)) -lt $threshold ] && reaction_fail=1
+              fi
+
+              if [ $reaction_fail -eq 1 ]; then
+                result="reaction_too_late"
+              elif [ $((dist + width)) -le {{jump_distance}} ]; then
+                result="success"
+              else
+                result="jumped_early"
+              fi
+            else
+              if [ $((dist + width)) -le {{jump_distance}} ]; then
+                result="missed_jump"
+              else
+                result="success"
+              fi
+            fi
+
+            echo "[SIM] E${epoch}:S${step} obs=${dist}m (width=${width}m) -> $action ($result)"
+            echo "${dist},${width},${action},${result}" > $(file $epoch $step).csv
+          done
+
+    - name: robot-ctrl
+      image: arm64v8/python:3.11-slim
+      resource: robot-edge  # (3)
+      command: [bash]
+      args: [/tmp/ctrl.sh]
+      files:
+      - path: /tmp/ctrl.sh
+        contents: |
+          # Helpers
+          wait() { until curl -sfo /dev/null "$1"; do sleep "${2:-1}"; done; }
+          get() { curl -sf "$1"; }
+          file() { echo "e${1}_s${2}"; }
+
+          # Peer task webservers
+          train="http://{{host:model-training}}:8000"
+          sim="http://{{host:physics-sim}}:8080"
+
+          # Initialize
+          apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1
+          mkdir -p /tmp/robot && cd /tmp/robot
+          python3 -m http.server 9090 > /dev/null 2>&1 &
+          touch ready && until curl -sf http://localhost:9090/ready > /dev/null; do sleep 1; done
+          wait $train/policy.txt && policy=$(get $train/policy.txt) && echo "[CTRL] Policy loaded: ${policy}m"
+          last="0,0"
+
+          while true; do
+            current=$(get $train/step.txt)
+            [ -z "$current" -o "$current" = "$last" ] && sleep 1 && continue
+            last=$current && IFS=',' read epoch step <<< "$current"
+
+            # Update policy on new epoch
+            [ $step -eq 1 ] && policy=$(get $train/policy.txt) && echo "[CTRL] Epoch $epoch: Policy ${policy}m"
+
+            # Make decision based on obstacle distance (robot can't see width)
+            wait $sim/$(file $epoch $step)_state.txt 1
+            IFS=',' read dist width <<< "$(get $sim/$(file $epoch $step)_state.txt)"
+            [ $dist -le $policy ] && action="JUMP" || action="RUN"
+            echo "$action" > $(file $epoch $step)_act.txt && echo "[CTRL] E${epoch}:S${step} obs=${dist}m (w=${width}m) -> $action"
+          done
+
+default-values:
+  # Policy parameters
+  initial_policy: 8          # Starting jump threshold
+  min_policy: 2              # Minimum jump threshold
+  max_policy: 8              # Maximum jump threshold
+  target_accuracy: 80        # Target accuracy (%)
+
+  # Training parameters
+  steps_per_epoch: 15        # Steps per epoch
+  max_epochs: 15             # Maximum epochs
+
+  # Environment parameters
+  jump_distance: 6                # Robot jumps 6m forward
+  safe_reaction_distance: 5       # Jumping closer than 5m risks reaction time failure
+  reaction_penalty_per_meter: 15  # 15% failure chance per meter below safe distance
+  obstacle_width: 2               # Maximum obstacle width (actual width: 1-2m random)
+  min_obstacle_distance: 3        # Minimum obstacle distance
+  max_obstacle_distance: 6        # Maximum obstacle distance

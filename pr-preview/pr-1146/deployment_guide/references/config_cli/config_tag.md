@@ -1,0 +1,73 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0 -->
+
+<a id="cli-reference-config-tag"></a>
+
+# osmo config tag
+
+<!-- CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst -->
+<!-- cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=config tag | ref-prefix=cli_reference_config_tag | flags=argument-anchor -->
+
+Update tags for a config revision. Tags can be used for organizing configs by category and filtering output of `osmo config history`. Tags do not affect the configuration itself.
+
+```text
+usage: osmo config tag [-h] config_type [--set SET [SET ...]] [--delete DELETE [DELETE ...]]
+```
+
+<a id="cli-reference-config-tag-positional-arguments"></a>
+
+## Positional Arguments
+
+`config_type`
+: Config to update tags for in format <CONFIG_TYPE>[:<revision>]
+
+<a id="cli-reference-config-tag-named-arguments"></a>
+
+## Named Arguments
+
+`--set, -s`
+: Tags to add to the config history entry
+
+`--delete, -d`
+: Tags to remove from the config history entry
+
+Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+
+### Examples
+
+View current tags for a revision:
+
+```default
+osmo config history BACKEND -r 5
+```
+
+Update tags by adding and removing:
+
+```default
+osmo config tag BACKEND:5 --set foo --delete test-4 test-3
+```
+
+Verify the updated tags:
+
+```default
+osmo config history BACKEND -r 5
+```
+
+Update tags for current revision:
+
+```default
+osmo config tag BACKEND --set current-tag
+```

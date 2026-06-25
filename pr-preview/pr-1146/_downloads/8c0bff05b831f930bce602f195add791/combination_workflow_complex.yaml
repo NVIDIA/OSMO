@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: complex-pipeline
+
+  groups:
+  ##################################################
+  # Group 1: Fetch data
+  ##################################################
+  - name: fetch
+    tasks:
+    - name: download
+      lead: true
+      image: ubuntu:24.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo 'Downloading data...'
+        mkdir -p {{output}}/data
+        echo "apple" > {{output}}/data/fruits.txt
+        echo "banana" >> {{output}}/data/fruits.txt
+        echo "cherry" >> {{output}}/data/fruits.txt
+        echo "Data downloaded!"
+
+  ##################################################
+  # Group 2: Process (depends on Group 1)
+  ##################################################
+  - name: process
+    tasks:
+    - name: transform-a
+      lead: true
+      image: ubuntu:24.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo 'Transform A: Converting to uppercase...'
+        mkdir -p {{output}}/transformed
+        tr '[:lower:]' '[:upper:]' < {{input:0}}/data/fruits.txt > {{output}}/transformed/uppercase.txt
+
+        sleep 120 # (1)
+        echo "✓ Transform A complete!"
+      inputs:
+      - task: download
+
+    - name: transform-b
+      image: ubuntu:24.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo 'Transform B: Adding line numbers...'
+        mkdir -p {{output}}/transformed
+        cat -n {{input:0}}/data/fruits.txt > {{output}}/transformed/numbered.txt
+        echo "✓ Transform B complete!"
+      inputs:
+      - task: download
+
+  ##################################################
+  # Group 3: Aggregate (depends on Group 2)
+  ##################################################
+  - name: aggregate
+    tasks:
+    - name: combine
+      lead: true
+      image: ubuntu:24.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo 'Combining results from both transforms...'
+        mkdir -p {{output}}/final
+
+        echo "=== UPPERCASE VERSION ===" > {{output}}/final/combined.txt
+        cat {{input:0}}/transformed/uppercase.txt >> {{output}}/final/combined.txt
+
+        echo "" >> {{output}}/final/combined.txt
+        echo "=== NUMBERED VERSION ===" >> {{output}}/final/combined.txt
+        cat {{input:1}}/transformed/numbered.txt >> {{output}}/final/combined.txt
+
+        echo "✓ Results combined!"
+        cat {{output}}/final/combined.txt
+      inputs:  # (2)
+      - task: transform-a
+      - task: transform-b

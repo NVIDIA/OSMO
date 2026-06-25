@@ -1,0 +1,91 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -10 550 160" width="550" height="160">
+  <defs>
+    <style>
+      /* Light mode (default) */
+      .task-box { fill: #76b900; stroke: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); }
+      .task-box-lead { fill: #5a8c00; stroke: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); }
+      .task-text { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .lead-label { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; font-weight: 500; text-anchor: middle; dominant-baseline: middle; }
+      .arrow-line { stroke: #666666; stroke-width: 2.5; fill: none; }
+      .arrow-head { fill: #666666; }
+      .comm-line { stroke: #0091da; stroke-width: 1.5; stroke-dasharray: 4,3; fill: none; }
+      .data-flow-line { stroke: #0091da; stroke-width: 2; stroke-dasharray: 6,4; fill: none; }
+      .data-arrow-head { fill: #0091da; }
+      .group-box { stroke: #999999; stroke-width: 2; fill: none; rx: 8; }
+      .group-label { fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 500; text-anchor: start; }
+      
+      /* Dark mode */
+      @media (prefers-color-scheme: dark) {
+        .task-box { fill: #a0d468; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); }
+        .task-box-lead { fill: #76b900; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); }
+        .task-text { fill: #1a1a1a; }
+        .lead-label { fill: #1a1a1a; }
+        .arrow-line { stroke: #bbbbbb; }
+        .arrow-head { fill: #bbbbbb; }
+        .comm-line { stroke: #64b5f6; }
+        .data-flow-line { stroke: #64b5f6; }
+        .data-arrow-head { fill: #64b5f6; }
+        .group-box { stroke: #666666; }
+        .group-label { fill: #e0e0e0; }
+      }
+    </style>
+    
+    <!-- Data flow arrow marker -->
+    <marker id="data-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon points="0,0 8,4 0,8" class="data-arrow-head"/>
+    </marker>
+  </defs>
+  
+  <!-- Group 1: prepare-data -->
+  <rect class="group-box" x="20" y="10" width="220" height="130" rx="8"/>
+  <text class="group-label" x="28" y="3">prepare-data</text>
+  
+  <!-- generate-dataset (Lead) -->
+  <rect class="task-box-lead" x="35" y="30" width="170" height="35" rx="4"/>
+  <text class="task-text" x="120" y="44">generate-dataset</text>
+  <text class="lead-label" x="120" y="57">(Lead)</text>
+  
+  <!-- validate-data -->
+  <rect class="task-box" x="35" y="90" width="170" height="35" rx="4"/>
+  <text class="task-text" x="120" y="107.5">validate-data</text>
+  
+  <!-- Communication line within Group 1 -->
+  <line class="comm-line" x1="120" y1="65" x2="120" y2="90"/>
+  
+  <!-- Data flow arrow from generate-dataset to train-models group -->
+  <path class="arrow-line" d="M 205,47.5 Q 230,50 250,62.5 T 293,75"/>
+  <polygon class="arrow-head" points="300,75 289.5,69.5 289.5,80.5"/>
+  
+  <!-- Group 2: train-models -->
+  <rect class="group-box" x="310" y="10" width="220" height="130" rx="8"/>
+  <text class="group-label" x="318" y="3">train-models</text>
+  
+  <!-- train-model-a (Lead) -->
+  <rect class="task-box-lead" x="325" y="30" width="170" height="35" rx="4"/>
+  <text class="task-text" x="410" y="44">train-model-a</text>
+  <text class="lead-label" x="410" y="57">(Lead)</text>
+  
+  <!-- train-model-b -->
+  <rect class="task-box" x="325" y="90" width="170" height="35" rx="4"/>
+  <text class="task-text" x="410" y="107.5">train-model-b</text>
+  
+  <!-- Communication line within Group 2 -->
+  <line class="comm-line" x1="410" y1="65" x2="410" y2="90"/>
+</svg>

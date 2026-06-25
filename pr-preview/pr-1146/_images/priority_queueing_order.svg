@@ -1,0 +1,143 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="135 0 900 250" width="1000" height="250">
+  <defs>
+    <style>
+      :root{--wf-w:130px;--wf-h:80px}
+      .wf-box{width:var(--wf-w);height:var(--wf-h);rx:3}
+      .wf-normal{fill:#8fbc8f;stroke:#2d5016;stroke-width:2}
+      .wf-high{fill:#2d6e2d;stroke:#1e7e1e;stroke-width:3}
+      .wf-low{fill:#9aaa9a;stroke:#5a6a5a;stroke-width:2;stroke-dasharray:5,5}
+      .wf-running{fill:#6ba3d4;stroke:#2a5a8a;stroke-width:2}
+      .node-box{fill:#f0f0f0;stroke:#999;stroke-width:2;stroke-dasharray:3,3;rx:3}
+      .running-border{fill:none;stroke:#ccc;stroke-width:1.5;stroke-dasharray:4,4}
+      text{font-family:Arial,sans-serif;text-anchor:middle}
+      .wf-title,.label{font-weight:bold}
+      .wf-title{font-size:20px}
+      .wf-label{font-size:14px}
+      .label{font-size:16px;fill:#333}
+      .arrow{stroke:#333;stroke-width:2;fill:none;marker-end:url(#arrowhead)}
+      .wf6 .wf-title,.wf6 .wf-label{fill:#e8f5e8}
+      .wf4 .wf-title,.wf4 .wf-label{fill:#555;opacity:.85}
+      .wf1,.wf2{opacity:1}
+      .wf1{transform:translate(770px,60px)}
+      .wf2{transform:translate(920px,60px)}
+      .wf3,.wf4,.wf5,.wf6{opacity:0;transform:translate(-180px,60px)}
+      .wf3{animation:a 16s ease-in-out infinite}
+      .wf4{animation:b 16s ease-in-out infinite}
+      .wf5{animation:c 16s ease-in-out infinite}
+      .wf6{animation:d 16s ease-in-out infinite}
+      @keyframes a{
+        0%{opacity:0;transform:translate(-180px,60px)}
+        1%,39%{opacity:1}
+        1%{transform:translate(-180px,60px)}
+        6%,39%{transform:translate(550px,60px)}
+        42%,87.5%{opacity:1;transform:translate(407px,60px)}
+        90%,100%{opacity:0;transform:translate(407px,60px)}
+      }
+      @keyframes b{
+        0%,9%{opacity:0;transform:translate(-180px,60px)}
+        10%,25%{opacity:1}
+        10%{transform:translate(-180px,60px)}
+        15%,25%{transform:translate(407px,60px)}
+        28%,39%{opacity:1;transform:translate(264px,60px)}
+        42%,87.5%{opacity:1;transform:translate(120px,60px)}
+        90%,100%{opacity:0;transform:translate(120px,60px)}
+      }
+      @keyframes c{
+        0%,18%{opacity:0;transform:translate(-180px,60px)}
+        19%,39%{opacity:1}
+        19%{transform:translate(-180px,60px)}
+        24%,39%{transform:translate(407px,60px)}
+        42%,87.5%{opacity:1;transform:translate(264px,60px)}
+        90%,100%{opacity:0;transform:translate(264px,60px)}
+      }
+      @keyframes d{
+        0%,32%{opacity:0;transform:translate(-180px,60px)}
+        33%,87.5%{opacity:1}
+        33%{transform:translate(-180px,60px)}
+        38%,87.5%{transform:translate(550px,60px)}
+        90%,100%{opacity:0;transform:translate(550px,60px)}
+      }
+      @media(prefers-color-scheme:dark){
+        .wf-normal{fill:#6b9b6b;stroke:#88bb88}
+        .wf-high{fill:#88bb88;stroke:#a0d468}
+        .wf-low{fill:#4a5a4a;stroke:#6a7a6a}
+        .wf-running{fill:#5a8fc4;stroke:#7ab0e4}
+        .node-box{fill:#2b2b2b;stroke:#555}
+        .running-border{stroke:#555}
+        .label,.wf-title,.wf-label{fill:#e0e0e0}
+        .arrow{stroke:#b0b0b0}
+        #arrowhead polygon{fill:#b0b0b0}
+        .wf6 .wf-title,.wf6 .wf-label{fill:#1a1a1a}
+        .wf4 .wf-title,.wf4 .wf-label{fill:#b0b0b0;opacity:.9}
+      }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#333" />
+    </marker>
+  </defs>
+  <text x="405" y="30" class="label">Priority Queue</text>
+  <text x="910" y="90" class="label">Running</text>
+  <text x="120" y="60" class="label">Back</text>
+  <text x="680" y="60" class="label">Front</text>
+  <line x1="655" y1="55" x2="155" y2="55" class="arrow" />
+  <rect x="755" y="60" width="310" height="160" class="running-border" rx="5"/>
+  <g transform="translate(0,120)">
+    <rect x="770" class="wf-box node-box"/>
+    <text x="835" y="45" class="wf-label" fill="#999">Node 1</text>
+    <rect x="920" class="wf-box node-box"/>
+    <text x="985" y="45" class="wf-label" fill="#999">Node 2</text>
+  </g>
+  <g class="wf1">
+    <rect y="60" class="wf-box wf-running"/>
+    <text x="65" y="92" class="wf-title">WF 1</text>
+    <text x="65" y="112" class="wf-label">(Normal)</text>
+    <text x="65" y="128" class="wf-label">Running</text>
+  </g>
+  <g class="wf2">
+    <rect y="60" class="wf-box wf-running"/>
+    <text x="65" y="92" class="wf-title">WF 2</text>
+    <text x="65" y="112" class="wf-label">(Normal)</text>
+    <text x="65" y="128" class="wf-label">Running</text>
+  </g>
+  <g class="wf3">
+    <rect y="60" class="wf-box wf-normal"/>
+    <text x="65" y="92" class="wf-title">WF 3</text>
+    <text x="65" y="112" class="wf-label">(Normal)</text>
+    <text x="65" y="128" class="wf-label">Submitted: 1st</text>
+  </g>
+  <g class="wf4">
+    <rect y="60" class="wf-box wf-low"/>
+    <text x="65" y="92" class="wf-title">WF 4</text>
+    <text x="65" y="112" class="wf-label">(Low)</text>
+    <text x="65" y="128" class="wf-label">Submitted: 2nd</text>
+  </g>
+  <g class="wf5">
+    <rect y="60" class="wf-box wf-normal"/>
+    <text x="65" y="92" class="wf-title">WF 5</text>
+    <text x="65" y="112" class="wf-label">(Normal)</text>
+    <text x="65" y="128" class="wf-label">Submitted: 3rd</text>
+  </g>
+  <g class="wf6">
+    <rect y="60" class="wf-box wf-high"/>
+    <text x="65" y="92" class="wf-title">WF 6</text>
+    <text x="65" y="112" class="wf-label">(High)</text>
+    <text x="65" y="128" class="wf-label">Submitted: 4th</text>
+  </g>
+</svg>

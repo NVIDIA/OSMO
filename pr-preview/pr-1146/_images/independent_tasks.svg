@@ -1,0 +1,70 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 230" width="260" height="230">
+  <defs>
+    <style>
+      /* Light mode (default) */
+      .task-box { fill: #76b900; stroke: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); }
+      .task-text { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .arrow-line { stroke: #666666; stroke-width: 2.5; fill: none; }
+      .arrow-head { fill: #666666; }
+      .start-marker { fill: #666666; }
+      .start-text { fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; font-weight: 500; text-anchor: middle; dominant-baseline: middle; }
+      
+      /* Dark mode */
+      @media (prefers-color-scheme: dark) {
+        .task-box { fill: #a0d468; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); }
+        .task-text { fill: #1a1a1a; }
+        .arrow-line { stroke: #bbbbbb; }
+        .arrow-head { fill: #bbbbbb; }
+        .start-marker { fill: #e0e0e0; }
+        .start-text { fill: #e0e0e0; }
+      }
+    </style>
+  </defs>
+  
+  <!-- Start marker (bar) -->
+  <rect class="start-marker" x="20" y="20" width="2.5" height="160" rx="1.25"/>
+  
+  <!-- Arrow from start to Task A -->
+  <line class="arrow-line" x1="22.5" y1="30" x2="120" y2="30"/>
+  <polygon class="arrow-head" points="120,30 109.5,24.5 109.5,35.5"/>
+  
+  <!-- Arrow from start to Task B -->
+  <line class="arrow-line" x1="22.5" y1="100" x2="120" y2="100"/>
+  <polygon class="arrow-head" points="120,100 109.5,94.5 109.5,105.5"/>
+  
+  <!-- Arrow from start to Task C -->
+  <line class="arrow-line" x1="22.5" y1="170" x2="120" y2="170"/>
+  <polygon class="arrow-head" points="120,170 109.5,164.5 109.5,175.5"/>
+  
+  <!-- Task A -->
+  <rect class="task-box" x="130" y="10" width="100" height="40" rx="4"/>
+  <text class="task-text" x="180" y="30">Task A</text>
+  
+  <!-- Task B -->
+  <rect class="task-box" x="130" y="80" width="100" height="40" rx="4"/>
+  <text class="task-text" x="180" y="100">Task B</text>
+  
+  <!-- Task C -->
+  <rect class="task-box" x="130" y="150" width="100" height="40" rx="4"/>
+  <text class="task-text" x="180" y="170">Task C</text>
+  
+  <!-- "Start" label below the marker -->
+  <text class="start-text" x="22" y="195">Start</text>
+</svg>

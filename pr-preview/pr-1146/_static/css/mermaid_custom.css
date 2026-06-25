@@ -1,0 +1,189 @@
+/*
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+*/
+
+/*
+ * Mermaid Sequence Diagram Styling
+ * Uses design tokens from base.css (--nv-green, --tab-hover-bg, --pst-color-background)
+ */
+
+/* ==================== Swimlanes ==================== */
+
+.mermaid rect.rect:not([fill*="rgba"]) {
+  stroke: var(--pst-color-border) !important;
+  stroke-width: 2px !important;
+  stroke-dasharray: 6 3 !important;
+  fill: transparent !important;
+  rx: 8px !important;
+  ry: 8px !important;
+  opacity: 0.8 !important;
+}
+
+.mermaid text.text {
+  fill: var(--pst-color-text-muted) !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.5px !important;
+  text-transform: uppercase !important;
+}
+
+/* ==================== Background Highlights ==================== */
+
+.mermaid rect.rect[fill*="rgba"] {
+  stroke: #7a9eb5 !important;
+  stroke-width: 1px !important;
+  fill: rgba(240, 245, 250, 0.5) !important;
+  rx: 6px !important;
+  ry: 6px !important;
+  transform: scaleX(1.05) scaleY(1.01) translateY(1%) !important;
+  transform-origin: center !important;
+}
+
+/* ==================== Participants ==================== */
+
+.mermaid .actor,
+.mermaid .actor-top,
+.mermaid .actor-bottom {
+  stroke: var(--nv-green) !important;
+  fill: var(--nv-green) !important;
+}
+
+.mermaid .actor-line {
+  stroke: var(--nv-green) !important;
+  stroke-width: 1.5px !important;
+}
+
+.mermaid text.actor,
+.mermaid text.actor-box,
+.mermaid text.actor tspan {
+  fill: var(--pst-color-background) !important;
+  stroke: none !important;
+}
+
+/* ==================== Messages ==================== */
+
+.mermaid .messageLine0,
+.mermaid .messageLine1 {
+  stroke: currentColor !important;
+  stroke-width: 2px !important;
+}
+
+.mermaid .messageLine1 {
+  stroke-dasharray: 4 4 !important;
+}
+
+.mermaid .messageText {
+  fill: currentColor !important;
+  stroke: var(--pst-color-background) !important;
+  stroke-width: 6px !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  paint-order: stroke fill !important;
+}
+
+/* ==================== Arrows & Sequence Numbers ==================== */
+
+.mermaid marker#arrowhead,
+.mermaid marker#arrowhead path {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.mermaid marker#crosshead,
+.mermaid marker#crosshead path {
+  fill: #dc3545 !important;
+  stroke: #dc3545 !important;
+}
+
+.mermaid marker#sequencenumber circle {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+.mermaid .sequenceNumber {
+  fill: var(--pst-color-background) !important;
+  stroke: none !important;
+}
+
+/* ==================== Loops & Notes ==================== */
+
+.mermaid .labelBox {
+  stroke: var(--nv-green) !important;
+  fill: var(--nv-green) !important;
+  opacity: 0.9 !important;
+}
+
+.mermaid .labelText {
+  fill: var(--pst-color-background) !important;
+  stroke: none !important;
+}
+
+/* Loop container - scale and transform */
+.mermaid g:has(.loopLine) {
+  transform: scaleX(1.05) translateY(1%) !important;
+  transform-origin: center !important;
+}
+
+.mermaid .loopLine {
+  stroke: var(--nv-green) !important;
+  stroke-width: 1px !important;
+  stroke-dasharray: none !important;
+  opacity: 0.4 !important;
+  stroke-linecap: round !important;
+}
+
+.mermaid .loopText,
+.mermaid .loopText tspan {
+  fill: currentColor !important;
+  stroke: var(--pst-color-background) !important;
+  stroke-width: 4px !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  paint-order: stroke fill !important;
+}
+
+.mermaid .note {
+  stroke: var(--nv-green) !important;
+  fill: var(--tab-hover-bg) !important;
+}
+
+.mermaid .noteText {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+/* ==================== Dark Mode ==================== */
+
+:is([data-theme="dark"], html[data-mode="dark"]) .mermaid {
+  /* Note text in highlights */
+  & .noteText tspan {
+    fill: #e0e0e0 !important;
+  }
+
+  /* Background highlight rectangles */
+  & rect.rect[fill*="rgba"] {
+    stroke: #5a7a8f !important;
+    fill: rgba(35, 45, 55, 0.92) !important;
+  }
+
+  /* Crosshead - lighter red for dark mode */
+  & marker#crosshead,
+  & marker#crosshead path {
+    fill: #ff6b7a !important;
+    stroke: #ff6b7a !important;
+  }
+}

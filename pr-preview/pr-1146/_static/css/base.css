@@ -1,0 +1,586 @@
+/* SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0 */
+
+/* ==================== Design Tokens ==================== */
+
+:root {
+  --nv-green: #76b900;
+  --nv-green-hover: #689f00;
+  --annotation-bg: #fff;
+  --annotation-border: #ddd;
+  --annotation-text: #333;
+  --annotation-code-bg: #f5f5f5;
+  --annotation-code-color: #e01e5a;
+  --annotation-strong: #000;
+  --annotation-shadow: rgba(0, 0, 0, 0.15);
+  --tab-inactive-color: #999;
+  --tab-active-color: var(--nv-green);
+  --tab-hover-bg: rgba(118, 185, 0, 0.05);
+  --tab-focus-bg: rgba(118, 185, 0, 0.1);
+  --tab-separator: #ddd;
+  --badge-pending-bg: #f9f4ca;
+  --badge-pending-border: #e8ddb0;
+  --badge-pending-color: #924c00;
+  --badge-running-bg: #2a63ba;
+  --badge-running-border: transparent;
+  --badge-running-color: #fff;
+  --badge-completed-bg: #2e7d32;
+  --badge-completed-border: transparent;
+  --badge-completed-color: #fff;
+  --badge-failed-bg: #b6251b;
+  --badge-failed-border: transparent;
+  --badge-failed-color: #fff;
+  --tag-online-bg: #ecfad9;
+  --tag-online-border: #335608;
+  --tag-online-color: #335608;
+  --tag-offline-bg: #ffefed;
+  --tag-offline-border: #b6251b;
+  --tag-offline-color: #b6251b;
+  --tag-maintenance-bg: #f9f4ca;
+  --tag-maintenance-border: #924c00;
+  --tag-maintenance-color: #924c00;
+  --blue-bg: #e9f4fb;
+  --blue-border: #2a63ba;
+  --blue-color: #2a63ba;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-mode="light"]) {
+    --nv-green: #a0d468;
+    --annotation-bg: #2b2b2b;
+    --annotation-border: #444;
+    --annotation-text: #e0e0e0;
+    --annotation-code-bg: #1a1a1a;
+    --annotation-code-color: #a0d468;
+    --annotation-strong: #fff;
+    --annotation-shadow: rgba(0, 0, 0, 0.6);
+    --tab-inactive-color: #666;
+    --tab-hover-bg: rgba(160, 212, 104, 0.1);
+    --tab-focus-bg: rgba(160, 212, 104, 0.15);
+    --tab-separator: #444;
+    --badge-pending-bg: #f9f4ca;
+    --badge-pending-border: #e8ddb0;
+    --badge-pending-color: #924c00;
+    --badge-running-bg: #e9f4fb;
+    --badge-running-border: #2a63ba;
+    --badge-running-color: #2a63ba;
+    --badge-completed-bg: #ecfad9;
+    --badge-completed-border: #2e7d32;
+    --badge-completed-color: #2e7d32;
+    --badge-failed-bg: #ffefed;
+    --badge-failed-border: #b6251b;
+    --badge-failed-color: #b6251b;
+    --tag-online-bg: #335608;
+    --tag-online-border: #ecfad9;
+    --tag-online-color: #ecfad9;
+    --tag-offline-bg: #b6251b;
+    --tag-offline-border: #ffefed;
+    --tag-offline-color: #ffefed;
+    --tag-maintenance-bg: #924c00;
+    --tag-maintenance-border: #f9f4ca;
+    --tag-maintenance-color: #f9f4ca;
+    --blue-bg: #2a63ba;
+    --blue-border: #e9f4fb;
+    --blue-color: #e9f4fb;
+  }
+
+  html[data-theme="light"],
+  html[data-mode="light"] {
+    --nv-green: #76b900;
+    --annotation-bg: #fff;
+    --annotation-border: #ddd;
+    --annotation-text: #333;
+    --annotation-code-bg: #f5f5f5;
+    --annotation-code-color: #e01e5a;
+    --annotation-strong: #000;
+    --annotation-shadow: rgba(0, 0, 0, 0.15);
+    --tab-inactive-color: #999;
+    --tab-hover-bg: rgba(118, 185, 0, 0.05);
+    --tab-focus-bg: rgba(118, 185, 0, 0.1);
+    --tab-separator: #ddd;
+    --badge-pending-bg: #f9f4ca;
+    --badge-pending-border: #e8ddb0;
+    --badge-pending-color: #924c00;
+    --badge-running-bg: #2a63ba;
+    --badge-running-border: transparent;
+    --badge-running-color: #fff;
+    --badge-completed-bg: #2e7d32;
+    --badge-completed-border: transparent;
+    --badge-completed-color: #fff;
+    --badge-failed-bg: #b6251b;
+    --badge-failed-border: transparent;
+    --badge-failed-color: #fff;
+    --tag-online-bg: #ecfad9;
+    --tag-online-border: #335608;
+    --tag-online-color: #335608;
+    --tag-offline-bg: #ffefed;
+    --tag-offline-border: #b6251b;
+    --tag-offline-color: #b6251b;
+    --tag-maintenance-bg: #f9f4ca;
+    --tag-maintenance-border: #924c00;
+    --tag-maintenance-color: #924c00;
+    --blue-bg: #e9f4fb;
+    --blue-border: #2a63ba;
+    --blue-color: #2a63ba;
+  }
+}
+
+[data-theme="dark"],
+html[data-mode="dark"] {
+  --nv-green: #a0d468;
+  --nv-green-hover: #76b900;
+  --annotation-bg: #2b2b2b;
+  --annotation-border: #444;
+  --annotation-text: #e0e0e0;
+  --annotation-code-bg: #1a1a1a;
+  --annotation-code-color: #a0d468;
+  --annotation-strong: #fff;
+  --annotation-shadow: rgba(0, 0, 0, 0.6);
+  --tab-inactive-color: #666;
+  --tab-hover-bg: rgba(160, 212, 104, 0.1);
+  --tab-focus-bg: rgba(160, 212, 104, 0.15);
+  --tab-separator: #444;
+  --badge-pending-bg: #f9f4ca;
+  --badge-pending-border: #e8ddb0;
+  --badge-pending-color: #924c00;
+  --badge-running-bg: #e9f4fb;
+  --badge-running-border: #2a63ba;
+  --badge-running-color: #2a63ba;
+  --badge-completed-bg: #ecfad9;
+  --badge-completed-border: #2e7d32;
+  --badge-completed-color: #2e7d32;
+  --badge-failed-bg: #ffefed;
+  --badge-failed-border: #b6251b;
+  --badge-failed-color: #b6251b;
+  --tag-online-bg: #335608;
+  --tag-online-border: #ecfad9;
+  --tag-online-color: #ecfad9;
+  --tag-offline-bg: #b6251b;
+  --tag-offline-border: #ffefed;
+  --tag-offline-color: #ffefed;
+  --tag-maintenance-bg: #924c00;
+  --tag-maintenance-border: #f9f4ca;
+  --tag-maintenance-color: #f9f4ca;
+  --blue-bg: #2a63ba;
+  --blue-border: #e9f4fb;
+  --blue-color: #e9f4fb;
+}
+
+/* ==================== Code Annotations ==================== */
+
+.annotate.highlight {
+  position: relative;
+}
+
+.code-annotations-list {
+  display: none !important;
+}
+
+.code-annotation-marker {
+  display: inline-flex;
+  padding: 0;
+  background: transparent;
+  border: none;
+  vertical-align: middle;
+  position: relative;
+  color: var(--nv-green);
+  transition: all 0.2s;
+}
+
+.code-annotation-marker.active {
+  z-index: 2;
+}
+
+.code-annotation-marker:hover {
+  transform: scale(1.1);
+}
+
+.code-annotation-marker:focus-visible {
+  outline: 2px solid var(--nv-green);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.code-annotation-marker svg.code-annotation-icon {
+  width: 20px;
+  height: 20px;
+  margin: 0 2px;
+  fill: currentColor;
+  transition: transform 0.2s;
+}
+
+.code-annotation-marker.active svg {
+  transform: rotate(45deg);
+}
+
+.code-annotation-tooltip {
+  position: absolute;
+  z-index: 1;
+  max-width: 400px;
+  min-width: 200px;
+  padding: 12px 16px;
+  background: var(--annotation-bg);
+  border: 1px solid var(--annotation-border);
+  border-radius: 2px;
+  box-shadow: 0 4px 16px var(--annotation-shadow);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--annotation-text);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.code-annotation-tooltip.visible {
+  opacity: 1;
+}
+
+.code-annotation-tooltip p {
+  margin: 0;
+}
+
+.code-annotation-tooltip p + p {
+  margin-top: 8px;
+}
+
+.code-annotation-tooltip code {
+  background: var(--annotation-code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: "Roboto Mono", monospace;
+  color: var(--annotation-code-color);
+}
+
+.code-annotation-tooltip pre {
+  background: var(--annotation-code-bg);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.code-annotation-tooltip strong {
+  font-weight: 600;
+  color: var(--annotation-strong);
+}
+
+.code-annotation-tooltip em {
+  font-style: italic;
+}
+
+.code-annotation-tooltip a {
+  color: var(--nv-green);
+  text-decoration: underline;
+}
+
+.code-annotation-tooltip a:hover {
+  color: var(--nv-green-hover);
+}
+
+.code-annotation-tooltip ul,
+.code-annotation-tooltip ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.code-annotation-tooltip li {
+  margin: 4px 0;
+}
+
+@media (max-width: 767px) {
+  .code-annotation-tooltip {
+    max-width: calc(100vw - 40px);
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+}
+
+/* ==================== Sphinx-Design Tabs ==================== */
+
+/* Override PyData Sphinx Theme tab styling with higher specificity */
+body .bd-content .sd-tab-set > label,
+html[data-theme="dark"] body .bd-content .sd-tab-set > label,
+body[data-theme="dark"] .bd-content .sd-tab-set > label {
+  background-color: transparent;
+  border: none;
+  border-bottom: 0.125rem solid transparent;
+  border-radius: 0;
+  color: var(--tab-inactive-color);
+  font-weight: 500;
+  line-height: 1.95;
+  margin-inline-end: 0;
+  padding: 0.5em 1em;
+  transform: none;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+body .bd-content .sd-tab-set > label:hover,
+body .bd-content .sd-tab-set > input:not(:checked, :focus-visible) + label:hover {
+  background: none;
+  border-bottom-color: var(--tab-active-color);
+  color: var(--tab-active-color);
+  text-decoration: none;
+}
+
+body .bd-content .sd-tab-set > input:checked + label,
+html[data-theme="dark"] body .bd-content .sd-tab-set > input:checked + label,
+body[data-theme="dark"] .bd-content .sd-tab-set > input:checked + label {
+  background-color: transparent;
+  border: none;
+  border-bottom: 0.125rem solid var(--tab-active-color);
+  border-radius: 0;
+  color: var(--tab-active-color);
+  font-weight: 600;
+  transform: none;
+}
+
+body .bd-content .sd-tab-set > input:focus-visible + label {
+  background: none;
+  border: 0.125rem solid var(--tab-active-color);
+  border-radius: 0.125rem;
+  color: var(--tab-active-color);
+}
+
+/* Default tab content styling (transparent background) */
+body .bd-content .sd-tab-set:not(.lifecycle-tabs) .sd-tab-content,
+html[data-theme="dark"] body .bd-content .sd-tab-set:not(.lifecycle-tabs) .sd-tab-content,
+body[data-theme="dark"] .bd-content .sd-tab-set:not(.lifecycle-tabs) .sd-tab-content {
+  background-color: transparent;
+  border: none;
+  border-top: 1px solid var(--tab-separator);
+  border-bottom: 1px solid var(--tab-separator);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem 0;
+}
+
+/* ==================== Component Utilities ==================== */
+
+/* Keyboard keys - keep light appearance in all themes for readability */
+kbd,
+.kbd {
+  background-color: #f7f7f7 !important;
+  border: 1px solid #ccc !important;
+  border-radius: 3px !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), inset 0 0 0 2px #fff !important;
+  color: #333 !important;
+  display: inline-block !important;
+  font-family: "Roboto Mono", "Courier New", Courier, monospace !important;
+  font-size: 0.85em !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  padding: 2px 6px !important;
+  white-space: nowrap !important;
+}
+
+svg.sd-octicon,
+svg.icon,
+a.reference.external > svg {
+  margin-bottom: 0;
+}
+
+.hidden {
+  display: none;
+}
+
+.theme-image-light,
+[data-theme="dark"] .theme-image-light,
+html[data-mode="dark"] .theme-image-light {
+  display: block;
+}
+
+.theme-image-dark {
+  display: none;
+}
+
+[data-theme="dark"] .theme-image-dark,
+html[data-mode="dark"] .theme-image-dark {
+  display: block;
+}
+
+[data-theme="dark"] .theme-image-light,
+html[data-mode="dark"] .theme-image-light {
+  display: none;
+}
+
+.card-pending {
+  background-color: #f9f4ca !important;
+}
+
+.card-running {
+  background-color: #2a63ba !important;
+}
+
+.card-completed {
+  background-color: #2e7d32 !important;
+}
+
+.badge {
+  font-weight: 600;
+  padding: 6px 10px;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+
+.badge-pending {
+  background-color: var(--badge-pending-bg);
+  border: 1px solid var(--badge-pending-border);
+  color: var(--badge-pending-color);
+}
+
+.badge-running {
+  background-color: var(--badge-running-bg);
+  border: 1px solid var(--badge-running-border);
+  color: var(--badge-running-color);
+}
+
+.badge-completed {
+  background-color: var(--badge-completed-bg);
+  border: 1px solid var(--badge-completed-border);
+  color: var(--badge-completed-color);
+}
+
+.badge-failed {
+  background-color: var(--badge-failed-bg);
+  border: 1px solid var(--badge-failed-border);
+  color: var(--badge-failed-color);
+}
+
+.tag {
+  border-radius: 6px;
+  border-width: 1px;
+  border-style: solid;
+  padding: 4px 8px;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.tag-online {
+  background-color: var(--tag-online-bg);
+  border-color: var(--tag-online-border);
+  color: var(--tag-online-color);
+}
+
+.tag-offline {
+  background-color: var(--tag-offline-bg);
+  border-color: var(--tag-offline-border);
+  color: var(--tag-offline-color);
+}
+
+.tag-maintenance {
+  background-color: var(--tag-maintenance-bg);
+  border-color: var(--tag-maintenance-border);
+  color: var(--tag-maintenance-color);
+}
+
+.bd-sidebar li > a.reference.external::after,
+nav.bd-links li > a.reference.external::after {
+  display: none !important;
+}
+
+/* ==================== SVG Transparent Backgrounds ==================== */
+
+img.transparent-bg,
+.transparent-bg,
+object[type="image/svg+xml"] {
+  background: transparent !important;
+}
+
+/* ==================== GLightbox Image Zoom ==================== */
+
+/* Only make zoomable images clickable and show zoom cursor */
+img.zoomable {
+  cursor: zoom-in;
+  transition: opacity 0.2s ease;
+}
+
+img.zoomable:hover {
+  opacity: 0.9;
+}
+
+/* Style for glightbox wrapper and links */
+.glightbox,
+a.glightbox {
+  cursor: zoom-in;
+  display: inline-block;
+  line-height: 0;
+}
+
+.glightbox-wrapper {
+  display: inline-block;
+  line-height: 0;
+}
+
+/* GLightbox modal background - match page background for theme consistency */
+/* Target the actual image/content container, not the full slide area */
+.glightbox-container .gslide-image,
+.glightbox-container .gslide-media {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  width: auto !important;
+  max-width: 90vw;
+}
+
+/* Dark mode modal background */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-mode="light"]) .glightbox-container .gslide-image,
+  :root:not([data-theme="light"]):not([data-mode="light"]) .glightbox-container .gslide-media {
+    background-color: #1a1a1a;
+  }
+}
+
+[data-theme="dark"] .glightbox-container .gslide-image,
+[data-theme="dark"] .glightbox-container .gslide-media,
+html[data-mode="dark"] .glightbox-container .gslide-image,
+html[data-mode="dark"] .glightbox-container .gslide-media {
+  background-color: #1a1a1a;
+}
+
+/* Ensure SVGs in modal maintain their transparency */
+.glightbox-container .gslide-media img,
+.glightbox-container .gslide-media svg {
+  background: transparent;
+}
+
+/* ==================== Image Spacing ==================== */
+
+img.mb-1 {
+  margin-bottom: 1rem;
+}
+
+img.mb-2 {
+  margin-bottom: 2rem;
+}
+
+/* ==================== Code Block Emphasis Color ==================== */
+
+/* Light green background for emphasized lines in code blocks */
+.highlight .hll {
+  background-color: #d4edda !important; /* Light green (slightly darker) */
+}
+
+/* Dark mode - darker green for better contrast */
+[data-theme="dark"] .highlight .hll,
+html[data-mode="dark"] .highlight .hll {
+  background-color: #2d4a2f !important; /* Darker green for dark mode */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-mode="light"]) .highlight .hll {
+    background-color: #2d4a2f !important; /* Darker green for dark mode */
+  }
+}

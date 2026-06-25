@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: grouped-workflow
+  groups:
+  - name: parallel-processing
+    tasks:
+    - name: processor-1
+      lead: true  # One task must be the leader
+      image: ubuntu:24.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo "Processor 1: Starting..."
+        for i in {1..5}; do
+          echo "Processor 1: Processing item $i"
+          sleep 5
+        done
+        echo "Processor 1: Complete"
+
+    - name: processor-2
+      image: ubuntu:24.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo "Processor 2: Starting..."
+        for i in {6..10}; do
+          echo "Processor 2: Processing item $i"
+          sleep 1
+        done
+        echo "Processor 2: Complete"
+
+    - name: processor-3
+      image: ubuntu:24.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo "Processor 3: Starting..."
+        for i in {11..15}; do
+          echo "Processor 3: Processing item $i"
+          sleep 2
+        done
+        echo "Processor 3: Complete"
