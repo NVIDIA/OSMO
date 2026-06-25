@@ -39,7 +39,7 @@ $ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/groot/gro
 
 > **Note**
 >
-> The complete workflow example is available [here](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_notebook).
+> The complete workflow example is available [here](https://github.com/NVIDIA/OSMO/tree/release/6.1/workflows/groot/groot_notebook).
 
 Add any platform value if necessary to target a specific type of hardware.
 To read more about platforms, please refer to the [Platforms](../resource_pools/index.md#concepts-platforms).
