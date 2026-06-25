@@ -453,10 +453,8 @@ jobs:
           echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
 
       # Single source of truth for the TF inputs the apply + destroy steps
-      # use. Writing once to $RUNNER_TEMP avoids the apply-vs-destroy
-      # var drift that bit this gate earlier (e.g. `redis_location` had
-      # to be added in two places). RUNNER_TEMP persists across steps
-      # within the same job.
+      # use. Writing once to $RUNNER_TEMP avoids apply-vs-destroy var drift.
+      # RUNNER_TEMP persists across steps within the same job.
       #
       # Rationale for non-default values:
       #   - aks_private_cluster_enabled=false  GHA runners are public-net,
@@ -466,11 +464,15 @@ jobs:
       #                                        (ceil rounding); D8s_v3 ×3
       #                                        gives ~4 vCPU headroom.
       #   - node_group_min_size=3              headroom for scenario tests.
-      #   - redis_sku_name=Balanced_B0,        eastus2 Managed Redis hit
-      #     redis_location=westus2             AllocationFailed 4× across
-      #                                        two SKUs; cross-region Redis
-      #                                        works since the chart uses
-      #                                        the public endpoint anyway.
+      #
+      # Redis runs in the RG's region at the chart default SKU
+      # (ComputeOptimized_X3). Earlier runs hit AllocationFailed in eastus2
+      # across X3 and B0, which we temporarily worked around with
+      # redis_sku_name=Balanced_B0 + redis_location=westus2. Probing whether
+      # capacity has recovered — if this run fails to allocate, we'll move
+      # the whole stack to a region with capacity rather than reinstate the
+      # cross-region split (cross-region Redis adds ~60ms RTT and doesn't
+      # reflect prod topology).
       - name: build TF var file (consumed by both apply and destroy)
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -488,8 +490,6 @@ jobs:
           aks_private_cluster_enabled  = false
           node_instance_type           = "Standard_D8s_v3"
           node_group_min_size          = 3
-          redis_sku_name               = "Balanced_B0"
-          redis_location               = "westus2"
           TFVARS
           # The file contains a real password — mask before logging.
           grep -v postgres_password "$RUNNER_TEMP/azure.tfvars"

@@ -404,13 +404,8 @@ resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
 ################################################################################
 
 resource "azurerm_managed_redis" "main" {
-  name = "${local.name}-redis"
-  # Allow placing Redis in a different region than the RG (default: same as
-  # RG). Useful when the RG's region has Managed Redis allocation pressure —
-  # the resource itself can live anywhere as long as the AKS cluster can
-  # reach it over the public endpoint (Encrypted + access_keys_authentication
-  # is on, so no private-link assumption).
-  location            = coalesce(var.redis_location, data.azurerm_resource_group.main.location)
+  name                = "${local.name}-redis"
+  location            = data.azurerm_resource_group.main.location
   resource_group_name = data.azurerm_resource_group.main.name
   sku_name            = var.redis_sku_name
 
