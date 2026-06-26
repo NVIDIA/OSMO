@@ -487,7 +487,7 @@ class S3ResumableStream(client.ResumableStream):
             # This will be retried by the error handler.
             if response.get('Body') is None:
                 raise botocore.exceptions.ResponseStreamingError(
-                    'Get object response body is unexpectedly None',
+                    error='Get object response body is unexpectedly None',
                 )
 
             return response['Body']

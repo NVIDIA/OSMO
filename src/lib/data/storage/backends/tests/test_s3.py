@@ -638,13 +638,6 @@ class S3ResumableStreamNewStreamTest(unittest.TestCase):
         s3_client.get_object.assert_called_once_with(Bucket='bucket', Key='key')
         self.assertIs(result, body)
 
-    # SUSPECTED BUG: s3.py:_get_new_stream raises
-    # botocore.exceptions.ResponseStreamingError('Get object response body is
-    # unexpectedly None') but ResponseStreamingError's fmt requires an `error`
-    # kwarg ({error} placeholder). Constructing it with a positional message
-    # raises KeyError: 'error' during __init__ instead of producing a
-    # retryable ResponseStreamingError, so the None-body branch is broken.
-    @unittest.skip('source bug — see comment above')
     def test_none_body_retries(self):
         stream, s3_client = _make_resumable_stream()
         body = mock.Mock()
