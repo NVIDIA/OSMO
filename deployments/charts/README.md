@@ -32,8 +32,9 @@ The former quick-start values are preserved as chart-specific values files:
 - `service/quick-start-values.yaml`
 - `backend-operator/quick-start-values.yaml`
 
-Create the namespaces, the local backend-operator password secret, and the MEK
-ConfigMap used by the service pods:
+Create the namespaces, the local backend-operator password secret, the service
+auth Secret referenced by the quick-start ConfigMap, and the MEK ConfigMap used
+by the service pods:
 
 ```bash
 kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
@@ -42,6 +43,13 @@ BACKEND_OPERATOR_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base6
 kubectl create secret generic backend-operator-password \
   --namespace osmo \
   --from-literal=password="$BACKEND_OPERATOR_PASSWORD" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Create quick-start-service-auth with a cred.yaml file containing the stable
+# service_auth signing-key config before installing the service chart.
+kubectl create secret generic quick-start-service-auth \
+  --namespace osmo \
+  --from-file=cred.yaml=/path/to/service_auth.yaml \
   --dry-run=client -o yaml | kubectl apply -f -
 
 if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then

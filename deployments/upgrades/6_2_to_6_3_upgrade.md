@@ -53,8 +53,9 @@ The script:
 - Strips runtime/computed fields (`parsed_pod_template`, `parsed_resource_validations`, etc.) — the service resolves these at load time from template name references
 - Replaces masked credentials with `secretName` placeholders
 - Outputs YAML ready to paste into your Helm values under `services.configs`
+  with a required `serviceAuthSecretName` entry
 
-Review the output and check the `secretRefs` list printed to stderr — you'll need to create matching K8s Secrets.
+Review the output and check the `secretRefs` list printed to stderr — you'll need to create matching K8s Secrets, including the service auth Secret, before applying the values.
 
 ### Dependencies
 
@@ -74,9 +75,15 @@ Add a `services.configs` section to your Helm values. The chart defaults provide
 services:
   configs:
     enabled: true
+    serviceAuthSecretName: osmo-service-auth
+    secretRefs:
+      - secretName: osmo-service-auth
 ```
 
-This activates ConfigMap mode with the chart's built-in defaults. All config writes via CLI/API return HTTP 409.
+Create the `osmo-service-auth` Secret before applying this change. It must
+contain a `cred.yaml` key with the stable `service_auth` signing-key config used
+by every service pod. This activates ConfigMap mode with the chart's built-in
+defaults. All config writes via CLI/API return HTTP 409.
 
 ### With exported configs
 
@@ -86,7 +93,9 @@ Paste your exported configs under `services.configs`:
 services:
   configs:
     enabled: true
+    serviceAuthSecretName: osmo-service-auth
     secretRefs:
+      - secretName: osmo-service-auth
       - secretName: osmo-workflow-data-cred
       - secretName: osmo-workflow-log-cred
     service:
@@ -128,6 +137,16 @@ services:
 ## Create Kubernetes Secrets
 
 Credentials referenced by `secretName` in the config must exist as K8s Secrets in the same namespace. The chart automatically mounts them when listed in `secretRefs`.
+
+ConfigMap mode also requires stable `service_auth` signing keys on cold start.
+Create the Secret named by `services.configs.serviceAuthSecretName` with a
+`cred.yaml` file containing the `service_auth` config before enabling ConfigMap
+mode:
+
+```bash
+kubectl create secret generic osmo-service-auth \
+    --from-file=cred.yaml=/path/to/service_auth.yaml
+```
 
 For each `secretName` in your config, create a Secret containing a `cred.yaml` file:
 

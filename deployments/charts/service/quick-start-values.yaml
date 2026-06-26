@@ -64,6 +64,9 @@ services:
 
   configs:
     enabled: true
+    serviceAuthSecretName: quick-start-service-auth
+    secretRefs:
+    - secretName: quick-start-service-auth
     service:
       service_base_url: http://quick-start.osmo
     workflow:

@@ -130,6 +130,13 @@ kubectl create secret generic backend-operator-password \
   --from-literal=password="$BACKEND_OPERATOR_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# Create quick-start-service-auth with a cred.yaml file containing the stable
+# service_auth signing-key config before installing the service chart.
+kubectl create secret generic quick-start-service-auth \
+  --namespace osmo \
+  --from-file=cred.yaml=/path/to/service_auth.yaml \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
   MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
   MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')

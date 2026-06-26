@@ -55,6 +55,7 @@ SERVICE_RUNTIME_FIELDS = {
     'service_auth',
     'service_base_url',
 }
+SERVICE_AUTH_SECRET_NAME = 'osmo-service-auth'
 
 # Runtime fields on backends written by the agent, not by config. Keep
 # k8s_namespace: ConfigMap mode needs it for backend queue reconciliation.
@@ -110,7 +111,7 @@ def fetch(base_url, path, headers):
         try:
             body = error.read().decode()
             print(f'  {body[:200]}', file=sys.stderr)
-        except Exception as read_error:
+        except (OSError, UnicodeDecodeError) as read_error:
             print(f'  (Could not read error body: {read_error})',
                   file=sys.stderr)
         return None
@@ -269,9 +270,11 @@ def main():
         configs['service'] = service
     print(
         'NOTE: service_auth is not exported because it contains private '
-        'signing keys. ConfigMap mode requires it; set '
-        'services.configs.serviceAuthSecretName or provide '
-        'services.configs.service.service_auth manually.',
+        'signing keys. The export sets '
+        f'services.configs.serviceAuthSecretName={SERVICE_AUTH_SECRET_NAME}; '
+        'create that Secret with a cred.yaml service_auth payload before '
+        'applying these values, or replace it with your manually managed '
+        'service_auth config.',
         file=sys.stderr)
 
     print('Exporting workflow config...', file=sys.stderr)
@@ -324,6 +327,7 @@ def main():
 
     # Collect secret references for secretRefs
     all_secrets = collect_secret_names(configs)
+    all_secrets.add(SERVICE_AUTH_SECRET_NAME)
     secret_refs = [{'secretName': name} for name in sorted(all_secrets)]
 
     # Build final output
@@ -331,6 +335,7 @@ def main():
         'services': {
             'configs': {
                 'enabled': True,
+                'serviceAuthSecretName': SERVICE_AUTH_SECRET_NAME,
                 **({'secretRefs': secret_refs} if secret_refs else {}),
                 **configs,
             },
@@ -341,8 +346,9 @@ def main():
 
     print(f'\nExported {len(configs)} config sections.', file=sys.stderr)
     if secret_refs:
+        secret_names = [secret_ref['secretName'] for secret_ref in secret_refs]
         print(f'Found {len(secret_refs)} secret references: '
-              f'{[s["secretName"] for s in secret_refs]}', file=sys.stderr)
+              f'{secret_names}', file=sys.stderr)
         print('Ensure these K8s Secrets exist in your namespace.',
               file=sys.stderr)
 
