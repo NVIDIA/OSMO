@@ -82,6 +82,38 @@ def _result_uuids(filenames: List[str]) -> List[str]:
     return [n[:-len(suffix)] for n in filenames if n.endswith(suffix)]
 
 
+def _target_testlogs_root(testlogs_dir: str, label: str) -> Optional[str]:
+    """Map a Bazel target label to its bazel-testlogs subdirectory.
+
+    Main-module label `//pkg:tgt`           → <testlogs>/pkg/tgt
+    External-module label `@@repo//pkg:tgt` → <testlogs>/external/repo/pkg/tgt
+
+    Returns None for labels that don't carry an explicit target name (bare
+    package labels like `//pkg`) or for non-Bazel strings — we can't derive
+    a testlogs path from those without a Bazel query. The `@<apparent>//`
+    short form doesn't appear in BEP output (which emits canonical names),
+    so it's intentionally not handled.
+    """
+    if ':' not in label:
+        return None
+    if label.startswith('@@'):
+        # Canonical bzlmod form. The portion before '//' is the canonical
+        # repo name (e.g. 'osmo_workspace+'); after '//' is the package +
+        # ':' + target. Bazel writes external-module testlogs to
+        # <testlogs>/external/<canonical_repo>/<pkg>/<tgt>/ (note: the '+'
+        # suffix on canonical names is part of the directory name on disk).
+        body = label[2:]
+        if '//' not in body:
+            return None
+        repo, rest = body.split('//', 1)
+        package, target_name = rest.split(':', 1)
+        return os.path.join(testlogs_dir, 'external', repo, package, target_name)
+    if label.startswith('//'):
+        package, target_name = label[2:].split(':', 1)
+        return os.path.join(testlogs_dir, package, target_name)
+    return None
+
+
 def collect_allure_results(
     testlogs_dir: str, targets: List[str], staging_dir: str
 ) -> int:
@@ -93,7 +125,9 @@ def collect_allure_results(
     - Per-attempt (--runs_per_test=N): test.outputs/test_attempts/attempt_*/allure-results/
 
     A label like //test/smoke:api-checks maps to
-    bazel-testlogs/test/smoke/api-checks/test.outputs/
+    bazel-testlogs/test/smoke/api-checks/test.outputs/; external bzlmod
+    targets like @@osmo_workspace+//test/scenarios:foo map to
+    bazel-testlogs/external/osmo_workspace+/test/scenarios/foo/test.outputs/.
 
     Also copies each target's test.log into staging_dir as an attachment
     and links it from every result.json the target produced — so the
@@ -106,14 +140,9 @@ def collect_allure_results(
     os.makedirs(staging_dir, exist_ok=True)
     count = 0
     for label in targets:
-        if not label.startswith('//') or ':' not in label:
-            # Skip non-Bazel labels and bare-package labels (`//pkg`
-            # without an explicit target name); we can't derive a
-            # testlogs path from the latter without a Bazel query.
+        target_root = _target_testlogs_root(testlogs_dir, label)
+        if target_root is None:
             continue
-        body = label[2:]
-        package, target_name = body.split(':', 1)
-        target_root = os.path.join(testlogs_dir, package, target_name)
         outputs_dir = os.path.join(target_root, 'test.outputs')
 
         target_files: List[str] = []
