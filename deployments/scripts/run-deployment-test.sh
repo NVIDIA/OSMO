@@ -90,10 +90,15 @@ STORAGE_BACKEND="${STORAGE_BACKEND:-}"
 OETF_REPO_ROOT="${OETF_REPO_ROOT:-}"
 
 # Operational knobs (env-only, never required):
+#   SKIP_DEPLOY=1    → skip stage_deploy (chart install + verify-hello).
+#                      Bootstrap still runs (kubectl creds, reachability).
+#                      Used by the CI gate to split deploy and OETF into
+#                      separate, individually-summarised GHA steps.
 #   SKIP_OETF=1      → skip stage_oetf_smoke entirely (returns 0)
 #   SKIP_TEARDOWN=1  → skip the deploy --destroy + KIND delete in cleanup()
 #                      (use when --provider azure / aws and you want to keep
 #                      the cloud infra alive for inspection)
+SKIP_DEPLOY="${SKIP_DEPLOY:-0}"
 SKIP_OETF="${SKIP_OETF:-0}"
 SKIP_TEARDOWN="${SKIP_TEARDOWN:-0}"
 
@@ -111,6 +116,7 @@ while [[ $# -gt 0 ]]; do
         --postgres-password)    POSTGRES_PASSWORD="$2";     shift 2 ;;
         --storage-backend)      STORAGE_BACKEND="$2";       shift 2 ;;
         --oetf-repo-root)       OETF_REPO_ROOT="$2";        shift 2 ;;
+        --skip-deploy)          SKIP_DEPLOY=1;              shift   ;;
         --skip-oetf)            SKIP_OETF=1;                shift   ;;
         --skip-teardown)        SKIP_TEARDOWN=1;            shift   ;;
         -h|--help)
@@ -443,6 +449,11 @@ stage_bootstrap() {
 }
 
 stage_deploy() {
+    if [[ "$SKIP_DEPLOY" == "1" ]]; then
+        log_info "SKIP_DEPLOY=1 — skipping stage_deploy (returns pass)"
+        return 0
+    fi
+
     # Translate the wrapper's `byo-kind` taxonomy to deploy-osmo-minimal.sh's
     # accepted provider set (azure|aws|microk8s|byo; see deploy-osmo-minimal.sh:450-457).
     local deploy_provider="$PROVIDER"
