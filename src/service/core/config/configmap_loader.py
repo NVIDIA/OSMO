@@ -18,7 +18,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import base64
 import copy
+import datetime
 import enum
+import hashlib
 import json
 import logging
 import os
@@ -126,13 +128,20 @@ class ConfigMapWatcher:
         postgres: connectors.PostgresConnector | None = None,
         *,
         event_recorder: configmap_events.EventRecorder | None = None,
+        enable_reconciliation: bool = False,
+        backend_queue_updater: Callable[..., bool] | None = None,
+        backend_test_updater: Callable[..., bool] | None = None,
     ):
         self._config_file_path = config_file_path
         self._postgres = postgres
         self._event_recorder = event_recorder
+        self._enable_reconciliation = enable_reconciliation
+        self._backend_queue_updater = backend_queue_updater
+        self._backend_test_updater = backend_test_updater
         self._watch_directory = os.path.dirname(config_file_path)
         self._config_filename = os.path.basename(config_file_path)
         self._observer: Any = None
+        self._last_reconciled_snapshot: Dict[str, Any] | None = None
         # Only emit "reload succeeded" events when recovering from a
         # previous failure — successful reloads on their own are noise.
         self._last_reload_failed = False
@@ -205,6 +214,7 @@ class ConfigMapWatcher:
         readable). PERMANENT_FAILURE means the file exists but is
         unparseable / invalid; retrying won't help.
         """
+        reconciliation_baseline = self._last_reconciled_snapshot
         try:
             with open(self._config_file_path, encoding='utf-8') as f:
                 raw_config = yaml.safe_load(f)
@@ -244,9 +254,11 @@ class ConfigMapWatcher:
                 f'{joined_errors}')
             return LoadResult.PERMANENT_FAILURE
 
-        # Resolve pool computed fields (parsed_pod_template, etc.) from
+        # Resolve backend test computed fields and pool computed fields
+        # (parsed_pod_template, etc.) from
         # template/validation name references. This allows compact ConfigMap
         # YAML that only contains reference names, not expanded content.
+        _resolve_backend_test_computed_fields(managed_configs)
         _resolve_pool_computed_fields(managed_configs)
 
         # Inject runtime-generated fields (service_auth, service_base_url)
@@ -266,6 +278,16 @@ class ConfigMapWatcher:
                 'all config writes via CLI/API are blocked')
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
+        if self._enable_reconciliation:
+            try:
+                reconciled = _reconcile_backend_side_effects(
+                    reconciliation_baseline, managed_configs, self._postgres,
+                    self._backend_queue_updater, self._backend_test_updater)
+                if reconciled:
+                    self._last_reconciled_snapshot = copy.deepcopy(managed_configs)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logging.exception(
+                    'ConfigMap backend side-effect reconciliation failed')
         self._record_success()
 
         return LoadResult.SUCCESS
@@ -305,6 +327,8 @@ def start_config_watcher(
     postgres: connectors.PostgresConnector,
     *,
     is_api_service: bool = False,
+    backend_queue_updater: Callable[..., bool] | None = None,
+    backend_test_updater: Callable[..., bool] | None = None,
 ) -> 'ConfigMapWatcher | None':
     """Initialize and start a ConfigMapWatcher when `config_file` is set.
 
@@ -343,9 +367,345 @@ def start_config_watcher(
     watcher = ConfigMapWatcher(
         config_file, postgres,
         event_recorder=event_recorder,
+        enable_reconciliation=is_api_service,
+        backend_queue_updater=backend_queue_updater,
+        backend_test_updater=backend_test_updater,
     )
     watcher.start()
     return watcher
+
+
+# ---------------------------------------------------------------------------
+# Backend side-effect reconciliation
+# ---------------------------------------------------------------------------
+
+def _stable_config_hash(payload: Any) -> str:
+    encoded = json.dumps(payload, sort_keys=True, default=str).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()[:12]
+
+
+def _backend_config_from_snapshot(
+    snapshot: Dict[str, Any] | None, backend_name: str,
+) -> Dict[str, Any] | None:
+    if snapshot is None:
+        return None
+    backend = snapshot.get('backends', {}).get(backend_name)
+    return backend if isinstance(backend, dict) else None
+
+
+def _backend_from_snapshot(
+    snapshot: Dict[str, Any] | None,
+    backend_name: str,
+    postgres: connectors.PostgresConnector | None,
+) -> connectors.Backend | None:
+    config = _backend_config_from_snapshot(snapshot, backend_name)
+    if config is None:
+        return None
+    runtime = _backend_runtime_fields(postgres, backend_name)
+    return connectors.Backend(
+        name=backend_name,
+        description=config.get('description', ''),
+        version=runtime['version'],
+        k8s_uid=runtime['k8s_uid'],
+        k8s_namespace=runtime['k8s_namespace'],
+        dashboard_url=config.get('dashboard_url', ''),
+        grafana_url=config.get('grafana_url', ''),
+        tests=config.get('tests', []),
+        scheduler_settings=config.get('scheduler_settings', {}),
+        node_conditions=config.get('node_conditions', {}),
+        last_heartbeat=runtime['last_heartbeat'],
+        created_date=runtime['created_date'],
+        router_address=config.get('router_address', ''),
+        online=False,
+    )
+
+
+def _backend_runtime_fields(
+    postgres: connectors.PostgresConnector | None,
+    backend_name: str,
+) -> Dict[str, Any]:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    runtime = {
+        'k8s_uid': '',
+        'k8s_namespace': '',
+        'version': '',
+        'last_heartbeat': now,
+        'created_date': now,
+    }
+    if postgres is None:
+        return runtime
+    try:
+        rows = postgres.execute_fetch_command(
+            'SELECT k8s_uid, k8s_namespace, version, '
+            'last_heartbeat, created_date '
+            'FROM backends WHERE name = %s;',
+            (backend_name,),
+            True)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logging.exception(
+            'Failed to fetch runtime fields for backend %s', backend_name)
+        return runtime
+    if isinstance(rows, list) and rows:
+        row = rows[0]
+        for key in runtime:
+            if isinstance(row, dict) and row.get(key) is not None:
+                runtime[key] = row[key]
+    return runtime
+
+
+def _pool_backend(pool_config: Any) -> str | None:
+    if isinstance(pool_config, dict):
+        backend = pool_config.get('backend')
+        if isinstance(backend, str) and backend:
+            return backend
+    return None
+
+
+def _normalized_scheduler_settings(backend_config: Dict[str, Any]) -> Dict[str, Any]:
+    return connectors.BackendSchedulerSettings(
+        **backend_config.get('scheduler_settings', {})
+    ).model_dump(mode='json')
+
+
+def _affected_backends_for_queue_sync(
+    previous: Dict[str, Any] | None,
+    current: Dict[str, Any],
+) -> set[str]:
+    affected: set[str] = set()
+    old_backends = previous.get('backends', {}) if previous else {}
+    new_backends = current.get('backends', {})
+
+    for backend_name in set(old_backends) | set(new_backends):
+        if backend_name not in old_backends or backend_name not in new_backends:
+            affected.add(backend_name)
+            continue
+        old_backend = old_backends.get(backend_name, {})
+        new_backend = new_backends.get(backend_name, {})
+        if not isinstance(old_backend, dict) or not isinstance(new_backend, dict):
+            continue
+        old_scheduler = _normalized_scheduler_settings(old_backend)
+        new_scheduler = _normalized_scheduler_settings(new_backend)
+        if old_scheduler != new_scheduler:
+            affected.add(backend_name)
+
+    old_pools = previous.get('pools', {}) if previous else {}
+    new_pools = current.get('pools', {})
+    for pool_name in set(old_pools) | set(new_pools):
+        old_pool = old_pools.get(pool_name)
+        new_pool = new_pools.get(pool_name)
+        if old_pool == new_pool:
+            continue
+        old_backend = _pool_backend(old_pool)
+        new_backend = _pool_backend(new_pool)
+        if old_backend:
+            affected.add(old_backend)
+        if new_backend:
+            affected.add(new_backend)
+
+    return affected
+
+
+def _backend_test_template_names(test_config: Any) -> set[str]:
+    if not isinstance(test_config, dict):
+        return set()
+    templates = test_config.get('common_pod_template', [])
+    if not isinstance(templates, list):
+        return set()
+    return {template for template in templates if isinstance(template, str)}
+
+
+def _backends_referencing_tests(
+    snapshot: Dict[str, Any] | None, test_names: set[str],
+) -> set[str]:
+    if not snapshot or not test_names:
+        return set()
+    affected: set[str] = set()
+    for backend_name, backend_config in snapshot.get('backends', {}).items():
+        if not isinstance(backend_config, dict):
+            continue
+        tests = backend_config.get('tests', [])
+        if isinstance(tests, list) and test_names.intersection(tests):
+            affected.add(backend_name)
+    return affected
+
+
+def _affected_backends_for_test_sync(
+    previous: Dict[str, Any] | None,
+    current: Dict[str, Any],
+) -> set[str]:
+    affected: set[str] = set()
+    old_backends = previous.get('backends', {}) if previous else {}
+    new_backends = current.get('backends', {})
+    if previous is None:
+        return {
+            backend_name for backend_name, backend_config in new_backends.items()
+            if isinstance(backend_config, dict)
+        }
+
+    for backend_name in set(old_backends) | set(new_backends):
+        old_backend = old_backends.get(backend_name, {})
+        new_backend = new_backends.get(backend_name, {})
+        if not isinstance(old_backend, dict) or not isinstance(new_backend, dict):
+            continue
+        old_prefix = old_backend.get('node_conditions', {}).get('prefix')
+        new_prefix = new_backend.get('node_conditions', {}).get('prefix')
+        if old_backend.get('tests', []) != new_backend.get('tests', []):
+            affected.add(backend_name)
+        elif old_prefix != new_prefix:
+            affected.add(backend_name)
+
+    old_tests = previous.get('backend_tests', {}) if previous else {}
+    new_tests = current.get('backend_tests', {})
+    changed_tests = {
+        test_name for test_name in set(old_tests) | set(new_tests)
+        if old_tests.get(test_name) != new_tests.get(test_name)
+    }
+    affected.update(_backends_referencing_tests(previous, changed_tests))
+    affected.update(_backends_referencing_tests(current, changed_tests))
+
+    old_templates = previous.get('pod_templates', {}) if previous else {}
+    new_templates = current.get('pod_templates', {})
+    changed_templates = {
+        template_name for template_name in set(old_templates) | set(new_templates)
+        if old_templates.get(template_name) != new_templates.get(template_name)
+    }
+    if changed_templates:
+        template_affected_tests = {
+            test_name for test_name, test_config in {**old_tests, **new_tests}.items()
+            if _backend_test_template_names(test_config).intersection(changed_templates)
+        }
+        affected.update(_backends_referencing_tests(previous, template_affected_tests))
+        affected.update(_backends_referencing_tests(current, template_affected_tests))
+
+    return affected
+
+
+def _reconcile_backend_side_effects(
+    previous: Dict[str, Any] | None,
+    current: Dict[str, Any],
+    postgres: connectors.PostgresConnector | None,
+    backend_queue_updater: Callable[..., bool] | None,
+    backend_test_updater: Callable[..., bool] | None,
+) -> bool:
+    """Queue backend sync jobs for ConfigMap-driven config changes."""
+    if backend_queue_updater is None or backend_test_updater is None:
+        logging.warning(
+            'ConfigMap backend reconciliation enabled without enqueue callbacks')
+        return False
+
+    queue_backends = _affected_backends_for_queue_sync(previous, current)
+    test_backends = _affected_backends_for_test_sync(previous, current)
+    success = True
+
+    for backend_name in sorted(queue_backends):
+        current_backend = _backend_from_snapshot(current, backend_name, postgres)
+        if current_backend is None:
+            current_backend = _backend_from_snapshot(previous, backend_name, postgres)
+        if current_backend is None:
+            continue
+        previous_backend = _backend_from_snapshot(previous, backend_name, postgres)
+        backend_payload = (
+            _backend_config_from_snapshot(current, backend_name)
+            or _backend_config_from_snapshot(previous, backend_name)
+        )
+        operation = (
+            'apply'
+            if _backend_config_from_snapshot(current, backend_name) is not None
+            else 'delete'
+        )
+        payload = {
+            'operation': operation,
+            'backend': backend_payload,
+            'pools': {
+                pool_name: pool_config
+                for pool_name, pool_config in current.get('pools', {}).items()
+                if _pool_backend(pool_config) == backend_name
+            },
+        }
+        job_id = (
+            f'{backend_name}-modify-queues-configmap-'
+            f'{_stable_config_hash(payload)}'
+        )
+        try:
+            queued = backend_queue_updater(
+                current_backend, previous_backend, job_id=job_id)
+            success = success and queued
+        except Exception:  # pylint: disable=broad-exception-caught
+            success = False
+            logging.exception(
+                'Failed to queue ConfigMap backend queue sync for %s',
+                backend_name)
+
+    for backend_name in sorted(test_backends):
+        backend_config = _backend_config_from_snapshot(current, backend_name)
+        if backend_config is None:
+            previous_config = _backend_config_from_snapshot(previous, backend_name)
+            if previous_config is None:
+                continue
+            backend_config = {
+                **previous_config,
+                'tests': [],
+            }
+        tests = backend_config.get('tests', [])
+        if not isinstance(tests, list):
+            tests = []
+        node_condition_prefix = (
+            backend_config.get('node_conditions', {}).get(
+                'prefix', 'osmo.nvidia.com/')
+        )
+        payload = {
+            'backend': backend_config,
+            'backend_tests': {
+                test_name: current.get('backend_tests', {}).get(test_name)
+                for test_name in tests
+            },
+        }
+        job_id = (
+            f'{backend_name}-sync-tests-configmap-'
+            f'{_stable_config_hash(payload)}'
+        )
+        try:
+            queued = backend_test_updater(
+                backend_name, tests, node_condition_prefix, job_id=job_id)
+            success = success and queued
+        except Exception:  # pylint: disable=broad-exception-caught
+            success = False
+            logging.exception(
+                'Failed to queue ConfigMap backend test sync for %s',
+                backend_name)
+
+    return success
+
+
+def _resolve_backend_test_computed_fields(managed_configs: Dict[str, Any]) -> None:
+    """Compute parsed_pod_template for backend tests from pod template names."""
+    backend_tests = managed_configs.get('backend_tests', {})
+    if not isinstance(backend_tests, dict):
+        return
+    pod_templates = managed_configs.get('pod_templates', {})
+    if not isinstance(pod_templates, dict):
+        pod_templates = {}
+
+    for test_name, test_config in backend_tests.items():
+        if not isinstance(test_config, dict):
+            continue
+        common_pod_template = test_config.get('common_pod_template', [])
+        if not isinstance(common_pod_template, list):
+            common_pod_template = []
+            test_config['common_pod_template'] = common_pod_template
+
+        parsed_pod_template: Dict[str, Any] = {}
+        for template_name in common_pod_template:
+            if template_name in pod_templates:
+                parsed_pod_template = recursive_dict_update(
+                    parsed_pod_template,
+                    copy.deepcopy(pod_templates[template_name]),
+                    merge_lists_on_name)
+            else:
+                logging.warning(
+                    'Pod template %r referenced by backend test %s not found',
+                    template_name, test_name)
+        test_config['parsed_pod_template'] = parsed_pod_template
 
 
 # ---------------------------------------------------------------------------

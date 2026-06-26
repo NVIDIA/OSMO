@@ -34,7 +34,8 @@ from src.utils import connectors
 
 
 def update_backend_queues(current_backend: connectors.Backend,
-    prev_backend: connectors.Backend | None = None):
+    prev_backend: connectors.Backend | None = None,
+    job_id: str | None = None) -> bool:
     """
     Update the k8s scheduler objects (queues, topologies, etc.) in the backend
 
@@ -77,17 +78,19 @@ def update_backend_queues(current_backend: connectors.Backend,
                     deduped_specs.append(spec)
             cleanup_specs = deduped_specs
 
-    if not cleanup_specs or not objects_list:
-        return
+    if not cleanup_specs:
+        return True
 
     job = backend_jobs.BackendSynchronizeQueues(
         backend=current_backend.name,
+        job_id=job_id,
         k8s_resources=objects_list,  # Contains both Queue and Topology CRDs
         # Specs for both object types (including old scheduler if switching)
         cleanup_specs=cleanup_specs,
         immutable_kinds=kb_factory.list_immutable_scheduler_resources()
     )
     job.send_job_to_queue()
+    return True
 
 
 def put_configs(
@@ -683,7 +686,8 @@ def pod_labels_and_tolerations_equal(t1: Dict, t2: Dict) -> bool:
 
 
 def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
-                                 node_condition_prefix: str):
+                                 node_condition_prefix: str,
+                                 job_id: str | None = None) -> bool:
     """
     Update CronJobs for backend tests by sending test configurations directly to the job.
     The job will handle creating ConfigMaps and CronJob specs internally.
@@ -712,16 +716,19 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
         # Create SynchronizeBackendTest job with test configurations
         sync_job = backend_jobs.BackendSynchronizeBackendTest(
             backend=backend_name,
+            job_id=job_id,
             test_configs=test_configs,
             node_condition_prefix=node_condition_prefix
         )
         sync_job.send_job_to_queue()
         logging.info('Queued SynchronizeBackendTest job for backend %s with %d test configs',
                      backend_name, len(test_configs))
+        return True
 
     except osmo_errors.OSMOError as error:
         logging.error('Failed to queue SynchronizeBackendTest job for backend %s: %s',
                       backend_name, error)
+        return False
 
 
 def notify_backends_of_test_update(test_name: str):
