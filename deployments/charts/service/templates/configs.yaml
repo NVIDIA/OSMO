@@ -53,7 +53,13 @@ data:
     {{- end }}
     {{- if $cfg.backends }}
     backends:
-      {{- toYaml $cfg.backends | nindent 6 }}
+      {{- $backends := deepCopy $cfg.backends }}
+      {{- range $name, $backend := $backends }}
+      {{- if and (kindIs "map" $backend) (not (index $backend "k8s_namespace")) }}
+      {{- $_ := set $backend "k8s_namespace" $.Release.Namespace }}
+      {{- end }}
+      {{- end }}
+      {{- toYaml $backends | nindent 6 }}
     {{- end }}
     {{- if $cfg.backendTests }}
     backend_tests:

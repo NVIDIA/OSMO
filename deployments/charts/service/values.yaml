@@ -604,9 +604,9 @@ services:
           resources: ["*"]
         external_roles: [osmo-backend]
 
-    ## Backend cluster definitions. The "default" backend is created by
-    ## configure_app() on first deploy — include it here so ConfigMap mode
-    ## serves it from memory.
+    ## Backend cluster definitions. ConfigMap mode requires k8s_namespace
+    ## because backend queue names include it. When omitted, the chart renders
+    ## the Helm release namespace; set it explicitly for remote backends.
     ##
     backends:
       default:
