@@ -16,8 +16,7 @@
 
 # -- Path setup --------------------------------------------------------------
 
-import importlib
-import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,49 +26,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 
-def _multiversion_repo_root():
-    """Return the repo root of the version sphinx-multiversion is building.
-
-    sphinx-multiversion passes ``-D smv_metadata_path`` and
-    ``-D smv_current_version`` to both its html and markdown passes; the metadata
-    file records each version's checked-out tree (``basedir``). This is used
-    instead of an env var or the cwd (which are not set consistently across both
-    passes). Returns None for a normal single-version build.
-    """
-    metadata_path = current_version = None
-    arguments = sys.argv
-    for index in range(len(arguments) - 1):
-        if arguments[index] != "-D":
-            continue
-        override = arguments[index + 1]
-        if override.startswith("smv_metadata_path="):
-            metadata_path = override.split("=", 1)[1]
-        elif override.startswith("smv_current_version="):
-            current_version = override.split("=", 1)[1]
-    if not metadata_path or not current_version:
-        return None
-    try:
-        with open(metadata_path, encoding="utf-8") as metadata_file:
-            metadata = json.load(metadata_file)
-        return metadata[current_version]["basedir"]
-    except (OSError, ValueError, KeyError):
-        return None
-
-
-# Under sphinx-multiversion, import `src` from the version being built (its own
-# checked-out tree) so each release's CLI autodoc/argparse pages reflect the
-# parser it shipped. If the version's source cannot be imported in this build
-# venv (e.g. legacy pydantic-v1 release branches, which are frozen), fall back to
-# the working-tree src already on PYTHONPATH so the build still succeeds.
-_version_root = _multiversion_repo_root()
-if _version_root and _version_root not in sys.path:
-    sys.path.insert(0, _version_root)
-    try:
-        importlib.import_module("src.cli.main_parser")
-    except Exception:
-        sys.path.remove(_version_root)
-        for _name in [n for n in sys.modules if n == "src" or n.startswith("src.")]:
-            del sys.modules[_name]
+# When sphinx-multiversion builds a release branch, the source files come from a
+# temporary checkout while this config still comes from the current checkout.
+# Prefer that versioned checkout for src.* imports so generated CLI docs match
+# the release docs being rendered.
+source_dir = Path(os.environ.get("SPHINX_MULTIVERSION_SOURCEDIR", Path.cwd())).resolve()
+sys.path.insert(1, str(source_dir.parent))
 
 # -- Project information -----------------------------------------------------
 
