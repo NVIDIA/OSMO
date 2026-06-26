@@ -26,10 +26,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 
-# When sphinx-multiversion builds a release branch, the source files come from a
-# temporary checkout while this config still comes from the current checkout.
-# Prefer that versioned checkout for src.* imports so generated CLI docs match
-# the release docs being rendered.
+# Import `src.*` from the version being built (its own checkout under
+# sphinx-multiversion) so CLI docs match that release.
 source_dir = Path(os.environ.get("SPHINX_MULTIVERSION_SOURCEDIR", Path.cwd())).resolve()
 sys.path.insert(1, str(source_dir.parent))
 

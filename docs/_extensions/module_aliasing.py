@@ -87,10 +87,8 @@ def _import_and_alias(modname: str):
         sys.modules[osmo_name] = module
         return module
     except Exception:
-        # Skip aliasing when the module cannot be imported. Beyond a plain
-        # ImportError, a version's source built for older dependency pins may
-        # raise other errors under this build venv; skip rather than abort the
-        # whole multiversion build.
+        # Skip aliasing if the module can't import (e.g. a legacy version's
+        # source under newer deps) rather than aborting the whole build.
         return None
 
 
