@@ -16,6 +16,7 @@
 
 # -- Path setup --------------------------------------------------------------
 
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +24,12 @@ from pathlib import Path
 # Add the directory containing conf.py to the path so custom extensions can be found
 # This is important for sphinx-multiversion which runs from temporary directories
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
+
+
+# Import `src.*` from the version being built (its own checkout under
+# sphinx-multiversion) so CLI docs match that release.
+source_dir = Path(os.environ.get("SPHINX_MULTIVERSION_SOURCEDIR", Path.cwd())).resolve()
+sys.path.insert(1, str(source_dir.parent))
 
 # -- Project information -----------------------------------------------------
 

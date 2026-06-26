@@ -86,7 +86,9 @@ def _import_and_alias(modname: str):
         osmo_name = _get_osmo_name(src_name)
         sys.modules[osmo_name] = module
         return module
-    except ImportError:
+    except Exception:
+        # Skip aliasing if the module can't import (e.g. a legacy version's
+        # source under newer deps) rather than aborting the whole build.
         return None
 
 

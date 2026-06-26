@@ -55,6 +55,10 @@ jobs:
           git fetch
           pip install -U -r docs/locked_requirements.txt
           pip install -U -r src/locked_requirements.txt
+          # Install release/6.3's src requirements so its CLI parser imports
+          # when the multiversion build renders 6.3 from its own checkout.
+          git show origin/release/6.3:src/locked_requirements.txt > /tmp/req-release-6.3.txt
+          pip install -U -r /tmp/req-release-6.3.txt
 
       - name: Build Sphinx documentation
         run: |

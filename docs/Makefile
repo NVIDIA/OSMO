@@ -47,7 +47,7 @@ build:
 	rm -rf $(OUT_DIR)/_sources
 
 build-multiversion:
-	export OSMO_DOMAIN=public && $(SPHINXBUILD) . $(OUT_DIR)
+	export OSMO_DOMAIN=public && $(SPHINXBUILD) . $(OUT_DIR) --run-markdown-build
 	rm -rf $(OUT_DIR)/_sources
 	@cp _redirect/redirect_user_guide.html $(OUT_DIR)/index.html
 
