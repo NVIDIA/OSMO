@@ -154,7 +154,7 @@ jobs:
             -var "postgres_password=auth-check-placeholder-not-applied" \
             -no-color
         env:
-          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
 
   # Build OSMO service + backend images from THIS PR's source and push them
@@ -439,7 +439,7 @@ jobs:
           echo "::endgroup::"
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
 
@@ -476,7 +476,7 @@ jobs:
       - name: build TF var file (consumed by both apply and destroy)
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           PG_PASS: ${{ steps.gen_pg.outputs.value }}
@@ -504,33 +504,29 @@ jobs:
       # internal-ci AKS is set up (the wrapper invocation in the middle
       # stays unchanged).
 
-      # Region-suffix the RG name so flipping `vars.AZURE_REGION` alone
-      # repoints the gate at a fresh per-region RG (the prior eastus2
-      # Managed Redis AllocationFailed window made cross-region cheap
-      # to need). Effective name = vars.AZURE_RESOURCE_GROUP-<region>,
-      # e.g. `osmo-deployment-ci-westus2`. Idempotent — no-op if the RG
-      # already exists at the right location; errors loudly if it exists
-      # in a different region (shouldn't happen since the name itself
-      # encodes the region, but defends against a hand-edited RG).
-      # Requires the OIDC SP to have
-      # Microsoft.Resources/resourceGroups/write at the subscription
-      # level — workflow-creates-RG was the explicit Plan B choice.
-      - name: TEMP — ensure resource group exists at $AZURE_REGION
+      # Sanity check: the RG named by vars.AZURE_RESOURCE_GROUP must
+      # already exist and live in vars.AZURE_REGION. The OIDC SP is
+      # RG-scoped (Contributor on the named RG only, not subscription-
+      # level), so workflow-side `az group create` doesn't work; moving
+      # to a different region is a manual op (create the new RG + grant
+      # the SP Contributor on it, then update vars.AZURE_RESOURCE_GROUP
+      # and vars.AZURE_REGION). Fail fast here rather than deep inside
+      # terraform apply.
+      - name: TEMP — verify resource group is in $AZURE_REGION
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
         run: |
           set -euo pipefail
           existing=$(az group show --name "$AZURE_RESOURCE_GROUP" --query location -o tsv 2>/dev/null || true)
           if [ -z "$existing" ]; then
-            echo "::notice::creating resource group $AZURE_RESOURCE_GROUP in $AZURE_REGION"
-            az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_REGION" -o table
-          elif [ "$existing" != "$AZURE_REGION" ]; then
-            echo "::error::resource group $AZURE_RESOURCE_GROUP exists in '$existing' but workflow expects '$AZURE_REGION'. The RG name encodes the region, so this means someone hand-created the RG in the wrong place — delete it (or rename) and re-run."
+            echo "::error::resource group '$AZURE_RESOURCE_GROUP' not found (or SP lacks read access). Pre-create the RG in '$AZURE_REGION' and grant the OIDC SP Contributor on it, then re-run."
             exit 1
-          else
-            echo "::notice::resource group $AZURE_RESOURCE_GROUP already in $AZURE_REGION"
+          elif [ "$existing" != "$AZURE_REGION" ]; then
+            echo "::error::resource group '$AZURE_RESOURCE_GROUP' lives in '$existing' but workflow expects '$AZURE_REGION'. Either update vars.AZURE_REGION to '$existing' or point vars.AZURE_RESOURCE_GROUP at a RG in '$AZURE_REGION'."
+            exit 1
           fi
+          echo "::notice::resource group $AZURE_RESOURCE_GROUP confirmed in $AZURE_REGION"
 
       # If a prior verification run was killed mid-destroy (e.g. job
       # timeout), Azure resources may exist in the RG without matching
@@ -599,7 +595,7 @@ jobs:
           fi
           echo "::notice::cleanup complete"
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
 
       - name: TEMP — terraform apply (provision AKS + Postgres + Redis)
         working-directory: deployments/terraform/azure/example
@@ -640,7 +636,7 @@ jobs:
             echo "- finished at: $(date -u +%H:%M:%SZ)"
           } >> "$GITHUB_STEP_SUMMARY"
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           PG_PASS: ${{ steps.gen_pg.outputs.value }}
@@ -674,7 +670,7 @@ jobs:
       # job lifetime, so the token's validity window is sufficient.
       - name: wire kubectl + pre-create GHCR pull secret
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           GHCR_USERNAME: ${{ github.actor }}
           GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
@@ -742,7 +738,7 @@ jobs:
         id: run_deploy
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           POSTGRES_PASSWORD: ${{ steps.gen_pg.outputs.value }}
@@ -822,7 +818,7 @@ jobs:
         if: always()
         timeout-minutes: 5
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
           set +e
@@ -1000,7 +996,7 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}-${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           PG_PASS: ${{ steps.gen_pg.outputs.value }}
