@@ -503,6 +503,33 @@ jobs:
       # AFTER. Remove these two scaffolding steps once a long-running
       # internal-ci AKS is set up (the wrapper invocation in the middle
       # stays unchanged).
+
+      # Make the RG location track AZURE_REGION so we can move regions
+      # by flipping a single repo var (the prior eastus2 Managed Redis
+      # AllocationFailed window made this necessary). Idempotent — no-op
+      # if the RG already exists at the right location; errors loudly if
+      # it exists in a different region, since Azure can't relocate RGs
+      # in place (caller has to rename `vars.AZURE_RESOURCE_GROUP` or fix
+      # `vars.AZURE_REGION`). Requires the OIDC SP to have
+      # Microsoft.Resources/resourceGroups/write at the subscription
+      # level — workflow-creates-RG was the explicit Plan B choice.
+      - name: TEMP — ensure resource group exists at $AZURE_REGION
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+        run: |
+          set -euo pipefail
+          existing=$(az group show --name "$AZURE_RESOURCE_GROUP" --query location -o tsv 2>/dev/null || true)
+          if [ -z "$existing" ]; then
+            echo "::notice::creating resource group $AZURE_RESOURCE_GROUP in $AZURE_REGION"
+            az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_REGION" -o table
+          elif [ "$existing" != "$AZURE_REGION" ]; then
+            echo "::error::resource group $AZURE_RESOURCE_GROUP exists in '$existing' but workflow expects '$AZURE_REGION'. Azure can't relocate resource groups — either update vars.AZURE_REGION to '$existing', or change vars.AZURE_RESOURCE_GROUP to a new name (e.g. region-suffixed) and re-run."
+            exit 1
+          else
+            echo "::notice::resource group $AZURE_RESOURCE_GROUP already in $AZURE_REGION"
+          fi
+
       # If a prior verification run was killed mid-destroy (e.g. job
       # timeout), Azure resources may exist in the RG without matching
       # terraform state — and `terraform apply` would then fail with
