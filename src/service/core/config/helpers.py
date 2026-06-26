@@ -709,7 +709,6 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
         current_tests: Current list of test names in backend configuration
         node_condition_prefix: Prefix for node conditions/labels
     """
-    context = objects.WorkflowServiceContext.get()
     postgres = connectors.PostgresConnector.get_instance()
 
     try:

@@ -37,7 +37,22 @@ from src.lib.utils import osmo_errors
 from src.service.core.config import (
     configmap_events, configmap_guard, configmap_loader, helpers,
 )
-from src.utils import configmap_state
+from src.utils import auth, configmap_state
+
+
+def _service_auth_config() -> Dict[str, Any]:
+    service_auth = auth.AuthenticationConfig.generate_default()
+    data = service_auth.model_dump(mode='json')
+    for key_name, key_pair in service_auth.keys.items():
+        data['keys'][key_name]['private_key'] = (
+            key_pair.private_key.get_secret_value())
+    return data
+
+
+def _with_service_auth(config: Dict[str, Any]) -> Dict[str, Any]:
+    config = copy.deepcopy(config)
+    config.setdefault('service', {})['service_auth'] = _service_auth_config()
+    return config
 
 
 class TestConfigmapGuard(unittest.TestCase):
@@ -521,8 +536,7 @@ class TestConfigMapWatcherStart(unittest.TestCase):
     def test_start_raises_on_invalid_configmap(self):
         """Bad ConfigMap at startup raises RuntimeError — pod crashes,
         rolling update stalls, old pods keep serving."""
-        watcher = configmap_loader.ConfigMapWatcher(
-            '/nonexistent/path.yaml', postgres=None)
+        watcher = configmap_loader.ConfigMapWatcher('/nonexistent/path.yaml')
         with self.assertRaises(RuntimeError) as context:
             watcher.start()
         self.assertIn('ConfigMap load failed', str(context.exception))
@@ -538,10 +552,10 @@ class TestConfigMapWatcherStart(unittest.TestCase):
         }
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp:
-            yaml.dump(config, temp)
+            yaml.dump(_with_service_auth(config), temp)
             path = temp.name
         try:
-            watcher = configmap_loader.ConfigMapWatcher(path, postgres=None)
+            watcher = configmap_loader.ConfigMapWatcher(path)
             watcher.start()
             self.assertTrue(configmap_guard.is_configmap_mode())
             self.assertIsNotNone(watcher._observer)
@@ -563,10 +577,10 @@ class TestConfigMapWatcherStart(unittest.TestCase):
         }
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp:
-            yaml.dump(config, temp)
+            yaml.dump(_with_service_auth(config), temp)
             path = temp.name
         try:
-            watcher = configmap_loader.ConfigMapWatcher(path, postgres=None)
+            watcher = configmap_loader.ConfigMapWatcher(path)
             try:
                 watcher.start()
                 snapshot = configmap_guard.get_snapshot()
@@ -597,11 +611,6 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
     """Reload failures/recoveries emit K8s Events for operator visibility."""
 
     def setUp(self):
-        self.mock_postgres = mock.MagicMock()
-        mock_service_config = mock.MagicMock()
-        mock_service_config.plaintext_dict.return_value = {}
-        self.mock_postgres.get_service_configs.return_value = (
-            mock_service_config)
         configmap_state.set_configmap_mode(False)
         configmap_state.set_parsed_configs(None)
 
@@ -612,14 +621,13 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
     def _write(self, config: Dict[str, Any]) -> str:
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp:
-            yaml.dump(config, temp)
+            yaml.dump(_with_service_auth(config), temp)
             return temp.name
 
     def test_emits_warning_on_missing_file(self):
         recorder = _FakeEventRecorder()
         watcher = configmap_loader.ConfigMapWatcher(
-            '/nonexistent/path.yaml', self.mock_postgres,
-            event_recorder=recorder)
+            '/nonexistent/path.yaml', event_recorder=recorder)
         watcher._load_and_apply()
         self.assertEqual(len(recorder.failures), 1)
         self.assertIn('/nonexistent/path.yaml', recorder.failures[0])
@@ -630,7 +638,7 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
         try:
             recorder = _FakeEventRecorder()
             watcher = configmap_loader.ConfigMapWatcher(
-                bad_path, self.mock_postgres, event_recorder=recorder)
+                bad_path, event_recorder=recorder)
             watcher._load_and_apply()
             self.assertEqual(len(recorder.failures), 1)
             self.assertIn('pod_templates', recorder.failures[0])
@@ -640,11 +648,12 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
     def test_no_success_event_on_first_time_success(self):
         """Successful reloads with no prior failure must not emit — noise."""
         good_path = self._write(
-            {'pod_templates': {'ctrl': {'spec': {'containers': []}}}})
+            _with_service_auth(
+                {'pod_templates': {'ctrl': {'spec': {'containers': []}}}}))
         try:
             recorder = _FakeEventRecorder()
             watcher = configmap_loader.ConfigMapWatcher(
-                good_path, self.mock_postgres, event_recorder=recorder)
+                good_path, event_recorder=recorder)
             result = watcher._load_and_apply()
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
             self.assertEqual(recorder.failures, [])
@@ -656,11 +665,12 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
         """After a failed reload, the next successful one emits Normal."""
         bad_path = self._write({'pod_templates': 'not-a-dict'})
         good_path = self._write(
-            {'pod_templates': {'ctrl': {'spec': {'containers': []}}}})
+            _with_service_auth(
+                {'pod_templates': {'ctrl': {'spec': {'containers': []}}}}))
         try:
             recorder = _FakeEventRecorder()
             watcher = configmap_loader.ConfigMapWatcher(
-                bad_path, self.mock_postgres, event_recorder=recorder)
+                bad_path, event_recorder=recorder)
             watcher._load_and_apply()  # fails
             watcher._config_file_path = good_path
             watcher._load_and_apply()  # recovers
@@ -676,7 +686,7 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
         bad_path = self._write({'pod_templates': 'not-a-dict'})
         try:
             watcher = configmap_loader.ConfigMapWatcher(
-                bad_path, self.mock_postgres, event_recorder=None)
+                bad_path, event_recorder=None)
             # Must not raise despite the failure
             result = watcher._load_and_apply()
             self.assertNotEqual(result, configmap_loader.LoadResult.SUCCESS)
@@ -865,7 +875,6 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     """Tests for ConfigMapWatcher._load_and_apply."""
 
     def setUp(self):
-        self.mock_postgres = mock.MagicMock()
         configmap_state.set_configmap_mode(False)
         configmap_state.set_parsed_configs(None)
 
@@ -876,7 +885,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     def _write_config_file(self, config: Dict[str, Any]) -> str:
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp:
-            yaml.dump(config, temp)
+            yaml.dump(_with_service_auth(config), temp)
             return temp.name
 
     def _wire_reconciliation_callbacks(
@@ -892,8 +901,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             test_updater if test_updater is not None else mock.MagicMock())
 
     def test_load_file_not_found(self):
-        watcher = configmap_loader.ConfigMapWatcher(
-            '/nonexistent/path.yaml', self.mock_postgres)
+        watcher = configmap_loader.ConfigMapWatcher('/nonexistent/path.yaml')
         result = watcher._load_and_apply()
         self.assertEqual(
             result, configmap_loader.LoadResult.TRANSIENT_FAILURE)
@@ -905,8 +913,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             temp.write('')
             path = temp.name
         try:
-            watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres)
+            watcher = configmap_loader.ConfigMapWatcher(path)
             result = watcher._load_and_apply()
             self.assertEqual(
                 result, configmap_loader.LoadResult.PERMANENT_FAILURE)
@@ -919,18 +926,9 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 'default_ctrl': {'spec': {'containers': []}},
             },
         }
-        path = self._write_config_file(config)
+        path = self._write_config_file(_with_service_auth(config))
         try:
-            mock_service_config = mock.MagicMock()
-            mock_service_config.plaintext_dict.return_value = {
-                'service_auth': {'keys': {}},
-                'service_base_url': 'https://example.com',
-            }
-            self.mock_postgres.get_service_configs.return_value = (
-                mock_service_config)
-
-            watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres)
+            watcher = configmap_loader.ConfigMapWatcher(path)
             result = watcher._load_and_apply()
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
@@ -941,7 +939,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_load_injects_runtime_fields(self):
+    def test_cold_load_requires_service_auth(self):
         config: Dict[str, Any] = {
             'service': {
                 'max_pod_restart_limit': '30m',
@@ -949,30 +947,52 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         }
         path = self._write_config_file(config)
         try:
-            mock_service_config = mock.MagicMock()
-            mock_service_config.plaintext_dict.return_value = {
-                'service_auth': {'keys': {'key1': 'value1'}},
-                'service_base_url': 'https://example.com',
-            }
-            self.mock_postgres.get_service_configs.return_value = (
-                mock_service_config)
+            watcher = configmap_loader.ConfigMapWatcher(path)
+            result = watcher._load_and_apply()
+            self.assertEqual(
+                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
+            self.assertIsNone(configmap_state.get_snapshot())
+        finally:
+            os.unlink(path)
 
-            watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres)
+    def test_reload_carries_forward_service_auth(self):
+        previous_auth = _service_auth_config()
+        configmap_state.set_parsed_configs({
+            'service': {'service_auth': previous_auth},
+        })
+        config: Dict[str, Any] = {
+            'service': {
+                'max_pod_restart_limit': '45m',
+            },
+        }
+        path = self._write_config_file(config)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(path)
             result = watcher._load_and_apply()
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
             service_config = snapshot['service']
+            self.assertEqual(service_config['service_auth'], previous_auth)
             self.assertEqual(
-                service_config['max_pod_restart_limit'], '30m')
-            # Only service_auth is injected from DB now. service_base_url
-            # is sourced from the ConfigMap (Helm template auto-derives
-            # it from services.service.hostname); falling back to DB
-            # silently masked ConfigMap misconfiguration.
-            self.assertIn('service_auth', service_config)
-            self.assertNotIn('service_base_url', service_config)
+                service_config['max_pod_restart_limit'], '45m')
+        finally:
+            os.unlink(path)
+
+    def test_backend_requires_k8s_namespace(self):
+        config: Dict[str, Any] = _with_service_auth({
+            'backends': {
+                'backend-a': {'tests': []},
+            },
+        })
+        path = self._write_config_file(config)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(path)
+            result = watcher._load_and_apply()
+            self.assertEqual(
+                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
+            self.assertIsNone(configmap_state.get_snapshot())
         finally:
             os.unlink(path)
 
@@ -981,14 +1001,9 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         good_config: Dict[str, Any] = {
             'pod_templates': {'tmpl': {'spec': {}}},
         }
-        good_path = self._write_config_file(good_config)
-        mock_service_config = mock.MagicMock()
-        mock_service_config.plaintext_dict.return_value = {}
-        self.mock_postgres.get_service_configs.return_value = (
-            mock_service_config)
+        good_path = self._write_config_file(_with_service_auth(good_config))
 
-        watcher = configmap_loader.ConfigMapWatcher(
-            good_path, self.mock_postgres)
+        watcher = configmap_loader.ConfigMapWatcher(good_path)
         watcher._load_and_apply()
 
         old_snapshot = configmap_state.get_snapshot()
@@ -1000,8 +1015,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         }
         bad_path = self._write_config_file(bad_config)
         try:
-            watcher2 = configmap_loader.ConfigMapWatcher(
-                bad_path, self.mock_postgres)
+            watcher2 = configmap_loader.ConfigMapWatcher(bad_path)
             result = watcher2._load_and_apply()
             self.assertEqual(
                 result, configmap_loader.LoadResult.PERMANENT_FAILURE)
@@ -1018,6 +1032,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 'backend-a': {
                     'tests': ['test-a'],
                     'node_conditions': {'prefix': 'example.com/'},
+                    'k8s_namespace': 'runtime-ns-a',
                 },
             },
             'backend_tests': {
@@ -1033,11 +1048,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 'tmpl-a': {'spec': {'containers': []}},
             },
         }
-        path = self._write_config_file(config)
+        path = self._write_config_file(_with_service_auth(config))
         try:
-            self.mock_postgres.get_service_configs.return_value.plaintext_dict.return_value = {}
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
             old_snapshot = copy.deepcopy(config)
             old_snapshot['backends']['backend-a']['tests'] = []
             watcher._last_reconciled_snapshot = old_snapshot
@@ -1070,7 +1084,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     def test_non_api_reload_does_not_reconcile_backend_tests(self):
         config: Dict[str, Any] = {
             'backends': {
-                'backend-a': {'tests': ['test-a']},
+                'backend-a': {
+                    'tests': ['test-a'],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
             },
             'backend_tests': {
                 'test-a': {
@@ -1085,11 +1102,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 'tmpl-a': {'spec': {'containers': []}},
             },
         }
-        path = self._write_config_file(config)
+        path = self._write_config_file(_with_service_auth(config))
         try:
-            self.mock_postgres.get_service_configs.return_value.plaintext_dict.return_value = {}
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=False)
+                path, enable_reconciliation=False)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_tests_cronjobs',
@@ -1111,6 +1127,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                     'tests': [],
                     'scheduler_settings': {'scheduler_type': 'kai'},
                     'node_conditions': {},
+                    'k8s_uid': 'uid-a',
+                    'k8s_namespace': 'runtime-ns-a',
+                    'version': '1.0.0',
+                    'last_heartbeat': now,
+                    'created_date': now,
                 },
             },
             'pools': {
@@ -1127,17 +1148,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         new_config['pools']['pool-a']['platforms']['gpu'] = {
             'default_variables': {'A': 2},
         }
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
-            self.mock_postgres.execute_fetch_command.return_value = [{
-                'k8s_uid': 'uid-a',
-                'k8s_namespace': 'runtime-ns-a',
-                'version': '1.0.0',
-                'last_heartbeat': now,
-                'created_date': now,
-            }]
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
             watcher._last_reconciled_snapshot = old_snapshot
 
             with mock.patch(
@@ -1171,13 +1185,16 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     def test_api_reconcile_first_load_empty_tests_for_cleanup(self):
         config: Dict[str, Any] = {
             'backends': {
-                'backend-a': {'tests': []},
+                'backend-a': {
+                    'tests': [],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
             },
         }
-        path = self._write_config_file(config)
+        path = self._write_config_file(_with_service_auth(config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_tests_cronjobs',
@@ -1200,21 +1217,21 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         now = datetime.datetime.now(datetime.timezone.utc)
         config: Dict[str, Any] = {
             'backends': {
-                'backend-a': {'tests': []},
+                'backend-a': {
+                    'tests': [],
+                    'k8s_uid': 'uid-a',
+                    'k8s_namespace': 'runtime-ns-a',
+                    'version': '1.0.0',
+                    'last_heartbeat': now,
+                    'created_date': now,
+                },
             },
             'pools': {},
         }
-        path = self._write_config_file(config)
+        path = self._write_config_file(_with_service_auth(config))
         try:
-            self.mock_postgres.execute_fetch_command.return_value = [{
-                'k8s_uid': 'uid-a',
-                'k8s_namespace': 'runtime-ns-a',
-                'version': '1.0.0',
-                'last_heartbeat': now,
-                'created_date': now,
-            }]
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
@@ -1266,6 +1283,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 'backend-a': {
                     'tests': ['test-a'],
                     'node_conditions': {'prefix': 'example.com/'},
+                    'k8s_namespace': 'runtime-ns-a',
                 },
             },
             'backend_tests': {
@@ -1285,11 +1303,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         new_config['pod_templates']['tmpl-a'] = {
             'spec': {'containers': [{'name': 'main'}]},
         }
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
             configmap_state.set_parsed_configs(old_snapshot)
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_tests_cronjobs',
@@ -1319,7 +1337,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     def test_api_reconcile_failure_does_not_fail_reload(self):
         config: Dict[str, Any] = {
             'backends': {
-                'backend-a': {'tests': ['test-a']},
+                'backend-a': {
+                    'tests': ['test-a'],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
             },
             'backend_tests': {
                 'test-a': {
@@ -1334,10 +1355,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 'tmpl-a': {'spec': {'containers': []}},
             },
         }
-        path = self._write_config_file(config)
+        path = self._write_config_file(_with_service_auth(config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_tests_cronjobs',
@@ -1357,7 +1378,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     def test_api_reconcile_failure_retries_same_config_next_reload(self):
         config: Dict[str, Any] = {
             'backends': {
-                'backend-a': {'tests': ['test-a']},
+                'backend-a': {
+                    'tests': ['test-a'],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
             },
             'backend_tests': {
                 'test-a': {
@@ -1372,10 +1396,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 'tmpl-a': {'spec': {'containers': []}},
             },
         }
-        path = self._write_config_file(config)
+        path = self._write_config_file(_with_service_auth(config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_tests_cronjobs',
@@ -1402,6 +1426,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                     'tests': ['test-a'],
                     'scheduler_settings': {'scheduler_type': 'kai'},
                     'node_conditions': {'prefix': 'example.com/'},
+                    'k8s_uid': 'uid-a',
+                    'k8s_namespace': 'runtime-ns-a',
+                    'version': '1.0.0',
+                    'last_heartbeat': now,
+                    'created_date': now,
                 },
             },
             'pools': {
@@ -1428,18 +1457,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             'pools': {},
             'backend_tests': old_snapshot['backend_tests'],
         }
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
             watcher._last_reconciled_snapshot = old_snapshot
-            self.mock_postgres.execute_fetch_command.return_value = [{
-                'k8s_uid': 'uid-a',
-                'k8s_namespace': 'runtime-ns-a',
-                'version': '1.0.0',
-                'last_heartbeat': now,
-                'created_date': now,
-            }]
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
@@ -1469,15 +1491,18 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         old_snapshot: Dict[str, Any] = {
             'service': {'max_pod_restart_limit': '30m'},
             'backends': {
-                'backend-a': {'tests': []},
+                'backend-a': {
+                    'tests': [],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
             },
         }
         new_config = copy.deepcopy(old_snapshot)
         new_config['service']['max_pod_restart_limit'] = '45m'
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
-                path, self.mock_postgres, enable_reconciliation=True)
+                path, enable_reconciliation=True)
             watcher._last_reconciled_snapshot = old_snapshot
 
             with mock.patch(
@@ -1931,14 +1956,9 @@ class TestResolvePoolComputedFields(unittest.TestCase):
             yaml.dump(config, temp)
             path = temp.name
 
-        mock_postgres = mock.MagicMock()
-        mock_service_config = mock.MagicMock()
-        mock_service_config.plaintext_dict.return_value = {}
-        mock_postgres.get_service_configs.return_value = mock_service_config
-
         try:
             configmap_state.set_parsed_configs(None)
-            watcher = configmap_loader.ConfigMapWatcher(path, mock_postgres)
+            watcher = configmap_loader.ConfigMapWatcher(path)
             result = watcher._load_and_apply()
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
@@ -2007,21 +2027,19 @@ class TestStartConfigWatcher(unittest.TestCase):
 
     def test_returns_none_when_config_file_unset(self):
         watcher = configmap_loader.start_config_watcher(
-            None, mock.MagicMock(), is_api_service=True)
+            None, is_api_service=True)
         self.assertIsNone(watcher)
         self.assertFalse(configmap_state.is_configmap_mode())
 
-    def test_non_api_service_skips_event_recorder_but_injects_runtime(self):
+    def test_non_api_service_skips_event_recorder_and_db_config_load(self):
         """Worker/agent/logger must NOT emit K8s reload events (replicas
-        would race on the same Event object) but MUST still inject
-        service_auth from DB on first load — otherwise the worker falls
-        through to ServiceConfig's default_factory and signs workflow
-        JWTs with a freshly-generated keypair the API can't validate.
+        would race on the same Event object) and must not hydrate config
+        from Postgres when ConfigMap mode is active.
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = os.path.join(tmp_dir, 'config.yaml')
             with open(config_path, 'w', encoding='utf-8') as f:
-                yaml.dump({'service': {}}, f)
+                yaml.dump(_with_service_auth({'service': {}}), f)
 
             postgres = mock.MagicMock()
             with mock.patch.object(
@@ -2033,7 +2051,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                 try:
                     self.assertIsNone(watcher._event_recorder)
                     mock_recorder.assert_not_called()
-                    postgres.get_service_configs.assert_called()
+                    postgres.get_service_configs.assert_not_called()
                 finally:
                     watcher.stop()
 
@@ -2044,7 +2062,7 @@ class TestStartConfigWatcher(unittest.TestCase):
             def write_file_late():
                 time.sleep(0.15)
                 with open(config_path, 'w', encoding='utf-8') as f:
-                    yaml.dump({'service': {}}, f)
+                    yaml.dump(_with_service_auth({'service': {}}), f)
 
             # Speed up the retry loop so the test runs in <1s.
             with mock.patch.object(
@@ -2062,8 +2080,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                 watcher = None
                 try:
                     watcher = configmap_loader.start_config_watcher(
-                        config_path, mock.MagicMock(),
-                        is_api_service=False)
+                        config_path, is_api_service=False)
                     self.assertIsNotNone(watcher)
                     # First call(s) must fail (file not yet present), then
                     # the writer thread creates the file and a later call
@@ -2086,8 +2103,7 @@ class TestStartConfigWatcher(unittest.TestCase):
             ):
                 with self.assertRaises(RuntimeError) as ctx:
                     configmap_loader.start_config_watcher(
-                        missing_path, mock.MagicMock(),
-                        is_api_service=False)
+                        missing_path, is_api_service=False)
                 self.assertIn('failed at startup', str(ctx.exception))
                 self.assertIn('never became readable', str(ctx.exception))
 
@@ -2106,8 +2122,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                 start = time.monotonic()
                 with self.assertRaises(RuntimeError) as ctx:
                     configmap_loader.start_config_watcher(
-                        config_path, mock.MagicMock(),
-                        is_api_service=False)
+                        config_path, is_api_service=False)
                 elapsed = time.monotonic() - start
                 # Should bail out essentially immediately (single attempt).
                 # Bound generously to absorb CI jitter; the point is that

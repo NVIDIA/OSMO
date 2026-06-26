@@ -33,7 +33,24 @@ from src.service.core.config import (
 )
 from src.service.core.tests import fixture
 from src.tests.common import runner
-from src.utils import configmap_state, connectors
+from src.utils import auth, configmap_state, connectors
+
+
+def _service_auth_config() -> Dict[str, Any]:
+    service_auth = auth.AuthenticationConfig.generate_default()
+    data = service_auth.model_dump(mode='json')
+    for key_name, key_pair in service_auth.keys.items():
+        data['keys'][key_name]['private_key'] = (
+            key_pair.private_key.get_secret_value())
+    return data
+
+
+def _with_service_auth(config: Dict[str, Any]) -> Dict[str, Any]:
+    config = dict(config)
+    service = dict(config.get('service', {}))
+    service['service_auth'] = _service_auth_config()
+    config['service'] = service
+    return config
 
 
 class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
@@ -287,7 +304,6 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
 
     def test_watcher_load_populates_snapshot(self):
         """ConfigMapWatcher._load_and_apply sets the snapshot."""
-        postgres = self._get_postgres()
         config = {
             'pod_templates': {
                 'watcher_tmpl': {'spec': {'test': True}},
@@ -295,10 +311,9 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         }
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(config, temp_file)
+            yaml.dump(_with_service_auth(config), temp_file)
         try:
-            watcher = configmap_loader.ConfigMapWatcher(
-                temp_file.name, postgres)
+            watcher = configmap_loader.ConfigMapWatcher(temp_file.name)
             result = watcher._load_and_apply()
             self.assertTrue(result)
 
@@ -311,7 +326,6 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
 
     def test_watcher_resolves_pool_parsed_fields(self):
         """ConfigMapWatcher resolves parsed_pod_template from references."""
-        postgres = self._get_postgres()
         config = {
             'pod_templates': {
                 'user_tmpl': {
@@ -351,10 +365,9 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         }
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(config, temp_file)
+            yaml.dump(_with_service_auth(config), temp_file)
         try:
-            watcher = configmap_loader.ConfigMapWatcher(
-                temp_file.name, postgres)
+            watcher = configmap_loader.ConfigMapWatcher(temp_file.name)
             result = watcher._load_and_apply()
             self.assertTrue(result)
 

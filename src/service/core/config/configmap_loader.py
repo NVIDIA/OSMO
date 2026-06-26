@@ -118,8 +118,7 @@ class ConfigMapWatcher:
 
     On startup: parse file → validate → populate module-level dict → start watchdog.
     On file change: re-parse → validate → atomic swap of dict reference.
-    Configs are served from the in-memory dict. DB is only used for
-    backend runtime data (agent writes heartbeats to backends table).
+    Configs are served from the in-memory dict.
     """
 
     def __init__(
@@ -132,8 +131,10 @@ class ConfigMapWatcher:
         backend_queue_updater: Callable[..., bool] | None = None,
         backend_test_updater: Callable[..., bool] | None = None,
     ):
+        # Kept for existing service/test wiring. ConfigMap loads must not
+        # hydrate ConfigMap-managed values from Postgres.
+        del postgres
         self._config_file_path = config_file_path
-        self._postgres = postgres
         self._event_recorder = event_recorder
         self._enable_reconciliation = enable_reconciliation
         self._backend_queue_updater = backend_queue_updater
@@ -243,10 +244,9 @@ class ConfigMapWatcher:
             if isinstance(section, dict):
                 _resolve_secret_file_references(section)
 
-        # Validate ConfigMap-provided fields BEFORE injecting runtime
-        # fields. Runtime fields (service_auth) are already validated
-        # by configure_app().
-        validation_errors = _validate_configs(managed_configs)
+        validation_errors = _validate_configmap_runtime_contract(
+            managed_configs, configmap_guard.get_snapshot())
+        validation_errors.extend(_validate_configs(managed_configs))
         if validation_errors:
             joined_errors = '; '.join(validation_errors)
             self._record_failure(
@@ -261,14 +261,9 @@ class ConfigMapWatcher:
         _resolve_backend_test_computed_fields(managed_configs)
         _resolve_pool_computed_fields(managed_configs)
 
-        # Inject runtime-generated fields (service_auth, service_base_url)
-        # that are not in the ConfigMap but are needed by every service.
-        # service_auth in particular has a default_factory that mints a
-        # fresh RSA keypair when missing, so without this injection the
-        # worker would sign workflow JWTs with keys the API/authz_sidecar
-        # don't have. First load reads from DB; subsequent reloads carry
-        # forward from the previous snapshot.
-        self._inject_runtime_fields(managed_configs)
+        # Carry forward runtime-only fields from the previous in-memory
+        # snapshot, but never hydrate ConfigMap-managed config from DB.
+        self._carry_forward_runtime_fields(managed_configs)
 
         configmap_guard.set_parsed_configs(managed_configs)
         if not configmap_guard.is_configmap_mode():
@@ -281,7 +276,7 @@ class ConfigMapWatcher:
         if self._enable_reconciliation:
             try:
                 reconciled = _reconcile_backend_side_effects(
-                    reconciliation_baseline, managed_configs, self._postgres,
+                    reconciliation_baseline, managed_configs,
                     self._backend_queue_updater, self._backend_test_updater)
                 if reconciled:
                     self._last_reconciled_snapshot = copy.deepcopy(managed_configs)
@@ -292,27 +287,13 @@ class ConfigMapWatcher:
 
         return LoadResult.SUCCESS
 
-    def _inject_runtime_fields(
+    def _carry_forward_runtime_fields(
         self, managed_configs: Dict[str, Any],
     ) -> None:
-        """Inject service_auth — the one runtime-generated field.
-
-        service_auth (RSA signing keys) is generated on first API
-        startup and never appears in the ConfigMap; without injecting
-        it, ServiceConfig's default_factory would mint a fresh keypair
-        in every consumer process and the API/authz_sidecar wouldn't
-        be able to validate JWTs minted by the worker. First load
-        reads from DB; subsequent reloads carry forward from the
-        previous snapshot.
-
-        """
+        """Carry forward runtime fields without reading config from DB."""
         previous = configmap_guard.get_snapshot()
         if previous is not None:
             prev_service = previous.get('service', {})
-        elif self._postgres is not None:
-            db_config = self._postgres.get_service_configs()
-            prev_service = db_config.plaintext_dict(
-                by_alias=True, exclude_unset=True)
         else:
             prev_service = {}
 
@@ -324,7 +305,7 @@ class ConfigMapWatcher:
 
 def start_config_watcher(
     config_file: str | None,
-    postgres: connectors.PostgresConnector,
+    postgres: connectors.PostgresConnector | None = None,
     *,
     is_api_service: bool = False,
     backend_queue_updater: Callable[..., bool] | None = None,
@@ -344,10 +325,8 @@ def start_config_watcher(
     are handled defensively by configmap_events; this gate just avoids
     cross-service duplication.)
 
-    Runtime field injection (service_auth) runs in every service so the
-    worker's JWT-minting path doesn't fall through to ServiceConfig's
-    default_factory and generate a fresh RSA keypair the API/authz_sidecar
-    can't validate against.
+    ConfigMap mode is authoritative for service config. The watcher does
+    not read config rows from Postgres.
     """
     if not config_file:
         return None
@@ -396,61 +375,27 @@ def _backend_config_from_snapshot(
 def _backend_from_snapshot(
     snapshot: Dict[str, Any] | None,
     backend_name: str,
-    postgres: connectors.PostgresConnector | None,
 ) -> connectors.Backend | None:
     config = _backend_config_from_snapshot(snapshot, backend_name)
     if config is None:
         return None
-    runtime = _backend_runtime_fields(postgres, backend_name)
+    now = datetime.datetime.now(datetime.timezone.utc)
     return connectors.Backend(
         name=backend_name,
         description=config.get('description', ''),
-        version=runtime['version'],
-        k8s_uid=runtime['k8s_uid'],
-        k8s_namespace=runtime['k8s_namespace'],
+        version=config.get('version', ''),
+        k8s_uid=config.get('k8s_uid', ''),
+        k8s_namespace=config['k8s_namespace'],
         dashboard_url=config.get('dashboard_url', ''),
         grafana_url=config.get('grafana_url', ''),
         tests=config.get('tests', []),
         scheduler_settings=config.get('scheduler_settings', {}),
         node_conditions=config.get('node_conditions', {}),
-        last_heartbeat=runtime['last_heartbeat'],
-        created_date=runtime['created_date'],
+        last_heartbeat=config.get('last_heartbeat', now),
+        created_date=config.get('created_date', now),
         router_address=config.get('router_address', ''),
         online=False,
     )
-
-
-def _backend_runtime_fields(
-    postgres: connectors.PostgresConnector | None,
-    backend_name: str,
-) -> Dict[str, Any]:
-    now = datetime.datetime.now(datetime.timezone.utc)
-    runtime = {
-        'k8s_uid': '',
-        'k8s_namespace': '',
-        'version': '',
-        'last_heartbeat': now,
-        'created_date': now,
-    }
-    if postgres is None:
-        return runtime
-    try:
-        rows = postgres.execute_fetch_command(
-            'SELECT k8s_uid, k8s_namespace, version, '
-            'last_heartbeat, created_date '
-            'FROM backends WHERE name = %s;',
-            (backend_name,),
-            True)
-    except Exception:  # pylint: disable=broad-exception-caught
-        logging.exception(
-            'Failed to fetch runtime fields for backend %s', backend_name)
-        return runtime
-    if isinstance(rows, list) and rows:
-        row = rows[0]
-        for key in runtime:
-            if isinstance(row, dict) and row.get(key) is not None:
-                runtime[key] = row[key]
-    return runtime
 
 
 def _pool_backend(pool_config: Any) -> str | None:
@@ -606,7 +551,6 @@ def _affected_backends_for_test_sync(
 def _reconcile_backend_side_effects(
     previous: Dict[str, Any] | None,
     current: Dict[str, Any],
-    postgres: connectors.PostgresConnector | None,
     backend_queue_updater: Callable[..., bool] | None,
     backend_test_updater: Callable[..., bool] | None,
 ) -> bool:
@@ -621,12 +565,12 @@ def _reconcile_backend_side_effects(
     success = True
 
     for backend_name in sorted(queue_backends):
-        current_backend = _backend_from_snapshot(current, backend_name, postgres)
+        current_backend = _backend_from_snapshot(current, backend_name)
         if current_backend is None:
-            current_backend = _backend_from_snapshot(previous, backend_name, postgres)
+            current_backend = _backend_from_snapshot(previous, backend_name)
         if current_backend is None:
             continue
-        previous_backend = _backend_from_snapshot(previous, backend_name, postgres)
+        previous_backend = _backend_from_snapshot(previous, backend_name)
         backend_payload = (
             _backend_config_from_snapshot(current, backend_name)
             or _backend_config_from_snapshot(previous, backend_name)
@@ -791,6 +735,51 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
         if section is not None and not isinstance(section, dict):
             errors.append(
                 f'{config_key}: must be a dict, got {type(section).__name__}')
+
+    return errors
+
+
+def _validate_configmap_runtime_contract(
+    managed_configs: Dict[str, Any],
+    previous: Dict[str, Any] | None,
+) -> List[str]:
+    """Validate runtime fields that ConfigMap mode must own.
+
+    ConfigMap mode does not hydrate config from DB. Fields that used to be
+    DB/runtime-derived but are required for consistent behavior must therefore
+    be present in the ConfigMap, or already present in the previous in-memory
+    snapshot for reload carry-forward.
+    """
+    errors: List[str] = []
+
+    service = managed_configs.get('service')
+    previous_service = previous.get('service', {}) if previous else {}
+    current_auth = (
+        service.get('service_auth')
+        if isinstance(service, dict)
+        else None
+    )
+    previous_auth = (
+        previous_service.get('service_auth')
+        if isinstance(previous_service, dict)
+        else None
+    )
+    if not current_auth and not previous_auth:
+        errors.append(
+            'service.service_auth: required in ConfigMap mode; set '
+            'services.configs.service.service_auth or a mounted Secret '
+            'reference so all services share the same signing keys')
+
+    backends = managed_configs.get('backends', {})
+    if isinstance(backends, dict):
+        for backend_name, backend_config in backends.items():
+            if not isinstance(backend_config, dict):
+                continue
+            if not backend_config.get('k8s_namespace'):
+                errors.append(
+                    f'backends.{backend_name}.k8s_namespace: required in '
+                    'ConfigMap mode because backend queue names include the '
+                    'backend Kubernetes namespace')
 
     return errors
 
