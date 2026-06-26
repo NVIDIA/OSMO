@@ -29,6 +29,3 @@ docs/**/domain_config.js
 .ruff_cache
 
 .lycheecache
-
-# Testbot scratch file from a session where Bash rm was sandbox-blocked
-/testfile_for_rm_check.txt
