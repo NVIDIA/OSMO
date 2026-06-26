@@ -23,10 +23,9 @@
 osmo logout
 ================================================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: logout
-   :ref-prefix: cli_reference_logout
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=logout | ref-prefix=cli_reference_logout | flags=argument-anchor
+
+.. code-block:: text
+
+   usage: osmo logout [-h]
