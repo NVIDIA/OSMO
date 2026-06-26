@@ -462,18 +462,7 @@ services:
     ## Service config. service_base_url is auto-derived from
     ## services.service.hostname if not set here.
     ##
-    ## ConfigMap mode requires stable service_auth signing keys. Put the
-    ## service_auth object directly under service.service_auth, or set
-    ## serviceAuthSecretName to a mounted Secret containing cred.yaml with the
-    ## service_auth fields. The same Secret must be listed in secretRefs.
-    ##
     service: {}
-
-    ## Optional Secret reference used to populate service.service_auth when
-    ## service.service_auth is not set directly. The Secret should contain a
-    ## cred.yaml key with the AuthenticationConfig YAML/JSON.
-    ##
-    serviceAuthSecretName: ""
 
     ## Workflow config (limits, timeouts, image credentials).
     ## Use secretName in config fields to reference K8s Secrets.

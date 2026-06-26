@@ -486,7 +486,8 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
         set_default_backend_images(postgres)
         set_client_install_url(postgres, config)
         set_default_service_url(postgres)
-        setup_default_admin(postgres, config)
+
+    setup_default_admin(postgres, config)
 
     # Store on app state to prevent GC from killing the watcher thread.
     target_app.state.config_watcher = configmap_loader.start_config_watcher(

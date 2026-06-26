@@ -39,14 +39,19 @@ from src.service.core.config import (
 )
 from src.utils import auth, configmap_state
 
+_DEFAULT_SERVICE_AUTH_CONFIG: Dict[str, Any] | None = None
+
 
 def _service_auth_config() -> Dict[str, Any]:
-    service_auth = auth.AuthenticationConfig.generate_default()
-    data = service_auth.model_dump(mode='json')
-    for key_name, key_pair in service_auth.keys.items():
-        data['keys'][key_name]['private_key'] = (
-            key_pair.private_key.get_secret_value())
-    return data
+    global _DEFAULT_SERVICE_AUTH_CONFIG  # pylint: disable=global-statement
+    if _DEFAULT_SERVICE_AUTH_CONFIG is None:
+        service_auth = auth.AuthenticationConfig.generate_default()
+        data = service_auth.model_dump(mode='json')
+        for key_name, key_pair in service_auth.keys.items():
+            data['keys'][key_name]['private_key'] = (
+                key_pair.private_key.get_secret_value())
+        _DEFAULT_SERVICE_AUTH_CONFIG = data
+    return copy.deepcopy(_DEFAULT_SERVICE_AUTH_CONFIG)
 
 
 def _with_service_auth(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -885,7 +890,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     def _write_config_file(self, config: Dict[str, Any]) -> str:
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp:
-            yaml.dump(_with_service_auth(config), temp)
+            yaml.dump(config, temp)
             return temp.name
 
     def _wire_reconciliation_callbacks(
@@ -939,7 +944,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_cold_load_requires_service_auth(self):
+    def test_cold_load_allows_missing_service_auth(self):
         config: Dict[str, Any] = {
             'service': {
                 'max_pod_restart_limit': '30m',
@@ -949,13 +954,14 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         try:
             watcher = configmap_loader.ConfigMapWatcher(path)
             result = watcher._load_and_apply()
-            self.assertEqual(
-                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
-            self.assertIsNone(configmap_state.get_snapshot())
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+            snapshot = configmap_state.get_snapshot()
+            assert snapshot is not None
+            self.assertNotIn('service_auth', snapshot['service'])
         finally:
             os.unlink(path)
 
-    def test_reload_carries_forward_service_auth(self):
+    def test_reload_does_not_carry_forward_service_auth(self):
         previous_auth = _service_auth_config()
         configmap_state.set_parsed_configs({
             'service': {'service_auth': previous_auth},
@@ -974,7 +980,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
             service_config = snapshot['service']
-            self.assertEqual(service_config['service_auth'], previous_auth)
+            self.assertNotIn('service_auth', service_config)
             self.assertEqual(
                 service_config['max_pod_restart_limit'], '45m')
         finally:
@@ -1230,6 +1236,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 },
             },
         }
+        configmap_loader._resolve_pool_computed_fields(old_snapshot)
         new_config = copy.deepcopy(old_snapshot)
         new_config['backends']['backend-a']['scheduler_settings'][
             'scheduler_timeout'] = 60
@@ -1305,6 +1312,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 },
             },
         }
+        configmap_loader._resolve_pool_computed_fields(old_snapshot)
         new_config = copy.deepcopy(old_snapshot)
         new_config['pools']['pool-a']['platforms']['gpu'] = {
             'default_variables': {'A': 2},
@@ -1705,7 +1713,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_tests_cronjobs',
-                side_effect=[RuntimeError('redis unavailable'), None],
+                side_effect=[RuntimeError('redis unavailable'), True],
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher, test_updater=mock_sync_tests)
@@ -1717,6 +1725,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                     configmap_loader.LoadResult.SUCCESS)
 
             self.assertEqual(mock_sync_tests.call_count, 2)
+            self.assertIsNotNone(watcher._last_reconciled_snapshot)
         finally:
             os.unlink(path)
 
@@ -2363,8 +2372,10 @@ class TestStartConfigWatcher(unittest.TestCase):
 
             def write_file_late():
                 time.sleep(0.15)
-                with open(config_path, 'w', encoding='utf-8') as f:
+                tmp_path = f'{config_path}.tmp'
+                with open(tmp_path, 'w', encoding='utf-8') as f:
                     yaml.dump(_with_service_auth({'service': {}}), f)
+                os.replace(tmp_path, config_path)
 
             # Speed up the retry loop so the test runs in <1s.
             with mock.patch.object(

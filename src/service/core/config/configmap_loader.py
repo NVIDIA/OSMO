@@ -244,8 +244,7 @@ class ConfigMapWatcher:
             if isinstance(section, dict):
                 _resolve_secret_file_references(section)
 
-        validation_errors = _validate_configmap_runtime_contract(
-            managed_configs, configmap_guard.get_snapshot())
+        validation_errors = _validate_configmap_runtime_contract(managed_configs)
         validation_errors.extend(_validate_configs(managed_configs))
         if validation_errors:
             joined_errors = '; '.join(validation_errors)
@@ -260,10 +259,6 @@ class ConfigMapWatcher:
         # YAML that only contains reference names, not expanded content.
         _resolve_backend_test_computed_fields(managed_configs)
         _resolve_pool_computed_fields(managed_configs)
-
-        # Carry forward runtime-only fields from the previous in-memory
-        # snapshot, but never hydrate ConfigMap-managed config from DB.
-        self._carry_forward_runtime_fields(managed_configs)
 
         configmap_guard.set_parsed_configs(managed_configs)
         if not configmap_guard.is_configmap_mode():
@@ -286,22 +281,6 @@ class ConfigMapWatcher:
         self._record_success()
 
         return LoadResult.SUCCESS
-
-    def _carry_forward_runtime_fields(
-        self, managed_configs: Dict[str, Any],
-    ) -> None:
-        """Carry forward runtime fields without reading config from DB."""
-        previous = configmap_guard.get_snapshot()
-        if previous is not None:
-            prev_service = previous.get('service', {})
-        else:
-            prev_service = {}
-
-        service_config = managed_configs.setdefault('service', {})
-
-        if 'service_auth' not in service_config and 'service_auth' in prev_service:
-            service_config['service_auth'] = prev_service['service_auth']
-
 
 def start_config_watcher(
     config_file: str | None,
@@ -741,34 +720,14 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
 
 def _validate_configmap_runtime_contract(
     managed_configs: Dict[str, Any],
-    previous: Dict[str, Any] | None,
 ) -> List[str]:
     """Validate runtime fields that ConfigMap mode must own.
 
     ConfigMap mode does not hydrate config from DB. Fields that used to be
-    DB/runtime-derived but are required for consistent behavior must therefore
-    be present in the ConfigMap, or already present in the previous in-memory
-    snapshot for reload carry-forward.
+    DB/runtime-derived but are required for backend side effects must therefore
+    be present in the ConfigMap.
     """
     errors: List[str] = []
-
-    service = managed_configs.get('service')
-    previous_service = previous.get('service', {}) if previous else {}
-    current_auth = (
-        service.get('service_auth')
-        if isinstance(service, dict)
-        else None
-    )
-    previous_auth = (
-        previous_service.get('service_auth')
-        if isinstance(previous_service, dict)
-        else None
-    )
-    if not current_auth and not previous_auth:
-        errors.append(
-            'service.service_auth: required in ConfigMap mode; set '
-            'services.configs.service.service_auth or a mounted Secret '
-            'reference so all services share the same signing keys')
 
     backends = managed_configs.get('backends', {})
     if isinstance(backends, dict):

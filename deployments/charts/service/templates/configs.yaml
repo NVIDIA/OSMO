@@ -27,14 +27,11 @@ metadata:
 data:
   config.yaml: |
     {{- $cfg := .Values.services.configs }}
-    {{- if or $cfg.service $cfg.serviceAuthSecretName }}
+    {{- if $cfg.service }}
     service:
       {{- $service := deepCopy $cfg.service }}
       {{- if and (not (index $service "service_base_url")) .Values.services.service.hostname }}
       {{- $_ := set $service "service_base_url" (printf "https://%s" .Values.services.service.hostname) }}
-      {{- end }}
-      {{- if and $cfg.serviceAuthSecretName (not (index $service "service_auth")) }}
-      {{- $_ := set $service "service_auth" (dict "secretName" $cfg.serviceAuthSecretName) }}
       {{- end }}
       {{- toYaml $service | nindent 6 }}
     {{- end }}
