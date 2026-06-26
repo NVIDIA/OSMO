@@ -606,6 +606,22 @@ jobs:
           echo "::add-mask::$PG_PASS"
           echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
 
+      # deploy-osmo-minimal.sh shells out to `terraform output` to read
+      # connection strings (postgres FQDN, redis endpoint, etc.) for the
+      # chart's helm values, even with --skip-terraform. Without these
+      # three things the call fails with "Module not installed":
+      #   1. terraform.tfstate present in the working dir (state)
+      #   2. .terraform.lock.hcl present (pinned provider versions)
+      #   3. `terraform init` to download providers + modules locally
+      - name: stage tfstate + terraform init
+        working-directory: deployments/terraform/azure/example
+        run: |
+          set -euo pipefail
+          cp "$GITHUB_WORKSPACE/tf-state-download/terraform.tfstate"     . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/tf-state-download/.terraform.lock.hcl"   . 2>/dev/null || true
+          ls -la terraform.tfstate .terraform.lock.hcl
+          terraform init -input=false -no-color
+
       # Wire kubectl to the freshly-applied AKS, then pre-create a GHCR
       # docker-registry secret in every OSMO namespace. The chart's deploy
       # script (deploy-k8s.sh) skips its own kubectl-create-secret path
