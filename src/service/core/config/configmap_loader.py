@@ -694,18 +694,8 @@ def _resolve_backend_test_computed_fields(managed_configs: Dict[str, Any]) -> No
             common_pod_template = []
             test_config['common_pod_template'] = common_pod_template
 
-        parsed_pod_template: Dict[str, Any] = {}
-        for template_name in common_pod_template:
-            if template_name in pod_templates:
-                parsed_pod_template = recursive_dict_update(
-                    parsed_pod_template,
-                    copy.deepcopy(pod_templates[template_name]),
-                    merge_lists_on_name)
-            else:
-                logging.warning(
-                    'Pod template %r referenced by backend test %s not found',
-                    template_name, test_name)
-        test_config['parsed_pod_template'] = parsed_pod_template
+        test_config['parsed_pod_template'] = _merge_pod_template_refs(
+            common_pod_template, pod_templates, f'backend test {test_name}')
 
 
 # ---------------------------------------------------------------------------
@@ -807,6 +797,31 @@ def _resolve_pool_computed_fields(managed_configs: Dict[str, Any]) -> None:
             pool_data, pod_templates, resource_validations, group_templates)
 
 
+def _merge_pod_template_refs(
+    template_names: List[Any],
+    pod_templates: Dict[str, Any],
+    reference_context: str,
+) -> Dict[str, Any]:
+    """Merge named pod templates the same way DB-backed config writes do."""
+    merged_template: Dict[str, Any] = {}
+    for template_name in template_names:
+        if not isinstance(template_name, str):
+            logging.warning(
+                'Ignoring non-string pod template reference %r in %s',
+                template_name, reference_context)
+            continue
+        if template_name in pod_templates:
+            merged_template = recursive_dict_update(
+                merged_template,
+                copy.deepcopy(pod_templates[template_name]),
+                merge_lists_on_name)
+        else:
+            logging.warning(
+                'Pod template %r referenced by %s not found',
+                template_name, reference_context)
+    return merged_template
+
+
 def _render_pod_template_for_accounting(
     pod_template: Dict[str, Any],
     default_variables: Dict[str, Any],
@@ -878,16 +893,8 @@ def _resolve_single_pool(
 
     # Resolve common pod template (pool-level base)
     common_pod_template_names = pool_data.get('common_pod_template', [])
-    base_pod_template: Dict[str, Any] = {}
-    for template_name in common_pod_template_names:
-        if template_name in pod_templates:
-            base_pod_template = recursive_dict_update(
-                base_pod_template,
-                copy.deepcopy(pod_templates[template_name]),
-                merge_lists_on_name)
-        else:
-            logging.warning(
-                'Pod template %r referenced by pool not found', template_name)
+    base_pod_template = _merge_pod_template_refs(
+        common_pod_template_names, pod_templates, 'pool')
     pool_data['parsed_pod_template'] = base_pod_template
     pool_data['parsed_pod_template_for_accounting'] = (
         _render_pod_template_for_accounting(
@@ -982,17 +989,13 @@ def _resolve_platform_fields(
         platform_data['default_variables'] = {}
 
     # Pod template: start from pool common, merge platform overrides
-    platform_pod_template = copy.deepcopy(base_pod_template)
-    for template_name in platform_data.get('override_pod_template', []):
-        if template_name in pod_templates:
-            platform_pod_template = recursive_dict_update(
-                platform_pod_template,
-                copy.deepcopy(pod_templates[template_name]),
-                merge_lists_on_name)
-        else:
-            logging.warning(
-                'Pod template %r referenced by platform not found',
-                template_name)
+    platform_pod_template = recursive_dict_update(
+        copy.deepcopy(base_pod_template),
+        _merge_pod_template_refs(
+            platform_data.get('override_pod_template', []),
+            pod_templates,
+            'platform'),
+        merge_lists_on_name)
     platform_data['parsed_pod_template'] = platform_pod_template
 
     # Accounting copy: render Jinja in osmo-ctrl resources using pool
