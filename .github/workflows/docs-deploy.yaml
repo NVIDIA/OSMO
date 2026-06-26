@@ -55,6 +55,14 @@ jobs:
           git fetch
           pip install -U -r docs/locked_requirements.txt
           pip install -U -r src/locked_requirements.txt
+          # The multiversion build renders each version's CLI from its own
+          # checked-out src (see docs/conf.py). Install the modern release
+          # branches' src requirements so their parser imports (e.g. diskcache).
+          # Do NOT install legacy pydantic-v1 branches (6.1/6.2): those are
+          # frozen to static rST and would downgrade pydantic; the conf.py
+          # fallback routes them to main's src.
+          git show origin/release/6.3:src/locked_requirements.txt > /tmp/req-release-6.3.txt
+          pip install -U -r /tmp/req-release-6.3.txt
 
       - name: Build Sphinx documentation
         run: |
