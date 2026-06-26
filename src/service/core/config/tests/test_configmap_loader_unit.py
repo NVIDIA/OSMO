@@ -1182,6 +1182,164 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_api_reconcile_backend_queues_after_scheduler_change_is_scoped(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        old_snapshot: Dict[str, Any] = {
+            'backends': {
+                'backend-a': {
+                    'tests': [],
+                    'scheduler_settings': {
+                        'scheduler_type': 'kai',
+                        'scheduler_timeout': 30,
+                    },
+                    'node_conditions': {},
+                    'k8s_uid': 'uid-a',
+                    'k8s_namespace': 'runtime-ns-a',
+                    'version': '1.0.0',
+                    'last_heartbeat': now,
+                    'created_date': now,
+                },
+                'backend-b': {
+                    'tests': [],
+                    'scheduler_settings': {
+                        'scheduler_type': 'kai',
+                        'scheduler_timeout': 30,
+                    },
+                    'node_conditions': {},
+                    'k8s_uid': 'uid-b',
+                    'k8s_namespace': 'runtime-ns-b',
+                    'version': '1.0.0',
+                    'last_heartbeat': now,
+                    'created_date': now,
+                },
+            },
+            'pools': {
+                'pool-a': {
+                    'backend': 'backend-a',
+                    'common_pod_template': [],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {},
+                },
+                'pool-b': {
+                    'backend': 'backend-b',
+                    'common_pod_template': [],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {},
+                },
+            },
+        }
+        new_config = copy.deepcopy(old_snapshot)
+        new_config['backends']['backend-a']['scheduler_settings'][
+            'scheduler_timeout'] = 60
+        path = self._write_config_file(new_config)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, enable_reconciliation=True)
+            watcher._last_reconciled_snapshot = old_snapshot
+
+            with mock.patch(
+                'src.service.core.config.helpers.update_backend_queues',
+            ) as mock_sync_queues, mock.patch(
+                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+            ) as mock_sync_tests:
+                self._wire_reconciliation_callbacks(
+                    watcher,
+                    queue_updater=mock_sync_queues,
+                    test_updater=mock_sync_tests)
+                result = watcher._load_and_apply()
+
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+            mock_sync_tests.assert_not_called()
+            mock_sync_queues.assert_called_once()
+            args, kwargs = mock_sync_queues.call_args
+            self.assertEqual(args[0].name, 'backend-a')
+            self.assertEqual(args[0].scheduler_settings.scheduler_timeout, 60)
+            self.assertEqual([pool.name for pool in args[1]], ['pool-a'])
+            self.assertEqual(kwargs['prev_backend'].name, 'backend-a')
+            self.assertIn(
+                'backend-a-modify-queues-configmap-', kwargs['job_id'])
+        finally:
+            os.unlink(path)
+
+    def test_api_reconcile_backend_queues_after_pool_change_is_scoped(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        old_snapshot: Dict[str, Any] = {
+            'backends': {
+                'backend-a': {
+                    'tests': [],
+                    'scheduler_settings': {'scheduler_type': 'kai'},
+                    'node_conditions': {},
+                    'k8s_uid': 'uid-a',
+                    'k8s_namespace': 'runtime-ns-a',
+                    'version': '1.0.0',
+                    'last_heartbeat': now,
+                    'created_date': now,
+                },
+                'backend-b': {
+                    'tests': [],
+                    'scheduler_settings': {'scheduler_type': 'kai'},
+                    'node_conditions': {},
+                    'k8s_uid': 'uid-b',
+                    'k8s_namespace': 'runtime-ns-b',
+                    'version': '1.0.0',
+                    'last_heartbeat': now,
+                    'created_date': now,
+                },
+            },
+            'pools': {
+                'pool-a': {
+                    'backend': 'backend-a',
+                    'common_pod_template': [],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {'gpu': {'default_variables': {'A': 1}}},
+                },
+                'pool-b': {
+                    'backend': 'backend-b',
+                    'common_pod_template': [],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {'gpu': {'default_variables': {'B': 1}}},
+                },
+            },
+        }
+        new_config = copy.deepcopy(old_snapshot)
+        new_config['pools']['pool-a']['platforms']['gpu'] = {
+            'default_variables': {'A': 2},
+        }
+        path = self._write_config_file(new_config)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, enable_reconciliation=True)
+            watcher._last_reconciled_snapshot = old_snapshot
+
+            with mock.patch(
+                'src.service.core.config.helpers.update_backend_queues',
+            ) as mock_sync_queues, mock.patch(
+                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+            ) as mock_sync_tests:
+                self._wire_reconciliation_callbacks(
+                    watcher,
+                    queue_updater=mock_sync_queues,
+                    test_updater=mock_sync_tests)
+                result = watcher._load_and_apply()
+
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+            mock_sync_tests.assert_not_called()
+            mock_sync_queues.assert_called_once()
+            args, kwargs = mock_sync_queues.call_args
+            self.assertEqual(args[0].name, 'backend-a')
+            self.assertEqual([pool.name for pool in args[1]], ['pool-a'])
+            self.assertEqual(args[1][0].platforms['gpu'].default_variables,
+                             {'A': 2})
+            self.assertEqual(kwargs['prev_backend'].name, 'backend-a')
+            self.assertIn(
+                'backend-a-modify-queues-configmap-', kwargs['job_id'])
+        finally:
+            os.unlink(path)
+
     def test_api_reconcile_first_load_empty_tests_for_cleanup(self):
         config: Dict[str, Any] = {
             'backends': {
