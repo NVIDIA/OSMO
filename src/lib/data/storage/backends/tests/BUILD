@@ -38,3 +38,13 @@ osmo_py_test(
         "//src/lib/data/storage/credentials",
     ],
 )
+
+osmo_py_test(
+    name = "test_s3",
+    srcs = ["test_s3.py"],
+    deps = [
+        "//src/lib/data/storage/backends",
+        "//src/lib/data/storage/core",
+        "//src/lib/data/storage/credentials",
+    ],
+)
