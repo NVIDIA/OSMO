@@ -1057,8 +1057,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             mock_sync_queues.assert_not_called()
             mock_sync_tests.assert_called_once()
             args, kwargs = mock_sync_tests.call_args
-            self.assertEqual(args[:3], (
-                'backend-a', ['test-a'], 'example.com/'))
+            self.assertEqual(args[0], 'backend-a')
+            self.assertEqual(args[2], 'example.com/')
+            self.assertEqual(list(args[1]), ['test-a'])
+            self.assertEqual(args[1]['test-a']['name'], 'test-a')
+            self.assertIn('parsed_pod_template', args[1]['test-a'])
             self.assertIn(
                 'backend-a-sync-tests-configmap-', kwargs['job_id'])
         finally:
@@ -1154,8 +1157,12 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             args, kwargs = mock_sync_queues.call_args
             self.assertEqual(args[0].name, 'backend-a')
             self.assertEqual(args[0].k8s_namespace, 'runtime-ns-a')
-            self.assertEqual(args[1].name, 'backend-a')
-            self.assertEqual(args[1].k8s_namespace, 'runtime-ns-a')
+            self.assertEqual([pool.name for pool in args[1]], ['pool-a'])
+            self.assertEqual(args[1][0].platforms['gpu'].default_variables,
+                             {'A': 2})
+            self.assertEqual(kwargs['prev_backend'].name, 'backend-a')
+            self.assertEqual(kwargs['prev_backend'].k8s_namespace,
+                             'runtime-ns-a')
             self.assertIn(
                 'backend-a-modify-queues-configmap-', kwargs['job_id'])
         finally:
@@ -1183,7 +1190,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             mock_sync_tests.assert_called_once()
             args, kwargs = mock_sync_tests.call_args
             self.assertEqual(args[:3], (
-                'backend-a', [], 'osmo.nvidia.com/'))
+                'backend-a', {}, 'osmo.nvidia.com/'))
             self.assertIn(
                 'backend-a-sync-tests-configmap-', kwargs['job_id'])
         finally:
@@ -1225,6 +1232,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             queue_args, queue_kwargs = mock_sync_queues.call_args
             self.assertEqual(queue_args[0].name, 'backend-a')
             self.assertEqual(queue_args[0].k8s_namespace, 'runtime-ns-a')
+            self.assertEqual(queue_args[1], [])
             self.assertIn(
                 'backend-a-modify-queues-configmap-',
                 queue_kwargs['job_id'])
@@ -1293,14 +1301,18 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
             mock_sync_tests.assert_called_once()
             args, _ = mock_sync_tests.call_args
-            self.assertEqual(args[:3], (
-                'backend-a', ['test-a'], 'example.com/'))
+            self.assertEqual(args[0], 'backend-a')
+            self.assertEqual(args[2], 'example.com/')
+            self.assertEqual(list(args[1]), ['test-a'])
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
             parsed_template = (
                 snapshot['backend_tests']['test-a']['parsed_pod_template'])
             self.assertEqual(
                 parsed_template['spec']['containers'], [{'name': 'main'}])
+            self.assertEqual(
+                args[1]['test-a']['parsed_pod_template']['spec']['containers'],
+                [{'name': 'main'}])
         finally:
             os.unlink(path)
 
@@ -1445,10 +1457,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             queue_args, _ = mock_sync_queues.call_args
             self.assertEqual(queue_args[0].name, 'backend-a')
             self.assertEqual(queue_args[0].k8s_namespace, 'runtime-ns-a')
+            self.assertEqual(queue_args[1], [])
             mock_sync_tests.assert_called_once()
             test_args, _ = mock_sync_tests.call_args
             self.assertEqual(test_args[:3], (
-                'backend-a', [], 'example.com/'))
+                'backend-a', {}, 'example.com/'))
         finally:
             os.unlink(path)
 
@@ -1494,19 +1507,13 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         factory.list_immutable_scheduler_resources.return_value = ['Topology']
 
         with mock.patch(
-            'src.service.core.config.helpers.connectors.Pool.fetch_rows_from_db',
-            return_value=[],
-        ), mock.patch(
             'src.service.core.config.helpers.kb_objects.get_k8s_object_factory',
             return_value=factory,
         ), mock.patch(
-            'src.service.core.config.helpers.connectors.PostgresConnector.get_instance',
-            return_value=mock.MagicMock(),
-        ), mock.patch(
             'src.service.core.config.helpers.backend_jobs.BackendSynchronizeQueues',
         ) as mock_job:
-            helpers.update_backend_queues(
-                backend, job_id='backend-a-modify-queues-configmap-test')
+            helpers.update_backend_queues_from_configmap(
+                backend, [], job_id='backend-a-modify-queues-configmap-test')
 
         mock_job.assert_called_once()
         _, kwargs = mock_job.call_args

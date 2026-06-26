@@ -48,6 +48,18 @@ def update_backend_queues(current_backend: connectors.Backend,
     pool_rows = connectors.Pool.fetch_rows_from_db(postgres, backend=current_backend.name)
     pools = [connectors.Pool(**row) for row in pool_rows]
 
+    return update_backend_queues_from_configmap(
+        current_backend, pools, prev_backend=prev_backend, job_id=job_id)
+
+
+def update_backend_queues_from_configmap(
+    current_backend: connectors.Backend,
+    pools: List[connectors.Pool],
+    prev_backend: connectors.Backend | None = None,
+    job_id: str | None = None,
+) -> bool:
+    """Update backend scheduler objects using ConfigMap-derived pool configs."""
+
     # Get all scheduler objects (queues, topologies, etc.) for the backend
     kb_factory = kb_objects.get_k8s_object_factory(current_backend)
     cleanup_specs = kb_factory.list_scheduler_resources_spec(current_backend)
@@ -711,9 +723,27 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
                 logging.error('Failed to fetch test config for test %s: %s', test_name, error)
                 continue
 
-        logging.info('Fetched %d test configs for backend %s', len(test_configs), backend_name,
+        return update_backend_tests_cronjobs_from_configmap(
+            backend_name, test_configs, node_condition_prefix, job_id=job_id)
+
+    except osmo_errors.OSMOError as error:
+        logging.error('Failed to queue SynchronizeBackendTest job for backend %s: %s',
+                      backend_name, error)
+        return False
+
+
+def update_backend_tests_cronjobs_from_configmap(
+    backend_name: str,
+    test_configs: Dict[str, Any],
+    node_condition_prefix: str,
+    job_id: str | None = None,
+) -> bool:
+    """Update backend test CronJobs using ConfigMap-derived test configs."""
+    context = objects.WorkflowServiceContext.get()
+    try:
+        logging.info('Using %d ConfigMap test configs for backend %s',
+                     len(test_configs), backend_name,
                      extra={'workflow_uuid': getattr(context, 'workflow_uuid', None)})
-        # Create SynchronizeBackendTest job with test configurations
         sync_job = backend_jobs.BackendSynchronizeBackendTest(
             backend=backend_name,
             job_id=job_id,
@@ -724,7 +754,6 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
         logging.info('Queued SynchronizeBackendTest job for backend %s with %d test configs',
                      backend_name, len(test_configs))
         return True
-
     except osmo_errors.OSMOError as error:
         logging.error('Failed to queue SynchronizeBackendTest job for backend %s: %s',
                       backend_name, error)

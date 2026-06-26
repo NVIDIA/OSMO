@@ -461,6 +461,29 @@ def _pool_backend(pool_config: Any) -> str | None:
     return None
 
 
+def _pools_from_snapshot(
+    snapshot: Dict[str, Any],
+    backend_name: str,
+) -> List[connectors.Pool]:
+    pools: List[connectors.Pool] = []
+    for pool_name, pool_config in snapshot.get('pools', {}).items():
+        if not isinstance(pool_config, dict):
+            continue
+        if _pool_backend(pool_config) != backend_name:
+            continue
+        pool_payload = {
+            **pool_config,
+            'name': pool_config.get('name', pool_name),
+        }
+        try:
+            pools.append(connectors.Pool(**pool_payload))
+        except pydantic.ValidationError as error:
+            logging.error(
+                'Skipping invalid ConfigMap pool %s for backend %s: %s',
+                pool_name, backend_name, _format_validation_error(error))
+    return pools
+
+
 def _normalized_scheduler_settings(backend_config: Dict[str, Any]) -> Dict[str, Any]:
     return connectors.BackendSchedulerSettings(
         **backend_config.get('scheduler_settings', {})
@@ -628,7 +651,8 @@ def _reconcile_backend_side_effects(
         )
         try:
             queued = backend_queue_updater(
-                current_backend, previous_backend, job_id=job_id)
+                current_backend, _pools_from_snapshot(current, backend_name),
+                prev_backend=previous_backend, job_id=job_id)
             success = success and queued
         except Exception:  # pylint: disable=broad-exception-caught
             success = False
@@ -665,8 +689,14 @@ def _reconcile_backend_side_effects(
             f'{_stable_config_hash(payload)}'
         )
         try:
+            backend_test_configs = {
+                test_name: current.get('backend_tests', {}).get(test_name)
+                for test_name in tests
+                if current.get('backend_tests', {}).get(test_name) is not None
+            }
             queued = backend_test_updater(
-                backend_name, tests, node_condition_prefix, job_id=job_id)
+                backend_name, backend_test_configs, node_condition_prefix,
+                job_id=job_id)
             success = success and queued
         except Exception:  # pylint: disable=broad-exception-caught
             success = False
