@@ -21,10 +21,30 @@
 osmo token list
 ===============
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: token list
-   :ref-prefix: cli_reference_token_list
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=token list | ref-prefix=cli_reference_token_list | flags=argument-anchor
+
+List access tokens for yourself or another user (admin only).
+
+.. code-block:: text
+
+   usage: osmo token list [-h] [--user USER] [--format-type {json,text}]
+
+.. _cli_reference_token_list_named_arguments:
+
+Named Arguments
+---------------
+
+``--user, -u``
+    List tokens for a specific user (admin only). By default, lists tokens for the current user.
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo token list
+Ex. osmo token list --user service-account@example.com

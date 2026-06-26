@@ -21,10 +21,45 @@
 osmo user update
 ================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: user update
-   :ref-prefix: cli_reference_user_update
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=user update | ref-prefix=cli_reference_user_update | flags=argument-anchor
+
+Add or remove roles from a user.
+
+.. code-block:: text
+
+   usage: osmo user update [-h] [--add-roles ADD_ROLES [ADD_ROLES ...]]
+                           [--remove-roles REMOVE_ROLES [REMOVE_ROLES ...]]
+                           [--format-type {json,text}]
+                           user_id
+
+.. _cli_reference_user_update_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``user_id``
+    User ID to update.
+
+.. _cli_reference_user_update_named_arguments:
+
+Named Arguments
+---------------
+
+``--add-roles, -a``
+    Roles to add to the user.
+
+``--remove-roles, -r``
+    Roles to remove from the user.
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+
+Ex. osmo user update myuser@example.com --add-roles osmo-admin
+Ex. osmo user update myuser@example.com --remove-roles osmo-ml-team
+Ex. osmo user update myuser@example.com --add-roles admin --remove-roles guest

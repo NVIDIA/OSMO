@@ -23,10 +23,106 @@
 osmo resource
 ================================================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: resource
-   :ref-prefix: cli_reference_resource
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=resource | ref-prefix=cli_reference_resource | flags=argument-anchor
+
+.. code-block:: text
+
+   usage: osmo resource [-h] {list,info} ...
+
+.. _cli_reference_resource_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``command``
+    Possible choices: list, info
+
+Sub-commands
+------------
+
+.. _cli_reference_resource_list:
+
+list
+~~~~
+
+Resource display formats::
+
+  Mode           | Description
+  ---------------|----------------------------------------------------
+  Used (default) | Shows "used/total" (e.g., 40/100 means 40 Gi used
+                 | out of 100 Gi total memory)
+  Free           | Shows available resources as a single number
+                 | (e.g., 60 means 60 Gi of memory is available for use)
+
+This applies to all allocatable resources: CPU, memory, storage, and GPU.
+
+.. code-block:: text
+
+   osmo resource list [-h] [--pool POOL [POOL ...]]
+                      [--platform PLATFORM [PLATFORM ...]] [--all]
+                      [--format-type {json,text}] [--mode {free,used}]
+
+.. _cli_reference_resource_list_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--pool, -p``
+    Display resources for specified pool.
+
+    Default: ``[]``
+
+``--platform``
+    Display resources for specified platform.
+
+    Default: ``[]``
+
+``--all, -a``
+    Show all resources from all pools.
+
+    Default: ``False``
+
+``--format-type, -t``
+    Possible choices: json, text
+
+    Specify the output format type (Default text).
+
+    Default: ``'text'``
+
+``--mode, -m``
+    Possible choices: free, used
+
+    Show free or used resources (Default used).
+
+    Default: ``'used'``
+
+.. _cli_reference_resource_info:
+
+info
+~~~~
+
+Get resource allocatable and configurations of a node.
+
+.. code-block:: text
+
+   osmo resource info [-h] [--pool POOL] [--platform PLATFORM] node_name
+
+.. _cli_reference_resource_info_positional_arguments:
+
+Positional Arguments
+^^^^^^^^^^^^^^^^^^^^
+
+``node_name``
+    Name of node.
+
+.. _cli_reference_resource_info_named_arguments:
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+``--pool, -p``
+    Specify the pool to see specific allocatable and configurations.
+
+``--platform, -pl``
+    Specify the platform to see specific allocatable and configurations.

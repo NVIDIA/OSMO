@@ -21,10 +21,47 @@
 osmo config rollback
 ====================
 
-.. argparse-with-postprocess::
-   :module: src.cli.main_parser
-   :func: create_cli_parser
-   :prog: osmo
-   :path: config rollback
-   :ref-prefix: cli_reference_config_rollback
-   :argument-anchor:
+.. CLI-REFERENCE-GENERATED -- do not edit by hand; regenerate with: make -C docs cli-rst
+.. cli-source: module=src.cli.main_parser | func=create_cli_parser | prog=osmo | path=config rollback | ref-prefix=cli_reference_config_rollback | flags=argument-anchor
+
+Roll back a configuration to a previous revision
+
+When rolling back a configuration, the revision number is incremented by 1 and a new revision is created. The new revision will have the same data as the desired rollback revision.
+
+.. code-block:: text
+
+   usage: osmo config rollback [-h] revision [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
+
+.. _cli_reference_config_rollback_positional_arguments:
+
+Positional Arguments
+--------------------
+
+``revision``
+    Revision to roll back to in format <CONFIG_TYPE>:<revision>, e.g. SERVICE:12
+
+.. _cli_reference_config_rollback_named_arguments:
+
+Named Arguments
+---------------
+
+``--description``
+    Optional description for the rollback action
+
+``--tags``
+    Optional tags for the rollback action
+
+
+
+Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, GROUP_TEMPLATE, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+
+.. rubric:: Examples
+
+Roll back a service configuration::
+
+    osmo config rollback SERVICE:4
+
+Roll back with description and tags::
+
+    osmo config rollback BACKEND:7 --description "Rolling back to stable version" --tags rollback stable
+        
