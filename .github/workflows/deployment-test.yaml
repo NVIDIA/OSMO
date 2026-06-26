@@ -848,6 +848,22 @@ jobs:
           echo "::add-mask::$PG_PASS"
           echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
 
+      # The wrapper's stage_oetf_smoke applies a profile-pool=default
+      # workaround for #1114's `pool=` vs `pools=` query-param mismatch,
+      # but it only runs that workaround when `command -v osmo` finds
+      # the CLI. In the old monolithic job the deploy stage installed
+      # osmo into ~/.local/bin earlier in the same runner; in the split,
+      # this is a fresh runner — osmo isn't there. Without the
+      # workaround, smoke:api-checks fails with "No pool selected!".
+      # Install osmo CLI here (idempotent; common.sh's installer downloads
+      # the latest GA release from github.com/NVIDIA/OSMO/releases).
+      - name: install osmo CLI (for profile-pool workaround)
+        run: |
+          set -euo pipefail
+          source deployments/scripts/common.sh
+          install_osmo_cli_if_missing
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: run OETF smoke tests
         id: run_oetf
         env:
