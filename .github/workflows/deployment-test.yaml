@@ -307,57 +307,31 @@ jobs:
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Full deployment-test gate. Provisions a real cluster, deploys OSMO
-  # using the PR-built images from build-images above, runs verify-hello,
-  # tears down. Long-running.
-  full-deployment:
-    # Gating lives on `build-images` (same conditions); when that job is
-    # skipped this one is too via the `needs:` default behavior. Keeping
-    # the trigger logic in one place avoids the apply/destroy-style copy.
+  # ── Stage 1: terraform apply ─────────────────────────────────────────────
+  # Provisions AKS + Postgres flex + Managed Redis in `vars.AZURE_REGION`.
+  # Uploads the resulting tfstate + tfvars as artifacts so the `tf-destroy`
+  # job at the end can clean up regardless of what fails in between.
+  # POSTGRES_PASSWORD is generated here and surfaced as a (masked) job
+  # output so the deploy/oetf jobs can hand it to the wrapper.
+  tf-apply:
     needs: build-images
+    if: ${{ needs.build-images.result == 'success' }}
     runs-on: ubuntu-latest
-    # Budget while TEMP scaffolding is in place:
-    #   cleanup leftovers (~30 min worst-case if AKS is mid-delete)
-    #   + terraform apply (~15 min)
-    #   + wrapper deploy/verify (~30 min)
-    #   + terraform destroy (~15 min)
-    # = ~90 min nominal. 120 leaves headroom for slow-Azure days.
-    # After the TEMP scaffolding goes away the budget drops to ~30 min.
-    timeout-minutes: 120
+    timeout-minutes: 30
     environment: internal-ci
     env:
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      # Put RUN_DIR inside the workspace so upload-artifact can find it.
-      # run-deployment-test.sh reads $RUN_DIR if set (otherwise defaults
-      # to $REPO_ROOT/runs/deployment-test-<provider>, which on a GHA
-      # runner resolves OUTSIDE the workspace and gets dropped by the
-      # default artifact-path glob).
-      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
-      # Point the deploy chain at PR-built images (from the build-images
-      # job) instead of the published nvcr.io/nvidia/osmo:latest. Read by
-      # deploy-k8s.sh as env vars and threaded into --set global.osmoImage*
-      # and backend_images.{init,client}.
-      OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
-      OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
-      # Pre-created in the "GHCR pull secret" step below, then consumed by
-      # deploy-k8s.sh (which sets --set global.imagePullSecret=$NGC_SECRET_NAME
-      # for the chart). The "NGC" name is legacy — the variable accepts
-      # any registry's docker-registry secret.
-      NGC_SECRET_NAME: ghcr-pull
+    outputs:
+      postgres_password: ${{ steps.gen_pg.outputs.value }}
     permissions:
       id-token: write
       contents: read
-      packages: read
     steps:
       - uses: actions/checkout@v4
 
-      # OIDC-federated `az` login for the Azure CLI. deploy-osmo-minimal.sh
-      # runs `az` commands during its pre-flight + storage configuration
-      # phases (the azurerm terraform provider has its own ARM_USE_OIDC
-      # auth path, but `az` doesn't pick that up — it needs its own login).
       - name: azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -369,31 +343,9 @@ jobs:
         with:
           terraform_version: 1.9.8
 
-      # bazel is needed in this job because the wrapper's stage_oetf_smoke
-      # invokes `bazel run //test/oetf:run` inline. Same setup pattern as
-      # build-images + pr-checks.yaml. disk-cache key is shared with the
-      # build-images job so the bazel artifacts produced there speed up
-      # OETF target builds here.
-      - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
-        with:
-          bazelisk-cache: true
-          bazelisk-version: 1.27.0
-          disk-cache: ${{ github.workflow }}-images
-          repository-cache: true
-          external-cache: |
-            manifest:
-              osmo_python_deps: src/locked_requirements.txt
-              osmo_tests_python_deps: src/tests/locked_requirements.txt
-              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
-              pylint_python_deps: bzl/linting/locked_requirements.txt
-              io_bazel_rules_go: src/runtime/go.mod
-              bazel_gazelle: src/runtime/go.sum
-
-      - name: install kubectl + helm
+      - name: install kubectl
         run: |
           set -euo pipefail
-
           KUBECTL_VERSION=v1.31.0
           curl -fsSLo /tmp/kubectl \
             "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
@@ -401,50 +353,24 @@ jobs:
             | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
           sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
 
-          HELM_VERSION=v3.16.2
-          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
-          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
-          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
-          sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
-          sudo chmod +x /usr/local/bin/helm
-
-      # Snapshot the deploy environment up-front so failures are easy to
-      # triage from the log without re-running. Includes az identity, tool
-      # versions, target RG status, env vars (sans secrets).
       - name: environment snapshot
-        run: |
-          echo "::group::az identity (whoami)"
-          az account show -o table || true
-          echo "::endgroup::"
-
-          echo "::group::tool versions"
-          terraform version
-          kubectl version --client --output=yaml | head -8
-          helm version --short
-          az version 2>&1 | head -10
-          echo "::endgroup::"
-
-          echo "::group::target resource group"
-          az group show --name "$AZURE_RESOURCE_GROUP" -o table || \
-            echo "(resource group not found — would be created on apply)"
-          echo "::endgroup::"
-
-          echo "::group::env (non-secret)"
-          echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
-          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP"
-          echo "AZURE_REGION=$AZURE_REGION"
-          echo "AZURE_CLUSTER_NAME=$AZURE_CLUSTER_NAME"
-          echo "RUN_DIR=$RUN_DIR"
-          echo "::endgroup::"
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+        run: |
+          echo "::group::az identity"; az account show -o table || true; echo "::endgroup::"
+          echo "::group::tool versions"; terraform version; az version 2>&1 | head -5; echo "::endgroup::"
+          echo "::group::target RG"; az group show --name "$AZURE_RESOURCE_GROUP" -o table || \
+            echo "(RG not found)"; echo "::endgroup::"
+          echo "::group::env (non-secret)"
+          echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
+          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP"
+          echo "AZURE_REGION=$AZURE_REGION"
+          echo "AZURE_CLUSTER_NAME=$AZURE_CLUSTER_NAME"
+          echo "::endgroup::"
 
-      # Postgres password: ephemeral per-run, since the entire Postgres
-      # instance is destroyed at teardown.
       - name: generate per-run postgres password
         id: gen_pg
         run: |
@@ -453,27 +379,13 @@ jobs:
           echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
 
       # Single source of truth for the TF inputs the apply + destroy steps
-      # use. Writing once to $RUNNER_TEMP avoids apply-vs-destroy var drift.
-      # RUNNER_TEMP persists across steps within the same job.
-      #
-      # Rationale for non-default values:
-      #   - aks_private_cluster_enabled=false  GHA runners are public-net,
-      #                                        can't resolve privatelink.
+      # use. Stored in $RUNNER_TEMP (per-job; this job uploads as artifact
+      # for the destroy job to download). Non-default values:
+      #   - aks_private_cluster_enabled=false  GHA runners are public-net.
       #   - node_instance_type=Standard_D8s_v3 D4s_v3 left K8_CPU=0 after
-      #                                        Azure daemons + OSMO sidecars
-      #                                        (ceil rounding); D8s_v3 ×3
-      #                                        gives ~4 vCPU headroom.
+      #                                        Azure daemons + OSMO sidecars.
       #   - node_group_min_size=3              headroom for scenario tests.
-      #
-      # Redis runs in the RG's region at the chart default SKU
-      # (ComputeOptimized_X3). Earlier runs hit AllocationFailed in eastus2
-      # across X3 and B0, which we temporarily worked around with
-      # redis_sku_name=Balanced_B0 + redis_location=westus2. Probing whether
-      # capacity has recovered — if this run fails to allocate, we'll move
-      # the whole stack to a region with capacity rather than reinstate the
-      # cross-region split (cross-region Redis adds ~60ms RTT and doesn't
-      # reflect prod topology).
-      - name: build TF var file (consumed by both apply and destroy)
+      - name: build TF var file
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
@@ -491,27 +403,13 @@ jobs:
           node_instance_type           = "Standard_D8s_v3"
           node_group_min_size          = 3
           TFVARS
-          # The file contains a real password — mask before logging.
           grep -v postgres_password "$RUNNER_TEMP/azure.tfvars"
-
-      # TEMPORARY SCAFFOLDING -----------------------------------------------
-      # run-deployment-test.sh hard-codes `--skip-terraform` for Azure (the
-      # design intent is "AKS + Postgres + Redis provisioned externally,
-      # this just deploys OSMO onto it"). For automated CI verification
-      # we don't have that external infra yet, so the workflow self-
-      # provisions: terraform apply BEFORE the wrapper, terraform destroy
-      # AFTER. Remove these two scaffolding steps once a long-running
-      # internal-ci AKS is set up (the wrapper invocation in the middle
-      # stays unchanged).
 
       # Sanity check: the RG named by vars.AZURE_RESOURCE_GROUP must
       # already exist and live in vars.AZURE_REGION. The OIDC SP is
       # RG-scoped (Contributor on the named RG only, not subscription-
       # level), so workflow-side `az group create` doesn't work; moving
-      # to a different region is a manual op (create the new RG + grant
-      # the SP Contributor on it, then update vars.AZURE_RESOURCE_GROUP
-      # and vars.AZURE_REGION). Fail fast here rather than deep inside
-      # terraform apply.
+      # to a different region is a manual op.
       - name: TEMP — verify resource group is in $AZURE_REGION
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
@@ -520,20 +418,20 @@ jobs:
           set -euo pipefail
           existing=$(az group show --name "$AZURE_RESOURCE_GROUP" --query location -o tsv 2>/dev/null || true)
           if [ -z "$existing" ]; then
-            echo "::error::resource group '$AZURE_RESOURCE_GROUP' not found (or SP lacks read access). Pre-create the RG in '$AZURE_REGION' and grant the OIDC SP Contributor on it, then re-run."
+            echo "::error::resource group '$AZURE_RESOURCE_GROUP' not found (or SP lacks read access)."
             exit 1
           elif [ "$existing" != "$AZURE_REGION" ]; then
-            echo "::error::resource group '$AZURE_RESOURCE_GROUP' lives in '$existing' but workflow expects '$AZURE_REGION'. Either update vars.AZURE_REGION to '$existing' or point vars.AZURE_RESOURCE_GROUP at a RG in '$AZURE_REGION'."
+            echo "::error::RG '$AZURE_RESOURCE_GROUP' lives in '$existing' but workflow expects '$AZURE_REGION'."
             exit 1
           fi
-          echo "::notice::resource group $AZURE_RESOURCE_GROUP confirmed in $AZURE_REGION"
+          echo "::notice::RG $AZURE_RESOURCE_GROUP confirmed in $AZURE_REGION"
 
-      # If a prior verification run was killed mid-destroy (e.g. job
-      # timeout), Azure resources may exist in the RG without matching
-      # terraform state — and `terraform apply` would then fail with
-      # "Resource already exists, import into state". Wipe all
-      # non-RG resources to start from a clean slate.
+      # If a prior run was killed mid-destroy, resources may exist in the
+      # RG without matching TF state — `terraform apply` would then fail
+      # with "Resource already exists, import into state". Wipe leftovers.
       - name: TEMP — pre-apply cleanup (delete leftover resources in RG)
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
           set -euo pipefail
           echo "▶ $(date -u +%H:%M:%S) checking for leftover resources in $AZURE_RESOURCE_GROUP"
@@ -543,14 +441,8 @@ jobs:
             exit 0
           fi
           echo "::warning::found $(echo "$IDS" | wc -l) leftover resource(s) from a prior partial run"
-          echo "::group::leftover resources"
           echo "$IDS"
-          echo "::endgroup::"
 
-          # Fire all deletes in parallel — each az call enqueues server-side
-          # then returns immediately with --no-wait, but the CLI's own ARM
-          # request still serializes ~500 ms each. Backgrounding ~20 of
-          # them turns 10 s of sequential fire into ~1 s.
           fire_deletes() {
             local ids="$1" budget="$2"
             while IFS= read -r id; do
@@ -563,16 +455,10 @@ jobs:
           echo "▶ $(date -u +%H:%M:%S) firing async deletes (--no-wait)"
           fire_deletes "$IDS" 2
 
-          echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 30 min; AKS deletion alone can take 15+)"
-          # Re-fire deletes every 5 min on whatever's still there. Some
-          # resources (NAT public IPs, NICs) can't delete until their
-          # parents (NAT gateway, AKS node pool) finish — the initial
-          # fire is rejected but a later one succeeds. Without re-fire,
-          # they'd sit stuck forever.
+          echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 30 min)"
           deadline=$(( $(date +%s) + 1800 ))
           last_refire=$(date +%s)
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            # One ARM call gives us both the count and the IDs.
             ids_now=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query '[].id' -o tsv || true)
             count=$(echo -n "$ids_now" | grep -c . || true)
             echo "  $(date -u +%H:%M:%S) remaining: $count"
@@ -584,7 +470,6 @@ jobs:
               fire_deletes "$ids_now" 1
               last_refire=$now
             fi
-
             sleep 30
           done
 
@@ -594,80 +479,105 @@ jobs:
             exit 1
           fi
           echo "::notice::cleanup complete"
-        env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
 
       - name: TEMP — terraform apply (provision AKS + Postgres + Redis)
         working-directory: deployments/terraform/azure/example
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
           set -euo pipefail
-
-          echo "::notice::terraform apply starting — expected ~10–15 min (AKS provisioning dominates wall time)"
-          echo "▶ $(date -u +%H:%M:%S) terraform init"
+          echo "::notice::terraform apply starting — expected ~10–15 min (AKS dominates)"
           echo "::group::terraform init"
-          terraform init -input=false -no-color | ts '[%H:%M:%S]' || terraform init -input=false -no-color
+          terraform init -input=false -no-color
           echo "::endgroup::"
-
-          echo "▶ $(date -u +%H:%M:%S) terraform apply (streaming, line-flushed)"
           echo "::group::terraform apply (streaming)"
-          # Vars are owned by the "build TF var file" step (see above);
-          # both apply and destroy use the same file so they can never
-          # diverge.
-          if command -v ts >/dev/null; then
-            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" 2>&1 | ts '[%H:%M:%S]'
-          else
-            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars"
-          fi
+          terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars"
           echo "::endgroup::"
-
-          echo "▶ $(date -u +%H:%M:%S) terraform apply complete; resource summary:"
           echo "::group::resources provisioned (terraform state list)"
           terraform state list || true
           echo "::endgroup::"
-
-          # Step-summary panel — shows up on the run's overview page so
-          # users don't have to read the raw log to see what landed.
+          # Stash state file inside the workspace so upload-artifact can find it.
+          mkdir -p "$GITHUB_WORKSPACE/tf-state"
+          cp terraform.tfstate "$GITHUB_WORKSPACE/tf-state/" 2>/dev/null || true
+          cp .terraform.lock.hcl "$GITHUB_WORKSPACE/tf-state/" 2>/dev/null || true
+          cp "$RUNNER_TEMP/azure.tfvars" "$GITHUB_WORKSPACE/tf-state/" 2>/dev/null || true
           {
-            echo "### TEMP terraform apply"
+            echo "### TEMP terraform apply ✅"
             echo ""
             echo "- AKS: \`${AZURE_CLUSTER_NAME}\` in \`${AZURE_RESOURCE_GROUP}\` (${AZURE_REGION})"
             echo "- Postgres flex: \`${AZURE_CLUSTER_NAME}-postgres\`"
             echo "- Redis: \`${AZURE_CLUSTER_NAME}-redis\`"
             echo "- finished at: $(date -u +%H:%M:%SZ)"
           } >> "$GITHUB_STEP_SUMMARY"
-        env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          PG_PASS: ${{ steps.gen_pg.outputs.value }}
-      # --------------------------------------------------------------------
 
-      # The GitHub OIDC JWT minted at job start has only ~5 minutes of
-      # validity. The terraform apply step above takes ~10 min, so by the
-      # time the wrapper runs its first `az aks command invoke`, the
-      # client_assertion cached by the initial `azure/login` is stale and
-      # Azure rejects with:
-      #   AADSTS700024: Client assertion is not within its valid time range
-      # Re-running azure/login@v2 mints a fresh JWT + access token.
-      - name: azure login (re-mint JWT post-apply)
+      # Upload terraform state (and the tfvars file) so the tf-destroy job
+      # can download and replay the same plan. `if: always()` so a partial
+      # apply still uploads whatever state exists.
+      - name: upload terraform state + tfvars (for tf-destroy)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-state-${{ github.run_id }}
+          path: tf-state/
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ── Stage 2: deploy OSMO chart + verify-hello ────────────────────────────
+  # Refreshes kubectl creds against the freshly-applied AKS, pre-creates a
+  # GHCR pull secret, then invokes the wrapper with SKIP_OETF=1 so only
+  # bootstrap + deploy stages run.
+  deploy-osmo:
+    needs: [build-images, tf-apply]
+    if: ${{ needs.tf-apply.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: internal-ci
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
+      OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
+      OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
+      NGC_SECRET_NAME: ghcr-pull
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: azure login (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # Wire kubectl to the freshly-applied AKS, then pre-create a
-      # docker-registry secret in every OSMO namespace pointing at GHCR.
-      # deploy-k8s.sh's NGC-secret logic (lines 540-573) skips its own
-      # `kubectl create secret docker-registry` path when the named secret
-      # already exists in any OSMO namespace; pre-creating in all three
-      # makes that path a no-op AND avoids needing to leak NGC_API_KEY into
-      # this workflow.
-      #
-      # GITHUB_TOKEN is short-lived (job-bounded), but kubelet only resolves
-      # the secret at pod-create time; once an image layer is on the node,
-      # subsequent pulls hit the local cache. Verify-hello completes within
-      # job lifetime, so the token's validity window is sufficient.
+      - name: install kubectl + helm
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION=v1.31.0
+          curl -fsSLo /tmp/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+
+          HELM_VERSION=v3.16.2
+          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
+          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+
+      # Wire kubectl to the freshly-applied AKS, then pre-create a GHCR
+      # docker-registry secret in every OSMO namespace. The chart's deploy
+      # script (deploy-k8s.sh) skips its own kubectl-create-secret path
+      # when the named secret exists, avoiding the need to leak NGC_API_KEY.
       - name: wire kubectl + pre-create GHCR pull secret
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
@@ -676,35 +586,21 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
-          echo "▶ $(date -u +%H:%M:%S) az aks get-credentials"
+          echo "▶ az aks get-credentials"
           az aks get-credentials \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_CLUSTER_NAME" \
-            --overwrite-existing \
-            --admin
-
+            --overwrite-existing --admin
           kubectl cluster-info | head -3
 
-          echo "▶ $(date -u +%H:%M:%S) ensuring OSMO namespaces exist"
+          echo "▶ ensuring OSMO namespaces exist"
           for ns in osmo-minimal osmo-operator osmo-workflows; do
             kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           done
 
-          # Chart-generated workflow task pods set `runtimeClassName: nvidia`
-          # because in GPU deploys gpu-operator provides that RuntimeClass.
-          # On CPU-only deploys (--no-gpu), without the stub k8s admission
-          # rejects pods with `RuntimeClass "nvidia" not found` (HTTP 403)
-          # and verify-hello ends in FAILED_SERVER_ERROR.
-          #
-          # Mirror OETF's KindAdapter._apply_nvidia_runtimeclass_stub:
-          # create a `nvidia` RuntimeClass that points at the default
-          # `runc` handler. (See test/oetf/deploy_adapters/kind_adapter.py
-          # for the canonical version.)
-          echo "▶ $(date -u +%H:%M:%S) applying nvidia RuntimeClass stub (CPU-mode shim)"
-          # printf instead of heredoc — heredoc body inside a yaml `run: |`
-          # block inherits the yaml's leading whitespace, which kubectl can
-          # tolerate (it's uniform) but is fragile and editor-hostile.
+          # Chart-generated workflow task pods set `runtimeClassName: nvidia`.
+          # On CPU-only deploys (--no-gpu), without this stub k8s rejects them.
+          echo "▶ applying nvidia RuntimeClass stub (CPU-mode shim)"
           printf '%s\n' \
             'apiVersion: node.k8s.io/v1' \
             'kind: RuntimeClass' \
@@ -713,7 +609,7 @@ jobs:
             'handler: runc' \
             | kubectl apply -f -
 
-          echo "▶ $(date -u +%H:%M:%S) creating GHCR pull secret '$NGC_SECRET_NAME' in each namespace"
+          echo "▶ creating GHCR pull secret '$NGC_SECRET_NAME' in each namespace"
           for ns in osmo-minimal osmo-operator osmo-workflows; do
             kubectl create secret docker-registry "$NGC_SECRET_NAME" \
               --docker-server=ghcr.io \
@@ -724,44 +620,6 @@ jobs:
               | kubectl apply -f -
           done
 
-          echo "::notice::Pre-created $NGC_SECRET_NAME (ghcr.io) in osmo-minimal/osmo-operator/osmo-workflows"
-
-          {
-            echo "### GHCR pull secret"
-            echo ""
-            echo "- name: \`$NGC_SECRET_NAME\`"
-            echo "- registry: \`ghcr.io\`"
-            echo "- images expected: \`$OSMO_IMAGE_REGISTRY/*:$OSMO_IMAGE_TAG\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # The wrapper has three stages: bootstrap → deploy → oetf-smoke. We
-      # invoke it twice with SKIP_* flags so each stage shows up as its own
-      # GHA step with its own status icon and step-summary section — much
-      # easier to triage than a single monolithic "wrapper" step.
-      #
-      # First invocation: bootstrap + deploy (SKIP_OETF=1). Brings up the
-      # chart, runs verify-hello.
-      # Second invocation: bootstrap + oetf-smoke (SKIP_DEPLOY=1). Runs the
-      # OETF target set against the already-deployed cluster.
-      # SKIP_TEARDOWN=1 in both: cloud-side cleanup is owned by the
-      # `terraform destroy` step at the end of the job.
-      #
-      # verify-hello detail: must pass cleanly because the system pool is
-      # 3 nodes (node_group_min_size=3). The default_cpu rule is
-      # `LE USER_CPU K8_CPU` and K8_CPU resolves from the agent's
-      # `platform_workflow_allocatable_fields`, which depends on node count
-      # + daemon overhead. Pod logs confirmed K8_CPU < 1.0 on the prior
-      # 2-node Standard_D4s_v3 cluster (now D8s_v3 ×3).
-      #
-      # OETF tag set: only remaining hole vs the broad `kind` tag is
-      # router-connectivity (Azure CoreDNS — cluster networking, not an
-      # OETF bug). task-runtime-environment was unblocked by #1128.
-      # api-checks still relies on the wrapper's
-      # `osmo profile set pool default` workaround for #1114's
-      # `pool=` vs `pools=` query-param mismatch.
-      # 8 tests: smoke api + smoke ws + 2 positive scenarios
-      # (logger-connectivity, task-runtime-environment) + 4 negative.
-
       - name: deploy OSMO (chart install + verify-hello)
         id: deploy_osmo
         env:
@@ -769,21 +627,21 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          POSTGRES_PASSWORD: ${{ steps.gen_pg.outputs.value }}
+          POSTGRES_PASSWORD: ${{ needs.tf-apply.outputs.postgres_password }}
           SKIP_OETF: "1"
           SKIP_TEARDOWN: "1"
         run: |
           set -o pipefail
           echo "::notice::deploy stage starting — chart install + verify-hello, expected ~5–15 min"
-          echo "▶ $(date -u +%H:%M:%S) wrapper: --skip-oetf"
           mkdir -p "$RUN_DIR"
           bash deployments/scripts/run-deployment-test.sh --provider azure
           echo "▶ $(date -u +%H:%M:%S) deploy stage done"
 
-      # Always-run summary so the chart/pod/verify-hello state surfaces
-      # even when the deploy step itself failed.
       - name: deploy result summary
         if: always() && steps.deploy_osmo.conclusion != 'skipped'
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
           set +e
           chart_version="$(helm list -n osmo --output json 2>/dev/null \
@@ -810,34 +668,119 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: upload deploy logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-osmo-${{ github.run_id }}
+          path: runs/deployment-test-azure/**
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ── Stage 3: OETF smoke tests ────────────────────────────────────────────
+  # Refreshes kubectl creds against the AKS cluster the deploy job left
+  # running, then invokes the wrapper with SKIP_DEPLOY=1 so only bootstrap
+  # + oetf-smoke stages run. The wrapper sets up its own kubectl
+  # port-forward to osmo-gateway and runs `bazel run //test/oetf:run`.
+  oetf:
+    needs: [build-images, tf-apply, deploy-osmo]
+    if: ${{ needs.deploy-osmo.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: internal-ci
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
+      OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
+      OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
+      # OETF lives at <repo>/test/oetf in the public repo; the wrapper's
+      # REPO_ROOT computation assumes external/ submodule wrapping and
+      # overshoots on a standalone checkout, so override explicitly.
+      OETF_REPO_ROOT: ${{ github.workspace }}
+      # OETF tag set. Only remaining hole vs the broad `kind` tag is
+      # router-connectivity (Azure CoreDNS, not OETF). task-runtime-environment
+      # was unblocked by #1128.
+      # 8 tests: smoke api + smoke ws + 2 positive scenarios + 4 negative.
+      OETF_TAGS: api,websocket,logger,task-env,negative
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: install kubectl
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION=v1.31.0
+          curl -fsSLo /tmp/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+
+      # bazel is needed for `bazel run //test/oetf:run` inside the wrapper's
+      # oetf-smoke stage. disk-cache key shared with the build-images job so
+      # OETF target builds can hit the cache.
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}-images
+          repository-cache: true
+          external-cache: |
+            manifest:
+              osmo_python_deps: src/locked_requirements.txt
+              osmo_tests_python_deps: src/tests/locked_requirements.txt
+              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+              pylint_python_deps: bzl/linting/locked_requirements.txt
+              io_bazel_rules_go: src/runtime/go.mod
+              bazel_gazelle: src/runtime/go.sum
+
+      - name: refresh kubectl creds for AKS
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+        run: |
+          set -euo pipefail
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_CLUSTER_NAME" \
+            --overwrite-existing --admin
+          kubectl cluster-info | head -3
+          kubectl get pods -n osmo-minimal -o wide | head -20
+
       - name: run OETF smoke tests
         id: run_oetf
-        if: steps.deploy_osmo.conclusion == 'success'
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          POSTGRES_PASSWORD: ${{ steps.gen_pg.outputs.value }}
-          # OETF lives at <repo>/test/oetf in the public repo; the wrapper's
-          # REPO_ROOT computation (SCRIPT_DIR/../../..) assumes external/
-          # submodule wrapping and overshoots by one level on a standalone
-          # checkout, so override OETF_REPO_ROOT explicitly.
-          OETF_REPO_ROOT: ${{ github.workspace }}
-          OETF_TAGS: api,websocket,logger,task-env,negative
+          POSTGRES_PASSWORD: ${{ needs.tf-apply.outputs.postgres_password }}
           SKIP_DEPLOY: "1"
           SKIP_TEARDOWN: "1"
         run: |
           set -o pipefail
           echo "::notice::OETF stage starting — bazel run //test/oetf:run with tags=$OETF_TAGS"
-          echo "▶ $(date -u +%H:%M:%S) wrapper: --skip-deploy"
+          mkdir -p "$RUN_DIR"
           bash deployments/scripts/run-deployment-test.sh --provider azure
           echo "▶ $(date -u +%H:%M:%S) OETF stage done"
 
-      # Always-run summary — fires on test failures too so the per-test
-      # table is visible in the run UI regardless of outcome.
       - name: OETF result summary
         if: always() && steps.run_oetf.conclusion != 'skipped'
+        env:
+          RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
         run: |
           set +e
           oetf_json="$RUN_DIR/oetf-result.json"
@@ -867,18 +810,87 @@ jobs:
               msg = (r.get("message") or "").strip().replace("\n", " ")
               if len(msg) > 200:
                   msg = msg[:200] + "…"
-              # Escape pipes in messages so the table doesn't break.
               msg = msg.replace("|", "\\|")
               print(f"| {row_icon.get(r.get('status'),'?')} | `{r.get('target','?')}` | {r.get('time',0):.1f}s | {msg} |")
           PY
 
+      - name: upload OETF logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oetf-${{ github.run_id }}
+          path: runs/deployment-test-azure/**
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ── Stage 4: terraform destroy + cluster diagnostics ─────────────────────
+  # Always runs as long as tf-apply succeeded — we don't want to leak AKS
+  # + Postgres + Redis after a verification run. Downloads the tfstate
+  # artifact tf-apply uploaded, captures a final cluster snapshot before
+  # destroy, then tears everything down.
+  tf-destroy:
+    needs: [build-images, tf-apply, deploy-osmo, oetf]
+    if: ${{ always() && needs.tf-apply.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: internal-ci
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: install kubectl + helm
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION=v1.31.0
+          curl -fsSLo /tmp/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+
+          HELM_VERSION=v3.16.2
+          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
+          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+
+      - name: download tf-state artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-state-${{ github.run_id }}
+          path: tf-state-download/
+
+      - name: stage tfstate + tfvars for destroy
+        run: |
+          set -euo pipefail
+          cp tf-state-download/terraform.tfstate     deployments/terraform/azure/example/ 2>/dev/null || true
+          cp tf-state-download/.terraform.lock.hcl   deployments/terraform/azure/example/ 2>/dev/null || true
+          cp tf-state-download/azure.tfvars          "$RUNNER_TEMP/azure.tfvars" 2>/dev/null || true
+          ls -la deployments/terraform/azure/example/terraform.tfstate "$RUNNER_TEMP/azure.tfvars" || true
+
       # Capture a snapshot of cluster + OSMO state BEFORE terraform destroys
-      # everything. Runs on success too so we can compare "green run" vs
-      # "red run" diagnostics. Self-contained: re-mints kubectl context up
-      # front in case the wrapper trashed its kubeconfig.
-      #
-      # All artifacts land under $RUN_DIR/diagnostics/ which is uploaded
-      # by the artifact-upload step regardless of job outcome.
+      # everything. Self-contained: re-mints kubectl context up front in
+      # case anything along the way mangled the kubeconfig.
       - name: dump cluster + OSMO diagnostics (always)
         if: always()
         timeout-minutes: 5
@@ -890,7 +902,7 @@ jobs:
           DIAG="$RUN_DIR/diagnostics"
           mkdir -p "$DIAG"
 
-          echo "▶ $(date -u +%H:%M:%S) refreshing kubectl context"
+          echo "▶ refreshing kubectl context"
           az aks get-credentials \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_CLUSTER_NAME" \
@@ -906,31 +918,24 @@ jobs:
           kubectl get events -A --sort-by='.lastTimestamp' 2>/dev/null | tail -200 | tee "$DIAG/events.txt"
           echo "::endgroup::"
 
-          echo "::group::non-Running pods + descriptions"
+          echo "::group::non-Running pods + describe"
           kubectl get pods -A --field-selector=status.phase!=Running -o wide | tee "$DIAG/non-running.txt"
-          # Describe each non-Running pod (helps diagnose ImagePullBackOff,
-          # CrashLoopBackOff, OOMKilled, scheduling failures, etc.)
           kubectl get pods -A --field-selector=status.phase!=Running \
             -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' \
             | while read -r ns pod; do
                 [[ -z "$ns" || -z "$pod" ]] && continue
                 kubectl describe pod "$pod" -n "$ns" > "$DIAG/describe-${ns}-${pod}.txt" 2>&1
-                # tail of any container's logs (best effort, ignore errors)
                 kubectl logs "$pod" -n "$ns" --all-containers --tail=200 --prefix \
                   > "$DIAG/logs-${ns}-${pod}.log" 2>&1
               done
           echo "::endgroup::"
 
-          echo "::group::actual image refs on every pod (proves PR-built tag is in use)"
+          echo "::group::image refs on running pods"
           kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{","}{end}{"\n"}{end}' \
             | sort | tee "$DIAG/image-refs.txt"
           echo "::endgroup::"
 
-          echo "::group::OSMO pod logs (every pod in osmo-* namespaces, tail 500)"
-          # Iterate pods by name — label-matching is fragile because the
-          # chart labels are `app: osmo-<svc>` not just `app: <svc>`, and
-          # backend-operator uses `app: osmo-operator-*`. Pod-name iteration
-          # is also resilient to chart label drift.
+          echo "::group::OSMO pod logs (tail 500)"
           for ns in osmo-minimal osmo-operator osmo-workflows; do
             kubectl get pods -n "$ns" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null \
               | while read -r pod; do
@@ -939,14 +944,10 @@ jobs:
                     > "$DIAG/podlog-${ns}-${pod}.log" 2>&1
                 done
           done
-          ls -la "$DIAG"/podlog-*.log 2>/dev/null > "$DIAG/podlog-index.txt"
-          cat "$DIAG/podlog-index.txt"
           echo "::endgroup::"
 
-          echo "::group::helm releases + resolved values"
+          echo "::group::helm releases + values"
           helm list -A -o yaml > "$DIAG/helm-releases.yaml" 2>&1
-          # jq is preinstalled on ubuntu-latest. Inline python is hostile to
-          # yaml's leading-whitespace because `run: |` preserves it.
           while IFS='|' read -r r ns; do
             [[ -z "$r" ]] && continue
             helm status "$r" -n "$ns"     > "$DIAG/helm-status-${r}.txt"   2>&1
@@ -954,50 +955,10 @@ jobs:
           done < <(helm list -A -o json 2>/dev/null | jq -r '.[] | "\(.name)|\(.namespace)"')
           echo "::endgroup::"
 
-          echo "::group::OSMO CLI workflow + resource snapshot (best-effort)"
-          if command -v osmo >/dev/null 2>&1; then
-            # Re-establish port-forward to gateway, since the wrapper's own
-            # watchdog port-forward was torn down when verify.sh exited.
-            kubectl port-forward -n osmo-minimal svc/osmo-gateway 9100:80 > /dev/null 2>&1 &
-            PF_PID=$!
-            sleep 3
-            export OSMO_SERVICE_URL="http://localhost:9100"
-            # `query` is the right subcommand (CLI has no `status`).
-            timeout 30 osmo workflow query    verify-hello-1 > "$DIAG/osmo-verify-hello-query.txt"   2>&1 || true
-            timeout 30 osmo workflow events   verify-hello-1 > "$DIAG/osmo-verify-hello-events.txt"  2>&1 || true
-            timeout 30 osmo workflow logs     verify-hello-1 > "$DIAG/osmo-verify-hello-logs.txt"    2>&1 || true
-            # `resource list` exposes platform_workflow_allocatable_fields
-            # the agent has published — direct read of K8_CPU/K8_MEMORY
-            # values used by the strict-LE resource-validation assertions.
-            timeout 30 osmo resource list  -t json > "$DIAG/osmo-resource-list.json"  2>&1 || true
-            timeout 30 osmo pool list      -t json > "$DIAG/osmo-pool-list.json"      2>&1 || true
-            kill $PF_PID 2>/dev/null || true
-          else
-            echo "osmo CLI not on PATH (deploy-osmo-minimal.sh installs it; wrapper may have skipped)" \
-              > "$DIAG/osmo-cli-missing.txt"
-          fi
-          echo "::endgroup::"
-
-          echo "::group::node allocatable + per-node pod CPU usage"
-          # Allocatable = node.status.allocatable (k8s view).
-          kubectl get nodes -o "custom-columns=NAME:.metadata.name,CPU_ALLOC:.status.allocatable.cpu,MEM_ALLOC:.status.allocatable.memory,PODS_ALLOC:.status.allocatable.pods" > "$DIAG/nodes-allocatable.txt" 2>&1
-          cat "$DIAG/nodes-allocatable.txt"
-          # `kubectl describe nodes` includes the per-node "Allocated
-          # resources" table — that's the closest k8s-side analog to
-          # OSMO's K8_CPU calculation. Single file per node.
-          kubectl get nodes -o name 2>/dev/null \
-            | while read -r node; do
-                name="${node#node/}"
-                kubectl describe "$node" > "$DIAG/describe-node-${name}.txt" 2>&1
-              done
-          echo "::endgroup::"
-
-          # High-signal panel for the run's overview page — surfaces the
-          # things a triage-engineer wants first without expanding any log.
           {
             echo "### Cluster diagnostic snapshot"
             echo ""
-            echo "Captured ${DIAG#"$GITHUB_WORKSPACE/"} (uploaded as part of \`deployment-test-run-${GITHUB_RUN_ID}\` artifact)."
+            echo "Captured under \`$DIAG\` (uploaded as part of the \`tf-destroy-${GITHUB_RUN_ID}\` artifact)."
             echo ""
             echo "#### Pods not Running"
             if [ -s "$DIAG/non-running.txt" ] && [ "$(wc -l < "$DIAG/non-running.txt")" -gt 1 ]; then
@@ -1008,7 +969,7 @@ jobs:
               echo "_(all pods Running)_"
             fi
             echo ""
-            echo "#### Image refs on running pods (first 30)"
+            echo "#### Image refs (first 30)"
             echo '```'
             head -30 "$DIAG/image-refs.txt"
             echo '```'
@@ -1019,84 +980,50 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Never fail the step — diagnostics are best-effort and must not
-          # block teardown or mask the real failure upstream.
+          # Never fail — diagnostics are best-effort, must not block teardown.
           exit 0
 
-      # TEMPORARY SCAFFOLDING — pairs with the apply step above. Runs
-      # unconditionally on success OR failure so we never leak an AKS +
-      # Postgres + Redis pair after a verification run.
-      - name: TEMP — terraform destroy (always)
+      - name: TEMP — terraform destroy
         if: always()
         working-directory: deployments/terraform/azure/example
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
           set -euo pipefail
           echo "::notice::terraform destroy starting — expected ~10–15 min"
-          echo "▶ $(date -u +%H:%M:%S) terraform destroy (streaming)"
-          echo "::group::terraform destroy (streaming)"
-          # Same tfvars file the apply step used. See the "build TF var
-          # file" step earlier for rationale on each var.
-          if command -v ts >/dev/null; then
-            terraform destroy -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" 2>&1 | ts '[%H:%M:%S]' \
-              || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
-          else
-            terraform destroy -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" \
-              || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
-          fi
+
+          echo "::group::terraform init (refresh provider)"
+          terraform init -input=false -no-color
           echo "::endgroup::"
 
-          echo "▶ $(date -u +%H:%M:%S) post-destroy resource count:"
+          echo "::group::terraform destroy (streaming)"
+          terraform destroy -input=false -auto-approve -no-color \
+            -var-file="$RUNNER_TEMP/azure.tfvars" \
+            || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
+          echo "::endgroup::"
+
           REMAINING=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
           echo "  $REMAINING resource(s) still in $AZURE_RESOURCE_GROUP"
 
-          # Step-summary panel.
+          icon='✅'
+          [ "$REMAINING" != "0" ] && icon='⚠️'
           {
-            echo "### TEMP terraform destroy"
+            echo "### Destroy stage ${icon}"
             echo ""
             echo "- resources remaining in \`${AZURE_RESOURCE_GROUP}\`: ${REMAINING}"
             echo "- finished at: $(date -u +%H:%M:%SZ)"
             if [ "$REMAINING" != "0" ]; then
               echo ""
-              echo "⚠️ Next run's pre-apply cleanup step will wipe these."
+              echo "Next run's pre-apply cleanup step will wipe these."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-        env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          PG_PASS: ${{ steps.gen_pg.outputs.value }}
-      # --------------------------------------------------------------------
 
-      # Surface the last 200 lines of each stage log inline in the workflow
-      # output so most failures can be triaged WITHOUT downloading the
-      # artifact. The artifact step below still uploads everything.
-      # Fires on failure OR cancellation (timeout cancels but doesn't
-      # technically fail; we still want the inline tail).
-      - name: dump stage logs (on failure or cancellation)
-        if: failure() || cancelled()
-        run: |
-          set +e
-          for f in deploy.log oetf.log teardown.log deployment-test-result.json junit.xml; do
-            path="$RUN_DIR/$f"
-            if [ -f "$path" ]; then
-              echo "::group::$f (tail 200)"
-              tail -200 "$path"
-              echo "::endgroup::"
-            else
-              echo "::group::$f"
-              echo "(missing — stage did not reach this log)"
-              echo "::endgroup::"
-            fi
-          done
-
-      - uses: actions/upload-artifact@v4
+      - name: upload destroy logs + diagnostics
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: deployment-test-run-${{ github.run_id }}
-          # RUN_DIR is workspace-relative now; glob it broadly so even
-          # partial-run logs make it into the artifact.
-          path: |
-            runs/deployment-test-azure/**
+          name: tf-destroy-${{ github.run_id }}
+          path: runs/deployment-test-azure/**
           retention-days: 14
           if-no-files-found: warn
 
@@ -1110,7 +1037,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
 
   notify-slack-on-azure-deployment-test-failure:
-    needs: [build-images, full-deployment]
+    needs: [build-images, tf-apply, deploy-osmo, oetf, tf-destroy]
     # always() so this evaluates even when an upstream `needs:` failed.
     # Fires only on scheduled-run failures — PR-label and workflow_dispatch
     # runs surface their own status interactively.
@@ -1118,7 +1045,10 @@ jobs:
       ${{ always()
           && github.event_name == 'schedule'
           && (needs.build-images.result == 'failure'
-              || needs.full-deployment.result == 'failure') }}
+              || needs.tf-apply.result == 'failure'
+              || needs.deploy-osmo.result == 'failure'
+              || needs.oetf.result == 'failure'
+              || needs.tf-destroy.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1219,7 +1149,10 @@ jobs:
           # failures.
           SLACK_CHANNEL: ${{ vars.CI_SLACK_CHANNEL || 'osmo-slack-test' }}
           BI_RESULT: ${{ needs.build-images.result }}
-          FD_RESULT: ${{ needs.full-deployment.result }}
+          APPLY_RESULT: ${{ needs.tf-apply.result }}
+          DEPLOY_RESULT: ${{ needs.deploy-osmo.result }}
+          OETF_RESULT: ${{ needs.oetf.result }}
+          DESTROY_RESULT: ${{ needs.tf-destroy.result }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -1255,8 +1188,6 @@ jobs:
           artifact_label="${ARTIFACT_LABEL}"
           header_text=":x: OSMO Azure deployment-test FAILED"
           trigger_label="Daily schedule (00:00 UTC = 5pm PDT)"
-          bi_for_payload="$BI_RESULT"
-          fd_for_payload="$FD_RESULT"
 
           payload=$(jq -n \
             --arg channel       "$SLACK_CHANNEL" \
@@ -1266,8 +1197,11 @@ jobs:
             --arg short_sha     "$SHORT_SHA" \
             --arg author        "$AUTHOR" \
             --arg subject       "$SUBJECT" \
-            --arg bi            "$bi_for_payload" \
-            --arg fd            "$fd_for_payload" \
+            --arg bi            "$BI_RESULT" \
+            --arg apply         "$APPLY_RESULT" \
+            --arg deploy        "$DEPLOY_RESULT" \
+            --arg oetf          "$OETF_RESULT" \
+            --arg destroy       "$DESTROY_RESULT" \
             --arg workflow      "$WORKFLOW" \
             --arg run_url       "$run_url" \
             --arg commit_url    "$commit_url" \
@@ -1285,10 +1219,12 @@ jobs:
                   text: { type: "plain_text", text: $header_text } },
                 { type: "section",
                   fields: [
-                    { type: "mrkdwn", text: "*Workflow*\n\($workflow)" },
-                    { type: "mrkdwn", text: "*Trigger*\n\($trigger_label)" },
                     { type: "mrkdwn", text: "*build-images*\n`\($bi)`" },
-                    { type: "mrkdwn", text: "*full-deployment*\n`\($fd)`" }
+                    { type: "mrkdwn", text: "*tf-apply*\n`\($apply)`" },
+                    { type: "mrkdwn", text: "*deploy-osmo*\n`\($deploy)`" },
+                    { type: "mrkdwn", text: "*oetf*\n`\($oetf)`" },
+                    { type: "mrkdwn", text: "*tf-destroy*\n`\($destroy)`" },
+                    { type: "mrkdwn", text: "*Trigger*\n\($trigger_label)" }
                   ] },
                 { type: "section",
                   text: { type: "mrkdwn",
