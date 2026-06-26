@@ -112,6 +112,43 @@ class CollectAllureResultsTest(unittest.TestCase):
             )
             self.assertEqual(count, 0)
 
+    def test_collect_from_external_module_target(self):
+        # External bzlmod targets (e.g. @@osmo_workspace+//test/scenarios:foo)
+        # land in <testlogs>/external/<canonical_repo>/<pkg>/<tgt>/. Without
+        # explicit handling these labels are silently skipped and their
+        # scenarios never reach the Allure report.
+        with tempfile.TemporaryDirectory() as tmp:
+            results_dir = os.path.join(
+                tmp, "external", "osmo_workspace+",
+                "test", "scenarios", "exec-portforward",
+                "test.outputs", "allure-results",
+            )
+            os.makedirs(results_dir)
+            with open(os.path.join(results_dir, "ext-result.json"),
+                      "w", encoding="utf-8") as fh:
+                fh.write('{"uuid":"ext","status":"passed"}')
+            staging = os.path.join(tmp, "staging")
+            count = aggregate.collect_allure_results(
+                testlogs_dir=tmp,
+                targets=["@@osmo_workspace+//test/scenarios:exec-portforward"],
+                staging_dir=staging,
+            )
+            self.assertEqual(count, 1)
+            self.assertTrue(os.path.exists(
+                os.path.join(staging, "ext-result.json")))
+
+    def test_skips_unrecognized_label_forms(self):
+        # Bare-package labels (`//pkg`) and non-Bazel strings can't be mapped
+        # to a testlogs path without a query — skip them silently.
+        with tempfile.TemporaryDirectory() as tmp:
+            staging = os.path.join(tmp, "staging")
+            count = aggregate.collect_allure_results(
+                testlogs_dir=tmp,
+                targets=["//pkg-no-target", "not-a-label", "@@repo-no-slashes"],
+                staging_dir=staging,
+            )
+            self.assertEqual(count, 0)
+
     def test_attaches_bazel_test_log_to_each_result(self):
         """Each Bazel target's test.log is added as a top-level
         attachment named 'test.log' on every linked result.json.
