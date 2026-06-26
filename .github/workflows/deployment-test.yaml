@@ -311,8 +311,11 @@ jobs:
   # Provisions AKS + Postgres flex + Managed Redis in `vars.AZURE_REGION`.
   # Uploads the resulting tfstate + tfvars as artifacts so the `tf-destroy`
   # job at the end can clean up regardless of what fails in between.
-  # POSTGRES_PASSWORD is generated here and surfaced as a (masked) job
-  # output so the deploy/oetf jobs can hand it to the wrapper.
+  # POSTGRES_PASSWORD is generated here and written into the tfvars file
+  # that's uploaded as part of the `tf-state-<run_id>` artifact. The
+  # deploy/oetf jobs download that artifact and grep the password out —
+  # cross-job job-outputs don't work for masked values (GitHub filters
+  # them out, so the receiving job sees an empty string).
   tf-apply:
     needs: build-images
     if: ${{ needs.build-images.result == 'success' }}
@@ -324,8 +327,6 @@ jobs:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-    outputs:
-      postgres_password: ${{ steps.gen_pg.outputs.value }}
     permissions:
       id-token: write
       contents: read
@@ -574,6 +575,29 @@ jobs:
           tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
           sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
 
+      # GitHub Actions filters secret/masked values out of cross-job
+      # outputs, so we can't propagate POSTGRES_PASSWORD via
+      # `needs.tf-apply.outputs.*` — the receiving job sees an empty
+      # string. Workaround: download the tfvars file from the tf-state
+      # artifact tf-apply uploaded and grep the password out.
+      - name: download tf-state artifact (for POSTGRES_PASSWORD)
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-state-${{ github.run_id }}
+          path: tf-state-download/
+
+      - name: extract POSTGRES_PASSWORD from tfvars
+        id: pg
+        run: |
+          set -euo pipefail
+          PG_PASS=$(grep '^postgres_password' tf-state-download/azure.tfvars | sed 's/^[^"]*"\(.*\)".*/\1/')
+          if [ -z "$PG_PASS" ]; then
+            echo "::error::POSTGRES_PASSWORD not found in tf-state-download/azure.tfvars"
+            exit 1
+          fi
+          echo "::add-mask::$PG_PASS"
+          echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
+
       # Wire kubectl to the freshly-applied AKS, then pre-create a GHCR
       # docker-registry secret in every OSMO namespace. The chart's deploy
       # script (deploy-k8s.sh) skips its own kubectl-create-secret path
@@ -627,7 +651,7 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          POSTGRES_PASSWORD: ${{ needs.tf-apply.outputs.postgres_password }}
+          POSTGRES_PASSWORD: ${{ steps.pg.outputs.value }}
           SKIP_OETF: "1"
           SKIP_TEARDOWN: "1"
         run: |
@@ -760,6 +784,26 @@ jobs:
           kubectl cluster-info | head -3
           kubectl get pods -n osmo-minimal -o wide | head -20
 
+      # See deploy-osmo for why we re-derive POSTGRES_PASSWORD from the
+      # tf-state artifact instead of consuming a job output.
+      - name: download tf-state artifact (for POSTGRES_PASSWORD)
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-state-${{ github.run_id }}
+          path: tf-state-download/
+
+      - name: extract POSTGRES_PASSWORD from tfvars
+        id: pg
+        run: |
+          set -euo pipefail
+          PG_PASS=$(grep '^postgres_password' tf-state-download/azure.tfvars | sed 's/^[^"]*"\(.*\)".*/\1/')
+          if [ -z "$PG_PASS" ]; then
+            echo "::error::POSTGRES_PASSWORD not found in tf-state-download/azure.tfvars"
+            exit 1
+          fi
+          echo "::add-mask::$PG_PASS"
+          echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
+
       - name: run OETF smoke tests
         id: run_oetf
         env:
@@ -767,7 +811,7 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          POSTGRES_PASSWORD: ${{ needs.tf-apply.outputs.postgres_password }}
+          POSTGRES_PASSWORD: ${{ steps.pg.outputs.value }}
           SKIP_DEPLOY: "1"
           SKIP_TEARDOWN: "1"
         run: |
