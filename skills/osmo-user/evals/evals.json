@@ -212,7 +212,7 @@
   },
   {
     "id": "osmo-user-017",
-    "question": "sdg-train-1 finished successfully but its output dataset is empty. The job exited 0 — why are there no files?",
+    "question": "sdg-train-1 finished successfully but its output directory is empty. The job exited 0 — why are there no files?",
     "expected_skill": "osmo-user",
     "expected_script": null,
     "ground_truth": "The agent used osmo-user to diagnose an empty-output-after-COMPLETED case: queried sdg-train-1 (COMPLETED, exit 0, empty outputs), read the workflow spec, and spotted that the entry script wrote to the literal placeholder {{outputs}} (plural) instead of the OSMO-substituted {{output}} (singular) mount, so nothing was uploaded. It recommended fixing the placeholder to {{output}} and rerunning.",

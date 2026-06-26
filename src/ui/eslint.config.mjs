@@ -2,7 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-const FEATURE_NAMES = ["dashboard", "datasets", "log-viewer", "pools", "profile", "resources", "workflows"];
+const FEATURE_NAMES = ["dashboard", "log-viewer", "pools", "profile", "resources", "workflows"];
 const crossFeatureZones = FEATURE_NAMES.map((featureName) => ({
   target: `./src/features/${featureName}`,
   from: "./src/features",
