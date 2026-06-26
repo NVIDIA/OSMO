@@ -558,6 +558,14 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      # deploy-osmo-minimal.sh (called by the wrapper's stage_deploy) does
+      # an unconditional `command -v terraform` preflight check, even
+      # though --skip-terraform tells it not to actually run terraform.
+      # Install it to satisfy that check.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
       - name: install kubectl + helm
         run: |
           set -euo pipefail
@@ -741,6 +749,14 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # deploy-osmo-minimal.sh has an unconditional `command -v terraform`
+      # preflight check that the wrapper's stage_oetf path also trips
+      # (via stage_bootstrap → reachability check that exits if any
+      # required tool is missing). Install it.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
 
       - name: install kubectl
         run: |
