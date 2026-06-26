@@ -524,6 +524,11 @@ jobs:
           path: tf-state/
           retention-days: 7
           if-no-files-found: warn
+          # upload-artifact@v4 excludes dotfiles by default — that'd drop
+          # `.terraform.lock.hcl`, which deploy-osmo + tf-destroy need to
+          # `terraform init` against the same provider versions tf-apply
+          # used.
+          include-hidden-files: true
 
   # ── Stage 2: deploy OSMO chart + verify-hello ────────────────────────────
   # Refreshes kubectl creds against the freshly-applied AKS, pre-creates a
@@ -617,9 +622,16 @@ jobs:
         working-directory: deployments/terraform/azure/example
         run: |
           set -euo pipefail
-          cp "$GITHUB_WORKSPACE/tf-state-download/terraform.tfstate"     . 2>/dev/null || true
-          cp "$GITHUB_WORKSPACE/tf-state-download/.terraform.lock.hcl"   . 2>/dev/null || true
-          ls -la terraform.tfstate .terraform.lock.hcl
+          echo "::group::tf-state-download contents"
+          ls -la "$GITHUB_WORKSPACE/tf-state-download/"
+          echo "::endgroup::"
+          for f in terraform.tfstate .terraform.lock.hcl; do
+            if [ ! -f "$GITHUB_WORKSPACE/tf-state-download/$f" ]; then
+              echo "::error::$f missing from tf-state artifact — tf-apply upload step lost it"
+              exit 1
+            fi
+            cp "$GITHUB_WORKSPACE/tf-state-download/$f" .
+          done
           terraform init -input=false -no-color
 
       # Wire kubectl to the freshly-applied AKS, then pre-create a GHCR
