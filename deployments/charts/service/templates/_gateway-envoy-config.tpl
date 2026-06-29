@@ -28,10 +28,58 @@ setting detects this rotation and triggers Envoy to reload.
 {{- define "osmo.gateway-envoy-config" -}}
 {{- $gw := .Values.gateway }}
 {{- $envoy := $gw.envoy }}
+{{- $mcp := .Values.services.mcp }}
+{{- $mcpEnabled := $mcp.enabled | default false }}
+{{- $mcpPath := "/mcp" }}
+{{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
+{{- $mcpResourceUrl := "" }}
+{{- $mcpMetadataUrl := "" }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
 {{- $authnSkipPaths = uniq (concat $authnSkipPaths (list "/oauth2/" "/signout")) }}
+{{- end }}
+{{- if $mcpEnabled }}
+{{- if not $envoy.enabled }}
+{{- fail "services.mcp.enabled requires gateway.envoy.enabled=true" }}
+{{- end }}
+{{- if not $gw.authz.enabled }}
+{{- fail "services.mcp.enabled requires gateway.authz.enabled=true" }}
+{{- end }}
+{{- if not $envoy.jwt.providers }}
+{{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
+{{- end }}
+{{- $mcpResourceUrl = required "services.mcp.resourceUrl is required when MCP is enabled" $mcp.resourceUrl }}
+{{- if not (regexMatch "^https://[^/?#]+/mcp$" $mcpResourceUrl) }}
+{{- fail "services.mcp.resourceUrl must be an HTTPS origin followed by the exact /mcp path" }}
+{{- end }}
+{{- if not (kindIs "slice" $mcp.authorizationServers) }}
+{{- fail "services.mcp.authorizationServers must be a list" }}
+{{- end }}
+{{- if eq (len $mcp.authorizationServers) 0 }}
+{{- fail "services.mcp.authorizationServers must contain at least one issuer when MCP is enabled" }}
+{{- end }}
+{{- $mcpOAuthClientId := required "services.mcp.oauthClientId is required when MCP is enabled" $mcp.oauthClientId }}
+{{- $mcpServiceName := required "services.mcp.serviceName is required when MCP is enabled" $mcp.serviceName }}
+{{- $mcpImageName := required "services.mcp.imageName is required when MCP is enabled" $mcp.imageName }}
+{{- if or (lt (int $mcp.port) 1) (gt (int $mcp.port) 65535) }}
+{{- fail "services.mcp.port must be between 1 and 65535" }}
+{{- end }}
+{{- if not (kindIs "slice" $mcp.allowedOrigins) }}
+{{- fail "services.mcp.allowedOrigins must be a list" }}
+{{- end }}
+{{- range $origin := $mcp.allowedOrigins }}
+{{- if not (regexMatch "^https?://[^/?#]+$" $origin) }}
+{{- fail (printf "services.mcp.allowedOrigins entry %q must be an exact HTTP(S) Origin without a path" $origin) }}
+{{- end }}
+{{- end }}
+{{- range $skipPath := $skipAuthPaths }}
+{{- if or (hasPrefix $skipPath $mcpPath) (hasPrefix $skipPath $mcpMetadataPath) }}
+{{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
+{{- end }}
+{{- end }}
+{{- $mcpBaseUrl := trimSuffix $mcpPath $mcpResourceUrl }}
+{{- $mcpMetadataUrl = printf "%s%s" $mcpBaseUrl $mcpMetadataPath }}
 {{- end }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- if $envoy.enabled }}
@@ -223,6 +271,45 @@ data:
                   {{- end }}
                 {{- end }}
 
+                {{- if $mcpEnabled }}
+                # RFC 9728 metadata is the only public MCP route. Keep the
+                # method and path exact so no neighboring path or write method
+                # inherits the authentication bypass.
+                - name: mcp-protected-resource-metadata
+                  match:
+                    path: {{ $mcpMetadataPath }}
+                    headers:
+                    - name: ":method"
+                      string_match:
+                        exact: GET
+                  direct_response:
+                    status: 200
+                    body:
+                      inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcp.authorizationServers "bearer_methods_supported" (list "header") | toJson | quote }}
+                  response_headers_to_add:
+                  - header:
+                      key: content-type
+                      value: application/json
+                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+
+                # Streamable HTTP uses the same exact endpoint for its
+                # supported methods. Authentication and semantic authorization
+                # remain enabled on this route.
+                - name: osmo-mcp
+                  match:
+                    path: {{ $mcpPath }}
+                  route:
+                    cluster: osmo-mcp
+                    timeout: 0s
+                {{- end }}
+
                 {{- if $gw.upstreams.router.enabled }}
                 - match:
                     prefix: {{ $envoy.routerRoute.prefix | default "/api/router" }}
@@ -307,6 +394,35 @@ data:
                   {{- end }}
                 {{- end }}
 
+            {{- if $mcpEnabled }}
+            # jwt_authn emits an Envoy local 401 before the router runs. Replace
+            # its generic bearer challenge only for the exact MCP endpoint so
+            # standards-compatible clients can discover RFC 9728 metadata.
+            local_reply_config:
+              mappers:
+              - filter:
+                  and_filter:
+                    filters:
+                    - status_code_filter:
+                        comparison:
+                          op: EQ
+                          value:
+                            default_value: 401
+                            runtime_key: osmo.mcp.jwt_unauthorized_status
+                    - header_filter:
+                        header:
+                          name: ":path"
+                          string_match:
+                            safe_regex:
+                              google_re2: {}
+                              regex: "^/mcp([?].*)?$"
+                headers_to_add:
+                - header:
+                    key: www-authenticate
+                    value: {{ printf "Bearer resource_metadata=%q" $mcpMetadataUrl | quote }}
+                  append_action: OVERWRITE_IF_EXISTS_OR_ADD
+            {{- end }}
+
             upgrade_configs:
             - upgrade_type: websocket
               enabled: true
@@ -353,6 +469,38 @@ data:
                         return
                       end
                     end
+            {{- if $mcpEnabled }}
+            - name: envoy.filters.http.lua.mcp-origin
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                default_source_code:
+                  inline_string: |
+                    function envoy_on_request(request_handle)
+                      local raw_path = request_handle:headers():get(":path") or ""
+                      local request_path = string.match(raw_path, "^[^?]*") or raw_path
+                      if request_path ~= {{ $mcpPath | quote }} then
+                        return
+                      end
+
+                      -- Native MCP clients omit Origin. A present Origin must
+                      -- exactly match the deployment's explicit allowlist.
+                      local origin = request_handle:headers():get("origin")
+                      if origin == nil then
+                        return
+                      end
+
+                      local allowed_origins = {}
+                      {{ range $origin := $mcp.allowedOrigins }}
+                      allowed_origins[{{ $origin | quote }}] = true
+                      {{ end }}
+                      if not allowed_origins[origin] then
+                        request_handle:respond(
+                          {[":status"] = "403", ["content-type"] = "text/plain"},
+                          "Origin is not allowed"
+                        )
+                      end
+                    end
+            {{- end }}
             {{- if $authnSkipPaths }}
             {{- /* Authn skip paths bypass both authn and authz. */}}
             # set_metadata has no path matcher of its own, so wrap it and
@@ -447,6 +595,44 @@ data:
                                   header_name: authorization
                               value_match:
                                 prefix: "Bearer "
+                          {{- if $mcpEnabled }}
+                          # MCP clients authenticate with bearer JWTs and must
+                          # receive the jwt_authn challenge when the token is
+                          # missing or invalid. Bypass only OAuth2 Proxy here;
+                          # jwt_authn and semantic ext_authz stay enabled.
+                          - single_predicate:
+                              input:
+                                name: request-headers
+                                typed_config:
+                                  "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                  header_name: ":path"
+                              value_match:
+                                safe_regex:
+                                  google_re2: {}
+                                  regex: "^/mcp([?].*)?$"
+                          # The protected-resource document is public only for
+                          # the exact GET route configured above.
+                          - and_matcher:
+                              predicate:
+                              - single_predicate:
+                                  input:
+                                    name: request-headers
+                                    typed_config:
+                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                      header_name: ":path"
+                                  value_match:
+                                    safe_regex:
+                                      google_re2: {}
+                                      regex: "^/[.]well-known/oauth-protected-resource/mcp([?].*)?$"
+                              - single_predicate:
+                                  input:
+                                    name: request-headers
+                                    typed_config:
+                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                      header_name: ":method"
+                                  value_match:
+                                    exact: "GET"
+                          {{- end }}
                           {{- if $authnSkipPaths }}
                           - single_predicate:
                               input:
@@ -549,11 +735,15 @@ data:
                   - match:
                       prefix: /
                     requires:
+                      {{- if eq (len $envoy.jwt.providers) 1 }}
+                      provider_name: provider_0
+                      {{- else }}
                       requires_any:
                         requirements:
                         {{- range $i, $provider := $envoy.jwt.providers }}
                         - provider_name: provider_{{$i}}
                         {{- end}}
+                      {{- end }}
             {{- end }}
 
             - name: envoy.filters.http.lua.roles
@@ -832,6 +1022,30 @@ data:
                     path: /var/config
             {{- end }}
       {{- end }}
+    {{- end }}
+
+    {{- if $mcpEnabled }}
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: osmo-mcp
+      connect_timeout: 3s
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      {{- if $envoy.maxRequests }}
+      circuit_breakers:
+        thresholds:
+        - priority: DEFAULT
+          max_requests: {{ $envoy.maxRequests }}
+      {{- end }}
+      load_assignment:
+        cluster_name: osmo-mcp
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: {{ $mcp.serviceName }}
+                  port_value: {{ $mcp.port }}
     {{- end }}
 
     {{- if $gw.oauth2Proxy.enabled }}

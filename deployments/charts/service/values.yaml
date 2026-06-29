@@ -111,6 +111,110 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
+  ## External self-hosted MCP service configuration
+  ##
+  mcp:
+    ## Enable the MCP workload and its gateway routes. Disabled by default.
+    ##
+    enabled: false
+
+    ## Number of MCP replicas.
+    ##
+    replicas: 1
+
+    ## Docker image name and optional tag override. An empty imageTag uses
+    ## global.osmoImageTag.
+    ##
+    imageName: mcp-self-hosted
+    imageTag: ""
+    imagePullPolicy: Always
+
+    ## Kubernetes Service name and application listen port.
+    ##
+    serviceName: osmo-mcp
+    port: 8000
+
+    ## Canonical RFC 9728 protected resource identifier. This must be the
+    ## externally reachable HTTPS MCP URL ending in /mcp, for example:
+    ## https://osmo.example.com/mcp
+    ##
+    resourceUrl: ""
+
+    ## OAuth authorization-server issuer identifiers advertised by the public
+    ## protected-resource metadata document. Configure the issuer for the
+    ## separately registered public/native MCP OAuth client.
+    ##
+    authorizationServers: []
+
+    ## Non-secret client ID for the separately registered public/native MCP
+    ## OAuth client. MCP clients such as Inspector use this value out of band;
+    ## it is intentionally not emitted in RFC 9728 resource metadata.
+    ##
+    oauthClientId: ""
+
+    ## Browser Origins permitted to call /mcp. Native MCP clients normally omit
+    ## Origin and remain allowed. When this list is empty, any present Origin is
+    ## rejected with 403.
+    ##
+    allowedOrigins: []
+
+    ## Additional pod labels and annotations.
+    ##
+    extraPodLabels: {}
+    extraPodAnnotations: {}
+
+    ## Additional environment variables for the MCP container.
+    ##
+    extraEnv: []
+
+    ## Service account name. Empty uses global.serviceAccountName.
+    ##
+    serviceAccountName: ""
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1001
+
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        memory: "256Mi"
+
+    ## MCP application health probes.
+    ##
+    livenessProbe:
+      httpGet:
+        port: http
+        path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        port: http
+        path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+    startupProbe:
+      httpGet:
+        port: http
+        path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 24
+
+    nodeSelector: {}
+    tolerations: []
+
   ## UI service configuration
   ##
   ui:
@@ -564,6 +668,7 @@ services:
           - "app:*"
           - "auth:Token"
           - "credentials:*"
+          - "mcp:Access"
           - "pool:List"
           - "profile:Read"
           - "profile:Update"
