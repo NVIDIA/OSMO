@@ -492,13 +492,57 @@ func TestCreateErrCommandStream_StreamsScannerLinesToChannel(t *testing.T) {
 	wg.Wait()
 }
 
+func TestCreateOutCommandStream_ReportsScannerErrorWithoutPanic(t *testing.T) {
+	osmoChan := make(chan string, 16)
+	streamFn := createOutCommandStream(osmoChan)
+
+	scanner := bufio.NewScanner(&errReader{
+		data:  []byte("partial\n"),
+		limit: 1,
+		err:   fmt.Errorf("synthetic stdout read error"),
+	})
+
+	cmd := exec.Command("/usr/bin/true")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start /usr/bin/true: %v", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("wait /usr/bin/true: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	timeoutChan := make(chan bool, 2)
+
+	streamFn(cmd, scanner, &wg, timeoutChan)
+	wg.Wait()
+
+	close(osmoChan)
+	var collected []string
+	for msg := range osmoChan {
+		collected = append(collected, msg)
+	}
+	if len(collected) < 2 {
+		t.Fatalf("expected at least 2 messages (data + error), got %v", collected)
+	}
+	if collected[0] != "partial" {
+		t.Errorf("first message = %q, want partial", collected[0])
+	}
+	if !strings.Contains(collected[len(collected)-1], "Error:") {
+		t.Errorf("last message = %q, want one containing 'Error:'", collected[len(collected)-1])
+	}
+	if timedOut := <-timeoutChan; timedOut {
+		t.Errorf("timeoutChan = true, want false on scanner error without timeout")
+	}
+}
+
 // errReader returns the given error after `okReads` successful reads.
 type errReader struct {
-	data    []byte
-	idx     int
-	limit   int
-	err     error
-	reads   int
+	data  []byte
+	idx   int
+	limit int
+	err   error
+	reads int
 }
 
 func (r *errReader) Read(p []byte) (int, error) {

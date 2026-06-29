@@ -251,7 +251,9 @@ func RunCommand(cmd *exec.Cmd,
 	stdoutScanner.Split(splitFunc)
 	stderrScanner.Split(splitFunc)
 
-	cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return fmt.Sprintf("Command failed to start with error: %v\n", err), err
+	}
 	waitStreamLogs.Add(2)
 	go streamOutCommand(cmd, stdoutScanner, &waitStreamLogs, timeoutChan)
 	go streamErrCommand(stderrScanner, &waitStreamLogs)

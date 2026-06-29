@@ -19,9 +19,13 @@ SPDX-License-Identifier: Apache-2.0
 package common
 
 import (
+	"bufio"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -51,6 +55,24 @@ func TestArrayFlags_Set_AppendsValue(t *testing.T) {
 	}
 	if !reflect.DeepEqual([]string(flags), []string{"first", "second"}) {
 		t.Errorf("expected [first second], got %v", flags)
+	}
+}
+
+func TestRunCommand_ReturnsStartError(t *testing.T) {
+	cmd := exec.Command(filepath.Join(t.TempDir(), "missing-command"))
+	streamOut := func(*exec.Cmd, *bufio.Scanner, *sync.WaitGroup, chan bool) {
+		t.Fatal("stdout stream callback should not run when cmd.Start fails")
+	}
+	streamErr := func(*bufio.Scanner, *sync.WaitGroup) {
+		t.Fatal("stderr stream callback should not run when cmd.Start fails")
+	}
+
+	msg, err := RunCommand(cmd, streamOut, streamErr)
+	if err == nil {
+		t.Fatalf("expected start error")
+	}
+	if !strings.Contains(msg, "Command failed to start") {
+		t.Fatalf("message = %q, want start failure", msg)
 	}
 }
 

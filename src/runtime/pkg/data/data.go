@@ -47,9 +47,9 @@ var DataTimeout time.Duration = 10 * time.Minute
 var CpuCount string = "1"
 
 const (
-	Download         string = "download"
-	NotApplicable    string = "N/A"
-	BenchmarkSuffix  string = "_benchmark.json"
+	Download        string = "download"
+	NotApplicable   string = "N/A"
+	BenchmarkSuffix string = "_benchmark.json"
 )
 
 // BenchmarkPath is the directory under which the OSMO data CLI writes its
@@ -58,7 +58,7 @@ const (
 var BenchmarkPath = "/osmo/data/benchmarks/"
 
 const (
-	URLOperation     string = "Url"
+	URLOperation string = "Url"
 )
 
 type WebsocketConnectionInfo struct {
@@ -124,40 +124,46 @@ func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
 		defer waitStreamLogs.Done()
 
 		lastMessageTime := time.Now()
-		quit := make(chan bool)
+		done := make(chan struct{})
+		var reportTimeout sync.Once
+		sendTimeout := func(timedOut bool) {
+			reportTimeout.Do(func() {
+				timeoutChan <- timedOut
+			})
+		}
 
 		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
 			for {
 				select {
-				case <-quit:
+				case <-done:
 					return
-				default:
+				case <-ticker.C:
 					if time.Since(lastMessageTime) >= DataTimeout {
 						if err := cmd.Process.Kill(); err != nil {
 							osmo_errors.SetExitCode(osmo_errors.CMD_FAILED_CODE)
 							panic(fmt.Sprintf("Failed to kill process: %s", err))
 						}
-						timeoutChan <- true
+						sendTimeout(true)
 						return
 					}
-					// Wait a second between checks
-					time.Sleep(time.Second)
 				}
 			}
 		}()
 
+		defer close(done)
 		for scanner.Scan() {
 			log.Println(scanner.Text())
 			osmoChan <- scanner.Text()
 			lastMessageTime = time.Now()
 		}
 		if err := scanner.Err(); err != nil {
-			osmo_errors.SetExitCode(osmo_errors.CMD_FAILED_CODE)
-			panic(err)
+			log.Printf("Error: %s", err)
+			osmoChan <- fmt.Sprintf("Error: %s", err)
 		}
 
-		quit <- true
-		timeoutChan <- false
+		sendTimeout(false)
 	}
 	return streamOutCommand
 }
