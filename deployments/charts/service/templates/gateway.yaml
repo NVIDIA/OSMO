@@ -43,6 +43,7 @@ spec:
       labels:
         {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 8 }}
       annotations:
+        checksum/envoy-config: {{ include "osmo.gateway-envoy-config" . | sha256sum }}
         {{- include "osmo.extra-annotations" $gw.envoy | nindent 8 }}
     spec:
       {{- with $gw.envoy.nodeSelector }}
