@@ -98,8 +98,8 @@ def create_login_dict(user: str,
     }
 
 
-def docker_auth(username: str, auth: str) -> str:
-    return base64.b64encode(f'{username}:{auth}'.encode('utf-8')).decode('utf-8')
+def docker_auth(username: str, password: str) -> str:
+    return base64.b64encode(f'{username}:{password}'.encode('utf-8')).decode('utf-8')
 
 
 def create_config_dict(
