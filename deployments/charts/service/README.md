@@ -390,6 +390,15 @@ When enabled, the gateway exposes `/signout` and redirects it to `/oauth2/sign_o
 | `gateway.authz.imageTag` | Override image tag (defaults to `global.osmoImageTag`) | `""` |
 | `gateway.authz.grpcPort` | gRPC port | `50052` |
 
+#### Gateway Rate Limiting
+
+The chart does not create Redis credentials. Secret controllers such as External Secrets may provision a Kubernetes Secret, which can then be referenced through `gateway.rateLimit.extraEnv`.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `gateway.rateLimit.enabled` | Enable the Envoy rate-limit filter and standalone rate-limit service | `false` |
+| `gateway.rateLimit.extraEnv` | Additional rate-limit container environment variables, including Secret references such as `REDIS_AUTH` | `[]` |
+
 #### Network Policies
 
 | Parameter | Description | Default |
