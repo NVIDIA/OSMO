@@ -749,6 +749,33 @@ class TestGenerateUniqueId(unittest.TestCase):
         self.assertEqual(len(uid), 8)
 
 
+class TestUuidPattern(unittest.TestCase):
+    """ Tests for UUID validation. """
+
+    def test_accepts_supported_uuid_formats(self):
+        adapter = pydantic.TypeAdapter(common.UuidPattern)
+
+        for uuid_value in [
+            'a' * 32,
+            'osmo-' + 'a' * 32,
+            'abcdefghijklmnopqrstuvwxyz',
+        ]:
+            with self.subTest(uuid_value=uuid_value):
+                self.assertEqual(adapter.validate_python(uuid_value), uuid_value)
+
+    def test_rejects_partial_or_uppercase_uuid_values(self):
+        adapter = pydantic.TypeAdapter(common.UuidPattern)
+
+        for uuid_value in [
+            'a' * 32 + '-junk',
+            'xxxabcdefghijklmnopqrstuvwxyzyyy',
+            'A' * 32,
+        ]:
+            with self.subTest(uuid_value=uuid_value):
+                with self.assertRaises(pydantic.ValidationError):
+                    adapter.validate_python(uuid_value)
+
+
 class TestConvertCpuUnit(unittest.TestCase):
     """ Tests for convert_cpu_unit. """
 
