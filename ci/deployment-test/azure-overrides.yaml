@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Helm values overlay layered on top of charts/service/values.yaml by the
+# deployment-test wrapper's Azure path (run-deployment-test.sh: azure args).
+# Layered via deploy-osmo-minimal.sh --helm-values.
+#
+# Why this exists: the chart's default `osmo-ctrl` sidecar requests 1 vCPU
+# at scheduling time. OSMO's resource validator subtracts that from each
+# node's allocatable to compute the K8_CPU placeholder used in
+# `USER_CPU LE K8_CPU` strict-LE rules. On a 3-node Std_D4s_v3 cluster
+# (allocatable ~3 vCPU/node) after Azure system daemons + OSMO services,
+# K8_CPU drops below 1.0 and every cpu=1 task is rejected.
+#
+# We can't do this with --helm-set because helm REPLACES list elements
+# wholesale rather than merging; `--set …containers[0].resources.requests
+# .cpu=100m` would wipe the container's `name` and the rest of `resources`.
+# Layering a full values file keeps the merge clean.
+
+services:
+  configs:
+    podTemplates:
+      default_ctrl:
+        spec:
+          containers:
+          - name: osmo-ctrl
+            resources:
+              limits:
+                cpu: "{{USER_CPU}}"
+                memory: "{{USER_MEMORY}}"
+                ephemeral-storage: "{{USER_STORAGE}}"
+              requests:
+                # Reduced from chart default of "1" to 100m. The chart's
+                # limit still tracks USER_CPU so the task gets its full
+                # CPU budget at runtime; only the scheduler-side reservation
+                # shrinks. See run-deployment-test.sh stage_deploy() azure
+                # branch for the full rationale.
+                cpu: "100m"
+                memory: "1Gi"
+                ephemeral-storage: "1Gi"
