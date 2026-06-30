@@ -611,7 +611,10 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
         image_info = common.docker_parse(group_task.image)
 
         # Check if registry needs to be validated
-        if image_info.host in disabled_registries:
+        if any(
+            common.registry_scope_matches_image(disabled_registry, image_info)
+            for disabled_registry in disabled_registries
+        ):
             return None
 
         if image_info.manifest_url in seen_registries:
@@ -623,11 +626,9 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             seen_registries[image_info.manifest_url] = response
             return response
 
-        # Authenticate with user credential
-        registry_cred = connectors.PostgresConnector.get_instance()\
-            .get_registry_cred(user, image_info.host)
-
-        if registry_cred:
+        # Authenticate with matching user credentials
+        for _, registry_cred in connectors.PostgresConnector.get_instance()\
+                .get_matching_registry_creds(user, image_info):
             response = common.registry_auth(image_info.manifest_url,
                                             registry_cred['username'],
                                             registry_cred['auth'])
@@ -635,8 +636,9 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
                 seen_registries[image_info.manifest_url] = response
                 return response
 
+        image_scope = common.image_registry_scope(image_info)
         error_msgs = f'Unable to authenticate for pulling image {group_task.image}. ' +\
-            f'Please create a credential for {image_info.host} ' +\
+            f'Please create a credential matching {image_scope} ' +\
             'or check if the image exists.'
         raise osmo_errors.OSMOCredentialError(error_msgs)
 

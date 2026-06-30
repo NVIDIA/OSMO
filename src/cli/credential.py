@@ -198,7 +198,7 @@ def setup_parser(parser: argparse._SubParsersAction):
     set_parser = subparsers.add_parser('set', help='Create or update a credential',
         formatter_class=argparse.RawTextHelpFormatter,
         epilog='Ex. osmo credential set registry_cred_name --type REGISTRY ' +
-        '--payload registry=your_registry username=your_username auth=xxxxxx \n' +
+        '--payload registry=your_registry_or_path username=your_username auth=xxxxxx \n' +
         'Ex. osmo credential set data_cred_name --type DATA ' +
         '--payload access_key_id=your_s3_username access_key=xxxxxx ' +
         'endpoint=s3://bucket \n' +

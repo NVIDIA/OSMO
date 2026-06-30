@@ -17,15 +17,38 @@ SPDX-License-Identifier: Apache-2.0
 """
 import copy
 import datetime
+import types
+from typing import Any
 import unittest
 from unittest import mock
 
 import pydantic
 
-from src.lib.utils import credentials, osmo_errors, priority as wf_priority
+from src.lib.utils import common, credentials, osmo_errors, priority as wf_priority
 from src.lib.utils.osmo_errors import OSMOResourceError
 from src.utils import connectors
 from src.utils.job import jobs, task, kb_objects
+
+
+class _TestPostgresConnector(connectors.PostgresConnector):
+    """PostgresConnector test double that does not open a database connection."""
+
+    def __init__(self, rows: list[types.SimpleNamespace]):
+        self.rows = rows
+        self.decrypt_credential_mock = mock.Mock(
+            side_effect=lambda row: {'username': row.profile, 'auth': 'token'})
+
+    def execute_fetch_command(
+        self,
+        command: str,
+        args: tuple[Any, ...],
+        return_raw: bool = False,
+    ) -> list[Any]:
+        # pylint: disable=unused-argument
+        return self.rows
+
+    def decrypt_credential(self, db_row: Any) -> dict[Any, Any]:
+        return self.decrypt_credential_mock(db_row)
 
 
 class ShortenNameToFitKbTest(unittest.TestCase):
@@ -55,6 +78,51 @@ class ShortenNameToFitKbTest(unittest.TestCase):
         # First 63 chars have multiple trailing hyphens and underscores
         name = 'a' * 60 + '---' + 'b' * 50
         self.assertEqual(task.shorten_name_to_fit_kb(name), 'a' * 60)
+
+
+class PostgresRegistryCredsTest(unittest.TestCase):
+    """Pure tests for registry credential lookup helpers."""
+
+    def test_get_all_registry_creds_normalizes_profile_keys(self):
+        database = _TestPostgresConnector([
+            types.SimpleNamespace(profile='registry.example.com:443/team-a'),
+        ])
+
+        result = database.get_all_registry_creds('alice')
+
+        self.assertEqual(result, {
+            'registry.example.com/team-a': {
+                'username': 'registry.example.com:443/team-a',
+                'auth': 'token',
+            },
+        })
+
+    def test_get_matching_registry_creds_decrypts_only_matching_rows(self):
+        matching_row = types.SimpleNamespace(profile='registry.example.com:443/team-a')
+        host_row = types.SimpleNamespace(profile='registry.example.com')
+        unrelated_row = types.SimpleNamespace(profile='registry.example.com/team-b')
+        database = _TestPostgresConnector([matching_row, host_row, unrelated_row])
+
+        result = database.get_matching_registry_creds(
+            'alice',
+            common.docker_parse('registry.example.com/team-a/client:latest'),
+        )
+
+        self.assertEqual(result, [
+            ('registry.example.com/team-a', {
+                'username': 'registry.example.com:443/team-a',
+                'auth': 'token',
+            }),
+            ('registry.example.com', {
+                'username': 'registry.example.com',
+                'auth': 'token',
+            }),
+        ])
+        database.decrypt_credential_mock.assert_has_calls([
+            mock.call(matching_row),
+            mock.call(host_row),
+        ])
+        self.assertEqual(database.decrypt_credential_mock.call_count, 2)
 
 
 class CreateLoginDictTest(unittest.TestCase):

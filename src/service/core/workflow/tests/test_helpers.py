@@ -77,6 +77,26 @@ def make_workflow(name: str, groups: list) -> objects.WorkflowQueryResponse:
     )
 
 
+class TestUserRegistryCredential(unittest.TestCase):
+    def test_valid_cred_preserves_path_scoped_registry(self):
+        credential = objects.UserRegistryCredential(
+            registry='nvcr.io/nvidia',
+            username='user',
+            auth='token',
+        )
+        workflow_config = mock.Mock()
+        workflow_config.credential_config.disable_registry_validation = []
+
+        with mock.patch(
+            'src.service.core.workflow.objects.common.registry_auth',
+            return_value=mock.Mock(status_code=200),
+        ) as registry_auth:
+            credential.valid_cred(workflow_config)
+
+        self.assertEqual(credential.registry, 'nvcr.io/nvidia')
+        registry_auth.assert_called_once_with('https://nvcr.io/v2/', 'user', 'token')
+
+
 class TestGetResourceNodeHash(unittest.TestCase):
 
     def test_get_resource_node_hash_empty_returns_hash_of_empty_string(self):
