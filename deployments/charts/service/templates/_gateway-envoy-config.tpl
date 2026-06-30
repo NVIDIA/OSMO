@@ -291,6 +291,12 @@ data:
                       key: content-type
                       value: application/json
                     append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  # Inspector completes OAuth in its browser UI and fetches
+                  # this public, non-secret discovery document from localhost.
+                  - header:
+                      key: access-control-allow-origin
+                      value: "*"
+                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
                   typed_per_filter_config:
                     envoy.filters.http.jwt_authn:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
