@@ -15,7 +15,6 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
-import base64
 import copy
 import datetime
 from typing import Any, Dict, List, Union, cast
@@ -25,10 +24,6 @@ import unittest
 from src.lib.utils import common, credentials
 from src.utils.job import task, kb_objects
 from src.utils import connectors
-
-
-def docker_auth(username: str, auth: str) -> str:
-    return base64.b64encode(f'{username}:{auth}'.encode('utf-8')).decode('utf-8')
 
 
 def create_lvm_volume(name: str, size: str):
@@ -528,8 +523,8 @@ class TaskGroupRegistryCredsTest(unittest.TestCase):
 
         self.assertIsNone(registry_cred_osmo)
         self.assertEqual(registry_creds_user, {
-            'nvcr.io': {'auth': docker_auth('root-user', 'root-token')},
-            'nvcr.io/nvstaging/osmo': {'auth': docker_auth('osmo-user', 'osmo-token')},
+            'nvcr.io': {'auth': task.docker_auth('root-user', 'root-token')},
+            'nvcr.io/nvstaging/osmo': {'auth': task.docker_auth('osmo-user', 'osmo-token')},
         })
 
     def test_get_registry_creds_handles_different_paths_same_host(self):
@@ -547,8 +542,8 @@ class TaskGroupRegistryCredsTest(unittest.TestCase):
         registry_creds_user, _ = group._get_registry_creds('alice', workflow_config)
 
         self.assertEqual(registry_creds_user, {
-            'nvcr.io/nvstaging': {'auth': docker_auth('staging-user', 'staging-token')},
-            'nvcr.io/nvidia': {'auth': docker_auth('nvidia-user', 'nvidia-token')},
+            'nvcr.io/nvstaging': {'auth': task.docker_auth('staging-user', 'staging-token')},
+            'nvcr.io/nvidia': {'auth': task.docker_auth('nvidia-user', 'nvidia-token')},
         })
 
     def test_get_registry_creds_normalizes_osmo_credential_scope(self):
@@ -562,7 +557,7 @@ class TaskGroupRegistryCredsTest(unittest.TestCase):
         _, registry_cred_osmo = group._get_registry_creds('alice', workflow_config)
 
         self.assertEqual(registry_cred_osmo, {
-            'nvcr.io/osmo': {'auth': docker_auth('osmo-user', 'osmo-token')},
+            'nvcr.io/osmo': {'auth': task.docker_auth('osmo-user', 'osmo-token')},
         })
 
 

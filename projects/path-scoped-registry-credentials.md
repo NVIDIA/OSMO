@@ -18,8 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Path-Scoped Registry Credentials
 
-**Author**: [Tushar Dewan](https://github.com/tdewanNvidia)<br>
-**PIC**: [Tushar Dewan](https://github.com/tdewanNvidia)<br>
+**Author**: [Trasha Dewan](https://github.com/tdewanNvidia)<br>
+**PIC**: [Trasha Dewan](https://github.com/tdewanNvidia)<br>
 **Proposal Issue**: [#1113](https://github.com/nvidia/osmo/issues/1113)
 
 ## Overview

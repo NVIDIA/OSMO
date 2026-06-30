@@ -98,6 +98,9 @@ def create_login_dict(user: str,
     }
 
 
+def docker_auth(username: str, auth: str) -> str:
+    return base64.b64encode(f'{username}:{auth}'.encode('utf-8')).decode('utf-8')
+
 
 def create_config_dict(
     data_info: Mapping[str, credentials.StaticDataCredential | credentials.DefaultDataCredential],
@@ -2501,10 +2504,9 @@ class TaskGroup(pydantic.BaseModel):
                 image_info, registry_cred_map.keys()
             ):
                 payload = registry_cred_map[registry_scope]
-                auth_string = f'''{payload['username']}:{payload['auth']}'''
                 normalized_scope = common.normalize_registry_scope(registry_scope)
                 registry_creds_user[normalized_scope] = \
-                    {'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')}
+                    {'auth': docker_auth(payload['username'], payload['auth'])}
 
         registry_cred_osmo = None
         osmo_cred = workflow_config.backend_images.credential
@@ -2514,12 +2516,10 @@ class TaskGroup(pydantic.BaseModel):
             and osmo_cred.username
             and osmo_cred.auth.get_secret_value()
         ):
-            auth_string = (
-                f'{osmo_cred.username}:{osmo_cred.auth.get_secret_value()}')
             registry_scope = common.normalize_registry_scope(osmo_cred.registry)
             registry_cred_osmo = {
                 registry_scope: {
-                    'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+                    'auth': docker_auth(osmo_cred.username, osmo_cred.auth.get_secret_value())
                 }
             }
         return registry_creds_user, registry_cred_osmo
