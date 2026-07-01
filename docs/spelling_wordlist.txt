@@ -133,7 +133,6 @@ ingressClassName
 ini
 init
 inotify
-integrations
 instantiation
 integrations
 io
