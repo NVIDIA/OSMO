@@ -4,7 +4,6 @@ harbor:
   task_source: evals_json
   agent_runtime_preflight: true
   runtime_env:
-    BASH_ENV: /workspace/input/osmo-admin-disabled.bash
     OSMO_EVAL_CI: "${CI:-false}"
     OSMO_EVAL_TRUSTED_CHECKOUT: "${CI_PROJECT_DIR:-/__osmo_no_trusted_checkout__}"
   pre_agent_setup:
@@ -13,4 +12,3 @@ harbor:
         echo "ERROR: trusted CI checkout is visible inside the skill eval environment: $OSMO_EVAL_TRUSTED_CHECKOUT" >&2;
         exit 1;
       fi
-    - bash /workspace/input/prepare-fixture-workspace.sh /workspace /workspace/input/repo

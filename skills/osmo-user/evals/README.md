@@ -9,6 +9,7 @@ schema (`question` / `expected_skill` / `expected_script` / `ground_truth` /
 ```text
 evals/
 ├── README.md                    # this file
+├── config.yml                   # isolated runtime and preflight configuration
 ├── evals.json                   # 34 eval definitions (NVIDIA schema)
 ├── environment/
 │   └── Dockerfile               # eval runtime image (mock osmo on PATH)
