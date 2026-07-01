@@ -16,7 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import types
 import unittest
+from unittest import mock
 
 import httpx
 from mcp.types import LATEST_PROTOCOL_VERSION
@@ -98,6 +100,70 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(initialized_response.status_code, 202)
         self.assertEqual(list_tools_response.status_code, 200)
         self.assertEqual(list_tools_response.json()['result']['tools'], [])
+
+
+class MCPMainTest(unittest.TestCase):
+
+    def test_main_starts_uvicorn_with_runtime_config(self) -> None:
+        config = types.SimpleNamespace(
+            host='127.0.0.1',
+            port=9000,
+            uvicorn_ssl_kwargs=mock.Mock(
+                return_value={'ssl_certfile': '/tmp/mcp-cert.pem'}),
+        )
+        uvicorn_config = object()
+        uvicorn_server = mock.Mock()
+        uvicorn_server.serve = mock.AsyncMock()
+
+        with (
+            mock.patch.object(
+                server.MCPServiceConfig, 'load', return_value=config),
+            mock.patch.object(
+                server.uvicorn,
+                'Config',
+                return_value=uvicorn_config,
+            ) as config_factory,
+            mock.patch.object(
+                server.uvicorn,
+                'Server',
+                return_value=uvicorn_server,
+            ) as server_factory,
+        ):
+            server.main()
+
+        config_factory.assert_called_once_with(
+            server.app,
+            host='127.0.0.1',
+            port=9000,
+            log_config=None,
+            ssl_certfile='/tmp/mcp-cert.pem',
+        )
+        server_factory.assert_called_once_with(config=uvicorn_config)
+        uvicorn_server.serve.assert_awaited_once_with()
+        config.uvicorn_ssl_kwargs.assert_called_once_with()
+
+    def test_main_handles_keyboard_interrupt(self) -> None:
+        config = types.SimpleNamespace(
+            host='127.0.0.1',
+            port=9000,
+            uvicorn_ssl_kwargs=mock.Mock(return_value={}),
+        )
+        uvicorn_server = mock.Mock()
+        uvicorn_server.serve = mock.AsyncMock(side_effect=KeyboardInterrupt)
+
+        with (
+            mock.patch.object(
+                server.MCPServiceConfig, 'load', return_value=config),
+            mock.patch.object(server.uvicorn, 'Config', return_value=object()),
+            mock.patch.object(
+                server.uvicorn,
+                'Server',
+                return_value=uvicorn_server,
+            ),
+        ):
+            server.main()
+
+        uvicorn_server.serve.assert_awaited_once_with()
 
 
 if __name__ == '__main__':
