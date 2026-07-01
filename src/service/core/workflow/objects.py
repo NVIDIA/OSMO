@@ -631,10 +631,14 @@ class UserRegistryCredential(
                                 connectors.PostgresConnector.encode_hstore(payload))
 
     def valid_cred(self, workflow_config: connectors.WorkflowConfig):
-        self.registry = common.registry_parse(self.registry)
-        if self.registry in workflow_config.credential_config.disable_registry_validation:
+        self.registry = common.normalize_registry_scope(self.registry)
+        if any(
+            common.registry_scope_contains(disabled_registry, self.registry)
+            for disabled_registry in workflow_config.credential_config.disable_registry_validation
+        ):
             return
-        response = common.registry_auth(f'https://{self.registry}/v2/',
+        registry_host = self.registry.split('/', 1)[0]
+        response = common.registry_auth(f'https://{registry_host}/v2/',
                                         self.username, self.auth)
         if response.status_code != 200:
             raise osmo_errors.OSMOCredentialError('Registry authentication failed.')

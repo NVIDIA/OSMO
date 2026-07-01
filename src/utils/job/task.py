@@ -98,6 +98,9 @@ def create_login_dict(user: str,
     }
 
 
+def docker_auth(username: str, password: str) -> str:
+    return base64.b64encode(f'{username}:{password}'.encode('utf-8')).decode('utf-8')
+
 
 def create_config_dict(
     data_info: Mapping[str, credentials.StaticDataCredential | credentials.DefaultDataCredential],
@@ -2494,17 +2497,16 @@ class TaskGroup(pydantic.BaseModel):
     def _get_registry_creds(self, user: str, workflow_config: connectors.WorkflowConfig):
         """ Got registry credentials for both user and osmo. """
         registry_creds_user = {}
-        registry_cred_cache: Dict[str, Any] = {}
+        registry_cred_map = self.database.get_all_registry_creds(user)
         for task in self.spec.tasks:
             image_info = common.docker_parse(task.image)
-            if image_info.host not in registry_cred_cache:
-                registry_cred_cache[image_info.host] = self.database.get_registry_cred(
-                    user, image_info.host)
-            payload = registry_cred_cache[image_info.host]
-            if payload:
-                auth_string = f'''{payload['username']}:{payload['auth']}'''
-                registry_creds_user[image_info.host] = \
-                    {'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')}
+            for registry_scope in common.matching_registry_scopes(
+                image_info, registry_cred_map.keys()
+            ):
+                payload = registry_cred_map[registry_scope]
+                normalized_scope = common.normalize_registry_scope(registry_scope)
+                registry_creds_user[normalized_scope] = \
+                    {'auth': docker_auth(payload['username'], payload['auth'])}
 
         registry_cred_osmo = None
         osmo_cred = workflow_config.backend_images.credential
@@ -2514,11 +2516,10 @@ class TaskGroup(pydantic.BaseModel):
             and osmo_cred.username
             and osmo_cred.auth.get_secret_value()
         ):
-            auth_string = (
-                f'{osmo_cred.username}:{osmo_cred.auth.get_secret_value()}')
+            registry_scope = common.normalize_registry_scope(osmo_cred.registry)
             registry_cred_osmo = {
-                osmo_cred.registry: {
-                    'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+                registry_scope: {
+                    'auth': docker_auth(osmo_cred.username, osmo_cred.auth.get_secret_value())
                 }
             }
         return registry_creds_user, registry_cred_osmo

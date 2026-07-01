@@ -30,6 +30,7 @@ import re
 import threading
 import time
 from typing import Annotated, Any, Callable, Coroutine, Dict, Generator, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
+from urllib.parse import urlparse
 import uuid
 
 import pydantic
@@ -390,6 +391,60 @@ def registry_parse(name: str) -> str:
     if not name or name == 'docker.io':
         return DEFAULT_REGISTRY
     return name
+
+
+def normalize_registry_scope(registry_scope: str) -> str:
+    """Normalize a registry credential scope while preserving path prefixes."""
+    scope = registry_scope.strip().rstrip('/')
+    if not scope:
+        return DEFAULT_REGISTRY
+
+    parsed = urlparse(scope if '://' in scope else f'//{scope}')
+    if parsed.netloc:
+        registry = registry_parse(parsed.netloc)
+        if registry.endswith(':443'):
+            registry = registry[:-4]
+        path = parsed.path.strip('/')
+        if path:
+            return f'{registry}/{path}'
+        return registry
+
+    return registry_parse(scope)
+
+
+def image_registry_scope(image_info: DockerImageInfo) -> str:
+    """Return the registry scope string Kubernetes matches credentials against."""
+    registry = image_info.host
+    if image_info.port != 443:
+        registry = f'{registry}:{image_info.port}'
+    return f'{registry}/{image_info.name}'
+
+
+def registry_scope_contains(parent_scope: str, child_scope: str) -> bool:
+    """Return whether child_scope is inside parent_scope by path segment."""
+    parent = normalize_registry_scope(parent_scope)
+    child = normalize_registry_scope(child_scope)
+    return child == parent or child.startswith(f'{parent}/')
+
+
+def registry_scope_matches_image(registry_scope: str, image_info: DockerImageInfo) -> bool:
+    """Return whether a registry credential scope applies to an image."""
+    return registry_scope_contains(registry_scope, image_registry_scope(image_info))
+
+
+def matching_registry_scopes(
+    image_info: DockerImageInfo,
+    registry_scopes: Iterable[str],
+) -> List[str]:
+    """Return all credential scopes that match an image, most specific first."""
+    matches = [
+        registry_scope for registry_scope in registry_scopes
+        if registry_scope_matches_image(registry_scope, image_info)
+    ]
+    return sorted(
+        matches,
+        key=lambda registry_scope: len(normalize_registry_scope(registry_scope)),
+        reverse=True)
 
 
 def docker_parse(image: str) -> DockerImageInfo:

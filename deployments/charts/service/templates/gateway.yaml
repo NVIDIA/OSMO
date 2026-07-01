@@ -618,6 +618,7 @@ spec:
         {{- include "osmo.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 8 }}
       annotations:
         checksum/ratelimit-config: {{ $gw.rateLimit.config | toYaml | sha256sum }}
+        {{- include "osmo.extra-annotations" $gw.rateLimit | nindent 8 }}
     spec:
       {{- with $gw.rateLimit.nodeSelector }}
       nodeSelector:
@@ -631,18 +632,29 @@ spec:
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       {{- end }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" $gw.rateLimit.serviceAccountName "Values" .Values) }}
       containers:
       - name: ratelimit
         image: "{{ $gw.rateLimit.image }}"
         imagePullPolicy: "{{ $gw.rateLimit.imagePullPolicy }}"
         securityContext:
           {{- toYaml $gw.rateLimit.securityContext | nindent 10 }}
-        command: ["/bin/ratelimit"]
+        {{- /* The default 875d418c image does not define an ENTRYPOINT. */}}
+        command:
+          {{- toYaml ($gw.rateLimit.command | default (list "/bin/ratelimit")) | nindent 10 }}
+        {{- with $gw.rateLimit.args }}
+        args:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         resources:
           {{- toYaml $gw.rateLimit.resources | nindent 10 }}
         env:
         - name: LOG_LEVEL
           value: info
+        - name: PORT
+          value: {{ $gw.rateLimit.httpPort | quote }}
+        - name: GRPC_PORT
+          value: {{ $gw.rateLimit.grpcPort | quote }}
         - name: REDIS_SOCKET_TYPE
           value: tcp
         - name: REDIS_URL
@@ -663,6 +675,7 @@ spec:
           value: "::"
         - name: GRPC_HOST
           value: "::"
+        {{- include "osmo.extra-env" $gw.rateLimit | nindent 8 }}
         ports:
         - name: grpc
           containerPort: {{ $gw.rateLimit.grpcPort }}
@@ -671,6 +684,9 @@ spec:
         volumeMounts:
         - name: ratelimit-config
           mountPath: /data/ratelimit/config
+        {{- with $gw.rateLimit.extraVolumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
         livenessProbe:
           tcpSocket:
             port: {{ $gw.rateLimit.grpcPort }}
@@ -684,6 +700,9 @@ spec:
           items:
           - key: config.yaml
             path: config.yaml
+      {{- with $gw.rateLimit.extraVolumes }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
 
 ---
 

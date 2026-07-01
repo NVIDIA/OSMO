@@ -806,7 +806,7 @@ data:
             - name: envoy.filters.http.ratelimit
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
-                domain: ratelimit
+                domain: {{ $gw.rateLimit.config.domain | default "ratelimit" }}
                 enable_x_ratelimit_headers: DRAFT_VERSION_03
                 rate_limit_service:
                   transport_api_version: V3

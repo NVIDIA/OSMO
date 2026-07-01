@@ -2302,7 +2302,7 @@ gateway:
   rateLimit:
     enabled: false
     replicas: 1
-    image: envoyproxy/ratelimit:9d8d70a8
+    image: envoyproxy/ratelimit:875d418c
     imagePullPolicy: IfNotPresent
     grpcPort: 8091
     httpPort: 8090
@@ -2330,6 +2330,14 @@ gateway:
         memory: "200Mi"
     nodeSelector: {}
     tolerations: []
+    ## Additional environment variables for the ratelimit container. This can
+    ## reference credentials from a Kubernetes Secret managed outside the chart.
+    ##
+    extraEnv: []
+    extraPodAnnotations: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    serviceAccountName: ""
 
   ## Restrict upstream pod ingress to the gateway Envoy. Requires a CNI
   ## that enforces NetworkPolicy (Calico, Cilium, AWS VPC CNI with

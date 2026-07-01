@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 import datetime
 import unittest
+from unittest import mock
 
 import pydantic
 
@@ -223,6 +224,58 @@ class SplitAssertionRulesTest(unittest.TestCase):
         static_rules, k8_rules = workflow.split_assertion_rules([assertion])
         self.assertEqual(static_rules, [assertion])
         self.assertEqual(k8_rules, [])
+
+
+class WorkflowSpecValidateRegistryTest(unittest.TestCase):
+    """Tests for registry credential validation."""
+
+    def _workflow_spec(self) -> workflow.WorkflowSpec:
+        return workflow.WorkflowSpec(
+            name='wf',
+            tasks=[{
+                'name': 'task',
+                'image': 'nvcr.io/nvstaging/osmo/app:latest',
+                'command': ['echo'],
+            }],
+        )
+
+    def test_validate_registry_uses_matching_path_scoped_credential(self):
+        spec = self._workflow_spec()
+        unauthenticated_response = mock.Mock(status_code=401)
+        authenticated_response = mock.Mock(status_code=200)
+        database = mock.Mock()
+        database.get_matching_registry_creds.return_value = [
+            ('nvcr.io/nvstaging/osmo', {'username': 'user', 'auth': 'token'}),
+        ]
+
+        with mock.patch(
+            'src.utils.job.workflow.common.registry_auth',
+            side_effect=[unauthenticated_response, authenticated_response],
+        ) as registry_auth, mock.patch(
+            'src.utils.job.workflow.connectors.PostgresConnector.get_instance',
+            return_value=database,
+        ):
+            response = spec.validate_registry('alice', spec.tasks[0], {}, [])
+
+        self.assertIs(response, authenticated_response)
+        registry_auth.assert_has_calls([
+            mock.call('https://nvcr.io:443/v2/nvstaging/osmo/app/manifests/latest'),
+            mock.call(
+                'https://nvcr.io:443/v2/nvstaging/osmo/app/manifests/latest',
+                'user',
+                'token',
+            ),
+        ])
+
+    def test_validate_registry_disabled_parent_scope_skips_validation(self):
+        spec = self._workflow_spec()
+
+        with mock.patch('src.utils.job.workflow.common.registry_auth') as registry_auth:
+            response = spec.validate_registry(
+                'alice', spec.tasks[0], {}, ['nvcr.io/nvstaging'])
+
+        self.assertIsNone(response)
+        registry_auth.assert_not_called()
 
 
 class WorkflowSpecValidateTasksGroupsTest(unittest.TestCase):
