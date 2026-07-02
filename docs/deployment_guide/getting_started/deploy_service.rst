@@ -663,8 +663,11 @@ Step 7: Post-deployment Configuration
           --oauth-client-id <mcp-public-client-id>
       $ codex mcp login osmo
 
-   Codex discovers the OAuth resource and requested scopes from the protected
-   resource metadata published by Envoy.
+   Envoy publishes every entry from ``services.mcp.scopes`` as
+   ``scopes_supported`` in the protected resource metadata. Codex uses that
+   metadata during ``codex mcp login``, so the delegated
+   ``https://osmo.example.com/mcp/access_as_user`` scope is requested
+   automatically and no local ``--scopes`` argument is required.
 
    Register the exact loop-back callback URI used by the MCP client with the
    identity provider. The callback for a browser-based MCP client can differ
