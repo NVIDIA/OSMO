@@ -483,10 +483,10 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
             cluster: osmo-service-jwks
 
       # Gateway -> upstream TLS. Enabled by default: each upstream service
-      # (osmo-service, osmo-router, osmo-agent, osmo-logger) mints an
-      # ephemeral self-signed cert in-process at startup, uvicorn serves
-      # HTTPS on :8000, and Envoy connects with TLS but skips cert validation.
-      # UI stays HTTP behind NetworkPolicy.
+      # (osmo-service, osmo-router, osmo-agent, osmo-logger, and optional
+      # osmo-mcp) mints an ephemeral self-signed cert in-process at startup,
+      # uvicorn serves HTTPS on :8000, and Envoy connects with TLS but skips
+      # cert validation. UI stays HTTP behind NetworkPolicy.
       #
       # To use externally-provisioned certs (cert-manager, Vault CSI,
       # sealed-secrets, manual — OSMO doesn't care), point upstreamCerts at
@@ -499,6 +499,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
         #   router:  osmo-router-tls
         #   agent:   osmo-agent-tls
         #   logger:  osmo-logger-tls
+        #   mcp:     osmo-mcp-tls
         # caSecret: osmo-gateway-ca
 
       # OAuth2 Proxy configuration

@@ -37,6 +37,7 @@ mypy_cli(
         app_requirement("fastapi"),
         app_requirement("jinja2"),
         app_requirement("lark"),
+        app_requirement("mcp"),
         app_requirement("mypy-boto3-iam"),
         app_requirement("mypy-boto3-s3"),
         app_requirement("mypy-boto3-sts"),
