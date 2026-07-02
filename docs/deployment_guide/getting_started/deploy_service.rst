@@ -666,7 +666,7 @@ Step 7: Post-deployment Configuration
    Codex discovers the OAuth resource and requested scopes from the protected
    resource metadata published by Envoy.
 
-   Register the exact loopback callback URI used by the MCP client with the
+   Register the exact loop-back callback URI used by the MCP client with the
    identity provider. The callback for a browser-based MCP client can differ
    from the callback used by a native CLI client.
 
