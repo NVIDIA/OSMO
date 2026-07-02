@@ -288,7 +288,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 148-149, 153-154, 160, 164, 178-180, 217-219
+    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 88, 90-91, 96, 163-164, 168-169, 175, 179, 193-195, 232-234
 
     # Global configuration shared across all OSMO services
     global:
@@ -371,6 +371,21 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
             memory: "512Mi"
           limits:
             memory: "512Mi"
+
+      # Optional self-hosted MCP endpoint. The public client ID identifies the
+      # MCP client application and is safe to distribute to users; it is not a
+      # client secret.
+      mcp:
+        enabled: false
+        resourceUrl: https://<your-domain>/mcp
+        authorizationServers:
+        - <idp-issuer-url>
+        oauthClientId: <mcp-public-client-id>
+        scopes:
+        - openid
+        - profile
+        - email
+        - https://<your-domain>/mcp/access_as_user
 
       # Default admin (no IdP): enable to create an admin user and access token at startup
       defaultAdmin:
@@ -636,6 +651,24 @@ Step 7: Post-deployment Configuration
 3. Configure IdP role mapping to map your IdP groups to OSMO roles: :doc:`../appendix/authentication/idp_role_mapping`
 
 4. Verify access to the UI at https://osmo.example.com through your domain
+
+5. If the MCP service is enabled, distribute its public OAuth client
+   configuration to users. For example, configure Codex and start its browser
+   login flow:
+
+   .. code-block:: bash
+
+      $ codex mcp add osmo \
+          --url https://osmo.example.com/mcp \
+          --oauth-client-id <mcp-public-client-id>
+      $ codex mcp login osmo
+
+   Codex discovers the OAuth resource and requested scopes from the protected
+   resource metadata published by Envoy.
+
+   Register the exact loopback callback URI used by the MCP client with the
+   identity provider. The callback for a browser-based MCP client can differ
+   from the callback used by a native CLI client.
 
 
 Troubleshooting

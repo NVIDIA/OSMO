@@ -59,7 +59,21 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if eq (len $mcp.authorizationServers) 0 }}
 {{- fail "services.mcp.authorizationServers must contain at least one issuer when MCP is enabled" }}
 {{- end }}
-{{- $mcpOAuthClientId := required "services.mcp.oauthClientId is required when MCP is enabled" $mcp.oauthClientId }}
+{{- $_ := required "services.mcp.oauthClientId is required when MCP is enabled" $mcp.oauthClientId }}
+{{- if not (kindIs "slice" $mcp.scopes) }}
+{{- fail "services.mcp.scopes must be a list" }}
+{{- end }}
+{{- if eq (len $mcp.scopes) 0 }}
+{{- fail "services.mcp.scopes must contain at least one scope when MCP is enabled" }}
+{{- end }}
+{{- range $scope := $mcp.scopes }}
+{{- if not (kindIs "string" $scope) }}
+{{- fail "services.mcp.scopes entries must be strings" }}
+{{- end }}
+{{- if eq (trim $scope) "" }}
+{{- fail "services.mcp.scopes entries must not be empty" }}
+{{- end }}
+{{- end }}
 {{- $mcpServiceName := required "services.mcp.serviceName is required when MCP is enabled" $mcp.serviceName }}
 {{- $mcpImageName := required "services.mcp.imageName is required when MCP is enabled" $mcp.imageName }}
 {{- if or (lt (int $mcp.port) 1) (gt (int $mcp.port) 65535) }}
@@ -285,7 +299,7 @@ data:
                   direct_response:
                     status: 200
                     body:
-                      inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcp.authorizationServers "bearer_methods_supported" (list "header") | toJson | quote }}
+                      inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcp.authorizationServers "bearer_methods_supported" (list "header") "scopes_supported" $mcp.scopes | toJson | quote }}
                   response_headers_to_add:
                   - header:
                       key: content-type

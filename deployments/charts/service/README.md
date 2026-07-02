@@ -296,6 +296,79 @@ The router reads the same `services.configFile.path` as the API service. When `s
 |-----------|-------------|---------|
 | `podMonitor.enabled` | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `true` |
 
+### MCP Service and OAuth Client Configuration
+
+The optional self-hosted MCP service exposes Streamable HTTP at `/mcp`. Envoy
+protects the endpoint with JWT authentication, publishes RFC 9728 protected
+resource metadata, and forwards authorized requests to `osmo-mcp`.
+
+The OAuth client ID identifies the MCP client application, not the user. It is
+not a secret, but it must be registered with the authorization server and
+distributed to clients out of band. The client ID is intentionally not included
+in RFC 9728 metadata because that metadata has no standard `client_id` field.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.mcp.enabled` | Deploy the MCP workload and gateway routes | `false` |
+| `services.mcp.resourceUrl` | Canonical externally reachable HTTPS MCP URL ending in `/mcp` | `""` |
+| `services.mcp.authorizationServers` | OAuth authorization-server issuer identifiers advertised by RFC 9728 metadata | `[]` |
+| `services.mcp.oauthClientId` | Non-secret pre-registered public/native OAuth client ID distributed to MCP clients | `""` |
+| `services.mcp.scopes` | OAuth scopes advertised as `scopes_supported`; include the delegated MCP access scope | `[]` |
+| `services.mcp.allowedOrigins` | Browser origins permitted to call `/mcp`; native clients without `Origin` remain allowed | `[]` |
+
+Example deployment values:
+
+```yaml
+services:
+  mcp:
+    enabled: true
+    resourceUrl: https://osmo.example.com/mcp
+    authorizationServers:
+    - https://idp.example.com/tenant/v2.0
+    oauthClientId: <public-client-id>
+    scopes:
+    - openid
+    - profile
+    - email
+    - https://osmo.example.com/mcp/access_as_user
+```
+
+For Codex, the equivalent native `config.toml` entry is:
+
+```toml
+[mcp_servers.osmo]
+url = "https://osmo.example.com/mcp"
+
+[mcp_servers.osmo.oauth]
+client_id = "<public-client-id>"
+```
+
+The same configuration can be created from the command line:
+
+```bash
+codex mcp add osmo \
+  --url https://osmo.example.com/mcp \
+  --oauth-client-id <public-client-id>
+codex mcp login osmo
+```
+
+Codex discovers the OAuth resource and requested scopes from the protected
+resource metadata published by Envoy, so users do not need to repeat them in
+their local client configuration.
+
+Registries that represent MCP servers as JSON can distribute the same public
+client information with an `oauth.client_id` object. This is client onboarding
+configuration, not an additional endpoint served by Envoy:
+
+```json
+{
+  "url": "https://osmo.example.com/mcp",
+  "oauth": {
+    "client_id": "<public-client-id>"
+  }
+}
+```
+
 ### Gateway Configuration
 
 When `gateway.enabled` is true, the chart deploys Envoy, OAuth2 Proxy, and Authz as independent Deployments and Services, decoupled from the application pods. This replaces the legacy sidecar model where these components ran inside every service pod.
