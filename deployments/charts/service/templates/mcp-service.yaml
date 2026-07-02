@@ -62,6 +62,10 @@ spec:
         imagePullPolicy: {{ $mcp.imagePullPolicy }}
         command:
         - mcp
+        {{- if .Values.gateway.tls.enabled }}
+        args:
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- end }}
         securityContext:
           {{- toYaml $mcp.securityContext | nindent 10 }}
         ports:
@@ -78,12 +82,20 @@ spec:
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
+        {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
+        volumeMounts:
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- end }}
         livenessProbe:
-          {{- toYaml $mcp.livenessProbe | nindent 10 }}
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.livenessProbe "context" .) | nindent 10 }}
         readinessProbe:
-          {{- toYaml $mcp.readinessProbe | nindent 10 }}
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
         startupProbe:
-          {{- toYaml $mcp.startupProbe | nindent 10 }}
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
+      {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
+      volumes:
+      {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 6 }}
+      {{- end }}
 
 ---
 

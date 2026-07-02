@@ -1052,6 +1052,26 @@ data:
                 socket_address:
                   address: {{ $mcp.serviceName }}
                   port_value: {{ $mcp.port }}
+      {{- if $gw.tls.enabled }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $mcp.serviceName }}
+          common_tls_context:
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
+            {{- end }}
+      {{- end }}
     {{- end }}
 
     {{- if $gw.oauth2Proxy.enabled }}

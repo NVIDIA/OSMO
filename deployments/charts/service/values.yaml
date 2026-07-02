@@ -2380,6 +2380,7 @@ gateway:
       router: ""
       agent: ""
       logger: ""
+      mcp: ""
 
     ## Optional CA bundle for Envoy upstream validation. When set, Envoy
     ## validates upstream certs against ca.crt from this Secret. When empty,
