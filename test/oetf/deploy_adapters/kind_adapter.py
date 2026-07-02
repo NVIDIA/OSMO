@@ -84,6 +84,7 @@ METRICS_SERVER_NAMESPACE = "kube-system"
 # the chart name — chart-internal naming we don't control).
 _BUILD_LOCAL_SERVICES = (
     ("service", "agent"),
+    ("service", "mcp"),
     ("service", "service"),
     ("service", "delayedJobMonitor"),
     ("service", "logger"),

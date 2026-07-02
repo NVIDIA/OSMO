@@ -60,7 +60,7 @@ def _t(tmpl: str, arch: HostArch) -> str:
 def image_specs(arch: HostArch) -> List[ImageSpec]:
     """Return the set of OSMO images that build cleanly with oci_load + repo_tags.
 
-    The 9 Python service images here all produce ``osmo.local/<svc>:latest-<arch>``
+    The 10 Python service images here all produce ``osmo.local/<svc>:latest-<arch>``
     directly, matching the ``global.osmoImageLocation=osmo.local`` +
     ``global.osmoImageTag=latest-<arch>`` overrides quick-start accepts.
     """
@@ -74,6 +74,11 @@ def image_specs(arch: HostArch) -> List[ImageSpec]:
             "agent",
             _t("//src/service/agent:agent_service_image_load_{arch}", arch),
             _t("osmo.local/agent:latest-{arch}", arch),
+        ),
+        ImageSpec(
+            "mcp",
+            _t("//src/service/mcp:mcp_image_load_{arch}", arch),
+            _t("osmo.local/mcp-self-hosted:latest-{arch}", arch),
         ),
         ImageSpec(
             "logger",

@@ -343,6 +343,7 @@ class TestDefaultRoleMerge(unittest.TestCase):
                 'app:*',
                 'auth:Token',
                 'credentials:*',
+                'mcp:Access',
                 'pool:List',
                 'profile:Read',
                 'profile:Update',

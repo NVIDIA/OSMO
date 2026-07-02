@@ -42,6 +42,90 @@ func TestGetAllActions(t *testing.T) {
 	}
 }
 
+func TestMCPActionRegistry(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		method     string
+		wantAction string
+	}{
+		{name: "GET", path: "/mcp", method: "GET", wantAction: ActionMCPAccess},
+		{name: "POST", path: "/mcp", method: "POST", wantAction: ActionMCPAccess},
+		{name: "DELETE", path: "/mcp", method: "DELETE", wantAction: ActionMCPAccess},
+		{name: "unsupported PUT", path: "/mcp", method: "PUT"},
+		{name: "unsupported PATCH", path: "/mcp", method: "PATCH"},
+		{name: "unsupported OPTIONS", path: "/mcp", method: "OPTIONS"},
+		{name: "nested path", path: "/mcp/tools", method: "GET"},
+		{name: "adjacent path", path: "/mcp-extra", method: "GET"},
+		{
+			name:   "protected resource metadata path",
+			path:   "/.well-known/oauth-protected-resource/mcp",
+			method: "GET",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action, resource := ResolvePathToAction(
+				context.Background(), tt.path, tt.method, nil,
+			)
+			if action != tt.wantAction {
+				t.Errorf("ResolvePathToAction(%q, %q) action = %q, want %q",
+					tt.path, tt.method, action, tt.wantAction)
+			}
+			if resource != "" {
+				t.Errorf("ResolvePathToAction(%q, %q) resource = %q, want empty",
+					tt.path, tt.method, resource)
+			}
+		})
+	}
+}
+
+func TestMCPActionAuthorization(t *testing.T) {
+	osmoUser := &Role{
+		Name: "osmo-user",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: ActionMCPAccess}},
+				Resources: []string{"*"},
+			},
+		},
+	}
+	roleWithoutMCP := &Role{
+		Name: "role-without-mcp",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: ActionProfileRead}},
+				Resources: []string{"*"},
+			},
+		},
+	}
+
+	for _, method := range []string{"GET", "POST", "DELETE"} {
+		t.Run(method, func(t *testing.T) {
+			result := CheckRolesAccess(
+				context.Background(), []*Role{osmoUser}, "/mcp", method, nil,
+			)
+			if !result.Allowed {
+				t.Fatalf("osmo-user should be allowed to %s /mcp", method)
+			}
+			if result.MatchedAction != ActionMCPAccess {
+				t.Errorf("MatchedAction = %q, want %q", result.MatchedAction, ActionMCPAccess)
+			}
+
+			result = CheckRolesAccess(
+				context.Background(), []*Role{roleWithoutMCP}, "/mcp", method, nil,
+			)
+			if result.Allowed {
+				t.Errorf("role without %s should not be allowed to %s /mcp",
+					ActionMCPAccess, method)
+			}
+		})
+	}
+}
+
 func TestMatchMethodRegistry(t *testing.T) {
 	tests := []struct {
 		name           string

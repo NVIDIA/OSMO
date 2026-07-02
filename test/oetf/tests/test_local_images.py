@@ -21,7 +21,7 @@ class TestImageSpecs(unittest.TestCase):
 
     def test_arm64_tags_end_with_arm64(self):
         specs = local_images.image_specs("arm64")
-        self.assertGreaterEqual(len(specs), 9)
+        self.assertGreaterEqual(len(specs), 10)
         for spec in specs:
             self.assertTrue(
                 spec.docker_tag.endswith(":latest-arm64"),
@@ -48,15 +48,27 @@ class TestImageSpecs(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)), msg="duplicated short_name")
 
     def test_core_services_present(self):
-        """The 9 service images for the quick-start chart must all be included."""
+        """The 10 service images for the quick-start chart must all be included."""
         specs = local_images.image_specs("arm64")
         names = {spec.short_name for spec in specs}
         for required in (
-            "service", "agent", "logger", "worker",
+            "service", "agent", "mcp", "logger", "worker",
             "delayed-job-monitor", "router", "authz-sidecar",
             "backend-listener", "backend-worker",
         ):
             self.assertIn(required, names)
+
+    def test_mcp_image_matches_chart_image_name(self):
+        specs = local_images.image_specs("arm64")
+        mcp = next(spec for spec in specs if spec.short_name == "mcp")
+        self.assertEqual(
+            mcp.bazel_target,
+            "//src/service/mcp:mcp_image_load_arm64",
+        )
+        self.assertEqual(
+            mcp.docker_tag,
+            "osmo.local/mcp-self-hosted:latest-arm64",
+        )
 
 
 class TestDetectArch(unittest.TestCase):
