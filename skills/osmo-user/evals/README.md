@@ -9,10 +9,12 @@ schema (`question` / `expected_skill` / `expected_script` / `ground_truth` /
 ```text
 evals/
 ├── README.md                    # this file
+├── config.yml                   # PATH, working directory, and mock credential
 ├── evals.json                   # 34 eval definitions (NVIDIA schema)
-├── environment/
-│   └── Dockerfile               # eval runtime image (mock osmo on PATH)
 └── files/
+    ├── workflow.yaml            # sample workflow
+    ├── jinja_workflow.yaml      # sample templated workflow
+    ├── oversized.yaml           # invalid-capacity workflow
     ├── mock_osmo/
     │   └── osmo                 # bash dispatcher used as a fake `osmo` CLI
     └── fixtures/
@@ -32,12 +34,6 @@ evals/
         └── app_ok/              # canned `osmo app create` success response
 ```
 
-The Dockerfile additionally copies `simple_workflow.yaml` to
-`/workspace/workflow.yaml`, `jinja_workflow.yaml` to
-`/workspace/jinja_workflow.yaml`, and `oversized.yaml` to
-`/workspace/oversized.yaml` at build time so submit-flow evals find
-them at the agent's cwd.
-
 ## Eval set
 
 34 evals total — 26 positives (`expected_skill` is `osmo-user`) and 8 negatives
@@ -45,10 +41,10 @@ them at the agent's cwd.
 
 ## How the eval environment works
 
-ACES builds the runtime image from `environment/Dockerfile`. That Dockerfile
-installs an `osmo` shim at `/usr/local/bin/osmo` that exec's the bash
-dispatcher ACES mounts at `/workspace/input/mock_osmo/osmo` at runtime. The
-dispatcher returns canned content from `/workspace/input/fixtures/...`, so
+ACES uses its default runtime image and stages `files/` at `/workspace/input`.
+The config puts `/workspace/input/mock_osmo` on `PATH` and sets the agent's
+working directory to `/workspace/input`. The dispatcher returns canned content
+from `/workspace/input/fixtures/...`, so
 the skill's prescribed commands (`osmo profile list`, `osmo pool list`,
 `osmo workflow query …`, etc.) resolve end-to-end without needing a live
 OSMO backend.
