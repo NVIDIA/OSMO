@@ -413,6 +413,12 @@ class TestKindAdapter(unittest.TestCase):
              "-n", "osmo", "--timeout=10m"),
             cmds,
         )
+        osmo_helm_args = next(cmd for cmd in cmds if "osmo/quick-start" in cmd)
+        self.assertIn(
+            "service.services.mcp.imagePullPolicy=IfNotPresent",
+            osmo_helm_args,
+            f"expected MCP pull policy override, got: {osmo_helm_args}",
+        )
         # Build-local helm overrides include UI's pull policy (UI now built locally).
         helm_args_concat = " ".join(
             arg for cmd in cmds for arg in cmd
