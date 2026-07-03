@@ -661,13 +661,14 @@ Step 7: Post-deployment Configuration
       $ codex mcp add osmo \
           --url https://osmo.example.com/mcp \
           --oauth-client-id <mcp-public-client-id>
-      $ codex mcp login osmo
+      $ codex mcp login osmo \
+          --scopes openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user
 
    Envoy publishes every entry from ``services.mcp.scopes`` as
-   ``scopes_supported`` in the protected resource metadata. Codex uses that
-   metadata during ``codex mcp login``, so the delegated
-   ``https://osmo.example.com/mcp/access_as_user`` scope is requested
-   automatically and no local ``--scopes`` argument is required.
+   ``scopes_supported`` in the protected resource metadata. Pass the scopes
+   explicitly to ``codex mcp login`` so the authorization request includes the
+   resource-qualified ``access_as_user`` scope. The ``offline_access`` scope
+   allows Codex to request a refresh token.
 
    Register the exact loop-back callback URI used by the MCP client with the
    identity provider. The callback for a browser-based MCP client can differ

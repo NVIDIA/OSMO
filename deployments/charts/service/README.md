@@ -349,12 +349,14 @@ The same configuration can be created from the command line:
 codex mcp add osmo \
   --url https://osmo.example.com/mcp \
   --oauth-client-id <public-client-id>
-codex mcp login osmo
+codex mcp login osmo \
+  --scopes openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user
 ```
 
-Codex discovers the OAuth resource and requested scopes from the protected
-resource metadata published by Envoy, so users do not need to repeat them in
-their local client configuration.
+Envoy publishes the configured resource scopes in protected resource metadata.
+Pass the scopes explicitly to Codex login so the authorization request includes
+the resource-qualified `access_as_user` scope. The `offline_access` scope lets
+Codex request a refresh token.
 
 Registries that represent MCP servers as JSON can distribute the same public
 client information with an `oauth.client_id` object. This is client onboarding
