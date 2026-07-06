@@ -661,11 +661,8 @@ Step 7: Post-deployment Configuration
       $ codex mcp add osmo \
           --url https://osmo.example.com/mcp \
           --oauth-client-id <mcp-public-client-id>
-      $ codex mcp login \
-          -c 'mcp_oauth_callback_port=53682' \
-          -c 'mcp_oauth_callback_url="http://localhost:53682/oauth/callback"' \
-          --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user' \
-          osmo
+      $ codex mcp login osmo \
+          --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user'
 
    Envoy publishes every entry from ``services.mcp.scopes`` as
    ``scopes_supported`` in the protected resource metadata. Pass the scopes
@@ -673,25 +670,22 @@ Step 7: Post-deployment Configuration
    resource-qualified ``access_as_user`` scope. The ``offline_access`` scope
    allows Codex to request a refresh token.
 
-   Codex opens a local loop-back listener to receive the OAuth authorization
-   result. The callback URL in the example is a fixed base URL; Codex appends a
-   server-specific ID, so the complete redirect URI looks like:
+   For identity providers that require a registered callback, use temporary
+   callback settings for that login:
 
-   .. code-block:: text
+   .. code-block:: bash
 
-      http://localhost:53682/oauth/callback/<server-specific-id>
+      $ codex mcp login \
+          -c 'mcp_oauth_callback_port=53682' \
+          -c 'mcp_oauth_callback_url="http://localhost:53682/oauth/callback"' \
+          --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user' \
+          osmo
 
-   Register the complete generated redirect URI, including the appended ID,
-   with the identity provider as a public/native client redirect. If the
-   identity provider requires registration before login can complete, run the
-   login command once, copy the exact ``redirect_uri`` from the authorization
-   request or error, register it, and retry. For Microsoft Entra, add it under
-   **Mobile and desktop applications** and enable public client flows.
-
-   An MCP Inspector browser callback is a separate redirect URI and should
-   remain registered independently. The ``-c`` options apply only to this login
-   command. Setting these keys at the top level of ``config.toml`` affects every
-   OAuth MCP used by that Codex configuration.
+   Codex appends a server-specific ID to the callback URL. Register the exact
+   ``redirect_uri`` shown during login as a public/native redirect, for example
+   ``http://localhost:53682/oauth/callback/<server-specific-id>``. The ``-c``
+   options apply only to this command; they do not modify ``config.toml`` or
+   other MCPs. MCP Inspector uses a separate callback URI.
 
 
 Troubleshooting
