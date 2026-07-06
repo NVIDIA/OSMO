@@ -696,6 +696,11 @@ jobs:
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           POSTGRES_PASSWORD: ${{ steps.pg.outputs.value }}
+          # NGC_API_KEY: the wrapper's azure branch injects this into
+          # services.configs.workflow.backend_images.credential so that OSMO's
+          # dynamically-created workflow task pods get a docker-registry
+          # secret they can use to pull init-container/client from nvcr.io.
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
           SKIP_OETF: "1"
           SKIP_TEARDOWN: "1"
         run: |

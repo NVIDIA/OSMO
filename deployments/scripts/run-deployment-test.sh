@@ -535,6 +535,23 @@ stage_deploy() {
                 # `name` and limits, breaking the configmap loader's schema.
                 --helm-values "${SCRIPT_DIR}/../../ci/deployment-test/azure-overrides.yaml"
             )
+
+            # If NGC_API_KEY is in env (i.e. images are on a private nvcr.io
+            # path), wire it into services.configs.workflow.backend_images
+            # .credential so OSMO's task-pod scheduler code creates the
+            # per-workflow `<group_uuid>-osmo` docker-registry secret and
+            # attaches it as an imagePullSecret. Without this the dynamic
+            # workflow task pods try to pull the init-container from nvcr.io
+            # anonymously and get 403 (their ServiceAccount's imagePullSecret
+            # from global.imagePullSecret only covers the service-level pods,
+            # not the runtime task pods created by the backend-worker).
+            if [[ -n "${NGC_API_KEY:-}" ]]; then
+                args+=(
+                    --helm-set "services.configs.workflow.backend_images.credential.registry=nvcr.io"
+                    --helm-set 'services.configs.workflow.backend_images.credential.username=$oauthtoken'
+                    --helm-set "services.configs.workflow.backend_images.credential.auth=${NGC_API_KEY}"
+                )
+            fi
             ;;
         *)
             log_error "stage_deploy: provider $PROVIDER not wired"
