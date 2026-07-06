@@ -19,6 +19,19 @@
 
 services:
   configs:
+    # Since #1155 (Reconcile backend side effects from ConfigMap reloads),
+    # OSMO's ConfigMap-mode validator requires `k8s_namespace` on every
+    # backend definition — otherwise the service refuses to start with
+    #   backends.default.k8s_namespace: required in ConfigMap mode
+    # The published (latest-GA) chart's own template auto-fills this from
+    # `.Release.Namespace`, but we pin an older chart version whose
+    # template doesn't, and the wrapper's images are built from
+    # main-merged code that carries the new strict check. Set it
+    # explicitly here to match the release namespace (osmo-minimal).
+    backends:
+      default:
+        k8s_namespace: osmo-minimal
+
     podTemplates:
       default_ctrl:
         spec:
