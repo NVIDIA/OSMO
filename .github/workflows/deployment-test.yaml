@@ -158,16 +158,19 @@ jobs:
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
 
   # Build OSMO service + backend images from THIS PR's source and push them
-  # to nvcr.io/nvstaging/osmo/ci so the deployment-test below verifies the
+  # to nvcr.io/nvstaging/osmo so the deployment-test below verifies the
   # actual diff, not whatever's currently published at
   # nvcr.io/nvidia/osmo:latest. Without this job the gate is meaningless
   # for service-code PRs (it always tests the published `latest`, never
   # the proposed change). Sequenced before the deployment jobs via
   # `needs:`.
   #
-  # Pushes go to the `nvstaging` NGC org — same path the Jenkins dev
-  # pipeline uses — under a `/ci` subdir so per-PR tag noise doesn't
-  # clutter the main `nvcr.io/nvstaging/osmo/*` release path.
+  # Pushes go to `nvcr.io/nvstaging/osmo` — the same team the Jenkins dev
+  # pipeline uses (nvcr.io restricts registries to 3 path segments
+  # `<org>/<team>/<image>`, so a dedicated `/ci` subpath isn't possible).
+  # CI-built tags are prefixed `pr-<num>-<attempt>-amd64` to visually
+  # separate them from dev's `YYYY.MM.DD.hash.stgN` tags. Cleanup uses
+  # the tag prefix.
   build-images:
     if: >
       ${{ github.event_name == 'schedule'
@@ -225,7 +228,7 @@ jobs:
           username: $oauthtoken
           password: ${{ secrets.NGC_API_KEY }}
 
-      # Tag layout: nvcr.io/nvstaging/osmo/ci/<image>:pr-<num>-<attempt>-amd64
+      # Tag layout: nvcr.io/nvstaging/osmo/<image>:pr-<num>-<attempt>-amd64
       # The `-amd64` suffix is appended by rules_oci's per-arch oci_push;
       # we expose the FULL tag (with suffix) so downstream uses match the
       # actual remote tag.
@@ -234,9 +237,9 @@ jobs:
           PR_NUM="${{ github.event.pull_request.number || github.run_id }}"
           ATTEMPT="${{ github.run_attempt }}"
           TAG_BASE="pr-${PR_NUM}-${ATTEMPT}"
-          echo "registry=nvcr.io/nvstaging/osmo/ci" >> "$GITHUB_OUTPUT"
-          echo "tag_base=${TAG_BASE}"               >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG_BASE}-amd64"              >> "$GITHUB_OUTPUT"
+          echo "registry=nvcr.io/nvstaging/osmo" >> "$GITHUB_OUTPUT"
+          echo "tag_base=${TAG_BASE}"            >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG_BASE}-amd64"           >> "$GITHUB_OUTPUT"
 
       # Minimal --no-gpu image set: 8 service images + client + init-container.
       # The public repo has no //ci:push_images orchestrator (that's GitLab-CI
