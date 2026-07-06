@@ -673,7 +673,7 @@ Step 7: Post-deployment Configuration
    resource-qualified ``access_as_user`` scope. The ``offline_access`` scope
    allows Codex to request a refresh token.
 
-   Codex opens a local loopback listener to receive the OAuth authorization
+   Codex opens a local loop-back listener to receive the OAuth authorization
    result. The callback URL in the example is a fixed base URL; Codex appends a
    server-specific ID, so the complete redirect URI looks like:
 

@@ -361,7 +361,7 @@ Pass the scopes explicitly to Codex login so the authorization request includes
 the resource-qualified `access_as_user` scope. The `offline_access` scope lets
 Codex request a refresh token.
 
-Codex opens a local loopback listener to receive the OAuth authorization result.
+Codex opens a local loop-back listener to receive the OAuth authorization result.
 The callback URL above is a fixed base URL; Codex appends a server-specific ID,
 so the complete redirect URI looks like:
 
