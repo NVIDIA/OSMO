@@ -372,15 +372,14 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
           limits:
             memory: "512Mi"
 
-      # Optional self-hosted MCP endpoint. The public client ID identifies the
-      # MCP client application and is safe to distribute to users; it is not a
-      # client secret.
+      # Optional self-hosted MCP endpoint. Register the public OAuth client
+      # separately with the identity provider and distribute its non-secret
+      # client ID to users out of band.
       mcp:
         enabled: false
         resourceUrl: https://<your-domain>/mcp
         authorizationServers:
         - <idp-issuer-url>
-        oauthClientId: <mcp-public-client-id>
         scopes:
         - openid
         - profile

@@ -312,7 +312,6 @@ in RFC 9728 metadata because that metadata has no standard `client_id` field.
 | `services.mcp.enabled` | Deploy the MCP workload and gateway routes | `false` |
 | `services.mcp.resourceUrl` | Canonical externally reachable HTTPS MCP URL ending in `/mcp` | `""` |
 | `services.mcp.authorizationServers` | OAuth authorization-server issuer identifiers advertised by RFC 9728 metadata | `[]` |
-| `services.mcp.oauthClientId` | Non-secret pre-registered public/native OAuth client ID distributed to MCP clients | `""` |
 | `services.mcp.scopes` | OAuth scopes advertised as `scopes_supported`; include the delegated MCP access scope | `[]` |
 | `services.mcp.allowedOrigins` | Browser origins permitted to call `/mcp`; native clients without `Origin` remain allowed | `[]` |
 
@@ -325,7 +324,6 @@ services:
     resourceUrl: https://osmo.example.com/mcp
     authorizationServers:
     - https://idp.example.com/tenant/v2.0
-    oauthClientId: <public-client-id>
     scopes:
     - openid
     - profile

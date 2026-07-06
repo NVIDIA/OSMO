@@ -59,7 +59,6 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if eq (len $mcp.authorizationServers) 0 }}
 {{- fail "services.mcp.authorizationServers must contain at least one issuer when MCP is enabled" }}
 {{- end }}
-{{- $_ := required "services.mcp.oauthClientId is required when MCP is enabled" $mcp.oauthClientId }}
 {{- if not (kindIs "slice" $mcp.scopes) }}
 {{- fail "services.mcp.scopes must be a list" }}
 {{- end }}

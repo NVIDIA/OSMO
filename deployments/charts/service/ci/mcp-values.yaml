@@ -7,7 +7,6 @@ services:
     resourceUrl: https://osmo.example.com/mcp
     authorizationServers:
     - https://idp.example.com/tenant/v2.0
-    oauthClientId: osmo-public-client
     scopes:
     - openid
     - profile
