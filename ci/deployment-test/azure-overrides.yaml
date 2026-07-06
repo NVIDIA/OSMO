@@ -19,15 +19,18 @@
 
 services:
   configs:
-    # Since #1155 (Reconcile backend side effects from ConfigMap reloads),
-    # OSMO's ConfigMap-mode validator requires `k8s_namespace` on every
-    # backend definition — otherwise the service refuses to start with
+    # Since #1155 (Reconcile backend side effects from ConfigMap reloads,
+    # merged 2026-07-06), OSMO's ConfigMap-mode validator requires
+    # `k8s_namespace` on every backend definition — otherwise the service
+    # refuses to start with
     #   backends.default.k8s_namespace: required in ConfigMap mode
-    # The published (latest-GA) chart's own template auto-fills this from
-    # `.Release.Namespace`, but we pin an older chart version whose
-    # template doesn't, and the wrapper's images are built from
-    # main-merged code that carries the new strict check. Set it
-    # explicitly here to match the release namespace (osmo-minimal).
+    # #1155's own chart template auto-fills this from `.Release.Namespace`,
+    # but the deploy path here pulls `latest stable` from the NGC helm repo
+    # (helm.ngc.nvidia.com/nvidia/osmo), which was cut before #1155 landed
+    # and therefore doesn't have the auto-fill yet. The images ARE built
+    # from `refs/pull/*/merge` — i.e. main HEAD — so they carry the strict
+    # check. Set it explicitly here to match the release namespace.
+    # Drop this override once a chart release containing #1155 ships.
     backends:
       default:
         k8s_namespace: osmo-minimal
