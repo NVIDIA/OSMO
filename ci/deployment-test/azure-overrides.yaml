@@ -30,7 +30,8 @@ services:
     # and therefore doesn't have the auto-fill yet. The images ARE built
     # from `refs/pull/*/merge` — i.e. main HEAD — so they carry the strict
     # check. Set it explicitly here to match the release namespace.
-    # Drop this override once a chart release containing #1155 ships.
+    # TODO: drop this override once a chart release containing #1155 ships
+    # to helm.ngc.nvidia.com/nvidia/osmo.
     backends:
       default:
         k8s_namespace: osmo-minimal
