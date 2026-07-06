@@ -12,7 +12,6 @@ services:
     - openid
     - profile
     - email
-    - offline_access
     - https://osmo.example.com/mcp/access_as_user
 
 gateway:

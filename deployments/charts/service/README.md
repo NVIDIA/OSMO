@@ -313,7 +313,7 @@ in RFC 9728 metadata because that metadata has no standard `client_id` field.
 | `services.mcp.resourceUrl` | Canonical externally reachable HTTPS MCP URL ending in `/mcp` | `""` |
 | `services.mcp.authorizationServers` | OAuth authorization-server issuer identifiers advertised by RFC 9728 metadata | `[]` |
 | `services.mcp.oauthClientId` | Non-secret pre-registered public/native OAuth client ID distributed to MCP clients | `""` |
-| `services.mcp.scopes` | OAuth scopes advertised as `scopes_supported`; include the delegated MCP access scope and `offline_access` for refresh tokens | `[]` |
+| `services.mcp.scopes` | OAuth scopes advertised as `scopes_supported`; include the delegated MCP access scope | `[]` |
 | `services.mcp.allowedOrigins` | Browser origins permitted to call `/mcp`; native clients without `Origin` remain allowed | `[]` |
 
 Example deployment values:
@@ -330,7 +330,6 @@ services:
     - openid
     - profile
     - email
-    - offline_access
     - https://osmo.example.com/mcp/access_as_user
 ```
 
@@ -350,13 +349,17 @@ The same configuration can be created from the command line:
 codex mcp add osmo \
   --url https://osmo.example.com/mcp \
   --oauth-client-id <public-client-id>
-codex mcp login osmo
+codex mcp login \
+  --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user' \
+  osmo
 ```
 
 Envoy publishes every configured scope as `scopes_supported` in the protected
-resource metadata. Codex discovers these scopes during login, including the
-resource-qualified `access_as_user` scope. The `offline_access` scope lets Codex
-request a refresh token.
+resource metadata. When using a pre-registered client ID, pass the scopes to
+Codex explicitly so the resource-qualified `access_as_user` scope reaches the
+authorization server. The `offline_access` scope lets Codex request a refresh
+token; it is a client request and does not need to be advertised by the MCP
+resource.
 
 For identity providers that require a registered callback, use temporary
 callback settings for that login:
@@ -365,6 +368,7 @@ callback settings for that login:
 codex mcp login \
   -c 'mcp_oauth_callback_port=53682' \
   -c 'mcp_oauth_callback_url="http://localhost:53682/oauth/callback"' \
+  --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user' \
   osmo
 ```
 

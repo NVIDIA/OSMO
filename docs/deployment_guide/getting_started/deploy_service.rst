@@ -385,7 +385,6 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
         - openid
         - profile
         - email
-        - offline_access
         - https://<your-domain>/mcp/access_as_user
 
       # Default admin (no IdP): enable to create an admin user and access token at startup
@@ -662,13 +661,16 @@ Step 7: Post-deployment Configuration
       $ codex mcp add osmo \
           --url https://osmo.example.com/mcp \
           --oauth-client-id <mcp-public-client-id>
-      $ codex mcp login osmo
+      $ codex mcp login \
+          --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user' \
+          osmo
 
    Envoy publishes every entry from ``services.mcp.scopes`` as
-   ``scopes_supported`` in the protected resource metadata. Codex discovers
-   these scopes during login, including the resource-qualified
-   ``access_as_user`` scope. The ``offline_access`` scope allows Codex to
-   request a refresh token.
+   ``scopes_supported`` in the protected resource metadata. When using a
+   pre-registered client ID, pass the scopes to Codex explicitly so the
+   resource-qualified ``access_as_user`` scope reaches the authorization
+   server. The client-only ``offline_access`` scope allows Codex to request a
+   refresh token and does not need to be advertised by the MCP resource.
 
    For identity providers that require a registered callback, use temporary
    callback settings for that login:
@@ -678,6 +680,7 @@ Step 7: Post-deployment Configuration
       $ codex mcp login \
           -c 'mcp_oauth_callback_port=53682' \
           -c 'mcp_oauth_callback_url="http://localhost:53682/oauth/callback"' \
+          --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user' \
           osmo
 
    Codex appends a server-specific ID to the callback URL. Register the exact
