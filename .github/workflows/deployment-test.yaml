@@ -158,11 +158,16 @@ jobs:
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
 
   # Build OSMO service + backend images from THIS PR's source and push them
-  # to ghcr.io so the deployment-test below verifies the actual diff, not
-  # whatever's currently published at nvcr.io/nvidia/osmo:latest. Without
-  # this job the gate is meaningless for service-code PRs (it always tests
-  # the published `latest`, never the proposed change). Sequenced before
-  # full-deployment via `needs:`.
+  # to nvcr.io/nvstaging/osmo/ci so the deployment-test below verifies the
+  # actual diff, not whatever's currently published at
+  # nvcr.io/nvidia/osmo:latest. Without this job the gate is meaningless
+  # for service-code PRs (it always tests the published `latest`, never
+  # the proposed change). Sequenced before the deployment jobs via
+  # `needs:`.
+  #
+  # Pushes go to the `nvstaging` NGC org — same path the Jenkins dev
+  # pipeline uses — under a `/ci` subdir so per-PR tag noise doesn't
+  # clutter the main `nvcr.io/nvstaging/osmo/*` release path.
   build-images:
     if: >
       ${{ github.event_name == 'schedule'
@@ -173,7 +178,6 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
-      packages: write
     outputs:
       image_registry: ${{ steps.tag.outputs.registry }}
       image_tag: ${{ steps.tag.outputs.tag }}
@@ -210,16 +214,18 @@ jobs:
               io_bazel_rules_go: src/runtime/go.mod
               bazel_gazelle: src/runtime/go.sum
 
-      # GHCR auth for rules_oci's `oci_push` (reads ~/.docker/config.json).
-      # GITHUB_TOKEN gets packages:write for this repo automatically.
-      - name: Log in to GHCR
+      # nvcr.io auth for rules_oci's `oci_push` (reads ~/.docker/config.json).
+      # NGC_API_KEY is a repo secret with push scope on nvcr.io/nvstaging.
+      # NGC's convention: literal username `$oauthtoken` + the API key as
+      # the password.
+      - name: Log in to nvcr.io
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: nvcr.io
+          username: $oauthtoken
+          password: ${{ secrets.NGC_API_KEY }}
 
-      # Tag layout: ghcr.io/<owner>/osmo-ci/<image>:pr-<num>-<attempt>-amd64
+      # Tag layout: nvcr.io/nvstaging/osmo/ci/<image>:pr-<num>-<attempt>-amd64
       # The `-amd64` suffix is appended by rules_oci's per-arch oci_push;
       # we expose the FULL tag (with suffix) so downstream uses match the
       # actual remote tag.
@@ -227,18 +233,18 @@ jobs:
         run: |
           PR_NUM="${{ github.event.pull_request.number || github.run_id }}"
           ATTEMPT="${{ github.run_attempt }}"
-          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           TAG_BASE="pr-${PR_NUM}-${ATTEMPT}"
-          echo "registry=ghcr.io/${OWNER_LC}/osmo-ci" >> "$GITHUB_OUTPUT"
-          echo "tag_base=${TAG_BASE}"                 >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG_BASE}-amd64"                >> "$GITHUB_OUTPUT"
+          echo "registry=nvcr.io/nvstaging/osmo/ci" >> "$GITHUB_OUTPUT"
+          echo "tag_base=${TAG_BASE}"               >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG_BASE}-amd64"              >> "$GITHUB_OUTPUT"
 
       # Minimal --no-gpu image set: 8 service images + client + init-container.
       # The public repo has no //ci:push_images orchestrator (that's GitLab-CI
       # only — it lives in the internal repo's `ci/` dir). Iterate the
       # per-target oci_push rules directly. Each accepts --repository and
       # --tag at `bazel run` time, so we don't need to mutate the constants
-      # repo to redirect from nvcr.io to ghcr.io.
+      # repo to redirect from the default nvcr.io/nvidia/osmo path to
+      # nvcr.io/nvstaging/osmo/ci.
       - name: Build and push OSMO images
         env:
           REMOTE_CACHE: ${{ secrets.BAZEL_REMOTE_CACHE_URL }}
@@ -286,12 +292,9 @@ jobs:
           push_one //src/operator:backend_listener_push_x86_64              backend-listener
           push_one //src/operator:backend_worker_push_x86_64                backend-worker
 
-      # GitHub Container Registry creates packages as PRIVATE on first push.
-      # Subsequent pushes inherit visibility. AKS would hit ImagePullBackOff
-      # without auth, which is why the full-deployment job pre-creates an
-      # imagePullSecret using GITHUB_TOKEN. (Setting packages to public is
-      # an admin-only API call requiring admin:packages PAT scope — out of
-      # this workflow's permissions surface.)
+      # nvcr.io requires auth for every pull. The deploy-osmo job below
+      # pre-creates an imagePullSecret in each OSMO namespace using the
+      # same NGC_API_KEY the push here uses, so AKS can pull.
       - name: Step summary
         run: |
           {
@@ -531,8 +534,8 @@ jobs:
           include-hidden-files: true
 
   # ── Stage 2: deploy OSMO chart + verify-hello ────────────────────────────
-  # Refreshes kubectl creds against the freshly-applied AKS, pre-creates a
-  # GHCR pull secret, then invokes the wrapper with SKIP_OETF=1 so only
+  # Refreshes kubectl creds against the freshly-applied AKS, pre-creates an
+  # nvcr.io pull secret, then invokes the wrapper with SKIP_OETF=1 so only
   # bootstrap + deploy stages run.
   deploy-osmo:
     needs: [build-images, tf-apply]
@@ -548,11 +551,10 @@ jobs:
       RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
       OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
       OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
-      NGC_SECRET_NAME: ghcr-pull
+      NGC_SECRET_NAME: nvcr-pull
     permissions:
       id-token: write
       contents: read
-      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -634,16 +636,17 @@ jobs:
           done
           terraform init -input=false -no-color
 
-      # Wire kubectl to the freshly-applied AKS, then pre-create a GHCR
-      # docker-registry secret in every OSMO namespace. The chart's deploy
-      # script (deploy-k8s.sh) skips its own kubectl-create-secret path
-      # when the named secret exists, avoiding the need to leak NGC_API_KEY.
-      - name: wire kubectl + pre-create GHCR pull secret
+      # Wire kubectl to the freshly-applied AKS, then pre-create an
+      # nvcr.io docker-registry secret in every OSMO namespace. The
+      # chart's deploy script (deploy-k8s.sh) skips its own
+      # kubectl-create-secret path when the named secret already exists,
+      # so pre-creating avoids passing --ngc-api-key on the wrapper's
+      # arg surface.
+      - name: wire kubectl + pre-create nvcr.io pull secret
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          GHCR_USERNAME: ${{ github.actor }}
-          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
         run: |
           set -euo pipefail
           echo "▶ az aks get-credentials"
@@ -669,12 +672,14 @@ jobs:
             'handler: runc' \
             | kubectl apply -f -
 
-          echo "▶ creating GHCR pull secret '$NGC_SECRET_NAME' in each namespace"
+          echo "▶ creating nvcr.io pull secret '$NGC_SECRET_NAME' in each namespace"
+          # NGC convention: username is the literal string `$oauthtoken`
+          # (single-quoted here so bash doesn't try to expand it).
           for ns in osmo-minimal osmo-operator osmo-workflows; do
             kubectl create secret docker-registry "$NGC_SECRET_NAME" \
-              --docker-server=ghcr.io \
-              --docker-username="$GHCR_USERNAME" \
-              --docker-password="$GHCR_PASSWORD" \
+              --docker-server=nvcr.io \
+              --docker-username='$oauthtoken' \
+              --docker-password="$NGC_API_KEY" \
               --namespace "$ns" \
               --dry-run=client -o yaml \
               | kubectl apply -f -
