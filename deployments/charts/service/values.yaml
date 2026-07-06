@@ -155,7 +155,8 @@ services:
 
     ## OAuth scopes requested by MCP clients. These values are advertised as
     ## scopes_supported in RFC 9728 protected-resource metadata and should
-    ## include the delegated scope required to access this MCP resource.
+    ## include the delegated scope required to access this MCP resource. Add
+    ## offline_access when clients should be able to request refresh tokens.
     ##
     scopes: []
 
