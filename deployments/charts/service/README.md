@@ -349,14 +349,34 @@ The same configuration can be created from the command line:
 codex mcp add osmo \
   --url https://osmo.example.com/mcp \
   --oauth-client-id <public-client-id>
-codex mcp login osmo \
-  --scopes openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user
+codex mcp login \
+  -c 'mcp_oauth_callback_port=53682' \
+  -c 'mcp_oauth_callback_url="http://localhost:53682/oauth/callback"' \
+  --scopes 'openid,profile,email,offline_access,https://osmo.example.com/mcp/access_as_user' \
+  osmo
 ```
 
 Envoy publishes the configured resource scopes in protected resource metadata.
 Pass the scopes explicitly to Codex login so the authorization request includes
 the resource-qualified `access_as_user` scope. The `offline_access` scope lets
 Codex request a refresh token.
+
+Codex opens a local loopback listener to receive the OAuth authorization result.
+The callback URL above is a fixed base URL; Codex appends a server-specific ID,
+so the complete redirect URI looks like:
+
+```text
+http://localhost:53682/oauth/callback/<server-specific-id>
+```
+
+Register the complete generated redirect URI, including the appended ID, with
+the authorization server as a public/native client redirect. If registration is
+required before login can complete, run the login command once, copy the exact
+`redirect_uri` from the authorization request or error, register it, and retry.
+An MCP Inspector browser callback is a separate redirect URI and should remain
+registered independently. The `-c` options apply only to this login command;
+setting the same keys at the top level of `config.toml` affects every OAuth MCP
+used by that Codex configuration.
 
 Registries that represent MCP servers as JSON can distribute the same public
 client information with an `oauth.client_id` object. This is client onboarding
