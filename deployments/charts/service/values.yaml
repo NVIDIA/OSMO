@@ -146,11 +146,11 @@ services:
     ##
     authorizationServers: []
 
-    ## Non-secret client ID for the separately registered public/native MCP
-    ## OAuth client. MCP clients such as Inspector use this value out of band;
-    ## it is intentionally not emitted in RFC 9728 resource metadata.
+    ## OAuth scopes requested by MCP clients. These values are advertised as
+    ## scopes_supported in RFC 9728 protected-resource metadata and should
+    ## include the delegated scope required to access this MCP resource.
     ##
-    oauthClientId: ""
+    scopes: []
 
     ## Browser Origins permitted to call /mcp. Native MCP clients normally omit
     ## Origin and remain allowed. When this list is empty, any present Origin is
