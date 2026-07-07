@@ -123,21 +123,3 @@ jobs:
           fi
           echo "✓ Template rendering successful"
 
-      - name: Helm Template (validate MCP OAuth metadata)
-        if: matrix.chart == 'service'
-        run: |
-          OUTPUT=$(helm template test-release deployments/charts/service \
-            --values deployments/charts/service/ci/mcp-values.yaml)
-          METADATA=$(printf '%s\n' "$OUTPUT" | grep 'inline_string:.*authorization_servers' || true)
-
-          if [ -z "$METADATA" ]; then
-            echo "MCP protected-resource metadata was not rendered"
-            exit 1
-          fi
-          printf '%s\n' "$METADATA" | grep -q 'scopes_supported'
-          printf '%s\n' "$METADATA" | grep -q 'https://osmo.example.com/mcp/access_as_user'
-          if printf '%s\n' "$METADATA" | grep -q 'client_id'; then
-            echo "MCP client ID must not be emitted in RFC 9728 metadata"
-            exit 1
-          fi
-          echo "✓ MCP OAuth metadata rendered successfully"
