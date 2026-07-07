@@ -66,3 +66,13 @@ py_test(
     ],
 )
 
+py_test(
+    name = "test_workflow_service_units",
+    srcs = ["test_workflow_service_units.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/workflow",
+        "//src/utils/job",
+    ],
+)
+
