@@ -73,8 +73,13 @@ data "azurerm_resource_group" "main" {
 ################################################################################
 
 module "vnet" {
-  source  = "Azure/avm-res-network-virtualnetwork/azurerm"
-  version = "~> 0.10"
+  source = "Azure/avm-res-network-virtualnetwork/azurerm"
+  # Pin to 0.17.x. 0.18.0 (2026-06-15) added IPAM validation rules that rely
+  # on `||` short-circuit in `validation { condition = ... }` — Terraform
+  # 1.9.x evaluates both sides, so `length(null)` throws even when the
+  # `ipam_pools == null` branch is true. Re-evaluate once we bump Terraform
+  # to >= 1.10 or once the AVM module guards the validation with `try()`.
+  version = "~> 0.17.0"
 
   name          = "${local.name}-vnet"
   parent_id     = data.azurerm_resource_group.main.id
