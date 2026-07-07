@@ -24,10 +24,11 @@ import pathlib
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 import httpx
 
-from src.service.mcp import server
+from src.service.mcp import server, tools as mcp_tools
 
 
 GatewayHandler = (
@@ -277,6 +278,43 @@ class MCPToolsTest(unittest.IsolatedAsyncioTestCase):
             requests, '/api/auth/jwt/delegated_access_token')[0]
         self.assertEqual(
             json.loads(delegated_request.content), {'subject_user': 'alice'})
+
+    async def test_invalid_lifespan_context_returns_sanitized_error(self) -> None:
+        def gateway_handler(unused_request: httpx.Request) -> httpx.Response:
+            del unused_request
+            self.fail('An invalid MCP context must fail before Gateway access.')
+
+        application = server.create_application(
+            self.config,
+            http_transport=httpx.MockTransport(gateway_handler),
+        )
+        request = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'tools/call',
+            'params': {'name': 'get_current_profile', 'arguments': {}},
+        }
+        headers = {
+            'Accept': 'application/json, text/event-stream',
+            'Content-Type': 'application/json',
+            'x-osmo-user': 'alice',
+        }
+
+        class UnexpectedAppContext:
+            """Type sentinel used to reject the real lifespan context."""
+
+        async with application.router.lifespan_context(application):
+            with mock.patch.object(
+                mcp_tools.tokens, 'AppContext', UnexpectedAppContext,
+            ):
+                async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=application),
+                    base_url='http://mcp.test',
+                ) as client:
+                    response = await client.post(
+                        '/mcp', headers=headers, json=request)
+
+        self._assert_sanitized_error(response)
 
     async def _call_tool(
         self,

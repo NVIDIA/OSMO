@@ -26,6 +26,7 @@ import shutil
 import tempfile
 import unittest
 from collections.abc import AsyncIterator, Callable, Coroutine
+from typing import cast
 from unittest import mock
 
 import httpx
@@ -179,6 +180,32 @@ class TokenProviderTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await surviving_waiter, 'service-jwt')
         self.assertEqual(await provider.get_token(), 'service-jwt')
         self.assertEqual(request_count, 1)
+
+    async def test_stale_service_refresh_preserves_replacement_task(self) -> None:
+        # White-box setup is required to exercise the stale-task cleanup guard.
+        # pylint: disable=protected-access
+        request_started = asyncio.Event()
+        release_request = asyncio.Event()
+
+        async def handler(unused_request: httpx.Request) -> httpx.Response:
+            del unused_request
+            request_started.set()
+            await release_request.wait()
+            return self._token_response('service-jwt', lifetime=300)
+
+        provider = self._service_provider(handler)
+        token_waiter = asyncio.create_task(provider.get_token())
+        await asyncio.wait_for(request_started.wait(), timeout=5)
+
+        replacement_task = cast(
+            asyncio.Task[tokens._CachedToken], asyncio.current_task())
+        self.assertIsNotNone(replacement_task)
+        async with provider._lock:
+            provider._refresh_task = replacement_task
+
+        release_request.set()
+        self.assertEqual(await token_waiter, 'service-jwt')
+        self.assertIs(provider._refresh_task, replacement_task)
 
     async def test_stale_service_token_invalidation_preserves_replacement(self) -> None:
         request_count = 0
@@ -498,6 +525,33 @@ class TokenProviderTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await surviving_waiter, 'delegated-alice')
         self.assertEqual(request_count, 1)
 
+    async def test_stale_delegated_mint_preserves_replacement_task(self) -> None:
+        # White-box setup is required to exercise the stale-task cleanup guard.
+        # pylint: disable=protected-access
+        delegation_started = asyncio.Event()
+        release_delegation = asyncio.Event()
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == '/api/auth/jwt/access_token':
+                return self._token_response('service-jwt', lifetime=600)
+            delegation_started.set()
+            await release_delegation.wait()
+            return self._token_response('delegated-alice', lifetime=300)
+
+        provider = self._delegated_provider(handler)
+        token_waiter = self._create_delegated_token_task(provider, 'alice')
+        await asyncio.wait_for(delegation_started.wait(), timeout=5)
+
+        replacement_task = cast(
+            asyncio.Task[tokens._CachedToken], asyncio.current_task())
+        self.assertIsNotNone(replacement_task)
+        async with provider._lock:
+            provider._mint_tasks['alice'] = replacement_task
+
+        release_delegation.set()
+        self.assertEqual(await token_waiter, 'delegated-alice')
+        self.assertIs(provider._mint_tasks['alice'], replacement_task)
+
     async def test_delegation_401_invalidates_service_token_and_retries_once(self) -> None:
         service_request_count = 0
         authorization_headers: list[str] = []
@@ -767,6 +821,20 @@ class TokenProviderTest(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(tokens.InvalidGatewayResponseError):
             await provider.get_token()
+
+    async def test_cancelled_refresh_callback_is_ignored(self) -> None:
+        # pylint: disable=protected-access
+        # The callback only inspects cancellation state, so its result type is
+        # intentionally adapted to match a completed token refresh task.
+        cancelled_task = cast(
+            asyncio.Task[tokens._CachedToken],
+            asyncio.create_task(asyncio.sleep(60)),
+        )
+        cancelled_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await cancelled_task
+
+        tokens._consume_task_exception(cancelled_task)
 
     async def test_app_context_configures_hardened_http_client(self) -> None:
         transport = mock.Mock(spec=httpx.AsyncBaseTransport)

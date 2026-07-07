@@ -85,6 +85,16 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ready_response.status_code, 200)
         self.assertEqual(ready_response.json(), {'status': 'ok'})
 
+    async def test_mcp_lifespan_requires_application_context(self) -> None:
+        application = server.create_application(self.config)
+        mcp_server = application.state.mcp_server
+
+        with self.assertRaisesRegex(
+            RuntimeError, 'MCP application lifespan is not running.',
+        ):
+            async with mcp_server.settings.lifespan(mcp_server):
+                self.fail('The MCP lifespan must fail without application context.')
+
     async def test_initialize_and_production_tool_catalog(self) -> None:
         application = server.create_application(self.config)
         mcp_server = application.state.mcp_server
