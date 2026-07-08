@@ -1361,13 +1361,22 @@ class PostgresConnector:
         """
         roles = Role.list_from_db(self)
         updated_roles = False
+        has_existing_roles = bool(roles)
 
         role_objects = {r.name: r for r in roles}
         for default_role_name, default_role_object in DEFAULT_ROLES.items():
             if default_role_name not in role_objects:
                 default_role_object.insert_into_db(self, force=True)
+                updated_roles = updated_roles or has_existing_roles
             else:
                 existing_role = role_objects[default_role_name]
+                if (default_role_name == MCP_DELEGATOR_ROLE_NAME and
+                        existing_role != default_role_object):
+                    # This service-only role is a security boundary, so upgrades
+                    # restore its complete definition instead of merging grants.
+                    default_role_object.insert_into_db(self, force=True)
+                    updated_roles = True
+                    continue
                 if merge_default_role_policies(existing_role, default_role_object):
                     existing_role.insert_into_db(self, force=True)
                     updated_roles = True
@@ -4577,6 +4586,7 @@ class Role(role.Role):
                 DO UPDATE SET
                     description = EXCLUDED.description,
                     policies = EXCLUDED.policies,
+                    immutable = EXCLUDED.immutable,
                     sync_mode = EXCLUDED.sync_mode
                 {check_immutable}
                 RETURNING policies, immutable, (xmax = 0) AS is_new_role
@@ -4617,7 +4627,7 @@ class Role(role.Role):
                 self.name,
                 self.description,
                 [json.dumps(policy.to_dict()) for policy in self.policies],
-                False,
+                self.immutable,
                 self.sync_mode.value,
                 # sync_config params
                 external_roles_provided,  # first %s in sync_config (should_sync)
@@ -4698,21 +4708,34 @@ def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool
 # Default roles using semantic action format.
 # Authorization is now handled by the authz_sidecar (Go service).
 # These roles are seeded into the database on startup.
+MCP_DELEGATOR_ROLE_NAME = auth.MCP_DELEGATOR_ROLE
+
 DEFAULT_ROLES: Dict[str, Role] = {
+    MCP_DELEGATOR_ROLE_NAME: Role(
+        name=MCP_DELEGATOR_ROLE_NAME,
+        description='Allows the MCP service to mint delegated access tokens',
+        policies=[
+            role.RolePolicy(
+                actions=['auth:Delegate'],
+                resources=['*']
+            )
+        ],
+        immutable=True,
+        sync_mode=role.SyncMode.IGNORE,
+        external_roles=[]
+    ),
     'osmo-admin': Role(
         name='osmo-admin',
-        description='Administrator with full access except internal endpoints',
+        description='Administrator with full access except restricted service actions',
         policies=[
             role.RolePolicy(
                 actions=['*:*'],
                 resources=['*']
             ),
             role.RolePolicy(
-                actions=[
-                    # Deny internal actions (handled via authz_sidecar deny logic)
-                    # Note: Deny is implicit - admin doesn't get internal:* actions
-                ],
-                resources=[]
+                effect=role.PolicyEffect.DENY,
+                actions=['auth:Delegate'],
+                resources=['*'],
             )
         ],
         immutable=True

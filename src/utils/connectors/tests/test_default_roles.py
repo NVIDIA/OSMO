@@ -16,7 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import copy
 import unittest
+from unittest import mock
 
 from src.lib.utils import role
 from src.utils import connectors
@@ -362,6 +364,212 @@ class TestDefaultRoleMerge(unittest.TestCase):
         )
         self.assertEqual(len(scoped_workflow_policies), 1)
         self.assertEqual(scoped_workflow_policies[0].actions, ['workflow:*'])
+
+    def test_osmo_admin_explicitly_denies_delegation(self):
+        osmo_admin = connectors.DEFAULT_ROLES['osmo-admin']
+
+        deny_policies = [
+            policy
+            for policy in osmo_admin.policies
+            if policy.effect == role.PolicyEffect.DENY
+        ]
+
+        self.assertEqual(len(deny_policies), 1)
+        self.assertEqual(deny_policies[0].actions, ['auth:Delegate'])
+        self.assertEqual(deny_policies[0].resources, ['*'])
+
+    def test_osmo_admin_upgrade_adds_delegation_deny_policy(self):
+        existing_admin = connectors.Role(
+            name='osmo-admin',
+            description='Existing admin',
+            policies=[
+                role.RolePolicy(actions=['*:*'], resources=['*']),
+            ],
+        )
+
+        did_update = connectors.merge_default_role_policies(
+            existing_admin,
+            connectors.DEFAULT_ROLES['osmo-admin'],
+        )
+
+        self.assertTrue(did_update)
+        self.assertEqual(len(existing_admin.policies), 2)
+        self.assertEqual(existing_admin.policies[0].actions, ['*:*'])
+        self.assertEqual(existing_admin.policies[0].effect, role.PolicyEffect.ALLOW)
+        self.assertEqual(existing_admin.policies[1].actions, ['auth:Delegate'])
+        self.assertEqual(existing_admin.policies[1].effect, role.PolicyEffect.DENY)
+        self.assertEqual(existing_admin.policies[1].resources, ['*'])
+
+    def test_mcp_delegator_role_is_isolated_from_idp_sync(self):
+        self.assertEqual(connectors.MCP_DELEGATOR_ROLE_NAME, 'osmo-mcp-delegator')
+        delegator = connectors.DEFAULT_ROLES[connectors.MCP_DELEGATOR_ROLE_NAME]
+
+        self.assertTrue(delegator.immutable)
+        self.assertEqual(delegator.sync_mode, role.SyncMode.IGNORE)
+        self.assertEqual(delegator.external_roles, [])
+        self.assertEqual(len(delegator.policies), 1)
+        self.assertEqual(delegator.policies[0].actions, ['auth:Delegate'])
+        self.assertEqual(delegator.policies[0].resources, ['*'])
+
+    def test_mcp_delegator_insert_persists_security_attributes(self):
+        delegator = connectors.DEFAULT_ROLES[connectors.MCP_DELEGATOR_ROLE_NAME]
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = [{
+            'policies': [policy.to_dict() for policy in delegator.policies],
+            'immutable': True,
+            'is_new_role': True,
+        }]
+
+        delegator.insert_into_db(database, force=True)
+
+        command, parameters, return_dicts = database.execute_fetch_command.call_args.args
+        immutable = parameters[3]
+        sync_mode = parameters[4]
+        external_roles_provided = parameters[5]
+        external_roles = parameters[7]
+        self.assertIn('immutable = EXCLUDED.immutable', command)
+        self.assertTrue(immutable)
+        self.assertEqual(sync_mode, role.SyncMode.IGNORE.value)
+        self.assertTrue(external_roles_provided)
+        self.assertEqual(external_roles, [])
+        self.assertTrue(return_dicts)
+
+    def test_mcp_delegator_upgrade_restores_canonical_role(self):
+        existing_roles = [
+            copy.deepcopy(default_role)
+            for default_role in connectors.DEFAULT_ROLES.values()
+        ]
+        canonical_roles = [
+            copy.deepcopy(default_role)
+            for default_role in connectors.DEFAULT_ROLES.values()
+        ]
+        existing_delegator = next(
+            existing_role
+            for existing_role in existing_roles
+            if existing_role.name == connectors.MCP_DELEGATOR_ROLE_NAME
+        )
+        existing_delegator.description = 'Compromised role'
+        existing_delegator.policies = [
+            role.RolePolicy(actions=['*:*'], resources=['*'])
+        ]
+        existing_delegator.immutable = False
+        existing_delegator.sync_mode = role.SyncMode.IMPORT
+        existing_delegator.external_roles = ['idp-admin']
+        database = mock.Mock()
+
+        with (
+            mock.patch.object(
+                connectors.Role,
+                'list_from_db',
+                side_effect=[existing_roles, canonical_roles],
+            ),
+            mock.patch.object(
+                connectors.Role,
+                'insert_into_db',
+                autospec=True,
+            ) as insert_role,
+        ):
+            connectors.PostgresConnector.create_default_roles(database)
+
+        insert_role.assert_called_once_with(
+            connectors.DEFAULT_ROLES[connectors.MCP_DELEGATOR_ROLE_NAME],
+            database,
+            force=True,
+        )
+        database.create_config_history_entry.assert_called_once_with(
+            config_type=connectors.ConfigHistoryType.ROLE,
+            name='',
+            username='system',
+            data=canonical_roles,
+            description='Updated roles',
+        )
+
+    def test_canonical_mcp_delegator_does_not_write_or_create_history(self):
+        existing_roles = [
+            copy.deepcopy(default_role)
+            for default_role in connectors.DEFAULT_ROLES.values()
+        ]
+        database = mock.Mock()
+
+        with (
+            mock.patch.object(
+                connectors.Role,
+                'list_from_db',
+                return_value=existing_roles,
+            ),
+            mock.patch.object(
+                connectors.Role,
+                'insert_into_db',
+                autospec=True,
+            ) as insert_role,
+        ):
+            connectors.PostgresConnector.create_default_roles(database)
+
+        insert_role.assert_not_called()
+        database.create_config_history_entry.assert_not_called()
+
+    def test_missing_mcp_delegator_records_role_history(self):
+        existing_roles = [
+            copy.deepcopy(default_role)
+            for role_name, default_role in connectors.DEFAULT_ROLES.items()
+            if role_name != connectors.MCP_DELEGATOR_ROLE_NAME
+        ]
+        all_default_roles = [
+            copy.deepcopy(default_role)
+            for default_role in connectors.DEFAULT_ROLES.values()
+        ]
+        database = mock.Mock()
+
+        with (
+            mock.patch.object(
+                connectors.Role,
+                'list_from_db',
+                side_effect=[existing_roles, all_default_roles],
+            ),
+            mock.patch.object(
+                connectors.Role,
+                'insert_into_db',
+                autospec=True,
+            ) as insert_role,
+        ):
+            connectors.PostgresConnector.create_default_roles(database)
+
+        insert_role.assert_called_once_with(
+            connectors.DEFAULT_ROLES[connectors.MCP_DELEGATOR_ROLE_NAME],
+            database,
+            force=True,
+        )
+        database.create_config_history_entry.assert_called_once_with(
+            config_type=connectors.ConfigHistoryType.ROLE,
+            name='',
+            username='system',
+            data=all_default_roles,
+            description='Updated roles',
+        )
+
+    def test_fresh_install_leaves_initial_role_history_to_initializer(self):
+        database = mock.Mock()
+
+        with (
+            mock.patch.object(connectors.Role, 'list_from_db', return_value=[]),
+            mock.patch.object(
+                connectors.Role,
+                'insert_into_db',
+                autospec=True,
+            ) as insert_role,
+        ):
+            connectors.PostgresConnector.create_default_roles(database)
+
+        self.assertEqual(insert_role.call_count, len(connectors.DEFAULT_ROLES))
+        self.assertEqual(
+            [call.args[0].name for call in insert_role.call_args_list],
+            list(connectors.DEFAULT_ROLES),
+        )
+        self.assertTrue(all(
+            call.kwargs == {'force': True}
+            for call in insert_role.call_args_list
+        ))
+        database.create_config_history_entry.assert_not_called()
 
 
 if __name__ == '__main__':

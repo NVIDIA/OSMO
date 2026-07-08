@@ -107,9 +107,10 @@ const (
 	ActionConfigUpdate = resourceTypeConfig + ":Update"
 
 	// Auth actions
-	ActionAuthLogin   = resourceTypeAuth + ":Login"
-	ActionAuthRefresh = resourceTypeAuth + ":Refresh"
-	ActionAuthToken   = resourceTypeAuth + ":Token"
+	ActionAuthDelegate = resourceTypeAuth + ":Delegate"
+	ActionAuthLogin    = resourceTypeAuth + ":Login"
+	ActionAuthRefresh  = resourceTypeAuth + ":Refresh"
+	ActionAuthToken    = resourceTypeAuth + ":Token"
 
 	// MCP actions
 	ActionMCPAccess = resourceTypeMCP + ":Access"
@@ -273,6 +274,9 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 
 	// ==================== AUTH ====================
+	ActionAuthDelegate: {
+		{Path: "/api/auth/jwt/delegated_access_token", Methods: []string{"POST"}},
+	},
 	ActionAuthLogin: {
 		{Path: "/api/auth/login", Methods: []string{"GET"}},
 		{Path: "/api/auth/keys", Methods: []string{"GET"}},
@@ -441,11 +445,12 @@ func getPatternIndex() *patternIndex {
 func ResolvePathToAction(
 	ctx context.Context, path, method string, pgClient *postgres.PostgresClient,
 ) (action string, resource string) {
-	// Normalize path - remove trailing slash and query string
-	normalizedPath := strings.TrimSuffix(path, "/")
+	// Normalize path - remove query string and trailing slash
+	normalizedPath := path
 	if idx := strings.Index(normalizedPath, "?"); idx != -1 {
 		normalizedPath = normalizedPath[:idx]
 	}
+	normalizedPath = strings.TrimSuffix(normalizedPath, "/")
 
 	method = strings.ToUpper(method)
 	pidx := getPatternIndex()
