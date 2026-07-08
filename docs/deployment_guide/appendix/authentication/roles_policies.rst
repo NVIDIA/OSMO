@@ -83,6 +83,13 @@ OSMO includes the following roles by default. No configuration is required — t
        * View the service version
        * Fetch new JWT tokens from service/user access tokens
 
+   * - ``osmo-mcp-delegator``
+     - Internal role for MCP service accounts. It can mint a short-lived access
+       token delegated to the authenticated MCP caller. ``svc-mcp`` is the
+       recommended account name, but authorization is determined by the
+       ``auth:Delegate`` role policy. The built-in ``osmo-admin`` role has an
+       explicit deny policy for this action.
+
 .. note::
 
    The ``osmo-admin`` role is immutable and cannot be modified.
@@ -110,7 +117,7 @@ Each role has the following fields:
      - List of policies that define what this role can do. See :ref:`custom_roles_policies` for details.
    * - ``immutable``
      - ``false``
-     - If ``true``, the role cannot be modified or deleted. The preconfigured ``osmo-admin``, ``osmo-backend``, ``osmo-ctrl``, and ``osmo-default`` roles are immutable.
+     - If ``true``, the role cannot be modified or deleted. The preconfigured ``osmo-admin``, ``osmo-backend``, ``osmo-ctrl``, ``osmo-default``, and ``osmo-mcp-delegator`` roles are immutable.
    * - ``sync_mode``
      - ``"import"``
      - Controls how IdP role sync affects this role. One of:
@@ -130,7 +137,13 @@ Each role has the following fields:
 
        See :doc:`identity_provider_setup` for configuring IdP integration.
 
-All preconfigured roles use the defaults (``sync_mode: "import"``, ``external_roles: null``), which means each is automatically mapped 1:1 from its own name in IdP claims. For example, if your IdP sends a group claim containing ``osmo-user``, that user will automatically receive the ``osmo-user`` role in OSMO without any additional configuration.
+User-facing preconfigured roles use the defaults (``sync_mode: "import"``,
+``external_roles: null``), which means each is automatically mapped 1:1 from its own
+name in IdP claims. For example, if your IdP sends a group claim containing
+``osmo-user``, that user will automatically receive the ``osmo-user`` role in OSMO
+without any additional configuration. The internal ``osmo-mcp-delegator`` role is
+the exception: it uses ``sync_mode: "ignore"`` with no external mappings so only
+explicit OSMO user and token management can assign it to a service account.
 
 .. tip::
 
@@ -650,6 +663,10 @@ All actions follow the format ``<resource_type>:<action_name>``. When writing po
       * - ``auth:Token``
         - Create and manage access tokens.
         - ``user/<user_id>`` or Global
+      * - ``auth:Delegate``
+        - Mint a short-lived delegated token. Reserved for the MCP service
+          principal and enforced in addition to role authorization.
+        - Global
 
 .. dropdown:: System Actions
    :color: info

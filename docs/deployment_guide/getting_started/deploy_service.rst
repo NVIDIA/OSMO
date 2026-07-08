@@ -48,6 +48,8 @@ OSMO deployment consists of several main components:
      - Client communication and status updates
    * - Delayed Job Monitor
      - Monitoring and managing delayed background jobs
+   * - MCP Service (optional)
+     - Authenticated Model Context Protocol endpoint with delegated OSMO access
 
 .. image:: service_components.svg
    :width: 80%
@@ -288,7 +290,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 88, 90-91, 96, 163-164, 168-169, 175, 179, 193-195, 232-234
+    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 90, 92, 94, 99, 180, 198-200, 243-245
 
     # Global configuration shared across all OSMO services
     global:
@@ -377,6 +379,10 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
       # client ID to users out of band.
       mcp:
         enabled: false
+        # Delegated MCP access requires the public gateway origin and a Secret
+        # containing the svc-mcp access token under the "token" key.
+        apiUrl: https://<your-domain>
+        serviceTokenSecretName: osmo-mcp-service-token
         resourceUrl: https://<your-domain>/mcp
         authorizationServers:
         - <idp-issuer-url>
@@ -441,6 +447,8 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
 
       # OSMO configs (storage credentials for the service and worker pods).
       # Pods get cloud credentials via the annotated ServiceAccount above.
+      # If you plan to enable MCP, use database-backed configuration
+      # (enabled: false) from the first deployment.
       configs:
         enabled: true
         # Static credentials path: # (4)
@@ -515,6 +523,11 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
         #   logger:  osmo-logger-tls
         #   mcp:     osmo-mcp-tls
         # caSecret: osmo-gateway-ca
+
+      # Required when MCP is enabled. The cluster CNI must enforce
+      # NetworkPolicy so only Envoy can connect directly to the MCP pod.
+      networkPolicies:
+        enabled: false
 
       # OAuth2 Proxy configuration
       # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
@@ -651,9 +664,73 @@ Step 7: Post-deployment Configuration
 
 4. Verify access to the UI at https://osmo.example.com through your domain
 
-5. If the MCP service is enabled, distribute its public OAuth client
-   configuration to users. For example, configure Codex and start its browser
-   login flow:
+5. To enable the MCP service, first deploy this release with
+   ``services.configs.enabled=false`` and ``services.mcp.enabled=false`` so the
+   built-in ``osmo-mcp-delegator`` role is seeded into PostgreSQL. Create the
+   dedicated service user and an access token containing only that role:
+
+   .. code-block:: bash
+
+      $ osmo user create svc-mcp --roles osmo-mcp-delegator
+      $ osmo token set mcp-delegator \
+          --user svc-mcp \
+          --expires-at <YYYY-MM-DD> \
+          --roles osmo-mcp-delegator
+
+   Save the token when it is displayed, then store it under the ``token`` key
+   in the Secret referenced by ``services.mcp.serviceTokenSecretName``. For
+   example, if a protected local file contains only the token:
+
+   .. code-block:: bash
+
+      $ kubectl create secret generic osmo-mcp-service-token \
+          --from-file=token=<path-to-token-file> \
+          --namespace osmo
+
+   Update ``osmo_values.yaml`` with the following settings and upgrade the
+   release:
+
+   .. code-block:: yaml
+
+      services:
+        # Delegated roles are resolved from PostgreSQL.
+        configs:
+          enabled: false
+        mcp:
+          enabled: true
+          apiUrl: https://osmo.example.com
+          serviceTokenSecretName: osmo-mcp-service-token
+          osmoJwtIssuer: osmo
+          osmoJwtAudience: osmo
+          resourceUrl: https://osmo.example.com/mcp
+          authorizationServers:
+          - <idp-issuer-url>
+          scopes:
+          - openid
+          - profile
+          - email
+          - https://osmo.example.com/mcp/access_as_user
+
+      gateway:
+        networkPolicies:
+          enabled: true
+
+   .. important::
+
+      MCP delegation requires database-backed roles, an OSMO-issued JWT
+      provider using the gateway's internal JWKS cluster, and a CNI that
+      enforces Kubernetes NetworkPolicy. The chart rejects a configuration
+      with MCP enabled that omits these controls. Keep
+      ``osmo-mcp-delegator`` limited to dedicated service accounts and scope
+      the MCP access token to only that role. ``svc-mcp`` is a naming
+      convention; Gateway authorizes delegation through role policies, and the
+      built-in ``osmo-admin`` role explicitly denies ``auth:Delegate``. If
+      Core's ``service_auth`` issuer or audience is customized, set
+      ``services.mcp.osmoJwtIssuer`` and
+      ``services.mcp.osmoJwtAudience`` to the same values.
+
+6. Distribute the MCP service's public OAuth client configuration to users.
+   For example, configure Codex and start its browser login flow:
 
    .. code-block:: bash
 
@@ -687,6 +764,13 @@ Step 7: Post-deployment Configuration
    ``http://localhost:53682/oauth/callback/<server-specific-id>``. The ``-c``
    options apply only to this command; they do not modify ``config.toml`` or
    other MCPs. MCP Inspector uses a separate callback URI.
+
+   To rotate the service credential, create a replacement token for the
+   configured MCP service account (``svc-mcp`` in this example) with only
+   ``osmo-mcp-delegator``, update the Secret's ``token`` key, verify MCP
+   requests, and then revoke the old token. The projected Secret is refreshed
+   without a pod restart; an already-issued service JWT can remain valid for up
+   to five minutes.
 
 
 Troubleshooting

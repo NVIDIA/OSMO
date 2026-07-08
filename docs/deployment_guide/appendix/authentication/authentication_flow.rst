@@ -36,7 +36,12 @@ The main pieces involved are:
 
 3. **Identity provider (IdP)** — Optional. Your organization's login system (e.g., Microsoft Entra ID, Google, AWS IAM Identity Center). When used, Envoy talks to it directly and the IdP issues JWTs that Envoy validates.
 
-4. **OSMO service** — The backend. It trusts the ``x-osmo-user`` and ``x-osmo-roles`` headers set by Envoy (or by an internal path that bypasses Envoy). It does **not** validate the original JWT itself; Envoy is responsible for that. The service uses the user and roles to resolve policies and allow or deny the request.
+4. **OSMO service** — The backend. Most endpoints trust the
+   ``x-osmo-user`` and ``x-osmo-roles`` headers set by Envoy. The MCP
+   delegation endpoint additionally verifies its OSMO-issued service JWT
+   locally and requires its identity to match Envoy's header before minting a
+   delegated token. The service uses the user and roles to resolve policies
+   and allow or deny the request.
 
 So in practice: the client gets a token (JWT from IdP or access token), Envoy validates it and sets user/roles headers, and the OSMO service authorizes based on those headers and its role/policy database.
 
@@ -83,6 +88,37 @@ Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` an
       curl -X POST "$GATEWAY/api/auth/jwt/access_token" \
           -H "Content-Type: application/json" \
           -d '{"token":"<access-token-value>"}'
+
+MCP delegated tokens
+--------------------
+
+The MCP service conventionally uses a dedicated ``svc-mcp`` access token,
+restricted to the immutable ``osmo-mcp-delegator`` role, to act for an
+authenticated MCP caller. The account name is not an authorization boundary;
+Gateway evaluates the caller's role policies.
+
+1. Envoy validates the caller's JWT, authorizes MCP access, removes the
+   caller's bearer credential and role headers, and forwards only the trusted
+   ``x-osmo-user`` identity to MCP.
+2. MCP exchanges its mounted service access token for a five-minute
+   OSMO-issued service JWT.
+3. MCP sends that JWT and the caller's user ID to
+   ``POST /api/auth/jwt/delegated_access_token``. AuthZ requires a role policy
+   that allows ``auth:Delegate``. The built-in ``osmo-admin`` role explicitly
+   denies that action despite its wildcard allow policy.
+4. Core verifies the service JWT again, compares it with Envoy's identity,
+   resolves the caller's database-backed roles, and returns a JWT valid for at
+   most five minutes, never beyond the service JWT's expiration. The token is
+   tagged with ``act.sub=<service-account-user>`` for audit attribution.
+
+The MCP process caches both token types only until shortly before expiration.
+The built-in read-only ``get_current_profile`` tool exercises this path through
+the public gateway, verifies that Core returns the trusted caller's identity,
+and omits token identity metadata from its result.
+The caller's credential never reaches the MCP pod. The service access token is
+sent only to the gateway exchange endpoint and is never exposed to the MCP
+caller or written to logs. See :ref:`deploy_service` for the required Secret,
+NetworkPolicy, and gateway configuration.
 
 Operating with an identity provider
 ===================================
@@ -131,7 +167,10 @@ Envoy (or the component in front of the OSMO service) is responsible for:
 - **Expiration** — The token is not expired.
 - **Claims** — ``iss`` (issuer), ``aud`` (audience), and the claim used as username (e.g. ``preferred_username``, ``email``) match the configuration.
 
-The OSMO service does **not** validate the raw JWT. It trusts the ``x-osmo-user`` and ``x-osmo-roles`` headers. Therefore, in production you must only expose the OSMO service through Envoy (or another gateway) that:
+Except for the defense-in-depth verification on MCP delegation described
+above, the OSMO service trusts the ``x-osmo-user`` and ``x-osmo-roles`` headers.
+Therefore, in production you must only expose the OSMO service through Envoy
+(or another gateway) that:
 
 - Validates the JWT or access token.
 - Strips or ignores any downstream ``x-osmo-user`` and ``x-osmo-roles`` from the client.
