@@ -1,0 +1,80 @@
+{
+  "skill_name": "osmo-deploy",
+  "evals": [
+    {
+      "id": "osmo-deploy-001",
+      "prompt": "I want to deploy OSMO to AKS, but I have not decided whether I need GPUs or where to put the cluster yet.",
+      "expected_output": "The agent activates osmo-deploy and gathers the deployment inputs before invoking the deploy script. It asks about GPU need, GPU count and SKU only if GPUs are needed, region, Azure subscription, and resource group.",
+      "assertions": [
+        "The agent reads the osmo-deploy SKILL.md.",
+        "The agent activates osmo-deploy for the AKS deployment request.",
+        "The agent asks whether GPUs are needed before assuming a GPU configuration.",
+        "The agent asks for GPU count, GPU type, and region only when GPUs are needed, or explains that those follow-up questions are conditional.",
+        "The agent asks for the Azure subscription ID and resource group when they have not been supplied.",
+        "The agent does not invoke deploy-osmo-minimal.sh before collecting the missing required inputs.",
+        "The agent does not recommend a 6.2 deployment or leave version compatibility unaddressed."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-002",
+      "prompt": "Our kubectl context already points to a reachable Kubernetes cluster. The required BYO PostgreSQL and Redis environment variables are exported. Deploy a CPU-only OSMO instance with no storage backend, and proceed without asking me more questions.",
+      "expected_output": "The agent uses the BYO deployment path, discovers available chart versions, pins matching 6.3.x chart, image, and CLI releases, then runs the non-interactive CPU-only deployment with storage disabled.",
+      "assertions": [
+        "The agent reads the osmo-deploy SKILL.md.",
+        "The agent runs or prepares to run ./scripts/deploy-osmo-minimal.sh --list-chart-versions from the deployments directory before selecting version pins.",
+        "The agent sets OSMO_CHART_VERSION, OSMO_IMAGE_TAG, and OSMO_CLI_REF to matching 6.3.x release values before deployment.",
+        "The deployment invocation uses --provider byo, --no-gpu, --storage-backend none, and --non-interactive.",
+        "The agent does not rely on the latest/default version values or select any 6.2 release.",
+        "The agent does not run osmo config update, osmo credential set, or another CLI-write configuration path."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-003",
+      "prompt": "Deploy OSMO on Azure with a three-GPU H100 pool and Azure Blob storage. My subscription ID and resource group are already set, but I do not know a region with quota. You can proceed.",
+      "expected_output": "The agent translates H100 to the documented Azure SKU, discovers a quota-compatible region, configures the requested GPU pool and Azure Blob storage, and still pins a matching 6.3.x chart, image, and CLI release before deployment.",
+      "assertions": [
+        "The agent activates osmo-deploy and reads its SKILL.md.",
+        "The agent maps H100 to Standard_NC40ads_H100_v5 for Azure.",
+        "The agent runs or prepares to run ./scripts/deploy-osmo-minimal.sh --find-gpu-region Standard_NC40ads_H100_v5 3 when the region is unknown.",
+        "The agent sets the selected region as TF_REGION and configures a GPU node pool with a count of three.",
+        "The deployment uses --provider azure, --gpu-node-pool, and --storage-backend azure-blob.",
+        "The agent discovers and pins matching OSMO_CHART_VERSION, OSMO_IMAGE_TAG, and OSMO_CLI_REF values from the 6.3.x release line before deployment.",
+        "If no candidate region has sufficient quota, the agent surfaces that failure and suggests expanding TF_REGION_CANDIDATES rather than guessing a region."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-004",
+      "prompt": "Set up OSMO on our existing AKS cluster using Azure Blob with workload identity. We do not use static storage keys. The platform team says it will provide the identity details later.",
+      "expected_output": "The agent activates osmo-deploy but does not fall back to static credentials or run a partial workload-identity deploy. It identifies the caller-owned Azure Workload Identity prerequisites and asks for the UAMI client ID after those prerequisites are ready.",
+      "assertions": [
+        "The agent reads the osmo-deploy SKILL.md and activates osmo-deploy.",
+        "The agent identifies AKS OIDC and Workload Identity enablement, a UAMI, Storage Blob Data Contributor access, and a federated credential as prerequisites owned by the caller or platform team.",
+        "The agent asks for the workload identity client ID required for the Azure Blob deployment.",
+        "The agent does not create or request static storage account keys, connection strings, or Kubernetes credential secrets as a fallback.",
+        "The agent does not claim workload identity will work until the cloud-side prerequisites are complete.",
+        "The agent keeps the intended deployment mode as --storage-backend azure-blob --auth-method workload-identity."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-005",
+      "prompt": "My workflow train-123 has been pending for an hour. Can you inspect its events and logs?",
+      "expected_output": "This is live workflow troubleshooting, not an OSMO deployment request. The osmo-deploy skill does not trigger.",
+      "assertions": [
+        "The agent does not activate osmo-deploy.",
+        "The agent routes to osmo-user or appropriate live workflow troubleshooting tooling.",
+        "The agent does not invoke deploy-osmo-minimal.sh, Helm installation, Terraform, or cluster bootstrap commands.",
+        "The agent does not make any deployment configuration changes."
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}
