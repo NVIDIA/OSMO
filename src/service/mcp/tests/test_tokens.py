@@ -628,6 +628,17 @@ class TokenProviderTest(unittest.IsolatedAsyncioTestCase):
                     await provider.get_token()
                 self.assertNotIn(secret, str(raised.exception))
 
+    async def test_gateway_token_exchange_has_a_total_deadline(self) -> None:
+        async def handler(unused_request: httpx.Request) -> httpx.Response:
+            del unused_request
+            await asyncio.sleep(1)
+            return self._token_response('late-token', lifetime=300)
+
+        provider = self._service_provider(
+            handler, request_timeout_seconds=0.01)
+        with self.assertRaises(tokens.GatewayUnavailableError):
+            await provider.get_token()
+
     async def test_gateway_redirect_is_not_followed(self) -> None:
         requests: list[httpx.Request] = []
 
@@ -798,12 +809,14 @@ class TokenProviderTest(unittest.IsolatedAsyncioTestCase):
         handler: Handler,
         *,
         cache_skew_seconds: float = 30,
+        request_timeout_seconds: float | None = None,
     ) -> tokens.ServiceTokenProvider:
         client = self._client(handler)
         return tokens.ServiceTokenProvider(
             client,
             self.credential_path,
             cache_skew_seconds,
+            request_timeout_seconds=request_timeout_seconds,
             wall_time=self.clock.wall_time,
             monotonic_time=self.clock.monotonic_time,
         )

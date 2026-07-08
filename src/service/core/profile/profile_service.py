@@ -56,7 +56,9 @@ def get_notification_settings(
         token_identity = objects.TokenIdentity(
             name=token_name_header, expires_at=expires_at)
     return objects.ProfileResponse(
-        profile=connectors.UserProfile.fetch_from_db(postgres, user_name),
+        # GET remains side-effect-free when a profile has not been customized.
+        profile=connectors.UserProfile.fetch_from_db(
+            postgres, user_name, create_if_missing=False),
         roles=roles,
         pools=pools,
         token=token_identity,

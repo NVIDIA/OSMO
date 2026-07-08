@@ -47,6 +47,19 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "tools",
+    srcs = ["tools.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("mcp"),
+        requirement("pydantic"),
+        ":identity",
+        ":tokens",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "server",
     srcs = ["server.py"],
     deps = [
@@ -57,6 +70,7 @@ osmo_py_library(
         requirement("uvicorn"),
         ":identity",
         ":tokens",
+        ":tools",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
     ],

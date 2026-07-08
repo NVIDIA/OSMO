@@ -102,12 +102,14 @@ class ServiceTokenProvider:
         credential_file: pathlib.Path,
         cache_skew_seconds: float,
         *,
+        request_timeout_seconds: float | None = None,
         wall_time: Callable[[], float] = time.time,
         monotonic_time: Callable[[], float] = time.monotonic,
     ) -> None:
         self._client = client
         self._credential_file = credential_file
         self._cache_skew_seconds = cache_skew_seconds
+        self._request_timeout_seconds = request_timeout_seconds
         self._wall_time = wall_time
         self._monotonic_time = monotonic_time
         self._lock = asyncio.Lock()
@@ -150,6 +152,7 @@ class ServiceTokenProvider:
                 path=_ACCESS_TOKEN_PATH,
                 json_body={'token': credential},
                 request_id=request_id,
+                timeout_seconds=self._request_timeout_seconds,
             )
             cached_token = _to_cached_token(
                 response,
@@ -193,6 +196,7 @@ class DelegatedTokenProvider:
         cache_max_size: int,
         cache_skew_seconds: float,
         *,
+        request_timeout_seconds: float | None = None,
         identity_resolver: Callable[[], identity.RequestIdentity] = (
             identity.get_request_identity),
         wall_time: Callable[[], float] = time.time,
@@ -202,6 +206,7 @@ class DelegatedTokenProvider:
         self._service_tokens = service_tokens
         self._cache_max_size = cache_max_size
         self._cache_skew_seconds = cache_skew_seconds
+        self._request_timeout_seconds = request_timeout_seconds
         self._identity_resolver = identity_resolver
         self._wall_time = wall_time
         self._monotonic_time = monotonic_time
@@ -303,6 +308,7 @@ class DelegatedTokenProvider:
             json_body={'subject_user': subject_user},
             request_id=request_id,
             authorization=f'Bearer {service_token}',
+            timeout_seconds=self._request_timeout_seconds,
         )
 
 
@@ -313,6 +319,7 @@ class AppContext:
     http_client: httpx.AsyncClient
     service_tokens: ServiceTokenProvider
     delegated_tokens: DelegatedTokenProvider
+    request_timeout_seconds: float
 
 
 @contextlib.asynccontextmanager
@@ -338,17 +345,20 @@ async def create_app_context(
             client,
             service_token_file,
             token_cache_skew_seconds,
+            request_timeout_seconds=request_timeout_seconds,
         )
         delegated_tokens = DelegatedTokenProvider(
             client,
             service_tokens,
             token_cache_max_size,
             token_cache_skew_seconds,
+            request_timeout_seconds=request_timeout_seconds,
         )
         yield AppContext(
             http_client=client,
             service_tokens=service_tokens,
             delegated_tokens=delegated_tokens,
+            request_timeout_seconds=request_timeout_seconds,
         )
 
 async def _request_token(
@@ -359,6 +369,7 @@ async def _request_token(
     json_body: dict[str, str],
     request_id: str | None,
     authorization: str | None = None,
+    timeout_seconds: float | None = None,
 ) -> _TokenResponse:
     headers: dict[str, str] = {}
     if request_id is not None:
@@ -367,19 +378,22 @@ async def _request_token(
         headers['Authorization'] = authorization
 
     try:
-        async with client.stream(
-            'POST', path, json=json_body, headers=headers,
-        ) as response:
-            if response.status_code != 200:
-                raise GatewayResponseError(operation, response.status_code)
+        # HTTPX timeouts apply to individual I/O phases. The outer deadline also
+        # bounds peers that continually trickle bytes without timing out a read.
+        async with asyncio.timeout(timeout_seconds):
+            async with client.stream(
+                'POST', path, json=json_body, headers=headers,
+            ) as response:
+                if response.status_code != 200:
+                    raise GatewayResponseError(operation, response.status_code)
 
-            response_body = bytearray()
-            async for chunk in response.aiter_bytes():
-                if len(response_body) + len(chunk) > _MAX_TOKEN_RESPONSE_BYTES:
-                    raise InvalidGatewayResponseError(
-                        f'Gateway {operation} response exceeds the size limit.')
-                response_body.extend(chunk)
-    except httpx.RequestError:
+                response_body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(response_body) + len(chunk) > _MAX_TOKEN_RESPONSE_BYTES:
+                        raise InvalidGatewayResponseError(
+                            f'Gateway {operation} response exceeds the size limit.')
+                    response_body.extend(chunk)
+    except (TimeoutError, httpx.RequestError):
         raise GatewayUnavailableError(
             f'Gateway {operation} is unavailable.') from None
 

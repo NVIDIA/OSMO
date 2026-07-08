@@ -85,7 +85,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ready_response.status_code, 200)
         self.assertEqual(ready_response.json(), {'status': 'ok'})
 
-    async def test_initialize_and_empty_tool_catalog(self) -> None:
+    async def test_initialize_and_production_tool_catalog(self) -> None:
         application = server.create_application(self.config)
         mcp_server = application.state.mcp_server
         self.assertTrue(mcp_server.settings.stateless_http)
@@ -140,7 +140,17 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('mcp-session-id', initialize_response.headers)
         self.assertEqual(initialized_response.status_code, 202)
         self.assertEqual(list_tools_response.status_code, 200)
-        self.assertEqual(list_tools_response.json()['result']['tools'], [])
+        tool_catalog = list_tools_response.json()['result']['tools']
+        self.assertEqual(len(tool_catalog), 1)
+        self.assertEqual(tool_catalog[0]['name'], 'get_current_profile')
+        self.assertEqual(tool_catalog[0]['title'], 'Get Current OSMO Profile')
+        self.assertEqual(tool_catalog[0]['inputSchema']['properties'], {})
+        self.assertEqual(tool_catalog[0]['annotations'], {
+            'readOnlyHint': True,
+            'destructiveHint': False,
+            'idempotentHint': True,
+            'openWorldHint': False,
+        })
 
     async def test_mcp_rejects_missing_empty_and_duplicate_identity(self) -> None:
         application = server.create_application(self.config)
@@ -523,32 +533,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
             return httpx.Response(404)
 
-        def configure(mcp_server: FastMCP[tokens.AppContext]) -> None:
-            @mcp_server.tool()
-            async def delegated_profile_probe(context: Context) -> str:
-                """Test-only bridge from the trusted MCP identity to an OSMO API."""
-                request_identity = identity.get_request_identity()
-                app_context = context.request_context.lifespan_context
-                if not isinstance(app_context, tokens.AppContext):
-                    raise RuntimeError('Unexpected lifespan context.')
-
-                delegated_token = await app_context.delegated_tokens.get_token()
-                response = await app_context.http_client.get(
-                    '/api/profile/settings',
-                    headers={
-                        'Authorization': f'Bearer {delegated_token}',
-                        'x-request-id': request_identity.request_id or '',
-                    },
-                )
-                response.raise_for_status()
-                verified_user = response.json().get('profile', {}).get('username')
-                if verified_user != request_identity.user_name:
-                    raise RuntimeError('Gateway response identity does not match request.')
-                return request_identity.user_name
-
         application = server.create_application(
             self.config,
-            configure_server=configure,
             http_transport=httpx.MockTransport(gateway_handler),
         )
         def tool_request(request_id: int) -> dict[str, object]:
@@ -557,7 +543,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                 'id': request_id,
                 'method': 'tools/call',
                 'params': {
-                    'name': 'delegated_profile_probe',
+                    'name': 'get_current_profile',
                     'arguments': {},
                 },
             }
@@ -585,10 +571,39 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
         responses = (alice_response, bob_response, cached_alice_response)
         self.assertTrue(all(response.status_code == 200 for response in responses))
-        self.assertEqual(
-            [response.json()['result']['content'][0]['text'] for response in responses],
-            ['alice', 'bob', 'alice'],
-        )
+        self.assertEqual([
+            response.json()['result']['structuredContent']
+            for response in responses
+        ], [
+            {
+                'username': 'alice',
+                'email_notification': False,
+                'slack_notification': False,
+                'pool': None,
+                'roles': ['osmo-user'],
+                'pools': [],
+            },
+            {
+                'username': 'bob',
+                'email_notification': False,
+                'slack_notification': False,
+                'pool': None,
+                'roles': ['osmo-user'],
+                'pools': [],
+            },
+            {
+                'username': 'alice',
+                'email_notification': False,
+                'slack_notification': False,
+                'pool': None,
+                'roles': ['osmo-user'],
+                'pools': [],
+            },
+        ])
+        self.assertTrue(all(
+            'token' not in response.json()['result']['structuredContent']
+            for response in responses
+        ))
         self.assertEqual(
             [request.url.path for request in gateway_requests],
             [
@@ -618,6 +633,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             'token': 'service-pat',
         })
         self.assertNotIn('authorization', service_requests[0].headers)
+        self.assertEqual(
+            service_requests[0].headers['x-request-id'], 'request-alice')
         self.assertTrue(all(
             request.method == 'POST' for request in delegated_requests
         ))

@@ -59,6 +59,16 @@ py_test(
     size = "small"
 )
 
+py_test(
+    name = "test_user_profile",
+    srcs = ["test_user_profile.py"],
+    deps = [
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+    tags = ["exclusive"],
+)
+
 osmo_py_test(
     name = "test_default_roles_integration",
     srcs = ["test_default_roles_integration.py"],

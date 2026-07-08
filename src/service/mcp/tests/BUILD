@@ -41,3 +41,12 @@ osmo_py_test(
         "//src/service/mcp:tokens",
     ],
 )
+
+osmo_py_test(
+    name = "test_tools",
+    srcs = ["test_tools.py"],
+    deps = [
+        requirement("httpx"),
+        "//src/service/mcp:server",
+    ],
+)

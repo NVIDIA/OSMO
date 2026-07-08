@@ -1676,15 +1676,16 @@ class UserProfile(pydantic.BaseModel):
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector,
-                      user_name: str) -> 'UserProfile':
+                      user_name: str,
+                      create_if_missing: bool = True) -> 'UserProfile':
         fetch_cmd = 'SELECT * FROM profile WHERE user_name = %s;'
         rows = database.execute_fetch_command(fetch_cmd, (user_name,))
         default_profile = UserProfile.default_profile(user_name)
         try:
             row = rows[0]
         except IndexError as _:
-            # Default values
-            UserProfile.insert_default_profile(database, user_name)
+            if create_if_missing:
+                UserProfile.insert_default_profile(database, user_name)
             return default_profile
 
         if row.email_notification is None:

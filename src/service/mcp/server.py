@@ -30,7 +30,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 import uvicorn  # type: ignore
 
-from src.service.mcp import identity, tokens
+from src.service.mcp import identity, tokens, tools as mcp_tools
 from src.utils import ssl_config, static_config
 
 
@@ -101,7 +101,7 @@ def _create_mcp_server(
     ],
     configure_server: ServerConfigurer | None = None,
 ) -> FastMCP[tokens.AppContext]:
-    """Create the MCP protocol server without registering production tools."""
+    """Create the MCP protocol server and register its production catalog."""
     server: FastMCP[tokens.AppContext] = FastMCP(
         name='OSMO MCP',
         host='0.0.0.0',
@@ -124,6 +124,7 @@ def _create_mcp_server(
     async def health_ready(request: Request) -> JSONResponse:  # pylint: disable=unused-argument
         return JSONResponse({'status': 'ok'})
 
+    mcp_tools.register_tools(server)
     if configure_server is not None:
         configure_server(server)
 
