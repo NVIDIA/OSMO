@@ -4,7 +4,7 @@
 # Dispatches by subcommand and prints canned content from a fixtures
 # directory tree. Fixtures are organized into scenario subdirectories
 # (e.g. `default/`, `quota_full/`, `pending/`); the mock auto-discovers
-# which fixture to use by scanning every scenario dir for the requested
+# which fixture to use by checking every scenario dir for the requested
 # filename.
 #
 # This works because each eval entry in `evals.json` only references
@@ -35,10 +35,9 @@ emit_fixture() {
     if [[ ! -d "$FIXTURES_ROOT" ]]; then
       continue
     fi
-    local matches=()
-    while IFS= read -r -d '' candidate; do
-      matches+=("$candidate")
-    done < <(find "$FIXTURES_ROOT" -maxdepth 2 -type f -name "$relpath" -print0 2>/dev/null | sort -z)
+    shopt -s nullglob
+    local matches=("$FIXTURES_ROOT"/*/"$relpath")
+    shopt -u nullglob
     case "${#matches[@]}" in
       0)
         continue

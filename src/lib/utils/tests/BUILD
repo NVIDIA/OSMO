@@ -89,3 +89,12 @@ osmo_py_test(
         "//src/lib/utils:validation",
     ]
 )
+
+osmo_py_test(
+    name = "test_login",
+    srcs = ["test_login.py"],
+    deps = [
+        "//src/lib/utils:login",
+        "//src/lib/utils:osmo_errors",
+    ]
+)

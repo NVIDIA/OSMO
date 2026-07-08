@@ -661,7 +661,10 @@ class BackendSynchronizeBackendTest(backend_job_defs.BackendSynchronizeBackendTe
 
         cronjobs = batch_v1_api.list_namespaced_cron_job(
             namespace,
-            label_selector=f'{self.node_condition_prefix}component=backend-test'
+            label_selector=(
+                f'{self.node_condition_prefix}component=backend-test,'
+                f'{self.node_condition_prefix}backend={self.backend}'
+            )
         )
         return [cronjob.to_dict() for cronjob in cronjobs.items]
 
@@ -673,7 +676,10 @@ class BackendSynchronizeBackendTest(backend_job_defs.BackendSynchronizeBackendTe
 
         configmaps = v1_api.list_namespaced_config_map(
             namespace,
-            label_selector=f'{self.node_condition_prefix}component=backend-test-config'
+            label_selector=(
+                f'{self.node_condition_prefix}component=backend-test-config,'
+                f'{self.node_condition_prefix}backend={self.backend}'
+            )
         )
         return [configmap.to_dict() for configmap in configmaps.items]
 

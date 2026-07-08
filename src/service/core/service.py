@@ -455,50 +455,45 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
 
-    service_configs_dict = postgres.get_service_configs()
-
-    configs_dict = {}
-    login_info = auth.LoginInfo(
-        device_endpoint=config.device_endpoint,
-        device_client_id=config.device_client_id,
-        browser_endpoint=config.browser_endpoint,
-        browser_client_id=config.browser_client_id,
-        token_endpoint=config.token_endpoint,
-        logout_endpoint=config.logout_endpoint,
-    )
-    if login_info != service_configs_dict.service_auth.login_info:
-        configs_dict['service_auth'] = {
-            'login_info': login_info.model_dump()
-        }
-
-    if configs_dict:
-        config_helpers.patch_configs(
-            request=config_objects.PatchConfigRequest(
-                configs_dict=configs_dict,
-                description='Updated service auth',
-            ),
-            config_type=connectors.ConfigType.SERVICE,
-            username='',
-        )
-
-    # In ConfigMap mode, the YAML snapshot is authoritative for these fields,
-    # so DB writes here are invisible to readers (the snapshot wins in
-    # get_configs) and just bloat the configs/pools tables on every restart.
-    # service_base_url in particular must come from the ConfigMap only —
-    # the Helm template auto-derives it from services.service.hostname, and
-    # falling back to a stale DB value would mask misconfiguration.
-    # setup_default_admin writes a user record (not a config row), so it
-    # stays unconditional.
     if not config.config_file:
+        service_configs_dict = postgres.get_service_configs()
+
+        configs_dict = {}
+        login_info = auth.LoginInfo(
+            device_endpoint=config.device_endpoint,
+            device_client_id=config.device_client_id,
+            browser_endpoint=config.browser_endpoint,
+            browser_client_id=config.browser_client_id,
+            token_endpoint=config.token_endpoint,
+            logout_endpoint=config.logout_endpoint,
+        )
+        if login_info != service_configs_dict.service_auth.login_info:
+            configs_dict['service_auth'] = {
+                'login_info': login_info.model_dump()
+            }
+
+        if configs_dict:
+            config_helpers.patch_configs(
+                request=config_objects.PatchConfigRequest(
+                    configs_dict=configs_dict,
+                    description='Updated service auth',
+                ),
+                config_type=connectors.ConfigType.SERVICE,
+                username='',
+            )
+
         create_default_pool(postgres)
         set_default_backend_images(postgres)
         set_client_install_url(postgres, config)
         set_default_service_url(postgres)
+
     setup_default_admin(postgres, config)
 
     # Store on app state to prevent GC from killing the watcher thread.
     target_app.state.config_watcher = configmap_loader.start_config_watcher(
-        config.config_file, postgres, is_api_service=True)
+        config.config_file, postgres, is_api_service=True,
+        backend_queue_updater=config_helpers.update_backend_queues_from_configmap,
+        backend_test_updater=config_helpers.update_backend_tests_cronjobs_from_configmap)
 
     if config.method != 'dev':
         FastAPIInstrumentor().instrument_app(

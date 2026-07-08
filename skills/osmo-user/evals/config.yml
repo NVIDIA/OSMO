@@ -1,0 +1,7 @@
+schema_version: 1
+
+harbor:
+  agent_workdir: /workspace/input
+  runtime_env:
+    PATH: "/workspace/input/mock_osmo:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    NGC_CLI_API_KEY: "mock-ngc-api-key-do-not-print"

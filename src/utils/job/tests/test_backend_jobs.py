@@ -277,6 +277,54 @@ class SyncObjectsForSpecImmutableShortCircuitTest(unittest.TestCase):
         mock_delete.assert_not_called()
 
 
+class BackendSynchronizeBackendTestSelectorTest(unittest.TestCase):
+    """Regression guard: backend test sync must only list this backend's resources."""
+
+    def _make_job(self):
+        return backend_jobs.BackendSynchronizeBackendTest.model_construct(
+            backend='backend-a',
+            job_type='BackendSynchronizeBackendTest',
+            super_type='backend',
+            job_id='backend-a-sync-tests-test',
+            test_configs={},
+            node_condition_prefix='example.com/',
+        )
+
+    def test_get_cronjobs_filters_by_backend(self):
+        job = self._make_job()
+        ctx = _FakeContext(test_runner_namespace='test-ns')
+        batch_api = mock.MagicMock()
+        batch_api.list_namespaced_cron_job.return_value.items = []
+        with mock.patch.object(
+            backend_jobs.kb_client, 'BatchV1Api', return_value=batch_api,
+        ):
+            self.assertEqual(job._get_cronjobs(ctx), [])
+
+        batch_api.list_namespaced_cron_job.assert_called_once_with(
+            'test-ns',
+            label_selector=(
+                'example.com/component=backend-test,'
+                'example.com/backend=backend-a'
+            ))
+
+    def test_get_configmaps_filters_by_backend(self):
+        job = self._make_job()
+        ctx = _FakeContext(test_runner_namespace='test-ns')
+        core_api = mock.MagicMock()
+        core_api.list_namespaced_config_map.return_value.items = []
+        with mock.patch.object(
+            backend_jobs.kb_client, 'CoreV1Api', return_value=core_api,
+        ):
+            self.assertEqual(job._get_configmaps(ctx), [])
+
+        core_api.list_namespaced_config_map.assert_called_once_with(
+            'test-ns',
+            label_selector=(
+                'example.com/component=backend-test-config,'
+                'example.com/backend=backend-a'
+            ))
+
+
 class BackendJobAbstractAndDefaultsTest(unittest.TestCase):
     """Cover abstract method bodies (pass statements) and default helpers."""
 
