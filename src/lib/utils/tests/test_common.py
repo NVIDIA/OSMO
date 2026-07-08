@@ -34,6 +34,55 @@ class TestCommon(unittest.TestCase):
     Unit tests for the common module.
     """
 
+    def test_authenticated_user_id_validation(self):
+        valid_user_ids = (
+            'alice@example.com',
+            'alice+tag@example.com',
+            'guest#EXT#@tenant.example',
+            'álîce@example.com',
+            'é' * 128,
+        )
+        for user_id in valid_user_ids:
+            with self.subTest(user_id=user_id):
+                self.assertTrue(common.is_valid_authenticated_user_id(user_id))
+
+        invalid_user_ids = (
+            '',
+            ' alice@example.com',
+            'alice@example.com ',
+            'alice\n@example.com',
+            'alice\x7f@example.com',
+            'a' * 257,
+            'é' * 129,
+            '\U0001f600' * 65,
+            '\u200balice@example.com',
+            '\ud800',
+        )
+        for user_id in invalid_user_ids:
+            with self.subTest(user_id=user_id):
+                self.assertFalse(common.is_valid_authenticated_user_id(user_id))
+
+    def test_request_id_validation(self):
+        valid_request_ids = (
+            'a',
+            'request-123.trace_456:span',
+            'r' * 128,
+        )
+        for request_id in valid_request_ids:
+            with self.subTest(request_id=request_id):
+                self.assertTrue(common.is_valid_request_id(request_id))
+
+        invalid_request_ids = (
+            '',
+            '-request',
+            'contains space',
+            'request\nnewline',
+            'r' * 129,
+        )
+        for request_id in invalid_request_ids:
+            with self.subTest(request_id=request_id):
+                self.assertFalse(common.is_valid_request_id(request_id))
+
     def test_convert_resource_value(self):
         self.assertEqual(common.convert_resource_value_str('10Gi', target='TiB'), 10.0 / 1024)
         self.assertEqual(common.convert_resource_value_str('1.5Ti', target='GiB'), 1.5 * 1024)

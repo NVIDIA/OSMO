@@ -17,14 +17,19 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("//bzl:py.bzl", "osmo_py_test")
+load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
     name = "test_auth_service",
     srcs = ["test_auth_service.py"],
     deps = [
+        requirement("pyjwt"),
+        "//src/lib/utils:common",
+        "//src/lib/utils:login",
         "//src/service/core/auth:auth",
         "//src/service/core/tests:fixture",
         "//src/tests/common",
+        "//src/utils:auth",
         "//src/utils/connectors",
     ],
     size = "large",
