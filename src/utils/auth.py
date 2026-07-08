@@ -24,13 +24,13 @@ import uuid
 from jwcrypto import jwk  # type: ignore
 import jwt  # type: ignore
 import pydantic
+
 from src.lib.utils import common, osmo_errors
 
 # The default length of time a token should be valid for. Defaults to 20 days
 DEFAULT_LENGTH = 20 * 24 * 60 * 60
 
 MCP_DELEGATOR_ROLE = 'osmo-mcp-delegator'
-DELEGATED_TOKEN_NAME = 'delegated-svc-mcp'
 
 
 class AsymmetricKeyPair(pydantic.BaseModel):
