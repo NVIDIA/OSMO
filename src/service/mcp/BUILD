@@ -24,12 +24,18 @@ load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
     name = "mcp_service_lib",
-    srcs = ["server.py"],
+    srcs = [
+        "identity.py",
+        "server.py",
+        "tokens.py",
+    ],
     deps = [
+        requirement("httpx"),
         requirement("mcp"),
         requirement("pydantic"),
         requirement("starlette"),
         requirement("uvicorn"),
+        "//src/lib/utils:common",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
     ],
