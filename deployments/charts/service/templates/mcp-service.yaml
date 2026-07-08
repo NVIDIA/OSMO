@@ -77,13 +77,35 @@ spec:
           value: "0.0.0.0"
         - name: OSMO_MCP_PORT
           value: {{ $mcp.port | quote }}
+        - name: OSMO_API_URL
+          value: {{ $mcp.apiUrl | quote }}
+        - name: OSMO_MCP_SERVICE_TOKEN_FILE
+          value: {{ $mcp.serviceTokenFile | quote }}
+        {{- if $mcp.gatewayCaSecretName }}
+        - name: OSMO_MCP_GATEWAY_CA_FILE
+          value: {{ $mcp.gatewayCaFile | quote }}
+        {{- end }}
+        - name: OSMO_MCP_TOKEN_CACHE_MAX_SIZE
+          value: {{ $mcp.tokenCacheMaxSize | quote }}
+        - name: OSMO_MCP_TOKEN_CACHE_SKEW_SECONDS
+          value: {{ $mcp.tokenCacheSkewSeconds | quote }}
+        - name: OSMO_MCP_REQUEST_TIMEOUT_SECONDS
+          value: {{ $mcp.requestTimeoutSeconds | quote }}
         {{- with $mcp.extraEnv }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
-        {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
         volumeMounts:
+        - name: mcp-service-token
+          mountPath: {{ dir $mcp.serviceTokenFile | quote }}
+          readOnly: true
+        {{- if $mcp.gatewayCaSecretName }}
+        - name: mcp-gateway-ca
+          mountPath: {{ dir $mcp.gatewayCaFile | quote }}
+          readOnly: true
+        {{- end }}
+        {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
         {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
         {{- end }}
         livenessProbe:
@@ -92,8 +114,22 @@ spec:
           {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
         startupProbe:
           {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
-      {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
       volumes:
+      - name: mcp-service-token
+        secret:
+          secretName: {{ $mcp.serviceTokenSecretName | quote }}
+          items:
+          - key: {{ $mcp.serviceTokenSecretKey | quote }}
+            path: {{ base $mcp.serviceTokenFile | quote }}
+      {{- if $mcp.gatewayCaSecretName }}
+      - name: mcp-gateway-ca
+        secret:
+          secretName: {{ $mcp.gatewayCaSecretName | quote }}
+          items:
+          - key: {{ $mcp.gatewayCaSecretKey | quote }}
+            path: {{ base $mcp.gatewayCaFile | quote }}
+      {{- end }}
+      {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
       {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 6 }}
       {{- end }}
 

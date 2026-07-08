@@ -32,6 +32,8 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpEnabled := $mcp.enabled | default false }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
+{{- $mcpServiceTokenPath := "/api/auth/jwt/access_token" }}
+{{- $mcpDelegationPath := "/api/auth/jwt/delegated_access_token" }}
 {{- $mcpResourceUrl := "" }}
 {{- $mcpMetadataUrl := "" }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
@@ -49,15 +51,97 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if not $envoy.jwt.providers }}
 {{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
 {{- end }}
+{{- if not $gw.networkPolicies.enabled }}
+{{- fail "services.mcp.enabled requires gateway.networkPolicies.enabled=true" }}
+{{- end }}
+{{- if .Values.services.configs.enabled }}
+{{- fail "services.mcp.enabled requires database-backed roles (services.configs.enabled=false)" }}
+{{- end }}
+{{- if not $envoy.internalJwks.enabled }}
+{{- fail "services.mcp.enabled requires gateway.envoy.internalJwks.enabled=true" }}
+{{- end }}
+{{- $internalJwksCluster := required "gateway.envoy.internalJwks.cluster is required when MCP is enabled" $envoy.internalJwks.cluster }}
+{{- $osmoJwtIssuer := required "services.mcp.osmoJwtIssuer is required when MCP is enabled" $mcp.osmoJwtIssuer }}
+{{- $osmoJwtAudience := required "services.mcp.osmoJwtAudience is required when MCP is enabled" $mcp.osmoJwtAudience }}
+{{- $hasOsmoJwtProvider := false }}
+{{- range $provider := $envoy.jwt.providers }}
+{{- if and (eq (default "" $provider.issuer) $osmoJwtIssuer) (eq (default "" $provider.audience) $osmoJwtAudience) (eq (default "" $provider.user_claim) "unique_name") (eq (default "" $provider.cluster) $internalJwksCluster) (regexMatch "^https?://[^/?#]+/api/auth/keys$" (default "" $provider.jwks_uri)) }}
+{{- $hasOsmoJwtProvider = true }}
+{{- end }}
+{{- end }}
+{{- if not $hasOsmoJwtProvider }}
+{{- fail "services.mcp.enabled requires a matching OSMO JWT provider (configured issuer/audience, unique_name claim, internal JWKS cluster, and /api/auth/keys URI)" }}
+{{- end }}
 {{- $mcpResourceUrl = required "services.mcp.resourceUrl is required when MCP is enabled" $mcp.resourceUrl }}
-{{- if not (regexMatch "^https://[^/?#]+/mcp$" $mcpResourceUrl) }}
-{{- fail "services.mcp.resourceUrl must be an HTTPS origin followed by the exact /mcp path" }}
+{{- if not (regexMatch "^https://[^@/?#[:space:]]+/mcp$" $mcpResourceUrl) }}
+{{- fail "services.mcp.resourceUrl must be an HTTPS origin without credentials followed by the exact /mcp path" }}
+{{- end }}
+{{- $mcpApiUrl := required "services.mcp.apiUrl is required when MCP is enabled" $mcp.apiUrl }}
+{{- if ne $mcpApiUrl (trimSuffix $mcpPath $mcpResourceUrl) }}
+{{- fail "services.mcp.apiUrl must be the HTTPS gateway origin from services.mcp.resourceUrl" }}
+{{- end }}
+{{- $serviceTokenSecretName := required "services.mcp.serviceTokenSecretName is required when MCP is enabled" $mcp.serviceTokenSecretName }}
+{{- if or (gt (len $serviceTokenSecretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $serviceTokenSecretName)) }}
+{{- fail "services.mcp.serviceTokenSecretName must be a valid Kubernetes Secret name" }}
+{{- end }}
+{{- $serviceTokenSecretKey := required "services.mcp.serviceTokenSecretKey is required when MCP is enabled" $mcp.serviceTokenSecretKey }}
+{{- if or (gt (len $serviceTokenSecretKey) 253) (not (regexMatch "^[A-Za-z0-9._-]+$" $serviceTokenSecretKey)) }}
+{{- fail "services.mcp.serviceTokenSecretKey must be a valid Kubernetes Secret data key" }}
+{{- end }}
+{{- $serviceTokenFile := required "services.mcp.serviceTokenFile is required when MCP is enabled" $mcp.serviceTokenFile }}
+{{- if or (not (regexMatch "^/var/run/secrets/osmo-mcp/[A-Za-z0-9._-]+$" $serviceTokenFile)) (hasSuffix "/." $serviceTokenFile) (hasSuffix "/.." $serviceTokenFile) }}
+{{- fail "services.mcp.serviceTokenFile must be a file directly under /var/run/secrets/osmo-mcp" }}
+{{- end }}
+{{- if $mcp.gatewayCaSecretName }}
+{{- $gatewayCaSecretName := $mcp.gatewayCaSecretName }}
+{{- if or (gt (len $gatewayCaSecretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $gatewayCaSecretName)) }}
+{{- fail "services.mcp.gatewayCaSecretName must be a valid Kubernetes Secret name" }}
+{{- end }}
+{{- $gatewayCaSecretKey := required "services.mcp.gatewayCaSecretKey is required when gatewayCaSecretName is set" $mcp.gatewayCaSecretKey }}
+{{- if or (gt (len $gatewayCaSecretKey) 253) (not (regexMatch "^[A-Za-z0-9._-]+$" $gatewayCaSecretKey)) }}
+{{- fail "services.mcp.gatewayCaSecretKey must be a valid Kubernetes Secret data key" }}
+{{- end }}
+{{- $gatewayCaFile := required "services.mcp.gatewayCaFile is required when gatewayCaSecretName is set" $mcp.gatewayCaFile }}
+{{- if or (not (regexMatch "^/var/run/secrets/osmo-mcp-gateway-ca/[A-Za-z0-9._-]+$" $gatewayCaFile)) (hasSuffix "/." $gatewayCaFile) (hasSuffix "/.." $gatewayCaFile) }}
+{{- fail "services.mcp.gatewayCaFile must be a file directly under /var/run/secrets/osmo-mcp-gateway-ca" }}
+{{- end }}
+{{- end }}
+{{- $tokenCacheMaxSizeText := toString $mcp.tokenCacheMaxSize }}
+{{- if or (not (regexMatch "^[0-9]+$" $tokenCacheMaxSizeText)) (lt (int $mcp.tokenCacheMaxSize) 1) (gt (int $mcp.tokenCacheMaxSize) 10000) }}
+{{- fail "services.mcp.tokenCacheMaxSize must be between 1 and 10000" }}
+{{- end }}
+{{- $tokenCacheSkewText := toString $mcp.tokenCacheSkewSeconds }}
+{{- $tokenCacheSkew := float64 $mcp.tokenCacheSkewSeconds }}
+{{- if or (not (regexMatch "^[0-9]+([.][0-9]+)?$" $tokenCacheSkewText)) (lt $tokenCacheSkew (float64 0)) (gt $tokenCacheSkew (float64 120)) }}
+{{- fail "services.mcp.tokenCacheSkewSeconds must be between 0 and 120" }}
+{{- end }}
+{{- $requestTimeoutText := toString $mcp.requestTimeoutSeconds }}
+{{- $requestTimeout := float64 $mcp.requestTimeoutSeconds }}
+{{- if or (not (regexMatch "^[0-9]+([.][0-9]+)?$" $requestTimeoutText)) (le $requestTimeout (float64 0)) (gt $requestTimeout (float64 60)) }}
+{{- fail "services.mcp.requestTimeoutSeconds must be greater than 0 and at most 60" }}
+{{- end }}
+{{- $managedMcpEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_API_URL" "OSMO_MCP_SERVICE_TOKEN_FILE" "OSMO_MCP_GATEWAY_CA_FILE" "OSMO_MCP_TOKEN_CACHE_MAX_SIZE" "OSMO_MCP_TOKEN_CACHE_SKEW_SECONDS" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" }}
+{{- range $extraEnv := $mcp.extraEnv }}
+{{- if not (kindIs "map" $extraEnv) }}
+{{- fail "services.mcp.extraEnv entries must be Kubernetes EnvVar mappings" }}
+{{- end }}
+{{- if has (default "" $extraEnv.name) $managedMcpEnvNames }}
+{{- fail (printf "services.mcp.extraEnv must not override chart-managed variable %s" $extraEnv.name) }}
+{{- end }}
 {{- end }}
 {{- if not (kindIs "slice" $mcp.authorizationServers) }}
 {{- fail "services.mcp.authorizationServers must be a list" }}
 {{- end }}
 {{- if eq (len $mcp.authorizationServers) 0 }}
 {{- fail "services.mcp.authorizationServers must contain at least one issuer when MCP is enabled" }}
+{{- end }}
+{{- range $authorizationServer := $mcp.authorizationServers }}
+{{- if not (kindIs "string" $authorizationServer) }}
+{{- fail "services.mcp.authorizationServers entries must be strings" }}
+{{- end }}
+{{- if not (regexMatch "^https://[^@/?#[:space:]]+(/[^?#[:space:]]*)?$" $authorizationServer) }}
+{{- fail (printf "services.mcp.authorizationServers entry %q must be an HTTPS issuer URL without credentials, whitespace, query, or fragment" $authorizationServer) }}
+{{- end }}
 {{- end }}
 {{- if not (kindIs "slice" $mcp.scopes) }}
 {{- fail "services.mcp.scopes must be a list" }}
@@ -69,8 +153,8 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if not (kindIs "string" $scope) }}
 {{- fail "services.mcp.scopes entries must be strings" }}
 {{- end }}
-{{- if eq (trim $scope) "" }}
-{{- fail "services.mcp.scopes entries must not be empty" }}
+{{- if or (eq $scope "") (not (regexMatch `^[!#-\[\]-~]+$` $scope)) }}
+{{- fail "services.mcp.scopes entries must be valid OAuth scope tokens" }}
 {{- end }}
 {{- end }}
 {{- $mcpServiceName := required "services.mcp.serviceName is required when MCP is enabled" $mcp.serviceName }}
@@ -82,14 +166,24 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.allowedOrigins must be a list" }}
 {{- end }}
 {{- range $origin := $mcp.allowedOrigins }}
-{{- if not (regexMatch "^https?://[^/?#]+$" $origin) }}
-{{- fail (printf "services.mcp.allowedOrigins entry %q must be an exact HTTP(S) Origin without a path" $origin) }}
+{{- if not (regexMatch "^https?://[^@/?#[:space:]]+$" $origin) }}
+{{- fail (printf "services.mcp.allowedOrigins entry %q must be an exact HTTP(S) Origin without credentials, whitespace, or a path" $origin) }}
 {{- end }}
 {{- end }}
+{{- $serviceTokenExchangeIsPublic := false }}
 {{- range $skipPath := $skipAuthPaths }}
 {{- if or (hasPrefix $skipPath $mcpPath) (hasPrefix $skipPath $mcpMetadataPath) }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
+{{- if hasPrefix $skipPath $mcpDelegationPath }}
+{{- fail (printf "gateway auth bypass prefix %q overlaps the MCP delegation endpoint" $skipPath) }}
+{{- end }}
+{{- if hasPrefix $skipPath $mcpServiceTokenPath }}
+{{- $serviceTokenExchangeIsPublic = true }}
+{{- end }}
+{{- end }}
+{{- if not $serviceTokenExchangeIsPublic }}
+{{- fail "services.mcp.enabled requires /api/auth/jwt/access_token in gateway.envoy.skipAuthPaths" }}
 {{- end }}
 {{- $mcpBaseUrl := trimSuffix $mcpPath $mcpResourceUrl }}
 {{- $mcpMetadataUrl = printf "%s%s" $mcpBaseUrl $mcpMetadataPath }}
@@ -327,6 +421,18 @@ data:
                   route:
                     cluster: osmo-mcp
                     timeout: 0s
+                  # Authentication completes before route-level header
+                  # mutation. MCP receives only the validated user identity,
+                  # never the caller's bearer credential or authorization data.
+                  request_headers_to_remove:
+                  - authorization
+                  - proxy-authorization
+                  - cookie
+                  - x-osmo-auth
+                  - x-osmo-roles
+                  - x-osmo-token-name
+                  - x-osmo-workflow-id
+                  - x-osmo-allowed-pools
                 {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}

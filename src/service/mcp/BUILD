@@ -50,10 +50,13 @@ osmo_py_library(
     name = "server",
     srcs = ["server.py"],
     deps = [
+        requirement("httpx"),
         requirement("mcp"),
         requirement("pydantic"),
         requirement("starlette"),
         requirement("uvicorn"),
+        ":identity",
+        ":tokens",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
     ],

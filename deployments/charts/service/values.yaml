@@ -134,6 +134,38 @@ services:
     serviceName: osmo-mcp
     port: 8000
 
+    ## HTTPS base URL of this deployment's public gateway. MCP exchanges its
+    ## service credential and delegated tokens through this gateway; direct
+    ## Core service URLs are intentionally unsupported.
+    ##
+    apiUrl: ""
+
+    ## Existing Kubernetes Secret containing the MCP service-account access token. The
+    ## Secret is mounted as a volume so Kubernetes can rotate it in place.
+    ##
+    serviceTokenSecretName: ""
+    serviceTokenSecretKey: token
+    serviceTokenFile: /var/run/secrets/osmo-mcp/token
+
+    ## Optional CA bundle for a public gateway certificate that is not trusted
+    ## by the image's system roots. The Secret is mounted read-only.
+    ##
+    gatewayCaSecretName: ""
+    gatewayCaSecretKey: ca.crt
+    gatewayCaFile: /var/run/secrets/osmo-mcp-gateway-ca/ca.crt
+
+    ## Delegated-token cache and upstream request settings.
+    ##
+    tokenCacheMaxSize: 512
+    tokenCacheSkewSeconds: 30
+    requestTimeoutSeconds: 10
+
+    ## Issuer and audience configured for OSMO-issued service JWTs. Override
+    ## both when service_auth uses non-default values.
+    ##
+    osmoJwtIssuer: osmo
+    osmoJwtAudience: osmo
+
     ## Canonical RFC 9728 protected resource identifier. This must be the
     ## externally reachable HTTPS MCP URL ending in /mcp, for example:
     ## https://osmo.example.com/mcp
@@ -653,6 +685,15 @@ services:
     ## Override external_roles per deployment to map IDP groups.
     ##
     roles:
+      osmo-mcp-delegator:
+        description: "MCP service role — mint short-lived delegated access tokens"
+        policies:
+        - effect: Allow
+          actions: ["auth:Delegate"]
+          resources: ["*"]
+        immutable: true
+        sync_mode: ignore
+        external_roles: []
       osmo-admin:
         description: "Admin role — full access except restricted service actions"
         policies:
