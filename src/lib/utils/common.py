@@ -94,6 +94,27 @@ DOCKER_MANIFEST_LIST_ENCODING = 'application/vnd.docker.distribution.manifest.li
 CONFIG_NAME_REGEX = r'^[a-zA-Z]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$'
 TOKEN_NAME_REGEX = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'
 USERNAME_REGEX = r'^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$'
+MAX_AUTHENTICATED_USER_ID_BYTES = 256
+REQUEST_ID_REGEX = r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}'
+
+
+def is_valid_authenticated_user_id(user_id: str) -> bool:
+    """Return whether a trusted IdP identity is safe for headers and cache keys."""
+    try:
+        encoded_length = len(user_id.encode('utf-8'))
+    except UnicodeEncodeError:
+        return False
+    return (
+        bool(user_id) and
+        user_id == user_id.strip() and
+        encoded_length <= MAX_AUTHENTICATED_USER_ID_BYTES and
+        all(character.isprintable() for character in user_id)
+    )
+
+
+def is_valid_request_id(request_id: str) -> bool:
+    """Return whether a request ID is safe to forward and include in logs."""
+    return re.fullmatch(REQUEST_ID_REGEX, request_id) is not None
 
 # The keys to look for in the docker auth response
 DOCKER_AUTH_TOKEN_KEYS = ['token', 'access_token']

@@ -16,12 +16,18 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import time
 from typing import Any, Dict, List, Optional
+from unittest import mock
 
+import jwt  # type: ignore
+from src.lib.utils import common, login
 from src.service.core.auth import objects
 from src.service.core.tests import fixture
-from src.utils import connectors
 from src.tests.common import runner
+from src.utils import auth, connectors
+
+TEST_DELEGATOR = 'svc-mcp'
 
 
 class AuthServiceTestCase(fixture.ServiceTestFixture):
@@ -145,6 +151,495 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         '''
         rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
         return [row['role_name'] for row in rows]
+
+    def _create_service_jwt(
+        self,
+        username: str = TEST_DELEGATOR,
+        roles: Optional[List[str]] = None,
+        token_name: Optional[str] = 'mcp-test-token',
+        claim_overrides: Optional[Dict[str, Any]] = None,
+        claim_removals: Optional[List[str]] = None,
+        authentication_config: Optional[auth.AuthenticationConfig] = None,
+    ) -> str:
+        """Create a service JWT with optional malformed claims for denial tests."""
+        service_auth = authentication_config or (
+            connectors.PostgresConnector.get_instance()
+            .get_service_configs().service_auth
+        )
+        now = int(time.time())
+        claims: Dict[str, Any] = {
+            'iss': service_auth.issuer,
+            'aud': service_auth.audience,
+            'iat': now,
+            'nbf': now,
+            'exp': now + common.ACCESS_TOKEN_TIMEOUT,
+            'unique_name': username,
+            'roles': roles if roles is not None else [auth.MCP_DELEGATOR_ROLE],
+        }
+        if token_name is not None:
+            claims['osmo_token_name'] = token_name
+        if claim_overrides:
+            claims.update(claim_overrides)
+        for claim_name in claim_removals or []:
+            claims.pop(claim_name, None)
+        return service_auth.get_current_key().create_jwt(claims)
+
+    def _post_delegation(
+        self,
+        subject_user: str,
+        encoded_token: Optional[str],
+        gateway_user: Optional[str] = TEST_DELEGATOR,
+        payload_overrides: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = 'delegation-test-request',
+    ):
+        payload: Dict[str, Any] = {'subject_user': subject_user}
+        if payload_overrides:
+            payload.update(payload_overrides)
+        headers = {}
+        if gateway_user is not None:
+            headers[login.OSMO_USER_HEADER] = gateway_user
+        if request_id is not None:
+            headers['x-request-id'] = request_id
+        if encoded_token is not None:
+            headers[login.OSMO_AUTH_HEADER] = f'Bearer {encoded_token}'
+        return self.client.post(
+            '/api/auth/jwt/delegated_access_token',
+            json=payload,
+            headers=headers,
+        )
+
+    def _decode_jwt(self, encoded_token: str) -> Dict[str, Any]:
+        service_auth = (
+            connectors.PostgresConnector.get_instance()
+            .get_service_configs().service_auth
+        )
+        public_key = jwt.PyJWK.from_json(
+            service_auth.get_current_key().public_key).key
+        return jwt.decode(
+            encoded_token,
+            key=public_key,
+            algorithms=['RS256'],
+            audience=service_auth.audience,
+            issuer=service_auth.issuer,
+        )
+
+    # =========================================================================
+    # Delegated Access Token Tests
+    # =========================================================================
+
+    def test_create_delegated_access_token(self):
+        """Delegated tokens contain current, sorted roles and bounded claims."""
+        subject = 'delegated@example.com'
+        self._create_user(subject, roles=['osmo-user', 'osmo-admin'])
+        issued_at = int(time.time())
+        parent_expires_at = issued_at + 2 * common.ACCESS_TOKEN_TIMEOUT
+        service_token = self._create_service_jwt(claim_overrides={
+            'iat': issued_at,
+            'nbf': issued_at,
+            'exp': parent_expires_at,
+        })
+
+        with mock.patch(
+            'src.service.core.auth.auth_service.time.time',
+            return_value=issued_at,
+        ):
+            response = self._post_delegation(subject, service_token)
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(sorted(result), ['expires_at', 'token'])
+        claims = self._decode_jwt(result['token'])
+        self.assertEqual(claims['unique_name'], subject)
+        self.assertEqual(claims['roles'], ['osmo-admin', 'osmo-user'])
+        self.assertEqual(claims['osmo_token_name'], auth.DELEGATED_TOKEN_NAME)
+        self.assertEqual(claims['act'], {'sub': TEST_DELEGATOR})
+        self.assertEqual(claims['exp'], result['expires_at'])
+        self.assertEqual(
+            claims['exp'] - claims['iat'], common.ACCESS_TOKEN_TIMEOUT)
+        self.assertLess(claims['exp'], parent_expires_at)
+
+    def test_delegated_access_token_is_capped_by_parent_expiration(self):
+        subject = 'short-parent@example.com'
+        self._create_user(subject, roles=['osmo-user'])
+        issued_at = int(time.time())
+        parent_expires_at = issued_at + 60
+        service_token = self._create_service_jwt(claim_overrides={
+            'iat': issued_at,
+            'nbf': issued_at,
+            'exp': parent_expires_at,
+        })
+
+        with mock.patch(
+            'src.service.core.auth.auth_service.time.time',
+            return_value=issued_at,
+        ):
+            response = self._post_delegation(subject, service_token)
+
+        self.assertEqual(response.status_code, 200)
+        claims = self._decode_jwt(response.json()['token'])
+        self.assertEqual(response.json()['expires_at'], parent_expires_at)
+        self.assertEqual(claims['exp'], parent_expires_at)
+        self.assertEqual(claims['iat'], issued_at)
+
+    def test_delegation_does_not_mint_after_parent_expires_during_request(self):
+        subject = 'expired-parent@example.com'
+        self._create_user(subject, roles=['osmo-user'])
+        parent_issued_at = int(time.time())
+        parent_expires_at = parent_issued_at + 120
+        service_token = self._create_service_jwt(claim_overrides={
+            'iat': parent_issued_at,
+            'nbf': parent_issued_at,
+            'exp': parent_expires_at,
+        })
+
+        with (
+            mock.patch(
+                'src.service.core.auth.auth_service.time.time',
+                return_value=parent_expires_at,
+            ),
+            self.assertLogs(
+                'src.service.core.auth.auth_service', level='INFO') as captured,
+        ):
+            response = self._post_delegation(subject, service_token)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.headers['www-authenticate'], 'Bearer')
+        audit_record = captured.records[-1]
+        self.assertEqual(getattr(audit_record, 'outcome'), 'unauthorized')
+        self.assertIsNone(getattr(audit_record, 'expires_at'))
+
+    def test_delegated_access_token_rejects_non_integer_parent_expiration(self):
+        service_token = self._create_service_jwt(claim_overrides={
+            'exp': str(int(time.time()) + common.ACCESS_TOKEN_TIMEOUT),
+        })
+
+        response = self._post_delegation(
+            'delegated@example.com', service_token)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.headers['www-authenticate'], 'Bearer')
+
+    def test_delegation_endpoint_is_not_in_public_openapi(self):
+        response = self.client.get('/api/openapi.json')
+        self.assertEqual(response.status_code, 200)
+        openapi_paths = response.json()['paths']
+
+        self.assertNotIn(
+            '/api/auth/jwt/delegated_access_token',
+            openapi_paths,
+        )
+
+    def test_delegated_access_token_request_is_strict(self):
+        """Unknown and missing body fields are rejected by the request model."""
+        service_token = self._create_service_jwt()
+        response = self._post_delegation(
+            'delegated@example.com', service_token,
+            payload_overrides={'unexpected': True})
+        self.assertEqual(response.status_code, 422)
+
+        response = self.client.post(
+            '/api/auth/jwt/delegated_access_token',
+            json={},
+            headers={login.OSMO_AUTH_HEADER: f'Bearer {service_token}'},
+        )
+        self.assertEqual(response.status_code, 422)
+
+        invalid_subjects = [' ', ' bad-user', 'bad-user ', 'bad\nname', 'a' * 257]
+        for invalid_subject in invalid_subjects:
+            with self.subTest(subject_user=invalid_subject):
+                response = self._post_delegation(
+                    invalid_subject, service_token)
+                self.assertEqual(response.status_code, 422)
+
+        # IdP-provisioned identities are not limited to CLI username syntax.
+        response = self._post_delegation(
+            'alice+tag#EXT#@example.com', service_token)
+        self.assertEqual(response.status_code, 404)
+
+    def test_delegated_access_token_requires_valid_bearer(self):
+        """Missing and malformed bearer credentials return 401."""
+        response = self._post_delegation('delegated@example.com', None)
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.headers['www-authenticate'], 'Bearer')
+
+        response = self.client.post(
+            '/api/auth/jwt/delegated_access_token',
+            json={'subject_user': 'delegated@example.com'},
+            headers={
+                login.OSMO_AUTH_HEADER: 'Basic credentials',
+                login.OSMO_USER_HEADER: TEST_DELEGATOR,
+            },
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_delegated_access_token_bearer_parser_is_strict(self):
+        subject = 'bearer-parser@example.com'
+        self._create_user(subject, roles=['osmo-user'])
+        service_token = self._create_service_jwt()
+        headers = {
+            login.OSMO_USER_HEADER: TEST_DELEGATOR,
+            login.OSMO_AUTH_HEADER: f'bEaReR {service_token}',
+        }
+
+        accepted = self.client.post(
+            '/api/auth/jwt/delegated_access_token',
+            json={'subject_user': subject},
+            headers=headers,
+        )
+        self.assertEqual(accepted.status_code, 200)
+
+        malformed_headers = (
+            '',
+            'Bearer',
+            'Bearer token extra',
+            f'Basic {service_token}',
+            'Bearer not-a-jwt',
+        )
+        for authorization in malformed_headers:
+            with self.subTest(authorization=authorization):
+                denied = self.client.post(
+                    '/api/auth/jwt/delegated_access_token',
+                    json={'subject_user': subject},
+                    headers={
+                        login.OSMO_USER_HEADER: TEST_DELEGATOR,
+                        login.OSMO_AUTH_HEADER: authorization,
+                    },
+                )
+                self.assertEqual(denied.status_code, 401)
+                self.assertEqual(denied.headers['www-authenticate'], 'Bearer')
+
+    def test_delegated_access_token_rejects_invalid_jwt(self):
+        """Signature, audience, issuer, and expiration are validated locally."""
+        now = int(time.time())
+        other_auth = auth.AuthenticationConfig.generate_default()
+        valid_claims = jwt.decode(
+            self._create_service_jwt(),
+            options={'verify_signature': False},
+        )
+        invalid_tokens = {
+            'signature': self._create_service_jwt(authentication_config=other_auth),
+            'hs256_algorithm': jwt.encode(
+                valid_claims, key='attacker-secret', algorithm='HS256'),
+            'none_algorithm': jwt.encode(
+                valid_claims, key='', algorithm='none'),
+            'audience': self._create_service_jwt(claim_overrides={'aud': 'other-audience'}),
+            'issuer': self._create_service_jwt(claim_overrides={'iss': 'other-issuer'}),
+            'expiration': self._create_service_jwt(claim_overrides={
+                'iat': now - 10,
+                'nbf': now - 10,
+                'exp': now - 1,
+            }),
+            'issued_at': self._create_service_jwt(
+                claim_overrides={'iat': now + 60}),
+            'not_before': self._create_service_jwt(
+                claim_overrides={'nbf': now + 60}),
+        }
+        for label, encoded_token in invalid_tokens.items():
+            with self.subTest(label=label):
+                response = self._post_delegation(
+                    'delegated@example.com', encoded_token)
+                self.assertEqual(response.status_code, 401)
+
+    def test_delegated_access_token_accepts_configured_previous_signing_key(self):
+        subject = 'key-rotation@example.com'
+        self._create_user(subject, roles=['osmo-user'])
+        postgres = connectors.PostgresConnector.get_instance()
+        service_config = postgres.get_service_configs().model_copy(deep=True)
+        previous_key = auth.AuthenticationConfig.generate_default().get_current_key()
+        service_config.service_auth.keys['previous'] = previous_key
+        now = int(time.time())
+        previous_key_token = previous_key.create_jwt({
+            'iss': service_config.service_auth.issuer,
+            'aud': service_config.service_auth.audience,
+            'iat': now,
+            'nbf': now,
+            'exp': now + common.ACCESS_TOKEN_TIMEOUT,
+            'unique_name': TEST_DELEGATOR,
+            'roles': [auth.MCP_DELEGATOR_ROLE],
+            'osmo_token_name': 'mcp-previous-key',
+        })
+
+        with mock.patch.object(
+            postgres,
+            'get_service_configs',
+            return_value=service_config,
+        ):
+            response = self._post_delegation(subject, previous_key_token)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self._decode_jwt(response.json()['token'])['unique_name'],
+            subject,
+        )
+
+    def test_delegated_access_token_requires_standard_jwt_claims(self):
+        for required_claim in ('aud', 'exp', 'iat', 'iss', 'nbf'):
+            with self.subTest(required_claim=required_claim):
+                encoded_token = self._create_service_jwt(
+                    claim_removals=[required_claim])
+                response = self._post_delegation(
+                    'delegated@example.com', encoded_token)
+                self.assertEqual(response.status_code, 401)
+                self.assertEqual(response.headers['www-authenticate'], 'Bearer')
+
+    def test_delegated_access_token_uses_gateway_authorized_actor(self):
+        """Core preserves the actor authorized by Gateway policy evaluation."""
+        subject = 'dynamic-actor@example.com'
+        actor = 'alternate-mcp-service'
+        self._create_user(subject, roles=['osmo-user'])
+        service_token = self._create_service_jwt(
+            username=actor,
+            roles=['custom-delegator', 'osmo-user'],
+            token_name=None,
+        )
+
+        with self.assertLogs(
+                'src.service.core.auth.auth_service', level='INFO') as captured:
+            response = self._post_delegation(
+                subject,
+                service_token,
+                gateway_user=actor,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        claims = self._decode_jwt(response.json()['token'])
+        self.assertEqual(claims['act'], {'sub': actor})
+        audit_record = next(
+            record for record in captured.records
+            if getattr(record, 'outcome', None) == 'success')
+        self.assertEqual(getattr(audit_record, 'actor'), actor)
+
+    def test_delegated_access_token_rejects_delegated_caller(self):
+        delegated_caller = self._create_service_jwt(
+            claim_overrides={'act': {'sub': TEST_DELEGATOR}})
+
+        response = self._post_delegation(
+            'delegated@example.com', delegated_caller)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_delegated_access_token_rejects_invalid_actor_claims(self):
+        malformed_claims: Dict[str, tuple[Dict[str, Any], List[str]]] = {
+            'missing_actor': ({}, ['unique_name']),
+            'numeric_actor': ({'unique_name': 123}, []),
+            'empty_actor': ({'unique_name': ''}, []),
+            'blank_actor': ({'unique_name': ' \t '}, []),
+        }
+
+        for label, (claim_overrides, claim_removals) in malformed_claims.items():
+            with self.subTest(label=label):
+                encoded_token = self._create_service_jwt(
+                    claim_overrides=claim_overrides,
+                    claim_removals=claim_removals,
+                )
+                response = self._post_delegation(
+                    'delegated@example.com', encoded_token)
+                self.assertEqual(response.status_code, 403)
+
+    def test_delegated_access_token_rejects_gateway_identity_mismatch(self):
+        service_token = self._create_service_jwt()
+        response = self._post_delegation(
+            'delegated@example.com', service_token, gateway_user=self.TEST_ADMIN)
+        self.assertEqual(response.status_code, 403)
+
+    def test_delegated_access_token_requires_gateway_identity(self):
+        service_token = self._create_service_jwt()
+        default_gateway_user = self.client.headers.pop(login.OSMO_USER_HEADER)
+        try:
+            response = self._post_delegation(
+                'delegated@example.com', service_token, gateway_user=None)
+        finally:
+            self.client.headers[login.OSMO_USER_HEADER] = default_gateway_user
+        self.assertEqual(response.status_code, 403)
+
+    def test_delegated_access_token_rejects_unknown_or_roleless_subject(self):
+        service_token = self._create_service_jwt()
+
+        response = self._post_delegation(
+            'unknown@example.com', service_token)
+        self.assertEqual(response.status_code, 404)
+        self.assertIn('not found', response.json()['detail'])
+
+        self._create_user('roleless@example.com')
+        response = self._post_delegation(
+            'roleless@example.com', service_token)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn('no roles', response.json()['detail'])
+
+    def test_delegation_resolves_current_roles_for_every_token(self):
+        subject = 'changing-roles@example.com'
+        self._create_user(subject, roles=['osmo-user'])
+        service_token = self._create_service_jwt()
+
+        first = self._post_delegation(subject, service_token)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(self._decode_jwt(first.json()['token'])['roles'], ['osmo-user'])
+
+        self._assign_role(subject, 'osmo-admin')
+        second = self._post_delegation(subject, service_token)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(
+            self._decode_jwt(second.json()['token'])['roles'],
+            ['osmo-admin', 'osmo-user'],
+        )
+
+        postgres = connectors.PostgresConnector.get_instance()
+        postgres.execute_commit_command(
+            'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;',
+            (subject, 'osmo-user'),
+        )
+        third = self._post_delegation(subject, service_token)
+        self.assertEqual(third.status_code, 200)
+        self.assertEqual(self._decode_jwt(third.json()['token'])['roles'], ['osmo-admin'])
+
+    def test_delegation_logs_exclude_tokens(self):
+        """Audit logging records metadata without either credential."""
+        subject = 'logged-delegation@example.com'
+        self._create_user(subject, roles=['osmo-user'])
+        service_token = self._create_service_jwt()
+
+        with self.assertLogs(
+                'src.service.core.auth.auth_service', level='INFO') as captured:
+            response = self._post_delegation(subject, service_token)
+
+        self.assertEqual(response.status_code, 200)
+        delegated_token = response.json()['token']
+        serialized_records = '\n'.join(
+            str(record.__dict__) for record in captured.records)
+        self.assertNotIn(service_token, serialized_records)
+        self.assertNotIn(delegated_token, serialized_records)
+        audit_record = next(
+            record for record in captured.records
+            if record.getMessage().startswith('Delegated access token request '))
+        self.assertEqual(getattr(audit_record, 'actor'), TEST_DELEGATOR)
+        self.assertEqual(getattr(audit_record, 'subject'), subject)
+        self.assertEqual(
+            getattr(audit_record, 'request_id'), 'delegation-test-request')
+        self.assertEqual(getattr(audit_record, 'outcome'), 'success')
+        self.assertEqual(
+            getattr(audit_record, 'expires_at'), response.json()['expires_at'])
+
+    def test_delegation_drops_invalid_request_id_from_logs(self):
+        subject = 'sanitized-log@example.com'
+        self._create_user(subject, roles=['osmo-user'])
+        service_token = self._create_service_jwt()
+        invalid_request_ids = [
+            'request id must not reach logs',
+            'a' * 129,
+        ]
+
+        for invalid_request_id in invalid_request_ids:
+            with self.subTest(request_id=invalid_request_id):
+                with self.assertLogs(
+                        'src.service.core.auth.auth_service', level='INFO') as captured:
+                    response = self._post_delegation(
+                        subject, service_token, request_id=invalid_request_id)
+
+                self.assertEqual(response.status_code, 200)
+                serialized_records = '\n'.join(
+                    str(record.__dict__) for record in captured.records)
+                self.assertNotIn(invalid_request_id, serialized_records)
+        self.assertIsNone(getattr(captured.records[0], 'request_id'))
 
     # =========================================================================
     # User Management Tests

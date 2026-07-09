@@ -27,6 +27,7 @@ osmo_py_library(
     ],
     deps = [
         requirement("fastapi"),
+        requirement("pyjwt"),
         requirement("pydantic"),
         "//src/lib/utils:common",
         "//src/lib/utils:login",

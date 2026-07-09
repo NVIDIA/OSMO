@@ -31,6 +31,7 @@ from src.lib.utils import common, osmo_errors
 DEFAULT_LENGTH = 20 * 24 * 60 * 60
 
 MCP_DELEGATOR_ROLE = 'osmo-mcp-delegator'
+DELEGATED_TOKEN_NAME = 'delegated-svc-mcp'
 
 
 class AsymmetricKeyPair(pydantic.BaseModel):
