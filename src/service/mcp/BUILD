@@ -23,7 +23,31 @@ load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
-    name = "mcp_service_lib",
+    name = "identity",
+    srcs = ["identity.py"],
+    deps = [
+        requirement("starlette"),
+        "//src/lib/utils:common",
+        "//src/lib/utils:login",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "tokens",
+    srcs = ["tokens.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("pydantic"),
+        ":identity",
+        "//src/lib/utils:common",
+        "//src/lib/utils:login",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "server",
     srcs = ["server.py"],
     deps = [
         requirement("mcp"),
@@ -40,7 +64,7 @@ osmo_py_binary(
     name = "mcp_binary",
     main = "server.py",
     srcs = ["server.py"],
-    deps = [":mcp_service_lib"],
+    deps = [":server"],
 )
 
 py_image_layer(
