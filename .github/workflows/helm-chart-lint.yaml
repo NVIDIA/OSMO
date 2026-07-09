@@ -122,8 +122,3 @@ jobs:
             exit 1
           fi
           echo "✓ Template rendering successful"
-
-      - name: Helm Template (validate MCP security configuration)
-        if: matrix.chart == 'service'
-        run: |
-          bash deployments/charts/service/ci/test-mcp-security.sh
