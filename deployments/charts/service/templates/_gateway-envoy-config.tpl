@@ -101,6 +101,7 @@ data:
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
             stat_prefix: ingress_http
+            path_with_escaped_slashes_action: REJECT_REQUEST
             access_log:
             - name: envoy.access_loggers.file
               typed_config:
