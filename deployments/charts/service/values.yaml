@@ -147,13 +147,6 @@ services:
     serviceTokenSecretKey: token
     serviceTokenFile: /var/run/secrets/osmo-mcp/token
 
-    ## Optional CA bundle for a public gateway certificate that is not trusted
-    ## by the image's system roots. The Secret is mounted read-only.
-    ##
-    gatewayCaSecretName: ""
-    gatewayCaSecretKey: ca.crt
-    gatewayCaFile: /var/run/secrets/osmo-mcp-gateway-ca/ca.crt
-
     ## Delegated-token cache and upstream request settings.
     ##
     tokenCacheMaxSize: 512

@@ -53,10 +53,6 @@ class MCPServiceConfig(static_config.StaticConfig, ssl_config.SSLConfig):
     service_token_file: pathlib.Path = pydantic.Field(
         description='Absolute path to the mounted MCP service-account access token.',
         json_schema_extra={'env': 'OSMO_MCP_SERVICE_TOKEN_FILE'})
-    gateway_ca_file: pathlib.Path | None = pydantic.Field(
-        default=None,
-        description='Optional CA file used to verify the private API Gateway.',
-        json_schema_extra={'env': 'OSMO_MCP_GATEWAY_CA_FILE'})
     request_timeout_seconds: float = pydantic.Field(
         default=10,
         gt=0,
@@ -87,8 +83,6 @@ class MCPServiceConfig(static_config.StaticConfig, ssl_config.SSLConfig):
                 'api_url must be an HTTPS origin without credentials, path, query, or fragment.')
         if not self.service_token_file.is_absolute():
             raise ValueError('service_token_file must be an absolute path.')
-        if self.gateway_ca_file is not None and not self.gateway_ca_file.is_absolute():
-            raise ValueError('gateway_ca_file must be an absolute path.')
         return self
 
 
@@ -168,7 +162,6 @@ def create_application(
             request_timeout_seconds=config.request_timeout_seconds,
             token_cache_max_size=config.token_cache_max_size,
             token_cache_skew_seconds=config.token_cache_skew_seconds,
-            gateway_ca_file=config.gateway_ca_file,
             transport=http_transport,
         ) as app_context:
             context_holder.context = app_context

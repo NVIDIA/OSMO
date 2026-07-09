@@ -92,20 +92,6 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if or (not (regexMatch "^/var/run/secrets/osmo-mcp/[A-Za-z0-9._-]+$" $serviceTokenFile)) (hasSuffix "/." $serviceTokenFile) (hasSuffix "/.." $serviceTokenFile) }}
 {{- fail "services.mcp.serviceTokenFile must be a file directly under /var/run/secrets/osmo-mcp" }}
 {{- end }}
-{{- if $mcp.gatewayCaSecretName }}
-{{- $gatewayCaSecretName := $mcp.gatewayCaSecretName }}
-{{- if or (gt (len $gatewayCaSecretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $gatewayCaSecretName)) }}
-{{- fail "services.mcp.gatewayCaSecretName must be a valid Kubernetes Secret name" }}
-{{- end }}
-{{- $gatewayCaSecretKey := required "services.mcp.gatewayCaSecretKey is required when gatewayCaSecretName is set" $mcp.gatewayCaSecretKey }}
-{{- if or (gt (len $gatewayCaSecretKey) 253) (not (regexMatch "^[A-Za-z0-9._-]+$" $gatewayCaSecretKey)) }}
-{{- fail "services.mcp.gatewayCaSecretKey must be a valid Kubernetes Secret data key" }}
-{{- end }}
-{{- $gatewayCaFile := required "services.mcp.gatewayCaFile is required when gatewayCaSecretName is set" $mcp.gatewayCaFile }}
-{{- if or (not (regexMatch "^/var/run/secrets/osmo-mcp-gateway-ca/[A-Za-z0-9._-]+$" $gatewayCaFile)) (hasSuffix "/." $gatewayCaFile) (hasSuffix "/.." $gatewayCaFile) }}
-{{- fail "services.mcp.gatewayCaFile must be a file directly under /var/run/secrets/osmo-mcp-gateway-ca" }}
-{{- end }}
-{{- end }}
 {{- $tokenCacheMaxSizeText := toString $mcp.tokenCacheMaxSize }}
 {{- if or (not (regexMatch "^[0-9]+$" $tokenCacheMaxSizeText)) (lt (int $mcp.tokenCacheMaxSize) 1) (gt (int $mcp.tokenCacheMaxSize) 10000) }}
 {{- fail "services.mcp.tokenCacheMaxSize must be between 1 and 10000" }}
@@ -120,7 +106,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if or (not (regexMatch "^[0-9]+([.][0-9]+)?$" $requestTimeoutText)) (le $requestTimeout (float64 0)) (gt $requestTimeout (float64 60)) }}
 {{- fail "services.mcp.requestTimeoutSeconds must be greater than 0 and at most 60" }}
 {{- end }}
-{{- $managedMcpEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_API_URL" "OSMO_MCP_SERVICE_TOKEN_FILE" "OSMO_MCP_GATEWAY_CA_FILE" "OSMO_MCP_TOKEN_CACHE_MAX_SIZE" "OSMO_MCP_TOKEN_CACHE_SKEW_SECONDS" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" }}
+{{- $managedMcpEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_API_URL" "OSMO_MCP_SERVICE_TOKEN_FILE" "OSMO_MCP_TOKEN_CACHE_MAX_SIZE" "OSMO_MCP_TOKEN_CACHE_SKEW_SECONDS" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" }}
 {{- range $extraEnv := $mcp.extraEnv }}
 {{- if not (kindIs "map" $extraEnv) }}
 {{- fail "services.mcp.extraEnv entries must be Kubernetes EnvVar mappings" }}

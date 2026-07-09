@@ -23,7 +23,6 @@ import inspect
 import json
 import pathlib
 import shutil
-import ssl
 import tempfile
 import unittest
 from collections.abc import AsyncIterator, Callable, Coroutine
@@ -758,44 +757,17 @@ class TokenProviderTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(tokens.InvalidGatewayResponseError):
             await provider.get_token()
 
-    def test_gateway_ssl_context_loads_private_ca(self) -> None:
-        ssl_context = mock.Mock()
-        ca_file = pathlib.Path('/etc/osmo/gateway-ca.pem')
-
-        with mock.patch(
-            'src.service.mcp.tokens.ssl.create_default_context',
-            return_value=ssl_context,
-        ) as default_context:
-            result = tokens.build_gateway_ssl_context(ca_file)
-
-        self.assertIs(result, ssl_context)
-        default_context.assert_called_once_with()
-        ssl_context.load_verify_locations.assert_called_once_with(cafile=ca_file)
-
-    def test_default_gateway_ssl_context_verifies_hostnames(self) -> None:
-        ssl_context = tokens.build_gateway_ssl_context(None)
-
-        self.assertEqual(ssl_context.verify_mode, ssl.CERT_REQUIRED)
-        self.assertTrue(ssl_context.check_hostname)
-
     async def test_app_context_configures_hardened_http_client(self) -> None:
-        ssl_context = mock.Mock(spec=ssl.SSLContext)
         transport = mock.Mock(spec=httpx.AsyncBaseTransport)
         client = mock.MagicMock(spec=httpx.AsyncClient)
         client_context = mock.MagicMock()
         client_context.__aenter__ = mock.AsyncMock(return_value=client)
         client_context.__aexit__ = mock.AsyncMock(return_value=None)
 
-        with (
-            mock.patch(
-                'src.service.mcp.tokens.build_gateway_ssl_context',
-                return_value=ssl_context,
-            ),
-            mock.patch(
-                'src.service.mcp.tokens.httpx.AsyncClient',
-                return_value=client_context,
-            ) as async_client,
-        ):
+        with mock.patch(
+            'src.service.mcp.tokens.httpx.AsyncClient',
+            return_value=client_context,
+        ) as async_client:
             async with tokens.create_app_context(
                 api_url='https://gateway.test',
                 service_token_file=self.credential_path,
@@ -818,27 +790,8 @@ class TokenProviderTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(kwargs['follow_redirects'])
         self.assertFalse(kwargs['trust_env'])
-        self.assertIs(kwargs['verify'], ssl_context)
+        self.assertIs(kwargs['verify'], True)
         self.assertIs(kwargs['transport'], transport)
-
-    async def test_invalid_gateway_ca_error_is_sanitized(self) -> None:
-        ca_file = pathlib.Path(self.credential_path.parent) / 'sensitive-ca-name.pem'
-
-        with self.assertRaises(tokens.GatewayTLSConfigurationError) as raised:
-            async with tokens.create_app_context(
-                api_url='https://gateway.test',
-                service_token_file=self.credential_path,
-                request_timeout_seconds=10,
-                token_cache_max_size=512,
-                token_cache_skew_seconds=30,
-                gateway_ca_file=ca_file,
-                transport=httpx.MockTransport(
-                    lambda request: self._token_response('unused', lifetime=300)),
-            ):
-                self.fail('Invalid CA unexpectedly initialized the application context.')
-
-        self.assertNotIn(str(ca_file), str(raised.exception))
-        self.assertNotIn('sensitive-ca-name', str(raised.exception))
 
     def _service_provider(
         self,

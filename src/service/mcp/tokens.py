@@ -22,7 +22,6 @@ from collections.abc import AsyncIterator, Callable
 import contextlib
 import dataclasses
 import pathlib
-import ssl
 import time
 
 import httpx
@@ -48,10 +47,6 @@ class CredentialError(TokenProviderError):
 
 class GatewayUnavailableError(TokenProviderError):
     """The Gateway could not be reached within the configured limits."""
-
-
-class GatewayTLSConfigurationError(TokenProviderError):
-    """The configured Gateway trust roots could not be loaded."""
 
 
 class GatewayResponseError(TokenProviderError):
@@ -328,17 +323,15 @@ async def create_app_context(
     request_timeout_seconds: float,
     token_cache_max_size: int,
     token_cache_skew_seconds: float,
-    gateway_ca_file: pathlib.Path | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> AsyncIterator[AppContext]:
     """Create the process-lifetime HTTP client and token providers."""
-    ssl_context = build_gateway_ssl_context(gateway_ca_file)
     async with httpx.AsyncClient(
         base_url=api_url,
         timeout=httpx.Timeout(request_timeout_seconds),
         follow_redirects=False,
         trust_env=False,
-        verify=ssl_context,
+        verify=True,
         transport=transport,
     ) as client:
         service_tokens = ServiceTokenProvider(
@@ -357,21 +350,6 @@ async def create_app_context(
             service_tokens=service_tokens,
             delegated_tokens=delegated_tokens,
         )
-
-
-def build_gateway_ssl_context(
-    gateway_ca_file: pathlib.Path | None,
-) -> ssl.SSLContext:
-    """Build explicit system trust, optionally augmented by a private CA."""
-    try:
-        ssl_context = ssl.create_default_context()
-        if gateway_ca_file is not None:
-            ssl_context.load_verify_locations(cafile=gateway_ca_file)
-        return ssl_context
-    except (OSError, ssl.SSLError):
-        raise GatewayTLSConfigurationError(
-            'Gateway TLS trust configuration is invalid.') from None
-
 
 async def _request_token(
     client: httpx.AsyncClient,

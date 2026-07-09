@@ -723,11 +723,6 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             {'api_url': 'https://user@gateway.test', 'service_token_file': '/token'},
             {'api_url': 'https://gateway.test/api', 'service_token_file': '/token'},
             {'api_url': 'https://gateway.test', 'service_token_file': 'token'},
-            {
-                'api_url': 'https://gateway.test',
-                'service_token_file': '/token',
-                'gateway_ca_file': 'gateway-ca.pem',
-            },
         )
         for configuration in invalid_configurations:
             with self.subTest(configuration=configuration):
@@ -737,11 +732,10 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         valid_config = server.MCPServiceConfig(
             api_url='https://gateway.test',
             service_token_file='/token',
-            gateway_ca_file='/etc/osmo/gateway-ca.pem',
         )
         self.assertEqual(
-            valid_config.gateway_ca_file,
-            pathlib.Path('/etc/osmo/gateway-ca.pem'),
+            valid_config.service_token_file,
+            pathlib.Path('/token'),
         )
 
     def test_runtime_config_numeric_boundaries(self) -> None:
