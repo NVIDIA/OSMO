@@ -36,6 +36,7 @@ osmo_py_library(
         requirement("starlette"),
         requirement("uvicorn"),
         "//src/lib/utils:common",
+        "//src/lib/utils:login",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
     ],

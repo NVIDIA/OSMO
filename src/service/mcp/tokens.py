@@ -28,7 +28,7 @@ import time
 import httpx
 import pydantic
 
-from src.lib.utils import common
+from src.lib.utils import common, login
 from src.service.mcp import identity
 
 
@@ -384,7 +384,7 @@ async def _request_token(
 ) -> _TokenResponse:
     headers: dict[str, str] = {}
     if request_id is not None:
-        headers['x-request-id'] = request_id
+        headers[login.REQUEST_ID_HEADER] = request_id
     if authorization is not None:
         headers['Authorization'] = authorization
 

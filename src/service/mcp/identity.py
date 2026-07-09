@@ -23,11 +23,11 @@ from typing import Iterable
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from src.lib.utils import common
+from src.lib.utils import common, login
 
 
-_USER_HEADER = b'x-osmo-user'
-_REQUEST_ID_HEADER = b'x-request-id'
+_USER_HEADER = login.OSMO_USER_HEADER.encode('ascii')
+_REQUEST_ID_HEADER = login.REQUEST_ID_HEADER.encode('ascii')
 _FORBIDDEN_HEADERS = frozenset((
     b'authorization',
     b'cookie',
