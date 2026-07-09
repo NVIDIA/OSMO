@@ -18,10 +18,10 @@ SPDX-License-Identifier: Apache-2.0
 """
 import base64
 import json
+import time
 import unittest
 
 from jwcrypto import jwk, jws, jwt
-
 from src.utils import auth
 
 # Verify that the keys we use have a RSA modulus of at least 4096 bits
@@ -70,6 +70,26 @@ class TestAuth(unittest.TestCase):
             jwt1.validate(jwk.JWK.from_json(default_key_pair_2.get_current_key().public_key))
         with self.assertRaises(jws.InvalidJWSSignature):
             jwt2.validate(jwk.JWK.from_json(default_key_pair_1.get_current_key().public_key))
+
+    def test_create_idtoken_jwt_without_actor_is_unchanged(self):
+        """Existing callers do not gain delegation-only claims."""
+        authentication_config = auth.AuthenticationConfig.generate_default()
+        encoded_token = authentication_config.create_idtoken_jwt(
+            int(time.time()) + 60,
+            'test-user',
+            ['osmo-user'],
+        )
+        decoded_token = jwt.JWT(
+            jwt=encoded_token,
+            key=jwk.JWK.from_json(
+                authentication_config.get_current_key().public_key),
+        )
+        claims = json.loads(decoded_token.claims)
+
+        self.assertEqual(claims['unique_name'], 'test-user')
+        self.assertEqual(claims['roles'], ['osmo-user'])
+        self.assertNotIn('act', claims)
+        self.assertNotIn('osmo_token_name', claims)
 
 
 if __name__ == '__main__':

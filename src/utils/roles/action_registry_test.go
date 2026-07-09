@@ -126,6 +126,76 @@ func TestMCPActionAuthorization(t *testing.T) {
 	}
 }
 
+func TestAuthDelegateActionRegistry(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		method     string
+		wantAction string
+	}{
+		{
+			name:       "POST delegation endpoint",
+			path:       "/api/auth/jwt/delegated_access_token",
+			method:     "POST",
+			wantAction: ActionAuthDelegate,
+		},
+		{
+			name:       "POST delegation endpoint with query",
+			path:       "/api/auth/jwt/delegated_access_token?request_id=123",
+			method:     "POST",
+			wantAction: ActionAuthDelegate,
+		},
+		{
+			name:       "POST delegation endpoint with trailing slash",
+			path:       "/api/auth/jwt/delegated_access_token/",
+			method:     "POST",
+			wantAction: ActionAuthDelegate,
+		},
+		{
+			name:       "POST delegation endpoint with trailing slash and query",
+			path:       "/api/auth/jwt/delegated_access_token/?request_id=123",
+			method:     "POST",
+			wantAction: ActionAuthDelegate,
+		},
+		{
+			name:   "GET delegation endpoint",
+			path:   "/api/auth/jwt/delegated_access_token",
+			method: "GET",
+		},
+		{
+			name:   "PUT delegation endpoint",
+			path:   "/api/auth/jwt/delegated_access_token",
+			method: "PUT",
+		},
+		{
+			name:   "nested delegation path",
+			path:   "/api/auth/jwt/delegated_access_token/user",
+			method: "POST",
+		},
+		{
+			name:   "adjacent delegation path",
+			path:   "/api/auth/jwt/delegated_access_tokens",
+			method: "POST",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action, resource := ResolvePathToAction(
+				context.Background(), tt.path, tt.method, nil,
+			)
+			if action != tt.wantAction {
+				t.Errorf("ResolvePathToAction(%q, %q) action = %q, want %q",
+					tt.path, tt.method, action, tt.wantAction)
+			}
+			if resource != "" {
+				t.Errorf("ResolvePathToAction(%q, %q) resource = %q, want empty",
+					tt.path, tt.method, resource)
+			}
+		})
+	}
+}
+
 func TestMatchMethodRegistry(t *testing.T) {
 	tests := []struct {
 		name           string
