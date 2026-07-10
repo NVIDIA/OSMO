@@ -60,8 +60,11 @@ py_test(
     name = "test_helpers",
     srcs = ["test_helpers.py"],
     deps = [
+        "//src/lib/utils:common",
         "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:priority",
         "//src/service/core/workflow",
+        "//src/utils/connectors",
         "//src/utils/job",
     ],
 )
