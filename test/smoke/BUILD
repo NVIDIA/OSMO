@@ -33,6 +33,12 @@ oetf_smoke_test(
 )
 
 oetf_smoke_test(
+    name = "mcp-checks",
+    src = "mcp_checks.py",
+    tags = ["auth", "mcp"],
+)
+
+oetf_smoke_test(
     name = "websocket-checks",
     src = "websocket_checks.py",
     tags = ["websocket", "kind"],
