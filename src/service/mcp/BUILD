@@ -23,6 +23,16 @@ load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
+    name = "request_context",
+    srcs = ["request_context.py"],
+    deps = [
+        requirement("starlette"),
+        "//src/lib/utils:login",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "mcp_service_lib",
     srcs = ["server.py"],
     deps = [
@@ -30,6 +40,7 @@ osmo_py_library(
         requirement("pydantic"),
         requirement("starlette"),
         requirement("uvicorn"),
+        ":request_context",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
     ],

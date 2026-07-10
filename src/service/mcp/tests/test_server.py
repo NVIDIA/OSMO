@@ -23,18 +23,23 @@ from unittest import mock
 import httpx
 from mcp.types import LATEST_PROTOCOL_VERSION
 
-from src.service.mcp import server
+from src.lib.utils import login
+from src.service.mcp import request_context, server
 
 
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
     def test_create_application_uses_protocol_server(self) -> None:
-        application = object()
+        application = mock.Mock()
         protocol_server = mock.Mock()
         protocol_server.streamable_http_app.return_value = application
 
         self.assertIs(server.create_application(protocol_server), application)
         protocol_server.streamable_http_app.assert_called_once_with()
+        application.add_middleware.assert_called_once_with(
+            request_context.RequestContextMiddleware,
+            path='/mcp',
+        )
 
     async def test_health_endpoints(self) -> None:
         application = server.create_application(server.create_mcp_server())
@@ -63,6 +68,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         headers = {
             'Accept': 'application/json, text/event-stream',
             'Content-Type': 'application/json',
+            login.OSMO_AUTH_HEADER: 'Bearer test-token',
+            login.OSMO_USER_HEADER: 'test-user',
         }
         initialize_request = {
             'jsonrpc': '2.0',
@@ -108,6 +115,51 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(initialized_response.status_code, 202)
         self.assertEqual(list_tools_response.status_code, 200)
         self.assertEqual(list_tools_response.json()['result']['tools'], [])
+
+    async def test_request_context_reaches_fastmcp_tool(self) -> None:
+        mcp_server = server.create_mcp_server()
+
+        @mcp_server.tool()
+        async def inspect_request_context() -> dict[str, str | bool | None]:
+            credentials = request_context.get_request_credentials()
+            return {
+                'user_name': credentials.user_name,
+                'request_id': credentials.request_id,
+                'has_bearer': credentials.authorization_header.lower().startswith(
+                    'bearer '
+                ),
+            }
+
+        application = server.create_application(mcp_server)
+        headers = {
+            'Accept': 'application/json, text/event-stream',
+            'Content-Type': 'application/json',
+            login.OSMO_AUTH_HEADER: 'Bearer tool-test-secret',
+            login.OSMO_USER_HEADER: 'tool-user@example.com',
+            'x-request-id': 'tool-request-123',
+        }
+        request = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'tools/call',
+            'params': {
+                'name': 'inspect_request_context',
+                'arguments': {},
+            },
+        }
+
+        async with application.router.lifespan_context(application):
+            async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=application),
+                    base_url='http://mcp.test') as client:
+                response = await client.post('/mcp', headers=headers, json=request)
+
+        self.assertEqual(response.status_code, 200)
+        response_text = response.text
+        self.assertIn('tool-user@example.com', response_text)
+        self.assertIn('tool-request-123', response_text)
+        self.assertNotIn('tool-test-secret', response_text)
+        self.assertFalse(response.json()['result']['isError'])
 
 
 class MCPMainTest(unittest.TestCase):
