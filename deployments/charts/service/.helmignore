@@ -21,3 +21,5 @@
 .idea/
 *.tmproj
 .vscode/
+# Chart validation fixtures and scripts
+ci/
