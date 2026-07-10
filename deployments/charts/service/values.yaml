@@ -115,6 +115,9 @@ services:
   ##
   mcp:
     ## Enable the MCP workload and its gateway routes. Disabled by default.
+    ## When enabled, the chart always renders a NetworkPolicy that permits
+    ## MCP ingress only from Gateway Envoy pods. The cluster CNI must enforce
+    ## Kubernetes NetworkPolicy for this access boundary to be effective.
     ##
     enabled: false
 
@@ -136,7 +139,8 @@ services:
 
     ## Canonical RFC 9728 protected resource identifier. This must be the
     ## externally reachable HTTPS MCP URL ending in /mcp, for example:
-    ## https://osmo.example.com/mcp
+    ## https://osmo.example.com/mcp. Its origin is also used for authenticated
+    ## downstream OSMO API requests; no separate API URL is configured.
     ##
     resourceUrl: ""
 

@@ -33,14 +33,40 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "gateway",
+    srcs = ["gateway.py"],
+    deps = [
+        requirement("httpx"),
+        ":request_context",
+        "//src/lib/utils:login",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "tools",
+    srcs = ["tools.py"],
+    deps = [
+        requirement("mcp"),
+        requirement("pydantic"),
+        ":gateway",
+        ":request_context",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "mcp_service_lib",
     srcs = ["server.py"],
     deps = [
+        requirement("httpx"),
         requirement("mcp"),
         requirement("pydantic"),
         requirement("starlette"),
         requirement("uvicorn"),
+        ":gateway",
         ":request_context",
+        ":tools",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
     ],

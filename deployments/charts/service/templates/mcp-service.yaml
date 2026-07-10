@@ -77,6 +77,8 @@ spec:
           value: "0.0.0.0"
         - name: OSMO_MCP_PORT
           value: {{ $mcp.port | quote }}
+        - name: OSMO_API_URL
+          value: {{ trimSuffix "/mcp" $mcp.resourceUrl | quote }}
         {{- with $mcp.extraEnv }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -116,7 +118,6 @@ spec:
   selector:
     app: {{ $mcp.serviceName }}
 
-{{- if .Values.gateway.networkPolicies.enabled }}
 ---
 
 apiVersion: networking.k8s.io/v1
@@ -137,5 +138,4 @@ spec:
     ports:
     - port: {{ $mcp.port }}
       protocol: TCP
-{{- end }}
 {{- end }}
