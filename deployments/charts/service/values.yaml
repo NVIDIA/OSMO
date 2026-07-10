@@ -151,8 +151,8 @@ services:
     authorizationServers: []
 
     ## OAuth scopes requested by MCP clients. These values are advertised as
-    ## scopes_supported in RFC 9728 protected-resource metadata and should
-    ## include the delegated scope required to access this MCP resource.
+    ## scopes_supported in RFC 9728 protected-resource metadata. Include the
+    ## resource-qualified access scope required by the configured IdP.
     ##
     scopes: []
 

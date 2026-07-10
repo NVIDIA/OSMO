@@ -292,6 +292,7 @@ stateful
 stderr
 stdin
 stdout
+Streamable
 sts
 subfolder
 subnet

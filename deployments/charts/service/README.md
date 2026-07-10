@@ -371,6 +371,30 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.upstreams.logger.host` | osmo-logger K8s DNS name | `osmo-logger` |
 | `gateway.upstreams.logger.port` | osmo-logger port | `80` |
 
+#### Self-hosted MCP
+
+The optional MCP workload reuses Gateway authentication and OSMO RBAC. The
+Gateway forwards the bearer it validated for `/mcp`; MCP binds it to the active
+request and uses it only for fixed-origin calls back through the Gateway. MCP
+does not exchange, mint, refresh, cache, or persist tokens, and the chart does
+not create a service user or credential Secret.
+
+The downstream API origin is derived from `services.mcp.resourceUrl`, so there
+is no separate API URL value. Enabling MCP always renders a NetworkPolicy that
+permits ingress only from Gateway Envoy pods. The cluster CNI must enforce
+Kubernetes NetworkPolicy for that boundary to be effective.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.mcp.enabled` | Deploy the MCP workload and Gateway routes. | `false` |
+| `services.mcp.resourceUrl` | External HTTPS MCP resource URL ending in `/mcp`; its origin is reused for downstream OSMO API calls. | `""` |
+| `services.mcp.authorizationServers` | OAuth issuer identifiers advertised by protected-resource discovery. | `[]` |
+| `services.mcp.scopes` | OAuth scopes advertised to MCP clients. | `[]` |
+| `services.mcp.allowedOrigins` | Browser Origins allowed to call `/mcp`; native clients may omit Origin. | `[]` |
+| `services.mcp.imageName` | MCP image name. | `mcp-self-hosted` |
+| `services.mcp.imageTag` | MCP image tag override; empty uses `global.osmoImageTag`. | `""` |
+| `services.mcp.replicas` | MCP Deployment replica count. | `1` |
+
 #### Gateway OAuth2 Proxy
 
 When enabled, the gateway exposes `/signout` and redirects it to `/oauth2/sign_out`. If `services.service.auth.logout_endpoint` is set, the gateway includes it as OAuth2 Proxy's `rd` target so logout clears both the local session cookie and the IDP SSO session. The IDP logout host must be allowed by `gateway.oauth2Proxy.extraArgs`, for example with `--whitelist-domain=<idp-domain>`.
@@ -415,6 +439,11 @@ The chart does not create Redis credentials. Secret controllers such as External
 | `gateway.rateLimit.extraEnv` | Additional rate-limit container environment variables, including Secret references such as `REDIS_AUTH` | `[]` |
 
 #### Network Policies
+
+`gateway.networkPolicies.enabled` controls the general upstream policies in
+`gateway.networkPolicies.upstreams`. The MCP policy is separate and is always
+rendered when `services.mcp.enabled=true`, because direct MCP access would
+bypass the Gateway's `mcp:Access`, Origin, and rate-limit checks.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|

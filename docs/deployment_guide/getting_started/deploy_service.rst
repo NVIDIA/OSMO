@@ -688,6 +688,51 @@ Step 7: Post-deployment Configuration
    options apply only to this command; they do not modify ``config.toml`` or
    other MCPs. MCP Inspector uses a separate callback URI.
 
+6. Verify the combined MCP authentication and token-relay flow.
+
+   After the Gateway accepts and authorizes a bearer for ``/mcp``, MCP binds
+   that exact bearer to the current request and uses it only for calls back
+   through the same Gateway origin. The downstream Gateway validates it again,
+   and existing OSMO RBAC remains authoritative. No MCP service user, service
+   token Secret, token exchange, or token cache is required.
+
+   First confirm that the workload, Service, and Gateway-only ingress policy
+   exist and that the Deployment is ready:
+
+   .. code-block:: bash
+
+      $ kubectl get deployment/osmo-mcp service/osmo-mcp \
+          networkpolicy/osmo-mcp-allow-gateway-envoy -n <namespace>
+      $ kubectl rollout status deployment/osmo-mcp -n <namespace>
+
+   Run the focused OETF smoke test against an environment configured with MCP
+   and token authentication:
+
+   .. code-block:: bash
+
+      $ bazel run //test/oetf:run -- \
+          --env <configured-environment> \
+          --name test_profile_tool_relays_authenticated_identity
+
+   The test retrieves the caller's existing ``/api/profile/settings`` response,
+   calls the MCP ``get_current_profile`` tool, and requires the safe profile,
+   role, and pool fields to match exactly. It therefore exercises the Phase A
+   Gateway route and the Phase B downstream relay in one deployed test.
+
+   To verify the browser OAuth experience, start MCP Inspector:
+
+   .. code-block:: bash
+
+      $ npx @modelcontextprotocol/inspector
+
+   In the Inspector UI, choose Streamable HTTP, enter
+   ``https://osmo.example.com/mcp``, connect, and complete the browser login
+   using the callback registered for Inspector. List tools, select
+   ``get_current_profile``, and run it with no input. The result must contain
+   the signed-in username plus that user's OSMO roles and allowed pools, and it
+   must not contain a token. An expired or unauthorized bearer must fail rather
+   than falling back to a service identity.
+
 
 Troubleshooting
 ===============
