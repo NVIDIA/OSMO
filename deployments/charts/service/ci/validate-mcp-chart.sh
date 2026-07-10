@@ -135,4 +135,15 @@ expect_render_failure \
   'overlaps a protected MCP path' \
   --set 'gateway.envoy.extraSkipAuthPaths[0]=/mcp'
 
+expect_render_failure \
+  'query-prefixed MCP authentication bypass' \
+  'overlaps a protected MCP path' \
+  --set-string 'gateway.envoy.extraSkipAuthPaths[0]=/mcp?bypass=true'
+
+expect_render_failure \
+  'query-prefixed MCP metadata authentication bypass' \
+  'overlaps a protected MCP path' \
+  --set-string \
+  'gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-protected-resource/mcp?bypass=true'
+
 echo 'MCP chart validation passed'
