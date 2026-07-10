@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import asyncio
 from collections.abc import Callable, Coroutine
 import json
 import unittest
@@ -62,13 +63,18 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
     """Exercise the profile tool through the real Streamable HTTP protocol."""
 
     @staticmethod
-    def _headers() -> dict[str, str]:
+    def _headers(
+        *,
+        bearer_secret: str = _BEARER_SECRET,
+        user_name: str = 'alice@example.com',
+        request_id: str = 'profile-request-123',
+    ) -> dict[str, str]:
         return {
             'Accept': 'application/json, text/event-stream',
             'Content-Type': 'application/json',
-            login.OSMO_AUTH_HEADER: f'Bearer {_BEARER_SECRET}',
-            login.OSMO_USER_HEADER: 'alice@example.com',
-            'x-request-id': 'profile-request-123',
+            login.OSMO_AUTH_HEADER: f'Bearer {bearer_secret}',
+            login.OSMO_USER_HEADER: user_name,
+            'x-request-id': request_id,
         }
 
     @staticmethod
@@ -175,6 +181,73 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn(login.OSMO_USER_HEADER, upstream_request.headers)
         self.assertNotIn('cookie', upstream_request.headers)
+
+    async def test_concurrent_profile_calls_keep_requests_and_results_isolated(self) -> None:
+        captured_credentials: list[tuple[str, str | None]] = []
+        both_requests_arrived = asyncio.Event()
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            authorization = request.headers['authorization']
+            captured_credentials.append((
+                authorization,
+                request.headers.get('x-request-id'),
+            ))
+            if len(captured_credentials) == 2:
+                both_requests_arrived.set()
+            await asyncio.wait_for(both_requests_arrived.wait(), timeout=1)
+
+            caller = authorization.removeprefix('Bearer concurrent-').removesuffix(
+                '-secret'
+            )
+            result: dict[str, object] = dict(_PROFILE_RESULT)
+            result['profile'] = {
+                'username': f'{caller}@example.com',
+                'email_notification': False,
+                'slack_notification': False,
+                'pool': caller,
+            }
+            result['token'] = None
+            return httpx.Response(200, json=result)
+
+        application = server.create_runtime_application(
+            server.MCPServiceConfig(gateway_url='https://gateway.test'),
+            http_transport=httpx.MockTransport(handler),
+        )
+        async with application.router.lifespan_context(application):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application),
+                base_url='http://mcp.test',
+            ) as client:
+                responses = await asyncio.gather(*(
+                    client.post(
+                        '/mcp',
+                        headers=self._headers(
+                            bearer_secret=f'concurrent-{caller}-secret',
+                            user_name=f'{caller}@example.com',
+                            request_id=f'request-{caller}',
+                        ),
+                        json=self._tool_call(),
+                    )
+                    for caller in ('alice', 'bob')
+                ))
+
+        for caller, response in zip(('alice', 'bob'), responses, strict=True):
+            result = response.json()['result']
+            other_caller = 'bob' if caller == 'alice' else 'alice'
+            self.assertFalse(result['isError'])
+            self.assertEqual(
+                result['structuredContent']['profile']['username'],
+                f'{caller}@example.com',
+            )
+            self.assertNotIn(
+                f'concurrent-{other_caller}-secret',
+                response.text,
+            )
+
+        self.assertCountEqual(captured_credentials, [
+            ('Bearer concurrent-alice-secret', 'request-alice'),
+            ('Bearer concurrent-bob-secret', 'request-bob'),
+        ])
 
     async def test_get_profile_maps_api_statuses_without_exposing_body(self) -> None:
         cases = (
