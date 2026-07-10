@@ -10,37 +10,14 @@ INSERT INTO roles (name, description, policies, immutable) VALUES (
     TRUE
 );
 
--- Admin role: broad access with an explicit delegation denial.
+-- Admin role: full access
 INSERT INTO roles (name, description, policies, immutable) VALUES (
     'osmo-admin',
-    'Full admin access except restricted service actions',
+    'Full admin access',
     ARRAY[
-        '{"actions": ["*:*"], "resources": ["*"]}'::jsonb,
-        '{"effect": "Deny", "actions": ["auth:Delegate"], "resources": ["*"]}'::jsonb
+        '{"actions": ["*:*"], "resources": ["*"]}'::jsonb
     ],
     TRUE
-);
-
--- MCP delegation role: grants the policy evaluated by the authorization sidecar.
-INSERT INTO roles (name, description, policies, immutable, sync_mode) VALUES (
-    'osmo-mcp-delegator',
-    'Allows the MCP service to mint delegated access tokens',
-    ARRAY[
-        '{"actions": ["auth:Delegate"], "resources": ["*"]}'::jsonb
-    ],
-    TRUE,
-    'ignore'
-);
-
--- Custom role with the same grant, proving delegation is policy-based.
-INSERT INTO roles (name, description, policies, immutable, sync_mode) VALUES (
-    'custom-delegator',
-    'Custom delegation role',
-    ARRAY[
-        '{"actions": ["auth:Delegate"], "resources": ["*"]}'::jsonb
-    ],
-    FALSE,
-    'ignore'
 );
 
 -- User role: workflow read/create, pool read, app CRUD

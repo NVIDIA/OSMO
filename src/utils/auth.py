@@ -17,20 +17,19 @@ SPDX-License-Identifier: Apache-2.0
 """
 import hashlib
 import json
-import time
 from typing import Any, Dict, List
 import uuid
+import time
 
+import pydantic
 from jwcrypto import jwk  # type: ignore
 import jwt  # type: ignore
-import pydantic
 
 from src.lib.utils import common, osmo_errors
 
+
 # The default length of time a token should be valid for. Defaults to 20 days
 DEFAULT_LENGTH = 20 * 24 * 60 * 60
-
-MCP_DELEGATOR_ROLE = 'osmo-mcp-delegator'
 
 
 class AsymmetricKeyPair(pydantic.BaseModel):
@@ -135,9 +134,7 @@ class AuthenticationConfig(pydantic.BaseModel):
     def create_idtoken_jwt(self, expire_timestamp: int, username: str,
                            roles: List[str],
                            token_name: str | None = None,
-                           workflow_id: str | None = None,
-                           actor: str | None = None,
-                           issued_at: int | None = None) -> str:
+                           workflow_id: str | None = None) -> str:
         '''
         aud: Audience
         iss: Issuer
@@ -145,7 +142,7 @@ class AuthenticationConfig(pydantic.BaseModel):
         nbf: Not before
         exp: Expires
         '''
-        current_time = issued_at if issued_at is not None else int(time.time())
+        current_time = int(time.time())
         payload = {
             'iss': self.issuer,
             'aud': self.audience,
@@ -154,7 +151,7 @@ class AuthenticationConfig(pydantic.BaseModel):
             'exp': expire_timestamp
         }
 
-        template_payload: Dict[str, Any] = {
+        template_payload = {
             'unique_name': username,
             'roles': roles
         }
@@ -162,8 +159,6 @@ class AuthenticationConfig(pydantic.BaseModel):
             template_payload['osmo_token_name'] = token_name
         if workflow_id:
             template_payload['osmo_workflow_id'] = workflow_id
-        if actor:
-            template_payload['act'] = {'sub': actor}
 
         # Substitute the template
         payload.update(template_payload)
@@ -174,3 +169,4 @@ class AuthenticationConfig(pydantic.BaseModel):
 def hash_access_token(access_token: str) -> bytes:
     """ Hash the access token """
     return hashlib.sha256(access_token.encode()).digest()
+

@@ -654,13 +654,10 @@ services:
     ##
     roles:
       osmo-admin:
-        description: "Admin role — full access except restricted service actions"
+        description: "Admin role — full access to all resources"
         policies:
         - effect: Allow
           actions: ["*:*"]
-          resources: ["*"]
-        - effect: Deny
-          actions: ["auth:Delegate"]
           resources: ["*"]
         external_roles: [osmo-admin]
       osmo-user:
