@@ -64,7 +64,7 @@ class MCPServiceConfig(static_config.StaticConfig, ssl_config.SSLConfig):
 
 
 def create_mcp_server() -> FastMCP:
-    """Create the authentication-agnostic Phase A MCP server."""
+    """Create the stateless OSMO MCP protocol server."""
     server = protocol.OSMOFastMCP(
         name='OSMO MCP',
         host='0.0.0.0',

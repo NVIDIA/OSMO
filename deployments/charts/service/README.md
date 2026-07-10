@@ -69,6 +69,56 @@ See [../README.md](../README.md) for the full two-chart flow.
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
 
+### Self-hosted MCP service
+
+The optional MCP workload exposes predefined OSMO operations to compatible
+native or desktop MCP clients. The Gateway authenticates and authorizes every
+`/mcp` request, and the MCP service relays the unchanged caller bearer through
+the same Gateway for each mapped OSMO API request. The second Gateway pass
+applies the API-specific action; `mcp:Access` alone grants no API permission.
+
+`services.mcp.resourceUrl` is the single source of truth for the public MCP
+resource and the outbound Gateway origin. It must be an externally reachable
+HTTPS URL with the exact `/mcp` path. For example,
+`https://osmo.example.com/mcp` produces the fixed outbound origin
+`https://osmo.example.com`. The MCP pod must be able to resolve and reach that
+public origin, and operators must ensure its DNS and routing lead to this
+release's Gateway. Derivation removes a second independently configured
+destination, but it cannot validate external DNS.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.mcp.enabled` | Deploy the MCP workload and Gateway routes. | `false` |
+| `services.mcp.resourceUrl` | Canonical public HTTPS MCP URL ending in exact `/mcp`; also determines the fixed outbound Gateway origin. | `""` |
+| `services.mcp.authorizationServers` | OAuth/OIDC issuer identifiers advertised in protected-resource metadata. At least one is required when enabled. | `[]` |
+| `services.mcp.scopes` | OAuth scopes advertised in protected-resource metadata. | `[]` |
+| `services.mcp.allowedOrigins` | Exact browser origins permitted on `/mcp`; native clients normally omit `Origin`. | `[]` |
+| `services.mcp.requestTimeoutSeconds` | Total timeout for each MCP-initiated Gateway request, from 1 through 60 seconds. | `10` |
+| `services.mcp.replicas` | Number of stateless MCP replicas. | `1` |
+| `services.mcp.extraEnv` | Additional non-managed environment variables. It cannot override MCP host, port, Gateway origin, or request timeout. | `[]` |
+
+Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
+only this release's Gateway Envoy pods, even when
+`gateway.networkPolicies.enabled` is false for other upstreams. This is
+required because MCP trusts the identity context created by Gateway.
+NetworkPolicies require enforcement by the cluster CNI and are additive, so
+operators must also ensure no other policy grants MCP ingress. The pod does
+not mount a service-account token, and the chart creates no MCP credential
+Secret. Gateway-to-MCP TLS continues to use the shared `gateway.tls`
+configuration described below.
+
+The current `osmo_get_profile` tool maps only to
+`GET /api/profile/settings`, accepts no caller-selected route or headers, and
+requires `profile:Read`. MCP health probes do not call this API; a tool-level
+authentication, authorization, timeout, or dependency error does not by
+itself make the pod unhealthy.
+
+Run the enabled and disabled rendering checks locally with:
+
+```bash
+bash deployments/charts/service/ci/validate-mcp-chart.sh
+```
+
 ### Database Migration Settings (pgroll)
 
 | Parameter | Description | Default |

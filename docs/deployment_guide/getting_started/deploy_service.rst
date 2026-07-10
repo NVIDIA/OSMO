@@ -374,10 +374,12 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
 
       # Optional self-hosted MCP endpoint. Register the public OAuth client
       # separately with the identity provider and distribute its non-secret
-      # client ID to users out of band.
+      # client ID to users out of band. The fixed outbound Gateway origin is
+      # derived from resourceUrl; do not configure a second destination.
       mcp:
         enabled: false
         resourceUrl: https://<your-domain>/mcp
+        requestTimeoutSeconds: 10
         authorizationServers:
         - <idp-issuer-url>
         scopes:
@@ -688,6 +690,13 @@ Step 7: Post-deployment Configuration
    options apply only to this command; they do not modify ``config.toml`` or
    other MCPs. MCP Inspector uses a separate callback URI.
 
+   After login, invoke ``osmo_get_profile`` from the MCP client to verify the
+   complete request path. The request must pass through the Gateway a second
+   time and requires ``profile:Read`` in addition to ``mcp:Access``. An MCP
+   tool error reporting ``HTTP 401`` or ``HTTP 403`` indicates an
+   authentication or API-authorization failure, not a Kubernetes health-probe
+   failure.
+
 
 Troubleshooting
 ===============
@@ -706,6 +715,9 @@ Troubleshooting
    * **Database connection failures**: Verify the database is running and accessible
    * **Authentication configuration issues**: Verify the authentication configuration is correct
    * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
+   * **MCP tools time out or report a Gateway dependency failure**: Verify that ``services.mcp.resourceUrl`` is the public HTTPS URL ending in exact ``/mcp`` and that the MCP pod can resolve and reach its origin. The chart derives the outbound Gateway origin from this value.
+   * **MCP access succeeds but** ``osmo_get_profile`` **returns 403**: Grant the user an OSMO role containing ``profile:Read``. The initial ``mcp:Access`` check does not grant access to the underlying API.
+   * **Direct in-cluster MCP requests fail**: This is expected when the cluster CNI enforces NetworkPolicy and no additional policy grants MCP ingress. The chart's MCP policy adds an allow rule selecting the release's Gateway Envoy pods because MCP trusts Gateway-created identity.
    * **Repeated** ``Jwks async fetching ... failed`` **in the gateway logs**: the OSMO-issued-JWT provider's ``jwks_uri`` scheme must match ``gateway.tls.enabled`` (``https://`` when on, ``http://`` when off). Verify with the Envoy admin endpoint: ``cluster.osmo-service-jwks.ssl.handshake`` should grow alongside ``upstream_cx_total``; if it stays at ``0``, the upstream was not restarted to pick up its TLS config.
    * **Resource constraints**: Verify the resource limits are set correctly
    * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct
