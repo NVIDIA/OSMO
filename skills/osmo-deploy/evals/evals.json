@@ -1,0 +1,79 @@
+{
+  "skill_name": "osmo-deploy",
+  "evals": [
+    {
+      "id": "osmo-deploy-001",
+      "prompt": "I am planning an AKS deployment of OSMO, but I have not decided whether I need GPUs or where to put the cluster. What information do you need from me before deployment?",
+      "expected_output": "The agent activates osmo-deploy and asks for the required deployment inputs before proposing a command: whether GPUs are needed; GPU count, SKU, and region only when GPUs are needed; plus the Azure subscription and resource group.",
+      "assertions": [
+        "The agent reads and activates osmo-deploy.",
+        "The agent asks whether GPUs are needed before assuming a GPU configuration.",
+        "The agent makes GPU count, GPU type, and region conditional on the user needing GPUs.",
+        "The agent asks for the Azure subscription ID and resource group when they have not been supplied.",
+        "The agent does not invent deployment-specific values or run a deployment command before the missing inputs are collected.",
+        "The agent identifies the required OSMO 6.3.x version-pinning step rather than recommending an unpinned latest deployment."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-002",
+      "prompt": "Before I deploy a CPU-only OSMO instance to an existing Kubernetes cluster with the BYO provider and no storage backend, what version and command choices do I need to make?",
+      "expected_output": "The agent activates osmo-deploy and explains the safe BYO CPU-only deployment plan: discover published versions, pin matching 6.3.x chart, image, and CLI releases, then use the BYO, no-GPU, no-storage, non-interactive command shape after the required database and Redis variables are set.",
+      "assertions": [
+        "The agent reads and activates osmo-deploy.",
+        "The agent says to use --list-chart-versions before selecting pins.",
+        "The agent requires matching 6.3.x values for OSMO_CHART_VERSION, OSMO_IMAGE_TAG, and OSMO_CLI_REF.",
+        "The agent describes a command using --provider byo, --no-gpu, --storage-backend none, and --non-interactive.",
+        "The agent notes that BYO requires a reachable kubectl context and the PostgreSQL and Redis environment variables before deployment.",
+        "The agent does not recommend default/latest versions, a 6.2 release, osmo config update, or osmo credential set."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-003",
+      "prompt": "I am planning an Azure OSMO deployment with three H100 GPUs and Azure Blob storage, but I do not know which region has enough quota. What should the deployment plan do?",
+      "expected_output": "The agent activates osmo-deploy, maps H100 to the documented Azure SKU, discovers a quota-compatible region instead of guessing, configures the GPU pool and Azure Blob storage, and pins matching 6.3.x releases.",
+      "assertions": [
+        "The agent reads and activates osmo-deploy.",
+        "The agent maps H100 to Standard_NC40ads_H100_v5 for Azure.",
+        "The agent recommends --find-gpu-region Standard_NC40ads_H100_v5 3 when the region is unknown.",
+        "The agent explains that the selected result becomes TF_REGION and that the GPU node pool is configured for three GPUs.",
+        "The agent describes using --provider azure, --gpu-node-pool, and --storage-backend azure-blob.",
+        "The agent requires matching 6.3.x OSMO_CHART_VERSION, OSMO_IMAGE_TAG, and OSMO_CLI_REF pins.",
+        "The agent says to surface a no-quota result and expand TF_REGION_CANDIDATES rather than guessing a region."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-004",
+      "prompt": "We plan to run OSMO on an existing AKS cluster with Azure Blob and workload identity. We do not use static storage keys, and the platform team has not supplied the identity details yet. What must be ready before deployment?",
+      "expected_output": "The agent activates osmo-deploy, explains the caller-owned Azure Workload Identity prerequisites, and requests the UAMI client ID. It retains workload identity mode and does not substitute static credentials.",
+      "assertions": [
+        "The agent reads and activates osmo-deploy.",
+        "The agent identifies AKS OIDC and Workload Identity enablement, a UAMI, Storage Blob Data Contributor access, and a federated credential as prerequisites owned by the caller or platform team.",
+        "The agent asks for the workload identity client ID required for the Azure Blob deployment.",
+        "The agent keeps the intended deployment mode as --storage-backend azure-blob --auth-method workload-identity.",
+        "The agent does not suggest static storage keys, connection strings, or Kubernetes credential secrets as a fallback.",
+        "The agent does not claim workload identity will work until the cloud-side prerequisites are complete."
+      ],
+      "expected_skill": "osmo-deploy",
+      "expected_script": null
+    },
+    {
+      "id": "osmo-deploy-005",
+      "prompt": "My workflow train-123 has been pending for an hour. Can you inspect its events and logs?",
+      "expected_output": "This is live workflow troubleshooting, not an OSMO deployment request. The osmo-deploy skill does not trigger.",
+      "assertions": [
+        "The agent does not activate osmo-deploy.",
+        "The agent routes to osmo-user or appropriate live workflow troubleshooting tooling.",
+        "The agent does not suggest deploy-osmo-minimal.sh, Helm installation, Terraform, or cluster bootstrap commands.",
+        "The agent does not make deployment configuration changes."
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}
