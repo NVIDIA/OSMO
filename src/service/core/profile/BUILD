@@ -27,6 +27,7 @@ osmo_py_library(
     ],
     deps = [
         requirement("fastapi"),
+        "//src/lib/api:profile",
         "//src/utils/connectors",
         "//src/service/core/auth",
         "//src/service/core/workflow",

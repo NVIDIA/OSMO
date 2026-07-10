@@ -56,7 +56,9 @@ def get_notification_settings(
         token_identity = objects.TokenIdentity(
             name=token_name_header, expires_at=expires_at)
     return objects.ProfileResponse(
-        profile=connectors.UserProfile.fetch_from_db(postgres, user_name),
+        profile=objects.UserProfile.model_validate(
+            connectors.UserProfile.fetch_from_db(postgres, user_name).model_dump()
+        ),
         roles=roles,
         pools=pools,
         token=token_identity,
@@ -65,7 +67,7 @@ def get_notification_settings(
 
 @router.post('/api/profile/settings')
 def set_notification_settings(
-    preferences: connectors.UserProfile,
+    preferences: objects.UserProfile,
     set_default_backend: bool = False,
     user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
     fields = preferences.model_dump(exclude_none=True)
