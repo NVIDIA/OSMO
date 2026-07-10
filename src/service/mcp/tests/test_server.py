@@ -65,7 +65,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ready_response.status_code, 200)
         self.assertEqual(ready_response.json(), {'status': 'ok'})
 
-    async def test_initialize_and_empty_tool_catalog(self) -> None:
+    async def test_initialize_and_tool_catalog(self) -> None:
         mcp_server = server.create_mcp_server()
         self.assertTrue(mcp_server.settings.stateless_http)
         self.assertTrue(mcp_server.settings.json_response)
@@ -121,7 +121,10 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('mcp-session-id', initialize_response.headers)
         self.assertEqual(initialized_response.status_code, 202)
         self.assertEqual(list_tools_response.status_code, 200)
-        self.assertEqual(list_tools_response.json()['result']['tools'], [])
+        self.assertEqual(
+            [tool['name'] for tool in list_tools_response.json()['result']['tools']],
+            ['osmo_get_profile'],
+        )
 
     async def test_request_context_reaches_fastmcp_tool(self) -> None:
         mcp_server = server.create_mcp_server()

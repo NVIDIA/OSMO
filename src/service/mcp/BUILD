@@ -44,6 +44,30 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "profile_tools",
+    srcs = ["profile.py"],
+    deps = [
+        requirement("mcp"),
+        requirement("pydantic"),
+        requirement("starlette"),
+        ":gateway",
+        ":request_context",
+        "//src/lib/api:profile",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "protocol",
+    srcs = ["protocol.py"],
+    deps = [
+        requirement("mcp"),
+        requirement("pydantic"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "mcp_service_lib",
     srcs = ["server.py"],
     deps = [
@@ -53,6 +77,8 @@ osmo_py_library(
         requirement("starlette"),
         requirement("uvicorn"),
         ":gateway",
+        ":profile_tools",
+        ":protocol",
         ":request_context",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
