@@ -84,7 +84,9 @@ setting detects this rotation and triggers Envoy to reload.
 {{- end }}
 {{- end }}
 {{- range $skipPath := $skipAuthPaths }}
-{{- if or (hasPrefix $skipPath $mcpPath) (hasPrefix $skipPath $mcpMetadataPath) }}
+{{- $overlapsMcpPath := or (hasPrefix $skipPath $mcpPath) (hasPrefix $mcpPath $skipPath) }}
+{{- $overlapsMcpMetadataPath := or (hasPrefix $skipPath $mcpMetadataPath) (hasPrefix $mcpMetadataPath $skipPath) }}
+{{- if or $overlapsMcpPath $overlapsMcpMetadataPath }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
 {{- end }}
