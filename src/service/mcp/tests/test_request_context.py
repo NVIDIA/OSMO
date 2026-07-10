@@ -26,6 +26,9 @@ from starlette.types import Message
 from src.service.mcp import request_context
 
 
+_TEST_TIMEOUT_SECONDS = 1
+
+
 class RequestContextTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_valid_headers_establish_request_credentials(self) -> None:
@@ -187,7 +190,7 @@ class RequestContextTest(unittest.IsolatedAsyncioTestCase):
                 raise
 
         task = asyncio.create_task(cancelled_request())
-        await started.wait()
+        await asyncio.wait_for(started.wait(), _TEST_TIMEOUT_SECONDS)
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
@@ -205,7 +208,7 @@ class RequestContextTest(unittest.IsolatedAsyncioTestCase):
             started_count += 1
             if started_count == 2:
                 both_started.set()
-            await both_started.wait()
+            await asyncio.wait_for(both_started.wait(), _TEST_TIMEOUT_SECONDS)
             after = request_context.get_request_credentials()
             observations[before.user_name] = [before, after]
             await JSONResponse({'status': 'ok'})(scope, receive, send)
