@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,12 +15,3 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
-
-from src.lib.api.profile import ProfileResponse, TokenIdentity, UserProfile
-
-
-__all__ = [
-    'ProfileResponse',
-    'TokenIdentity',
-    'UserProfile',
-]
