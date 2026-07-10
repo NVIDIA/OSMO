@@ -36,7 +36,6 @@ OSMO_USER_HEADER = 'x-osmo-user'
 OSMO_USER_ROLES = 'x-osmo-roles'
 OSMO_TOKEN_NAME_HEADER = 'x-osmo-token-name'
 OSMO_ALLOWED_POOLS = 'x-osmo-allowed-pools'
-REQUEST_ID_HEADER = 'x-request-id'
 # Don't use a token that will expire within the next N seconds
 EXPIRE_WINDOW = 3
 TIMEOUT = 60
@@ -294,4 +293,5 @@ def parse_allowed_pools(allowed_pools_header: str | None) -> List[str]:
     if not allowed_pools_header:
         return []
     return [pool.strip() for pool in allowed_pools_header.split(',') if pool.strip()]
+
 

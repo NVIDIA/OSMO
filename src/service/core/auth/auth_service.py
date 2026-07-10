@@ -35,6 +35,7 @@ router = fastapi.APIRouter(
 )
 
 logger = logging.getLogger(__name__)
+REQUEST_ID_HEADER = 'x-request-id'
 
 
 # =============================================================================
@@ -167,7 +168,7 @@ def post_delegated_access_token(
     gateway_user: Optional[str] = fastapi.Header(
         default=None, alias=login.OSMO_USER_HEADER),
     request_id: Optional[str] = fastapi.Header(
-        default=None, alias=login.REQUEST_ID_HEADER),
+        default=None, alias=REQUEST_ID_HEADER),
 ) -> objects.DelegatedTokenResponse:
     """Mint a short-lived token that represents an OSMO user."""
     postgres = connectors.PostgresConnector.get_instance()

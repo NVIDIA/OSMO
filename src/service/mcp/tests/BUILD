@@ -25,17 +25,6 @@ osmo_py_test(
     deps = [
         requirement("httpx"),
         requirement("mcp"),
-        requirement("pydantic"),
-        "//src/service/mcp:server",
-    ],
-)
-
-osmo_py_test(
-    name = "test_tokens",
-    srcs = ["test_tokens.py"],
-    deps = [
-        requirement("httpx"),
-        "//src/service/mcp:identity",
-        "//src/service/mcp:tokens",
+        "//src/service/mcp:mcp_service_lib",
     ],
 )
