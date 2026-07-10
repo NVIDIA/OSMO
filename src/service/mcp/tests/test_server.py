@@ -22,14 +22,18 @@ from unittest import mock
 
 import httpx
 from mcp.types import LATEST_PROTOCOL_VERSION
+import pydantic
 
 from src.service.mcp import server
 
 
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
+    def setUp(self) -> None:
+        self.config = server.MCPServiceConfig(api_url='https://gateway.test')
+
     async def test_health_endpoints(self) -> None:
-        application = server.create_application()
+        application = server.create_application(self.config)
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=application),
@@ -45,13 +49,13 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ready_response.status_code, 200)
         self.assertEqual(ready_response.json(), {'status': 'ok'})
 
-    async def test_initialize_and_empty_tool_catalog(self) -> None:
-        mcp_server = server.create_mcp_server()
+    async def test_initialize_and_profile_tool_catalog(self) -> None:
+        application = server.create_application(self.config)
+        mcp_server = application.state.mcp_server
         self.assertTrue(mcp_server.settings.stateless_http)
         self.assertTrue(mcp_server.settings.json_response)
         self.assertEqual(mcp_server.settings.streamable_http_path, '/mcp')
 
-        application = server.create_application(mcp_server)
         headers = {
             'Accept': 'application/json, text/event-stream',
             'Authorization': 'Bearer test-token',
@@ -101,7 +105,24 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('mcp-session-id', initialize_response.headers)
         self.assertEqual(initialized_response.status_code, 202)
         self.assertEqual(list_tools_response.status_code, 200)
-        self.assertEqual(list_tools_response.json()['result']['tools'], [])
+        tools = list_tools_response.json()['result']['tools']
+        self.assertEqual([tool['name'] for tool in tools], ['get_current_profile'])
+        self.assertEqual(tools[0]['inputSchema']['properties'], {})
+        self.assertIs(tools[0]['inputSchema']['additionalProperties'], False)
+
+    def test_runtime_config_requires_an_https_gateway_origin(self) -> None:
+        invalid_urls = (
+            'http://gateway.test',
+            'https://user@gateway.test',
+            'https://gateway.test/api',
+            'https://gateway.test?query=value',
+            'https://gateway.test#fragment',
+        )
+
+        for api_url in invalid_urls:
+            with self.subTest(api_url=api_url):
+                with self.assertRaises(pydantic.ValidationError):
+                    server.MCPServiceConfig(api_url=api_url)
 
 
 class MCPMainTest(unittest.TestCase):
@@ -114,12 +135,16 @@ class MCPMainTest(unittest.TestCase):
                 return_value={'ssl_certfile': '/tmp/mcp-cert.pem'}),
         )
         uvicorn_config = object()
+        application = object()
         uvicorn_server = mock.Mock()
         uvicorn_server.serve = mock.AsyncMock()
 
         with (
             mock.patch.object(
                 server.MCPServiceConfig, 'load', return_value=config),
+            mock.patch.object(
+                server, 'create_application', return_value=application,
+            ) as application_factory,
             mock.patch.object(
                 server.uvicorn,
                 'Config',
@@ -134,7 +159,7 @@ class MCPMainTest(unittest.TestCase):
             server.main()
 
         config_factory.assert_called_once_with(
-            server.app,
+            application,
             host='127.0.0.1',
             port=9000,
             log_config=None,
@@ -143,6 +168,7 @@ class MCPMainTest(unittest.TestCase):
         server_factory.assert_called_once_with(config=uvicorn_config)
         uvicorn_server.serve.assert_awaited_once_with()
         config.uvicorn_ssl_kwargs.assert_called_once_with()
+        application_factory.assert_called_once_with(config)
 
     def test_main_handles_keyboard_interrupt(self) -> None:
         config = types.SimpleNamespace(
@@ -156,6 +182,7 @@ class MCPMainTest(unittest.TestCase):
         with (
             mock.patch.object(
                 server.MCPServiceConfig, 'load', return_value=config),
+            mock.patch.object(server, 'create_application', return_value=object()),
             mock.patch.object(server.uvicorn, 'Config', return_value=object()),
             mock.patch.object(
                 server.uvicorn,

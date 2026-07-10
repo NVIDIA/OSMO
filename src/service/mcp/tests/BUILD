@@ -20,6 +20,17 @@ load("//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
+    name = "test_gateway",
+    srcs = ["test_gateway.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("starlette"),
+        "//src/service/mcp:gateway",
+        "//src/service/mcp:request_context",
+    ],
+)
+
+osmo_py_test(
     name = "test_request_context",
     srcs = ["test_request_context.py"],
     deps = [
@@ -35,6 +46,16 @@ osmo_py_test(
     deps = [
         requirement("httpx"),
         requirement("mcp"),
+        requirement("pydantic"),
+        "//src/service/mcp:mcp_service_lib",
+    ],
+)
+
+osmo_py_test(
+    name = "test_tools",
+    srcs = ["test_tools.py"],
+    deps = [
+        requirement("httpx"),
         "//src/service/mcp:mcp_service_lib",
     ],
 )
