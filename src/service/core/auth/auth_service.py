@@ -16,25 +16,22 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import datetime
-import json
-import logging
 import re
 import secrets
 import time
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import fastapi
-import jwt  # type: ignore
-from src.lib.utils import common, login, osmo_errors
+
+from src.lib.utils import common, osmo_errors
+from src.utils.job import task as task_lib
 from src.service.core.auth import objects
 from src.utils import auth, connectors
-from src.utils.job import task as task_lib
+
 
 router = fastapi.APIRouter(
     tags = ['Auth API']
 )
-
-logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -53,201 +50,6 @@ def get_keys():
     postgres = connectors.PostgresConnector.get_instance()
     service_config = postgres.get_service_configs()
     return service_config.service_auth.get_keyset()
-
-
-def _authentication_error() -> fastapi.HTTPException:
-    return fastapi.HTTPException(
-        status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
-        detail='A valid service bearer token is required',
-        headers={'WWW-Authenticate': 'Bearer'},
-    )
-
-
-def _extract_bearer_token(authorization: Optional[str]) -> str:
-    if authorization is None:
-        raise _authentication_error()
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != 'bearer' or not parts[1]:
-        raise _authentication_error()
-    return parts[1]
-
-
-def _decode_service_jwt(
-    encoded_token: str,
-    service_auth: auth.AuthenticationConfig,
-) -> Dict[str, Any]:
-    """Verify a JWT against every currently configured Core signing key."""
-    for key_pair in service_auth.keys.values():
-        try:
-            public_key = jwt.PyJWK.from_json(key_pair.public_key).key
-            return jwt.decode(
-                encoded_token,
-                key=public_key,
-                algorithms=['RS256'],
-                audience=service_auth.audience,
-                issuer=service_auth.issuer,
-                options={'require': ['aud', 'exp', 'iat', 'iss', 'nbf']},
-            )
-        except jwt.PyJWTError:
-            continue
-    raise _authentication_error()
-
-
-def _get_service_jwt_expiration(claims: Dict[str, Any]) -> int:
-    """Return the integer expiry required from OSMO-issued service JWTs."""
-    expires_at = claims.get('exp')
-    if not isinstance(expires_at, int) or isinstance(expires_at, bool):
-        raise _authentication_error()
-    return expires_at
-
-
-def _validate_delegator_claims(
-    claims: Dict[str, Any],
-    gateway_user: Optional[str],
-) -> str:
-    """Validate caller integrity after Gateway policy authorization."""
-    actor = claims.get('unique_name')
-    if not isinstance(actor, str) or not actor.strip():
-        raise fastapi.HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail='The authenticated principal is invalid',
-        )
-
-    if 'act' in claims:
-        raise fastapi.HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail='A delegated token cannot mint another delegated token',
-        )
-
-    if gateway_user != actor:
-        raise fastapi.HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail='Gateway and bearer token identities do not match',
-        )
-
-    return actor
-
-
-def _sanitize_request_id(request_id: Optional[str]) -> Optional[str]:
-    if request_id is None or not common.is_valid_request_id(request_id):
-        return None
-    return request_id
-
-
-def _log_delegation(
-    actor: str,
-    subject: str,
-    request_id: Optional[str],
-    expires_at: Optional[int],
-    outcome: str,
-) -> None:
-    audit_fields = {
-        'actor': actor,
-        'subject': subject,
-        'request_id': request_id,
-        'expires_at': expires_at,
-        'outcome': outcome,
-    }
-    logger.info(
-        'Delegated access token request %s',
-        json.dumps(audit_fields, separators=(',', ':')),
-        extra=audit_fields,
-    )
-
-
-@router.post(
-    '/api/auth/jwt/delegated_access_token',
-    response_model=objects.DelegatedTokenResponse,
-    include_in_schema=False,
-)
-def post_delegated_access_token(
-    delegation_request: objects.DelegatedTokenRequest,
-    authorization: Optional[str] = fastapi.Header(
-        default=None, alias=login.OSMO_AUTH_HEADER),
-    gateway_user: Optional[str] = fastapi.Header(
-        default=None, alias=login.OSMO_USER_HEADER),
-    request_id: Optional[str] = fastapi.Header(
-        default=None, alias=login.REQUEST_ID_HEADER),
-) -> objects.DelegatedTokenResponse:
-    """Mint a short-lived token that represents an OSMO user."""
-    postgres = connectors.PostgresConnector.get_instance()
-    service_auth = postgres.get_service_configs().service_auth
-    actor = 'unknown'
-    request_id = _sanitize_request_id(request_id)
-
-    try:
-        encoded_token = _extract_bearer_token(authorization)
-        claims = _decode_service_jwt(encoded_token, service_auth)
-        candidate_actor = claims.get('unique_name')
-        if isinstance(candidate_actor, str) and candidate_actor.strip():
-            actor = candidate_actor
-        parent_expires_at = _get_service_jwt_expiration(claims)
-        actor = _validate_delegator_claims(claims, gateway_user)
-    except fastapi.HTTPException as error:
-        outcome = 'unauthorized' if error.status_code == 401 else 'forbidden'
-        _log_delegation(
-            actor, delegation_request.subject_user, request_id, None, outcome)
-        raise
-
-    fetch_cmd = '''
-        SELECT
-            u.id,
-            COALESCE(
-                ARRAY_AGG(ur.role_name ORDER BY ur.role_name)
-                FILTER (WHERE ur.role_name IS NOT NULL),
-                ARRAY[]::text[]
-            ) AS roles
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id
-        WHERE u.id = %s
-        GROUP BY u.id;
-    '''
-    rows = postgres.execute_fetch_command(
-        fetch_cmd, (delegation_request.subject_user,), True)
-    if not rows:
-        _log_delegation(
-            actor, delegation_request.subject_user,
-            request_id, None, 'subject_not_found')
-        raise fastapi.HTTPException(
-            status_code=fastapi.status.HTTP_404_NOT_FOUND,
-            detail=f'User {delegation_request.subject_user} not found',
-        )
-
-    roles = rows[0]['roles']
-    if not roles:
-        _log_delegation(
-            actor, delegation_request.subject_user,
-            request_id, None, 'subject_has_no_roles')
-        raise fastapi.HTTPException(
-            status_code=fastapi.status.HTTP_403_FORBIDDEN,
-            detail=f'User {delegation_request.subject_user} has no roles to delegate',
-        )
-
-    issued_at = int(time.time())
-    if parent_expires_at <= issued_at:
-        _log_delegation(
-            actor, delegation_request.subject_user,
-            request_id, None, 'unauthorized')
-        raise _authentication_error()
-    expires_at = min(
-        issued_at + common.ACCESS_TOKEN_TIMEOUT,
-        parent_expires_at,
-    )
-    delegated_token = service_auth.create_idtoken_jwt(
-        expires_at,
-        delegation_request.subject_user,
-        roles=roles,
-        token_name=auth.DELEGATED_TOKEN_NAME,
-        actor=actor,
-        issued_at=issued_at,
-    )
-    _log_delegation(
-        actor, delegation_request.subject_user,
-        request_id, expires_at, 'success')
-    return objects.DelegatedTokenResponse(
-        token=delegated_token,
-        expires_at=expires_at,
-    )
 
 
 @router.get('/api/auth/jwt/refresh_token', response_model=objects.JwtTokenResponse,

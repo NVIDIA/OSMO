@@ -707,18 +707,9 @@ func newFileBackedTestServer(t *testing.T, configPath string) *AuthzServer {
 }
 
 func makeFileBackedCheckRequest(user, path, method, roleNames string) *envoy_service_auth_v3.CheckRequest {
-	return makeFileBackedCheckRequestWithToken(user, path, method, roleNames, "")
-}
-
-func makeFileBackedCheckRequestWithToken(
-	user, path, method, roleNames, tokenName string,
-) *envoy_service_auth_v3.CheckRequest {
 	headers := map[string]string{
 		"x-osmo-user":  user,
 		"x-osmo-roles": roleNames,
-	}
-	if tokenName != "" {
-		headers["x-osmo-token-name"] = tokenName
 	}
 	return &envoy_service_auth_v3.CheckRequest{
 		Attributes: &envoy_service_auth_v3.AttributeContext{
@@ -738,28 +729,11 @@ func makeFileBackedCheckRequestWithToken(
 
 const testConfigYAML = `
 roles:
-  osmo-mcp-delegator:
-    description: "MCP delegator"
-    policies:
-    - effect: Allow
-      actions: ["auth:Delegate"]
-      resources: ["*"]
-    external_roles: []
-  custom-delegator:
-    description: "Custom delegator"
-    policies:
-    - effect: Allow
-      actions: ["auth:Delegate"]
-      resources: ["*"]
-    external_roles: []
   osmo-admin:
     description: "Admin"
     policies:
     - effect: Allow
       actions: ["*:*"]
-      resources: ["*"]
-    - effect: Deny
-      actions: ["auth:Delegate"]
       resources: ["*"]
     external_roles: [admin-group]
   osmo-user:
@@ -800,116 +774,6 @@ func TestFileBackedCheck_AdminAccess(t *testing.T) {
 	}
 	if resp.GetDeniedResponse() != nil {
 		t.Errorf("expected allow, got deny")
-	}
-}
-
-func TestFileBackedCheck_DelegationPolicy(t *testing.T) {
-	path := writeTestConfigFile(t, testConfigYAML)
-	server := newFileBackedTestServer(t, path)
-
-	tests := []struct {
-		name      string
-		user      string
-		path      string
-		roleNames string
-		tokenName string
-		wantAllow bool
-	}{
-		{
-			name:      "conventional service account with delegator role",
-			user:      "svc-mcp",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "osmo-mcp-delegator",
-			tokenName: "mcp-service-token",
-			wantAllow: true,
-		},
-		{
-			name:      "different principal with delegator role",
-			user:      "another-service",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "osmo-mcp-delegator",
-			tokenName: "service-token",
-			wantAllow: true,
-		},
-		{
-			name:      "custom role granting delegation",
-			user:      "custom-service",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "custom-delegator",
-			wantAllow: true,
-		},
-		{
-			name:      "delegator role with query",
-			user:      "another-service",
-			path:      "/api/auth/jwt/delegated_access_token?request_id=123",
-			roleNames: "osmo-mcp-delegator",
-			wantAllow: true,
-		},
-		{
-			name:      "delegator role with trailing slash and query",
-			user:      "another-service",
-			path:      "/api/auth/jwt/delegated_access_token/?request_id=123",
-			roleNames: "  osmo-mcp-delegator  ",
-			wantAllow: true,
-		},
-		{
-			name:      "ordinary role without delegation policy",
-			user:      "user@test.com",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "osmo-user",
-			wantAllow: false,
-		},
-		{
-			name:      "unknown role",
-			user:      "user@test.com",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "unknown-role",
-			wantAllow: false,
-		},
-		{
-			name:      "admin explicit deny overrides wildcard allow",
-			user:      "admin@test.com",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "osmo-admin",
-			tokenName: "admin-token",
-			wantAllow: false,
-		},
-		{
-			name:      "delegator with unrelated extra role",
-			user:      "another-service",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "osmo-mcp-delegator,osmo-user",
-			wantAllow: true,
-		},
-		{
-			name:      "duplicate delegator role",
-			user:      "another-service",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "osmo-mcp-delegator,osmo-mcp-delegator",
-			wantAllow: true,
-		},
-		{
-			name:      "explicit deny in another role overrides delegation allow",
-			user:      "another-service",
-			path:      "/api/auth/jwt/delegated_access_token",
-			roleNames: "osmo-mcp-delegator,osmo-admin",
-			wantAllow: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := makeFileBackedCheckRequestWithToken(
-				tt.user, tt.path, "POST", tt.roleNames, tt.tokenName,
-			)
-			resp, err := server.Check(context.Background(), req)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if gotAllow := resp.GetDeniedResponse() == nil; gotAllow != tt.wantAllow {
-				t.Errorf("Check() allow = %v, want %v", gotAllow, tt.wantAllow)
-			}
-		})
 	}
 }
 

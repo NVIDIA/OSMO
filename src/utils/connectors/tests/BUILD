@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_py_test")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 py_test(
@@ -57,15 +57,4 @@ py_test(
         "exclusive"
     ],
     size = "small"
-)
-
-osmo_py_test(
-    name = "test_default_roles_integration",
-    srcs = ["test_default_roles_integration.py"],
-    deps = [
-        "//src/tests/common",
-        "//src/utils/connectors",
-    ],
-    size = "large",
-    tags = ["requires-network"],
 )

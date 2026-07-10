@@ -21,6 +21,7 @@ import re
 from typing import List, Optional
 
 import pydantic
+
 from src.lib.utils import common, osmo_errors
 from src.utils import auth, connectors
 
@@ -246,28 +247,6 @@ class UserWithRoles(User):
 class TokenRequest(pydantic.BaseModel):
     """Request body containing a token for JWT generation."""
     token: str
-
-
-class DelegatedTokenRequest(pydantic.BaseModel):
-    """Request body for minting a delegated access token."""
-    model_config = pydantic.ConfigDict(extra='forbid', strict=True)
-
-    subject_user: str
-
-    @pydantic.field_validator('subject_user')
-    @classmethod
-    def validate_subject_user(cls, subject_user: str) -> str:
-        if not common.is_valid_authenticated_user_id(subject_user):
-            raise ValueError('subject_user is not a valid authenticated user ID')
-        return subject_user
-
-
-class DelegatedTokenResponse(pydantic.BaseModel):
-    """A delegated access token and its absolute expiration time."""
-    model_config = pydantic.ConfigDict(extra='forbid', strict=True)
-
-    token: str
-    expires_at: int
 
 
 class CreateUserRequest(pydantic.BaseModel):
