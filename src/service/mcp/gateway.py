@@ -256,5 +256,9 @@ def _contains_relayed_credentials(
     _, _, bearer_token = authorization_header.partition(b' ')
     return (
         authorization_header in response_body
-        or (len(bearer_token) >= 16 and bearer_token in response_body)
+        or (
+            len(bearer_token)
+            >= request_context.MIN_BEARER_TOKEN_SUBSTRING_BYTES
+            and bearer_token in response_body
+        )
     )

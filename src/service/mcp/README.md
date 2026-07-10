@@ -48,9 +48,9 @@ The relay boundary has these invariants:
 - Tools select a fixed HTTP method and `/api/...` path. Unknown tool arguments,
   alternate URLs, queries, fragments, redirects, and path traversal fail
   closed.
-- Only the unchanged authorization value and optional request ID cross the
-  second Gateway pass. MCP does not copy `x-osmo-*`, cookies, proxy headers, or
-  inbound request headers.
+- The unchanged authorization value and optional request ID are the only
+  caller-derived headers forwarded on the second Gateway pass. MCP does not
+  copy `x-osmo-*`, cookies, proxy headers, or other inbound request headers.
 - MCP does not exchange, refresh, modify, cache, persist, log, or return the
   bearer token. It clears request context and upstream cookies on completion,
   failure, timeout, or cancellation.

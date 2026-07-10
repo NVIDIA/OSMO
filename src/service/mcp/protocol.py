@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -24,6 +24,8 @@ from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ContentBlock
 from mcp.types import Tool as MCPTool
 import pydantic
+
+from src.service.mcp import request_context
 
 
 class OSMOFastMCP(FastMCP):
@@ -53,8 +55,77 @@ class OSMOFastMCP(FastMCP):
             raise ToolError('Invalid MCP tool arguments.')
 
         try:
-            return await super().call_tool(name, arguments)
-        except ToolError as error:
-            if isinstance(error.__cause__, pydantic.ValidationError):
-                raise ToolError('MCP tool validation failed.') from None
-            raise
+            with request_context.track_request_task() as credentials:
+                try:
+                    result = await super().call_tool(name, arguments)
+                except ToolError as error:
+                    if isinstance(error.__cause__, pydantic.ValidationError):
+                        raise ToolError('MCP tool validation failed.') from None
+                    if _contains_relayed_credentials(str(error), credentials):
+                        raise ToolError('MCP tool failed.') from None
+                    raise
+
+                if _contains_relayed_credentials(result, credentials):
+                    raise ToolError('MCP tool returned an invalid response.')
+                return result
+        except request_context.RequestContextUnavailable:
+            raise ToolError(
+                'MCP request authentication context is unavailable.') from None
+
+
+def _contains_relayed_credentials(
+    value: object,
+    credentials: request_context.RequestCredentials,
+) -> bool:
+    authorization_header = credentials.authorization_header
+    _, _, bearer_token = authorization_header.partition(' ')
+    sensitive_values = (authorization_header, bearer_token)
+    return _contains_sensitive_value(value, sensitive_values)
+
+
+def _contains_sensitive_value(
+    value: object,
+    sensitive_values: tuple[str, str],
+) -> bool:
+    if isinstance(value, str):
+        authorization_header, bearer_token = sensitive_values
+        return (
+            authorization_header in value
+            or (
+                bearer_token in value
+                if len(bearer_token)
+                >= request_context.MIN_BEARER_TOKEN_SUBSTRING_BYTES
+                else value == bearer_token
+            )
+        )
+    if isinstance(value, bytes):
+        authorization_header_bytes, bearer_token_bytes = (
+            sensitive_value.encode('ascii')
+            for sensitive_value in sensitive_values
+        )
+        return (
+            authorization_header_bytes in value
+            or (
+                bearer_token_bytes in value
+                if len(bearer_token_bytes)
+                >= request_context.MIN_BEARER_TOKEN_SUBSTRING_BYTES
+                else value == bearer_token_bytes
+            )
+        )
+    if isinstance(value, pydantic.BaseModel):
+        return _contains_sensitive_value(
+            value.model_dump(mode='json', by_alias=True),
+            sensitive_values,
+        )
+    if isinstance(value, Mapping):
+        return any(
+            _contains_sensitive_value(item, sensitive_values)
+            for pair in value.items()
+            for item in pair
+        )
+    if isinstance(value, Sequence):
+        return any(
+            _contains_sensitive_value(item, sensitive_values)
+            for item in value
+        )
+    return False

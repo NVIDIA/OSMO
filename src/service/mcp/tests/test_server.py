@@ -26,6 +26,7 @@ import unittest
 from unittest import mock
 
 import httpx
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import LATEST_PROTOCOL_VERSION
 import pydantic
 from starlette.applications import Starlette
@@ -170,6 +171,46 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('tool-request-123', response_text)
         self.assertNotIn('tool-test-secret', response_text)
         self.assertFalse(response.json()['result']['isError'])
+
+    async def test_tool_error_cannot_reflect_request_credentials(self) -> None:
+        mcp_server = server.create_mcp_server()
+
+        @mcp_server.tool()
+        async def reflect_tool_error() -> None:
+            credentials = request_context.get_request_credentials()
+            raise ToolError(
+                f'unsafe reflected error: {credentials.authorization_header}')
+
+        application = server.create_application(mcp_server)
+        bearer_secret = 'tool-error-bearer-secret'
+        async with application.router.lifespan_context(application):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application),
+                base_url='http://mcp.test',
+            ) as client:
+                response = await client.post(
+                    '/mcp',
+                    headers={
+                        'Accept': 'application/json, text/event-stream',
+                        'Content-Type': 'application/json',
+                        login.OSMO_AUTH_HEADER: f'Bearer {bearer_secret}',
+                        login.OSMO_USER_HEADER: 'tool-user@example.com',
+                    },
+                    json={
+                        'jsonrpc': '2.0',
+                        'id': 1,
+                        'method': 'tools/call',
+                        'params': {
+                            'name': 'reflect_tool_error',
+                            'arguments': {},
+                        },
+                    },
+                )
+
+        result = response.json()['result']
+        self.assertTrue(result['isError'])
+        self.assertIn('MCP tool failed', response.text)
+        self.assertNotIn(bearer_secret, response.text)
 
     def test_runtime_config_requires_https_gateway_origin(self) -> None:
         config = server.MCPServiceConfig(
