@@ -69,8 +69,13 @@ def create_mcp_server() -> FastMCP:
     return server
 
 
+def create_application(protocol_server: FastMCP) -> Starlette:
+    """Create the ASGI application for an MCP protocol server."""
+    return protocol_server.streamable_http_app()
+
+
 mcp_server = create_mcp_server()
-app: Starlette = mcp_server.streamable_http_app()
+app: Starlette = create_application(mcp_server)
 
 
 def main() -> None:

@@ -28,8 +28,16 @@ from src.service.mcp import server
 
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
+    def test_create_application_uses_protocol_server(self) -> None:
+        application = object()
+        protocol_server = mock.Mock()
+        protocol_server.streamable_http_app.return_value = application
+
+        self.assertIs(server.create_application(protocol_server), application)
+        protocol_server.streamable_http_app.assert_called_once_with()
+
     async def test_health_endpoints(self) -> None:
-        application = server.create_mcp_server().streamable_http_app()
+        application = server.create_application(server.create_mcp_server())
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=application),
@@ -51,7 +59,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(mcp_server.settings.json_response)
         self.assertEqual(mcp_server.settings.streamable_http_path, '/mcp')
 
-        application = mcp_server.streamable_http_app()
+        application = server.create_application(mcp_server)
         headers = {
             'Accept': 'application/json, text/event-stream',
             'Content-Type': 'application/json',
