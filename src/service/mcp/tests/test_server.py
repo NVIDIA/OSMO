@@ -16,15 +16,22 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from collections.abc import AsyncIterator
+import contextlib
+import io
+import os
+import sys
 import types
 import unittest
 from unittest import mock
 
 import httpx
 from mcp.types import LATEST_PROTOCOL_VERSION
+import pydantic
+from starlette.applications import Starlette
 
 from src.lib.utils import login
-from src.service.mcp import request_context, server
+from src.service.mcp import gateway, request_context, server
 
 
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
@@ -161,6 +168,143 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('tool-test-secret', response_text)
         self.assertFalse(response.json()['result']['isError'])
 
+    def test_runtime_config_requires_https_gateway_origin(self) -> None:
+        config = server.MCPServiceConfig(
+            gateway_url='https://gateway.test:8443',
+        )
+        self.assertEqual(str(config.gateway_url), 'https://gateway.test:8443/')
+
+        invalid_urls = (
+            'http://gateway.test',
+            'gateway.test',
+            'https://user:password@gateway.test',
+            'https://gateway.test/api',
+            'https://gateway.test?query=value',
+            'https://gateway.test#fragment',
+        )
+        for invalid_url in invalid_urls:
+            with self.subTest(url=invalid_url):
+                with self.assertRaises(pydantic.ValidationError):
+                    server.MCPServiceConfig(gateway_url=invalid_url)
+
+        for invalid_timeout in (0, -1, 61):
+            with self.subTest(timeout=invalid_timeout):
+                with self.assertRaises(pydantic.ValidationError):
+                    server.MCPServiceConfig(
+                        gateway_url='https://gateway.test',
+                        request_timeout_seconds=invalid_timeout,
+                    )
+
+    def test_runtime_config_load_does_not_echo_invalid_url_credentials(self) -> None:
+        secret = 'startup-url-password-secret'
+        output = io.StringIO()
+        try:
+            server.MCPServiceConfig._instance = None  # pylint: disable=protected-access
+            with (
+                mock.patch.object(sys, 'argv', ['mcp']),
+                mock.patch.dict(
+                    os.environ,
+                    {'OSMO_GATEWAY_URL': f'https://user:{secret}@gateway.test'},
+                    clear=True,
+                ),
+                contextlib.redirect_stdout(output),
+                self.assertRaises(SystemExit),
+            ):
+                server.MCPServiceConfig.load()
+        finally:
+            server.MCPServiceConfig._instance = None  # pylint: disable=protected-access
+
+        self.assertNotIn(secret, output.getvalue())
+        self.assertNotIn('user:', output.getvalue())
+
+    async def test_runtime_application_owns_gateway_context(self) -> None:
+        config = server.MCPServiceConfig(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=7,
+        )
+        app_context = gateway.AppContext(gateway=mock.Mock())
+        lifecycle_events: list[str] = []
+
+        @contextlib.asynccontextmanager
+        async def create_app_context(
+            **kwargs: object,
+        ) -> AsyncIterator[gateway.AppContext]:
+            self.assertEqual(kwargs, {
+                'gateway_url': 'https://gateway.test/',
+                'request_timeout_seconds': 7,
+                'transport': None,
+            })
+            lifecycle_events.append('entered')
+            try:
+                yield app_context
+            finally:
+                lifecycle_events.append('exited')
+
+        with mock.patch.object(
+                gateway, 'create_app_context', new=create_app_context):
+            application = server.create_runtime_application(config)
+            async with application.router.lifespan_context(application):
+                self.assertIs(application.state.mcp_app_context, app_context)
+                self.assertEqual(lifecycle_events, ['entered'])
+
+        self.assertFalse(hasattr(application.state, 'mcp_app_context'))
+        self.assertEqual(lifecycle_events, ['entered', 'exited'])
+
+    async def test_runtime_application_cleans_up_in_dependency_order(self) -> None:
+        config = server.MCPServiceConfig(gateway_url='https://gateway.test')
+        app_context = gateway.AppContext(gateway=mock.Mock())
+        lifecycle_events: list[str] = []
+
+        @contextlib.asynccontextmanager
+        async def protocol_lifespan(
+            application: Starlette,
+        ) -> AsyncIterator[None]:
+            self.assertIs(application.state.mcp_app_context, app_context)
+            lifecycle_events.append('protocol-entered')
+            try:
+                yield
+            finally:
+                self.assertIs(application.state.mcp_app_context, app_context)
+                lifecycle_events.append('protocol-exited')
+
+        @contextlib.asynccontextmanager
+        async def create_app_context(
+            **kwargs: object,
+        ) -> AsyncIterator[gateway.AppContext]:
+            del kwargs
+            lifecycle_events.append('gateway-entered')
+            try:
+                yield app_context
+            finally:
+                lifecycle_events.append('gateway-exited')
+
+        protocol_application = Starlette(lifespan=protocol_lifespan)
+        with (
+            mock.patch.object(server, 'create_mcp_server'),
+            mock.patch.object(
+                server,
+                'create_application',
+                return_value=protocol_application,
+            ),
+            mock.patch.object(
+                gateway,
+                'create_app_context',
+                new=create_app_context,
+            ),
+        ):
+            application = server.create_runtime_application(config)
+            with self.assertRaisesRegex(RuntimeError, 'lifespan failure'):
+                async with application.router.lifespan_context(application):
+                    raise RuntimeError('lifespan failure')
+
+        self.assertFalse(hasattr(application.state, 'mcp_app_context'))
+        self.assertEqual(lifecycle_events, [
+            'gateway-entered',
+            'protocol-entered',
+            'protocol-exited',
+            'gateway-exited',
+        ])
+
 
 class MCPMainTest(unittest.TestCase):
 
@@ -174,10 +318,16 @@ class MCPMainTest(unittest.TestCase):
         uvicorn_config = object()
         uvicorn_server = mock.Mock()
         uvicorn_server.serve = mock.AsyncMock()
+        application = object()
 
         with (
             mock.patch.object(
                 server.MCPServiceConfig, 'load', return_value=config),
+            mock.patch.object(
+                server,
+                'create_runtime_application',
+                return_value=application,
+            ) as application_factory,
             mock.patch.object(
                 server.uvicorn,
                 'Config',
@@ -192,7 +342,7 @@ class MCPMainTest(unittest.TestCase):
             server.main()
 
         config_factory.assert_called_once_with(
-            server.app,
+            application,
             host='127.0.0.1',
             port=9000,
             log_config=None,
@@ -200,6 +350,7 @@ class MCPMainTest(unittest.TestCase):
         )
         server_factory.assert_called_once_with(config=uvicorn_config)
         uvicorn_server.serve.assert_awaited_once_with()
+        application_factory.assert_called_once_with(config)
         config.uvicorn_ssl_kwargs.assert_called_once_with()
 
     def test_main_handles_keyboard_interrupt(self) -> None:
@@ -210,10 +361,16 @@ class MCPMainTest(unittest.TestCase):
         )
         uvicorn_server = mock.Mock()
         uvicorn_server.serve = mock.AsyncMock(side_effect=KeyboardInterrupt)
+        application = object()
 
         with (
             mock.patch.object(
                 server.MCPServiceConfig, 'load', return_value=config),
+            mock.patch.object(
+                server,
+                'create_runtime_application',
+                return_value=application,
+            ) as application_factory,
             mock.patch.object(server.uvicorn, 'Config', return_value=object()),
             mock.patch.object(
                 server.uvicorn,
@@ -224,6 +381,7 @@ class MCPMainTest(unittest.TestCase):
             server.main()
 
         uvicorn_server.serve.assert_awaited_once_with()
+        application_factory.assert_called_once_with(config)
 
 
 if __name__ == '__main__':
