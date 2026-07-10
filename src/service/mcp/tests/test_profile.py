@@ -100,6 +100,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         include_catalog: bool = False,
         arguments: dict[str, object] | None = None,
         tool_name: str = 'osmo_get_profile',
+        bearer_secret: str = _BEARER_SECRET,
     ) -> tuple[httpx.Response, httpx.Response | None]:
         application = server.create_runtime_application(
             server.MCPServiceConfig(gateway_url='https://gateway.test'),
@@ -114,7 +115,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                 if include_catalog:
                     catalog_response = await client.post(
                         '/mcp',
-                        headers=self._headers(),
+                        headers=self._headers(bearer_secret=bearer_secret),
                         json={
                             'jsonrpc': '2.0',
                             'id': 2,
@@ -124,7 +125,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                     )
                 tool_response = await client.post(
                     '/mcp',
-                    headers=self._headers(),
+                    headers=self._headers(bearer_secret=bearer_secret),
                     json=self._tool_call(arguments, tool_name=tool_name),
                 )
         return tool_response, catalog_response
@@ -249,6 +250,67 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ('Bearer concurrent-bob-secret', 'request-bob'),
         ])
 
+    async def test_cancelled_mcp_request_cancels_active_gateway_relay(self) -> None:
+        handler_entered = asyncio.Event()
+        release_handler = asyncio.Event()
+        handler_cancelled = asyncio.Event()
+        handler_completed = asyncio.Event()
+        captured_authorization: list[str] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_authorization.append(request.headers['authorization'])
+            handler_entered.set()
+            try:
+                await release_handler.wait()
+            except asyncio.CancelledError:
+                handler_cancelled.set()
+                raise
+            handler_completed.set()
+            return httpx.Response(200, json=_PROFILE_RESULT)
+
+        application = server.create_runtime_application(
+            server.MCPServiceConfig(gateway_url='https://gateway.test'),
+            http_transport=httpx.MockTransport(handler),
+        )
+        async with application.router.lifespan_context(application):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application),
+                base_url='http://mcp.test',
+            ) as client:
+                request_task = asyncio.create_task(client.post(
+                    '/mcp',
+                    headers=self._headers(),
+                    json=self._tool_call(),
+                ))
+                try:
+                    await asyncio.wait_for(handler_entered.wait(), timeout=1)
+                    request_task.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await request_task
+                    await asyncio.wait_for(handler_cancelled.wait(), timeout=1)
+                    self.assertFalse(handler_completed.is_set())
+                    release_handler.set()
+                    followup_response = await client.post(
+                        '/mcp',
+                        headers=self._headers(),
+                        json=self._tool_call(),
+                    )
+                    self.assertFalse(
+                        followup_response.json()['result']['isError'])
+                finally:
+                    release_handler.set()
+                    if not request_task.done():
+                        request_task.cancel()
+                        await asyncio.gather(
+                            request_task,
+                            return_exceptions=True,
+                        )
+
+        self.assertEqual(
+            captured_authorization,
+            [f'Bearer {_BEARER_SECRET}', f'Bearer {_BEARER_SECRET}'],
+        )
+
     async def test_get_profile_maps_api_statuses_without_exposing_body(self) -> None:
         cases = (
             (401, 'rejected the active authentication'),
@@ -321,6 +383,54 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             'upstream-internal-profile-secret',
             json.dumps(result),
         )
+
+    async def test_get_profile_rejects_semantically_reflected_credentials(
+        self,
+    ) -> None:
+        short_secret = 'a'
+        short_reflection: dict[str, object] = dict(_PROFILE_RESULT)
+        short_reflection['token'] = {
+            'name': short_secret,
+            'expires_at': None,
+        }
+
+        long_secret = 'escaped-profile-bearer-secret'
+        escaped_reflection: dict[str, object] = dict(_PROFILE_RESULT)
+        escaped_reflection['token'] = {
+            'name': long_secret,
+            'expires_at': None,
+        }
+        escaped_body = json.dumps(escaped_reflection).replace(
+            long_secret,
+            ''.join(f'\\u{ord(character):04x}' for character in long_secret),
+        ).encode()
+        self.assertNotIn(long_secret.encode(), escaped_body)
+
+        cases = (
+            (short_secret, json.dumps(short_reflection).encode()),
+            (long_secret, escaped_body),
+        )
+
+        def response_handler(response_body: bytes) -> _Handler:
+            async def handler(request: httpx.Request) -> httpx.Response:
+                del request
+                return httpx.Response(200, content=response_body)
+
+            return handler
+
+        for bearer_secret, response_body in cases:
+            with self.subTest(bearer_secret=bearer_secret):
+                response, _ = await self._invoke_tool(
+                    response_handler(response_body),
+                    bearer_secret=bearer_secret,
+                )
+
+                result = response.json()['result']
+                self.assertTrue(result['isError'])
+                self.assertIn('invalid response', json.dumps(result))
+                self.assertNotIn(f'Bearer {bearer_secret}', json.dumps(result))
+                if len(bearer_secret) >= 16:
+                    self.assertNotIn(bearer_secret, json.dumps(result))
 
     async def test_get_profile_bounds_and_sanitizes_invalid_bodies(self) -> None:
         async def malformed_body(request: httpx.Request) -> httpx.Response:
