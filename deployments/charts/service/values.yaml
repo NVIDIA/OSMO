@@ -115,6 +115,8 @@ services:
   ##
   mcp:
     ## Enable the MCP workload and its gateway routes. Disabled by default.
+    ## When enabled, the chart always renders an ingress NetworkPolicy for
+    ## MCP because only Gateway-authenticated requests may reach the service.
     ##
     enabled: false
 
@@ -136,9 +138,15 @@ services:
 
     ## Canonical RFC 9728 protected resource identifier. This must be the
     ## externally reachable HTTPS MCP URL ending in /mcp, for example:
-    ## https://osmo.example.com/mcp
+    ## https://osmo.example.com/mcp. The MCP service derives its fixed OSMO
+    ## Gateway origin from this value so bearer tokens cannot be relayed to a
+    ## separately configured origin.
     ##
     resourceUrl: ""
+
+    ## Total timeout in seconds for each MCP request to the OSMO Gateway.
+    ##
+    requestTimeoutSeconds: 10
 
     ## OAuth authorization-server issuer identifiers advertised by the public
     ## protected-resource metadata document. Configure the issuer for the

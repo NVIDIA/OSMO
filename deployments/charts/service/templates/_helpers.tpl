@@ -204,3 +204,21 @@ OSMO_CONFIGMAP_NAME deliberately references services.service.serviceName
 {{- end }}
 {{- end -}}
 
+{{/*
+Validate and return the canonical public MCP resource URL. The Gateway
+origin used for bearer relay is derived from this single source of truth.
+*/}}
+{{- define "osmo.mcp-resource-url" -}}
+{{- $resourceUrl := required "services.mcp.resourceUrl is required when MCP is enabled" .Values.services.mcp.resourceUrl -}}
+{{- if not (regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?/mcp$" $resourceUrl) -}}
+{{- fail "services.mcp.resourceUrl must be a valid HTTPS origin followed by the exact /mcp path" -}}
+{{- end -}}
+{{- $portSuffix := regexFind ":[0-9]+/mcp$" $resourceUrl -}}
+{{- if $portSuffix -}}
+{{- $port := trimSuffix "/mcp" (trimPrefix ":" $portSuffix) | int -}}
+{{- if or (lt $port 1) (gt $port 65535) -}}
+{{- fail "services.mcp.resourceUrl port must be between 1 and 65535" -}}
+{{- end -}}
+{{- end -}}
+{{- $resourceUrl -}}
+{{- end -}}

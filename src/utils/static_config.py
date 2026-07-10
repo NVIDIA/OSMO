@@ -109,7 +109,8 @@ class StaticConfig(pydantic.BaseModel):
             cls._instance = cls(**config)
         except pydantic.ValidationError as error:
             # Parse through errors and print them in a more user friendly manner
-            for type_error in error.errors():
+            include_input = not cls.model_config.get('hide_input_in_errors', False)
+            for type_error in error.errors(include_input=include_input):
                 if type_error['type'] not in ('type_error.none.not_allowed', 'value_error.missing',
                                                  'missing', 'none_required'):
                     print(type_error)

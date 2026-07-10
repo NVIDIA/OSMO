@@ -44,7 +44,10 @@ osmo_py_test(
     deps = [
         requirement("httpx"),
         requirement("mcp"),
+        requirement("pydantic"),
+        requirement("starlette"),
         "//src/lib/utils:login",
+        "//src/service/mcp:gateway",
         "//src/service/mcp:request_context",
         "//src/service/mcp:mcp_service_lib",
     ],
