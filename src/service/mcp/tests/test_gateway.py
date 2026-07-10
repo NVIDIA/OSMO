@@ -339,6 +339,37 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stream.close_count, 1)
         self.assertNotIn('upstream-body-secret', repr(response))
 
+    async def test_success_response_cannot_reflect_relayed_credentials(self) -> None:
+        bearer_token = 'reflected-bearer-token-secret'
+        reflected_bodies = [
+            f'{{"authorization":"Bearer {bearer_token}"}}'.encode(),
+            f'{{"token":"{bearer_token}"}}'.encode(),
+        ]
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return httpx.Response(200, content=reflected_bodies.pop(0))
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            for _ in range(2):
+                with self.assertRaisesRegex(
+                    gateway.GatewayClientError,
+                    'invalid response',
+                ) as raised:
+                    await app_context.gateway.request(
+                        'GET',
+                        '/api/profile/settings',
+                        credentials=self._credentials(
+                            authorization_header=f'Bearer {bearer_token}'
+                        ),
+                        max_response_bytes=1024,
+                    )
+                self.assertNotIn(bearer_token, str(raised.exception))
+
     async def test_streaming_response_is_cumulatively_bounded(self) -> None:
         exact_stream = _TrackingStream([b'ab', b'cd'])
         oversized_stream = _TrackingStream([

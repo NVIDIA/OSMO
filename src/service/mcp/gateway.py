@@ -123,7 +123,11 @@ class GatewayClient:
             # client state. Clear it even when streaming or decoding fails.
             self._client.cookies.clear()
 
-        return GatewayResponse(response.status_code, bytes(response_body))
+        response_body_bytes = bytes(response_body)
+        if _contains_relayed_credentials(response_body_bytes, credentials):
+            raise GatewayClientError(
+                'OSMO Gateway returned an invalid response.')
+        return GatewayResponse(response.status_code, response_body_bytes)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -242,3 +246,15 @@ def _validate_content_length(
     if content_length > max_response_bytes:
         raise GatewayClientError(
             'OSMO Gateway response exceeds the size limit.')
+
+
+def _contains_relayed_credentials(
+    response_body: bytes,
+    credentials: request_context.RequestCredentials,
+) -> bool:
+    authorization_header = credentials.authorization_header.encode('ascii')
+    _, _, bearer_token = authorization_header.partition(b' ')
+    return (
+        authorization_header in response_body
+        or (len(bearer_token) >= 16 and bearer_token in response_body)
+    )
