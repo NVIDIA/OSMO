@@ -25,6 +25,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 import uvicorn  # type: ignore
 
+from src.service.mcp import request_context
 from src.utils import ssl_config, static_config
 
 
@@ -70,7 +71,17 @@ def create_mcp_server() -> FastMCP:
 
 
 mcp_server = create_mcp_server()
-app: Starlette = mcp_server.streamable_http_app()
+
+
+def create_application(server: FastMCP | None = None) -> Starlette:
+    """Create the MCP ASGI application with request-scoped credentials."""
+    mcp_application = server if server is not None else create_mcp_server()
+    application = mcp_application.streamable_http_app()
+    application.add_middleware(request_context.RequestContextMiddleware, path='/mcp')
+    return application
+
+
+app = create_application(mcp_server)
 
 
 def main() -> None:

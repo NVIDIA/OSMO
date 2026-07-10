@@ -29,7 +29,7 @@ from src.service.mcp import server
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_health_endpoints(self) -> None:
-        application = server.create_mcp_server().streamable_http_app()
+        application = server.create_application()
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=application),
@@ -51,10 +51,12 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(mcp_server.settings.json_response)
         self.assertEqual(mcp_server.settings.streamable_http_path, '/mcp')
 
-        application = mcp_server.streamable_http_app()
+        application = server.create_application(mcp_server)
         headers = {
             'Accept': 'application/json, text/event-stream',
+            'Authorization': 'Bearer test-token',
             'Content-Type': 'application/json',
+            'x-osmo-user': 'alice@example.com',
         }
         initialize_request = {
             'jsonrpc': '2.0',
