@@ -23,11 +23,9 @@ import unittest
 from typing import Any, Dict, List, Tuple
 from unittest import mock
 
-import pydantic
-
 from src.lib.utils import osmo_errors
 from src.utils import connectors
-from src.utils.job import task, kb_objects
+from src.utils.job import task
 
 
 class _RecordingPostgresConnector(connectors.PostgresConnector):
@@ -57,7 +55,7 @@ class _RecordingPostgresConnector(connectors.PostgresConnector):
     def execute_commit_commands(self, commands):
         self.commit_commands_calls.append(list(commands))
 
-    def get_generic_cred(self, user: str, cred_name: str):
+    def get_generic_cred(self, user: str, cred_name: str):  # pylint: disable=unused-argument
         return self._generic_creds.get(cred_name, {})
 
 
@@ -244,7 +242,7 @@ class TaskSpecToPodContainerTest(unittest.TestCase):
     """Tests for TaskSpec.to_pod_container (task.py:736-774)."""
 
     def _make_spec(self, **overrides) -> task.TaskSpec:
-        base = dict(name='mytask', image='ubuntu:22.04', command=['sh', '-c'])
+        base = {'name': 'mytask', 'image': 'ubuntu:22.04', 'command': ['sh', '-c']}
         base.update(overrides)
         return task.TaskSpec(**base)
 
