@@ -14,6 +14,7 @@ on:
       - 'bzl/**'
       - 'MODULE.bazel'
       - 'src/**'
+      - '!src/scripts/testbot/**'
       - '.github/workflows/oetf-kind.yaml'
   workflow_dispatch: {}
 
