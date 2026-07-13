@@ -162,6 +162,8 @@ def setup_parser(parser: argparse._SubParsersAction):
                                choices=('json', 'text'), default='text',
                                help='Specify the output format type (Default text).')
     submit_parser.add_argument('--set',
+                               action='extend',
+                               dest='set',
                                nargs='+',
                                default=[],
                                help='Assign fields in the workflow file with desired elements '
@@ -170,6 +172,7 @@ def setup_parser(parser: argparse._SubParsersAction):
                                     ' in the yaml file should be in the form {{ field }}. '
                                     'Values will be cast as int or float if applicable')
     submit_parser.add_argument('--set-string',
+                               action='extend',
                                dest='set_string',
                                nargs='+',
                                default=[],
@@ -179,6 +182,7 @@ def setup_parser(parser: argparse._SubParsersAction):
                                     ' in the yaml file should be in the form {{ field }}. '
                                     'All values will be cast as string')
     submit_parser.add_argument('--set-env',
+                               action='extend',
                                dest='set_env',
                                nargs='+',
                                default=[],
