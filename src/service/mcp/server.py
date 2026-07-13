@@ -17,7 +17,10 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import asyncio
+from collections.abc import AsyncIterator
+import contextlib
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 import pydantic
 from starlette.applications import Starlette
@@ -25,12 +28,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 import uvicorn  # type: ignore
 
-from src.service.mcp import request_context
+from src.service.mcp import gateway, request_context
 from src.utils import ssl_config, static_config
 
 
 class MCPServiceConfig(static_config.StaticConfig, ssl_config.SSLConfig):
     """Runtime configuration for the MCP service."""
+
+    model_config = pydantic.ConfigDict(hide_input_in_errors=True)
 
     host: str = pydantic.Field(
         default='0.0.0.0',
@@ -42,6 +47,20 @@ class MCPServiceConfig(static_config.StaticConfig, ssl_config.SSLConfig):
         le=65535,
         description='The TCP port to bind to when serving the MCP service.',
         json_schema_extra={'command_line': 'port', 'env': 'OSMO_MCP_PORT'})
+    gateway_url: pydantic.AnyHttpUrl = pydantic.Field(
+        description='HTTPS origin of the same-deployment OSMO Gateway.',
+        json_schema_extra={'env': 'OSMO_GATEWAY_URL'})
+    request_timeout_seconds: int = pydantic.Field(
+        default=10,
+        ge=1,
+        le=60,
+        description='Total timeout for each OSMO Gateway request.',
+        json_schema_extra={'env': 'OSMO_MCP_REQUEST_TIMEOUT_SECONDS'})
+
+    @pydantic.model_validator(mode='after')
+    def _validate_gateway_url(self) -> 'MCPServiceConfig':
+        gateway.validate_gateway_origin(str(self.gateway_url))
+        return self
 
 
 def create_mcp_server() -> FastMCP:
@@ -80,17 +99,44 @@ def create_application(protocol_server: FastMCP) -> Starlette:
     return application
 
 
-mcp_server = create_mcp_server()
-app: Starlette = create_application(mcp_server)
+def create_runtime_application(
+    config: MCPServiceConfig,
+    *,
+    http_transport: httpx.AsyncBaseTransport | None = None,
+) -> Starlette:
+    """Create the production application and process-lifetime Gateway client."""
+    protocol_server = create_mcp_server()
+    application = create_application(protocol_server)
+    protocol_lifespan = application.router.lifespan_context
+
+    @contextlib.asynccontextmanager
+    async def application_lifespan(
+        lifespan_application: Starlette,
+    ) -> AsyncIterator[None]:
+        async with gateway.create_app_context(
+            gateway_url=str(config.gateway_url),
+            request_timeout_seconds=config.request_timeout_seconds,
+            transport=http_transport,
+        ) as app_context:
+            lifespan_application.state.mcp_app_context = app_context
+            try:
+                async with protocol_lifespan(lifespan_application):
+                    yield
+            finally:
+                del lifespan_application.state.mcp_app_context
+
+    application.router.lifespan_context = application_lifespan
+    return application
 
 
 def main() -> None:
     """Run the MCP ASGI application with the repository's Uvicorn/TLS pattern."""
     config = MCPServiceConfig.load()
+    application = create_runtime_application(config)
 
     async def run_server() -> None:
         uvicorn_config = uvicorn.Config(
-            app,
+            application,
             host=config.host,
             port=config.port,
             log_config=None,

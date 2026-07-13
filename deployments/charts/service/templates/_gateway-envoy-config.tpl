@@ -49,10 +49,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if not $envoy.jwt.providers }}
 {{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
 {{- end }}
-{{- $mcpResourceUrl = required "services.mcp.resourceUrl is required when MCP is enabled" $mcp.resourceUrl }}
-{{- if not (regexMatch "^https://[^/?#]+/mcp$" $mcpResourceUrl) }}
-{{- fail "services.mcp.resourceUrl must be an HTTPS origin followed by the exact /mcp path" }}
-{{- end }}
+{{- $mcpResourceUrl = include "osmo.mcp-resource-url" . }}
 {{- if not (kindIs "slice" $mcp.authorizationServers) }}
 {{- fail "services.mcp.authorizationServers must be a list" }}
 {{- end }}
