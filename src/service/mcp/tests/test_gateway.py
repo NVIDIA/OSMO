@@ -414,9 +414,11 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
     async def test_content_length_is_validated_before_streaming(self) -> None:
         oversized_stream = _TrackingStream([b'upstream-secret'])
         invalid_stream = _TrackingStream([b'upstream-secret'])
+        malformed_stream = _TrackingStream([b'upstream-secret'])
         streams_and_headers = [
             (oversized_stream, {'content-length': '5'}),
             (invalid_stream, {'content-length': '-1'}),
+            (malformed_stream, {'content-length': 'not-an-integer'}),
         ]
 
         async def handler(request: httpx.Request) -> httpx.Response:
@@ -429,7 +431,11 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
             request_timeout_seconds=5,
             transport=httpx.MockTransport(handler),
         ) as app_context:
-            for expected_error in ('exceeds the size limit', 'invalid response'):
+            for expected_error in (
+                'exceeds the size limit',
+                'invalid response',
+                'invalid response',
+            ):
                 with self.subTest(error=expected_error):
                     with self.assertRaisesRegex(
                         gateway.GatewayClientError,
@@ -444,8 +450,10 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(oversized_stream.iterated_chunks, 0)
         self.assertEqual(invalid_stream.iterated_chunks, 0)
+        self.assertEqual(malformed_stream.iterated_chunks, 0)
         self.assertEqual(oversized_stream.close_count, 1)
         self.assertEqual(invalid_stream.close_count, 1)
+        self.assertEqual(malformed_stream.close_count, 1)
 
     async def test_compressed_response_is_rejected_before_decoding(self) -> None:
         stream = _TrackingStream([b'compressed-upstream-secret'])
@@ -486,6 +494,7 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
             'https://gateway.test#fragment',
             'https://gateway.test\\@evil.test',
             'https://gateway.test%40evil.test',
+            'https://gateway.test:not-a-port',
         )
         for invalid_origin in invalid_origins:
             with self.subTest(origin=invalid_origin):
