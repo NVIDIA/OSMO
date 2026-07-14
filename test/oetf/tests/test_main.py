@@ -91,6 +91,7 @@ class MainResultContractTest(unittest.TestCase):
         exit_code, output = self._run_main(1, [self._result()])
 
         self.assertEqual(exit_code, 1)
+        self.assertIn("Bazel exit code: 1", output)
         self.assertIn("RESULT: FAIL", output)
 
     def test_failed_or_errored_result_reports_fail(self):
