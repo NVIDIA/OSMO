@@ -103,10 +103,6 @@ spec:
         - {{ .Values.global.logs.k8sLogLevel }}
         - --log_format
         - {{ .Values.global.logs.logFormat | default "text" }}
-        - --log_dir
-        - /logs
-        - --log_name
-        - delayed_job_monitor
         {{- end }}
         - --enable_metrics
         {{- range $arg := .Values.services.delayedJobMonitor.extraArgs }}
@@ -132,17 +128,13 @@ spec:
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
 
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.delayedJobMonitor.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.services.delayedJobMonitor.extraVolumeMounts .Values.services.delayedJobMonitor.volumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
         - mountPath: {{ .Values.services.configFile.path }}
           name: mek-volume
           subPath: mek.yaml
-        {{- end }}
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          mountPath: /logs
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- if .Values.services.delayedJobMonitor.volumeMounts }}
@@ -167,10 +159,6 @@ spec:
 
       {{- include "osmo.extra-sidecars" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          emptyDir: {}
-        {{- end}}
         {{- include "osmo.extra-volumes" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- if .Values.services.configFile.enabled}}
         - configMap:

@@ -476,10 +476,6 @@ spec:
           {{- end }}
           - "--cache-ttl={{ $gw.authz.cache.ttl }}"
           - "--cache-max-size={{ $gw.authz.cache.maxSize }}"
-          {{- if .Values.global.logs.enabled }}
-          - "--log-dir=/logs"
-          - "--log-name=authz_sidecar"
-          {{- end }}
           {{- with .Values.global.logs.logFormat }}
           - "--log-format={{ . }}"
           {{- end }}
@@ -499,11 +495,8 @@ spec:
                 name: db-secret
                 key: db-password
           {{- end }}
+        {{- if or .Values.services.configs.enabled $gw.authz.extraVolumeMounts }}
         volumeMounts:
-          {{- if .Values.global.logs.enabled }}
-          - name: logs
-            mountPath: /logs
-          {{- end }}
           {{- if .Values.services.configs.enabled }}
           - name: configs
             mountPath: /etc/osmo/configs
@@ -512,6 +505,7 @@ spec:
           {{- with $gw.authz.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
+        {{- end }}
         {{- with $gw.authz.livenessProbe }}
         livenessProbe:
           {{- toYaml . | nindent 10 }}
@@ -523,10 +517,6 @@ spec:
         resources:
           {{- toYaml $gw.authz.resources | nindent 10 }}
       volumes:
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          emptyDir: {}
-        {{- end }}
         {{- if .Values.services.configs.enabled }}
         - name: configs
           configMap:

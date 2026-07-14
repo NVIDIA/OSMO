@@ -114,10 +114,6 @@ spec:
         - {{ .Values.global.logs.k8sLogLevel }}
         - --log_format
         - {{ .Values.global.logs.logFormat | default "text" }}
-        - --log_dir
-        - /logs
-        - --log_name
-        - worker
         {{- end }}
         {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.worker.extraArgs }}
@@ -145,7 +141,7 @@ spec:
               name: redis-secret
               key: redis-password
         {{- end }}
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.worker.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.worker.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -154,10 +150,6 @@ spec:
           subPath: mek.yaml
         {{- end }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          mountPath: /logs
-        {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.worker | nindent 8 }}
         resources:
         {{- toYaml .Values.services.worker.resources | nindent 10 }}
@@ -181,10 +173,6 @@ spec:
 
       {{- include "osmo.extra-sidecars" .Values.services.worker | nindent 6 }}
       volumes:
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          emptyDir: {}
-        {{- end}}
         {{- include "osmo.extra-volumes" .Values.services.worker | nindent 8 }}
         {{- if .Values.services.configFile.enabled}}
         - configMap:
