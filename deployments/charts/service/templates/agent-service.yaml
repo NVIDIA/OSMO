@@ -203,13 +203,46 @@ spec:
           timeoutSeconds: 20
 
 
+      {{- if .Values.global.logs.enabled }}
+      # TODO: Remove this sidecar when backend-forwarded agent logs can be sent to stdout.
+      # get_backend_logger currently suppresses propagation without a file handler.
+      - name: logrotate
+        image: fluent/fluent-bit:4.0.8-debug
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          while true; do
+            logrotate --state /tmp/logrotate.status /etc/osmo-logrotate/logrotate.conf
+            sleep 60
+          done
+        volumeMounts:
+        - name: logs
+          mountPath: /logs
+        - name: agent-logrotate-config
+          mountPath: /etc/osmo-logrotate
+          readOnly: true
+      {{- end }}
       {{- include "osmo.extra-sidecars" .Values.services.agent | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.agent | nindent 8 }}
         {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- end}}
+        {{- if .Values.global.logs.enabled }}
+        - name: agent-logrotate-config
+          configMap:
+            name: {{ .Values.services.agent.serviceName }}-logrotate
         {{- end}}
         {{- if .Values.services.configFile.enabled}}
         - configMap:

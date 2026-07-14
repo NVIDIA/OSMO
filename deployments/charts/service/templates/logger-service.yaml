@@ -116,10 +116,6 @@ spec:
         - {{ .Values.global.logs.k8sLogLevel }}
         - --log_format
         - {{ .Values.global.logs.logFormat | default "text" }}
-        - --log_dir
-        - /logs
-        - --log_name
-        - logger_service
         {{- end }}
         {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.logger.extraArgs }}
@@ -146,7 +142,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.logger.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.logger.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.logger) }}
+        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.logger.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.logger) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -155,10 +151,6 @@ spec:
           subPath: mek.yaml
         {{- end }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          mountPath: /logs
-        {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.logger | nindent 8 }}
         {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         resources:
@@ -199,10 +191,6 @@ spec:
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.logger | nindent 8 }}
         {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          emptyDir: {}
-        {{- end}}
         {{- if .Values.services.configFile.enabled}}
         - configMap:
             defaultMode: 420
