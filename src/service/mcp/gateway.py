@@ -30,7 +30,6 @@ from src.service.mcp import request_context
 
 
 _ALLOWED_METHODS = frozenset(('GET', 'POST', 'PATCH', 'DELETE'))
-_REQUEST_ID_HEADER = 'x-request-id'
 _USER_AGENT = 'osmo-mcp'
 _IDENTITY_ENCODING = 'identity'
 _HTTP_LIMITS = httpx.Limits(
@@ -85,7 +84,7 @@ class GatewayClient:
             'User-Agent': _USER_AGENT,
         }
         if credentials.request_id is not None:
-            headers[_REQUEST_ID_HEADER] = credentials.request_id
+            headers[request_context.REQUEST_ID_HEADER] = credentials.request_id
 
         request = self._client.build_request(method, path, headers=headers)
         # HTTPX stores response cookies on the process-wide client. Never let

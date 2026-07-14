@@ -30,9 +30,11 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from src.lib.utils import login
 
 
+REQUEST_ID_HEADER = 'x-request-id'
+
 _AUTHORIZATION_HEADER = login.OSMO_AUTH_HEADER.lower().encode('ascii')
 _USER_HEADER = login.OSMO_USER_HEADER.lower().encode('ascii')
-_REQUEST_ID_HEADER = b'x-request-id'
+_REQUEST_ID_HEADER = REQUEST_ID_HEADER.encode('ascii')
 _CONTEXT_HEADERS = frozenset((
     _AUTHORIZATION_HEADER,
     _USER_HEADER,

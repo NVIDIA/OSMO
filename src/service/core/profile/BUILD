@@ -21,10 +21,7 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_library(
     name = "profile",
-    srcs = [
-        "profile_service.py",
-        "objects.py"
-    ],
+    srcs = ["profile_service.py"],
     deps = [
         requirement("fastapi"),
         "//src/lib/api:profile",
