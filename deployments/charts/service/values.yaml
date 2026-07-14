@@ -56,7 +56,7 @@ global:
   ## Logging configuration for all Osmo services
   ##
   logs:
-    ## Enable centralized logging collection and log volume mounting
+    ## Apply logging configuration to OSMO service containers
     ##
     enabled: true
 
