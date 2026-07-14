@@ -22,6 +22,17 @@ class MainResultContractTest(unittest.TestCase):
     """The OETF wrapper fails closed when Bazel does not run its tests."""
 
     @staticmethod
+    def _result(status: str = "pass") -> dict:
+        return {
+            "target": "//test:target",
+            "classname": "",
+            "name": "target",
+            "time": 0.1,
+            "status": status,
+            "message": "",
+        }
+
+    @staticmethod
     def _run_main(
         bazel_exit: int,
         results: list[dict],
@@ -77,29 +88,25 @@ class MainResultContractTest(unittest.TestCase):
         self.assertIn("RESULT: FAIL", output)
 
     def test_nonzero_bazel_exit_overrides_passing_test_result(self):
-        result = {
-            "target": "//test:target",
-            "classname": "",
-            "name": "target",
-            "time": 0.1,
-            "status": "pass",
-            "message": "",
-        }
-        exit_code, output = self._run_main(1, [result])
+        exit_code, output = self._run_main(1, [self._result()])
 
         self.assertEqual(exit_code, 1)
         self.assertIn("RESULT: FAIL", output)
 
+    def test_failed_or_errored_result_reports_fail(self):
+        for status in ("fail", "error"):
+            with self.subTest(status=status):
+                exit_code, output = self._run_main(
+                    0,
+                    [self._result(status)],
+                )
+
+                self.assertEqual(exit_code, 1)
+                self.assertIn("RESULT: FAIL", output)
+                self.assertNotIn("RESULT: PASS", output)
+
     def test_successful_bazel_run_with_passing_result_reports_pass(self):
-        result = {
-            "target": "//test:target",
-            "classname": "",
-            "name": "target",
-            "time": 0.1,
-            "status": "pass",
-            "message": "",
-        }
-        exit_code, output = self._run_main(0, [result])
+        exit_code, output = self._run_main(0, [self._result()])
 
         self.assertEqual(exit_code, 0)
         self.assertIn("RESULT: PASS", output)
