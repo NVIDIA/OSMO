@@ -19,9 +19,9 @@ from typing import Optional
 
 import fastapi
 
+from src.lib.api import profile as profile_contract
 from src.lib.utils import login, osmo_errors
 from src.service.core.auth import objects as auth_objects
-from src.service.core.profile import objects
 from src.utils import connectors
 
 
@@ -30,7 +30,7 @@ router = fastapi.APIRouter(
 )
 
 
-@router.get('/api/profile/settings', response_model=objects.ProfileResponse)
+@router.get('/api/profile/settings', response_model=profile_contract.ProfileResponse)
 def get_notification_settings(
     user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
@@ -40,7 +40,7 @@ def get_notification_settings(
         fastapi.Header(alias=login.OSMO_TOKEN_NAME_HEADER, default=None),
     allowed_pools_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_ALLOWED_POOLS, default=None),
-) -> objects.ProfileResponse:
+) -> profile_contract.ProfileResponse:
     user_name = connectors.parse_username(user_header)
     postgres = connectors.PostgresConnector.get_instance()
     roles = login.construct_roles_list(roles_header)
@@ -53,10 +53,12 @@ def get_notification_settings(
                 postgres, token_name_header, user_name).expires_at
         except osmo_errors.OSMOUserError:
             pass
-        token_identity = objects.TokenIdentity(
+        token_identity = profile_contract.TokenIdentity(
             name=token_name_header, expires_at=expires_at)
-    return objects.ProfileResponse(
-        profile=connectors.UserProfile.fetch_from_db(postgres, user_name),
+    return profile_contract.ProfileResponse(
+        profile=profile_contract.UserProfile.model_validate(
+            connectors.UserProfile.fetch_from_db(postgres, user_name).model_dump()
+        ),
         roles=roles,
         pools=pools,
         token=token_identity,
@@ -65,7 +67,7 @@ def get_notification_settings(
 
 @router.post('/api/profile/settings')
 def set_notification_settings(
-    preferences: connectors.UserProfile,
+    preferences: profile_contract.UserProfile,
     set_default_backend: bool = False,
     user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
     fields = preferences.model_dump(exclude_none=True)

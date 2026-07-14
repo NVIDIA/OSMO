@@ -28,7 +28,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 import uvicorn  # type: ignore
 
-from src.service.mcp import gateway, request_context
+from src.service.mcp import gateway, profile, protocol, request_context
 from src.utils import ssl_config, static_config
 
 
@@ -65,7 +65,7 @@ class MCPServiceConfig(static_config.StaticConfig, ssl_config.SSLConfig):
 
 def create_mcp_server() -> FastMCP:
     """Create the authentication-agnostic Phase A MCP server."""
-    server = FastMCP(
+    server = protocol.OSMOFastMCP(
         name='OSMO MCP',
         host='0.0.0.0',
         port=8000,
@@ -73,6 +73,7 @@ def create_mcp_server() -> FastMCP:
         stateless_http=True,
         json_response=True,
     )
+    profile.register_tools(server)
 
     @server.custom_route('/health/live', methods=['GET'], include_in_schema=False)
     async def health_live(request: Request) -> JSONResponse:  # pylint: disable=unused-argument

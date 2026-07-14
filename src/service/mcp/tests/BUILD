@@ -30,6 +30,16 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_profile",
+    srcs = ["test_profile.py"],
+    deps = [
+        requirement("httpx"),
+        "//src/lib/utils:login",
+        "//src/service/mcp:mcp_service_lib",
+    ],
+)
+
+osmo_py_test(
     name = "test_request_context",
     srcs = ["test_request_context.py"],
     deps = [
