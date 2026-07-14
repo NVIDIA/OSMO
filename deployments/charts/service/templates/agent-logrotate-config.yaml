@@ -23,7 +23,7 @@ metadata:
 data:
   logrotate.conf: |
     /logs/*.txt {
-        su 1001 1001
+        su root root
         maxsize 10M
         hourly
         missingok
