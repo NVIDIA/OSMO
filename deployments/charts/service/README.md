@@ -40,9 +40,13 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `global.logs.enabled` | Enable logging | `true` |
+| `global.logs.enabled` | Apply global logging configuration to OSMO service containers | `true` |
 | `global.logs.logLevel` | Log level for application | `DEBUG` |
 | `global.logs.k8sLogLevel` | Log level for Kubernetes | `WARNING` |
+
+OSMO services write logs to stdout for collection by the platform log agent. `osmo-agent` also
+retains backend-forwarded logs in a bounded `/logs` volume; its dedicated logrotate sidecar keeps
+five 10 MiB copies by default.
 
 
 ### Configuration File Settings
