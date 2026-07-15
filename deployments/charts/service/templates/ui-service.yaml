@@ -116,7 +116,7 @@ spec:
             drop: ["ALL"]
           runAsNonRoot: true
           runAsUser: 1000
-        {{- if or .Values.global.logs.enabled .Values.services.ui.extraVolumeMounts }}
+        {{- if .Values.services.ui.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- with .Values.services.ui.extraVolumeMounts }}
@@ -242,10 +242,6 @@ spec:
         {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          emptyDir: {}
-        {{- end}}
         {{- with .Values.services.ui.extraVolumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}

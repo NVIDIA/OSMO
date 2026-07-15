@@ -568,6 +568,7 @@ def _target_from_xml_path(xml_path: str, testlogs_dir: str) -> str:
 
 def render_summary(
     env: Dict[str, str], args: argparse.Namespace, results: List[Dict],
+    bazel_exit: int,
 ) -> str:
     by_status: Dict[str, int] = {"pass": 0, "fail": 0, "error": 0, "skip": 0}
     lines: List[str] = []
@@ -578,6 +579,8 @@ def render_summary(
     if args.name:
         lines.append(f"Name:     {args.name}")
     lines.append(f"Time:     {_now_iso()}")
+    if bazel_exit != 0:
+        lines.append(f"Bazel exit code: {bazel_exit}")
     lines.append("")
     if not results:
         lines.append("(no test results reported by Bazel)")
@@ -604,10 +607,22 @@ def render_summary(
     )
     lines.append("")
     lines.append(
-        "RESULT: PASS" if (by_status["fail"] == 0 and by_status["error"] == 0)
+        "RESULT: PASS" if _run_succeeded(bazel_exit, results)
         else "RESULT: FAIL"
     )
     return "\n".join(lines)
+
+
+def _run_succeeded(bazel_exit: int, results: List[Dict]) -> bool:
+    """Return whether Bazel ran at least one test without a failure."""
+    return (
+        bazel_exit == 0
+        and bool(results)
+        and not any(
+            result["status"] in {"fail", "error"}
+            for result in results
+        )
+    )
 
 
 def _short_label(result: Dict) -> str:
@@ -818,7 +833,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     bazel_exit = proc.returncode
 
     results = parse_bep_test_results(bep_path)
-    print(render_summary(env, args, results))
+    print(render_summary(env, args, results, bazel_exit))
 
     targets = [r["target"] for r in results if r.get("target")]
     maybe_publish_report(args, env, targets)
@@ -827,8 +842,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         write_json(args.output_json, env, args, results)
         print(f"Results JSON written to {args.output_json}", file=sys.stderr)
 
-    failed_or_errored = any(r["status"] in {"fail", "error"} for r in results)
-    return 1 if (bazel_exit != 0 or failed_or_errored) else 0
+    return 0 if _run_succeeded(bazel_exit, results) else 1
 
 
 def _bep_path() -> str:
