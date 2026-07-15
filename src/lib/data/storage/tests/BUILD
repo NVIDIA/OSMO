@@ -54,3 +54,12 @@ osmo_py_test(
         "//src/lib/utils:osmo_errors",
     ],
 )
+
+osmo_py_test(
+    name = "test_uploading",
+    srcs = ["test_uploading.py"],
+    deps = [
+        "//src/lib/data/storage",
+        "//src/lib/utils:osmo_errors",
+    ],
+)
