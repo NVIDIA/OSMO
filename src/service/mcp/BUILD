@@ -63,6 +63,7 @@ osmo_py_library(
     deps = [
         requirement("mcp"),
         requirement("pydantic"),
+        ":request_context",
     ],
     visibility = ["//visibility:public"],
 )

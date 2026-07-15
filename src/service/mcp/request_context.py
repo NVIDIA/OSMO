@@ -16,7 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import asyncio
 from collections.abc import Iterable
+from collections.abc import Iterator
+import contextlib
 import contextvars
 import dataclasses
 import re
@@ -45,7 +48,12 @@ _REQUEST_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:-]*')
 MAX_AUTHORIZATION_HEADER_BYTES = 128 * 1024
 MAX_USER_HEADER_BYTES = 256
 MAX_REQUEST_ID_HEADER_BYTES = 128
+MIN_BEARER_TOKEN_SUBSTRING_BYTES = 16
 _INVALID_CONTEXT_RESPONSE = {'error': 'Invalid MCP authentication context.'}
+
+
+class RequestContextUnavailable(RuntimeError):
+    """The current task is not owned by an active MCP request."""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -60,6 +68,9 @@ class RequestCredentials:
 @dataclasses.dataclass(slots=True)
 class _RequestState:
     credentials: RequestCredentials | None
+    active_tasks: set[asyncio.Task[object]] = dataclasses.field(
+        default_factory=set,
+    )
 
 
 _request_state: contextvars.ContextVar[_RequestState | None] = (
@@ -98,6 +109,9 @@ class RequestContextMiddleware:
                 await self._application(downstream_scope, receive, send)
             finally:
                 request_state.credentials = None
+                for active_task in tuple(request_state.active_tasks):
+                    active_task.cancel()
+                request_state.active_tasks.clear()
                 _request_state.reset(context_token)
         finally:
             _request_state.reset(mask_token)
@@ -107,8 +121,30 @@ def get_request_credentials() -> RequestCredentials:
     """Return credentials for the active MCP request."""
     request_state = _request_state.get()
     if request_state is None or request_state.credentials is None:
-        raise RuntimeError('MCP request credentials are unavailable.')
+        raise RequestContextUnavailable(
+            'MCP request credentials are unavailable.')
     return request_state.credentials
+
+
+@contextlib.contextmanager
+def track_request_task() -> Iterator[RequestCredentials]:
+    """Cancel the current tool task when its owning MCP request ends."""
+    request_state = _request_state.get()
+    current_task = asyncio.current_task()
+    if (
+        request_state is None
+        or request_state.credentials is None
+        or current_task is None
+    ):
+        raise RequestContextUnavailable(
+            'MCP request credentials are unavailable.')
+
+    credentials = request_state.credentials
+    request_state.active_tasks.add(current_task)
+    try:
+        yield credentials
+    finally:
+        request_state.active_tasks.discard(current_task)
 
 
 def _parse_credentials(
