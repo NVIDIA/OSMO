@@ -405,7 +405,10 @@ def get_backend_logger(name: str, backend: str, config: LoggingConfig) -> loggin
         return logging.getLogger(name)
 
     event_logger = logging.getLogger(name)
-    if config.log_dir is not None:
+    event_log_handler: logging.Handler
+    if config.log_dir is None:
+        event_log_handler = logging.StreamHandler()
+    else:
         if not os.path.exists(config.log_dir):
             os.makedirs(config.log_dir)
 
@@ -414,11 +417,11 @@ def get_backend_logger(name: str, backend: str, config: LoggingConfig) -> loggin
         file_path = os.path.join(config.log_dir, f'{log_name}.txt')
 
         event_log_handler = logging.FileHandler(file_path, encoding='utf-8')
-        event_log_handler.setLevel(config.log_level.name)
 
-        formatter = _make_service_formatter(name, config, backend=backend)
-        event_log_handler.setFormatter(formatter)
-        event_logger.addHandler(event_log_handler)
+    event_log_handler.setLevel(config.log_level.name)
+    formatter = _make_service_formatter(name, config, backend=backend)
+    event_log_handler.setFormatter(formatter)
+    event_logger.addHandler(event_log_handler)
 
     # Do not send logs to main logger
     event_logger.propagate = False
