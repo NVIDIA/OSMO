@@ -343,7 +343,7 @@ class TruncatedTextRequestTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.truncated)
         self.assertEqual(result.truncation_reason, 'response_size_limit')
         self.assertTrue(result.text.startswith('partial text'))
-        self.assertTrue(result.text.endswith('configured byte limit.'))
+        self.assertTrue(result.text.endswith('configured output boundary.'))
         self.assertLessEqual(len(result.text.encode('utf-8')), maximum_bytes)
         gateway_client.request_text_prefix.assert_awaited_once_with(
             'GET',

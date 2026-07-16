@@ -73,12 +73,21 @@ The Gateway, MCP process, receiving OSMO APIs, and applicable middleware are
 inside the bearer-token handling boundary. None of them may log or persist the
 authorization value.
 
-## Current tool
+## Available read tools
 
-`osmo_get_profile` maps to `GET /api/profile/settings`, requires the existing
-`profile:Read` action on the second Gateway pass, accepts no tool arguments,
-and limits the response to 64 KiB. Its structured result uses the same
-lightweight profile API contract as Core.
+The external service exposes narrow tools for:
+
+- caller access and identity: `osmo_health`, `osmo_get_profile`
+- inventory: `osmo_search_pools`, `osmo_list_resources`, `osmo_get_resource`
+- workflows: `osmo_list_workflows`, `osmo_get_workflow`,
+  `osmo_get_workflow_logs`, `osmo_get_workflow_events`,
+  `osmo_get_workflow_spec`
+
+Each tool maps to a fixed OSMO API route and returns an allowlisted structured
+projection. JSON tools require one complete bounded response. Bounded text
+tools may instead return a safe UTF-8 prefix with `truncated=true` and a
+machine-readable reason when the response reaches its size limit or its live
+stream does not complete before the request timeout.
 
 The Kubernetes `/health`, `/health/live`, and `/health/ready` endpoints only
 report MCP process health. They do not relay a token or test Gateway/API
