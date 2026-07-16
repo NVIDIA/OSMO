@@ -146,22 +146,25 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         assert catalog_response is not None
         self.assertEqual(catalog_response.status_code, 200)
         tools = catalog_response.json()['result']['tools']
-        self.assertEqual(len(tools), 1)
-        self.assertEqual(tools[0]['name'], 'osmo_get_profile')
-        self.assertEqual(tools[0]['title'], 'Get OSMO profile')
-        self.assertEqual(tools[0]['inputSchema']['properties'], {})
-        self.assertFalse(tools[0]['inputSchema']['additionalProperties'])
-        self.assertEqual(tools[0]['annotations'], {
+        tools_by_name = {tool['name']: tool for tool in tools}
+        profile_tool = tools_by_name['osmo_get_profile']
+        self.assertEqual(profile_tool['title'], 'Get OSMO profile')
+        self.assertEqual(profile_tool['inputSchema']['properties'], {})
+        self.assertFalse(profile_tool['inputSchema']['additionalProperties'])
+        self.assertEqual(profile_tool['annotations'], {
             'readOnlyHint': True,
             'destructiveHint': False,
             'idempotentHint': True,
             'openWorldHint': False,
         })
-        self.assertEqual(tools[0]['outputSchema']['type'], 'object')
+        self.assertEqual(profile_tool['outputSchema']['type'], 'object')
+        for definition in profile_tool['outputSchema'].get('$defs', {}).values():
+            if definition.get('type') == 'object':
+                self.assertFalse(definition['additionalProperties'])
 
         self.assertEqual(response.status_code, 200)
         result = response.json()['result']
-        self.assertFalse(result['isError'])
+        self.assertFalse(result['isError'], result)
         self.assertEqual(result['structuredContent'], _PROFILE_RESULT)
         self.assertNotIn(_BEARER_SECRET, response.text)
 
@@ -182,6 +185,62 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn(login.OSMO_USER_HEADER, upstream_request.headers)
         self.assertNotIn('cookie', upstream_request.headers)
+
+    async def test_health_is_a_minimal_caller_bound_profile_probe(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json=_PROFILE_RESULT)
+
+        response, catalog_response = await self._invoke_tool(
+            handler,
+            include_catalog=True,
+            tool_name='osmo_health',
+        )
+
+        self.assertIsNotNone(catalog_response)
+        assert catalog_response is not None
+        tools = {
+            tool['name']: tool
+            for tool in catalog_response.json()['result']['tools']
+        }
+        health_tool = tools['osmo_health']
+        self.assertEqual(health_tool['inputSchema']['properties'], {})
+        self.assertFalse(health_tool['inputSchema']['additionalProperties'])
+        self.assertEqual(health_tool['annotations'], {
+            'readOnlyHint': True,
+            'destructiveHint': False,
+            'idempotentHint': True,
+            'openWorldHint': False,
+        })
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'], result)
+        self.assertEqual(result['structuredContent'], {'status': 'healthy'})
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(
+            str(captured_requests[0].url),
+            'https://gateway.test/api/profile/settings',
+        )
+        self.assertEqual(
+            captured_requests[0].headers['authorization'],
+            f'Bearer {_BEARER_SECRET}',
+        )
+        self.assertNotIn(_BEARER_SECRET, response.text)
+
+    async def test_health_propagates_sanitized_profile_failures(self) -> None:
+        captured_requests: list[httpx.Request] = []
+        response, _ = await self._invoke_tool(
+            _error_response_handler(503, captured_requests),
+            tool_name='osmo_health',
+        )
+
+        result = response.json()['result']
+        self.assertTrue(result['isError'])
+        self.assertIn('HTTP 503', json.dumps(result))
+        self.assertNotIn('upstream-profile-body-secret', json.dumps(result))
+        self.assertNotIn(_BEARER_SECRET, json.dumps(result))
 
     async def test_concurrent_profile_calls_keep_requests_and_results_isolated(self) -> None:
         captured_credentials: list[tuple[str, str | None]] = []
@@ -311,13 +370,13 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             [f'Bearer {_BEARER_SECRET}', f'Bearer {_BEARER_SECRET}'],
         )
 
-    async def test_get_profile_maps_api_statuses_without_exposing_body(self) -> None:
+    async def test_get_profile_uses_central_sanitized_status_mapping(self) -> None:
         cases = (
             (401, 'rejected the active authentication'),
-            (403, 'authorization denied profile access'),
-            (429, 'profile access is rate limited'),
-            (500, 'profile service is unavailable'),
-            (418, 'profile request failed'),
+            (403, 'authorization denied the request'),
+            (429, 'rate limited the request'),
+            (500, 'service is unavailable'),
+            (418, 'request failed'),
         )
         for status_code, expected_error in cases:
             with self.subTest(status_code=status_code):
@@ -334,6 +393,33 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                 self.assertIn(f'HTTP {status_code}', result_text)
                 self.assertNotIn('upstream-profile-body-secret', result_text)
                 self.assertNotIn(_BEARER_SECRET, result_text)
+
+    async def test_get_profile_preserves_scrubbed_actionable_error(self) -> None:
+        captured_requests: list[httpx.Request] = []
+        upstream_secret = 'profile-error-secret'
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(400, json={
+                'message': (
+                    'Invalid profile update: '
+                    f'password={upstream_secret}'
+                ),
+                'error_code': 'INVALID_PROFILE',
+            })
+
+        response, _ = await self._invoke_tool(handler)
+
+        self.assertEqual(len(captured_requests), 1)
+        result = response.json()['result']
+        self.assertTrue(result['isError'])
+        result_text = json.dumps(result)
+        self.assertIn('HTTP 400', result_text)
+        self.assertIn('Invalid profile update', result_text)
+        self.assertIn('password=[REDACTED]', result_text)
+        self.assertIn('error_code=INVALID_PROFILE', result_text)
+        self.assertNotIn(upstream_secret, result_text)
+        self.assertNotIn(_BEARER_SECRET, result_text)
 
     async def test_get_profile_sanitizes_transport_and_schema_failures(self) -> None:
         async def transport_failure(request: httpx.Request) -> httpx.Response:
@@ -362,7 +448,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('upstream-schema-secret', json.dumps(schema_result))
         self.assertNotIn(_BEARER_SECRET, json.dumps(schema_result))
 
-    async def test_get_profile_does_not_expose_internal_profile_fields(self) -> None:
+    async def test_get_profile_drops_extra_nested_profile_fields(self) -> None:
         upstream_profile: dict[str, object] = dict(_PROFILE_RESULT)
         upstream_profile['profile'] = {
             'username': 'alice@example.com',
@@ -378,7 +464,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         response, _ = await self._invoke_tool(handler)
         result = response.json()['result']
-        self.assertFalse(result['isError'])
+        self.assertFalse(result['isError'], result)
         self.assertNotIn(
             'upstream-internal-profile-secret',
             json.dumps(result),
@@ -387,7 +473,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
     async def test_get_profile_rejects_semantically_reflected_credentials(
         self,
     ) -> None:
-        short_secret = 'a'
+        short_secret = 'minimum-token-16'
         short_reflection: dict[str, object] = dict(_PROFILE_RESULT)
         short_reflection['token'] = {
             'name': short_secret,
@@ -440,7 +526,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         malformed_response, _ = await self._invoke_tool(malformed_body)
         malformed_result = malformed_response.json()['result']
         self.assertTrue(malformed_result['isError'])
-        self.assertIn('invalid profile response', json.dumps(malformed_result))
+        self.assertIn('invalid response', json.dumps(malformed_result))
         self.assertNotIn(
             'upstream-malformed-body-secret',
             json.dumps(malformed_result),
@@ -492,6 +578,24 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(unknown_result['isError'])
         self.assertEqual(captured_requests, [])
         self.assertNotIn('unknown-tool-input-secret', json.dumps(unknown_result))
+
+    async def test_active_credentials_cannot_be_forwarded_as_tool_inputs(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json={'apps': [], 'more_entries': False})
+
+        response, _ = await self._invoke_tool(
+            handler,
+            tool_name='osmo_list_apps',
+            arguments={'name': _BEARER_SECRET},
+        )
+
+        result = response.json()['result']
+        self.assertTrue(result['isError'])
+        self.assertEqual(captured_requests, [])
+        self.assertNotIn(_BEARER_SECRET, json.dumps(result))
 
     async def test_get_profile_fails_closed_without_runtime_context(self) -> None:
         application = server.create_application(server.create_mcp_server())

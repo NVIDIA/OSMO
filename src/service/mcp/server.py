@@ -28,11 +28,22 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 import uvicorn  # type: ignore
 
-from src.service.mcp import gateway, profile, protocol, request_context
+from src.lib.utils import logging as logging_utils
+from src.service.mcp import (
+    gateway,
+    protocol,
+    request_body,
+    request_context,
+    tool_registry,
+)
 from src.utils import ssl_config, static_config
 
 
-class MCPServiceConfig(static_config.StaticConfig, ssl_config.SSLConfig):
+class MCPServiceConfig(
+    logging_utils.LoggingConfig,
+    static_config.StaticConfig,
+    ssl_config.SSLConfig,
+):
     """Runtime configuration for the MCP service."""
 
     model_config = pydantic.ConfigDict(hide_input_in_errors=True)
@@ -73,7 +84,7 @@ def create_mcp_server() -> FastMCP:
         stateless_http=True,
         json_response=True,
     )
-    profile.register_tools(server)
+    tool_registry.register_tools(server)
 
     @server.custom_route('/health/live', methods=['GET'], include_in_schema=False)
     async def health_live(request: Request) -> JSONResponse:  # pylint: disable=unused-argument
@@ -96,6 +107,11 @@ def create_application(protocol_server: FastMCP) -> Starlette:
     application.add_middleware(
         request_context.RequestContextMiddleware,
         path='/mcp',
+    )
+    application.add_middleware(
+        request_body.RequestBodyLimitMiddleware,
+        path='/mcp',
+        max_body_bytes=request_body.MAX_MCP_REQUEST_BODY_BYTES,
     )
     return application
 
@@ -133,6 +149,7 @@ def create_runtime_application(
 def main() -> None:
     """Run the MCP ASGI application with the repository's Uvicorn/TLS pattern."""
     config = MCPServiceConfig.load()
+    logging_utils.init_logger('mcp', config)
     application = create_runtime_application(config)
 
     async def run_server() -> None:

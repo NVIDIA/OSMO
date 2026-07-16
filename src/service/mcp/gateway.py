@@ -17,26 +17,37 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping, Sequence
 import contextlib
 import dataclasses
 import math
+import re
+import time
+from typing import TypeAlias
 from urllib import parse
 
 import httpx
 
 from src.lib.utils import login
-from src.service.mcp import request_context
+from src.service.mcp import request_context, telemetry
 
 
 _ALLOWED_METHODS = frozenset(('GET', 'POST', 'PATCH', 'DELETE'))
 _USER_AGENT = 'osmo-mcp'
 _IDENTITY_ENCODING = 'identity'
+_QUERY_KEY = re.compile(r'[A-Za-z][A-Za-z0-9_]*')
+_MAX_QUERY_BYTES = 16 * 1024
+_MAX_ERROR_RESPONSE_BYTES = 16 * 1024
 _HTTP_LIMITS = httpx.Limits(
     max_connections=100,
     max_keepalive_connections=20,
     keepalive_expiry=30,
 )
+
+
+QueryScalar: TypeAlias = str | int | bool
+QueryValue: TypeAlias = QueryScalar | Sequence[QueryScalar]
+QueryParams: TypeAlias = Mapping[str, QueryValue]
 
 
 class GatewayClientError(RuntimeError):
@@ -49,6 +60,11 @@ class GatewayResponse:
 
     status_code: int
     body: bytes = dataclasses.field(repr=False)
+    body_truncated: bool = False
+    truncation_reason: str | None = None
+
+
+_RESPONSE_SIZE_LIMIT = 'response_size_limit'
 
 
 class GatewayClient:
@@ -70,6 +86,46 @@ class GatewayClient:
         *,
         credentials: request_context.RequestCredentials,
         max_response_bytes: int,
+        query: QueryParams | None = None,
+    ) -> GatewayResponse:
+        """Call a fixed API path and require its 2xx response body to fit."""
+        return await self._request(
+            method,
+            path,
+            credentials=credentials,
+            max_response_bytes=max_response_bytes,
+            query=query,
+            truncate_success=False,
+        )
+
+    async def request_text_prefix(
+        self,
+        method: str,
+        path: str,
+        *,
+        credentials: request_context.RequestCredentials,
+        max_response_bytes: int,
+        query: QueryParams | None = None,
+    ) -> GatewayResponse:
+        """Return a bounded prefix from one fixed API path's 2xx response."""
+        return await self._request(
+            method,
+            path,
+            credentials=credentials,
+            max_response_bytes=max_response_bytes,
+            query=query,
+            truncate_success=True,
+        )
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        credentials: request_context.RequestCredentials,
+        max_response_bytes: int,
+        query: QueryParams | None,
+        truncate_success: bool,
     ) -> GatewayResponse:
         """Call a fixed API path with credentials from the active MCP request."""
         if method not in _ALLOWED_METHODS:
@@ -77,6 +133,12 @@ class GatewayClient:
         _validate_api_path(path)
         if max_response_bytes < 1:
             raise ValueError('max_response_bytes must be positive.')
+        if request_context.request_id_overlaps_bearer(
+            credentials.authorization_header,
+            credentials.request_id,
+        ):
+            raise ValueError('Gateway request credentials are invalid.')
+        encoded_query = _encode_query_params(query)
 
         headers = {
             login.OSMO_AUTH_HEADER: credentials.authorization_header,
@@ -86,47 +148,97 @@ class GatewayClient:
         if credentials.request_id is not None:
             headers[request_context.REQUEST_ID_HEADER] = credentials.request_id
 
-        request = self._client.build_request(method, path, headers=headers)
+        request = self._client.build_request(
+            method,
+            path,
+            headers=headers,
+            params=encoded_query,
+        )
         # HTTPX stores response cookies on the process-wide client. Never let
         # that shared state become credentials on a later caller's request.
         request.headers.pop('cookie', None)
 
+        start_time = time.monotonic()
+        status_code: int | None = None
+        outcome = 'transport_error'
         try:
-            async with asyncio.timeout(self._request_timeout_seconds):
-                response = await self._client.send(request, stream=True)
-                try:
-                    if 300 <= response.status_code < 400:
-                        raise GatewayClientError(
-                            'OSMO Gateway returned an unsafe redirect.')
-                    if not response.is_success:
-                        return GatewayResponse(response.status_code, b'')
-
-                    if response.headers.get(
-                        'content-encoding', _IDENTITY_ENCODING
-                    ).lower() != _IDENTITY_ENCODING:
-                        raise GatewayClientError(
-                            'OSMO Gateway returned an invalid response.')
-                    _validate_content_length(response, max_response_bytes)
-                    response_body = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        if len(response_body) + len(chunk) > max_response_bytes:
+            try:
+                async with asyncio.timeout(self._request_timeout_seconds):
+                    response = await self._client.send(request, stream=True)
+                    status_code = response.status_code
+                    outcome = 'invalid_response'
+                    try:
+                        if 300 <= response.status_code < 400:
                             raise GatewayClientError(
-                                'OSMO Gateway response exceeds the size limit.')
-                        response_body.extend(chunk)
-                finally:
-                    await response.aclose()
-        except (TimeoutError, httpx.RequestError):
-            raise GatewayClientError('OSMO Gateway is unavailable.') from None
+                                'OSMO Gateway returned an unsafe redirect.')
+                        if response.headers.get(
+                            'content-encoding', _IDENTITY_ENCODING
+                        ).lower() != _IDENTITY_ENCODING:
+                            raise GatewayClientError(
+                                'OSMO Gateway returned an invalid response.')
+
+                        if not response.is_success:
+                            response_body, body_truncated = (
+                                await _read_bounded_prefix(
+                                    response,
+                                    _MAX_ERROR_RESPONSE_BYTES,
+                                )
+                            )
+                            outcome = 'upstream_error'
+                        elif truncate_success:
+                            response_body, body_truncated = (
+                                await _read_bounded_prefix(
+                                    response,
+                                    max_response_bytes,
+                                )
+                            )
+                            outcome = (
+                                'response_truncated'
+                                if body_truncated
+                                else 'response_received'
+                            )
+                        else:
+                            response_body = await _read_strict_body(
+                                response,
+                                max_response_bytes,
+                            )
+                            body_truncated = False
+                            outcome = 'response_received'
+                    finally:
+                        await response.aclose()
+            except (TimeoutError, httpx.RequestError):
+                outcome = 'transport_error'
+                raise GatewayClientError(
+                    'OSMO Gateway is unavailable.') from None
+
+            if _contains_relayed_credentials(
+                response_body,
+                credentials,
+                include_partial_suffix=body_truncated,
+            ):
+                outcome = 'invalid_response'
+                raise GatewayClientError(
+                    'OSMO Gateway returned an invalid response.')
+            return GatewayResponse(
+                response.status_code,
+                response_body,
+                body_truncated=body_truncated,
+                truncation_reason=(
+                    _RESPONSE_SIZE_LIMIT if body_truncated else None
+                ),
+            )
         finally:
             # Set-Cookie is upstream response data, never caller-independent
             # client state. Clear it even when streaming or decoding fails.
             self._client.cookies.clear()
-
-        response_body_bytes = bytes(response_body)
-        if _contains_relayed_credentials(response_body_bytes, credentials):
-            raise GatewayClientError(
-                'OSMO Gateway returned an invalid response.')
-        return GatewayResponse(response.status_code, response_body_bytes)
+            telemetry.log_upstream_call(
+                method=method,
+                path=path,
+                status_code=status_code,
+                duration_ms=(time.monotonic() - start_time) * 1000,
+                outcome=outcome,
+                request_id=credentials.request_id,
+            )
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -218,6 +330,7 @@ def _validate_api_path(path: str) -> None:
     if (
         not decoded_path.startswith('/api/')
         or '//' in decoded_path
+        or decoded_path.count('/') != parsed_path.path.count('/')
         or '\\' in decoded_path
         or any(
             ord(character) < 0x20 or ord(character) == 0x7F
@@ -228,13 +341,66 @@ def _validate_api_path(path: str) -> None:
         raise ValueError('Gateway requests require a relative OSMO API path.')
 
 
+def _encode_query_params(
+    query: QueryParams | None,
+) -> httpx.QueryParams | None:
+    """Validate and encode caller-independent query names and typed values."""
+    if query is None:
+        return None
+    if not isinstance(query, Mapping):
+        raise ValueError('Gateway query parameters must be a mapping.')
+
+    encoded: list[tuple[str, str | int | float | bool | None]] = []
+    for key, raw_value in query.items():
+        if not isinstance(key, str) or _QUERY_KEY.fullmatch(key) is None:
+            raise ValueError('Gateway query parameter name is not allowed.')
+        values: Sequence[QueryScalar]
+        if isinstance(raw_value, (str, int, bool)):
+            values = (raw_value,)
+        elif isinstance(raw_value, Sequence) and not isinstance(
+            raw_value, (bytes, bytearray)
+        ):
+            values = raw_value
+        else:
+            raise ValueError('Gateway query parameter value is not allowed.')
+
+        for value in values:
+            if not isinstance(value, (str, int, bool)):
+                raise ValueError('Gateway query parameter value is not allowed.')
+            normalized = str(value).lower() if isinstance(value, bool) else str(value)
+            try:
+                normalized.encode('utf-8')
+            except UnicodeEncodeError:
+                raise ValueError(
+                    'Gateway query parameter value is not allowed.'
+                ) from None
+            if any(
+                ord(character) < 0x20 or ord(character) == 0x7F
+                for character in normalized
+            ):
+                raise ValueError('Gateway query parameter value is not allowed.')
+            encoded.append((key, normalized))
+
+    if len(parse.urlencode(encoded).encode('ascii')) > _MAX_QUERY_BYTES:
+        raise ValueError('Gateway query parameters exceed the size limit.')
+    return httpx.QueryParams(encoded)
+
+
 def _validate_content_length(
     response: httpx.Response,
     max_response_bytes: int,
 ) -> None:
+    content_length = _content_length(response)
+    if content_length is not None and content_length > max_response_bytes:
+        raise GatewayClientError(
+            'OSMO Gateway response exceeds the size limit.')
+
+
+def _content_length(response: httpx.Response) -> int | None:
+    """Parse a Content-Length header without trusting it as the actual size."""
     content_length_header = response.headers.get('content-length')
     if content_length_header is None:
-        return
+        return None
     try:
         content_length = int(content_length_header)
     except ValueError:
@@ -242,22 +408,75 @@ def _validate_content_length(
             'OSMO Gateway returned an invalid response.') from None
     if content_length < 0:
         raise GatewayClientError('OSMO Gateway returned an invalid response.')
-    if content_length > max_response_bytes:
-        raise GatewayClientError(
-            'OSMO Gateway response exceeds the size limit.')
+    return content_length
+
+
+async def _read_strict_body(
+    response: httpx.Response,
+    max_response_bytes: int,
+) -> bytes:
+    """Read a whole successful body or fail closed when it is oversized."""
+    _validate_content_length(response, max_response_bytes)
+    response_body = bytearray()
+    async for chunk in response.aiter_bytes():
+        if len(response_body) + len(chunk) > max_response_bytes:
+            raise GatewayClientError(
+                'OSMO Gateway response exceeds the size limit.')
+        response_body.extend(chunk)
+    return bytes(response_body)
+
+
+async def _read_bounded_prefix(
+    response: httpx.Response,
+    max_response_bytes: int,
+) -> tuple[bytes, bool]:
+    """Read at most one prefix and report whether more response bytes exist."""
+    content_length = _content_length(response)
+    body_truncated = (
+        content_length is not None and content_length > max_response_bytes
+    )
+    response_body = bytearray()
+    async for chunk in response.aiter_bytes():
+        remaining = max_response_bytes - len(response_body)
+        if len(chunk) > remaining:
+            response_body.extend(chunk[:remaining])
+            body_truncated = True
+            break
+        response_body.extend(chunk)
+        if len(response_body) == max_response_bytes and body_truncated:
+            break
+    return bytes(response_body), body_truncated
 
 
 def _contains_relayed_credentials(
     response_body: bytes,
     credentials: request_context.RequestCredentials,
+    *,
+    include_partial_suffix: bool = False,
 ) -> bool:
     authorization_header = credentials.authorization_header.encode('ascii')
     _, _, bearer_token = authorization_header.partition(b' ')
-    return (
+    if (
         authorization_header in response_body
         or (
             len(bearer_token)
             >= request_context.MIN_BEARER_TOKEN_SUBSTRING_BYTES
             and bearer_token in response_body
         )
-    )
+    ):
+        return True
+
+    if not include_partial_suffix:
+        return False
+    # A size boundary can split a reflected credential. Reject a meaningful
+    # prefix of either relayed secret instead of returning that partial secret to
+    # the MCP caller. Checking one fixed prefix keeps this linear even when the
+    # request contains the maximum-sized bearer token.
+    for secret in (authorization_header, bearer_token):
+        if (
+            len(secret) >= request_context.MIN_BEARER_TOKEN_SUBSTRING_BYTES
+            and secret[:request_context.MIN_BEARER_TOKEN_SUBSTRING_BYTES]
+            in response_body
+        ):
+            return True
+    return False

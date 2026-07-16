@@ -130,6 +130,154 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('proxy-authorization', captured_requests[0].headers)
         self.assertNotIn('x-request-id', captured_requests[1].headers)
 
+    async def test_request_rejects_bearer_overlapping_request_id(self) -> None:
+        transport_calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            nonlocal transport_calls
+            transport_calls += 1
+            return httpx.Response(200, content=b'{}')
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            with (
+                self.assertNoLogs('src.service.mcp.telemetry', level='INFO'),
+                self.assertRaisesRegex(ValueError, 'credentials are invalid'),
+            ):
+                await app_context.gateway.request(
+                    'GET',
+                    '/api/profile/settings',
+                    credentials=self._credentials(
+                        authorization_header=(
+                            'Bearer opaque-token-segment-1234567890'
+                        ),
+                        request_id='opaque-token-segment',
+                    ),
+                    max_response_bytes=1024,
+                )
+
+        self.assertEqual(transport_calls, 0)
+
+    async def test_request_telemetry_uses_sanitized_gateway_context(self) -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return httpx.Response(200, content=b'logs')
+
+        credentials = request_context.RequestCredentials(
+            authorization_header='Bearer telemetry-bearer-secret-1234567890',
+            user_name='private-user@example.com',
+            request_id='safe-request-123',
+        )
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            with (
+                request_context.track_tool('osmo_get_workflow_logs'),
+                self.assertLogs(
+                    'src.service.mcp.telemetry',
+                    level='INFO',
+                ) as captured,
+            ):
+                await app_context.gateway.request_text_prefix(
+                    'GET',
+                    '/api/workflow/private-workflow-42/logs',
+                    credentials=credentials,
+                    max_response_bytes=1024,
+                    query={'task_name': 'private-task'},
+                )
+
+        self.assertEqual(len(captured.output), 1)
+        record = captured.output[0]
+        for expected in (
+            'tool=osmo_get_workflow_logs',
+            'method=GET',
+            'route=/api/workflow/{workflow_id}/logs',
+            'status=200',
+            'outcome=response_received',
+            'request_id=safe-request-123',
+        ):
+            self.assertIn(expected, record)
+        for secret in (
+            'telemetry-bearer-secret-1234567890',
+            'private-user@example.com',
+            'private-workflow-42',
+            'private-task',
+        ):
+            self.assertNotIn(secret, record)
+
+    async def test_malformed_200_is_not_labeled_semantic_success(self) -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return httpx.Response(200, content=b'not-json')
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            with (
+                request_context.track_tool('osmo_get_profile'),
+                self.assertLogs(
+                    'src.service.mcp.telemetry',
+                    level='INFO',
+                ) as captured,
+            ):
+                response = await app_context.gateway.request(
+                    'GET',
+                    '/api/profile/settings',
+                    credentials=self._credentials(),
+                    max_response_bytes=1024,
+                )
+
+        self.assertEqual(response.body, b'not-json')
+        self.assertEqual(len(captured.output), 1)
+        record = captured.output[0]
+        self.assertIn('status=200', record)
+        self.assertIn('outcome=response_received', record)
+        self.assertNotIn('outcome=success', record)
+
+    async def test_request_encodes_typed_query_parameters(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, content=b'{}')
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            await app_context.gateway.request(
+                'GET',
+                '/api/workflow',
+                credentials=self._credentials(),
+                max_response_bytes=1024,
+                query={
+                    'limit': 50,
+                    'all_pools': True,
+                    'tags': ['alpha&beta', 'release candidate'],
+                },
+            )
+
+        self.assertEqual(len(captured_requests), 1)
+        request = captured_requests[0]
+        self.assertEqual(request.url.path, '/api/workflow')
+        self.assertEqual(request.url.params.multi_items(), [
+            ('limit', '50'),
+            ('all_pools', 'true'),
+            ('tags', 'alpha&beta'),
+            ('tags', 'release candidate'),
+        ])
+        self.assertIn('alpha%26beta', str(request.url))
+        self.assertIn('release+candidate', str(request.url))
+
     async def test_only_fixed_api_paths_and_methods_are_allowed(self) -> None:
         transport_calls = 0
 
@@ -148,6 +296,8 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
             '/api/../profile/settings',
             '/api/%2e%2e/profile/settings',
             '/api/%252e%252e/profile/settings',
+            '/api/profile/foo%2fbar',
+            '/api/profile/foo%252fbar',
             '/api\\profile',
             '/api//profile',
             '/api/profile?user=alice',
@@ -187,6 +337,25 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                     credentials=self._credentials(),
                     max_response_bytes=0,
                 )
+
+            invalid_queries: tuple[object, ...] = (
+                {'bad-name': 'value'},
+                {'limit': object()},
+                {'tags': ['valid', object()]},
+                {'name': 'contains\nnewline'},
+                {'name': '\ud800'},
+                {'name': 'x' * (16 * 1024)},
+            )
+            for invalid_query in invalid_queries:
+                with self.subTest(query=invalid_query):
+                    with self.assertRaises(ValueError):
+                        await app_context.gateway.request(
+                            'GET',
+                            '/api/profile/settings',
+                            credentials=self._credentials(),
+                            max_response_bytes=1024,
+                            query=invalid_query,  # type: ignore[arg-type]
+                        )
 
         self.assertEqual(transport_calls, 0)
 
@@ -243,7 +412,7 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                     'GET',
                     '/api/profile/settings',
                     credentials=self._credentials(
-                        authorization_header=f'Bearer caller-{caller}'
+                        authorization_header=f'Bearer caller-{caller}-secret'
                     ),
                     max_response_bytes=1024,
                 )
@@ -252,7 +421,7 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertCountEqual(
             captured_authorization_headers,
-            ['Bearer caller-alice', 'Bearer caller-bob'],
+            ['Bearer caller-alice-secret', 'Bearer caller-bob-secret'],
         )
 
     async def test_redirect_is_rejected_without_following(self) -> None:
@@ -315,8 +484,9 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('connection-upstream-secret', str(raised.exception))
         self.assertIsNone(raised.exception.__cause__)
 
-    async def test_error_status_body_is_not_read_or_exposed(self) -> None:
-        stream = _TrackingStream([b'upstream-body-secret'])
+    async def test_error_status_body_is_read_with_an_independent_cap(self) -> None:
+        error_body = b'{"message":"correct the request"}'
+        stream = _TrackingStream([error_body])
 
         async def handler(request: httpx.Request) -> httpx.Response:
             del request
@@ -334,10 +504,97 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                 max_response_bytes=1024,
             )
 
-        self.assertEqual(response, gateway.GatewayResponse(403, b''))
-        self.assertEqual(stream.iterated_chunks, 0)
+        self.assertEqual(response, gateway.GatewayResponse(403, error_body))
+        self.assertEqual(stream.iterated_chunks, 1)
         self.assertEqual(stream.close_count, 1)
-        self.assertNotIn('upstream-body-secret', repr(response))
+        self.assertNotIn('correct the request', repr(response))
+
+        oversized_stream = _TrackingStream([
+            b'x' * (gateway._MAX_ERROR_RESPONSE_BYTES + 1),  # pylint: disable=protected-access
+            b'later-upstream-secret',
+        ])
+
+        async def oversized_handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return httpx.Response(422, stream=oversized_stream)
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(oversized_handler),
+        ) as app_context:
+            oversized_response = await app_context.gateway.request(
+                'GET',
+                '/api/profile/settings',
+                credentials=self._credentials(),
+                max_response_bytes=1,
+            )
+
+        self.assertEqual(
+            len(oversized_response.body),
+            gateway._MAX_ERROR_RESPONSE_BYTES,  # pylint: disable=protected-access
+        )
+        self.assertTrue(oversized_response.body_truncated)
+        self.assertEqual(
+            oversized_response.truncation_reason,
+            'response_size_limit',
+        )
+        self.assertEqual(oversized_stream.iterated_chunks, 1)
+        self.assertEqual(oversized_stream.close_count, 1)
+        self.assertNotIn('later-upstream-secret', repr(oversized_response))
+
+    async def test_error_status_rejects_compression_and_credential_reflection(
+        self,
+    ) -> None:
+        compressed_stream = _TrackingStream([b'compressed-upstream-secret'])
+        bearer_token = 'reflected-error-bearer-secret'
+        responses = [
+            httpx.Response(
+                400,
+                headers={'content-encoding': 'gzip'},
+                stream=compressed_stream,
+            ),
+            httpx.Response(
+                400,
+                content=f'{{"message":"Bearer {bearer_token}"}}'.encode(),
+            ),
+        ]
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return responses.pop(0)
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            with self.assertRaisesRegex(
+                gateway.GatewayClientError,
+                'invalid response',
+            ):
+                await app_context.gateway.request(
+                    'GET',
+                    '/api/profile/settings',
+                    credentials=self._credentials(),
+                    max_response_bytes=1024,
+                )
+            with self.assertRaisesRegex(
+                gateway.GatewayClientError,
+                'invalid response',
+            ) as raised:
+                await app_context.gateway.request(
+                    'GET',
+                    '/api/profile/settings',
+                    credentials=self._credentials(
+                        authorization_header=f'Bearer {bearer_token}'
+                    ),
+                    max_response_bytes=1024,
+                )
+
+        self.assertEqual(compressed_stream.iterated_chunks, 0)
+        self.assertEqual(compressed_stream.close_count, 1)
+        self.assertNotIn(bearer_token, str(raised.exception))
 
     async def test_success_response_cannot_reflect_relayed_credentials(self) -> None:
         bearer_token = 'reflected-bearer-token-secret'
@@ -369,6 +626,38 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                         max_response_bytes=1024,
                     )
                 self.assertNotIn(bearer_token, str(raised.exception))
+
+    async def test_truncated_text_cannot_reflect_a_partial_relayed_credential(
+        self,
+    ) -> None:
+        bearer_token = 'partial-reflection-bearer-secret'
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return httpx.Response(
+                200,
+                content=f'{bearer_token}-additional-output'.encode(),
+            )
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            with self.assertRaisesRegex(
+                gateway.GatewayClientError,
+                'invalid response',
+            ) as raised:
+                await app_context.gateway.request_text_prefix(
+                    'GET',
+                    '/api/workflow/test-1/logs',
+                    credentials=self._credentials(
+                        authorization_header=f'Bearer {bearer_token}'
+                    ),
+                    max_response_bytes=20,
+                )
+
+        self.assertNotIn(bearer_token, str(raised.exception))
 
     async def test_streaming_response_is_cumulatively_bounded(self) -> None:
         exact_stream = _TrackingStream([b'ab', b'cd'])
@@ -410,6 +699,71 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(oversized_stream.iterated_chunks, 2)
         self.assertEqual(oversized_stream.close_count, 1)
         self.assertNotIn('later-upstream-secret', str(raised.exception))
+
+    async def test_text_prefix_returns_size_truncation_and_closes_early(
+        self,
+    ) -> None:
+        exact_stream = _TrackingStream([b'ab', b'cd'])
+        oversized_stream = _TrackingStream([
+            b'ab',
+            b'cdef',
+            b'later-upstream-secret',
+        ])
+        content_length_stream = _TrackingStream([
+            b'abcd',
+            b'later-upstream-secret',
+        ])
+        responses = [
+            httpx.Response(200, stream=exact_stream),
+            httpx.Response(200, stream=oversized_stream),
+            httpx.Response(
+                200,
+                headers={'content-length': '100'},
+                stream=content_length_stream,
+            ),
+        ]
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return responses.pop(0)
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            exact = await app_context.gateway.request_text_prefix(
+                'GET',
+                '/api/workflow/test-1/logs',
+                credentials=self._credentials(),
+                max_response_bytes=4,
+            )
+            oversized = await app_context.gateway.request_text_prefix(
+                'GET',
+                '/api/workflow/test-1/logs',
+                credentials=self._credentials(),
+                max_response_bytes=4,
+            )
+            advertised_oversized = await app_context.gateway.request_text_prefix(
+                'GET',
+                '/api/workflow/test-1/logs',
+                credentials=self._credentials(),
+                max_response_bytes=4,
+            )
+
+        self.assertEqual(exact.body, b'abcd')
+        self.assertFalse(exact.body_truncated)
+        self.assertIsNone(exact.truncation_reason)
+        self.assertEqual(oversized.body, b'abcd')
+        self.assertTrue(oversized.body_truncated)
+        self.assertEqual(oversized.truncation_reason, 'response_size_limit')
+        self.assertEqual(advertised_oversized.body, b'abcd')
+        self.assertTrue(advertised_oversized.body_truncated)
+        self.assertEqual(exact_stream.close_count, 1)
+        self.assertEqual(oversized_stream.iterated_chunks, 2)
+        self.assertEqual(oversized_stream.close_count, 1)
+        self.assertEqual(content_length_stream.iterated_chunks, 1)
+        self.assertEqual(content_length_stream.close_count, 1)
 
     async def test_content_length_is_validated_before_streaming(self) -> None:
         oversized_stream = _TrackingStream([b'upstream-secret'])

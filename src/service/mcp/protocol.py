@@ -17,6 +17,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 from collections.abc import Mapping, Sequence
+import json
+import time
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -25,7 +27,10 @@ from mcp.types import ContentBlock
 from mcp.types import Tool as MCPTool
 import pydantic
 
-from src.service.mcp import request_context
+from src.service.mcp import request_context, telemetry, tool_errors
+
+
+_MAX_SERIALIZED_TOOL_RESULT_BYTES = 512 * 1024
 
 
 class OSMOFastMCP(FastMCP):
@@ -42,35 +47,98 @@ class OSMOFastMCP(FastMCP):
         name: str,
         arguments: dict[str, Any],
     ) -> Sequence[ContentBlock] | dict[str, Any]:
-        tools_by_name = {
-            tool.name: tool
-            for tool in await super().list_tools()
-        }
-        tool = tools_by_name.get(name)
-        if tool is None:
-            raise ToolError('Unknown MCP tool.')
-
-        allowed_arguments = set(tool.inputSchema.get('properties', {}))
-        if not arguments.keys() <= allowed_arguments:
-            raise ToolError('Invalid MCP tool arguments.')
-
+        start_time = time.monotonic()
+        telemetry_tool_name = 'unknown'
+        request_id: str | None = None
+        outcome = 'unexpected_error'
         try:
-            with request_context.track_request_task() as credentials:
+            request_id = (
+                request_context.get_request_credentials().request_id
+            )
+            tools_by_name = {
+                tool.name: tool
+                for tool in await super().list_tools()
+            }
+            tool = tools_by_name.get(name)
+            if tool is None:
+                outcome = 'public_error'
+                raise tool_errors.PublicToolError('Unknown MCP tool.')
+            telemetry_tool_name = tool.name
+
+            allowed_arguments = set(tool.inputSchema.get('properties', {}))
+            if not arguments.keys() <= allowed_arguments:
+                outcome = 'validation_error'
+                raise tool_errors.PublicToolError(
+                    'Invalid MCP tool arguments.'
+                )
+
+            with (
+                request_context.track_request_task() as credentials,
+                request_context.track_tool(telemetry_tool_name),
+            ):
+                if _contains_relayed_credentials(arguments, credentials):
+                    outcome = 'validation_error'
+                    raise tool_errors.PublicToolError(
+                        'MCP tool arguments are invalid.'
+                    )
                 try:
                     result = await super().call_tool(name, arguments)
                 except ToolError as error:
                     if isinstance(error.__cause__, pydantic.ValidationError):
-                        raise ToolError('MCP tool validation failed.') from None
-                    if _contains_relayed_credentials(str(error), credentials):
-                        raise ToolError('MCP tool failed.') from None
-                    raise
+                        outcome = 'validation_error'
+                        raise tool_errors.PublicToolError(
+                            'MCP tool validation failed.'
+                        ) from None
+                    public_error = tool_errors.from_fastmcp_error(error)
+                    if public_error is None:
+                        outcome = 'unexpected_error'
+                        raise tool_errors.PublicToolError(
+                            tool_errors.GENERIC_TOOL_ERROR
+                        ) from None
+                    if _contains_relayed_credentials(
+                        str(public_error),
+                        credentials,
+                    ):
+                        outcome = 'unexpected_error'
+                        raise tool_errors.PublicToolError(
+                            tool_errors.GENERIC_TOOL_ERROR
+                        ) from None
+                    outcome = 'public_error'
+                    raise public_error from None
 
+                outcome = 'invalid_result'
                 if _contains_relayed_credentials(result, credentials):
-                    raise ToolError('MCP tool returned an invalid response.')
+                    raise tool_errors.PublicToolError(
+                        'MCP tool returned an invalid response.'
+                    )
+                if _serialized_size(result) > _MAX_SERIALIZED_TOOL_RESULT_BYTES:
+                    raise tool_errors.PublicToolError(
+                        'MCP tool result exceeds the size limit.'
+                    )
+                outcome = 'success'
                 return result
+        except tool_errors.PublicToolError:
+            raise
         except request_context.RequestContextUnavailable:
-            raise ToolError(
+            outcome = 'context_error'
+            raise tool_errors.PublicToolError(
                 'MCP request authentication context is unavailable.') from None
+        except Exception:
+            outcome = 'unexpected_error'
+            raise tool_errors.PublicToolError(
+                tool_errors.GENERIC_TOOL_ERROR
+            ) from None
+        finally:
+            # Observability must never replace the sanitized MCP result.
+            try:
+                telemetry.log_tool_outcome(
+                    tool_name=telemetry_tool_name,
+                    outcome=outcome,
+                    duration_ms=(time.monotonic() - start_time) * 1000,
+                    request_id=request_id,
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass
 
 
 def _contains_relayed_credentials(
@@ -129,3 +197,35 @@ def _contains_sensitive_value(
             for item in value
         )
     return False
+
+
+def _serialized_size(value: object) -> int:
+    """Measure the JSON form handed to MCP before transport-level duplication."""
+    try:
+        payload = json.dumps(
+            _json_safe(value),
+            ensure_ascii=False,
+            separators=(',', ':'),
+        ).encode('utf-8')
+    except (TypeError, ValueError, UnicodeError):
+        raise tool_errors.PublicToolError(
+            'MCP tool returned an invalid response.'
+        ) from None
+    return len(payload)
+
+
+def _json_safe(value: object) -> object:
+    if isinstance(value, pydantic.BaseModel):
+        return _json_safe(value.model_dump(mode='json', by_alias=True))
+    if isinstance(value, Mapping):
+        return {
+            str(key): _json_safe(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='strict')
+    if isinstance(value, bytearray):
+        return bytes(value).decode('utf-8', errors='strict')
+    return value

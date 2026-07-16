@@ -30,7 +30,7 @@ class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):
 
     @staticmethod
     def _headers(
-        authorization: bytes = b'Bearer test-token',
+        authorization: bytes = b'Bearer test-token-value',
         user_name: bytes = b'alice@example.com',
         request_id: bytes | None = b'request-123',
     ) -> list[tuple[bytes, bytes]]:
@@ -199,6 +199,19 @@ class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):
                 if invalid_value:
                     self.assertNotIn(invalid_value, response_body)
 
+    async def test_short_bearer_token_is_rejected(self) -> None:
+        middleware = request_context.RequestContextMiddleware(
+            self._success_application,
+        )
+
+        messages = await self._invoke(
+            middleware,
+            self._headers(authorization=b'Bearer short-token'),
+        )
+
+        self.assertEqual(self._status(messages), 400)
+        self.assertNotIn(b'short-token', self._body(messages))
+
         middleware = request_context.RequestContextMiddleware(
             self._success_application,
         )
@@ -264,12 +277,37 @@ class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertEqual(self._status(messages), 400)
 
+    async def test_request_ids_overlapping_bearer_are_rejected(self) -> None:
+        bearer_token = b'opaque-token-segment-1234567890'
+        overlapping_request_ids = (
+            bearer_token,
+            b'opaque-token-segment',
+            b'request-opaque-token-segment-suffix',
+            b'token-segment-1234',
+        )
+
+        for request_id in overlapping_request_ids:
+            with self.subTest(request_id=request_id):
+                middleware = request_context.RequestContextMiddleware(
+                    self._success_application,
+                )
+                messages = await self._invoke(
+                    middleware,
+                    self._headers(
+                        authorization=b'Bearer ' + bearer_token,
+                        request_id=request_id,
+                    ),
+                )
+
+                self.assertEqual(self._status(messages), 400)
+                self.assertNotIn(bearer_token, self._body(messages))
+
     async def test_header_length_boundaries_are_accepted(self) -> None:
         authorization = b'Bearer ' + b'a' * (
             request_context.MAX_AUTHORIZATION_HEADER_BYTES - len(b'Bearer ')
         )
         user_name = b'a' * request_context.MAX_USER_HEADER_BYTES
-        request_id = b'a' * request_context.MAX_REQUEST_ID_HEADER_BYTES
+        request_id = b'b' * request_context.MAX_REQUEST_ID_HEADER_BYTES
         middleware = request_context.RequestContextMiddleware(
             self._success_application,
         )
@@ -465,7 +503,7 @@ class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):
         alice_request = asyncio.create_task(self._invoke(
             middleware,
             self._headers(
-                authorization=b'Bearer alice-token',
+                authorization=b'Bearer alice-token-value',
                 user_name=b'alice@example.com',
                 request_id=b'alice-request',
             ),
@@ -473,7 +511,7 @@ class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):
         bob_request = asyncio.create_task(self._invoke(
             middleware,
             self._headers(
-                authorization=b'Bearer bob-token',
+                authorization=b'Bearer bob-token-value-1',
                 user_name=b'bob@example.com',
                 request_id=b'bob-request',
             ),
@@ -489,8 +527,14 @@ class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):
         bob_before, bob_after = observations['bob@example.com']
         self.assertEqual(alice_before, alice_after)
         self.assertEqual(bob_before, bob_after)
-        self.assertEqual(alice_before.authorization_header, 'Bearer alice-token')
-        self.assertEqual(bob_before.authorization_header, 'Bearer bob-token')
+        self.assertEqual(
+            alice_before.authorization_header,
+            'Bearer alice-token-value',
+        )
+        self.assertEqual(
+            bob_before.authorization_header,
+            'Bearer bob-token-value-1',
+        )
         self.assertNotEqual(alice_before, bob_before)
         with self.assertRaisesRegex(RuntimeError, 'credentials are unavailable'):
             request_context.get_request_credentials()

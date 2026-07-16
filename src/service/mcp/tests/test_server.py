@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 from collections.abc import AsyncIterator
 import contextlib
 import io
+import json
 import os
 import sys
 import types
@@ -32,7 +33,13 @@ import pydantic
 from starlette.applications import Starlette
 
 from src.lib.utils import login
-from src.service.mcp import gateway, request_context, server
+from src.service.mcp import (
+    gateway,
+    request_body,
+    request_context,
+    server,
+    tool_registry,
+)
 
 
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
@@ -44,10 +51,131 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(server.create_application(protocol_server), application)
         protocol_server.streamable_http_app.assert_called_once_with()
-        application.add_middleware.assert_called_once_with(
-            request_context.RequestContextMiddleware,
-            path='/mcp',
+        self.assertEqual(application.add_middleware.call_args_list, [
+            mock.call(
+                request_context.RequestContextMiddleware,
+                path='/mcp',
+            ),
+            mock.call(
+                request_body.RequestBodyLimitMiddleware,
+                path='/mcp',
+                max_body_bytes=request_body.MAX_MCP_REQUEST_BODY_BYTES,
+            ),
+        ])
+
+    @staticmethod
+    def _sized_tool_request(size: int) -> bytes:
+        def encode_request(padding: str) -> bytes:
+            return json.dumps({
+                'jsonrpc': '2.0',
+                'id': 1,
+                'method': 'tools/call',
+                'params': {
+                    'name': 'accept_request_body',
+                    'arguments': {'padding': padding},
+                },
+            }, separators=(',', ':')).encode('utf-8')
+
+        empty_body = encode_request('')
+        padding_size = size - len(empty_body)
+        if padding_size < 0:
+            raise ValueError('Requested test body is too small.')
+        body = encode_request('x' * padding_size)
+        if len(body) != size:
+            raise AssertionError('Failed to construct the requested body size.')
+        return body
+
+    @staticmethod
+    def _body_limit_application() -> Starlette:
+        mcp_server = server.create_mcp_server()
+
+        @mcp_server.tool()
+        async def accept_request_body(padding: str) -> dict[str, int]:
+            return {'accepted_bytes': len(padding.encode('utf-8'))}
+
+        return server.create_application(mcp_server)
+
+    async def _post_sized_tool_request(
+        self,
+        size: int,
+        *,
+        chunked: bool,
+        declared_size: int | None = None,
+    ) -> httpx.Response:
+        body = self._sized_tool_request(size)
+        content: bytes | AsyncIterator[bytes]
+        if chunked:
+            async def body_chunks() -> AsyncIterator[bytes]:
+                chunk_size = 64 * 1024
+                for offset in range(0, len(body), chunk_size):
+                    yield body[offset:offset + chunk_size]
+
+            content = body_chunks()
+        else:
+            content = body
+
+        headers = {
+            'Accept': 'application/json, text/event-stream',
+            'Content-Type': 'application/json',
+            login.OSMO_AUTH_HEADER: 'Bearer body-limit-secret',
+            login.OSMO_USER_HEADER: 'body-limit-user',
+        }
+        if declared_size is not None:
+            headers['Content-Length'] = str(declared_size)
+
+        application = self._body_limit_application()
+        async with application.router.lifespan_context(application):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application),
+                base_url='http://mcp.test',
+            ) as client:
+                return await client.post(
+                    '/mcp',
+                    headers=headers,
+                    content=content,
+                )
+
+    async def test_content_length_request_at_limit_is_accepted(self) -> None:
+        response = await self._post_sized_tool_request(
+            request_body.MAX_MCP_REQUEST_BODY_BYTES,
+            chunked=False,
+            declared_size=request_body.MAX_MCP_REQUEST_BODY_BYTES,
         )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['result']['isError'])
+
+    async def test_content_length_request_over_limit_is_rejected(self) -> None:
+        response = await self._post_sized_tool_request(
+            1024,
+            chunked=False,
+            declared_size=request_body.MAX_MCP_REQUEST_BODY_BYTES + 1,
+        )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json(), {
+            'error': 'MCP request body exceeds the 1 MiB limit.',
+        })
+
+    async def test_chunked_request_at_limit_is_accepted(self) -> None:
+        response = await self._post_sized_tool_request(
+            request_body.MAX_MCP_REQUEST_BODY_BYTES,
+            chunked=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['result']['isError'])
+
+    async def test_chunked_request_over_limit_is_rejected(self) -> None:
+        response = await self._post_sized_tool_request(
+            request_body.MAX_MCP_REQUEST_BODY_BYTES + 1,
+            chunked=True,
+        )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json(), {
+            'error': 'MCP request body exceeds the 1 MiB limit.',
+        })
 
     async def test_health_endpoints(self) -> None:
         application = server.create_application(server.create_mcp_server())
@@ -76,7 +204,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         headers = {
             'Accept': 'application/json, text/event-stream',
             'Content-Type': 'application/json',
-            login.OSMO_AUTH_HEADER: 'Bearer test-token',
+            login.OSMO_AUTH_HEADER: 'Bearer test-token-value',
             login.OSMO_USER_HEADER: 'test-user',
         }
         initialize_request = {
@@ -124,7 +252,11 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list_tools_response.status_code, 200)
         self.assertEqual(
             [tool['name'] for tool in list_tools_response.json()['result']['tools']],
-            ['osmo_get_profile'],
+            [spec.name for spec in tool_registry.TOOL_SPECS],
+        )
+        self.assertEqual(
+            len(tool_registry.TOOL_SPECS),
+            len({spec.name for spec in tool_registry.TOOL_SPECS}),
         )
 
     async def test_request_context_reaches_fastmcp_tool(self) -> None:
@@ -212,11 +344,51 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('MCP tool failed', response.text)
         self.assertNotIn(bearer_secret, response.text)
 
+    async def test_oversized_final_tool_result_is_rejected(self) -> None:
+        mcp_server = server.create_mcp_server()
+
+        @mcp_server.tool()
+        async def oversized_result() -> dict[str, str]:
+            return {'text': 'x' * (513 * 1024)}
+
+        application = server.create_application(mcp_server)
+        async with application.router.lifespan_context(application):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application),
+                base_url='http://mcp.test',
+            ) as client:
+                response = await client.post(
+                    '/mcp',
+                    headers={
+                        'Accept': 'application/json, text/event-stream',
+                        'Content-Type': 'application/json',
+                        login.OSMO_AUTH_HEADER: 'Bearer result-size-secret',
+                        login.OSMO_USER_HEADER: 'tool-user@example.com',
+                    },
+                    json={
+                        'jsonrpc': '2.0',
+                        'id': 1,
+                        'method': 'tools/call',
+                        'params': {
+                            'name': 'oversized_result',
+                            'arguments': {},
+                        },
+                    },
+                )
+
+        result = response.json()['result']
+        self.assertTrue(result['isError'])
+        self.assertIn('result exceeds the size limit', response.text)
+        self.assertLess(len(response.content), 16 * 1024)
+        self.assertNotIn('result-size-secret', response.text)
+
     def test_runtime_config_requires_https_gateway_origin(self) -> None:
         config = server.MCPServiceConfig(
             gateway_url='https://gateway.test:8443',
         )
         self.assertEqual(str(config.gateway_url), 'https://gateway.test:8443/')
+        self.assertEqual(config.log_level.name, 'INFO')
+        self.assertEqual(config.log_format.value, 'text')
 
         invalid_urls = (
             'http://gateway.test',
@@ -368,6 +540,10 @@ class MCPMainTest(unittest.TestCase):
             mock.patch.object(
                 server.MCPServiceConfig, 'load', return_value=config),
             mock.patch.object(
+                server.logging_utils,
+                'init_logger',
+            ) as init_logger,
+            mock.patch.object(
                 server,
                 'create_runtime_application',
                 return_value=application,
@@ -395,6 +571,7 @@ class MCPMainTest(unittest.TestCase):
         server_factory.assert_called_once_with(config=uvicorn_config)
         uvicorn_server.serve.assert_awaited_once_with()
         application_factory.assert_called_once_with(config)
+        init_logger.assert_called_once_with('mcp', config)
         config.uvicorn_ssl_kwargs.assert_called_once_with()
 
     def test_main_handles_keyboard_interrupt(self) -> None:
@@ -410,6 +587,7 @@ class MCPMainTest(unittest.TestCase):
         with (
             mock.patch.object(
                 server.MCPServiceConfig, 'load', return_value=config),
+            mock.patch.object(server.logging_utils, 'init_logger'),
             mock.patch.object(
                 server,
                 'create_runtime_application',
