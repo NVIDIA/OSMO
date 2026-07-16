@@ -22,7 +22,12 @@ import dataclasses
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from src.service.mcp import health, profile
+from src.service.mcp import (
+    health,
+    pools,
+    profile,
+    resources,
+)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -52,6 +57,33 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         description=(
             'Get the active user\'s OSMO profile settings, roles, accessible '
             'pools, and non-secret token identity metadata.'
+        ),
+    ),
+    ToolSpec(
+        function=pools.osmo_search_pools,
+        name='osmo_search_pools',
+        title='Search OSMO pools',
+        description=(
+            'Search compute pools accessible to the active user. Results retain '
+            'node-set sharing information, GPU quota usage, and bounded output.'
+        ),
+    ),
+    ToolSpec(
+        function=resources.osmo_list_resources,
+        name='osmo_list_resources',
+        title='List OSMO resources',
+        description=(
+            'List node capacity, usage, and available resources for selected '
+            'pools and platforms with bounded output.'
+        ),
+    ),
+    ToolSpec(
+        function=resources.osmo_get_resource,
+        name='osmo_get_resource',
+        title='Get OSMO resource',
+        description=(
+            'Get one node\'s resource quantities and task configuration for a '
+            'selected pool/platform assignment.'
         ),
     ),
 )

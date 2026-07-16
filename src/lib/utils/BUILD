@@ -75,7 +75,13 @@ osmo_py_library(
         requirement("requests"),
         requirement("texttable"),
         ":osmo_errors",
+        ":resource_quantities",
     ],
+)
+
+osmo_py_library(
+    name = "resource_quantities",
+    srcs = ["resource_quantities.py"],
 )
 
 osmo_py_library(
