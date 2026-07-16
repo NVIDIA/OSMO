@@ -45,29 +45,54 @@ The relay boundary has these invariants:
 - The outbound origin is deployment configuration, never tool input. The Helm
   chart derives it from the public `services.mcp.resourceUrl` by removing the
   exact `/mcp` suffix.
-- Tools select a fixed HTTP method and `/api/...` path. Unknown tool arguments,
-  alternate URLs, queries, fragments, redirects, and path traversal fail
-  closed.
+- Tools select a fixed HTTP method and `/api/...` path. Query names are fixed
+  by each tool and values are encoded from bounded typed inputs. Unknown tool
+  arguments, alternate URLs, embedded queries or fragments, redirects, and
+  path traversal fail closed.
 - The unchanged authorization value and optional request ID are the only
   caller-derived headers forwarded on the second Gateway pass. MCP does not
   copy `x-osmo-*`, cookies, proxy headers, or other inbound request headers.
+  Request IDs that reuse a meaningful bearer-token substring are rejected
+  before forwarding or telemetry.
 - MCP does not exchange, refresh, modify, cache, persist, log, or return the
   bearer token. It clears request context and upstream cookies on completion,
   failure, timeout, or cancellation.
+- Tool arguments are rejected before execution if they contain the active
+  authorization value or bearer token, preventing credential reflection into
+  dynamic path or query values.
 - The `/mcp` request body is counted while streaming and rejected above 1 MiB,
   whether its size is declared or sent with chunked transfer encoding. Body
   collection has a 10-second deadline, and each process admits at most 16
   in-flight MCP requests so aggregate request memory remains bounded. This
   stateless JSON deployment accepts `POST /mcp` only; other methods return 405
   rather than opening long-lived streams outside that admission boundary.
+- Resource tools read the active profile and short-circuit an empty pool scope.
+  Lists send a non-empty explicit pool list to `/api/resources`; detail reads
+  only `/api/resources/{node_name}` and filters the returned assignments before
+  projection. They never use Core's unrestricted `all_pools` behavior. This
+  retains the existing CLI/API contract without a Core change, but profile
+  scope and resource data are still two requests rather than one atomic
+  authorization decision; a future Core endpoint should intersect resource
+  assignments with the current allowed-pools header. Workflow detail tools
+  accept canonical workflow IDs, not UUIDs, so Gateway can resolve the owning
+  pool before authorizing the API request.
 - Outbound calls have a total timeout, bounded response size, identity content
-  encoding, no redirects, and no automatic retries.
+  encoding, no redirects, and no automatic retries. JSON responses remain
+  whole-response validated; long text may return a marked bounded prefix.
 - Receiving APIs remain authoritative for API-specific authorization,
   validation, and side effects. MCP reads upstream error bodies under a
   separate small ceiling and preserves only error codes from a static Core
   contract for correctable client errors. Free-form messages, workflow IDs,
   validation locations, and unknown fields are discarded. Other upstream
   failures remain generic.
+- Every upstream call emits tool, method, static route template, status,
+  outcome, duration, and request-ID telemetry without dynamic resource names
+  or bearer values. A separate final tool outcome is emitted only after MCP
+  result validation, so a malformed HTTP 200 is never classified as a
+  successful tool result.
+- Only explicitly classified, bounded public errors can reach a client.
+  Validation failures use fixed messages and unexpected exceptions fail closed
+  to a generic error without reflecting exception text.
 
 The Gateway, MCP process, receiving OSMO APIs, and applicable middleware are
 inside the bearer-token handling boundary. None of them may log or persist the
@@ -75,24 +100,40 @@ authorization value.
 
 ## Available read tools
 
-The external service exposes narrow tools for:
+The first external catalog contains 14 read-only tools for caller-bound health,
+profile, pool, resource, workflow, application, and credential-metadata
+inspection. Each tool maps to a fixed external API, returns a structured
+allowlisted result, and applies a domain-specific response limit. Credential
+inspection returns names and types only. Profile inspection intentionally
+includes non-secret access-token identity metadata (name and expiry), unlike
+the hosted internal MCP projection.
 
-- caller access and identity: `osmo_health`, `osmo_get_profile`
-- inventory: `osmo_search_pools`, `osmo_list_resources`, `osmo_get_resource`
-- workflows: `osmo_list_workflows`, `osmo_get_workflow`,
-  `osmo_get_workflow_logs`, `osmo_get_workflow_events`,
-  `osmo_get_workflow_spec`
+JSON tools require one complete bounded response. Bounded text tools may
+instead return a safe UTF-8 prefix with `truncated=true` and a machine-readable
+reason when the response reaches its size limit or its live stream does not
+complete before the request timeout.
 
-Each tool maps to a fixed OSMO API route and returns an allowlisted structured
-projection. JSON tools require one complete bounded response. Bounded text
-tools may instead return a safe UTF-8 prefix with `truncated=true` and a
-machine-readable reason when the response reaches its size limit or its live
-stream does not complete before the request timeout.
+See [TOOLS.md](TOOLS.md) for the exact catalog, REST mappings, staged mutation
+plan, and intentionally excluded CLI/admin capabilities.
 
 The Kubernetes `/health`, `/health/live`, and `/health/ready` endpoints only
 report MCP process health. They do not relay a token or test Gateway/API
-authorization. A failed `osmo_get_profile` call therefore does not necessarily
-mean the MCP pod is unhealthy.
+authorization. The `osmo_health` tool is deliberately separate: it probes
+caller-bound Gateway authentication and OSMO profile access.
+
+## Code organization
+
+The external MCP remains independent from the hosted internal MCP. Runtime
+security boundaries live in `request_context.py`, `request_body.py`,
+`gateway.py`, `protocol.py`, and `telemetry.py`. Shared, dependency-light tool
+support lives in `tool_errors.py`, `tool_requests.py`, `tool_validation.py`, and
+`access_scope.py`. Each larger domain keeps its public and upstream contracts in
+`*_models.py` and its fixed routes, authorization decisions, projection, and
+handlers in the matching domain module. `tool_registry.py` is the single source
+of registration metadata used by both the server and catalog.
+
+Do not import the CLI runtime or internal MCP implementation. Extract only pure
+public helpers when behavior genuinely needs to match another OSMO surface.
 
 ## Adding a tool
 
@@ -106,8 +147,9 @@ Keep each new tool a narrow adapter:
    database, Kubernetes, or CLI client dependencies into the MCP image.
 4. Obtain `AppContext` from the injected FastMCP `Context`, obtain credentials
    from `request_context`, and pass both explicitly to `GatewayClient`.
-5. Set a tool-specific response ceiling and validate the complete success
-   response before returning it. Never return an upstream error body.
+5. Set a tool-specific response ceiling. Validate complete JSON responses;
+   expose long text only through the shared truncation contract. Preserve only
+   centrally scrubbed, allowlisted details from actionable client errors.
 6. Set accurate MCP annotations. Only operations with no observable side
    effects are read-only. Do not retry a state-changing operation whose result
    is uncertain.
