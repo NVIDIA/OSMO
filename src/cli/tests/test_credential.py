@@ -264,8 +264,8 @@ class TestRunSetCommand(unittest.TestCase):
         )
 
     def test_payload_file_strips_trailing_line_ending(self):
-        """Test that payload-file mode strips LF and CRLF line endings."""
-        for line_ending in (b'\n', b'\r\n'):
+        """Test that payload-file mode strips LF, CRLF, and CR line endings."""
+        for line_ending in (b'\n', b'\r\n', b'\r'):
             with self.subTest(line_ending=line_ending):
                 service_client = mock.Mock(spec=client.ServiceClient)
                 service_client.request.return_value = {'status': 'ok'}
