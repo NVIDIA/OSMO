@@ -112,7 +112,7 @@ def _make_group(name: str = 'mygroup', workflow_id: str | None = 'wf-1',
 
 
 class DockerAuthTest(unittest.TestCase):
-    """Tests for task.docker_auth (task.py:101-102)."""
+    """Tests for task.docker_auth."""
 
     def test_produces_base64_of_user_colon_password(self):
         encoded = task.docker_auth('alice', 'secret')
@@ -135,7 +135,7 @@ class DockerAuthTest(unittest.TestCase):
 
 class TaskInputOutputErrorPathsTest(unittest.TestCase):
     """Tests targeting error paths in TaskInputOutput.is_from_previous_workflow
-    and TaskInputOutput.parsed_workflow_info (task.py:298, 306, 310)."""
+    and TaskInputOutput.parsed_workflow_info."""
 
     def test_is_from_previous_workflow_invalid_task_raises_server_error(self):
         # Build model bypassing validation to hit the runtime regex path.
@@ -157,7 +157,7 @@ class TaskInputOutputErrorPathsTest(unittest.TestCase):
 
 
 class TaskSpecGetResourceFromSpecTest(unittest.TestCase):
-    """Tests for TaskSpec.get_resource_from_spec (task.py:672)."""
+    """Tests for TaskSpec.get_resource_from_spec."""
 
     def _make_spec(self) -> task.TaskSpec:
         return task.TaskSpec(name='t', image='u', command=['ls'])
@@ -183,7 +183,7 @@ class TaskSpecGetResourceFromSpecTest(unittest.TestCase):
 
 
 class TaskSpecToPodResourceSpecTest(unittest.TestCase):
-    """Tests for TaskSpec.to_pod_resource_spec (task.py:677-686).
+    """Tests for TaskSpec.to_pod_resource_spec.
 
     The internal ``get_resource_from_spec`` helper expects the CPU/GPU entries
     in the model_dump output to be dicts of the form ``{'count': N}`` — which
@@ -239,7 +239,7 @@ class TaskSpecToPodResourceSpecTest(unittest.TestCase):
 
 
 class TaskSpecToPodContainerTest(unittest.TestCase):
-    """Tests for TaskSpec.to_pod_container (task.py:736-774)."""
+    """Tests for TaskSpec.to_pod_container."""
 
     def _make_spec(self, **overrides) -> task.TaskSpec:
         base = {'name': 'mytask', 'image': 'ubuntu:22.04', 'command': ['sh', '-c']}
@@ -392,7 +392,7 @@ class TaskSpecToPodContainerTest(unittest.TestCase):
 
 
 class TaskSpecParseUnknownInputTest(unittest.TestCase):
-    """Test for TaskSpec.parse raising OSMOUsageError on unknown input (task.py:800)."""
+    """Test for TaskSpec.parse raising OSMOUsageError on unknown input."""
 
     def test_unknown_input_type_raises_usage_error(self):
         # Build a TaskSpec then swap out its inputs list with something that is
@@ -405,13 +405,12 @@ class TaskSpecParseUnknownInputTest(unittest.TestCase):
 
 
 class SubstitutePodTemplateTokensTest(unittest.TestCase):
-    """Tests for substitute_pod_template_tokens (task.py:1425-1461).
+    """Tests for substitute_pod_template_tokens.
 
-    The ``keys_to_delete`` branch (lines 1458, 1461) is unreachable in the
-    current source: for ``replace_helper`` to return ``None`` the rendered
-    string would have to be ``None``, but ``re.fullmatch`` is called on it
-    first and raises ``TypeError`` on non-string input. These lines are
-    documented as dead in the coverage self-check output.
+    The ``keys_to_delete`` branch is unreachable in the current source:
+    for ``replace_helper`` to return ``None`` the rendered string would
+    have to be ``None``, but ``re.fullmatch`` is called on it first and
+    raises ``TypeError`` on non-string input.
     """
 
     def test_string_value_substituted_from_tokens(self):
@@ -431,7 +430,7 @@ class SubstitutePodTemplateTokensTest(unittest.TestCase):
 
 
 class EncodeHstoreTest(unittest.TestCase):
-    """Tests for _encode_hstore (task.py:2984-2986)."""
+    """Tests for _encode_hstore."""
 
     def test_empty_set_returns_empty_string(self):
         result = task._encode_hstore(set())  # pylint: disable=protected-access
@@ -448,7 +447,7 @@ class EncodeHstoreTest(unittest.TestCase):
 
 
 class TaskInsertToDbTest(unittest.TestCase):
-    """Tests for Task.insert_to_db (task.py:950-965)."""
+    """Tests for Task.insert_to_db."""
 
     def test_insert_issues_single_commit(self):
         database = _RecordingPostgresConnector()
@@ -487,7 +486,7 @@ class TaskInsertToDbTest(unittest.TestCase):
 
 
 class TaskWorkflowIdPropertyTest(unittest.TestCase):
-    """Tests for Task.workflow_id property (task.py:967-982)."""
+    """Tests for Task.workflow_id property."""
 
     def test_returns_internal_when_present(self):
         db = _RecordingPostgresConnector()
@@ -514,7 +513,7 @@ class TaskWorkflowIdPropertyTest(unittest.TestCase):
 
 
 class TaskFetchRowFromDbTest(unittest.TestCase):
-    """Tests for Task.fetch_row_from_db (task.py:1095-1108)."""
+    """Tests for Task.fetch_row_from_db."""
 
     def test_returns_last_row_by_default_retry(self):
         rows = [{'task_uuid': 'a', 'retry_id': 0},
@@ -530,7 +529,7 @@ class TaskFetchRowFromDbTest(unittest.TestCase):
 
 
 class TaskFetchGroupNameTest(unittest.TestCase):
-    """Tests for Task.fetch_group_name (task.py:1149-1156)."""
+    """Tests for Task.fetch_group_name."""
 
     def test_returns_group_name_from_first_row(self):
         db = _RecordingPostgresConnector(
@@ -550,7 +549,7 @@ class TaskFetchGroupNameTest(unittest.TestCase):
 
 
 class TaskFetchFromDbFromUuidTest(unittest.TestCase):
-    """Tests for Task.fetch_from_db_from_uuid (task.py:1177-1190)."""
+    """Tests for Task.fetch_from_db_from_uuid."""
 
     def test_raises_when_no_rows(self):
         db = _RecordingPostgresConnector(fetch_results=[[]])
@@ -560,7 +559,7 @@ class TaskFetchFromDbFromUuidTest(unittest.TestCase):
 
 
 class TaskListTaskRowsByGroupNameTest(unittest.TestCase):
-    """Tests for Task.list_task_rows_by_group_name (task.py:1213-1236)."""
+    """Tests for Task.list_task_rows_by_group_name."""
 
     def test_verbose_uses_verbose_query(self):
         rows = [{'name': 'a'}, {'name': 'b'}]
@@ -590,7 +589,7 @@ class TaskListTaskRowsByGroupNameTest(unittest.TestCase):
 
 
 class TaskUpdateStatusToDbTest(unittest.TestCase):
-    """Tests for Task.update_status_to_db (task.py:1306-1349)."""
+    """Tests for Task.update_status_to_db."""
 
     def test_no_change_when_status_already_finished(self):
         db = _RecordingPostgresConnector()
@@ -684,7 +683,7 @@ class TaskUpdateStatusToDbTest(unittest.TestCase):
 
 
 class TaskCreateNewTest(unittest.TestCase):
-    """Tests for Task.create_new (task.py:1412-1423)."""
+    """Tests for Task.create_new."""
 
     def test_returns_new_task_with_incremented_retry(self):
         db = _RecordingPostgresConnector()
@@ -698,7 +697,7 @@ class TaskCreateNewTest(unittest.TestCase):
 
 
 class TaskBatchAddRefreshTokensToDbTest(unittest.TestCase):
-    """Tests for Task.batch_add_refresh_tokens_to_db empty branch (task.py:1011)."""
+    """Tests for Task.batch_add_refresh_tokens_to_db empty branch."""
 
     def test_empty_entries_is_no_op(self):
         db = _RecordingPostgresConnector()
@@ -723,7 +722,7 @@ class TaskBatchAddRefreshTokensToDbTest(unittest.TestCase):
 
 
 class TaskBatchFetchLatestRetryIdsTest(unittest.TestCase):
-    """Tests for Task.batch_fetch_latest_retry_ids (task.py:1049-1060)."""
+    """Tests for Task.batch_fetch_latest_retry_ids."""
 
     def test_empty_task_names_returns_empty(self):
         db = _RecordingPostgresConnector()
@@ -739,7 +738,7 @@ class TaskBatchFetchLatestRetryIdsTest(unittest.TestCase):
 
 
 class TaskFromDbRowTest(unittest.TestCase):
-    """Tests for Task.from_db_row (task.py:1063-1076)."""
+    """Tests for Task.from_db_row."""
 
     def test_constructs_task_from_row(self):
         row = {
@@ -767,7 +766,7 @@ class TaskFromDbRowTest(unittest.TestCase):
 
 
 class TaskListAllTaskRowsByWorkflowTest(unittest.TestCase):
-    """Tests for Task.list_all_task_rows_by_workflow (task.py:1268-1294)."""
+    """Tests for Task.list_all_task_rows_by_workflow."""
 
     def test_groups_rows_by_group_name(self):
         rows = [
@@ -797,7 +796,7 @@ class TaskListAllTaskRowsByWorkflowTest(unittest.TestCase):
 
 
 class TaskGroupInsertToDbTest(unittest.TestCase):
-    """Tests for TaskGroup.insert_to_db (task.py:1512-1530)."""
+    """Tests for TaskGroup.insert_to_db."""
 
     def test_insert_issues_commit(self):
         db = _RecordingPostgresConnector()
@@ -813,7 +812,7 @@ class TaskGroupInsertToDbTest(unittest.TestCase):
 
 
 class TaskGroupWorkflowIdPropertyTest(unittest.TestCase):
-    """Tests for TaskGroup.workflow_id (task.py:1607-1620)."""
+    """Tests for TaskGroup.workflow_id."""
 
     def test_returns_internal_when_present(self):
         db = _RecordingPostgresConnector()
@@ -836,7 +835,7 @@ class TaskGroupWorkflowIdPropertyTest(unittest.TestCase):
 
 
 class TaskGroupUpdateGroupTemplateResourceTypesTest(unittest.TestCase):
-    """Tests for TaskGroup.update_group_template_resource_types (task.py:1596-1603)."""
+    """Tests for TaskGroup.update_group_template_resource_types."""
 
     def test_issues_update_commit(self):
         db = _RecordingPostgresConnector()
@@ -852,7 +851,7 @@ class TaskGroupUpdateGroupTemplateResourceTypesTest(unittest.TestCase):
 
 
 class TaskGroupFetchStatusTest(unittest.TestCase):
-    """Tests for TaskGroup.fetch_status (task.py:1876-1884)."""
+    """Tests for TaskGroup.fetch_status."""
 
     def test_updates_status_from_db(self):
         db = _RecordingPostgresConnector(
@@ -869,7 +868,7 @@ class TaskGroupFetchStatusTest(unittest.TestCase):
 
 
 class TaskGroupSetTasksToProcessingTest(unittest.TestCase):
-    """Tests for TaskGroup.set_tasks_to_processing (task.py:1979-1987)."""
+    """Tests for TaskGroup.set_tasks_to_processing."""
 
     def test_issues_update_command(self):
         db = _RecordingPostgresConnector()
@@ -882,7 +881,7 @@ class TaskGroupSetTasksToProcessingTest(unittest.TestCase):
 
 
 class TaskGroupPatchCleanedUpTest(unittest.TestCase):
-    """Tests for TaskGroup.patch_cleaned_up (task.py:2064-2076)."""
+    """Tests for TaskGroup.patch_cleaned_up."""
 
     def test_returns_true_when_all_cleaned_up(self):
         db = _RecordingPostgresConnector(fetch_results=[[]])
@@ -899,7 +898,7 @@ class TaskGroupPatchCleanedUpTest(unittest.TestCase):
 
 
 class TaskGroupPatchMetricsInDbTest(unittest.TestCase):
-    """Tests for TaskGroup.patch_metrics_in_db (task.py:2090-2106)."""
+    """Tests for TaskGroup.patch_metrics_in_db."""
 
     def test_input_download_metrics_updates_download_fields(self):
         db = _RecordingPostgresConnector()
@@ -935,7 +934,7 @@ class TaskGroupPatchMetricsInDbTest(unittest.TestCase):
 
 
 class TaskGroupFetchActiveGroupSizeTest(unittest.TestCase):
-    """Tests for TaskGroup.fetch_active_group_size (task.py:1735-1754)."""
+    """Tests for TaskGroup.fetch_active_group_size."""
 
     def test_no_rows_raises(self):
         db = _RecordingPostgresConnector(fetch_results=[[]])
@@ -962,7 +961,7 @@ class TaskGroupFetchActiveGroupSizeTest(unittest.TestCase):
 
 
 class TaskGroupFetchTaskSecretsTest(unittest.TestCase):
-    """Tests for TaskGroup.fetch_task_secrets (task.py:1775-1813)."""
+    """Tests for TaskGroup.fetch_task_secrets."""
 
     def _make_row(self, task_creds: Dict[str, Any]) -> types.SimpleNamespace:
         spec = task.TaskGroupSpec(
@@ -1011,7 +1010,7 @@ class TaskGroupFetchTaskSecretsTest(unittest.TestCase):
 
 
 class TaskGroupFetchTaskSecretsUuidTest(unittest.TestCase):
-    """Tests for TaskGroup.fetch_task_secrets_uuid (task.py:1835-1872)."""
+    """Tests for TaskGroup.fetch_task_secrets_uuid."""
 
     def _make_row(self, task_creds: Dict[str, Any], task_name: str = 'mytask'
                   ) -> types.SimpleNamespace:
@@ -1061,7 +1060,7 @@ class TaskGroupFetchTaskSecretsUuidTest(unittest.TestCase):
 
 
 class TaskGroupGetPodNameTest(unittest.TestCase):
-    """Tests for TaskGroup._get_pod_name and get_pod_names (task.py:2181-2185)."""
+    """Tests for TaskGroup._get_pod_name and get_pod_names."""
 
     def test_get_pod_name_composes_with_workflow_uuid(self):
         group = _make_group()
@@ -1081,7 +1080,7 @@ class TaskGroupGetPodNameTest(unittest.TestCase):
 
 
 class TaskGroupConvertLabelsToVariablesTest(unittest.TestCase):
-    """Tests for TaskGroup._convert_labels_to_variables (task.py:2470-2491)."""
+    """Tests for TaskGroup._convert_labels_to_variables."""
 
     def test_skips_non_osmo_labels(self):
         group = _make_group()
@@ -1106,7 +1105,7 @@ class TaskGroupConvertLabelsToVariablesTest(unittest.TestCase):
 
 
 class TaskGroupGetImageSecretNameTest(unittest.TestCase):
-    """Tests for TaskGroup._get_image_secret_name (task.py:2493-2495)."""
+    """Tests for TaskGroup._get_image_secret_name."""
 
     def test_composes_from_group_uid_and_name(self):
         group = _make_group()
@@ -1116,7 +1115,7 @@ class TaskGroupGetImageSecretNameTest(unittest.TestCase):
 
 
 class TaskGroupLabelsTest(unittest.TestCase):
-    """Tests for TaskGroup._labels (task.py:2394-2428)."""
+    """Tests for TaskGroup._labels."""
 
     def test_regular_user_included(self):
         group = _make_group()
@@ -1145,7 +1144,7 @@ class TaskGroupLabelsTest(unittest.TestCase):
 
 
 class TaskGroupAggregateStatusTest(unittest.TestCase):
-    """Tests for TaskGroup._aggregate_status (task.py:2144-2179)."""
+    """Tests for TaskGroup._aggregate_status."""
 
     def _row(self, status: str, lead: bool = True, count: int = 1) -> Dict:
         return {'status': status, 'lead': lead, 'count': count}
@@ -1238,7 +1237,7 @@ class TaskGroupAggregateStatusTest(unittest.TestCase):
 
 
 class TaskGroupUpdateStatusToDbTest(unittest.TestCase):
-    """Tests for TaskGroup.update_status_to_db (task.py:1886-1951)."""
+    """Tests for TaskGroup.update_status_to_db."""
 
     def test_in_queue_status_skips_aggregation_and_updates(self):
         db = _RecordingPostgresConnector()
@@ -1278,7 +1277,7 @@ class TaskGroupUpdateStatusToDbTest(unittest.TestCase):
 
 
 class TaskGroupUpdateDownstreamGroupsInDbTest(unittest.TestCase):
-    """Tests for TaskGroup.update_downstream_groups_in_db (task.py:1953-1977)."""
+    """Tests for TaskGroup.update_downstream_groups_in_db."""
 
     def test_no_downstream_groups_returns_empty(self):
         db = _RecordingPostgresConnector()
@@ -1294,7 +1293,7 @@ class TaskGroupUpdateDownstreamGroupsInDbTest(unittest.TestCase):
 
 
 class TaskGroupFetchStatusSummaryTest(unittest.TestCase):
-    """Tests for TaskGroup._fetch_status_summary (task.py:2117-2132)."""
+    """Tests for TaskGroup._fetch_status_summary."""
 
     def test_returns_rows_when_present(self):
         rows = [{'status': 'RUNNING', 'lead': True, 'count': 1}]
@@ -1311,7 +1310,7 @@ class TaskGroupFetchStatusSummaryTest(unittest.TestCase):
 
 
 class TaskGroupFetchFromDbTest(unittest.TestCase):
-    """Tests for TaskGroup.fetch_from_db (task.py:1691-1698)."""
+    """Tests for TaskGroup.fetch_from_db."""
 
     def test_raises_when_no_group_found(self):
         db = _RecordingPostgresConnector(fetch_results=[[]])
@@ -1325,7 +1324,7 @@ class TaskGroupFetchFromDbTest(unittest.TestCase):
 
 
 class TaskGroupBatchInsertGroupsAndTasksTest(unittest.TestCase):
-    """Tests for TaskGroup.batch_insert_groups_and_tasks (task.py:1533-1594)."""
+    """Tests for TaskGroup.batch_insert_groups_and_tasks."""
 
     def test_empty_entries_is_no_op(self):
         db = _RecordingPostgresConnector()
@@ -1365,7 +1364,7 @@ class TaskGroupBatchInsertGroupsAndTasksTest(unittest.TestCase):
 
 
 class TaskGroupBatchSetGroupsToProcessingTest(unittest.TestCase):
-    """Tests for TaskGroup.batch_set_groups_to_processing (task.py:1989-2054)."""
+    """Tests for TaskGroup.batch_set_groups_to_processing."""
 
     def test_empty_names_returns_empty(self):
         db = _RecordingPostgresConnector()
@@ -1415,7 +1414,7 @@ _FULL_TASK_ROW: Dict[str, Any] = {
 
 
 class TaskFetchFromDbSuccessTest(unittest.TestCase):
-    """Task.fetch_from_db success path (task.py:1129-1130)."""
+    """Task.fetch_from_db success path."""
 
     def test_returns_task_from_last_row(self):
         db = _RecordingPostgresConnector(fetch_results=[[_FULL_TASK_ROW]])
@@ -1425,7 +1424,7 @@ class TaskFetchFromDbSuccessTest(unittest.TestCase):
 
 
 class TaskFetchFromDbFromUuidSuccessTest(unittest.TestCase):
-    """Task.fetch_from_db_from_uuid success path (task.py:1190)."""
+    """Task.fetch_from_db_from_uuid success path."""
 
     def test_returns_task(self):
         db = _RecordingPostgresConnector(fetch_results=[[_FULL_TASK_ROW]])
@@ -1435,7 +1434,7 @@ class TaskFetchFromDbFromUuidSuccessTest(unittest.TestCase):
 
 
 class TaskAddRefreshTokenToDbTest(unittest.TestCase):
-    """Task.add_refresh_token_to_db (task.py:988, 990, 995)."""
+    """Task.add_refresh_token_to_db."""
 
     def test_hashes_and_commits(self):
         db = _RecordingPostgresConnector()
@@ -1452,7 +1451,7 @@ class TaskAddRefreshTokenToDbTest(unittest.TestCase):
 
 
 class TaskBatchUpdateStatusToDbTest(unittest.TestCase):
-    """Task.batch_update_status_to_db (task.py:1388)."""
+    """Task.batch_update_status_to_db."""
 
     def test_failed_start_timeout_status_restricts_state_set(self):
         db = _RecordingPostgresConnector()
@@ -1485,7 +1484,7 @@ class TaskBatchUpdateStatusToDbTest(unittest.TestCase):
 
 
 class TaskGroupUpdateStatusAggregatePathTest(unittest.TestCase):
-    """TaskGroup.update_status_to_db non-in_queue path (task.py:1902, 1904-1906)."""
+    """TaskGroup.update_status_to_db non-in_queue path."""
 
     def test_running_status_triggers_aggregation(self):
         # RUNNING is not in_queue/canceled, so the aggregation path is taken.
@@ -1508,7 +1507,7 @@ class TaskGroupUpdateStatusAggregatePathTest(unittest.TestCase):
 
     def test_no_change_when_aggregate_equals_current_status(self):
         # When _aggregate_status returns the same status the group already
-        # holds, the update is short-circuited (line 1906 return).
+        # holds, the update is short-circuited.
         db = _RecordingPostgresConnector()
         group = _make_group(database=db, status=task.TaskGroupStatus.RUNNING)
         with mock.patch.object(
@@ -1578,7 +1577,7 @@ class TaskGroupUpdateStatusAggregatePathTest(unittest.TestCase):
 
 
 class TaskGroupBuildTopologyTreeTest(unittest.TestCase):
-    """TaskGroup._build_topology_tree (task.py:2214-2241)."""
+    """TaskGroup._build_topology_tree."""
 
     def _make_group_with_topology(self, database):
         topology_req = connectors.TopologyRequirement(
@@ -1633,7 +1632,7 @@ class TaskGroupBuildTopologyTreeTest(unittest.TestCase):
 
 
 class TaskGroupTaskLabelsNoPlatformTest(unittest.TestCase):
-    """TaskGroup._task_labels missing-platform raise (task.py:2444)."""
+    """TaskGroup._task_labels missing-platform raise."""
 
     def test_missing_platform_raises_osmo_error(self):
         group = _make_group()
@@ -1661,7 +1660,7 @@ class _RegistryCredsPostgresConnector(_RecordingPostgresConnector):
 
 
 class TaskGroupGetRegistryCredsTest(unittest.TestCase):
-    """TaskGroup._get_registry_creds (task.py:2506-2508, 2519-2520)."""
+    """TaskGroup._get_registry_creds."""
 
     def test_user_registry_creds_generated_when_match(self):
         # Task image maps to a registry the user has credentials for.
@@ -1708,7 +1707,7 @@ class TaskGroupGetRegistryCredsTest(unittest.TestCase):
 
 
 class TaskGroupFromDbRowSchedulerAndTemplatesTest(unittest.TestCase):
-    """TaskGroup.from_db_row scheduler+template branches (task.py:1654, 1659)."""
+    """TaskGroup.from_db_row scheduler+template branches."""
 
     def _row(self, **overrides):
         base = types.SimpleNamespace(
@@ -1765,7 +1764,7 @@ class TaskGroupFromDbRowSchedulerAndTemplatesTest(unittest.TestCase):
 
 
 class TaskGroupUpdateDownstreamGroupsSuccessTest(unittest.TestCase):
-    """TaskGroup.update_downstream_groups_in_db success path (task.py:1975-1977)."""
+    """TaskGroup.update_downstream_groups_in_db success path."""
 
     def test_downstream_with_empty_remaining_returned(self):
         # Row for a downstream group whose remaining_upstream_groups is empty
