@@ -340,6 +340,35 @@ class CredentialOverrideUrlTest(unittest.TestCase):
         # Assert - S3Backend.endpoint is empty string, so endpoint_url should be None
         self.assertIsNone(s3_client_factory.endpoint_url)
 
+    @mock.patch('src.lib.data.storage.backends.backends._skip_data_auth', return_value=False)
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_s3_data_auth_with_default_credential_uses_default_endpoint(
+        self,
+        mock_create_client,
+        mock_skip_data_auth,
+    ):
+        """Test that ambient credentials use the default AWS S3 endpoint."""
+        # pylint: disable=unused-argument
+        mock_s3_client = mock.Mock()
+        mock_create_client.return_value = mock_s3_client
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            uri='s3://test-bucket/test-key',
+        ))
+        data_cred = credentials.DefaultDataCredential(
+            endpoint='s3://test-bucket',
+            region='us-east-1',
+        )
+
+        s3_backend.data_auth(data_cred=data_cred)
+
+        mock_create_client.assert_called_once_with(
+            data_cred=data_cred,
+            scheme='s3',
+            endpoint_url=None,
+            region='us-east-1',
+        )
+        mock_s3_client.head_bucket.assert_called_once_with(Bucket='test-bucket')
+
     def test_swift_client_factory_override_url_takes_precedence(self):
         """Test that credential's override_url overrides Swift's endpoint."""
         # Arrange
