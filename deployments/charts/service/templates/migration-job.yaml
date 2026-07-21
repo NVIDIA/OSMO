@@ -33,10 +33,13 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 data:
-  {{- range $path, $content := .Files.Glob "migrations/*" }}
+  {{- /* Only the runner and migration JSONs; excludes BUILD and test files. */}}
+  {{- range $path, $content := .Files.Glob "migrations/0*.json" }}
   {{ base $path }}: |
     {{- $.Files.Get $path | nindent 4 }}
   {{- end }}
+  run_migrations.sh: |
+    {{- .Files.Get "migrations/run_migrations.sh" | nindent 4 }}
 ---
 apiVersion: batch/v1
 kind: Job
