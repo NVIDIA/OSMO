@@ -33,3 +33,10 @@ osmo_py_test(
         "//src/lib/utils:osmo_errors",
     ],
 )
+
+osmo_py_test(
+    name = "test_rsync_binary",
+    srcs = ["test_rsync_binary.py"],
+    data = ["//src/lib/rsync:rsync_bin"],
+    deps = ["@rules_python//python/runfiles"],
+)
