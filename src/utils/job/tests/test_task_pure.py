@@ -80,6 +80,67 @@ class ShortenNameToFitKbTest(unittest.TestCase):
         self.assertEqual(task.shorten_name_to_fit_kb(name), 'a' * 60)
 
 
+class ApplyWorkflowLabelsTest(unittest.TestCase):
+    """Workflow labels are layered below system Pod metadata."""
+
+    def test_existing_labels_override_workflow_labels_and_preserve_user_labels(self):
+        pod = {
+            'kind': 'Pod',
+            'metadata': {
+                'labels': {
+                    'platform': 'platform-value',
+                    'precedence': 'pod-template-value',
+                },
+            },
+        }
+        workflow_labels = {
+            'PPP': 'project-a',
+            'precedence': 'workflow-value',
+        }
+
+        result = task.apply_workflow_labels(pod, workflow_labels)
+
+        self.assertIs(result, pod)
+        self.assertEqual(result['metadata']['labels'], {
+            'platform': 'platform-value',
+            'PPP': 'project-a',
+            'precedence': 'pod-template-value',
+        })
+
+    def test_system_labels_win_after_workflow_and_template_layers(self):
+        system_labels = {
+            'osmo.pool': 'system-pool',
+            'precedence': 'system-value',
+        }
+        pod = {
+            'kind': 'Pod',
+            'metadata': {
+                'labels': system_labels,
+            },
+        }
+        task.apply_workflow_labels(pod, {
+            'PPP': 'project-a',
+            'precedence': 'workflow-value',
+        })
+        task.apply_pod_template(pod, {
+            'metadata': {
+                'labels': {
+                    'template-only': 'template-value',
+                    'precedence': 'template-value',
+                },
+            },
+        })
+
+        result = task.apply_system_labels(pod, system_labels)
+
+        self.assertEqual(result['metadata']['labels'], {
+            'PPP': 'project-a',
+            'template-only': 'template-value',
+            'osmo.pool': 'system-pool',
+            'precedence': 'system-value',
+        })
+
+
 class PostgresRegistryCredsTest(unittest.TestCase):
     """Pure tests for registry credential lookup helpers."""
 
@@ -187,6 +248,13 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
             'osmo.submitted_by': user,
             'osmo.task_name': 'worker',
             'osmo.retry_id': '1',
+            'PPP': 'project-a',
+        }
+        group_labels = {
+            'osmo.workflow_uuid': workflow_uuid,
+            'osmo.group_uuid': group_uuid,
+            'osmo.group_name': 'group',
+            'osmo.submitted_by': user,
         }
         pod = {
             'apiVersion': 'v1',
@@ -205,6 +273,7 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
         group.name = 'group'
         group.group_uuid = group_uuid
         group.spec.tasks = [spec]
+        group.system_labels.return_value = group_labels
         group.convert_to_pod_spec.return_value = (pod, {'run.sh': file_mount}, None)
 
         new_task = mock.Mock()
@@ -220,6 +289,7 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
         workflow_obj = mock.Mock()
         workflow_obj.plugins = mock.Mock()
         workflow_obj.priority = wf_priority.WorkflowPriority.NORMAL
+        workflow_obj.labels = {'PPP': 'project-a'}
         update_job = jobs.UpdateGroup(
             workflow_id='workflow-1',
             workflow_uuid=workflow_uuid,
@@ -251,8 +321,13 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
         resources = reschedule_job.create_job.k8s_resources
         self.assertEqual(['Secret', 'Pod'], [resource['kind'] for resource in resources])
         self.assertEqual(file_mount.name, resources[0]['metadata']['name'])
-        self.assertEqual(pod_labels, resources[0]['metadata']['labels'])
+        self.assertEqual(group_labels, resources[0]['metadata']['labels'])
+        self.assertNotIn('PPP', resources[0]['metadata']['labels'])
         self.assertEqual(pod, resources[1])
+        self.assertEqual(
+            workflow_obj.labels,
+            group.convert_to_pod_spec.call_args.kwargs['workflow_labels'],
+        )
         self.assertEqual(2, progress_writer.report_progress.call_count)
 
 
@@ -1213,35 +1288,55 @@ class RenderGroupTemplatesTest(unittest.TestCase):
     def test_substitutes_variables(self):
         templates = [{'metadata': {'name': '{{ pod_name }}'}}]
         rendered = task.render_group_templates(
-            templates, variables={'pod_name': 'mypod'}, labels={})
+            templates, variables={'pod_name': 'mypod'},
+            workflow_labels={}, system_labels={})
         self.assertEqual(rendered[0]['metadata']['name'], 'mypod')
 
     def test_strips_namespace(self):
         templates = [{'metadata': {'namespace': 'leftover-ns', 'name': 'x'}}]
         rendered = task.render_group_templates(
-            templates, variables={}, labels={})
+            templates, variables={},
+            workflow_labels={}, system_labels={})
         self.assertNotIn('namespace', rendered[0]['metadata'])
 
-    def test_injects_labels(self):
-        templates = [{'metadata': {'name': 'x'}}]
+    def test_merges_workflow_system_and_template_labels_in_precedence_order(self):
+        templates = [{
+            'metadata': {
+                'name': 'x',
+                'labels': {'precedence': 'template-value'},
+            },
+        }]
         rendered = task.render_group_templates(
-            templates, variables={},
-            labels={'workflow': 'wf-1', 'group': 'g-1'})
-        self.assertEqual(
-            rendered[0]['metadata']['labels'],
-            {'workflow': 'wf-1', 'group': 'g-1'})
+            templates,
+            variables={},
+            workflow_labels={
+                'PPP': 'project-a',
+                'precedence': 'workflow-value',
+            },
+            system_labels={
+                'osmo.group_uuid': 'g-1',
+                'precedence': 'system-value',
+            },
+        )
+        self.assertEqual(rendered[0]['metadata']['labels'], {
+            'PPP': 'project-a',
+            'osmo.group_uuid': 'g-1',
+            'precedence': 'system-value',
+        })
 
     def test_creates_metadata_when_missing(self):
         templates = [{'spec': {'replicas': '1'}}]
         rendered = task.render_group_templates(
-            templates, variables={}, labels={'a': 'b'})
+            templates, variables={},
+            workflow_labels={}, system_labels={'a': 'b'})
         self.assertEqual(rendered[0]['metadata']['labels'], {'a': 'b'})
 
     def test_does_not_mutate_input_templates(self):
         templates = [{'metadata': {'name': '{{ x }}'}}]
         templates_snapshot = copy.deepcopy(templates)
         task.render_group_templates(
-            templates, variables={'x': 'replaced'}, labels={'a': 'b'})
+            templates, variables={'x': 'replaced'},
+            workflow_labels={}, system_labels={'a': 'b'})
         self.assertEqual(templates, templates_snapshot)
 
 

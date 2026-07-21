@@ -111,6 +111,7 @@ py_test(
         "test_topology.py"
     ],
     deps = [
+        "//src/lib/utils:validation",
         "//src/utils/job",
     ]
 )

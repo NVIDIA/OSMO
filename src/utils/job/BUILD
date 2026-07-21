@@ -93,6 +93,7 @@ osmo_py_library(
         "//src/lib/utils:priority",
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:redact",
+        "//src/lib/utils:validation",
         "//src/lib/utils:workflow",
         "//src/utils:notify",
         "//src/utils:yaml",

@@ -337,7 +337,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         self.assertTrue('test_platform' in patched_pool['platforms'])
         self.assertEqual(patched_pool['backend'], 'test_backend')
 
-    def test_substitute_tokens(self):
+    def test_substitute_tokens_and_pod_label_precedence(self):
         '''
         Test that the tokens are substituted correctly in the pod spec.
         '''
@@ -367,6 +367,12 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Setup pod template with tokens
         pod_template = {
+            'metadata': {
+                'labels': {
+                    'PPP': 'pod-template-value',
+                    'osmo.workflow_uuid': 'pod-template-value',
+                },
+            },
             'spec': {
                 'nodeSelector': {
                     'kubernetes.io/arch': 'amd64',
@@ -419,15 +425,22 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Create task group and convert to pod specs
         task_group = self.create_task_group(database)
+        workflow_uuid = common.generate_unique_id()
         pods, _, _ = task_group.convert_all_pod_specs(
-            common.generate_unique_id(),
+            workflow_uuid,
             'test@nvidia.com',
             'test_pool',
             workflow_configs,
             task_common.WorkflowPlugins(),
             wf_priority.WorkflowPriority.NORMAL,
-            None
+            workflow_labels={'PPP': 'workflow-value', 'team': 'alpha'},
+            progress_writer=None,
         )
+
+        pod_labels = pods[0]['metadata']['labels']
+        self.assertEqual(pod_labels['team'], 'alpha')
+        self.assertEqual(pod_labels['PPP'], 'pod-template-value')
+        self.assertEqual(pod_labels['osmo.workflow_uuid'], workflow_uuid)
 
         # Verify token substitution in pod specs
         containers = pods[0]['spec']['containers']

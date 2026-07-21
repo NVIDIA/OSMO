@@ -21,6 +21,7 @@ import datetime
 import enum
 import hashlib
 from itertools import chain
+import json
 import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -32,7 +33,7 @@ import requests  # type: ignore
 from src.lib.data import storage
 from src.lib.data.storage import credentials
 from src.lib.utils import (common, jinja_sandbox, osmo_errors, priority as wf_priority,
-                        workflow as workflow_utils)
+                           validation, workflow as workflow_utils)
 from src.utils import connectors, notify
 from src.utils.job import common as task_common, kb_objects, task, topology as topology_module
 
@@ -246,12 +247,18 @@ def split_assertion_rules(assertions: List[connectors.ResourceAssertion]) -> \
 class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the workflow spec from the workflow service. """
     name: task_common.NamePattern
+    labels: Dict[str, str] = pydantic.Field(default_factory=dict)
     pool: str = ''
     groups: List[task.TaskGroupSpec] = []
     tasks: List[task.TaskSpec] = []
     resources: Dict[str, connectors.ResourceSpec] = {'default': connectors.ResourceSpec()}
     timeout: TimeoutSpec = TimeoutSpec()
     backend: str = ''
+
+    @pydantic.field_validator('labels')
+    @classmethod
+    def validate_labels(cls, labels: Dict[str, str]) -> Dict[str, str]:
+        return validation.validate_workflow_labels(labels)
 
     @pydantic.model_validator(mode='before')
     @classmethod
@@ -389,11 +396,12 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
         try:
             groups = [group.initialize_group_tasks(group_and_task_uuids, self.resources)
                       for group in self.groups]
+            spec_fields: Dict[str, Any] = {
+                'name': self.name, 'groups': groups, 'resources': self.resources,
+                'backend': self.backend, 'pool': self.pool, 'labels': self.labels}
             if 'timeout' in self.model_fields_set:
-                return WorkflowSpec(name=self.name, groups=groups, timeout=self.timeout,
-                                    resources=self.resources, backend=self.backend, pool=self.pool)
-            return WorkflowSpec(name=self.name, groups=groups,
-                                resources=self.resources, backend=self.backend, pool=self.pool)
+                spec_fields['timeout'] = self.timeout
+            return WorkflowSpec(**spec_fields)
 
         except pydantic.ValidationError as err:
             raise osmo_errors.OSMOUsageError(f'{err}')
@@ -720,6 +728,8 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
         }
         if 'timeout' in self.model_fields_set:
             base_spec['timeout'] = self.timeout.model_dump()
+        if self.labels:
+            base_spec['labels'] = self.labels
         return base_spec
 
 
@@ -860,6 +870,7 @@ class Workflow(pydantic.BaseModel):
     workflow_uuid: common.UuidPattern
     groups: List[task.TaskGroup]
     user: str
+    labels: Dict[str, str] = pydantic.Field(default_factory=dict)
     logs: str
     database: connectors.PostgresConnector
     submit_time: datetime.datetime | None = None
@@ -895,7 +906,7 @@ class Workflow(pydantic.BaseModel):
             (workflow_name, job_id, workflow_id, workflow_uuid, submitted_by, submit_time,
                 start_time, end_time, status, logs, exec_timeout, queue_timeout, backend, pool,
                 version, failure_message, parent_name, parent_job_id, app_uuid, app_version,
-                plugins, priority)
+                plugins, labels, priority)
             SELECT
                 %s AS workflow_name,
                 (max_job_id + 1) AS job_id,
@@ -918,6 +929,7 @@ class Workflow(pydantic.BaseModel):
                 %s AS app_uuid,
                 %s AS app_version,
                 %s AS plugins,
+                %s AS labels,
                 %s AS priority
             FROM last_job
             ON CONFLICT (workflow_uuid) DO NOTHING;
@@ -955,6 +967,7 @@ class Workflow(pydantic.BaseModel):
                         self.parent_job_id, self.app_uuid,
                         self.app_version,
                         self.plugins.model_dump_json(),
+                        json.dumps(self.labels),
                         self.priority.value))
                 break
             except osmo_errors.OSMODatabaseError as err:
@@ -992,7 +1005,8 @@ class Workflow(pydantic.BaseModel):
         failure_message: str = '',
         parent_workflow_id: task_common.NamePattern | None = None,
         app_uuid: str | None = None, app_version: int | None = None,
-        priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL) -> 'Workflow':
+        priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL,
+        labels: Dict[str, str] | None = None) -> 'Workflow':
         """ Creates a Workflow instance for FAILED_SUBMISSION record """
         parent_name = None
         parent_job_id = None
@@ -1003,7 +1017,7 @@ class Workflow(pydantic.BaseModel):
                         database=database, status=status, backend=backend, pool=pool, logs=log_url,
                         groups=[], failure_message=failure_message, parent_name=parent_name,
                         parent_job_id=parent_job_id, app_uuid=app_uuid, app_version=app_version,
-                        priority=priority)
+                        priority=priority, labels=labels or {})
 
     @classmethod
     def from_workflow_spec(cls, database: connectors.PostgresConnector,
@@ -1054,7 +1068,8 @@ class Workflow(pydantic.BaseModel):
                                 outputs='', status=status, failure_message=failure_message,
                                 parent_name=parent_name, parent_job_id=parent_job_id,
                                 app_uuid=app_uuid, app_version=app_version,
-                                plugins=create_workflow_plugins(workflow_config), priority=priority)
+                                plugins=create_workflow_plugins(workflow_config),
+                                labels=workflow_spec.labels, priority=priority)
         new_workflow.update_groups(workflow_spec, group_and_task_uuids,
                                    remaining_upstream_groups, downstream_groups, task_db_keys)
 
@@ -1142,6 +1157,7 @@ class Workflow(pydantic.BaseModel):
                         app_uuid=workflow_row['app_uuid'],
                         app_version=workflow_row['app_version'],
                         plugins=task_common.WorkflowPlugins(**workflow_row['plugins']),
+                        labels=workflow_row['labels'] or {},
                         priority=wf_priority.WorkflowPriority(workflow_row['priority']))
 
     def update_groups(self, workflow_spec: WorkflowSpec, group_and_task_uuids: Dict,
