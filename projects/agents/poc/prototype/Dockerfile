@@ -24,6 +24,7 @@ RUN curl --fail --location --silent --show-error "https://nodejs.org/dist/v${NOD
     && rm /tmp/node.tar.xz \
     && test "$(npm view "@openai/codex@${CODEX_VERSION}" dist.integrity)" = "${CODEX_NPM_INTEGRITY}" \
     && npm install --global --ignore-scripts "@openai/codex@${CODEX_VERSION}" \
+    && ln -s "/opt/node-v${NODE_VERSION}-linux-x64/bin/codex" /usr/local/bin/codex \
     && codex --version
 
 RUN useradd --create-home --shell /bin/bash agent \
