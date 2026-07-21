@@ -278,6 +278,47 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         config = history['configs'][-1]['data']
         self.assertEqual(config['workflow_info']['tags'], ['test-tag'])
 
+    def test_workflow_label_config_patch_replaces_policy(self):
+        """A normal workflow config patch replaces the label-policy list."""
+        initial_labels_config = {
+            'policy': [
+                {
+                    'key': 'cost-center',
+                    'allow_list': ['robotics'],
+                    'enforcement': 'warn',
+                },
+                {
+                    'key': 'experiment',
+                    'allow_list': [],
+                    'enforcement': 'off',
+                },
+            ],
+        }
+        updated_labels_config = {
+            'policy': [
+                {
+                    'key': 'cost-center',
+                    'allow_list': ['robotics', 'simulation'],
+                    'enforcement': 'enforce',
+                },
+            ],
+        }
+
+        config_service.patch_workflow_configs(
+            request=objects.PatchConfigRequest(
+                configs_dict={'labels_config': initial_labels_config},
+            ),
+            username='test@nvidia.com',
+        )
+        updated_config = config_service.patch_workflow_configs(
+            request=objects.PatchConfigRequest(
+                configs_dict={'labels_config': updated_labels_config},
+            ),
+            username='test@nvidia.com',
+        )
+
+        self.assertEqual(updated_config['labels_config'], updated_labels_config)
+
     def test_backend_config_history(self):
         """Test history entries for backend config operations."""
         self.create_test_backend(backend_name='test-backend')

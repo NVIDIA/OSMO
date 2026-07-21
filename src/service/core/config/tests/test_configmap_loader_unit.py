@@ -431,6 +431,41 @@ class TestValidateConfigs(unittest.TestCase):
         errors = configmap_loader._validate_configs({})
         self.assertEqual(errors, [])
 
+    def test_validates_nested_workflow_labels_config(self):
+        errors = configmap_loader._validate_configs({
+            'workflow': {
+                'labels_config': {
+                    'policy': [{
+                        'key': 'PPP',
+                        'allow_list': ['audio'],
+                        'enforcement': 'warn',
+                    }],
+                },
+            },
+        })
+        self.assertEqual(errors, [])
+
+    def test_rejects_invalid_nested_workflow_labels_config(self):
+        cases = (
+            ([{'key': 'osmo.workflow_uuid'}], 'labels_config'),
+            ([{'key': 'PPP', 'enforcement': 'block'}], 'labels_config'),
+            ([{'key': 'PPP', 'required': False}], 'labels_config'),
+            (
+                [{'key': f'key-{index}'} for index in range(17)],
+                'at most 16 label policies',
+            ),
+        )
+        for policy, expected_error in cases:
+            with self.subTest(policy=policy):
+                errors = configmap_loader._validate_configs({
+                    'workflow': {
+                        'labels_config': {'policy': policy},
+                    },
+                })
+
+                self.assertEqual(len(errors), 1)
+                self.assertIn(expected_error, errors[0])
+
 
 class TestValidationErrorFormatting(unittest.TestCase):
     """Pydantic validation errors must never echo input values.

@@ -72,3 +72,18 @@ py_test(
     ],
     size = "small"
 )
+
+py_test(
+    name = "test_workflow_config",
+    srcs = [
+        "test_workflow_config.py"
+    ],
+    deps = [
+        requirement("pydantic"),
+        "//src/utils/connectors:connectors",
+    ],
+    tags = [
+        "exclusive"
+    ],
+    size = "small"
+)

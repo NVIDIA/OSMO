@@ -472,6 +472,10 @@ services:
       max_num_tasks: 100
       max_exec_timeout: "30d"
       default_exec_timeout: "7d"
+      ## Optional curated workflow-label policy. Empty by default.
+      ##
+      labels_config:
+        policy: []
 
     ## Pod templates applied to workflow containers.
     ##
