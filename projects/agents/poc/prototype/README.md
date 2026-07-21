@@ -12,7 +12,7 @@ controller.
 ## Run now — local checks only
 
 ```bash
-cd /Users/fernandol/Workspace/osmo/projects/agents/poc/prototype
+cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
 (
   set -euo pipefail
   bash -n runtime/run-agent.sh
