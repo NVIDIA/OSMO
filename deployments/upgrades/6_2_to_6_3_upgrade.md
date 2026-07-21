@@ -34,6 +34,14 @@ SPDX-License-Identifier: Apache-2.0
 | New deployment | [Enable ConfigMap mode](#enable-configmap-mode) (chart defaults provide sensible starting configs) |
 | **Any deployment** | [Router chart merge](#router-chart-merged-into-service-chart) — required for all upgrades to 6.3 |
 
+### Config PATCH semantics for plain lists
+
+In 6.3 the shared config PATCH endpoints treat a list of objects without
+`$index` directives as a complete replacement value instead of appending to
+the stored list. Strategic merges continue to work when patch items carry
+`$index`. Legacy-mode API clients that relied on append behavior must send
+the full desired list.
+
 ## Export existing configs
 
 Use the export script to dump your current configs from the running OSMO instance into Helm values format:
