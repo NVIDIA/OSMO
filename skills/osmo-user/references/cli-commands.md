@@ -23,7 +23,6 @@ references.
 ## Version and Auth
 
 ```bash
-osmo --version
 osmo version [--format-type json|text]
 osmo login [url] [--method code|password|token|dev]
 osmo logout
