@@ -51,6 +51,7 @@ from ..utils import (
 
 RSYNC_BUFFER_SIZE = 8 * 1024  # 8KB
 RSYNC_FLAGS = '-av'
+RSYNC_DONT_RESTRICT_FLAG = '--gokr.dont_restrict'
 LOCAL_HOST_IP = '127.0.0.1'
 
 DEFAULT_DAEMON_DEBOUNCE_DELAY = 30.0
@@ -616,8 +617,19 @@ class RsyncClient:
             # Get the current pending counter
             cur_pending_counter = await self._upload_counter.get_pending()
 
+            if not os.path.exists(self._rsync_request.local_path):
+                raise osmo_errors.OSMOUserError(
+                    f'Local path does not exist: {self._rsync_request.local_path}'
+                )
+
             try:
-                rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
+                # TODO(gokrazy/rsync#66): Remove the client-side workaround once
+                # named directories and individual files work under Landlock.
+                rsync_args = [
+                    self._rsync_bin_path,
+                    RSYNC_FLAGS,
+                    RSYNC_DONT_RESTRICT_FLAG,
+                ]
                 if self._show_progress:
                     rsync_args.append('--progress')
                 rsync_args.extend([self._rsync_request.local_path, resolved_dst])
@@ -1736,6 +1748,7 @@ def validate_local_path(path: str, must_exist: bool = True) -> str:
     if not path:
         raise osmo_errors.OSMOUserError('Invalid rsync path format: missing local path')
 
+    has_trailing_slash = path.endswith(os.sep)
     resolved_path = paths.resolve_local_path(path)
 
     sanitized_path = validation.sanitized_path(resolved_path)
@@ -1744,6 +1757,9 @@ def validate_local_path(path: str, must_exist: bool = True) -> str:
 
     if must_exist and not os.path.exists(sanitized_path):
         raise osmo_errors.OSMOUserError(f'Local path does not exist: {path}')
+
+    if has_trailing_slash and sanitized_path != os.sep:
+        return f'{sanitized_path}{os.sep}'
 
     return sanitized_path
 
