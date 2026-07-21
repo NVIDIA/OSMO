@@ -209,7 +209,7 @@ ENV NEXT_PUBLIC_APP_NAME=OSMO
 # ENV NEXT_PUBLIC_OSMO_API_HOSTNAME=osmo-service.osmo.svc.cluster.local:80
 # ENV NEXT_PUBLIC_OSMO_SSL_ENABLED=false
 
-USER 1000
+USER nonroot
 
 # Match legacy UI pattern: entrypoint=node, cmd=server.js
 ENTRYPOINT ["node"]
