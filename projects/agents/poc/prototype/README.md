@@ -33,6 +33,7 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   ! rg -n -i '(^|[[:space:]])(auth|access_key|password):' agentic-vla-workflow-spec.yaml skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   rg -q '\$osmo-agentic-workflow' skills/osmo-agentic-workflow/agents/openai.yaml
   rg -Fq "readonly AGENTS_FILE='/run/agent/AGENTS.md'" runtime/run-agent.sh
+  test "$(python3 -c 'import json; print(json.load(open("runtime-lock.json"))["agentRuntime"]["osmoUserSkill"]["ref"])')" = "$(sed -n "s/^readonly OSMO_SKILL_REF='\\([0-9a-f]\\{40\\}\\)'$/\\1/p" runtime/run-agent.sh)"
   test ! -e roles
   ! rg -n -- '--role|--subgoal|ROLE: pipeline|ROLE: lead' agentic-vla-workflow-spec.yaml runtime/run-agent.sh skills/osmo-agentic-workflow
   ! rg -n -i 'orchestratorctl|reservation|submission.?key|goalcontract|pipelinecontract|childrequest|TODO' agentic-vla-workflow-spec.yaml runtime skills

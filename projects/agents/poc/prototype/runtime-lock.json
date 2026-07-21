@@ -12,7 +12,7 @@
     },
     "osmoUserSkill": {
       "repository": "https://github.com/NVIDIA/OSMO.git",
-      "ref": "cda47f9d28a64bac3514e7e673e3be2dba49c6e9",
+      "ref": "3603b853f62dd38dfe1dc0a76cf68dfa3f07461a",
       "path": "skills/osmo-user"
     },
     "node": {

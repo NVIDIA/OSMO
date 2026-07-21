@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly OSMO_SKILL_REPOSITORY='https://github.com/NVIDIA/OSMO.git'
-readonly OSMO_SKILL_REF='cda47f9d28a64bac3514e7e673e3be2dba49c6e9'
+readonly OSMO_SKILL_REF='3603b853f62dd38dfe1dc0a76cf68dfa3f07461a'
 readonly AGENTS_FILE='/run/agent/AGENTS.md'
 
 result_root=""
