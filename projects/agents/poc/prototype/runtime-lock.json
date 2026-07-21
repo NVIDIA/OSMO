@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v1",
   "agentRuntime": {
-    "parent": null,
+    "parent": "ubuntu:22.04@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8",
     "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:<tag>",
     "image": null,
     "platform": "linux/amd64",
