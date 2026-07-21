@@ -47,6 +47,11 @@ import { ResourcePanelHeader } from "@/features/resources/components/panel/panel
 import { ResourcePanelContent } from "@/features/resources/components/panel/panel-content";
 import { ResourcesDataTable } from "@/features/resources/components/table/resources-data-table";
 import { ResourcesToolbar } from "@/features/resources/components/resources-toolbar";
+import {
+  findResourceForSelection,
+  getResourceRowId,
+  getResourceSelectionState,
+} from "@/features/resources/lib/resource-selection";
 import { useResourcesTableStore } from "@/features/resources/stores/resources-table-store";
 import { AdaptiveSummary } from "@/features/resources/components/resource-summary-card";
 import { useResourcesData } from "@/features/resources/hooks/use-resources-data";
@@ -77,13 +82,6 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
     setConfig: setSelectedPoolConfig,
     clear: clearSelectedResource,
   } = usePanelState();
-
-  const handleResourceSelect = useCallback(
-    (resourceName: string | null) => {
-      startTransition(() => setSelectedResourceName(resourceName));
-    },
-    [setSelectedResourceName, startTransition],
-  );
 
   const handlePoolSelect = useCallback(
     (poolName: string | null) => {
@@ -146,8 +144,8 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
 
   // Find selected resource from URL
   const selectedResource = useMemo(
-    () => (selectedResourceName ? resources.find((r) => r.name === selectedResourceName) : undefined),
-    [resources, selectedResourceName],
+    () => findResourceForSelection(resources, selectedResourceName, selectedPoolConfig),
+    [resources, selectedResourceName, selectedPoolConfig],
   );
 
   // Panel lifecycle - handles open/close/closing animation state machine
@@ -163,9 +161,13 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
   // Handle resource click
   const handleResourceClick = useCallback(
     (resource: Resource) => {
-      handleResourceSelect(resource.name);
+      const selection = getResourceSelectionState(resource, selectedPoolConfig);
+      startTransition(() => {
+        setSelectedResourceName(selection.resourceName);
+        setSelectedPoolConfig(selection.poolName);
+      });
     },
-    [handleResourceSelect],
+    [selectedPoolConfig, setSelectedPoolConfig, setSelectedResourceName, startTransition],
   );
 
   // Panel width management
@@ -224,7 +226,7 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
             onRetry={refetch}
             showPoolsColumn
             onResourceClick={handleResourceClick}
-            selectedResourceId={selectedResourceName ?? undefined}
+            selectedResourceId={selectedResource ? getResourceRowId(selectedResource) : undefined}
             hasNextPage={hasNextPage}
             onLoadMore={fetchNextPage}
             isFetchingNextPage={isFetchingNextPage}
@@ -256,6 +258,7 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
             onClose={handleClosePanel}
           />
           <ResourcePanelContent
+            key={getResourceRowId(selectedResource)}
             resource={selectedResource}
             selectedPool={selectedPoolConfig}
             onPoolSelect={handlePoolSelect}

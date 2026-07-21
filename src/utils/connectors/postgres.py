@@ -2327,12 +2327,16 @@ class BackendResource(pydantic.BaseModel):
         if len(resources) == 0:
             return all_resources
 
-        pool_config = fetch_verbose_pool_config(postgres, resources[0]['backend']).pools
+        pool_configs: Dict[str, Dict[str, 'Pool']] = {}
 
         for resource in resources:
             taints = resource.get('taints', [])
             label_fields = PostgresConnector.decode_hstore(resource.get('label_fields') or '')
             if resource['available']:
+                backend = resource['backend']
+                if backend not in pool_configs:
+                    pool_configs[backend] = fetch_verbose_pool_config(postgres, backend).pools
+                pool_config = pool_configs[backend]
                 label_fields = PostgresConnector.decode_hstore(resource.get('label_fields') or '')
                 allocatable_fields = PostgresConnector.decode_hstore(
                     resource.get('allocatable_fields') or '')

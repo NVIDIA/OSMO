@@ -58,3 +58,17 @@ py_test(
     ],
     size = "small"
 )
+
+py_test(
+    name = "test_backend_resource",
+    srcs = [
+        "test_backend_resource.py"
+        ],
+    deps = [
+        "//src/utils/connectors:connectors",
+    ],
+    tags = [
+        "exclusive"
+    ],
+    size = "small"
+)

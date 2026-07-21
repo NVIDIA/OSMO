@@ -236,7 +236,15 @@ def _info_resource(service_client: client.ServiceClient, args: argparse.Namespac
     if 'resources' not in response or len(response['resources']) == 0:
         print(f'{args.node_name} is not a resource.')
         return
+    if not args.pool and len(response['resources']) > 1:
+        print(f'Multiple resources named {args.node_name} exist. Specify both --pool and '
+              '--platform to select one.')
+        return
     resource = response['resources'][0]
+    if args.pool:
+        resource = next((candidate for candidate in response['resources']
+                         if args.platform in candidate.get(
+                             'pool_platform_labels', {}).get(args.pool, [])), resource)
     keys = resource['exposed_fields'].keys()
     allocatable_labels_lookup = \
         {resource_label.name: (resource_label.name, resource_label.unit) \
