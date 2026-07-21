@@ -54,6 +54,6 @@ workflow:
 
         ## User goal
 
-        {{goal_prompt}}
+        {{ goal_prompt | indent(8) }}
     outputs:
     - url: "{{result_url}}"
