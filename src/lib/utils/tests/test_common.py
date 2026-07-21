@@ -756,6 +756,12 @@ class TestStrategicMergePatch(unittest.TestCase):
             {'items': [1, 2]}, {'items': [9]})
         self.assertEqual(result['items'], [9])
 
+    def test_replaces_list_of_dicts_without_index_directives(self):
+        result = common.strategic_merge_patch(
+            {'items': [{'x': 1}, {'x': 2}]},
+            {'items': [{'x': 3}]})
+        self.assertEqual(result['items'], [{'x': 3}])
+
     def test_non_dict_original(self):
         # When the original is not a dict but the patch is, return the patch.
         result = common.strategic_merge_patch('scalar', {'a': 1})  # type: ignore[arg-type]

@@ -854,8 +854,14 @@ def strategic_merge_patch(original: Dict[str, Any], patch: Dict[str, Any]) -> Di
             else:
                 updated[key] = strategic_merge_patch(updated[key], value)
         elif isinstance(value, list):
-            # Handle the case where the value is a list of dictionaries.
-            if value and all(isinstance(item, dict) for item in value):
+            # Use index directives for strategic list edits. An ordinary list is a
+            # complete value, matching the full-list diff produced by config update.
+            has_index_directive = (
+                value
+                and all(isinstance(item, dict) for item in value)
+                and any('$index' in item for item in value)
+            )
+            if has_index_directive:
                 updated_list = []
                 for i, item in enumerate(updated[key]):
                     for patch_item in value:
