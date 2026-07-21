@@ -2,8 +2,8 @@
   "schemaVersion": "v1",
   "agentRuntime": {
     "parent": "ubuntu:22.04@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8",
-    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-0317a2472cb9",
-    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:e766237cf3991f9226c1d455ba710ab1c822fe72431d8b670b607c5bead34ba8",
+    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-0b9e8d57b",
+    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:51da27852ce4f1fd48d2d40ead2707947424116ae695a76d4f4be4b1a2dcba7f",
     "platform": "linux/amd64",
     "registryCredential": "ngc_cred",
     "osmoCli": {
