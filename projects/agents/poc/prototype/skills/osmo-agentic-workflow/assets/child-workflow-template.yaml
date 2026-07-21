@@ -33,4 +33,4 @@ workflow:
         Replace this with the bounded child subgoal, acceptance criteria, and
         relevant parent evidence. Do not include secret values.
     outputs:
-    - url: "https://REPLACE_WITH_STORAGE_ROOT/agent-results/replace-with-child-name/"
+    - url: "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/agent-results/replace-with-child-name/"

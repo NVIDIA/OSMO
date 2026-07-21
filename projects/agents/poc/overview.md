@@ -123,13 +123,13 @@ source is Hugging Face `nvidia/video-data-augmentation-demo` at revision
 Before the first lead submission, mirror and verify the files at:
 
 ```text
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video/
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video/
 ```
 
 The lead generates `run-<uuid>` and places VDA results and agent records under:
 
 ```text
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-<uuid>/
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-<uuid>/
 ```
 
 This is the backend-native root for `swift_osmo_cred`. The mirror is a one-time
@@ -140,7 +140,7 @@ input-provisioning action, not an OSMO workflow or a task bootstrap step.
 Before video fan-out, the lead creates:
 
 ```text
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/workspaces/vda/<run-id>/
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/workspaces/vda/<run-id>/
 ```
 
 The lead submits `environment-pipeline-<run-id>` with this workspace as a
@@ -148,7 +148,7 @@ frozen input. The environment pipeline computes a cache lock and checks the
 corresponding immutable manifest under:
 
 ```text
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/model-artifacts/vda/<cache-lock>/cache-manifest.json
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/model-artifacts/vda/<cache-lock>/cache-manifest.json
 ```
 
 If the manifest is missing or fails verification, the environment pipeline

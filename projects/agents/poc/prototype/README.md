@@ -34,6 +34,12 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   rg -q '\$osmo-agentic-workflow' skills/osmo-agentic-workflow/agents/openai.yaml
   rg -Fq "readonly AGENTS_FILE='/run/agent/AGENTS.md'" runtime/run-agent.sh
   test "$(python3 -c 'import json; print(json.load(open("runtime-lock.json"))["agentRuntime"]["osmoUserSkill"]["ref"])')" = "$(sed -n "s/^readonly OSMO_SKILL_REF='\\([0-9a-f]\\{40\\}\\)'$/\\1/p" runtime/run-agent.sh)"
+  rg -q '^  result_url: "swift://pdx\.s8k\.io/AUTH_team-osmo/dev/fernandol/agents_poc/' agentic-vla-workflow-spec.yaml
+  rg -q 'url: "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/' skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  ! rg -n 'https://.*STORAGE_ROOT' agentic-vla-workflow-spec.yaml skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  rg -Fq '03_IllegalOccupation_020_10FPS.mp4' goal.md
+  rg -Fq 'goal_0086_0hz_6sec.mp4' goal.md
+  ! rg -n -i '(^|[[:space:]])(auth|access_key|password|token):' goal.md
   test ! -e roles
   ! rg -n -- '--role|--subgoal|ROLE: pipeline|ROLE: lead' agentic-vla-workflow-spec.yaml runtime/run-agent.sh skills/osmo-agentic-workflow
   ! rg -n -i 'orchestratorctl|reservation|submission.?key|goalcontract|pipelinecontract|childrequest|TODO' agentic-vla-workflow-spec.yaml runtime skills
@@ -87,12 +93,12 @@ written into this repository or an artifact.
 mkdir -p .local
 export STATIC_REPOSITORY_URL='https://github.com/<owner>/<repository>.git'
 export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
-export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:<resolved-64-hex-digest>'
-export POOL='<visible-osmo-pool>'
-export PLATFORM='<visible-platform>'
+export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:51da27852ce4f1fd48d2d40ead2707947424116ae695a76d4f4be4b1a2dcba7f'
+export POOL='isaac-h100-dev'
+export PLATFORM='infra'
 export RUN_ID='<dns-safe-run-id>'
 export WORKFLOW_NAME="agentic-vla-$RUN_ID"
-export RESULT_URL='https://<declared-storage-root>/agent-results/'"$RUN_ID"'/lead/'
+export RESULT_URL="swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-${RUN_ID}/agent/lead/"
 export GOAL_PROMPT="$(<./goal.md)"
 
 set_values=(

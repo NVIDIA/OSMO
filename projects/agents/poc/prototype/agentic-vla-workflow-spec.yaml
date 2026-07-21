@@ -8,7 +8,7 @@ default-values:
   static_repository_ref: "REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA"
   run_id: replace-with-dns-safe-run-id
   platform: REPLACE_WITH_VISIBLE_PLATFORM
-  result_url: "https://REPLACE_WITH_STORAGE_ROOT/agent-results/replace-with-run-id/lead/"
+  result_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/replace-with-run-id/agent/lead/"
 
 workflow:
   name: "{{workflow_name}}"

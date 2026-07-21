@@ -202,7 +202,7 @@ credentials:
   swiftOsmo:
     name: swift_osmo_cred
     type: DATA
-    storageRoot: https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/
+    storageRoot: swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/
   huggingFace:
     name: hf_token
     type: GENERIC
@@ -224,8 +224,8 @@ stages:
 videoStageBundle:
   manifestDigest: sha256:...
 modelArtifactWorkspace:
-  runRoot: https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/workspaces/vda
-  root: https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/model-artifacts/vda
+  runRoot: swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/workspaces/vda
+  root: swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/model-artifacts/vda
   cacheLock: sha256:...
   manifestDigest: sha256:...
   materializer:

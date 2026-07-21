@@ -44,7 +44,7 @@ and dynamic fan-out to deterministic GPU stages. The workload target is the VDA
 - Use the existing `osmo` CLI and OSMO API from task containers for submission,
   query, logs, events, and output retrieval.
 - Use the OSMO `DATA` credential named `swift_osmo_cred` for the Swift-backed
-  storage root `https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/`.
+  storage root `swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/`.
   No secret values are written into workflow YAML, plans, logs, or output
   artifacts.
 - For this POC, the lead's task context has full existing-cluster OSMO access:
@@ -172,8 +172,8 @@ is Hugging Face `nvidia/video-data-augmentation-demo` at revision
 The data-backend root and its required layout are:
 
 ```text
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video/<the two input videos>
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-<uuid>/
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video/<the two input videos>
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-<uuid>/
   outputs/...
   agent/lead/...
   agent/videos/<video>/...
@@ -191,14 +191,14 @@ admission to one environment-pipeline agent. That agent reuses or, on a cold
 cache, materializes the separate content-addressed model-artifact workspace:
 
 ```text
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/workspaces/vda/<run-id>/
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/workspaces/vda/<run-id>/
   goal-plan.json
   cache-request.json
   cache-binding.json
   videos/<video>/video-stage-bundle.tar.gz
   videos/<video>/video-result.json
 
-https://pdx.s8k.io/v1/AUTH_team-osmo/dev/fernandol/agents_poc/model-artifacts/vda/<cache-lock>/
+swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/model-artifacts/vda/<cache-lock>/
   cosmos_transfer/...
   auto_labeling/...
   cache-manifest.json
