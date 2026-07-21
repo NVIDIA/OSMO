@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentResult/v1",
+  "type": "object",
+  "required": ["outcome", "summary", "evidence"],
+  "properties": {
+    "outcome": {"enum": ["Completed", "Retrying", "HumanInterventionRequired", "TerminalFailure"]},
+    "summary": {"type": "string", "minLength": 1},
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "nextAction": {"type": "string"}
+  },
+  "additionalProperties": false
+}

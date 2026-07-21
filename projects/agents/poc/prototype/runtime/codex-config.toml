@@ -1,0 +1,14 @@
+model = "openai/openai/gpt-5.6-terra"
+model_provider = "nvidia_inference"
+model_reasoning_effort = "xhigh"
+model_catalog_json = "/home/agent/.codex/model-catalog.json"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+project_root_markers = []
+
+[model_providers.nvidia_inference]
+name = "Nvidia Inference (Codex)"
+base_url = "https://inference-api.nvidia.com/v1/"
+env_key = "INFERENCE_API_KEY"
+wire_api = "responses"
+requires_openai_auth = false

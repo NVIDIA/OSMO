@@ -1,0 +1,59 @@
+version: 2
+
+default-values:
+  workflow_name: agentic-vla
+  agent_runtime_image: "nvcr.io/nvstaging/osmo/agent-runtime@sha256:REPLACE_WITH_64_HEX"
+  goal_prompt: "Describe the overarching goal for the lead agent."
+  static_repository_url: "https://github.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPOSITORY.git"
+  static_repository_ref: "REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA"
+  run_id: replace-with-dns-safe-run-id
+  platform: REPLACE_WITH_VISIBLE_PLATFORM
+  result_url: "https://REPLACE_WITH_STORAGE_ROOT/agent-results/replace-with-run-id/lead/"
+
+workflow:
+  name: "{{workflow_name}}"
+  timeout:
+    queue_timeout: 30m
+    exec_timeout: 24h
+  resources:
+    lead:
+      cpu: 2
+      memory: 4Gi
+      storage: 10Gi
+      platform: "{{platform}}"
+  tasks:
+  - name: lead
+    image: "{{agent_runtime_image}}"
+    resource: lead
+    credentials:
+      nvidia_inference:
+        INFERENCE_API_KEY: INFERENCE_API_KEY
+    environment:
+      RUN_ID: "{{run_id}}"
+      STATIC_REPOSITORY_URL: "{{static_repository_url}}"
+      STATIC_REPOSITORY_REF: "{{static_repository_ref}}"
+    command: ["/opt/agent-runtime/run-agent.sh"]
+    args: ["--result-root", "{{output}}"]
+    files:
+    - path: /run/agent/AGENTS.md
+      contents: |
+        # Lead agent
+
+        Own the overarching user goal below for the lifetime of this workflow.
+        Translate it into a small, explicit plan; delegate each meaningful
+        bounded subgoal; and reconcile every delegated result. Do not perform
+        a delegated subgoal's domain work directly or predefine its worker
+        graph.
+
+        Do not mutate OSMO pools, profiles, quotas, credentials, or service
+        configuration. Request human direction only for ambiguity that cannot
+        be resolved safely from this task's instructions, evidence, and OSMO
+        state.
+
+        Run ID: {{run_id}}
+
+        ## User goal
+
+        {{goal_prompt}}
+    outputs:
+    - url: "{{result_url}}"
