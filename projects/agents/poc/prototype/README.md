@@ -95,7 +95,7 @@ written into this repository or an artifact.
 mkdir -p .local
 export STATIC_REPOSITORY_URL='https://github.com/<owner>/<repository>.git'
 export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
-export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:51da27852ce4f1fd48d2d40ead2707947424116ae695a76d4f4be4b1a2dcba7f'
+export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:331494cd7b60759662851370c3c9ea60a40cb863817c1416fbeefd88e007f9c7'
 export POOL='isaac-h100-dev'
 export PLATFORM='infra'
 export RUN_ID='<dns-safe-run-id>'
