@@ -78,4 +78,4 @@ codex exec \
   --output-schema "${agentic_result_schema}" \
   --output-last-message "${result_root}/agent-result.json" \
   -C "${kit_root}" \
-  - < "${prompt_file}" > "${result_root}/codex-events.jsonl"
+  - < "${prompt_file}"
