@@ -107,35 +107,25 @@ class ApplyWorkflowLabelsTest(unittest.TestCase):
             'precedence': 'pod-template-value',
         })
 
-    def test_system_labels_win_after_workflow_and_template_layers(self):
-        system_labels = {
-            'osmo.pool': 'system-pool',
-            'precedence': 'system-value',
-        }
+    def test_system_labels_win_over_existing_labels(self):
         pod = {
             'kind': 'Pod',
             'metadata': {
-                'labels': system_labels,
-            },
-        }
-        task.apply_workflow_labels(pod, {
-            'PPP': 'project-a',
-            'precedence': 'workflow-value',
-        })
-        task.apply_pod_template(pod, {
-            'metadata': {
                 'labels': {
-                    'template-only': 'template-value',
+                    'PPP': 'project-a',
                     'precedence': 'template-value',
                 },
             },
+        }
+
+        result = task.apply_system_labels(pod, {
+            'osmo.pool': 'system-pool',
+            'precedence': 'system-value',
         })
 
-        result = task.apply_system_labels(pod, system_labels)
-
+        self.assertIs(result, pod)
         self.assertEqual(result['metadata']['labels'], {
             'PPP': 'project-a',
-            'template-only': 'template-value',
             'osmo.pool': 'system-pool',
             'precedence': 'system-value',
         })

@@ -412,7 +412,8 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self.task_group = self.create_task_group(self.database)
 
     def _run_get_kb_specs(
-        self, pool_name: str, task_group: task.TaskGroup, workflow_labels: Dict[str, str]
+        self, pool_name: str, task_group: task.TaskGroup,
+        workflow_labels: Dict[str, str] | None = None
     ):
         """Invoke get_kb_specs with standard test arguments."""
         workflow_config = self.database.get_workflow_configs()
@@ -428,13 +429,13 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
             progress_iter_freq=datetime.timedelta(minutes=1),
             workflow_plugins=task_common.WorkflowPlugins(),
             priority=wf_priority.WorkflowPriority.NORMAL,
-            workflow_labels=workflow_labels,
+            workflow_labels=workflow_labels if workflow_labels is not None else {},
         )
 
     def test_group_template_resources_prepended(self):
         """Group template resources appear before pod/secret resources in kb_resources."""
         self._setup_for_kb_specs()
-        kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group, {})
+        kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group)
 
         self.assertGreater(len(kb_resources), 0)
         first_resource = kb_resources[0]
@@ -444,7 +445,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
     def test_group_template_variable_substitution_in_kb_specs(self):
         """WF_GROUP_UUID token in the template name is replaced with the actual group UUID."""
         self._setup_for_kb_specs()
-        kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group, {})
+        kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group)
 
         rendered_name = kb_resources[0]['metadata']['name']
         self.assertNotIn('{{', rendered_name)
@@ -454,7 +455,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         """OSMO labels (osmo.group_uuid, osmo.workflow_uuid, etc.) are present on the
         rendered resource."""
         self._setup_for_kb_specs()
-        kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group, {})
+        kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group)
 
         rendered_labels = kb_resources[0]['metadata']['labels']
         self.assertIn('osmo.group_uuid', rendered_labels)
@@ -479,7 +480,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
     def test_group_template_resource_types_recorded_on_task_group(self):
         """After get_kb_specs, group_template_resource_types on the TaskGroup is populated."""
         self._setup_for_kb_specs()
-        self._run_get_kb_specs('nvlink-pool', self.task_group, {})
+        self._run_get_kb_specs('nvlink-pool', self.task_group)
 
         self.assertEqual(len(self.task_group.group_template_resource_types), 1)
         recorded = self.task_group.group_template_resource_types[0]
@@ -491,7 +492,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self._setup_for_kb_specs()
         self.create_test_pool(pool_name='plain-pool', backend='test_backend')
 
-        kb_resources, _ = self._run_get_kb_specs('plain-pool', self.task_group, {})
+        kb_resources, _ = self._run_get_kb_specs('plain-pool', self.task_group)
 
         self.assertEqual(self.task_group.group_template_resource_types, [])
         for resource in kb_resources:

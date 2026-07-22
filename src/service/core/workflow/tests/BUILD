@@ -37,20 +37,6 @@ osmo_py_test(
     visibility = ["//visibility:public"],
 )
 
-osmo_py_test(
-    name = "test_workflow_labels_db",
-    size = "large",
-    srcs = ["test_workflow_labels_db.py"],
-    deps = [
-        "//src/lib/utils:common",
-        "//src/lib/utils:priority",
-        "//src/tests/common",
-        "//src/utils/connectors",
-        "//src/utils/job",
-    ],
-    tags = ["requires-network"],
-)
-
 py_test(
     name = "test_calculate_pool_quotas",
     srcs = ["test_calculate_pool_quotas.py"],

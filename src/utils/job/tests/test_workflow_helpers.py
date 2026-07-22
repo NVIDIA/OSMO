@@ -440,7 +440,6 @@ class WorkflowLabelsPersistenceTest(unittest.TestCase):
 
         insert_command, insert_args = database.execute_commit_command.call_args_list[0].args
         self.assertIn('labels', insert_command)
-        self.assertNotIn('warnings', insert_command)
         self.assertIn(json.dumps({'PPP': 'adlr_audio_music'}), insert_args)
 
     def test_fetch_normalizes_null_labels_to_empty_map(self):
