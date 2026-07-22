@@ -253,7 +253,7 @@ class ListEntry(pydantic.BaseModel):
             app_name=row['app_name'],
             app_version=row['app_version'],
             priority=row['priority'],
-            labels=row.get('labels') or {})
+            labels=row['labels'] or {})
 
 
 class ListResponse(pydantic.BaseModel, extra='forbid'):

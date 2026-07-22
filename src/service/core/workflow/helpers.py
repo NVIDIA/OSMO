@@ -35,24 +35,13 @@ from src.utils import connectors
 _WORKFLOW_LABEL_GLOB_ESCAPE = '#'
 
 
-def _workflow_label_key_sql_literal(key: str) -> str:
-    """Render a validated workflow label key as a PostgreSQL literal."""
-    validated_key = validation.validate_workflow_label_key(key)
-    return "'" + validated_key.replace("'", "''") + "'"
-
-
 def _workflow_label_glob_to_sql_like_pattern(glob_pattern: str) -> str:
     """Translate a validated label glob to a parameterized SQL LIKE pattern."""
-    pattern_characters: List[str] = []
-    for character in glob_pattern:
-        if character == '*':
-            pattern_characters.append('%')
-        elif character in (_WORKFLOW_LABEL_GLOB_ESCAPE, '%', '_'):
-            pattern_characters.append(
-                f'{_WORKFLOW_LABEL_GLOB_ESCAPE}{character}')
-        else:
-            pattern_characters.append(character)
-    return ''.join(pattern_characters)
+    return (glob_pattern
+            .replace(_WORKFLOW_LABEL_GLOB_ESCAPE, _WORKFLOW_LABEL_GLOB_ESCAPE * 2)
+            .replace('%', f'{_WORKFLOW_LABEL_GLOB_ESCAPE}%')
+            .replace('_', f'{_WORKFLOW_LABEL_GLOB_ESCAPE}_')
+            .replace('*', '%'))
 
 
 def _append_workflow_label_selector(
@@ -61,26 +50,29 @@ def _append_workflow_label_selector(
         fetch_input: List[Any]) -> None:
     """Append a fixed SQL predicate and bound values for a label selector.
 
-    Literal values use JSONB containment (``@>``) so the GIN index on
-    ``workflows.labels`` serves them; glob patterns fall back to LIKE.
+    Keys and values are bound parameters like every other filter; psycopg2
+    interpolates them client-side, so the planner still sees literals and the
+    GIN index on ``workflows.labels`` serves the containment branches while
+    glob patterns fall back to LIKE.
     """
-    key_literal = _workflow_label_key_sql_literal(selector.key)
     if '*' in selector.values:
-        commands.append(f'workflows.labels ? {key_literal}')
+        commands.append('workflows.labels ? %s')
+        fetch_input.append(selector.key)
         return
 
     predicates: List[str] = []
     for pattern in selector.values:
         if '*' in pattern:
             predicates.append(
-                f"workflows.labels ->> {key_literal} LIKE %s "
+                'workflows.labels ->> %s LIKE %s '
                 f"ESCAPE '{_WORKFLOW_LABEL_GLOB_ESCAPE}'")
+            fetch_input.append(selector.key)
             fetch_input.append(
                 _workflow_label_glob_to_sql_like_pattern(pattern))
         else:
             predicates.append(
-                'workflows.labels @> '
-                f'jsonb_build_object({key_literal}, %s)')
+                'workflows.labels @> jsonb_build_object(%s, %s)')
+            fetch_input.append(selector.key)
             fetch_input.append(pattern)
 
     if len(predicates) == 1:
@@ -171,10 +163,9 @@ def get_workflows(users: List[str] | None = None,
     for label_selector in parsed_label_filters:
         _append_workflow_label_selector(label_selector, commands, fetch_input)
     for label_key in validated_missing_label_filters:
-        key_literal = _workflow_label_key_sql_literal(label_key)
         commands.append(
-            '(workflows.labels IS NULL OR '
-            f'NOT (workflows.labels ? {key_literal}))')
+            '(workflows.labels IS NULL OR NOT (workflows.labels ? %s))')
+        fetch_input.append(label_key)
     if commands:
         conditions = ' AND '.join(commands)
         fetch_cmd = f'{fetch_cmd} WHERE {conditions}'

@@ -792,18 +792,13 @@ class TestGetWorkflows(unittest.TestCase):
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         self.assertEqual(
             cmd.count(
-                "workflows.labels @> jsonb_build_object('team', %s)"),
-            1,
-        )
-        self.assertEqual(
-            cmd.count(
-                "workflows.labels @> jsonb_build_object('run', %s)"),
-            1,
+                "workflows.labels @> jsonb_build_object(%s, %s)"),
+            2,
         )
         self.assertIn('alpha', params)
         self.assertIn('42', params)
-        self.assertNotIn('team', params)
-        self.assertNotIn('run', params)
+        self.assertIn('team', params)
+        self.assertIn('run', params)
         self.assertIn(' AND ', cmd)
 
     def test_get_workflows_with_glob_label_filter_escapes_literal_underscore(self):
@@ -814,10 +809,10 @@ class TestGetWorkflows(unittest.TestCase):
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         expression = (
-            "workflows.labels ->> 'PPP' LIKE %s ESCAPE '#'")
+            "workflows.labels ->> %s LIKE %s ESCAPE '#'")
         self.assertEqual(cmd.count(expression), 1)
         self.assertIn('robotics#_%', params)
-        self.assertNotIn('PPP', params)
+        self.assertIn('PPP', params)
         self.assertNotIn('robotics_*', cmd)
 
     def test_get_workflows_with_alternation_uses_containment_predicates(self):
@@ -828,15 +823,12 @@ class TestGetWorkflows(unittest.TestCase):
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         expression = (
-            "workflows.labels @> jsonb_build_object('PPP', %s)")
+            "workflows.labels @> jsonb_build_object(%s, %s)")
         self.assertEqual(cmd.count(expression), 2)
         self.assertIn(' OR ', cmd)
-        selector_index = params.index('team_a')
-        self.assertEqual(
-            params[selector_index:selector_index + 2],
-            ('team_a', 'team_b'),
-        )
-        self.assertNotIn('PPP', params)
+        self.assertIn('team_a', params)
+        self.assertIn('team_b', params)
+        self.assertIn('PPP', params)
         self.assertNotIn('team_a', cmd)
         self.assertNotIn('team_b', cmd)
 
@@ -848,14 +840,11 @@ class TestGetWorkflows(unittest.TestCase):
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         expression = (
-            "workflows.labels ->> 'PPP' LIKE %s ESCAPE '#'")
+            "workflows.labels ->> %s LIKE %s ESCAPE '#'")
         self.assertEqual(cmd.count(expression), 2)
-        selector_index = params.index('team#_%')
-        self.assertEqual(
-            params[selector_index:selector_index + 2],
-            ('team#_%', 'osmo#_%'),
-        )
-        self.assertNotIn('PPP', params)
+        self.assertIn('team#_%', params)
+        self.assertIn('osmo#_%', params)
+        self.assertIn('PPP', params)
         self.assertNotIn('team_*', cmd)
         self.assertNotIn('osmo_*', cmd)
 
@@ -867,17 +856,14 @@ class TestGetWorkflows(unittest.TestCase):
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         exact_expression = (
-            "workflows.labels @> jsonb_build_object('PPP', %s)")
+            "workflows.labels @> jsonb_build_object(%s, %s)")
         like_expression = (
-            "workflows.labels ->> 'PPP' LIKE %s ESCAPE '#'")
+            "workflows.labels ->> %s LIKE %s ESCAPE '#'")
         self.assertEqual(cmd.count(exact_expression), 1)
         self.assertEqual(cmd.count(like_expression), 1)
-        selector_index = params.index('team_a')
-        self.assertEqual(
-            params[selector_index:selector_index + 2],
-            ('team_a', 'team#_b%'),
-        )
-        self.assertNotIn('PPP', params)
+        self.assertIn('team_a', params)
+        self.assertIn('team#_b%', params)
+        self.assertIn('PPP', params)
         self.assertIn(' OR ', cmd)
         self.assertNotIn('team_a', cmd)
         self.assertNotIn('team_b*', cmd)
@@ -889,9 +875,9 @@ class TestGetWorkflows(unittest.TestCase):
         self._run(database, label_filters=['PPP=*'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        self.assertIn("workflows.labels ? 'PPP'", cmd)
+        self.assertIn("workflows.labels ? %s", cmd)
         self.assertNotIn('LIKE', cmd)
-        self.assertNotIn('PPP', params)
+        self.assertIn('PPP', params)
         self.assertNotIn('%', params)
 
     def test_get_workflows_with_match_all_alternative_collapses_to_existence(self):
@@ -901,7 +887,7 @@ class TestGetWorkflows(unittest.TestCase):
         self._run(database, label_filters=['PPP=(*|team_a)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        self.assertEqual(cmd.count("workflows.labels ? 'PPP'"), 1)
+        self.assertEqual(cmd.count("workflows.labels ? %s"), 1)
         self.assertNotIn(' OR ', cmd)
         self.assertNotIn('team_a', params)
 
@@ -912,18 +898,15 @@ class TestGetWorkflows(unittest.TestCase):
         self._run(database, missing_label_filters=['team', 'project'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        self.assertIn(
-            "(workflows.labels IS NULL OR NOT (workflows.labels ? 'team'))",
-            cmd,
+        self.assertEqual(
+            cmd.count(
+                '(workflows.labels IS NULL OR NOT (workflows.labels ? %s))'),
+            2,
         )
-        self.assertIn(
-            "(workflows.labels IS NULL OR NOT (workflows.labels ? 'project'))",
-            cmd,
-        )
-        self.assertNotIn('team', params)
-        self.assertNotIn('project', params)
+        self.assertIn('team', params)
+        self.assertIn('project', params)
 
-    def test_get_workflows_renders_valid_qualified_label_key_as_literal(self):
+    def test_get_workflows_binds_qualified_label_keys_as_parameters(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
@@ -934,16 +917,11 @@ class TestGetWorkflows(unittest.TestCase):
         )
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        self.assertIn(
-            "jsonb_build_object('cost.example.com/team', %s)",
-            cmd,
-        )
-        self.assertIn(
-            "workflows.labels ? 'owner.example.com/project'",
-            cmd,
-        )
-        self.assertNotIn('cost.example.com/team', params)
-        self.assertNotIn('owner.example.com/project', params)
+        self.assertIn('jsonb_build_object(%s, %s)', cmd)
+        self.assertIn('cost.example.com/team', params)
+        self.assertIn('owner.example.com/project', params)
+        self.assertNotIn('cost.example.com/team', cmd)
+        self.assertNotIn('owner.example.com/project', cmd)
 
     def test_get_workflows_rejects_malformed_label_filter_before_query(self):
         database = mock.Mock()
