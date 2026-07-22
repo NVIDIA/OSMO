@@ -31,8 +31,6 @@ from ..data.storage import constants
 
 MAX_WORKFLOW_LABELS = 16
 MAX_WORKFLOW_LABEL_SELECTOR_PATTERNS = 32
-WORKFLOW_LABEL_RESERVED_PREFIXES = ('osmo.', 'kai.scheduler/', 'runai/')
-WORKFLOW_LABEL_RESERVED_DNS_SUFFIXES = ('kubernetes.io', 'k8s.io')
 
 _LABEL_NAME_PATTERN = re.compile(
     r'^[A-Za-z0-9](?:[-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$')
@@ -55,11 +53,14 @@ class WorkflowLabelSelector:
 
 
 def validate_workflow_label_key(key: str) -> str:
-    """Validate a workflow label key against Kubernetes qualified-name syntax."""
+    """Validate a workflow label key against Kubernetes qualified-name syntax.
+
+    Any syntactically valid key is accepted. System-owned pod labels (the
+    ``osmo.`` selectors and scheduler queue labels) are protected by merge
+    order at stamping time, not by a deny-list here.
+    """
     if not isinstance(key, str):
         raise ValueError('Workflow label keys must be strings.')
-    if key.startswith(WORKFLOW_LABEL_RESERVED_PREFIXES):
-        raise ValueError(f'Workflow label key "{key}" is reserved.')
 
     parts = key.split('/')
     if len(parts) == 1:
@@ -71,10 +72,6 @@ def validate_workflow_label_key(key: str) -> str:
         raise ValueError(f'Workflow label key "{key}" is not a valid Kubernetes label key.')
 
     if prefix is not None:
-        if (prefix in WORKFLOW_LABEL_RESERVED_DNS_SUFFIXES or any(
-                prefix.endswith(f'.{suffix}')
-                for suffix in WORKFLOW_LABEL_RESERVED_DNS_SUFFIXES)):
-            raise ValueError(f'Workflow label key "{key}" is reserved.')
         if not _DNS_PREFIX_PATTERN.fullmatch(prefix):
             raise ValueError(
                 f'Workflow label key "{key}" has an invalid DNS prefix.')

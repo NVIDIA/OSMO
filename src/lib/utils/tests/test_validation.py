@@ -245,30 +245,17 @@ class TestWorkflowLabelValidation(unittest.TestCase):
             'run_42.alpha',
         )
 
-    def test_rejects_reserved_keys(self):
+    def test_accepts_any_syntactically_valid_key(self):
+        # No deny-list: system-owned pod labels are protected by merge order
+        # at stamping time, so even system-domain keys validate here.
         for key in (
-            'kubernetes.io/name',
-            'k8s.io/name',
+            'app.kubernetes.io/name',
             'topology.kubernetes.io/zone',
-            'example.k8s.io/name',
             'osmo.workflow_uuid',
-        ):
-            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'reserved'):
-                validation.validate_workflow_label_key(key)
-
-    def test_rejects_scheduler_owned_keys(self):
-        for key in (
             'kai.scheduler/queue',
-            'kai.scheduler/workload-kind',
             'runai/queue',
-            'runai/project',
-            'kai.scheduler/subgroup-name',
+            'example-kubernetes.io/name',
         ):
-            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'reserved'):
-                validation.validate_workflow_label_key(key)
-
-    def test_accepts_similar_unreserved_dns_prefixes(self):
-        for key in ('example-kubernetes.io/name', 'runai.example/project'):
             with self.subTest(key=key):
                 self.assertEqual(validation.validate_workflow_label_key(key), key)
 
