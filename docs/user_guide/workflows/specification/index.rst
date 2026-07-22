@@ -47,11 +47,10 @@ Workflow
      - No
      - Immutable workflow metadata copied to every task Pod. Keys and values use
        Kubernetes label syntax, values must be non-empty, and a workflow can
-       define at most 16 labels. Reserved and rejected: keys with the
-       ``osmo.`` prefix, all keys in the scheduler-owned ``kai.scheduler/``
-       and ``runai/`` domains, and keys whose DNS prefix is or ends in
-       ``kubernetes.io`` or ``k8s.io`` (for example
-       ``app.kubernetes.io/name``).
+       define at most 16 labels. Any syntactically valid key is accepted;
+       where a workflow label collides with a system-owned Pod label (the
+       ``osmo.`` selectors or scheduler queue labels), the system value wins
+       on the Pod.
    * - :kbd:`timeout`
      - ``dict``
      - No
