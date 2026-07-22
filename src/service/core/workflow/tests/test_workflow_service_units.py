@@ -780,6 +780,8 @@ class TestListWorkflow(unittest.TestCase):
             'tags': None,
             'app': None,
             'priority': None,
+            'label_filters': None,
+            'missing_label_filters': None,
             'user_header': None,
         }
         base.update(overrides)
@@ -869,6 +871,29 @@ class TestListWorkflow(unittest.TestCase):
         # rows arg limited to 20 (since 21 > 20 -> more entries True)
         self.assertEqual(len(args[0]), 20)
         self.assertTrue(kwargs['more_entries'])
+
+    def test_list_workflow_forwards_label_filters(self):
+        context = mock.Mock()
+        context.database.get_workflow_service_url.return_value = 'http://svc'
+
+        with mock.patch.object(workflow_service.objects.WorkflowServiceContext,
+                               'get', return_value=context), \
+             mock.patch.object(workflow_service.helpers, 'get_workflows',
+                               return_value=[]) as get_workflows, \
+             mock.patch.object(workflow_service.objects.ListResponse,
+                               'from_db_rows', return_value=mock.Mock()):
+            workflow_service.list_workflow(**self._kwargs(
+                all_users=True,
+                all_pools=True,
+                label_filters=['team=alpha'],
+                missing_label_filters=['project'],
+            ))
+
+        self.assertEqual(get_workflows.call_args.kwargs['label_filters'], ['team=alpha'])
+        self.assertEqual(
+            get_workflows.call_args.kwargs['missing_label_filters'],
+            ['project'],
+        )
 
 
 class TestListTask(unittest.TestCase):

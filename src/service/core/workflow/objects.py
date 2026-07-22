@@ -220,6 +220,7 @@ class ListEntry(pydantic.BaseModel):
     app_name: str | None = None
     app_version: int | None = None
     priority: str
+    labels: Dict[str, str] = pydantic.Field(default_factory=dict)
 
     @classmethod
     def from_db_row(cls, row: Any, base_url: str,
@@ -251,7 +252,8 @@ class ListEntry(pydantic.BaseModel):
             app_owner=row['app_owner'],
             app_name=row['app_name'],
             app_version=row['app_version'],
-            priority=row['priority'])
+            priority=row['priority'],
+            labels=row.get('labels') or {})
 
 
 class ListResponse(pydantic.BaseModel, extra='forbid'):

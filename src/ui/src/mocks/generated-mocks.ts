@@ -1806,6 +1806,8 @@ export interface SrcServiceCoreAppObjectsListResponse {
   more_entries: boolean;
 }
 
+export type SrcServiceCoreWorkflowObjectsListEntryLabels = { [key: string]: string };
+
 /**
  * Entry for list API results.
  */
@@ -1829,6 +1831,7 @@ export interface SrcServiceCoreWorkflowObjectsListEntry {
   app_name?: string | null;
   app_version?: number | null;
   priority: string;
+  labels?: SrcServiceCoreWorkflowObjectsListEntryLabels;
 }
 
 export interface SrcServiceCoreWorkflowObjectsListResponse {
@@ -2026,6 +2029,11 @@ export type ListWorkflowApiWorkflowGetParams = {
   tags?: string[] | null;
   app?: string | null;
   priority?: WorkflowPriority[] | null;
+  /**
+   * Workflow label selector: key=value with optional * wildcards and (a|b) alternatives, for example key=(team_*|osmo_*) or key=team_(a|b). Repeat for AND semantics.
+   */
+  label?: string[] | null;
+  no_label?: string[] | null;
 };
 
 export type ListTaskApiTaskGetParams = {
@@ -6319,7 +6327,7 @@ export const getListWorkflowApiWorkflowGetUrl = (params?: ListWorkflowApiWorkflo
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    const explodeParameters = ["users", "statuses", "pools", "tags", "priority"];
+    const explodeParameters = ["users", "statuses", "pools", "tags", "priority", "label", "no_label"];
 
     if (Array.isArray(value) && explodeParameters.includes(key)) {
       value.forEach((v) => {
@@ -9300,6 +9308,12 @@ export const getListWorkflowApiWorkflowGetResponseMock = (
     ]),
     app_version: faker.helpers.arrayElement([faker.helpers.arrayElement([faker.number.int(), null]), undefined]),
     priority: faker.string.alpha({ length: { min: 10, max: 20 } }),
+    labels: faker.helpers.arrayElement([
+      {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({ length: { min: 10, max: 20 } }),
+      },
+      undefined,
+    ]),
   })),
   more_entries: faker.datatype.boolean(),
   ...overrideResponse,

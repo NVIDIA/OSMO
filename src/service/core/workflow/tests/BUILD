@@ -89,3 +89,18 @@ py_test(
         "//src/utils/job",
     ],
 )
+
+osmo_py_test(
+    name = "test_workflow_label_filters_db",
+    size = "large",
+    srcs = ["test_workflow_label_filters_db.py"],
+    deps = [
+        "//src/lib/utils:common",
+        "//src/lib/utils:priority",
+        "//src/service/core/workflow",
+        "//src/tests/common",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+    tags = ["requires-network"],
+)

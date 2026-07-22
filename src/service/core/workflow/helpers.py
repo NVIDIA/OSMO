@@ -26,10 +26,67 @@ import fastapi
 import requests  # type: ignore
 
 from src.lib.data import storage
-from src.lib.utils import common, osmo_errors, priority as wf_priority
+from src.lib.utils import common, osmo_errors, priority as wf_priority, validation
 from src.utils.job import workflow, task
 from src.service.core.workflow import objects
 from src.utils import connectors
+
+
+_WORKFLOW_LABEL_GLOB_ESCAPE = '#'
+
+
+def _workflow_label_key_sql_literal(key: str) -> str:
+    """Render a validated workflow label key as a PostgreSQL literal."""
+    validated_key = validation.validate_workflow_label_key(key)
+    return "'" + validated_key.replace("'", "''") + "'"
+
+
+def _workflow_label_glob_to_sql_like_pattern(glob_pattern: str) -> str:
+    """Translate a validated label glob to a parameterized SQL LIKE pattern."""
+    pattern_characters: List[str] = []
+    for character in glob_pattern:
+        if character == '*':
+            pattern_characters.append('%')
+        elif character in (_WORKFLOW_LABEL_GLOB_ESCAPE, '%', '_'):
+            pattern_characters.append(
+                f'{_WORKFLOW_LABEL_GLOB_ESCAPE}{character}')
+        else:
+            pattern_characters.append(character)
+    return ''.join(pattern_characters)
+
+
+def _append_workflow_label_selector(
+        selector: validation.WorkflowLabelSelector,
+        commands: List[str],
+        fetch_input: List[Any]) -> None:
+    """Append a fixed SQL predicate and bound values for a label selector.
+
+    Literal values use JSONB containment (``@>``) so the GIN index on
+    ``workflows.labels`` serves them; glob patterns fall back to LIKE.
+    """
+    key_literal = _workflow_label_key_sql_literal(selector.key)
+    if '*' in selector.values:
+        commands.append(f'workflows.labels ? {key_literal}')
+        return
+
+    predicates: List[str] = []
+    for pattern in selector.values:
+        if '*' in pattern:
+            predicates.append(
+                f"workflows.labels ->> {key_literal} LIKE %s "
+                f"ESCAPE '{_WORKFLOW_LABEL_GLOB_ESCAPE}'")
+            fetch_input.append(
+                _workflow_label_glob_to_sql_like_pattern(pattern))
+        else:
+            predicates.append(
+                'workflows.labels @> '
+                f'jsonb_build_object({key_literal}, %s)')
+            fetch_input.append(pattern)
+
+    if len(predicates) == 1:
+        commands.append(predicates[0])
+    else:
+        commands.append(f"({' OR '.join(predicates)})")
 
 
 def get_workflows(users: List[str] | None = None,
@@ -44,6 +101,8 @@ def get_workflows(users: List[str] | None = None,
                   tags: List[str] | None = None,
                   app_info: common.AppStructure | None = None,
                   priority: List[wf_priority.WorkflowPriority] | None = None,
+                  label_filters: List[str] | None = None,
+                  missing_label_filters: List[str] | None = None,
                   return_raw: bool = False)\
                       -> Any:
     """ Fetch workflows with given parameters. """
@@ -58,6 +117,17 @@ def get_workflows(users: List[str] | None = None,
         '''
     fetch_input: List = []
     commands: List = []
+    try:
+        parsed_label_filters = [
+            validation.parse_workflow_label_selector(label_filter)
+            for label_filter in label_filters or []
+        ]
+        validated_missing_label_filters = [
+            validation.validate_workflow_label_key(label_key)
+            for label_key in missing_label_filters or []
+        ]
+    except ValueError as error:
+        raise osmo_errors.OSMOUsageError(str(error)) from error
     if tags:
         tags_cmd = '''
             JOIN workflow_tags ON workflows.workflow_uuid = workflow_tags.workflow_uuid
@@ -98,6 +168,13 @@ def get_workflows(users: List[str] | None = None,
     if priority:
         commands.append('priority IN %s')
         fetch_input.append(tuple(p.value for p in priority))
+    for label_selector in parsed_label_filters:
+        _append_workflow_label_selector(label_selector, commands, fetch_input)
+    for label_key in validated_missing_label_filters:
+        key_literal = _workflow_label_key_sql_literal(label_key)
+        commands.append(
+            '(workflows.labels IS NULL OR '
+            f'NOT (workflows.labels ? {key_literal}))')
     if commands:
         conditions = ' AND '.join(commands)
         fetch_cmd = f'{fetch_cmd} WHERE {conditions}'

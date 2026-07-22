@@ -607,6 +607,15 @@ def list_workflow(users: List[str] | None = fastapi.Query(default = None),
                   app: str | None = fastapi.Query(default = None),
                   priority: List[wf_priority.WorkflowPriority] | None = \
                       fastapi.Query(default = None),
+                  label_filters: List[str] | None = fastapi.Query(
+                      default=None,
+                      alias='label',
+                      description=(
+                          'Workflow label selector: key=value with optional * wildcards and '
+                          '(a|b) alternatives, for example key=(team_*|osmo_*) or '
+                          'key=team_(a|b). Repeat for AND semantics.')),
+                  missing_label_filters: List[str] | None = fastapi.Query(
+                      default=None, alias='no_label'),
                   user_header: Optional[str] =
                       fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)) \
                   -> objects.ListResponse:
@@ -630,9 +639,13 @@ def list_workflow(users: List[str] | None = fastapi.Query(default = None),
         pools = []
 
     app_info = common.AppStructure(app) if app else None
-    rows = helpers.get_workflows(users, name, statuses, pools, offset, limit+1, order,
-                                 submitted_after, submitted_before, tags, app_info,
-                                 priority=priority, return_raw=True)
+    rows = helpers.get_workflows(
+        users, name, statuses, pools, offset, limit+1, order,
+        submitted_after, submitted_before, tags, app_info,
+        priority=priority,
+        label_filters=label_filters,
+        missing_label_filters=missing_label_filters,
+        return_raw=True)
     has_more_entries = len(rows) > limit
     if has_more_entries:
         rows = rows[:limit]
