@@ -656,7 +656,9 @@ export interface JwtTokenResponse {
 }
 
 /**
- * Controls workflow label policy independently for each configured key.
+ * Per-key policy strictness: 'off' skips checking, 'warn' surfaces
+ * missing or unlisted values as submission warnings, and 'enforce'
+ * rejects them.
  */
 export type LabelEnforcement = (typeof LabelEnforcement)[keyof typeof LabelEnforcement];
 
@@ -668,6 +670,9 @@ export const LabelEnforcement = {
 
 /**
  * Configuration for one admin-designated workflow label key.
+ *
+ * An empty allow_list accepts any well-formed value; enforcement then
+ * applies only to the key being present.
  */
 export interface LabelPolicy {
   key: string;
@@ -676,14 +681,16 @@ export interface LabelPolicy {
 }
 
 /**
- * Curated workflow label policy; empty by default so deployments remain inert.
+ * Curated workflow label policy; empty by default, so no policy
+ * applies until configured.
  */
 export interface LabelsConfigInput {
   policy?: LabelPolicy[];
 }
 
 /**
- * Curated workflow label policy; empty by default so deployments remain inert.
+ * Curated workflow label policy; empty by default, so no policy
+ * applies until configured.
  */
 export interface LabelsConfigOutput {
   policy?: LabelPolicy[];

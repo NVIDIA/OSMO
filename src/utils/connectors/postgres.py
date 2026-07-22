@@ -2927,14 +2927,20 @@ class PluginsConfig(ExtraArgBaseModel):
 
 
 class LabelEnforcement(str, enum.Enum):
-    """Controls workflow label policy independently for each configured key."""
+    """Per-key policy strictness: 'off' skips checking, 'warn' surfaces
+    missing or unlisted values as submission warnings, and 'enforce'
+    rejects them."""
     OFF = 'off'
     WARN = 'warn'
     ENFORCE = 'enforce'
 
 
 class LabelPolicy(ExtraArgBaseModel):
-    """Configuration for one admin-designated workflow label key."""
+    """Configuration for one admin-designated workflow label key.
+
+    An empty allow_list accepts any well-formed value; enforcement then
+    applies only to the key being present.
+    """
     key: str
     allow_list: List[str] = []
     enforcement: LabelEnforcement = LabelEnforcement.OFF
@@ -2951,12 +2957,13 @@ class LabelPolicy(ExtraArgBaseModel):
 
 
 class LabelsConfig(ExtraArgBaseModel):
-    """Curated workflow label policy; empty by default so deployments remain inert."""
+    """Curated workflow label policy; empty by default, so no policy
+    applies until configured."""
     policy: List[LabelPolicy] = []
 
     @pydantic.field_validator('policy')
     @classmethod
-    def validate_unique_keys(cls, policy: List[LabelPolicy]) -> List[LabelPolicy]:
+    def validate_policy(cls, policy: List[LabelPolicy]) -> List[LabelPolicy]:
         # Deliberately reuses the per-workflow label cap: curating more keys
         # than one workflow can carry would make the policy unsatisfiable.
         if len(policy) > validation.MAX_WORKFLOW_LABELS:

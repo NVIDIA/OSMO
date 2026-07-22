@@ -447,9 +447,10 @@ class TestValidateConfigs(unittest.TestCase):
 
     def test_rejects_invalid_nested_workflow_labels_config(self):
         # Model-level rules are pinned in test_workflow_config.py; this only
-        # proves nested labels_config errors surface through the loader.
+        # proves nested labels_config errors surface through the loader. The
+        # second case pins that the abandoned 'required' field stays rejected.
         for policy in (
-            [{'key': 'osmo.workflow_uuid'}],
+            [{'key': '-invalid-key'}],
             [{'key': 'PPP', 'required': False}],
         ):
             with self.subTest(policy=policy):

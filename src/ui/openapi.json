@@ -8668,7 +8668,7 @@
           "enforce"
         ],
         "title": "LabelEnforcement",
-        "description": "Controls workflow label policy independently for each configured key."
+        "description": "Per-key policy strictness: 'off' skips checking, 'warn' surfaces\nmissing or unlisted values as submission warnings, and 'enforce'\nrejects them."
       },
       "LabelPolicy": {
         "properties": {
@@ -8695,7 +8695,7 @@
           "key"
         ],
         "title": "LabelPolicy",
-        "description": "Configuration for one admin-designated workflow label key."
+        "description": "Configuration for one admin-designated workflow label key.\n\nAn empty allow_list accepts any well-formed value; enforcement then\napplies only to the key being present."
       },
       "LabelsConfig-Input": {
         "properties": {
@@ -8711,7 +8711,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "LabelsConfig",
-        "description": "Curated workflow label policy; empty by default so deployments remain inert."
+        "description": "Curated workflow label policy; empty by default, so no policy\napplies until configured."
       },
       "LabelsConfig-Output": {
         "properties": {
@@ -8727,7 +8727,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "LabelsConfig",
-        "description": "Curated workflow label policy; empty by default so deployments remain inert."
+        "description": "Curated workflow label policy; empty by default, so no policy\napplies until configured."
       },
       "ListBackendsResponse": {
         "properties": {

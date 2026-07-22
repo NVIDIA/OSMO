@@ -279,7 +279,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         self.assertEqual(config['workflow_info']['tags'], ['test-tag'])
 
     def test_workflow_label_config_patch_replaces_policy(self):
-        """A normal workflow config patch replaces the label-policy list."""
+        """A workflow config patch replaces (does not merge) the policy list."""
         initial_labels_config = {
             'policy': [
                 {
@@ -318,6 +318,9 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         )
 
         self.assertEqual(updated_config['labels_config'], updated_labels_config)
+        history = self._get_config_history(config_types=['WORKFLOW'])
+        latest_config = history['configs'][-1]['data']
+        self.assertEqual(latest_config['labels_config'], updated_labels_config)
 
     def test_backend_config_history(self):
         """Test history entries for backend config operations."""

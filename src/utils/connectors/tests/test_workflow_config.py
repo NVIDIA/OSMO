@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import pydantic
 from src.utils import connectors
 
 
-class WorkflowLabelsConfigTest(unittest.TestCase):
+class TestWorkflowLabelsConfig(unittest.TestCase):
     """Labels config validates directly and survives legacy DB serialization."""
 
     def test_defaults_are_inert(self):
@@ -72,7 +72,7 @@ class WorkflowLabelsConfigTest(unittest.TestCase):
 
     def test_rejects_invalid_policy_key_and_allow_list_value(self):
         invalid_configs = [
-            {'policy': [{'key': 'osmo.workflow_uuid'}]},
+            {'policy': [{'key': '-invalid-key'}]},
             {'policy': [{'key': 'PPP', 'allow_list': ['']}]},
         ]
         for labels_config in invalid_configs:
@@ -92,6 +92,7 @@ class WorkflowLabelsConfigTest(unittest.TestCase):
 
         serialized = config.serialize(database)
         serialized_labels_config = serialized['labels_config']
+        # if/fail instead of assertIsInstance: mypy narrows the type this way.
         if not isinstance(serialized_labels_config, str):
             self.fail('labels_config must serialize as JSON text for the legacy config table.')
         stored = {'labels_config': json.loads(serialized_labels_config)}
