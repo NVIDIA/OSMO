@@ -302,7 +302,7 @@ export interface ResubmitParams {
  * - If spec is provided: sends template_spec in body (custom workflow)
  * - If spec is NOT provided: sends workflow_id query param (reuses original spec)
  *
- * @param params - Resubmit configuration (workflowId, poolName, priority, optional spec)
+ * @param params - Resubmit configuration (workflowId, poolName, priority, labels, optional spec)
  * @returns Result with the new workflow name on success, or error message
  */
 export async function resubmitWorkflow(params: ResubmitParams): Promise<ResubmitResult> {

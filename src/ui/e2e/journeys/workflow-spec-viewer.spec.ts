@@ -104,10 +104,7 @@ function createWorkflowDetailForSpec(name: string) {
   };
 }
 
-async function setupWorkflowAndSpec(
-  page: Parameters<typeof setupDefaultMocks>[0],
-  name: string,
-) {
+async function setupWorkflowAndSpec(page: Parameters<typeof setupDefaultMocks>[0], name: string) {
   const data = createWorkflowDetailForSpec(name);
 
   // Mock the spec endpoint — registered BEFORE the catch-all so LIFO gives these priority

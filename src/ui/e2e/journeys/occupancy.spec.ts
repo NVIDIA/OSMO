@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupOccupancy,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile, setupOccupancy } from "@/e2e/utils/mock-setup";
 
 /**
  * Occupancy Page Journey Tests

@@ -15,18 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createPoolResponse,
-  createWorkflowsResponse,
-  PoolStatus,
-  WorkflowStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupPools,
-  setupWorkflows,
-} from "@/e2e/utils/mock-setup";
+import { createPoolResponse, createWorkflowsResponse, PoolStatus, WorkflowStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupProfile, setupPools, setupWorkflows } from "@/e2e/utils/mock-setup";
 
 /**
  * Dashboard Error & Edge Case Tests

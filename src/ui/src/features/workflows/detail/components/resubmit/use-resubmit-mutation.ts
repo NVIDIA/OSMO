@@ -21,7 +21,7 @@ import { useServices } from "@/contexts/service-context";
 import { resubmitWorkflow, type ResubmitParams } from "@/features/workflows/list/lib/actions";
 
 export interface UseResubmitMutationOptions {
-  /** Called on successful resubmission with the new workflow name */
+  /** Called on successful resubmission with the new workflow name and any admission warnings */
   onSuccess?: (newWorkflowName: string | undefined, warnings: string[]) => void;
 }
 

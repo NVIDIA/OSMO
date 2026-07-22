@@ -37,18 +37,21 @@ test.describe("Resources List", () => {
   });
 
   test("shows resources from all pools", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "node-a.cluster",
-        exposed_fields: { node: "node-a", "pool/platform": ["pool-a/base"] },
-        pool_platform_labels: { "pool-a": ["base"] },
-      },
-      {
-        hostname: "node-b.cluster",
-        exposed_fields: { node: "node-b", "pool/platform": ["pool-b/gpu"] },
-        pool_platform_labels: { "pool-b": ["gpu"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "node-a.cluster",
+          exposed_fields: { node: "node-a", "pool/platform": ["pool-a/base"] },
+          pool_platform_labels: { "pool-a": ["base"] },
+        },
+        {
+          hostname: "node-b.cluster",
+          exposed_fields: { node: "node-b", "pool/platform": ["pool-b/gpu"] },
+          pool_platform_labels: { "pool-b": ["gpu"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -58,23 +61,26 @@ test.describe("Resources List", () => {
   });
 
   test("search creates a filter chip for the typed resource name", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "dgx-001.cluster",
-        exposed_fields: { node: "dgx-001", "pool/platform": ["prod/dgx"] },
-        pool_platform_labels: { prod: ["dgx"] },
-      },
-      {
-        hostname: "dgx-002.cluster",
-        exposed_fields: { node: "dgx-002", "pool/platform": ["prod/dgx"] },
-        pool_platform_labels: { prod: ["dgx"] },
-      },
-      {
-        hostname: "cpu-001.cluster",
-        exposed_fields: { node: "cpu-001", "pool/platform": ["prod/cpu"] },
-        pool_platform_labels: { prod: ["cpu"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "dgx-001.cluster",
+          exposed_fields: { node: "dgx-001", "pool/platform": ["prod/dgx"] },
+          pool_platform_labels: { prod: ["dgx"] },
+        },
+        {
+          hostname: "dgx-002.cluster",
+          exposed_fields: { node: "dgx-002", "pool/platform": ["prod/dgx"] },
+          pool_platform_labels: { prod: ["dgx"] },
+        },
+        {
+          hostname: "cpu-001.cluster",
+          exposed_fields: { node: "cpu-001", "pool/platform": ["prod/cpu"] },
+          pool_platform_labels: { prod: ["cpu"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -93,18 +99,21 @@ test.describe("Resources List", () => {
   });
 
   test("pool filter chip via URL shows only that pool's resources", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "prod-node.cluster",
-        exposed_fields: { node: "prod-node", "pool/platform": ["production/base"] },
-        pool_platform_labels: { production: ["base"] },
-      },
-      {
-        hostname: "dev-node.cluster",
-        exposed_fields: { node: "dev-node", "pool/platform": ["development/base"] },
-        pool_platform_labels: { development: ["base"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "prod-node.cluster",
+          exposed_fields: { node: "prod-node", "pool/platform": ["production/base"] },
+          pool_platform_labels: { production: ["base"] },
+        },
+        {
+          hostname: "dev-node.cluster",
+          exposed_fields: { node: "dev-node", "pool/platform": ["development/base"] },
+          pool_platform_labels: { development: ["base"] },
+        },
+      ]),
+    );
 
     // Navigate with a pool chip pre-applied
     await page.goto("/resources?f=pool:production");
@@ -115,26 +124,29 @@ test.describe("Resources List", () => {
   });
 
   test("shows all resource types in the table", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "shared-node.cluster",
-        resource_type: BackendResourceType.SHARED,
-        exposed_fields: { node: "shared-node", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-      {
-        hostname: "reserved-node.cluster",
-        resource_type: BackendResourceType.RESERVED,
-        exposed_fields: { node: "reserved-node", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-      {
-        hostname: "unused-node.cluster",
-        resource_type: BackendResourceType.UNUSED,
-        exposed_fields: { node: "unused-node", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "shared-node.cluster",
+          resource_type: BackendResourceType.SHARED,
+          exposed_fields: { node: "shared-node", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+        {
+          hostname: "reserved-node.cluster",
+          resource_type: BackendResourceType.RESERVED,
+          exposed_fields: { node: "reserved-node", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+        {
+          hostname: "unused-node.cluster",
+          resource_type: BackendResourceType.UNUSED,
+          exposed_fields: { node: "unused-node", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -153,13 +165,16 @@ test.describe("Resource Panel", () => {
   });
 
   test("clicking a resource row opens the details panel", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "gpu-node.cluster",
-        exposed_fields: { node: "gpu-node", "pool/platform": ["prod/dgx"] },
-        pool_platform_labels: { prod: ["dgx"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "gpu-node.cluster",
+          exposed_fields: { node: "gpu-node", "pool/platform": ["prod/dgx"] },
+          pool_platform_labels: { prod: ["dgx"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -175,13 +190,16 @@ test.describe("Resource Panel", () => {
   });
 
   test("navigating directly to a resource opens its panel", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "direct-node.cluster",
-        exposed_fields: { node: "direct-node", "pool/platform": ["prod/dgx"] },
-        pool_platform_labels: { prod: ["dgx"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "direct-node.cluster",
+          exposed_fields: { node: "direct-node", "pool/platform": ["prod/dgx"] },
+          pool_platform_labels: { prod: ["dgx"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources?view=direct-node");
     await page.waitForLoadState("networkidle");
@@ -192,13 +210,16 @@ test.describe("Resource Panel", () => {
   });
 
   test("closes with the close button and clears URL state", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "closeable-node.cluster",
-        exposed_fields: { node: "closeable-node", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "closeable-node.cluster",
+          exposed_fields: { node: "closeable-node", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources?view=closeable-node");
     await page.waitForLoadState("networkidle");
@@ -213,13 +234,16 @@ test.describe("Resource Panel", () => {
   });
 
   test("shows resource name in panel header", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "named-node.cluster",
-        exposed_fields: { node: "named-node", "pool/platform": ["prod/dgx"] },
-        pool_platform_labels: { prod: ["dgx"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "named-node.cluster",
+          exposed_fields: { node: "named-node", "pool/platform": ["prod/dgx"] },
+          pool_platform_labels: { prod: ["dgx"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources?view=named-node");
     await page.waitForLoadState("networkidle");
@@ -246,14 +270,17 @@ test.describe("Resource Edge Cases", () => {
   });
 
   test("shows resources with node conditions", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "problematic-node.cluster",
-        conditions: ["Ready", "SchedulingDisabled", "MemoryPressure"],
-        exposed_fields: { node: "problematic-node", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "problematic-node.cluster",
+          conditions: ["Ready", "SchedulingDisabled", "MemoryPressure"],
+          exposed_fields: { node: "problematic-node", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -262,16 +289,19 @@ test.describe("Resource Edge Cases", () => {
   });
 
   test("shows CPU-only nodes with zero GPU", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "cpu-only-node.cluster",
-        resource_type: BackendResourceType.SHARED,
-        exposed_fields: { node: "cpu-only-node", "pool/platform": ["prod/cpu"] },
-        pool_platform_labels: { prod: ["cpu"] },
-        allocatable_fields: { gpu: 0, cpu: 256, memory: 1024 * 1024, storage: 0 },
-        usage_fields: { gpu: 0, cpu: 128, memory: 512 * 1024, storage: 0 },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "cpu-only-node.cluster",
+          resource_type: BackendResourceType.SHARED,
+          exposed_fields: { node: "cpu-only-node", "pool/platform": ["prod/cpu"] },
+          pool_platform_labels: { prod: ["cpu"] },
+          allocatable_fields: { gpu: 0, cpu: 256, memory: 1024 * 1024, storage: 0 },
+          usage_fields: { gpu: 0, cpu: 128, memory: 512 * 1024, storage: 0 },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -286,13 +316,16 @@ test.describe("Resource Toolbar", () => {
   });
 
   test("has toolbar with search controls", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "toolbar-node.cluster",
-        exposed_fields: { node: "toolbar-node", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "toolbar-node.cluster",
+          exposed_fields: { node: "toolbar-node", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -302,18 +335,21 @@ test.describe("Resource Toolbar", () => {
   });
 
   test("shows results count", async ({ page }) => {
-    await setupResources(page, createResourcesResponse([
-      {
-        hostname: "count-node-1.cluster",
-        exposed_fields: { node: "count-node-1", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-      {
-        hostname: "count-node-2.cluster",
-        exposed_fields: { node: "count-node-2", "pool/platform": ["prod/base"] },
-        pool_platform_labels: { prod: ["base"] },
-      },
-    ]));
+    await setupResources(
+      page,
+      createResourcesResponse([
+        {
+          hostname: "count-node-1.cluster",
+          exposed_fields: { node: "count-node-1", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+        {
+          hostname: "count-node-2.cluster",
+          exposed_fields: { node: "count-node-2", "pool/platform": ["prod/base"] },
+          pool_platform_labels: { prod: ["base"] },
+        },
+      ]),
+    );
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");

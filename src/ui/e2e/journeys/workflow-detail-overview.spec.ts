@@ -343,6 +343,8 @@ test.describe("Workflow Detail Overview — Details Section", () => {
   });
 
   test("shows immutable workflow labels separately from tags", async ({ page }) => {
+    // Extended: this journey renders the full detail/submit surface with
+    // several mocked round trips.
     test.setTimeout(30_000);
     const wfName = "labels-wf";
     await setupWorkflowDetail(
@@ -362,10 +364,6 @@ test.describe("Workflow Detail Overview — Details Section", () => {
     const experimentLabelLink = page.getByRole("link", { name: "experiment=run42", exact: true });
     await expect(teamLabelLink).toHaveAttribute("href", "/workflows?f=label:team%3Drobotics&all=true");
     await expect(experimentLabelLink).toHaveAttribute("href", "/workflows?f=label:experiment%3Drun42&all=true");
-
-    const teamLabelUrl = new URL((await teamLabelLink.getAttribute("href"))!, "https://osmo.invalid");
-    expect(teamLabelUrl.searchParams.get("f")).toBe("label:team=robotics");
-    expect(teamLabelUrl.searchParams.get("all")).toBe("true");
     await expect(page.getByText("Tags", { exact: true })).toBeVisible();
   });
 
@@ -373,8 +371,7 @@ test.describe("Workflow Detail Overview — Details Section", () => {
     // The backend recomputes warnings from the current policy for every
     // status, including COMPLETED, so users see violations on finished runs.
     const wfName = "warnings-wf";
-    const warning =
-      "Workflow is missing label 'PPP'; add it now to avoid rejected submissions once it is required.";
+    const warning = "Workflow is missing label 'PPP'; add it now to avoid rejected submissions once it is required.";
     await setupWorkflowDetail(
       page,
       wfName,

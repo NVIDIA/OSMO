@@ -95,6 +95,9 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
         ? `Workflow resubmitted as ${newWorkflowName}`
         : "Workflow resubmitted successfully";
 
+      for (const warning of warnings) {
+        toast.warning(warning);
+      }
       toast.success(message, {
         action: newWorkflowName
           ? {
@@ -103,9 +106,6 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
             }
           : undefined,
       });
-      for (const warning of warnings) {
-        toast.warning(warning);
-      }
 
       onSuccess?.();
     },

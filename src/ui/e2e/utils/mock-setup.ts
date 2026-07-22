@@ -96,10 +96,7 @@ export async function setupPools(page: Page, data: PoolResponse | ApiError): Pro
   await page.route("**/api/pool_quota*", (route) => route.fulfill(response));
 }
 
-export async function setupResources(
-  page: Page,
-  data: ResourcesResponse | ApiError,
-): Promise<void> {
+export async function setupResources(page: Page, data: ResourcesResponse | ApiError): Promise<void> {
   if ("detail" in data) {
     const response = {
       status: data.status,
@@ -118,8 +115,7 @@ export async function setupResources(
       const filtered = {
         resources:
           data.resources?.filter((r) => {
-            const pp =
-              ((r.exposed_fields as Record<string, unknown>)?.["pool/platform"] as string[]) ?? [];
+            const pp = ((r.exposed_fields as Record<string, unknown>)?.["pool/platform"] as string[]) ?? [];
             return pp.some((p) => pools.some((pool) => p.startsWith(`${pool}/`)));
           }) ?? [],
       };
@@ -163,10 +159,7 @@ export async function setupWorkflows(
 
 // ── Occupancy (task summary) ─────────────────────────────────────────────────
 
-export async function setupOccupancy(
-  page: Page,
-  data: { summaries: unknown[] } | ApiError,
-): Promise<void> {
+export async function setupOccupancy(page: Page, data: { summaries: unknown[] } | ApiError): Promise<void> {
   const response =
     "detail" in data
       ? { status: data.status, contentType: CT_JSON, body: JSON.stringify({ detail: data.detail }) }

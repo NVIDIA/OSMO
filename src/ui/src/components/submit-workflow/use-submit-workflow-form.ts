@@ -24,8 +24,6 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-
-const NO_WARNINGS: string[] = [];
 import { toast } from "sonner";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useServices } from "@/contexts/service-context";
@@ -34,6 +32,8 @@ import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
 import { useProfile } from "@/lib/api/adapter/hooks";
 import { usePoolSelection } from "@/components/workflow/use-pool-selection";
 import { detectLocalpathUsage, type LocalpathWarnings } from "@/components/submit-workflow/detect-localpath";
+
+const NO_WARNINGS: string[] = [];
 
 /** Extract a human-readable error message from various error shapes. */
 function extractErrorMessage(err: unknown): string {

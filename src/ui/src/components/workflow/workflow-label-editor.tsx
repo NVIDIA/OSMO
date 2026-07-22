@@ -26,6 +26,7 @@ export interface WorkflowLabelEditorProps {
   onChange: (labels: WorkflowLabelDraft[]) => void;
   disabled?: boolean;
   error?: string | null;
+  /** Count of leading drafts seeded from the workflow's own labels; their keys are locked. */
   lockedLabelCount?: number;
 }
 
@@ -47,7 +48,7 @@ export function WorkflowLabelEditor({
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-xs">
-        Per-run overrides take precedence over labels in the workflow YAML.
+        Per-run overrides take precedence over labels in the workflow specification.
         {lockedLabelCount > 0 &&
           " Existing keys cannot be removed here; edit the workflow specification to remove one."}
       </p>
@@ -94,7 +95,7 @@ export function WorkflowLabelEditor({
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Add workflow label"
+        aria-label="Add label"
         disabled={disabled || labels.length >= MAX_WORKFLOW_LABELS}
         onClick={() => onChange([...labels, { key: "", value: "" }])}
       >

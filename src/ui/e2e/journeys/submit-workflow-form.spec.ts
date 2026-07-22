@@ -235,6 +235,8 @@ test.describe("Submit Workflow Form Validation", () => {
   });
 
   test("submits YAML labels in the body without a separate label query override", async ({ page }) => {
+    // Extended: this journey renders the full detail/submit surface with
+    // several mocked round trips.
     test.setTimeout(30_000);
     let submittedLabels: string[] | null = null;
     let submittedBody: string | null = null;

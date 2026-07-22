@@ -84,6 +84,8 @@ export const WORKFLOW_FIELD: Readonly<Record<string, SearchField<WorkflowListEnt
     getValues: () => [],
   },
   no_label: {
+    // The id matches the backend query parameter; the typed prefix stays
+    // kebab-case like the other chips.
     id: "no_label",
     label: "Missing Label",
     hint: "workflow missing a label key",

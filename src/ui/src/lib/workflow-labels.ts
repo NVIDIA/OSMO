@@ -1,3 +1,7 @@
+/**
+ * Workflow label formatting, draft editing, and validation helpers
+ * shared by the detail, resubmit, and submit surfaces.
+ */
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +18,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// Mirrors MAX_WORKFLOW_LABELS in src/lib/utils/validation.py.
 export const MAX_WORKFLOW_LABELS = 16;
 
 export interface WorkflowLabelDraft {

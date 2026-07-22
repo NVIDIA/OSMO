@@ -244,6 +244,8 @@ test.describe("Workflow Resubmit Panel", () => {
   });
 
   test("resubmit preserves existing label keys while allowing value overrides", async ({ page }) => {
+    // Extended: this journey renders the full detail/submit surface with
+    // several mocked round trips.
     test.setTimeout(30_000);
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");

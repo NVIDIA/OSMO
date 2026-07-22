@@ -135,10 +135,7 @@ test.describe("Occupancy Column Toggle & Search Presets", () => {
 
   test("toggle columns button is visible in occupancy toolbar", async ({ page }) => {
     // ARRANGE
-    await setupOccupancy(
-      page,
-      createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 8 }]),
-    );
+    await setupOccupancy(page, createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 8 }]));
 
     // ACT
     await page.goto("/occupancy");
@@ -150,10 +147,7 @@ test.describe("Occupancy Column Toggle & Search Presets", () => {
 
   test("toggle columns button opens column visibility menu in occupancy", async ({ page }) => {
     // ARRANGE
-    await setupOccupancy(
-      page,
-      createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 8 }]),
-    );
+    await setupOccupancy(page, createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 8 }]));
 
     // ACT
     await page.goto("/occupancy");
@@ -189,10 +183,7 @@ test.describe("Occupancy Column Toggle & Search Presets", () => {
 
   test("occupancy refresh button is visible", async ({ page }) => {
     // ARRANGE
-    await setupOccupancy(
-      page,
-      createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 8 }]),
-    );
+    await setupOccupancy(page, createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 8 }]));
 
     // ACT
     await page.goto("/occupancy");

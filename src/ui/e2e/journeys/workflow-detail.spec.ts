@@ -16,10 +16,7 @@
 
 import { test, expect } from "@playwright/test";
 import { WorkflowStatus } from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**
  * Workflow Detail Page Journey Tests
@@ -77,22 +74,22 @@ function createWorkflowDetailResponse(
     tags: [],
     submit_time: oneHourAgo.toISOString(),
     start_time: oneHourAgo.toISOString(),
-    end_time: overrides.status === WorkflowStatus.COMPLETED
-      ? now.toISOString()
-      : null,
+    end_time: overrides.status === WorkflowStatus.COMPLETED ? now.toISOString() : null,
     exec_timeout: null,
     queue_timeout: null,
     duration: 3600,
     queued_time: 5,
     status: overrides.status ?? WorkflowStatus.RUNNING,
     outputs: "",
-    groups: (overrides.groups ?? [
-      {
-        name: "train",
-        status: "RUNNING",
-        tasks: [{ name: "train-task", retry_id: 0, status: "RUNNING" }],
-      },
-    ]).map((g) => ({
+    groups: (
+      overrides.groups ?? [
+        {
+          name: "train",
+          status: "RUNNING",
+          tasks: [{ name: "train-task", retry_id: 0, status: "RUNNING" }],
+        },
+      ]
+    ).map((g) => ({
       name: g.name,
       status: g.status ?? "RUNNING",
       start_time: oneHourAgo.toISOString(),
@@ -203,9 +200,7 @@ test.describe("Workflow Detail Page", () => {
     // ASSERT — page must not crash, should show error state
     // The SSR prefetch may fail silently, then the client-side fetch triggers error
     await expect(page.locator("body")).not.toBeEmpty();
-    await expect(
-      page.getByText(/error|unable to load|not found/i).first()
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/error|unable to load|not found/i).first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("Workflows breadcrumb link navigates back to workflows list", async ({ page }) => {
@@ -410,8 +405,6 @@ test.describe("Workflow Detail 404", () => {
 
     // ASSERT — should show not-found or error message
     await expect(page.locator("body")).not.toBeEmpty();
-    await expect(
-      page.getByText(/not found|error|does not exist/i).first()
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/not found|error|does not exist/i).first()).toBeVisible({ timeout: 15_000 });
   });
 });

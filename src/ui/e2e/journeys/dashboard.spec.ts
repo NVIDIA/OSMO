@@ -15,18 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createPoolResponse,
-  createWorkflowsResponse,
-  PoolStatus,
-  WorkflowStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupPools,
-  setupProfile,
-  setupWorkflows,
-} from "@/e2e/utils/mock-setup";
+import { createPoolResponse, createWorkflowsResponse, PoolStatus, WorkflowStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupProfile, setupWorkflows } from "@/e2e/utils/mock-setup";
 
 /**
  * Dashboard Journey Tests
@@ -109,9 +99,7 @@ test.describe("Dashboard Recent Workflows", () => {
     await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "recent-e2e-workflow", status: WorkflowStatus.COMPLETED, user: "test-user" },
-      ]),
+      createWorkflowsResponse([{ name: "recent-e2e-workflow", status: WorkflowStatus.COMPLETED, user: "test-user" }]),
     );
 
     // ACT
@@ -170,12 +158,7 @@ test.describe("Dashboard Stat Card Links", () => {
   test("Active Workflows stat card links to workflows filtered by RUNNING status", async ({ page }) => {
     // ARRANGE
     await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
-    await setupWorkflows(
-      page,
-      createWorkflowsResponse([
-        { name: "running-1", status: WorkflowStatus.RUNNING },
-      ]),
-    );
+    await setupWorkflows(page, createWorkflowsResponse([{ name: "running-1", status: WorkflowStatus.RUNNING }]));
 
     // ACT
     await page.goto("/");
@@ -276,12 +259,7 @@ test.describe("Dashboard Edge Cases", () => {
   test("failed workflows stat card links to workflows filtered by FAILED status", async ({ page }) => {
     // ARRANGE
     await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
-    await setupWorkflows(
-      page,
-      createWorkflowsResponse([
-        { name: "failed-1", status: WorkflowStatus.FAILED },
-      ]),
-    );
+    await setupWorkflows(page, createWorkflowsResponse([{ name: "failed-1", status: WorkflowStatus.FAILED }]));
 
     // ACT
     await page.goto("/");
@@ -299,12 +277,7 @@ test.describe("Dashboard Edge Cases", () => {
   test("completed workflows stat card links to workflows filtered by COMPLETED status", async ({ page }) => {
     // ARRANGE
     await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
-    await setupWorkflows(
-      page,
-      createWorkflowsResponse([
-        { name: "completed-1", status: WorkflowStatus.COMPLETED },
-      ]),
-    );
+    await setupWorkflows(page, createWorkflowsResponse([{ name: "completed-1", status: WorkflowStatus.COMPLETED }]));
 
     // ACT
     await page.goto("/");

@@ -15,17 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createPoolResponse,
-  createResourcesResponse,
-  PoolStatus,
-  BackendResourceType,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupPools,
-  setupResources,
-} from "@/e2e/utils/mock-setup";
+import { createPoolResponse, createResourcesResponse, PoolStatus, BackendResourceType } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupResources } from "@/e2e/utils/mock-setup";
 
 /**
  * Resource Panel Content Tests
@@ -46,10 +37,7 @@ import {
 test.describe("Resource Panel Capacity Display", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
-    await setupPools(
-      page,
-      createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]));
   });
 
   test("shows hostname in resource panel", async ({ page }) => {
@@ -193,10 +181,7 @@ test.describe("Resource Panel Platform Config", () => {
 
   test("shows RESERVED badge for reserved resources", async ({ page }) => {
     // ARRANGE
-    await setupPools(
-      page,
-      createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]));
     await setupResources(
       page,
       createResourcesResponse([
