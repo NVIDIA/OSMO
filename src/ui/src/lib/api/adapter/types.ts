@@ -36,6 +36,8 @@ export type {
   WorkflowQueryResponse,
   GroupQueryResponse,
   TaskQueryResponse,
+  SubmitResponse,
+  SubmitWorkflowApiPoolPoolNameWorkflowPostParams,
   SrcServiceCoreWorkflowObjectsListEntry as WorkflowListEntry,
 } from "@/lib/api/generated";
 

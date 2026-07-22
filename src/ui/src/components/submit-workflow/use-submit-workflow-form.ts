@@ -60,6 +60,7 @@ interface ValidationState {
   spec: string;
   ok: boolean;
   error: string | null;
+  warnings: string[];
 }
 
 export interface UseSubmitWorkflowFormReturn {
@@ -86,6 +87,7 @@ export interface UseSubmitWorkflowFormReturn {
   isValidatePending: boolean;
   validationOk: boolean | null;
   validationError: string | null;
+  validationWarnings: string[];
   canValidate: boolean;
   handleValidate: () => void;
   // Lifecycle
@@ -115,6 +117,10 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
   const isValidationFresh = validationState !== null && validationState.spec === spec;
   const validationOk = isValidationFresh ? (validationState.ok ? true : null) : null;
   const validationError = isValidationFresh ? validationState.error : null;
+  const validationWarnings = useMemo(
+    () => (isValidationFresh ? validationState.warnings : []),
+    [isValidationFresh, validationState],
+  );
 
   // ── Mutation hooks ────────────────────────────────────────────────────────
 
@@ -122,6 +128,9 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
     mutation: {
       onSuccess: (response) => {
         const newName = response.name;
+        for (const warning of response.warnings ?? []) {
+          toast.warning(warning);
+        }
         toast.success(`Workflow submitted as ${newName}`, {
           action: {
             label: "View Workflow",
@@ -203,13 +212,18 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
         params: { priority, validation_only: true },
       },
       {
-        onSuccess: () => {
-          setValidationState({ spec: specAtCall, ok: true, error: null });
+        onSuccess: (response) => {
+          setValidationState({
+            spec: specAtCall,
+            ok: true,
+            error: null,
+            warnings: response.warnings ?? [],
+          });
           announcer.announce("Workflow spec is valid", "polite");
         },
         onError: (err) => {
           const msg = extractErrorMessage(err);
-          setValidationState({ spec: specAtCall, ok: false, error: msg });
+          setValidationState({ spec: specAtCall, ok: false, error: msg, warnings: [] });
           announcer.announce(`Validation failed: ${msg}`, "assertive");
         },
       },
@@ -244,6 +258,7 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
       isValidatePending,
       validationOk,
       validationError,
+      validationWarnings,
       canValidate,
       handleValidate,
       handleClose,
@@ -267,6 +282,7 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
       isValidatePending,
       validationOk,
       validationError,
+      validationWarnings,
       canValidate,
       handleValidate,
       handleClose,

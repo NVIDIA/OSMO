@@ -66,6 +66,10 @@ export interface WorkflowsQueryParams {
   all_pools?: boolean;
   /** ISO date string — only return workflows submitted after this time */
   submitted_after?: string;
+  /** Exact or pattern key=value workflow label filters */
+  label?: string[];
+  /** Workflow label keys that must be absent */
+  no_label?: string[];
 }
 
 // =============================================================================
@@ -100,6 +104,8 @@ export const fetchWorkflows = cache(async (params: WorkflowsQueryParams = {}): P
     all_users: params.all_users,
     all_pools: params.all_pools,
     submitted_after: params.submitted_after,
+    label: params.label,
+    no_label: params.no_label,
   };
 
   return listWorkflowApiWorkflowGet(apiParams);
@@ -217,6 +223,8 @@ export async function prefetchWorkflowsList(
   const statusFilters = filterChips.filter((c) => c.field === "status").map((c) => c.value as WorkflowStatus);
   const poolFilters = filterChips.filter((c) => c.field === "pool").map((c) => c.value);
   const userFilters = filterChips.filter((c) => c.field === "user").map((c) => c.value);
+  const labelFilters = filterChips.filter((c) => c.field === "label").map((c) => c.value);
+  const missingLabelFilters = filterChips.filter((c) => c.field === "no_label").map((c) => c.value);
   const hasUserChips = userFilters.length > 0;
   const effectiveShowAllUsers = hasUserChips ? false : showAllUsers;
 
@@ -236,6 +244,8 @@ export async function prefetchWorkflowsList(
         pools: poolFilters.length > 0 ? poolFilters : undefined,
         users: userFilters.length > 0 ? userFilters : undefined,
         submitted_after: submittedAfter,
+        label: labelFilters.length > 0 ? labelFilters : undefined,
+        no_label: missingLabelFilters.length > 0 ? missingLabelFilters : undefined,
       });
 
       return {

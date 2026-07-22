@@ -35,6 +35,7 @@ import { PriorityPicker, PRIORITY_LABELS } from "@/components/workflow/priority-
 import { useSpecData } from "@/features/workflows/detail/hooks/use-spec-data";
 import { SpecSection } from "@/features/workflows/detail/components/resubmit/spec-section";
 import { useResubmitForm } from "@/features/workflows/detail/components/resubmit/use-resubmit-form";
+import { WorkflowLabelEditor } from "@/components/workflow/workflow-label-editor";
 
 export interface ResubmitPanelContentProps {
   workflow: WorkflowQueryResponse;
@@ -62,6 +63,7 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
   const focusPanel = usePanelFocus();
   const [poolOpen, setPoolOpen] = useState(true);
   const [priorityOpen, setPriorityOpen] = useState(true);
+  const [labelsOpen, setLabelsOpen] = useState(true);
 
   // Return focus to panel after priority selection so ESC works
   const handlePriorityChange = useCallback(
@@ -114,11 +116,29 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
           open={priorityOpen}
           onOpenChange={setPriorityOpen}
           selectedValue={PRIORITY_LABELS[form.priority]}
-          isLast
         >
           <PriorityPicker
             priority={form.priority}
             onChange={handlePriorityChange}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          step={4}
+          title="Workflow Labels"
+          open={labelsOpen}
+          onOpenChange={setLabelsOpen}
+          selectedValue={
+            form.labels.length > 0 ? `${form.labels.length} label${form.labels.length === 1 ? "" : "s"}` : undefined
+          }
+          isLast
+        >
+          <WorkflowLabelEditor
+            labels={form.labels}
+            onChange={form.setLabels}
+            disabled={form.isPending}
+            error={form.labelError}
+            lockedLabelCount={form.lockedLabelCount}
           />
         </CollapsibleSection>
       </div>
