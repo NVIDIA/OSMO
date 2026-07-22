@@ -1586,6 +1586,7 @@ export interface SubmitResponse {
   logs?: string | null;
   spec?: string | null;
   dashboard_url?: string | null;
+  warnings?: string[];
 }
 
 /**
@@ -1755,6 +1756,8 @@ export const WorkflowPriority = {
   LOW: 'LOW',
 } as const;
 
+export type WorkflowQueryResponseLabels = {[key: string]: string};
+
 /**
  * Represents the status of a workflow.
  */
@@ -1815,6 +1818,8 @@ export interface WorkflowQueryResponse {
   app_version?: number | null;
   plugins: WorkflowPlugins;
   priority: string;
+  labels?: WorkflowQueryResponseLabels;
+  warnings?: string[];
 }
 
 export interface SrcServiceCoreAppObjectsListEntry {
@@ -2146,6 +2151,7 @@ dry_run?: boolean;
 validation_only?: boolean;
 priority?: WorkflowPriority;
 env_vars?: string[];
+label?: string[] | null;
 };
 
 export type SetNotificationSettingsApiProfileSettingsPostParams = {
@@ -11817,7 +11823,7 @@ export const getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl = (poolName: string
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    const explodeParameters = ["env_vars"];
+    const explodeParameters = ["env_vars","label"];
 
     if (Array.isArray(value) && explodeParameters.includes(key)) {
       value.forEach((v) => {

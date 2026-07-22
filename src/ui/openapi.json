@@ -6899,6 +6899,26 @@
             "explode": true
           },
           {
+            "name": "label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label"
+            },
+            "explode": true
+          },
+          {
             "name": "x-osmo-user",
             "in": "header",
             "required": false,
@@ -12010,6 +12030,13 @@
               }
             ],
             "title": "Dashboard Url"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
           }
         },
         "additionalProperties": false,
@@ -13612,6 +13639,20 @@
           "priority": {
             "type": "string",
             "title": "Priority"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Labels"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
           }
         },
         "additionalProperties": false,

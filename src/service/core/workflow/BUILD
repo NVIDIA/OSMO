@@ -40,6 +40,7 @@ osmo_py_library(
         "//src/lib/utils:priority",
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:redact",
+        "//src/lib/utils:validation",
         "//src/service/core/config:configmap_loader_lib",
         "//src/utils:ssl_config",
         "//src/utils:static_config",

@@ -345,6 +345,8 @@ def submit_workflow(pool_name: str,
                     validation_only: bool = False,
                     priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL,
                     env_vars: List[str] = fastapi.Query(default=[]),
+                    label_overrides: List[str] | None = fastapi.Query(
+                        default=None, alias='label'),
                     user_header: Optional[str] =
                         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
                     roles_header: Optional[str] =
@@ -360,7 +362,12 @@ def submit_workflow(pool_name: str,
             'Need to provide either file contents or workflow ID.'
         )
 
+    context = objects.WorkflowServiceContext.get()
+    canonical_labels: Dict[str, str] | None = None
     if workflow_id:
+        source_workflow = workflow.Workflow.fetch_from_db(
+            context.database, workflow_id, fetch_groups=False)
+        canonical_labels = source_workflow.labels
         wf_spec = helpers.gather_stream_content(download_workflow_spec(workflow_id))
         template_spec = workflow.TemplateSpec(file=wf_spec, set_variables=[])
     elif not template_spec:
@@ -369,14 +376,16 @@ def submit_workflow(pool_name: str,
         )
 
     user = connectors.parse_username(user_header)
-    context = objects.WorkflowServiceContext.get()
 
     workflow_submit_info = objects.WorkflowSubmitInfo(
         context=context, base32_id=common.generate_unique_id(),
         parent_workflow_id=workflow_id, app_uuid=app_uuid, app_version=app_version, user=user,
         pool=pool_name, priority=priority)
 
-    workflow_dict = workflow_submit_info.construct_workflow_dict(template_spec)
+    workflow_dict = workflow_submit_info.construct_workflow_dict(
+        template_spec,
+        label_overrides=label_overrides,
+        canonical_labels=canonical_labels)
 
     if dry_run:
         spec = yaml.dump(workflow_dict)
@@ -418,15 +427,17 @@ def submit_workflow(pool_name: str,
     original_templated_spec = template_spec.uploaded_templated_spec if template_spec else None
 
 
-    workflow_submit_info.validate_workflow_spec(rendered_spec, group_and_task_uuids,
-                                                login.construct_roles_list(roles_header),
-                                                original_templated_spec,
-                                                priority)
+    warnings = workflow_submit_info.validate_workflow_spec(
+        rendered_spec, group_and_task_uuids,
+        login.construct_roles_list(roles_header),
+        original_templated_spec,
+        priority)
 
     if validation_only:
         return objects.SubmitResponse(
             name=workflow_submit_info.name,
-            logs='Workflow validation succeeded.')
+            logs='Workflow validation succeeded.',
+            warnings=warnings)
 
     # Limit the total user workflows/tasks
     user_workflow_limits = workflow_config.user_workflow_limits
@@ -453,7 +464,8 @@ def submit_workflow(pool_name: str,
 
     return workflow_submit_info.send_submit_workflow_to_queue(rendered_spec,
                                                               group_and_task_uuids,
-                                                              original_templated_spec)
+                                                              original_templated_spec,
+                                                              warnings=warnings)
 
 @router_pool.post('/api/pool/{pool_name}/workflow/{workflow_id}/restart')
 def restart_workflow(pool_name: str,
@@ -481,7 +493,8 @@ def restart_workflow(pool_name: str,
         parent_workflow_id=workflow_id, user=user,
         pool=pool_name, priority=workflow_obj.priority)
 
-    workflow_dict = workflow_submit_info.construct_workflow_dict(template_spec)
+    workflow_dict = workflow_submit_info.construct_workflow_dict(
+        template_spec, canonical_labels=workflow_obj.labels)
 
     workflow_spec = workflow_submit_info.construct_workflow_spec_from_dict(workflow_dict)
 
@@ -534,13 +547,15 @@ def restart_workflow(pool_name: str,
     original_templated_spec = template_spec.uploaded_templated_spec if template_spec else None
 
 
-    workflow_submit_info.validate_workflow_spec(rendered_spec, group_and_task_uuids,
-                                                login.construct_roles_list(roles_header),
-                                                original_templated_spec)
+    warnings = workflow_submit_info.validate_workflow_spec(
+        rendered_spec, group_and_task_uuids,
+        login.construct_roles_list(roles_header),
+        original_templated_spec)
 
     return workflow_submit_info.send_submit_workflow_to_queue(rendered_spec,
                                                               group_and_task_uuids,
-                                                              original_templated_spec)
+                                                              original_templated_spec,
+                                                              warnings=warnings)
 
 
 @router.post('/api/workflow/{name}/cancel')

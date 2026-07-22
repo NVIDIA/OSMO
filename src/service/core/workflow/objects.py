@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import collections
 import datetime
 import json
+import logging
 import math
 from typing import Any, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Set
 import yaml
@@ -27,7 +28,8 @@ import pydantic
 
 from src.lib.data import storage
 from src.lib.data.storage.credentials import credentials as data_credentials
-from src.lib.utils import credentials, common, osmo_errors, priority as wf_priority
+from src.lib.utils import (credentials, common, osmo_errors, priority as wf_priority,
+                           validation)
 from src.lib.utils.redact import redact_secrets
 import src.lib.utils.logging
 from src.service.core.config.configmap_loader import ConfigFileMixin
@@ -176,6 +178,7 @@ class SubmitResponse(pydantic.BaseModel, extra='forbid'):
     logs: Optional[str] = None
     spec: Optional[str] = None
     dashboard_url: Optional[str] = None
+    warnings: List[str] = pydantic.Field(default_factory=list)
 
     @pydantic.model_validator(mode='before')
     @classmethod
@@ -459,6 +462,75 @@ class GroupQueryResponse(pydantic.BaseModel, extra='forbid'):
     tasks: List[TaskQueryResponse] = []
 
 
+class WorkflowLabelPolicyOutcome(NamedTuple):
+    """The evaluation of one non-off label policy against a labels map."""
+    policy: connectors.LabelPolicy
+    outcome: str  # 'ok', 'missing', or 'invalid'
+    message: str  # empty when the outcome is 'ok'
+
+
+def evaluate_workflow_label_policies(
+        labels: Dict[str, str],
+        policies: List[connectors.LabelPolicy],
+) -> List[WorkflowLabelPolicyOutcome]:
+    """Evaluate stored or submitted labels against the current policy snapshot."""
+    outcomes: List[WorkflowLabelPolicyOutcome] = []
+    for label_policy in policies:
+        if label_policy.enforcement == connectors.LabelEnforcement.OFF:
+            continue
+        value = labels.get(label_policy.key)
+        if value is None:
+            outcome = 'missing'
+            if label_policy.enforcement == connectors.LabelEnforcement.ENFORCE:
+                message = f"Workflow is missing required label '{label_policy.key}'."
+            else:
+                message = (
+                    f"Workflow is missing label '{label_policy.key}'; add it now to avoid "
+                    'rejected submissions once it is required.')
+        elif label_policy.allow_list and value not in label_policy.allow_list:
+            outcome = 'invalid'
+            if label_policy.enforcement == connectors.LabelEnforcement.ENFORCE:
+                message = (
+                    f"Workflow label '{label_policy.key}' has a value that is not allowed.")
+            else:
+                message = (
+                    f"Workflow label '{label_policy.key}' has a value that is not allowed; "
+                    'use an allowed value now to avoid rejected submissions once the label '
+                    'is required.')
+        else:
+            outcome = 'ok'
+            message = ''
+        outcomes.append(WorkflowLabelPolicyOutcome(
+            label_policy, outcome, message))
+    return outcomes
+
+
+def get_workflow_label_warnings(
+        labels: Dict[str, str],
+        policies: List[connectors.LabelPolicy]) -> List[str]:
+    """Return the warn-mode violation messages for a labels map."""
+    return [
+        evaluation.message
+        for evaluation in evaluate_workflow_label_policies(labels, policies)
+        if (evaluation.outcome != 'ok'
+            and evaluation.policy.enforcement == connectors.LabelEnforcement.WARN)
+    ]
+
+
+def _record_workflow_label_validation_metric(key: str, outcome: str) -> None:
+    """Record one bounded label-policy outcome without affecting admission."""
+    try:
+        metrics.MetricCreator.get_meter_instance().send_counter(
+            name='osmo_label_validation_total',
+            value=1,
+            unit='count',
+            description='Workflow label policy validation outcomes.',
+            tags={'key': key, 'outcome': outcome})
+    except (osmo_errors.OSMOError, ValueError, AttributeError, TypeError) as error:
+        logging.debug(
+            'Unable to record workflow label validation metric: %s', error)
+
+
 class WorkflowQueryResponse(pydantic.BaseModel):
     """ Represents the queryed workflow information. """
     model_config = pydantic.ConfigDict(extra='forbid', ser_json_timedelta='float')
@@ -494,6 +566,8 @@ class WorkflowQueryResponse(pydantic.BaseModel):
     app_version: int | None = None
     plugins: task_common.WorkflowPlugins
     priority: str
+    labels: Dict[str, str] = pydantic.Field(default_factory=dict)
+    warnings: List[str] = pydantic.Field(default_factory=list)
 
     @classmethod
     def fetch_from_db(cls, database: connectors.PostgresConnector,
@@ -521,6 +595,13 @@ class WorkflowQueryResponse(pydantic.BaseModel):
                 app_info = app.App.fetch_from_db_from_uuid(database, workflow_obj.app_uuid)
             except osmo_errors.OSMOUserError:
                 pass
+
+        # Warnings are recomputed from the current policy for every status,
+        # including COMPLETED, so users see current policy violations on any
+        # workflow page (design 3.3.3).
+        warnings = get_workflow_label_warnings(
+            workflow_obj.labels,
+            database.get_workflow_configs().labels_config.policy)
 
         return WorkflowQueryResponse(
             name=workflow_obj.workflow_id,
@@ -554,7 +635,9 @@ class WorkflowQueryResponse(pydantic.BaseModel):
             app_name=app_info.name if app_info else None,
             app_version=workflow_obj.app_version,
             plugins=workflow_obj.plugins,
-            priority=workflow_obj.priority)
+            priority=workflow_obj.priority,
+            labels=workflow_obj.labels,
+            warnings=warnings)
 
 
 class ResourcesResponse(pydantic.BaseModel, extra='forbid'):
@@ -821,20 +904,28 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
             status=workflow.WorkflowStatus.PENDING\
                 if failure_message is None else workflow.WorkflowStatus.FAILED_SUBMISSION,
             failure_message=failure_message or '', parent_workflow_id=self.parent_workflow_id,
-            app_uuid=self.app_uuid, app_version=self.app_version, priority=self.priority)
+            app_uuid=self.app_uuid, app_version=self.app_version,
+            priority=self.priority)
         return workflow_obj
 
-    def insert_failed_submission_to_db(self, failure_message: str) -> workflow.Workflow:
+    def insert_failed_submission_to_db(
+            self, failure_message: str,
+            labels: Dict[str, str] | None = None) -> workflow.Workflow:
         workflow_obj = workflow.Workflow.from_workflow(
             self.context.database, self.name,
             self.base32_id, self.user, backend=self.backend, pool=self.pool,
             failure_message=failure_message or '',
             parent_workflow_id=self.parent_workflow_id, app_uuid=self.app_uuid,
-            app_version=self.app_version, priority=self.priority)
+            app_version=self.app_version, priority=self.priority,
+            labels=labels)
         workflow_obj.insert_to_db()
         return workflow_obj
 
-    def construct_workflow_dict(self, template_spec: workflow.TemplateSpec) -> Dict:
+    def construct_workflow_dict(
+            self,
+            template_spec: workflow.TemplateSpec,
+            label_overrides: List[str] | None = None,
+            canonical_labels: Dict[str, str] | None = None) -> Dict:
         # Render the workflow spec
 
         # Verify pool
@@ -858,8 +949,28 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                 pass
             raise osmo_errors.OSMOUsageError(err_msg, workflow_id=self.base32_id)
 
-        self.name = updated_workflow_dict.get('workflow', {}).get('name', '')
+        workflow_section = updated_workflow_dict.get('workflow', {})
+        self.name = workflow_section.get('name', '') if isinstance(workflow_section, dict) else ''
         self.name = self.name if self.name else f'failed-{self.base32_id}'
+
+        if isinstance(workflow_section, dict):
+            labels_present = canonical_labels is not None or 'labels' in workflow_section
+            raw_labels = canonical_labels \
+                if canonical_labels is not None else workflow_section.get('labels', {})
+            try:
+                if not isinstance(raw_labels, dict):
+                    raise ValueError(
+                        'Workflow labels must be a map of string keys to string values.')
+                labels = dict(raw_labels)
+                for assignment in label_overrides or []:
+                    key, value = validation.parse_workflow_label_assignment(assignment)
+                    labels[key] = value
+                validated_labels = validation.validate_workflow_labels(labels)
+            except ValueError as error:
+                raise osmo_errors.OSMOUsageError(
+                    str(error), workflow_id=self.name) from error
+            if labels_present or label_overrides:
+                workflow_section['labels'] = validated_labels
 
         return updated_workflow_dict
 
@@ -871,7 +982,11 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                 **workflow_dict)
         except pydantic.ValidationError as err:
             try:
-                self.insert_failed_submission_to_db(str(err))
+                workflow_section = workflow_dict.get('workflow', {})
+                labels = workflow_section.get('labels') \
+                    if isinstance(workflow_section, dict) else None
+                self.insert_failed_submission_to_db(
+                    str(err), labels=labels if isinstance(labels, dict) else None)
             except:  # pylint: disable=bare-except
                 pass
             raise osmo_errors.OSMOUsageError(f'{err}', workflow_id=self.name)
@@ -929,6 +1044,34 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         upload_spec_job.send_job_to_queue()
 
 
+    def validate_workflow_label_policy(
+            self, rendered_spec: workflow.WorkflowSpec) -> List[str]:
+        """Apply the current label policy and return user-visible warnings."""
+        policies = self.context.database.get_workflow_configs().labels_config.policy
+        warnings: List[str] = []
+        rejection: WorkflowLabelPolicyOutcome | None = None
+
+        for evaluation in evaluate_workflow_label_policies(
+                rendered_spec.labels, policies):
+            if evaluation.outcome == 'ok':
+                _record_workflow_label_validation_metric(
+                    evaluation.policy.key, 'ok')
+            elif evaluation.policy.enforcement == connectors.LabelEnforcement.ENFORCE:
+                _record_workflow_label_validation_metric(
+                    evaluation.policy.key, 'rejected')
+                rejection = rejection or evaluation
+            else:
+                _record_workflow_label_validation_metric(
+                    evaluation.policy.key, evaluation.outcome)
+                logging.warning('%s', evaluation.message)
+                warnings.append(evaluation.message)
+
+        if rejection is not None:
+            raise osmo_errors.OSMOUsageError(
+                rejection.message, workflow_id=self.name)
+
+        return warnings
+
     def validate_workflow_spec(
         self, rendered_spec: workflow.WorkflowSpec,
         group_and_task_uuids: Dict[str, common.UuidPattern],
@@ -942,6 +1085,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
 
         If validation fails, insert this workflow entry into the database, and upload the spec.
         """
+        warnings = self.validate_workflow_label_policy(rendered_spec)
         remaining_upstream_groups: Dict = collections.defaultdict(set)
         downstream_groups: Dict = collections.defaultdict(set)
         upload_workflow_spec = True
@@ -1016,11 +1160,14 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                                                  original_templated_spec)
             raise err
 
+        return warnings
+
 
     def send_submit_workflow_to_queue(self,
                                       rendered_spec: workflow.WorkflowSpec,
                                       group_and_task_uuids: Dict[str, common.UuidPattern],
-                                      original_templated_spec: str | None = None)\
+                                      original_templated_spec: str | None = None,
+                                      warnings: List[str] | None = None)\
         -> SubmitResponse:
 
         workflow_dict = {'version': 2,
@@ -1103,7 +1250,8 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
             name=workflow_obj.workflow_id,
             overview=overview,
             logs=logs,
-            dashboard_url=generate_dashboard_url(self.base32_id[:16], self.backend))
+            dashboard_url=generate_dashboard_url(self.base32_id[:16], self.backend),
+            warnings=warnings or [])
 
 
 def get_groups(database: connectors.PostgresConnector,
