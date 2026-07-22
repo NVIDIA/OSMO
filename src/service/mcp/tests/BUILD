@@ -95,6 +95,7 @@ osmo_py_test(
     srcs = ["test_tool_support.py"],
     deps = [
         requirement("mcp"),
+        "//src/lib/utils:osmo_errors",
         "//src/service/mcp:gateway",
         "//src/service/mcp:request_context",
         "//src/service/mcp:tool_errors",

@@ -105,13 +105,17 @@ def create_application(protocol_server: FastMCP) -> Starlette:
     """Create the ASGI application for an MCP protocol server."""
     application = protocol_server.streamable_http_app()
     application.add_middleware(
-        request_context.RequestContextMiddleware,
-        path='/mcp',
-    )
-    application.add_middleware(
         request_body.RequestBodyLimitMiddleware,
         path='/mcp',
         max_body_bytes=request_body.MAX_MCP_REQUEST_BODY_BYTES,
+        max_concurrent_requests=request_body.MAX_CONCURRENT_MCP_REQUESTS,
+        body_timeout_seconds=(
+            request_body.MCP_REQUEST_BODY_TIMEOUT_SECONDS
+        ),
+    )
+    application.add_middleware(
+        request_context.RequestContextMiddleware,
+        path='/mcp',
     )
     return application
 

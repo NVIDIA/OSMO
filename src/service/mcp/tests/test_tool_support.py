@@ -22,6 +22,7 @@ from unittest import mock
 
 from mcp.server.fastmcp.exceptions import ToolError
 
+from src.lib.utils import osmo_errors
 from src.service.mcp import (
     gateway,
     request_context,
@@ -69,7 +70,7 @@ class ToolSupportTest(unittest.TestCase):
             b'{"message":"Invalid request; password=\'correct horse battery '
             b'staple\'; endpoint=https://user:pass@example.test/path?'
             b'X-Amz-Signature=signature-secret",'
-            b'"error_code":"OSMO_USAGE_ERROR","workflow_id":"job-42",'
+            b'"error_code":"USAGE","workflow_id":"job-42",'
             b'"credential":{"unusual_key":"arbitrary-secret"}}'
         )
 
@@ -79,13 +80,72 @@ class ToolSupportTest(unittest.TestCase):
             body=body,
         )
 
-        self.assertIn('error_code=OSMO_USAGE_ERROR', message)
-        self.assertIn('workflow_id=job-42', message)
+        self.assertIn('error_code=USAGE', message)
+        self.assertNotIn('workflow_id', message)
+        self.assertNotIn('job-42', message)
         self.assertNotIn('Invalid request', message)
         self.assertNotIn('correct horse battery staple', message)
         self.assertNotIn('user:pass', message)
         self.assertNotIn('signature-secret', message)
         self.assertNotIn('arbitrary-secret', message)
+
+    def test_upstream_error_codes_use_an_exact_static_allowlist(self) -> None:
+        allowed_codes = {
+            error_type.error_code
+            for error_type in (
+                osmo_errors.OSMOError,
+                osmo_errors.OSMOUserError,
+                osmo_errors.OSMOUsageError,
+                osmo_errors.OSMOResourceError,
+                osmo_errors.OSMOCredentialError,
+                osmo_errors.OSMODatabaseError,
+                osmo_errors.OSMOSubmissionError,
+            )
+        }
+        self.assertEqual(
+            set(tool_errors._PUBLIC_UPSTREAM_ERROR_CODES),  # pylint: disable=protected-access
+            allowed_codes,
+        )
+        for error_code in allowed_codes:
+            with self.subTest(error_code=error_code):
+                message = tool_errors.upstream_error(
+                    'submit a request',
+                    400,
+                    body=json.dumps({'error_code': error_code}).encode('utf-8'),
+                )
+                self.assertIn(f'error_code={error_code}', message)
+
+        for error_code in (
+            'INVALID_PROFILE',
+            'OSMO_USAGE_ERROR',
+            'sk-live-opaque-secret',
+            'OTHER',
+        ):
+            with self.subTest(error_code=error_code):
+                message = tool_errors.upstream_error(
+                    'submit a request',
+                    400,
+                    body=json.dumps({'error_code': error_code}).encode('utf-8'),
+                )
+                self.assertNotIn('OSMO detail:', message)
+                self.assertNotIn(error_code, message)
+
+    def test_malformed_upstream_error_metadata_is_ignored(self) -> None:
+        for body in (
+            b'{',
+            b'[]',
+            b'null',
+            b'\xff',
+            b'{"error_code":["USAGE"]}',
+            b'{"error_code":true}',
+        ):
+            with self.subTest(body=body):
+                message = tool_errors.upstream_error(
+                    'submit a request',
+                    400,
+                    body=body,
+                )
+                self.assertNotIn('OSMO detail:', message)
 
     def test_sensitive_assignments_fail_closed_for_ambiguous_values(self) -> None:
         cases = (
@@ -131,7 +191,8 @@ class ToolSupportTest(unittest.TestCase):
 
                 self.assertNotIn(opaque_secret, message)
                 if status_code == 422:
-                    self.assertIn('Validation failed at query.name', message)
+                    self.assertNotIn('query.name', message)
+                    self.assertNotIn('Validation failed', message)
 
     def test_fastapi_validation_errors_drop_input_context_and_unknown_fields(
         self,
@@ -150,10 +211,8 @@ class ToolSupportTest(unittest.TestCase):
             body=body,
         )
 
-        self.assertIn(
-            'Validation failed at body.credential',
-            message,
-        )
+        self.assertNotIn('Validation failed', message)
+        self.assertNotIn('body.credential', message)
         for secret in (
             'validation-secret',
             'input-secret',
@@ -185,10 +244,11 @@ class ToolSupportTest(unittest.TestCase):
                 message = tool_errors.upstream_error(  # pylint: disable=protected-access
                     'write a credential',
                     400,
-                    body=secret_body,
+                    body=b'{"error_code":"USAGE"}',
                     **options,
                 )
-                self.assertNotIn('upstream-detail-secret', message)
+                self.assertNotIn('OSMO detail:', message)
+                self.assertNotIn('error_code=USAGE', message)
 
     def test_error_redaction_and_final_message_bound_are_central(self) -> None:
         message = tool_errors.upstream_error(  # pylint: disable=protected-access

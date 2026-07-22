@@ -405,7 +405,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                     'Invalid profile update: '
                     f'password={upstream_secret}'
                 ),
-                'error_code': 'INVALID_PROFILE',
+                'error_code': 'USER',
             })
 
         response, _ = await self._invoke_tool(handler)
@@ -415,7 +415,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result['isError'])
         result_text = json.dumps(result)
         self.assertIn('HTTP 400', result_text)
-        self.assertIn('error_code=INVALID_PROFILE', result_text)
+        self.assertIn('error_code=USER', result_text)
         self.assertNotIn('Invalid profile update', result_text)
         self.assertNotIn(upstream_secret, result_text)
         self.assertNotIn(_BEARER_SECRET, result_text)

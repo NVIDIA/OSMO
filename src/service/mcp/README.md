@@ -54,12 +54,20 @@ The relay boundary has these invariants:
 - MCP does not exchange, refresh, modify, cache, persist, log, or return the
   bearer token. It clears request context and upstream cookies on completion,
   failure, timeout, or cancellation.
+- The `/mcp` request body is counted while streaming and rejected above 1 MiB,
+  whether its size is declared or sent with chunked transfer encoding. Body
+  collection has a 10-second deadline, and each process admits at most 16
+  in-flight MCP requests so aggregate request memory remains bounded. This
+  stateless JSON deployment accepts `POST /mcp` only; other methods return 405
+  rather than opening long-lived streams outside that admission boundary.
 - Outbound calls have a total timeout, bounded response size, identity content
-  encoding, no redirects, and no automatic retries. Upstream error bodies are
-  discarded.
+  encoding, no redirects, and no automatic retries.
 - Receiving APIs remain authoritative for API-specific authorization,
-  validation, and side effects. MCP returns bounded tool errors that can
-  identify a safe upstream HTTP status and never include the upstream body.
+  validation, and side effects. MCP reads upstream error bodies under a
+  separate small ceiling and preserves only error codes from a static Core
+  contract for correctable client errors. Free-form messages, workflow IDs,
+  validation locations, and unknown fields are discarded. Other upstream
+  failures remain generic.
 
 The Gateway, MCP process, receiving OSMO APIs, and applicable middleware are
 inside the bearer-token handling boundary. None of them may log or persist the

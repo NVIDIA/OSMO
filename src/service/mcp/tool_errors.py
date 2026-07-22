@@ -27,8 +27,15 @@ GENERIC_TOOL_ERROR = 'MCP tool failed.'
 MAX_PUBLIC_TOOL_ERROR_BYTES = 4096
 
 _MAX_TOOL_ERROR_CHARS = 2048
-_MAX_VALIDATION_ERRORS = 3
-_SAFE_IDENTIFIER = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}')
+_PUBLIC_UPSTREAM_ERROR_CODES = {
+    'OSMO_ERROR': 'OSMO_ERROR',
+    'USER': 'USER',
+    'USAGE': 'USAGE',
+    'RESOURCE': 'RESOURCE',
+    'CREDENTIAL': 'CREDENTIAL',
+    'DATABASE': 'DATABASE',
+    'SUBMISSION': 'SUBMISSION',
+}
 _URL_USERINFO = re.compile(
     r'(?P<scheme>\b[A-Za-z][A-Za-z0-9+.-]*://)[^/@\s]+@'
 )
@@ -92,7 +99,6 @@ def upstream_error(
     result = f'{message} while attempting to {operation} (HTTP {status_code}).'
     if status_code in (400, 409, 422) and not suppress_upstream_details:
         detail = _actionable_upstream_detail(
-            status_code,
             body,
             body_truncated=body_truncated,
         )
@@ -132,12 +138,11 @@ def safe_error_text(value: str) -> str:
 
 
 def _actionable_upstream_detail(
-    status_code: int,
     body: bytes,
     *,
     body_truncated: bool,
 ) -> str | None:
-    """Extract only known, non-payload OSMO validation fields."""
+    """Map a finite Core error-code contract to local public literals."""
     if not body or body_truncated:
         return None
     try:
@@ -147,50 +152,13 @@ def _actionable_upstream_detail(
     if not isinstance(payload, dict):
         return None
 
-    if status_code == 422:
-        validation_detail = _fastapi_validation_detail(payload.get('detail'))
-        if validation_detail is not None:
-            return validation_detail
-
-    fields: list[str] = []
-    for name in ('error_code', 'workflow_id'):
-        raw_value = payload.get(name)
-        if (
-            isinstance(raw_value, str)
-            and _SAFE_IDENTIFIER.fullmatch(raw_value) is not None
-        ):
-            fields.append(f'{name}={raw_value}')
-    return '; '.join(fields) or None
-
-
-def _fastapi_validation_detail(value: object) -> str | None:
-    """Project FastAPI validation errors to field locations only."""
-    if not isinstance(value, list):
+    raw_error_code = payload.get('error_code')
+    if not isinstance(raw_error_code, str):
         return None
-    locations: list[str] = []
-    for item in value[:_MAX_VALIDATION_ERRORS]:
-        if not isinstance(item, dict):
-            continue
-        location = _validation_location(item.get('loc'))
-        if location is not None:
-            locations.append(location)
-    if not locations:
+    public_error_code = _PUBLIC_UPSTREAM_ERROR_CODES.get(raw_error_code)
+    if public_error_code is None:
         return None
-    return 'Validation failed at ' + '; '.join(locations)
-
-
-def _validation_location(value: object) -> str | None:
-    if not isinstance(value, list) or not value or len(value) > 8:
-        return None
-    parts: list[str] = []
-    for part in value:
-        if isinstance(part, bool) or not isinstance(part, (str, int)):
-            return None
-        normalized = str(part)
-        if _SAFE_IDENTIFIER.fullmatch(normalized) is None:
-            return None
-        parts.append(normalized)
-    return '.'.join(parts)
+    return f'error_code={public_error_code}'
 
 
 def _is_public_message(message: object) -> bool:
