@@ -158,6 +158,15 @@ class TestSetupParser(unittest.TestCase):
         self.assertEqual(args.set_string, ['s=foo'])
         self.assertEqual(args.set_env, ['K=V'])
 
+    def test_submit_command_labels(self):
+        parser = self._build_parser()
+        args = parser.parse_args([
+            'app', 'submit', 'my-app',
+            '--label', 'team=alpha', '--label', 'run=42',
+        ])
+
+        self.assertEqual(args.labels, ['team=alpha', 'run=42'])
+
 
 class TestCreateApp(unittest.TestCase):
     """Test cases for _create_app."""
@@ -649,6 +658,7 @@ class TestSubmitApp(unittest.TestCase):
             'local_path': '/some/path',
             'rsync': None,
             'format_type': 'text',
+            'labels': [],
         }
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -673,6 +683,22 @@ class TestSubmitApp(unittest.TestCase):
         self.assertEqual(params['app_uuid'], 'uuid-1')
         self.assertEqual(params['app_version'], 3)
         self.assertEqual(params['priority'], 'HIGH')
+
+    def test_submit_app_forwards_label_overrides(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.side_effect = [
+            {'uuid': 'uuid-1', 'versions': [{'version': 3}]},
+            'spec-text',
+        ]
+        args = self._make_args(labels=['team=alpha', 'run=42'])
+
+        with mock.patch('src.cli.app.workflow.parse_file_for_template',
+                        return_value='template-data'), \
+             mock.patch('src.cli.app.workflow.submit_workflow_helper') as submit_mock:
+            app._submit_app(service_client, args)
+
+        params = submit_mock.call_args.args[4]
+        self.assertEqual(params['label'], ['team=alpha', 'run=42'])
 
     def test_submit_app_no_pool_fetches_default(self):
         service_client = mock.Mock(spec=client.ServiceClient)

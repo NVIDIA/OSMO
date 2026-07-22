@@ -70,6 +70,10 @@ Top-Level Configuration
      - `Plugins`_
      - Configuration for workflow plugins.
      - See Plugins section
+   * - ``labels_config``
+     - `Workflow Labels`_
+     - Workflow-label policies, accepted values, and staged enforcement.
+     - ``policy: []``
    * - ``max_num_tasks``
      - Integer
      - Maximum number of tasks allowed in a workflow.
@@ -239,6 +243,133 @@ Workflow Information
      - Integer
      - Maximum allowed length for workflow names.
      - ``64``
+
+Workflow Labels
+===============
+
+Workflow labels are optional and format-checked even when no label is required.
+The default configuration is inert:
+
+.. code-block:: yaml
+
+   labels_config:
+     policy: []
+
+Each entry in ``policy`` controls one key independently. Use ``off`` or omit a
+key from ``policy`` to disable both warnings and enforcement for that key:
+
+.. code-block:: yaml
+
+   labels_config:
+     policy:
+     - key: team
+       allow_list:
+       - robotics
+       - simulation
+       enforcement: warn
+     - key: cost-center
+       allow_list: []
+       enforcement: enforce
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 22 58
+
+   * - Field
+     - Default
+     - Behavior
+   * - ``key``
+     - Required
+     - Kubernetes label key to check. Duplicate policy keys are rejected,
+       and at most 16 keys can be configured.
+   * - ``allow_list``
+     - ``[]``
+     - Exact accepted values. An empty list accepts any well-formed value.
+   * - ``enforcement``
+     - ``off``
+     - ``off`` accepts without policy warnings. ``warn`` accepts but warns
+       when the key is missing or its value is outside a non-empty allow-list.
+       ``enforce`` rejects those violations.
+
+The same policy applies to new submissions, resubmission by ID, restart, and
+validation-only requests. An ``enforcement: enforce`` rejection creates
+neither a workflow row nor a stored specification. Submit responses carry
+warnings from that admission check. Workflow detail responses recompute
+warn-mode violations from the stored labels and current configuration, so the
+displayed status follows policy changes for every workflow status, including
+completed workflows; warnings are not stored with the workflow.
+
+Staged rollout
+--------------
+
+#. Assign a named owner for the key. That owner approves and maintains its
+   allow-list.
+#. Add the key with its final allow-list and ``enforcement: warn``; verify that
+   the configuration loads.
+#. Keep the key at ``enforcement: warn`` for two to four weeks. Monitor warnings,
+   the ``no_label=<key>`` workflow filter, and ``osmo_tasks_count`` as
+   supporting signals.
+#. Measure compliance from the canonical PostgreSQL ``workflows.labels``
+   column. Change the example key and allowed values below to match the policy:
+
+   .. code-block:: sql
+
+      WITH weekly_compliance AS (
+          SELECT
+              date_trunc('week', submit_time) AS week_start,
+              COUNT(*) AS total,
+              COUNT(*) FILTER (
+                  WHERE labels IS NULL
+                     OR NOT (labels ? 'team')
+                     OR labels->>'team' NOT IN ('robotics', 'simulation')
+              ) AS missing_or_invalid
+          FROM workflows
+          WHERE submit_time >= date_trunc('week', CURRENT_TIMESTAMP)
+                                   - INTERVAL '4 weeks'
+            AND submit_time < date_trunc('week', CURRENT_TIMESTAMP)
+          GROUP BY 1
+      )
+      SELECT
+          week_start,
+          total,
+          missing_or_invalid,
+          ROUND(
+              100.0 * missing_or_invalid / NULLIF(total, 0),
+              2
+          ) AS missing_or_invalid_percent
+      FROM weekly_compliance
+      ORDER BY week_start DESC;
+
+#. Change the key to ``enforcement: enforce`` only after the
+   missing-or-invalid rate is below 5% for each of two consecutive complete
+   weeks and the allow-list owner approves enforcement.
+
+PostgreSQL is the authoritative source for rollout compliance measurement;
+warning counts and Prometheus metrics are operational diagnostics. To roll
+back enforcement immediately, use ``enforcement: warn``. To disable both
+warnings and enforcement, use ``enforcement: off`` or remove the policy entry.
+Existing and in-flight workflows are not modified, although their detail-page
+warnings always reflect the current warn policy. In ConfigMap mode, an invalid
+edit is rejected and the previous valid snapshot remains active.
+
+Only configured policy keys become workflow-label dimensions on
+``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
+and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
+``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
+``PPP`` is exported as ``workflow_label_PPP``. Values in the configured
+allow-list are exported verbatim; a present value outside that list is clamped
+to ``<other>``, and a missing key is reported as ``<missing>``. An empty
+allow-list therefore exports every present value as ``<other>``. This keeps
+the number of series bounded to the allow-list plus two sentinels per key.
+
+Admission also emits
+``osmo_label_validation_total{key, outcome}``, where ``outcome`` is ``ok``,
+``missing``, ``invalid``, or ``rejected``. The counter covers rejected
+submissions that do not create a workflow row; PostgreSQL remains the
+historical compliance source of truth. Keep the policy list small to control
+metric cardinality. Exporting a Pod label through ``kube_pod_labels`` is a
+separate kube-state-metrics allow-list decision; see
+:ref:`adding_observability`.
 
 Backend Images
 ==============

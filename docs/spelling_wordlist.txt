@@ -37,6 +37,7 @@ Bitnami
 boto
 botocore
 Ceph
+chargeback
 checkpointing
 Checkpointing
 cli
@@ -266,6 +267,7 @@ resrcs
 restitutions
 retryable
 reusability
+rollout
 ros
 routable
 rpc

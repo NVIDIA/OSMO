@@ -16,9 +16,251 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import argparse
+import contextlib
+import io
 import unittest
+from unittest import mock
 
 from src.cli import workflow
+from src.lib.utils import client
+
+
+WARN_MISSING_PROJECT_MESSAGE = (
+    "Workflow is missing label 'project'; add it now to avoid rejected "
+    "submissions once it is required."
+)
+
+
+class TestWorkflowLabelParser(unittest.TestCase):
+
+    def _build_parser(self) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers()
+        workflow.setup_parser(subparsers)
+        return parser
+
+    def test_submit_accepts_repeatable_labels(self):
+        args = self._build_parser().parse_args([
+            'workflow', 'submit', 'workflow.yaml',
+            '--label', 'team=alpha', '--label', 'run=42',
+        ])
+
+        self.assertEqual(args.labels, ['team=alpha', 'run=42'])
+
+    def test_validate_accepts_repeatable_labels(self):
+        args = self._build_parser().parse_args([
+            'workflow', 'validate', 'workflow.yaml',
+            '--label', 'team=alpha', '--label', 'run=42',
+        ])
+
+        self.assertEqual(args.labels, ['team=alpha', 'run=42'])
+
+    def test_list_accepts_present_and_missing_label_filters(self):
+        args = self._build_parser().parse_args([
+            'workflow', 'list',
+            '--label', 'team=alpha', '--label', 'run=42',
+            '--no-label', 'project', '--no-label', 'owner',
+        ])
+
+        self.assertEqual(args.labels, ['team=alpha', 'run=42'])
+        self.assertEqual(args.no_labels, ['project', 'owner'])
+
+    def test_list_accepts_wildcard_and_inline_alternation_label_selectors(self):
+        args = self._build_parser().parse_args([
+            'workflow', 'list',
+            '--label', 'PPP=(team_*|osmo_*)',
+            '--label', 'PPP=team_(a|b)',
+        ])
+
+        self.assertEqual(
+            args.labels,
+            ['PPP=(team_*|osmo_*)', 'PPP=team_(a|b)'],
+        )
+
+    def test_list_help_describes_label_selector_forms(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(
+                SystemExit) as raised:
+            self._build_parser().parse_args(['workflow', 'list', '--help'])
+
+        self.assertEqual(raised.exception.code, 0)
+        normalized_help = ' '.join(output.getvalue().split())
+        self.assertIn('exact value, * wildcards', normalized_help)
+        self.assertIn('PPP=(team_*|osmo_*)', normalized_help)
+        self.assertIn('PPP=team_(a|b)', normalized_help)
+
+
+class TestWorkflowLabelRequests(unittest.TestCase):
+
+    def test_fresh_submit_forwards_label_overrides(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        args = argparse.Namespace(
+            pool='pool-1',
+            priority=None,
+            workflow_file='workflow.yaml',
+            set=[],
+            set_string=[],
+            labels=['team=alpha', 'run=42'],
+        )
+        template_data = mock.Mock()
+
+        with mock.patch.object(workflow, '_load_wf_file', return_value=template_data), \
+             mock.patch.object(workflow, 'submit_workflow_helper') as submit_helper:
+            workflow._submit_workflow(service_client, args)
+
+        params = submit_helper.call_args.args[4]
+        self.assertEqual(params['label'], ['team=alpha', 'run=42'])
+
+    def test_resubmit_by_id_forwards_label_overrides(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.return_value = {
+            'name': 'new-workflow',
+            'overview': 'https://example/workflows/new-workflow',
+        }
+        args = argparse.Namespace(
+            pool='pool-1',
+            priority=None,
+            workflow_file='parent-12345',
+            set=[],
+            set_string=[],
+            labels=['team=alpha'],
+            dry=False,
+            format_type='json',
+            rsync=None,
+        )
+
+        with mock.patch.object(
+                workflow, '_load_wf_file', side_effect=FileNotFoundError), \
+             mock.patch.object(workflow, 'is_workflow_id', return_value=True), \
+             mock.patch('builtins.print'):
+            workflow._submit_workflow(service_client, args)
+
+        request = service_client.request.call_args
+        self.assertEqual(request.kwargs['params']['workflow_id'], 'parent-12345')
+        self.assertEqual(request.kwargs['params']['label'], ['team=alpha'])
+
+    def test_validate_forwards_label_overrides_and_prints_warnings(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.return_value = {
+            'name': 'workflow',
+            'logs': 'Workflow validation succeeded.',
+            'warnings': [WARN_MISSING_PROJECT_MESSAGE],
+        }
+        template_data = workflow.TemplateData(
+            file='version: 2\nworkflow:\n  name: workflow\n',
+            set_variables=[],
+            set_string_variables=[],
+            is_templated=False,
+        )
+        args = argparse.Namespace(
+            pool='pool-1',
+            workflow_file='workflow.yaml',
+            set=[],
+            set_string=[],
+            labels=['team=alpha'],
+        )
+
+        output = io.StringIO()
+        with mock.patch.object(workflow, '_load_wf_file', return_value=template_data), \
+             mock.patch.object(
+                 workflow, '_load_workflow_text', return_value=template_data.file), \
+             mock.patch.object(workflow, 'load_local_files'), \
+             contextlib.redirect_stdout(output):
+            workflow._validate_workflow(service_client, args)
+
+        request = service_client.request.call_args
+        self.assertEqual(request.kwargs['params']['label'], ['team=alpha'])
+        self.assertIn(
+            f'WARNING: {WARN_MISSING_PROJECT_MESSAGE}',
+            output.getvalue(),
+        )
+
+    def test_list_forwards_label_filters(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.return_value = {'workflows': [], 'more_entries': False}
+        args = argparse.Namespace(
+            user=[],
+            status=None,
+            name=None,
+            order='asc',
+            all_users=False,
+            tags=None,
+            pool=[],
+            app=None,
+            priority=None,
+            labels=[
+                'team=alpha',
+                'PPP=(team_*|osmo_*)',
+                'PPP=team_(a|b)',
+            ],
+            no_labels=['project'],
+            submitted_after=None,
+            submitted_before=None,
+            count=20,
+            offset=0,
+            format_type='json',
+        )
+
+        with mock.patch('builtins.print'):
+            workflow._list_workflows(service_client, args)
+
+        params = service_client.request.call_args.kwargs['params']
+        self.assertEqual(
+            params['label'],
+            [
+                'team=alpha',
+                'PPP=(team_*|osmo_*)',
+                'PPP=team_(a|b)',
+            ])
+        self.assertEqual(params['no_label'], ['project'])
+
+
+class TestWorkflowLabelOutput(unittest.TestCase):
+
+    def test_submission_text_prints_server_warnings(self):
+        result = {
+            'name': 'workflow-1',
+            'overview': 'https://example/workflows/workflow-1',
+            'warnings': [WARN_MISSING_PROJECT_MESSAGE],
+        }
+        args = argparse.Namespace(format_type='text', priority=None)
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            workflow.print_submission_results(result, args)
+
+        self.assertIn(
+            f'WARNING: {WARN_MISSING_PROJECT_MESSAGE}',
+            output.getvalue(),
+        )
+
+    def test_workflow_table_displays_sorted_generic_labels(self):
+        table = workflow._workflow_table_generator({
+            'user': 'user',
+            'name': 'workflow-1',
+            'submit_time': '2026-01-01T00:00:00',
+            'status': 'RUNNING',
+            'priority': 'NORMAL',
+            'labels': {'zeta': 'last', 'alpha': 'first'},
+            'overview': 'https://example/workflows/workflow-1',
+        })
+
+        rendered = table.draw()
+        self.assertIn('Labels', rendered)
+        self.assertIn('alpha=first, zeta=last', rendered)
+
+    def test_workflow_table_tolerates_older_response_without_labels(self):
+        table = workflow._workflow_table_generator({
+            'user': 'user',
+            'name': 'workflow-1',
+            'submit_time': '2026-01-01T00:00:00',
+            'status': 'RUNNING',
+            'priority': 'NORMAL',
+            'overview': 'https://example/workflows/workflow-1',
+        })
+
+        self.assertIn('Labels', table.draw())
 
 
 class WorkflowTemplateDetectionTest(unittest.TestCase):

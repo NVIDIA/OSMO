@@ -42,6 +42,16 @@ Workflow
      - ``string``
      - No
      - The pool to submit the workflow to.
+   * - :kbd:`labels`
+     - ``dict[string, string]``
+     - No
+     - Immutable workflow metadata copied to every task Pod. Keys and values use
+       Kubernetes label syntax, values must be non-empty, and a workflow can
+       define at most 16 labels. Reserved and rejected: keys with the
+       ``osmo.`` prefix, all keys in the scheduler-owned ``kai.scheduler/``
+       and ``runai/`` domains, and keys whose DNS prefix is or ends in
+       ``kubernetes.io`` or ``k8s.io`` (for example
+       ``app.kubernetes.io/name``).
    * - :kbd:`timeout`
      - ``dict``
      - No
@@ -58,6 +68,31 @@ Workflow
      - ``list``
      - **Yes** (or :kbd:`tasks`)
      - List of :ref:`group definitions <workflow_spec_group>`.
+
+Workflow labels
+---------------
+
+Labels identify a workflow independently of mutable tags. They are stored with
+the submitted specification and copied only to task Pods, not to Services,
+Secrets, scheduler groups, or other objects.
+
+.. code-block:: yaml
+
+   workflow:
+     name: training
+     labels:
+       team: robotics
+       experiment: run42
+     tasks:
+     - name: train
+       image: ubuntu:24.04
+       command: [bash]
+       args: [-lc, "echo training"]
+
+Your administrator may configure particular keys in ``off``, ``warn``, or
+``enforce`` mode. An accepted workflow can still return a warning while an
+administrator is rolling out a requirement. Use :ref:`workflow_submission` to
+validate and override labels without editing a shared specification.
 
 .. _workflow_spec_task:
 
