@@ -830,6 +830,18 @@ def verify_dict_keys(data: Dict):
 
 
 
+def _has_index_directives(patch_list: List[Any]) -> bool:
+    """
+    Whether a patch list uses $index directives for strategic list edits.
+
+    A list whose items are all dictionaries and where at least one carries an
+    $index directive is edited item by item; directive-less items in such a
+    list are appended. Any other list is a complete replacement value.
+    """
+    return (all(isinstance(item, dict) for item in patch_list)
+            and any('$index' in item for item in patch_list))
+
+
 def strategic_merge_patch(original: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
     """
     Applies a Strategic Merge Patch to Dynamic Configs.
@@ -853,44 +865,34 @@ def strategic_merge_patch(original: Dict[str, Any], patch: Dict[str, Any]) -> Di
                 updated.pop(key, None)
             else:
                 updated[key] = strategic_merge_patch(updated[key], value)
-        elif isinstance(value, list):
-            # Use index directives for strategic list edits. An ordinary list is a
-            # complete value, matching the full-list diff produced by config update.
-            has_index_directive = (
-                value
-                and all(isinstance(item, dict) for item in value)
-                and any('$index' in item for item in value)
-            )
-            if has_index_directive:
-                updated_list = []
-                for i, item in enumerate(updated[key]):
-                    for patch_item in value:
-                        if i == patch_item.get('$index'):
-                            # Apply merge or replace to the matched item.
-                            if patch_item.get('$action', '') == 'replace':
-                                item = patch_item
-                            elif patch_item.get('$action', '') == 'delete':
-                                item = None
-                            else:
-                                item = strategic_merge_patch(item, patch_item)
-                            break
-                    if item:
-                        updated_list.append(item)
-                # Add any items in the patch list that were not matched.
+        elif isinstance(value, list) and _has_index_directives(value):
+            updated_list = []
+            for i, item in enumerate(updated[key]):
                 for patch_item in value:
-                    if not any(i == patch_item.get('$index') for i in range(len(updated[key]))) \
-                            and not patch_item.get('$action', '') == 'delete':
-                        updated_list.append(patch_item)
-                for item in updated_list:
-                    item.pop('$action', None)
-                    item.pop('$index', None)
+                    if i == patch_item.get('$index'):
+                        # Apply merge or replace to the matched item.
+                        if patch_item.get('$action', '') == 'replace':
+                            item = patch_item
+                        elif patch_item.get('$action', '') == 'delete':
+                            item = None
+                        else:
+                            item = strategic_merge_patch(item, patch_item)
+                        break
+                if item:
+                    updated_list.append(item)
+            # Add any items in the patch list that were not matched.
+            for patch_item in value:
+                if not any(i == patch_item.get('$index') for i in range(len(updated[key]))) \
+                        and not patch_item.get('$action', '') == 'delete':
+                    updated_list.append(patch_item)
+            for item in updated_list:
+                item.pop('$action', None)
+                item.pop('$index', None)
 
-                updated[key] = updated_list
-            else:
-                # Apply the list value as a replacement.
-                updated[key] = value
+            updated[key] = updated_list
         else:
-            # Apply the scalar value as a replacement.
+            # Apply the ordinary list or scalar value as a replacement,
+            # matching the full-value diff produced by config update.
             updated[key] = value
 
         updated.pop('$action', None)

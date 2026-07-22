@@ -30,7 +30,7 @@ SPDX-License-Identifier: Apache-2.0
 | Deployment type | Sections to follow |
 |----------------|-------------------|
 | Migrating to ConfigMap config | [Export existing configs](#export-existing-configs) → [Enable ConfigMap mode](#enable-configmap-mode) → [Create K8s Secrets](#create-kubernetes-secrets) |
-| Staying with DB config | No action required — DB mode is the default and works unchanged |
+| Staying with DB config | No chart action required — DB mode is the default. Review [Config PATCH semantics for plain lists](#config-patch-semantics-for-plain-lists) if API clients patch list configs |
 | New deployment | [Enable ConfigMap mode](#enable-configmap-mode) (chart defaults provide sensible starting configs) |
 | **Any deployment** | [Router chart merge](#router-chart-merged-into-service-chart) — required for all upgrades to 6.3 |
 
@@ -39,8 +39,8 @@ SPDX-License-Identifier: Apache-2.0
 In 6.3 the shared config PATCH endpoints treat a list of objects without
 `$index` directives as a complete replacement value instead of appending to
 the stored list. Strategic merges continue to work when patch items carry
-`$index`. Legacy-mode API clients that relied on append behavior must send
-the full desired list.
+`$index`; in a mixed list, directive-less items are still appended. Legacy-mode
+API clients that relied on append behavior must send the full desired list.
 
 ## Export existing configs
 

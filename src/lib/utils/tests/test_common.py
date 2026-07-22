@@ -762,6 +762,12 @@ class TestStrategicMergePatch(unittest.TestCase):
             {'items': [{'x': 3}]})
         self.assertEqual(result['items'], [{'x': 3}])
 
+    def test_mixed_list_merges_indexed_and_appends_directive_less_items(self):
+        result = common.strategic_merge_patch(
+            {'items': [{'x': 1}]},
+            {'items': [{'$index': 0, 'y': 2}, {'z': 3}]})
+        self.assertEqual(result['items'], [{'x': 1, 'y': 2}, {'z': 3}])
+
     def test_non_dict_original(self):
         # When the original is not a dict but the patch is, return the patch.
         result = common.strategic_merge_patch('scalar', {'a': 1})  # type: ignore[arg-type]
