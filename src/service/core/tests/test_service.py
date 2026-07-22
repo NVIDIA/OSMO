@@ -339,7 +339,8 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
     def test_substitute_tokens_and_pod_label_precedence(self):
         '''
-        Test that the tokens are substituted correctly in the pod spec.
+        Tokens substitute correctly and final pod labels layer
+        workflow < template < system.
         '''
         # Create a dummy TaskGroup object for testing token substitution
         database = connectors.PostgresConnector.get_instance()

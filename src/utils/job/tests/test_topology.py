@@ -124,7 +124,7 @@ class BasicTopologyTests(TopologyTestBase):
         for pod in k8s_resources[1:]:
             self.assertNotIn('kai.scheduler/subgroup-name', pod['metadata']['labels'])
 
-    def test_final_pod_label_writes_are_reserved_from_workflow_labels(self):
+    def test_factory_label_writes_override_colliding_user_labels(self):
         topology_keys = [
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
         ]

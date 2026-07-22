@@ -355,7 +355,7 @@ class WorkflowSpecValidateTasksGroupsTest(unittest.TestCase):
 
 
 class WorkflowSpecLabelsTest(unittest.TestCase):
-    """Workflow labels survive every explicit WorkflowSpec serialization path."""
+    """WorkflowSpec label validation and serialization."""
 
     @staticmethod
     def _workflow_spec(labels: dict[str, str] | None = None) -> workflow.WorkflowSpec:
@@ -391,7 +391,7 @@ class WorkflowSpecLabelsTest(unittest.TestCase):
 
     def test_rejects_invalid_labels(self):
         with self.assertRaises(pydantic.ValidationError):
-            self._workflow_spec({'osmo.workflow_uuid': 'value'})
+            self._workflow_spec({'-invalid-key': 'value'})
 
 
 class WorkflowLabelsPersistenceTest(unittest.TestCase):
@@ -453,12 +453,12 @@ class WorkflowLabelsPersistenceTest(unittest.TestCase):
     def test_fetch_preserves_stored_labels(self):
         database = mock.Mock(spec=workflow.connectors.PostgresConnector)
         database.execute_fetch_command.return_value = [
-            self._workflow_row({'PPP': 'invalid'})
+            self._workflow_row({'PPP': 'stored'})
         ]
 
         workflow_obj = workflow.Workflow.fetch_from_db(database, 'wf-1', fetch_groups=False)
 
-        self.assertEqual(workflow_obj.labels, {'PPP': 'invalid'})
+        self.assertEqual(workflow_obj.labels, {'PPP': 'stored'})
 
 
 class VersionedWorkflowSpecValidateVersionTest(unittest.TestCase):

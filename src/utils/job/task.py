@@ -1467,7 +1467,7 @@ def apply_pod_template(pod: Dict, pod_override: Dict):
 def apply_workflow_labels(
         pod: Dict[str, Any],
         workflow_labels: Mapping[str, str]) -> Dict[str, Any]:
-    """Apply workflow labels below the existing system Pod label layer."""
+    """Apply workflow labels beneath any labels already on the resource."""
     metadata = pod.setdefault('metadata', {})
     metadata['labels'] = {**workflow_labels, **metadata.get('labels', {})}
     return pod
@@ -2401,8 +2401,8 @@ class TaskGroup(pydantic.BaseModel):
             group_template_resources = render_group_templates(
                 pool_obj.parsed_group_templates,
                 template_variables,
-                workflow_labels,
-                labels,
+                workflow_labels=workflow_labels,
+                system_labels=labels,
             )
             kb_resources = group_template_resources + kb_resources
 
@@ -2420,7 +2420,8 @@ class TaskGroup(pydantic.BaseModel):
     def system_labels(self, user: str,
                       workflow_uuid: str) -> Dict[str, str]:
         """
-        Creates workflow id, task name, and user labels.
+        Creates the authoritative osmo.* system labels: workflow id and uuid,
+        group name and uuid, and the submitting user.
 
         If 'user' is a string that does not satisfy the requirements of a Kubernetes label,
         if 'user' is an email, it will parse the username of the email and check to
@@ -2910,6 +2911,7 @@ class TaskGroup(pydantic.BaseModel):
         override_pod_template = copy.deepcopy(task_platform.parsed_pod_template)
         substitute_pod_template_tokens(override_pod_template, jinja_variables)
         pod = apply_pod_template(pod, override_pod_template)
+        # Re-assert system labels so pod-template overrides cannot replace them.
         pod = apply_system_labels(pod, labels)
 
         return pod, all_files, refresh_token_info

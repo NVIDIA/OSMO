@@ -81,9 +81,9 @@ class ShortenNameToFitKbTest(unittest.TestCase):
 
 
 class ApplyWorkflowLabelsTest(unittest.TestCase):
-    """Workflow labels are layered below system Pod metadata."""
+    """Workflow labels are layered below existing resource labels."""
 
-    def test_existing_labels_override_workflow_labels_and_preserve_user_labels(self):
+    def test_existing_labels_win_and_nonconflicting_workflow_labels_are_added(self):
         pod = {
             'kind': 'Pod',
             'metadata': {
@@ -106,6 +106,10 @@ class ApplyWorkflowLabelsTest(unittest.TestCase):
             'PPP': 'project-a',
             'precedence': 'pod-template-value',
         })
+
+
+class ApplySystemLabelsTest(unittest.TestCase):
+    """System labels overwrite whatever the resource already carries."""
 
     def test_system_labels_win_over_existing_labels(self):
         pod = {

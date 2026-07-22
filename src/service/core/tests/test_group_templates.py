@@ -465,6 +465,8 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
     def test_workflow_labels_propagate_below_system_labels(self):
         """Workflow labels reach group resources and Pods without replacing system labels."""
         self._setup_for_kb_specs()
+        # The osmo.group_uuid entry deliberately collides with a system
+        # key to prove the system layer wins at stamping time.
         kb_resources, pod_specs = self._run_get_kb_specs(
             'nvlink-pool',
             self.task_group,
