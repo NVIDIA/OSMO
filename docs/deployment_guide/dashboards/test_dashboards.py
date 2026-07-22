@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,12 +38,14 @@ def _variables(dashboard: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def _query(variable: dict[str, Any]) -> str:
+    # Grafana stores template-variable queries as either a raw string or a
+    # {query: ...} object depending on the dashboard schema version.
     query = variable.get('query', '')
     return query.get('query', '') if isinstance(query, dict) else query
 
 
 class WorkflowResourcesDashboardTest(unittest.TestCase):
-    """The OSS workflow dashboard remains deployment-neutral."""
+    """Structural and deployment-neutrality checks for the OSS dashboard."""
 
     dashboard: dict[str, Any]
 
@@ -52,6 +54,7 @@ class WorkflowResourcesDashboardTest(unittest.TestCase):
         cls.dashboard = _load_dashboard('workflow_resources_usage.json')
 
     def test_has_workflow_resource_panels(self):
+        # Floor, not an exact count: panels may be added freely.
         self.assertGreaterEqual(len(self.dashboard['panels']), 8)
 
     def test_dashboard_is_deployment_neutral(self):

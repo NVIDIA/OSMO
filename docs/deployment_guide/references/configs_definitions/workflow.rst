@@ -316,9 +316,11 @@ and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
 ``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
 ``PPP`` is exported as ``workflow_label_PPP``. Values in the configured
 allow-list are exported verbatim; a present value outside that list is clamped
-to ``<other>``, and a missing key is reported as ``<missing>``. An empty
-allow-list therefore exports every present value as ``<other>``. This keeps
-the number of series bounded to the allow-list plus two sentinels per key.
+to ``<other>``, and a missing key is reported as ``<missing>``. Angle
+brackets are not valid in label values, so the sentinels never collide with
+real values. An empty allow-list exports every present value as ``<other>``.
+This keeps the number of series bounded to the allow-list plus two sentinels
+per key.
 
 Admission also emits
 ``osmo_label_validation_total{key, outcome}``, where ``outcome`` is ``ok``,

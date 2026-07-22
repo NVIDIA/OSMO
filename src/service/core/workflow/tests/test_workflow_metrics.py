@@ -155,16 +155,10 @@ class GetTaskMetricsTest(unittest.TestCase):
     def test_empty_allow_list_clamps_all_present_values_to_other(self):
         label_policy = connectors.LabelPolicy(key='PPP')
 
+        metric_value = workflow_metrics._workflow_label_metric_value  # pylint: disable=protected-access
         self.assertEqual(
-            workflow_metrics._workflow_label_metric_value(
-                {'PPP': 'arbitrary'}, label_policy,
-            ),
-            '<other>',
-        )
-        self.assertEqual(
-            workflow_metrics._workflow_label_metric_value({}, label_policy),
-            '<missing>',
-        )
+            metric_value({'PPP': 'arbitrary'}, label_policy), '<other>')
+        self.assertEqual(metric_value({}, label_policy), '<missing>')
 
     def test_policy_label_attributes_cannot_overwrite_or_sanitize_to_same_name(self):
         database = mock.Mock()

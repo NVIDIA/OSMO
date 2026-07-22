@@ -35,6 +35,8 @@ from src.utils import connectors
 _metric_cache: List[otelmetrics.Observation] = []
 _last_refresh_time: float = 0
 _CACHE_TTL_SECONDS: int = 30  # Refresh cache every 30 seconds
+# Angle brackets are not valid label characters, so these sentinels can
+# never collide with real label values.
 _MISSING_WORKFLOW_LABEL_VALUE = '<missing>'
 _OTHER_WORKFLOW_LABEL_VALUE = '<other>'
 _WORKFLOW_LABEL_ATTRIBUTE_PREFIX = 'workflow_label_'
@@ -76,7 +78,11 @@ def _workflow_label_attribute_name(label_key: str) -> str:
 def _workflow_label_metric_value(
         workflow_labels: Dict[str, str],
         label_policy: connectors.LabelPolicy) -> str:
-    """Clamp a policy label to its bounded metric vocabulary."""
+    """Clamp a policy label to its bounded metric vocabulary.
+
+    With an empty allow-list every present value clamps to the other
+    sentinel, so series stay bounded in every enforcement mode.
+    """
     value = workflow_labels.get(label_policy.key)
     if value is None:
         return _MISSING_WORKFLOW_LABEL_VALUE
@@ -149,13 +155,13 @@ def get_task_metrics(
         )
         rows = []
 
-    # Rows arrive pre-aggregated by (pool, user, workflow_uuid, status, labels);
-    # workflow_uuid is a metric dimension, so keys are unique per row today. The
-    # dict guards against duplicate series if the SQL grouping ever loosens.
     policy_attributes = [
         (_workflow_label_attribute_name(label_policy.key), label_policy)
         for label_policy in label_policies
     ]
+    # SQL groups by the raw labels JSONB; clamping to the bounded policy
+    # vocabulary can collapse distinct rows onto the same attribute set, so
+    # counts are summed per projected key.
     task_counts: Dict[Tuple[Tuple[str, str], ...], int] = {}
     for row in rows:
         workflow_labels = _parse_workflow_labels(row['labels'])

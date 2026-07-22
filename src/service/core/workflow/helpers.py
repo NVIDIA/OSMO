@@ -531,7 +531,8 @@ def get_recent_tasks(database: connectors.PostgresConnector,
         minutes_ago: How many minutes back to look for completed tasks
 
     Returns:
-        List of task records with task and workflow information
+        Aggregated task-count rows grouped by pool, user, workflow, task
+        status, and the workflow's labels
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     cutoff_time = now - datetime.timedelta(minutes=minutes_ago)
