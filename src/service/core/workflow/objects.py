@@ -21,7 +21,7 @@ import datetime
 import json
 import logging
 import math
-from typing import Any, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Set
+from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Protocol, Set
 import yaml
 
 import pydantic
@@ -462,10 +462,25 @@ class GroupQueryResponse(pydantic.BaseModel, extra='forbid'):
     tasks: List[TaskQueryResponse] = []
 
 
+_LABEL_POLICY_MESSAGES = {
+    ('missing', connectors.LabelEnforcement.ENFORCE):
+        "Workflow is missing required label '{key}'.",
+    ('missing', connectors.LabelEnforcement.WARN):
+        "Workflow is missing label '{key}'; add it now to avoid "
+        'rejected submissions once it is required.',
+    ('invalid', connectors.LabelEnforcement.ENFORCE):
+        "Workflow label '{key}' has a value that is not allowed.",
+    ('invalid', connectors.LabelEnforcement.WARN):
+        "Workflow label '{key}' has a value that is not allowed; "
+        'use an allowed value now to avoid rejected submissions once the label '
+        'is required.',
+}
+
+
 class WorkflowLabelPolicyOutcome(NamedTuple):
     """The evaluation of one non-off label policy against a labels map."""
     policy: connectors.LabelPolicy
-    outcome: str  # 'ok', 'missing', or 'invalid'
+    outcome: Literal['ok', 'missing', 'invalid']
     message: str  # empty when the outcome is 'ok'
 
 
@@ -479,27 +494,13 @@ def evaluate_workflow_label_policies(
         if label_policy.enforcement == connectors.LabelEnforcement.OFF:
             continue
         value = labels.get(label_policy.key)
+        outcome: Literal['ok', 'missing', 'invalid'] = 'ok'
         if value is None:
             outcome = 'missing'
-            if label_policy.enforcement == connectors.LabelEnforcement.ENFORCE:
-                message = f"Workflow is missing required label '{label_policy.key}'."
-            else:
-                message = (
-                    f"Workflow is missing label '{label_policy.key}'; add it now to avoid "
-                    'rejected submissions once it is required.')
         elif label_policy.allow_list and value not in label_policy.allow_list:
             outcome = 'invalid'
-            if label_policy.enforcement == connectors.LabelEnforcement.ENFORCE:
-                message = (
-                    f"Workflow label '{label_policy.key}' has a value that is not allowed.")
-            else:
-                message = (
-                    f"Workflow label '{label_policy.key}' has a value that is not allowed; "
-                    'use an allowed value now to avoid rejected submissions once the label '
-                    'is required.')
-        else:
-            outcome = 'ok'
-            message = ''
+        message = '' if outcome == 'ok' else _LABEL_POLICY_MESSAGES[
+            outcome, label_policy.enforcement].format(key=label_policy.key)
         outcomes.append(WorkflowLabelPolicyOutcome(
             label_policy, outcome, message))
     return outcomes
@@ -904,8 +905,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
             status=workflow.WorkflowStatus.PENDING\
                 if failure_message is None else workflow.WorkflowStatus.FAILED_SUBMISSION,
             failure_message=failure_message or '', parent_workflow_id=self.parent_workflow_id,
-            app_uuid=self.app_uuid, app_version=self.app_version,
-            priority=self.priority)
+            app_uuid=self.app_uuid, app_version=self.app_version, priority=self.priority)
         return workflow_obj
 
     def insert_failed_submission_to_db(
@@ -953,8 +953,10 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         self.name = workflow_section.get('name', '') if isinstance(workflow_section, dict) else ''
         self.name = self.name if self.name else f'failed-{self.base32_id}'
 
-        if isinstance(workflow_section, dict):
-            labels_present = canonical_labels is not None or 'labels' in workflow_section
+        if isinstance(workflow_section, dict) and (
+                canonical_labels is not None
+                or 'labels' in workflow_section
+                or label_overrides):
             raw_labels = canonical_labels \
                 if canonical_labels is not None else workflow_section.get('labels', {})
             try:
@@ -965,12 +967,10 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                 for assignment in label_overrides or []:
                     key, value = validation.parse_workflow_label_assignment(assignment)
                     labels[key] = value
-                validated_labels = validation.validate_workflow_labels(labels)
+                workflow_section['labels'] = validation.validate_workflow_labels(labels)
             except ValueError as error:
                 raise osmo_errors.OSMOUsageError(
                     str(error), workflow_id=self.name) from error
-            if labels_present or label_overrides:
-                workflow_section['labels'] = validated_labels
 
         return updated_workflow_dict
 
@@ -985,8 +985,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                 workflow_section = workflow_dict.get('workflow', {})
                 labels = workflow_section.get('labels') \
                     if isinstance(workflow_section, dict) else None
-                self.insert_failed_submission_to_db(
-                    str(err), labels=labels if isinstance(labels, dict) else None)
+                self.insert_failed_submission_to_db(str(err), labels=labels)
             except:  # pylint: disable=bare-except
                 pass
             raise osmo_errors.OSMOUsageError(f'{err}', workflow_id=self.name)
@@ -1053,16 +1052,17 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
 
         for evaluation in evaluate_workflow_label_policies(
                 rendered_spec.labels, policies):
+            is_enforced = (evaluation.policy.enforcement
+                           == connectors.LabelEnforcement.ENFORCE)
+            metric_outcome = 'rejected' \
+                if is_enforced and evaluation.outcome != 'ok' else evaluation.outcome
+            _record_workflow_label_validation_metric(
+                evaluation.policy.key, metric_outcome)
             if evaluation.outcome == 'ok':
-                _record_workflow_label_validation_metric(
-                    evaluation.policy.key, 'ok')
-            elif evaluation.policy.enforcement == connectors.LabelEnforcement.ENFORCE:
-                _record_workflow_label_validation_metric(
-                    evaluation.policy.key, 'rejected')
+                continue
+            if is_enforced:
                 rejection = rejection or evaluation
             else:
-                _record_workflow_label_validation_metric(
-                    evaluation.policy.key, evaluation.outcome)
                 logging.warning('%s', evaluation.message)
                 warnings.append(evaluation.message)
 
@@ -1077,13 +1077,15 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         group_and_task_uuids: Dict[str, common.UuidPattern],
         roles: List[str],
         original_templated_spec: str | None,
-        priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL):
+        priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL,
+    ) -> List[str]:
         """
         Validate workflow spec by checking:
         - if the workflow can match any resource node that has enough allocatables for the workflow
         - if this workflow's Docker containers can be pull with user and service Docker credentials
 
         If validation fails, insert this workflow entry into the database, and upload the spec.
+        Returns the warn-mode label policy warnings for the submit response.
         """
         warnings = self.validate_workflow_label_policy(rendered_spec)
         remaining_upstream_groups: Dict = collections.defaultdict(set)

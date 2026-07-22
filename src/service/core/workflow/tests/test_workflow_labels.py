@@ -59,6 +59,10 @@ def _submit_info(policy: list[connectors.LabelPolicy]) -> objects.WorkflowSubmit
     )
 
 
+def _rendered_spec(labels: dict[str, str]) -> workflow.WorkflowSpec:
+    return cast(workflow.WorkflowSpec, types.SimpleNamespace(labels=labels))
+
+
 class TestWorkflowLabelOverrides(unittest.TestCase):
 
     def test_cli_overrides_are_applied_after_render_and_last_value_wins(self):
@@ -205,10 +209,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
 
     def test_omitted_policy_accepts_missing_and_unlisted_values(self):
         submit_info = _submit_info([])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={'team': 'other'}),
-        )
+        rendered_spec = _rendered_spec({'team': 'other'})
 
         self.assertEqual(
             submit_info.validate_workflow_label_policy(rendered_spec),
@@ -221,10 +222,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
             _label_policy(
                 'team', connectors.LabelEnforcement.OFF, ['alpha', 'beta']),
         ])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={'team': 'other'}),
-        )
+        rendered_spec = _rendered_spec({'team': 'other'})
         metric_creator = mock.Mock()
 
         with mock.patch.object(
@@ -242,10 +240,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
             _label_policy(
                 'team', connectors.LabelEnforcement.WARN, ['alpha', 'beta']),
         ])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={'team': 'other'}),
-        )
+        rendered_spec = _rendered_spec({'team': 'other'})
 
         with self.assertLogs(level='WARNING') as captured:
             warnings = submit_info.validate_workflow_label_policy(rendered_spec)
@@ -258,7 +253,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
         ]
         self.assertEqual(warnings, expected)
         self.assertEqual(len(captured.output), 2)
-        combined_output = '\\n'.join([*warnings, *captured.output])
+        combined_output = '\n'.join([*warnings, *captured.output])
         for allowed_value in ('alpha', 'beta'):
             self.assertNotIn(allowed_value, combined_output)
 
@@ -268,10 +263,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
             _label_policy(
                 'team', connectors.LabelEnforcement.ENFORCE, ['alpha']),
         ])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={'team': 'alpha'}),
-        )
+        rendered_spec = _rendered_spec({'team': 'alpha'})
 
         warnings = submit_info.validate_workflow_label_policy(rendered_spec)
 
@@ -286,10 +278,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
             _label_policy(
                 'team', connectors.LabelEnforcement.ENFORCE, ['alpha']),
         ])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={'team': 'other'}),
-        )
+        rendered_spec = _rendered_spec({'team': 'other'})
 
         with self.assertLogs(level='WARNING') as captured:
             with self.assertRaises(osmo_errors.OSMOUsageError) as raised:
@@ -392,10 +381,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
             _label_policy(
                 'team', connectors.LabelEnforcement.ENFORCE, ['alpha', 'beta']),
         ])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={'team': 'alpha'}),
-        )
+        rendered_spec = _rendered_spec({'team': 'alpha'})
 
         self.assertEqual(
             submit_info.validate_workflow_label_policy(rendered_spec),
@@ -410,10 +396,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
                 submit_info = _submit_info([
                     _label_policy('project', enforcement, []),
                 ])
-                rendered_spec = cast(
-                    workflow.WorkflowSpec,
-                    types.SimpleNamespace(labels={'project': 'anything'}),
-                )
+                rendered_spec = _rendered_spec({'project': 'anything'})
 
                 self.assertEqual(
                     submit_info.validate_workflow_label_policy(rendered_spec),
@@ -428,10 +411,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
                 ['one', 'two', 'three', 'four', 'five', 'six'],
             ),
         ])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={'team': 'other'}),
-        )
+        rendered_spec = _rendered_spec({'team': 'other'})
 
         warnings = submit_info.validate_workflow_label_policy(rendered_spec)
 
@@ -454,13 +434,10 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
                 'invalid', connectors.LabelEnforcement.WARN, ['allowed']),
             _label_policy('required', connectors.LabelEnforcement.ENFORCE),
         ])
-        rendered_spec = cast(
-            workflow.WorkflowSpec,
-            types.SimpleNamespace(labels={
+        rendered_spec = _rendered_spec({
                 'ok': 'allowed',
                 'invalid': 'not-allowed',
-            }),
-        )
+            })
         metric_creator = mock.Mock()
 
         with mock.patch.object(

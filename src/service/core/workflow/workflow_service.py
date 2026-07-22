@@ -345,8 +345,8 @@ def submit_workflow(pool_name: str,
                     validation_only: bool = False,
                     priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL,
                     env_vars: List[str] = fastapi.Query(default=[]),
-                    label_overrides: List[str] | None = fastapi.Query(
-                        default=None, alias='label'),
+                    label_overrides: List[str] = fastapi.Query(
+                        default=[], alias='label'),
                     user_header: Optional[str] =
                         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
                     roles_header: Optional[str] =

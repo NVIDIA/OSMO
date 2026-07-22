@@ -2128,7 +2128,7 @@ export type SubmitWorkflowApiPoolPoolNameWorkflowPostParams = {
   validation_only?: boolean;
   priority?: WorkflowPriority;
   env_vars?: string[];
-  label?: string[] | null;
+  label?: string[];
 };
 
 export type SetNotificationSettingsApiProfileSettingsPostParams = {
