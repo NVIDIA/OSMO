@@ -17,7 +17,6 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 from collections.abc import Mapping
-import json
 import logging
 import os
 import time
@@ -55,18 +54,13 @@ def _is_task_metrics_disabled() -> bool:
 
 
 def _parse_workflow_labels(raw_labels: Any) -> Dict[str, str]:
-    """Return string workflow labels from a decoded JSONB value or JSON text."""
-    if isinstance(raw_labels, str):
-        try:
-            raw_labels = json.loads(raw_labels)
-        except json.JSONDecodeError:
-            return {}
+    """Return string workflow labels from a decoded JSONB row value."""
     if not isinstance(raw_labels, Mapping):
         return {}
     return {
         key: value
         for key, value in raw_labels.items()
-        if isinstance(key, str) and isinstance(value, str)
+        if isinstance(value, str)
     }
 
 
@@ -158,6 +152,10 @@ def get_task_metrics(
     # Rows arrive pre-aggregated by (pool, user, workflow_uuid, status, labels);
     # workflow_uuid is a metric dimension, so keys are unique per row today. The
     # dict guards against duplicate series if the SQL grouping ever loosens.
+    policy_attributes = [
+        (_workflow_label_attribute_name(label_policy.key), label_policy)
+        for label_policy in label_policies
+    ]
     task_counts: Dict[Tuple[Tuple[str, str], ...], int] = {}
     for row in rows:
         workflow_labels = _parse_workflow_labels(row['labels'])
@@ -167,11 +165,9 @@ def get_task_metrics(
             'workflow_uuid': row['workflow_uuid'],
             'status': row['status']
         }
-        labels.update({
-            _workflow_label_attribute_name(label_policy.key):
-                _workflow_label_metric_value(workflow_labels, label_policy)
-            for label_policy in label_policies
-        })
+        for attribute_name, label_policy in policy_attributes:
+            labels[attribute_name] = _workflow_label_metric_value(
+                workflow_labels, label_policy)
         key = tuple(sorted(labels.items()))
         task_counts[key] = task_counts.get(key, 0) + int(row['count'])
 

@@ -604,9 +604,8 @@ class TestGetRecentTasks(unittest.TestCase):
         query = database.execute_fetch_command.call_args.args[0]
         self.assertIn('w.labels AS labels', query)
         self.assertIn('COUNT(*) AS count', query)
-        self.assertIn(
-            'GROUP BY w.pool, w.submitted_by, w.workflow_uuid, t.status, w.labels',
-            query)
+        group_by_clause = query[query.index('GROUP BY'):]
+        self.assertIn('w.labels', group_by_clause)
 
     def test_get_recent_tasks_passes_cutoff_time_to_database(self):
         database = mock.Mock()

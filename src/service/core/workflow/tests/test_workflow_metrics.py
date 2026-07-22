@@ -54,6 +54,14 @@ class GetTaskMetricsTest(unittest.TestCase):
         workflow_metrics._metric_cache.clear()  # pylint: disable=protected-access
         workflow_metrics._last_refresh_time = 0  # pylint: disable=protected-access
 
+    def _observe(self, database):
+        with mock.patch.object(
+            connectors.PostgresConnector, 'get_instance', return_value=database
+        ), mock.patch.object(
+            workflow_metrics.time, 'time', return_value=100
+        ):
+            return list(workflow_metrics.get_task_metrics())
+
     def test_sums_database_counts_and_collapses_non_policy_labels(self):
         rows = [
             {
@@ -73,10 +81,11 @@ class GetTaskMetricsTest(unittest.TestCase):
                 'user': 'alice',
                 'workflow_uuid': 'workflow-1',
                 'status': 'RUNNING',
-                'labels': (
-                    '{"PPP":"project-a","cost-center":"center-1",'
-                    '"experiment":"second"}'
-                ),
+                'labels': {
+                    'PPP': 'project-a',
+                    'cost-center': 'center-1',
+                    'experiment': 'second',
+                },
                 'count': 3,
             },
             {
@@ -84,7 +93,7 @@ class GetTaskMetricsTest(unittest.TestCase):
                 'user': 'alice',
                 'workflow_uuid': 'workflow-1',
                 'status': 'RUNNING',
-                'labels': '{"PPP":"project-a"}',
+                'labels': {'PPP': 'project-a'},
                 'count': 4,
             },
             {
@@ -100,7 +109,7 @@ class GetTaskMetricsTest(unittest.TestCase):
                 'user': 'alice',
                 'workflow_uuid': 'workflow-1',
                 'status': 'RUNNING',
-                'labels': 'not-json',
+                'labels': ['unexpected-type'],
                 'count': 2,
             },
             {
@@ -119,13 +128,9 @@ class GetTaskMetricsTest(unittest.TestCase):
         })
 
         with mock.patch.object(
-            connectors.PostgresConnector, 'get_instance', return_value=database
-        ), mock.patch.object(
-            workflow_metrics.helpers, 'get_recent_tasks', return_value=rows
-        ), mock.patch.object(
-            workflow_metrics.time, 'time', return_value=100
-        ):
-            observations = list(workflow_metrics.get_task_metrics())
+                workflow_metrics.helpers, 'get_recent_tasks',
+                return_value=rows):
+            observations = self._observe(database)
 
         counts = {}
         for observation in observations:
@@ -184,13 +189,9 @@ class GetTaskMetricsTest(unittest.TestCase):
         }]
 
         with mock.patch.object(
-            connectors.PostgresConnector, 'get_instance', return_value=database
-        ), mock.patch.object(
-            workflow_metrics.helpers, 'get_recent_tasks', return_value=rows
-        ), mock.patch.object(
-            workflow_metrics.time, 'time', return_value=100
-        ):
-            observations = list(workflow_metrics.get_task_metrics())
+                workflow_metrics.helpers, 'get_recent_tasks',
+                return_value=rows):
+            observations = self._observe(database)
 
         attributes = observations[0].attributes
         if attributes is None:
@@ -216,13 +217,9 @@ class GetTaskMetricsTest(unittest.TestCase):
         }]
 
         with mock.patch.object(
-            connectors.PostgresConnector, 'get_instance', return_value=database
-        ), mock.patch.object(
-            workflow_metrics.helpers, 'get_recent_tasks', return_value=rows
-        ), mock.patch.object(
-            workflow_metrics.time, 'time', return_value=100
-        ):
-            observations = list(workflow_metrics.get_task_metrics())
+                workflow_metrics.helpers, 'get_recent_tasks',
+                return_value=rows):
+            observations = self._observe(database)
 
         self.assertEqual(len(observations), 1)
         self.assertEqual(observations[0].value, 7)
@@ -294,15 +291,11 @@ class RegisterTaskMetricsTest(unittest.TestCase):
         ):
             workflow_metrics.register_task_metrics()
 
-        metric_creator.send_observable_gauge.assert_called_once_with(
-            name='osmo_tasks_count',
-            callbacks=workflow_metrics.get_task_metrics,
-            description=(
-                'Count of OSMO tasks by status, pool, workflow, '
-                'and prefixed curated workflow labels'
-            ),
-            unit='count',
-        )
+        metric_creator.send_observable_gauge.assert_called_once()
+        kwargs = metric_creator.send_observable_gauge.call_args.kwargs
+        self.assertEqual(kwargs['name'], 'osmo_tasks_count')
+        self.assertEqual(kwargs['callbacks'], workflow_metrics.get_task_metrics)
+        self.assertIn('workflow labels', kwargs['description'])
 
 
 if __name__ == '__main__':

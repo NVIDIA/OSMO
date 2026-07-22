@@ -310,7 +310,17 @@ Existing and in-flight workflows are not modified, although their detail-page
 warnings always reflect the current warn policy. In ConfigMap mode, an invalid
 edit is rejected and the previous valid snapshot remains active.
 
-Admission emits
+Only configured policy keys become workflow-label dimensions on
+``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
+and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
+``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
+``PPP`` is exported as ``workflow_label_PPP``. Values in the configured
+allow-list are exported verbatim; a present value outside that list is clamped
+to ``<other>``, and a missing key is reported as ``<missing>``. An empty
+allow-list therefore exports every present value as ``<other>``. This keeps
+the number of series bounded to the allow-list plus two sentinels per key.
+
+Admission also emits
 ``osmo_label_validation_total{key, outcome}``, where ``outcome`` is ``ok``,
 ``missing``, ``invalid``, or ``rejected``. The counter covers rejected
 submissions that do not create a workflow row. Keep the policy list small to
