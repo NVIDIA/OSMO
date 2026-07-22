@@ -870,6 +870,7 @@ class TestListWorkflow(unittest.TestCase):
         self.assertEqual(len(args[0]), 20)
         self.assertTrue(kwargs['more_entries'])
 
+
 class TestListTask(unittest.TestCase):
     """Covers list_task (lines 666-690)."""
 

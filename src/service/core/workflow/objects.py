@@ -478,7 +478,7 @@ _LABEL_POLICY_MESSAGES = {
 
 
 class WorkflowLabelPolicyOutcome(NamedTuple):
-    """The evaluation of one non-off label policy against a labels map."""
+    """Outcome of evaluating one active (warn or enforce) label policy."""
     policy: connectors.LabelPolicy
     outcome: Literal['ok', 'missing', 'invalid']
     message: str  # empty when the outcome is 'ok'
@@ -518,8 +518,11 @@ def get_workflow_label_warnings(
     ]
 
 
-def _record_workflow_label_validation_metric(key: str, outcome: str) -> None:
-    """Record one bounded label-policy outcome without affecting admission."""
+def _record_workflow_label_validation_metric(
+        key: str,
+        outcome: Literal['ok', 'missing', 'invalid', 'rejected']) -> None:
+    """Record a label-policy outcome counter; metric failures are logged
+    and never block submission."""
     try:
         metrics.MetricCreator.get_meter_instance().send_counter(
             name='osmo_label_validation_total',
@@ -599,7 +602,7 @@ class WorkflowQueryResponse(pydantic.BaseModel):
 
         # Warnings are recomputed from the current policy for every status,
         # including COMPLETED, so users see current policy violations on any
-        # workflow page (design 3.3.3).
+        # workflow page.
         warnings = get_workflow_label_warnings(
             workflow_obj.labels,
             database.get_workflow_configs().labels_config.policy)
@@ -953,6 +956,8 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         self.name = workflow_section.get('name', '') if isinstance(workflow_section, dict) else ''
         self.name = self.name if self.name else f'failed-{self.base32_id}'
 
+        # Only rewrite labels when the request supplied any, so specs that
+        # never mention labels do not gain an injected empty map on dry runs.
         if isinstance(workflow_section, dict) and (
                 canonical_labels is not None
                 or 'labels' in workflow_section
@@ -1045,7 +1050,12 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
 
     def validate_workflow_label_policy(
             self, rendered_spec: workflow.WorkflowSpec) -> List[str]:
-        """Apply the current label policy and return user-visible warnings."""
+        """Apply the current label policy as the submission gate.
+
+        Records one metric per active policy, returns the warn-mode
+        messages, and raises OSMOUsageError on the first enforce-mode
+        violation.
+        """
         policies = self.context.database.get_workflow_configs().labels_config.policy
         warnings: List[str] = []
         rejection: WorkflowLabelPolicyOutcome | None = None

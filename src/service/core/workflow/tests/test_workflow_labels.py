@@ -64,6 +64,7 @@ def _rendered_spec(labels: dict[str, str]) -> workflow.WorkflowSpec:
 
 
 class TestWorkflowLabelOverrides(unittest.TestCase):
+    """Covers CLI/YAML/canonical label merging in construct_workflow_dict."""
 
     def test_cli_overrides_are_applied_after_render_and_last_value_wins(self):
         submit_info = _submit_info([])
@@ -206,6 +207,7 @@ workflow:
 
 
 class TestWorkflowLabelPolicy(unittest.TestCase):
+    """Covers the submission gate in validate_workflow_label_policy."""
 
     def test_omitted_policy_accepts_missing_and_unlisted_values(self):
         submit_info = _submit_info([])
@@ -469,6 +471,7 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
 
 
 class TestWorkflowLabelResponses(unittest.TestCase):
+    """Covers warnings on submit responses and the get-workflow detail path."""
 
     def test_submit_response_defaults_warnings_for_older_clients(self):
         response = objects.SubmitResponse(name='workflow-1', logs='ok')
