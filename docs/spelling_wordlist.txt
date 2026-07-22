@@ -37,7 +37,6 @@ Bitnami
 boto
 botocore
 Ceph
-chargeback
 checkpointing
 Checkpointing
 cli

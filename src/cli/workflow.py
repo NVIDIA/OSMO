@@ -1034,13 +1034,13 @@ def _workflow_table_generator(workflow: Any, table: texttable.Texttable | None =
         table.set_cols_dtype(['t' for _ in range(len(keys))])
     row = []
     for key in keys:
-        value = workflow.get(key_mapping[key], {} if key == 'Labels' else '-')
+        value = workflow.get(key_mapping[key], '-')
         if key == 'Submit Time':
             value = common.convert_utc_datetime_to_user_zone(value)
         elif key == 'Overview':
             value = f'{value}' if value else '-'
         elif key == 'Labels':
-            value = _format_labels(value)
+            value = _format_labels(workflow.get('labels'))
         row.append(value)
     table.add_row(row)
     return table

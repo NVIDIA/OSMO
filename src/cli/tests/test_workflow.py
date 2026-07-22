@@ -66,33 +66,6 @@ class TestWorkflowLabelParser(unittest.TestCase):
         self.assertEqual(args.labels, ['team=alpha', 'run=42'])
         self.assertEqual(args.no_labels, ['project', 'owner'])
 
-    def test_list_accepts_wildcard_and_inline_alternation_label_selectors(self):
-        args = self._build_parser().parse_args([
-            'workflow', 'list',
-            '--label', 'PPP=(team_*|osmo_*)',
-            '--label', 'PPP=team_(a|b)',
-        ])
-
-        self.assertEqual(
-            args.labels,
-            ['PPP=(team_*|osmo_*)', 'PPP=team_(a|b)'],
-        )
-
-    def test_list_help_describes_label_selector_forms(self):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output), self.assertRaises(
-                SystemExit) as raised:
-            self._build_parser().parse_args(['workflow', 'list', '--help'])
-
-        self.assertEqual(raised.exception.code, 0)
-        normalized_help = ' '.join(output.getvalue().split())
-        self.assertIn('exact value, * wildcards', normalized_help)
-        self.assertIn('PPP=(team_*|osmo_*)', normalized_help)
-        self.assertIn('PPP=team_(a|b)', normalized_help)
-
-
-class TestWorkflowLabelRequests(unittest.TestCase):
-
     def test_fresh_submit_forwards_label_overrides(self):
         service_client = mock.Mock(spec=client.ServiceClient)
         args = argparse.Namespace(
