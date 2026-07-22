@@ -166,7 +166,7 @@ version: 2
 workflow:
   name: workflow
   labels:
-    osmo.internal: forbidden
+    bad/key/nested: value
 '''
 
         with mock.patch.object(
