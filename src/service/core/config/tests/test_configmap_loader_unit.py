@@ -446,16 +446,12 @@ class TestValidateConfigs(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_rejects_invalid_nested_workflow_labels_config(self):
-        cases = (
-            ([{'key': 'osmo.workflow_uuid'}], 'labels_config'),
-            ([{'key': 'PPP', 'enforcement': 'block'}], 'labels_config'),
-            ([{'key': 'PPP', 'required': False}], 'labels_config'),
-            (
-                [{'key': f'key-{index}'} for index in range(17)],
-                'at most 16 label policies',
-            ),
-        )
-        for policy, expected_error in cases:
+        # Model-level rules are pinned in test_workflow_config.py; this only
+        # proves nested labels_config errors surface through the loader.
+        for policy in (
+            [{'key': 'osmo.workflow_uuid'}],
+            [{'key': 'PPP', 'required': False}],
+        ):
             with self.subTest(policy=policy):
                 errors = configmap_loader._validate_configs({
                     'workflow': {
@@ -464,7 +460,7 @@ class TestValidateConfigs(unittest.TestCase):
                 })
 
                 self.assertEqual(len(errors), 1)
-                self.assertIn(expected_error, errors[0])
+                self.assertIn('labels_config', errors[0])
 
 
 class TestValidationErrorFormatting(unittest.TestCase):

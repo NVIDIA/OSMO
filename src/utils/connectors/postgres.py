@@ -2936,7 +2936,7 @@ class LabelEnforcement(str, enum.Enum):
 class LabelPolicy(ExtraArgBaseModel):
     """Configuration for one admin-designated workflow label key."""
     key: str
-    allow_list: List[str] = pydantic.Field(default_factory=list)
+    allow_list: List[str] = []
     enforcement: LabelEnforcement = LabelEnforcement.OFF
 
     @pydantic.field_validator('key')
@@ -2952,11 +2952,13 @@ class LabelPolicy(ExtraArgBaseModel):
 
 class LabelsConfig(ExtraArgBaseModel):
     """Curated workflow label policy; empty by default so deployments remain inert."""
-    policy: List[LabelPolicy] = pydantic.Field(default_factory=list)
+    policy: List[LabelPolicy] = []
 
     @pydantic.field_validator('policy')
     @classmethod
     def validate_unique_keys(cls, policy: List[LabelPolicy]) -> List[LabelPolicy]:
+        # Deliberately reuses the per-workflow label cap: curating more keys
+        # than one workflow can carry would make the policy unsatisfiable.
         if len(policy) > validation.MAX_WORKFLOW_LABELS:
             raise ValueError(
                 f'Configure at most {validation.MAX_WORKFLOW_LABELS} label policies.')
@@ -2987,7 +2989,7 @@ class WorkflowConfig(DynamicConfig):
 
     plugins_config: PluginsConfig = PluginsConfig()
 
-    labels_config: LabelsConfig = pydantic.Field(default_factory=LabelsConfig)
+    labels_config: LabelsConfig = LabelsConfig()
 
     max_num_tasks: int = 20
     max_num_ports_per_task: int = 30  # Isaac Sim Streaming Client needs 27 ports

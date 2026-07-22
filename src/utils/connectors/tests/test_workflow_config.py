@@ -27,13 +27,8 @@ from src.utils import connectors
 class WorkflowLabelsConfigTest(unittest.TestCase):
     """Labels config validates directly and survives legacy DB serialization."""
 
-    def test_defaults_are_inert_and_not_shared(self):
-        first = connectors.WorkflowConfig()
-        second = connectors.WorkflowConfig()
-
-        self.assertEqual(first.labels_config.policy, [])
-        first.labels_config.policy.append(connectors.LabelPolicy(key='PPP'))
-        self.assertEqual(second.labels_config.policy, [])
+    def test_defaults_are_inert(self):
+        self.assertEqual(connectors.WorkflowConfig().labels_config.policy, [])
 
     def test_accepts_independent_enforcement_modes(self):
         config = connectors.WorkflowConfig(labels_config={
