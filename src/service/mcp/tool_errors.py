@@ -27,7 +27,6 @@ GENERIC_TOOL_ERROR = 'MCP tool failed.'
 MAX_PUBLIC_TOOL_ERROR_BYTES = 4096
 
 _MAX_TOOL_ERROR_CHARS = 2048
-_MAX_UPSTREAM_MESSAGE_CHARS = 1024
 _MAX_VALIDATION_ERRORS = 3
 _SAFE_IDENTIFIER = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}')
 _URL_USERINFO = re.compile(
@@ -154,12 +153,6 @@ def _actionable_upstream_detail(
             return validation_detail
 
     fields: list[str] = []
-    raw_message = payload.get('message')
-    if isinstance(raw_message, str):
-        safe_message = safe_error_text(raw_message)
-        safe_message = safe_message[:_MAX_UPSTREAM_MESSAGE_CHARS]
-        if safe_message:
-            fields.append(safe_message)
     for name in ('error_code', 'workflow_id'):
         raw_value = payload.get(name)
         if (
@@ -171,24 +164,19 @@ def _actionable_upstream_detail(
 
 
 def _fastapi_validation_detail(value: object) -> str | None:
-    """Project FastAPI validation errors to locations and messages only."""
+    """Project FastAPI validation errors to field locations only."""
     if not isinstance(value, list):
         return None
-    errors: list[str] = []
+    locations: list[str] = []
     for item in value[:_MAX_VALIDATION_ERRORS]:
         if not isinstance(item, dict):
             continue
         location = _validation_location(item.get('loc'))
-        raw_message = item.get('msg')
-        if location is None or not isinstance(raw_message, str):
-            continue
-        message = safe_error_text(raw_message)
-        message = message[:_MAX_UPSTREAM_MESSAGE_CHARS]
-        if message:
-            errors.append(f'{location} - {message}')
-    if not errors:
+        if location is not None:
+            locations.append(location)
+    if not locations:
         return None
-    return 'Validation failed at ' + '; '.join(errors)
+    return 'Validation failed at ' + '; '.join(locations)
 
 
 def _validation_location(value: object) -> str | None:

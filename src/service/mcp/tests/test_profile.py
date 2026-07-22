@@ -394,7 +394,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn('upstream-profile-body-secret', result_text)
                 self.assertNotIn(_BEARER_SECRET, result_text)
 
-    async def test_get_profile_preserves_scrubbed_actionable_error(self) -> None:
+    async def test_get_profile_preserves_safe_structured_error_metadata(self) -> None:
         captured_requests: list[httpx.Request] = []
         upstream_secret = 'profile-error-secret'
 
@@ -415,9 +415,8 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result['isError'])
         result_text = json.dumps(result)
         self.assertIn('HTTP 400', result_text)
-        self.assertIn('Invalid profile update', result_text)
-        self.assertIn('password=[REDACTED]', result_text)
         self.assertIn('error_code=INVALID_PROFILE', result_text)
+        self.assertNotIn('Invalid profile update', result_text)
         self.assertNotIn(upstream_secret, result_text)
         self.assertNotIn(_BEARER_SECRET, result_text)
 

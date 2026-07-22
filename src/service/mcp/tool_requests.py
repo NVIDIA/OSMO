@@ -232,6 +232,8 @@ async def _request(
         raise tool_errors.PublicToolError(tool_errors.upstream_error(
             operation,
             response.status_code,
+            # The bounded body stays internal to the strict projector. Only
+            # allowlisted structural metadata can reach the MCP client.
             body=response.body,
             body_truncated=response.body_truncated,
             suppress_upstream_details=suppress_upstream_details,

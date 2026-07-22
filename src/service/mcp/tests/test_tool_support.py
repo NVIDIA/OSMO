@@ -79,13 +79,11 @@ class ToolSupportTest(unittest.TestCase):
             body=body,
         )
 
-        self.assertIn('Invalid request', message)
-        self.assertIn('password=[REDACTED]', message)
-        self.assertIn('https://[REDACTED]@example.test', message)
-        self.assertIn('X-Amz-Signature=[REDACTED]', message)
         self.assertIn('error_code=OSMO_USAGE_ERROR', message)
         self.assertIn('workflow_id=job-42', message)
+        self.assertNotIn('Invalid request', message)
         self.assertNotIn('correct horse battery staple', message)
+        self.assertNotIn('user:pass', message)
         self.assertNotIn('signature-secret', message)
         self.assertNotIn('arbitrary-secret', message)
 
@@ -114,21 +112,26 @@ class ToolSupportTest(unittest.TestCase):
                 for secret in secrets:
                     self.assertNotIn(secret, safe_value)
 
-    def test_actionable_message_is_scrubbed_before_truncation(self) -> None:
-        secret = 's' * 1200
-        body = json.dumps({
-            'message': f'password="{secret}" correctable-field',
-        }).encode('utf-8')
+    def test_arbitrary_upstream_messages_are_never_forwarded(self) -> None:
+        opaque_secret = 'sk-live-opaque-value-without-a-sensitive-label'
+        for status_code, body in (
+            (400, json.dumps({'message': opaque_secret}).encode('utf-8')),
+            (409, json.dumps({'message': opaque_secret}).encode('utf-8')),
+            (422, json.dumps({'detail': [{
+                'loc': ['query', 'name'],
+                'msg': opaque_secret,
+            }]}).encode('utf-8')),
+        ):
+            with self.subTest(status_code=status_code):
+                message = tool_errors.upstream_error(  # pylint: disable=protected-access
+                    'submit a request',
+                    status_code,
+                    body=body,
+                )
 
-        message = tool_errors.upstream_error(  # pylint: disable=protected-access
-            'submit a request',
-            400,
-            body=body,
-        )
-
-        self.assertIn('password=[REDACTED]', message)
-        self.assertIn('correctable-field', message)
-        self.assertNotIn(secret, message)
+                self.assertNotIn(opaque_secret, message)
+                if status_code == 422:
+                    self.assertIn('Validation failed at query.name', message)
 
     def test_fastapi_validation_errors_drop_input_context_and_unknown_fields(
         self,
@@ -148,7 +151,7 @@ class ToolSupportTest(unittest.TestCase):
         )
 
         self.assertIn(
-            'Validation failed at body.credential - token=[REDACTED]',
+            'Validation failed at body.credential',
             message,
         )
         for secret in (
