@@ -615,7 +615,12 @@ def list_workflow(users: List[str] | None = fastapi.Query(default = None),
                           '(a|b) alternatives, for example key=(team_*|osmo_*) or '
                           'key=team_(a|b). Repeat for AND semantics.')),
                   missing_label_filters: List[str] | None = fastapi.Query(
-                      default=None, alias='no_label'),
+                      default=None,
+                      alias='no_label',
+                      description=(
+                          'Label key that must be absent from the workflow; '
+                          'workflows without any labels match. Repeat for AND '
+                          'semantics.')),
                   user_header: Optional[str] =
                       fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)) \
                   -> objects.ListResponse:

@@ -5175,8 +5175,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Label key that must be absent from the workflow; workflows without any labels match. Repeat for AND semantics.",
               "title": "No Label"
             },
+            "description": "Label key that must be absent from the workflow; workflows without any labels match. Repeat for AND semantics.",
             "explode": true
           },
           {

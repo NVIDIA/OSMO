@@ -2056,6 +2056,9 @@ priority?: WorkflowPriority[] | null;
  * Workflow label selector: key=value with optional * wildcards and (a|b) alternatives, for example key=(team_*|osmo_*) or key=team_(a|b). Repeat for AND semantics.
  */
 label?: string[] | null;
+/**
+ * Label key that must be absent from the workflow; workflows without any labels match. Repeat for AND semantics.
+ */
 no_label?: string[] | null;
 };
 

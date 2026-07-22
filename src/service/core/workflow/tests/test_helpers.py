@@ -808,8 +808,7 @@ class TestGetWorkflows(unittest.TestCase):
         self._run(database, label_filters=['PPP=robotics_*'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        expression = (
-            "workflows.labels ->> %s LIKE %s ESCAPE '#'")
+        expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
         self.assertEqual(cmd.count(expression), 1)
         self.assertIn('robotics#_%', params)
         self.assertIn('PPP', params)
@@ -822,8 +821,7 @@ class TestGetWorkflows(unittest.TestCase):
         self._run(database, label_filters=['PPP=(team_a|team_b)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        expression = (
-            "workflows.labels @> jsonb_build_object(%s, %s)")
+        expression = 'workflows.labels @> jsonb_build_object(%s, %s)'
         self.assertEqual(cmd.count(expression), 2)
         self.assertIn(' OR ', cmd)
         self.assertIn('team_a', params)
@@ -839,8 +837,7 @@ class TestGetWorkflows(unittest.TestCase):
         self._run(database, label_filters=['PPP=(team_*|osmo_*)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        expression = (
-            "workflows.labels ->> %s LIKE %s ESCAPE '#'")
+        expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
         self.assertEqual(cmd.count(expression), 2)
         self.assertIn('team#_%', params)
         self.assertIn('osmo#_%', params)
@@ -855,10 +852,8 @@ class TestGetWorkflows(unittest.TestCase):
         self._run(database, label_filters=['PPP=team_(a|b*)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
-        exact_expression = (
-            "workflows.labels @> jsonb_build_object(%s, %s)")
-        like_expression = (
-            "workflows.labels ->> %s LIKE %s ESCAPE '#'")
+        exact_expression = 'workflows.labels @> jsonb_build_object(%s, %s)'
+        like_expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
         self.assertEqual(cmd.count(exact_expression), 1)
         self.assertEqual(cmd.count(like_expression), 1)
         self.assertIn('team_a', params)

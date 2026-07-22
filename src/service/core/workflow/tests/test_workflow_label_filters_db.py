@@ -31,7 +31,11 @@ class WorkflowLabelFiltersFixture(
         fixtures.PostgresFixture,
         fixtures.PostgresTestIsolationFixture,
         fixtures.OsmoTestFixture):
-    """PostgreSQL-backed fixture for label list filters (see TaskDbFixture)."""
+    """PostgreSQL-backed fixture for label list filters.
+
+    Mirrors TaskDbFixture in src/utils/job/tests/test_task_db.py; BUILD
+    layering prevents sharing the class across the two test trees.
+    """
 
     @classmethod
     def setUpClass(cls):

@@ -36,7 +36,11 @@ _WORKFLOW_LABEL_GLOB_ESCAPE = '#'
 
 
 def _workflow_label_glob_to_sql_like_pattern(glob_pattern: str) -> str:
-    """Translate a validated label glob to a parameterized SQL LIKE pattern."""
+    """Translate a validated label glob to a SQL LIKE pattern.
+
+    Callers bind the result as a parameter and attach an ESCAPE clause
+    using _WORKFLOW_LABEL_GLOB_ESCAPE.
+    """
     return (glob_pattern
             .replace(_WORKFLOW_LABEL_GLOB_ESCAPE, _WORKFLOW_LABEL_GLOB_ESCAPE * 2)
             .replace('%', f'{_WORKFLOW_LABEL_GLOB_ESCAPE}%')
@@ -110,11 +114,11 @@ def get_workflows(users: List[str] | None = None,
     fetch_input: List = []
     commands: List = []
     try:
-        parsed_label_filters = [
+        label_selectors = [
             validation.parse_workflow_label_selector(label_filter)
             for label_filter in label_filters or []
         ]
-        validated_missing_label_filters = [
+        missing_label_keys = [
             validation.validate_workflow_label_key(label_key)
             for label_key in missing_label_filters or []
         ]
@@ -160,9 +164,9 @@ def get_workflows(users: List[str] | None = None,
     if priority:
         commands.append('priority IN %s')
         fetch_input.append(tuple(p.value for p in priority))
-    for label_selector in parsed_label_filters:
+    for label_selector in label_selectors:
         _append_workflow_label_selector(label_selector, commands, fetch_input)
-    for label_key in validated_missing_label_filters:
+    for label_key in missing_label_keys:
         commands.append(
             '(workflows.labels IS NULL OR NOT (workflows.labels ? %s))')
         fetch_input.append(label_key)
