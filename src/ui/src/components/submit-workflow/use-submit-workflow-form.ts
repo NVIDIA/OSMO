@@ -24,6 +24,8 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+
+const NO_WARNINGS: string[] = [];
 import { toast } from "sonner";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useServices } from "@/contexts/service-context";
@@ -117,10 +119,7 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
   const isValidationFresh = validationState !== null && validationState.spec === spec;
   const validationOk = isValidationFresh ? (validationState.ok ? true : null) : null;
   const validationError = isValidationFresh ? validationState.error : null;
-  const validationWarnings = useMemo(
-    () => (isValidationFresh ? validationState.warnings : []),
-    [isValidationFresh, validationState],
-  );
+  const validationWarnings = isValidationFresh ? validationState.warnings : NO_WARNINGS;
 
   // ── Mutation hooks ────────────────────────────────────────────────────────
 

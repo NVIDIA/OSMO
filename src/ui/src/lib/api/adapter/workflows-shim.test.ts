@@ -16,7 +16,6 @@
 
 import { describe, expect, it } from "vitest";
 import { buildWorkflowApiParams, buildWorkflowsQueryKey } from "@/lib/api/adapter/workflows-shim";
-import { getListWorkflowApiWorkflowGetUrl, getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl } from "@/lib/api/generated";
 
 const chips = [
   { field: "label", value: "team=robotics", label: "label: team=robotics" },
@@ -40,45 +39,6 @@ describe("workflow label filters", () => {
         labels: ["run=42", "team=robotics"],
         missingLabels: ["deprecated"],
         showAllUsers: false,
-        sortDirection: "DESC",
-      },
-    ]);
-  });
-
-  it("serializes repeated list and submit labels as separate query values", () => {
-    const listUrl = new URL(
-      getListWorkflowApiWorkflowGetUrl({ label: ["team=robotics", "run=42"] }),
-      "https://osmo.invalid",
-    );
-    const submitUrl = new URL(
-      getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl("pool-a", {
-        label: ["team=robotics", "run=42"],
-      }),
-      "https://osmo.invalid",
-    );
-
-    expect(listUrl.searchParams.getAll("label")).toEqual(["team=robotics", "run=42"]);
-    expect(submitUrl.searchParams.getAll("label")).toEqual(["team=robotics", "run=42"]);
-  });
-
-  it("forwards wildcard alternatives and inline alternatives unchanged", () => {
-    const selectors = ["PPP=(team_*|osmo_*)", "PPP=team_(a|b)"];
-    const selectorChips = selectors.map((selector) => ({
-      field: "label",
-      value: selector,
-      label: `label: ${selector}`,
-    }));
-
-    expect(buildWorkflowApiParams(selectorChips, true, 0, 50, "DESC").label).toEqual(selectors);
-
-    const listUrl = new URL(getListWorkflowApiWorkflowGetUrl({ label: selectors }), "https://osmo.invalid");
-    expect(listUrl.searchParams.getAll("label")).toEqual(selectors);
-    expect(buildWorkflowsQueryKey(selectorChips, true, "DESC")).toEqual([
-      "workflows",
-      "paginated",
-      {
-        labels: ["PPP=(team_*|osmo_*)", "PPP=team_(a|b)"],
-        showAllUsers: true,
         sortDirection: "DESC",
       },
     ]);

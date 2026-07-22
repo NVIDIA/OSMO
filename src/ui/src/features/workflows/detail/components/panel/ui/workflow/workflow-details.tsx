@@ -218,6 +218,7 @@ const WorkflowWarnings = memo(function WorkflowWarnings({ warnings }: { warnings
 
 /** Details section */
 const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryResponse }) {
+  const labelEntries = sortedWorkflowLabelEntries(workflow.labels);
   return (
     <section>
       <h3 className={STYLES.sectionHeader}>Details</h3>
@@ -277,14 +278,14 @@ const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryRes
               </div>
             </div>
           )}
-          {sortedWorkflowLabelEntries(workflow.labels).length > 0 && (
+          {labelEntries.length > 0 && (
             <div className="p-3">
               <div className={STYLES.subHeader}>
                 <Tag className="size-3" />
                 Labels
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {sortedWorkflowLabelEntries(workflow.labels).map(([key, value]) => (
+                {labelEntries.map(([key, value]) => (
                   <Link
                     key={key}
                     href={`/workflows?f=label:${encodeURIComponent(`${key}=${value}`)}&all=true`}

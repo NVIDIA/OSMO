@@ -275,7 +275,7 @@ export interface ResubmitParams {
   /** Target pool for execution */
   poolName: string;
   /** Execution priority */
-  priority: string;
+  priority: SubmitWorkflowApiPoolPoolNameWorkflowPostParams["priority"];
   /**
    * Optional custom spec (if user edited and changed it)
    * - undefined: Backend fetches original spec via workflow_id (efficient)
@@ -312,7 +312,7 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
   // The generated URL builder explodes repeated `label` params and skips
   // undefined values.
   const queryParams: SubmitWorkflowApiPoolPoolNameWorkflowPostParams = {
-    priority: priority as SubmitWorkflowApiPoolPoolNameWorkflowPostParams["priority"],
+    priority,
     label: labels.length > 0 ? labels : undefined,
     workflow_id: spec ? undefined : workflowId,
   };
