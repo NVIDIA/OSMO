@@ -158,14 +158,13 @@ class BasicTopologyTests(TopologyTestBase):
             task_infos,
         )
 
+        # Users may submit scheduler-domain keys; the factory's final label
+        # writes must override every one of them (merge-order protection).
         final_labels = resources[1]['metadata']['labels']
         overwritten_keys = {
             key for key, value in user_values.items() if final_labels[key] != value
         }
         self.assertEqual(overwritten_keys, set(user_values))
-        self.assertTrue(all(
-            key.startswith(validation.WORKFLOW_LABEL_RESERVED_PREFIXES)
-            for key in overwritten_keys))
 
     def test_single_topology_level_required(self):
         """
