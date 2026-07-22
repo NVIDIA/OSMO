@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ class WorkflowLabelSelector:
     """A validated workflow label selector.
 
     Each value is either a literal (exact match) or an anchored glob pattern
-    containing ``*`` wildcards; a workflow matches when any value matches.
+    containing '*' wildcards; a workflow matches when any value matches.
     """
 
     key: str
@@ -56,7 +56,7 @@ def validate_workflow_label_key(key: str) -> str:
     """Validate a workflow label key against Kubernetes qualified-name syntax.
 
     Any syntactically valid key is accepted. System-owned pod labels (the
-    ``osmo.`` selectors and scheduler queue labels) are protected by merge
+    'osmo.' selectors and scheduler queue labels) are protected by merge
     order at stamping time, not by a deny-list here.
     """
     if not isinstance(key, str):
@@ -82,12 +82,12 @@ def validate_workflow_label_key(key: str) -> str:
 
 
 def validate_workflow_label_value(value: str) -> str:
-    """Validate a non-empty workflow label value against Kubernetes syntax."""
+    """Validate a workflow label value against Kubernetes label-value syntax."""
     if not isinstance(value, str):
         raise ValueError('Workflow label values must be strings.')
     if not _LABEL_NAME_PATTERN.fullmatch(value):
         raise ValueError(
-            f'Workflow label value "{value}" must be a non-empty valid Kubernetes label value.')
+            f'Workflow label value "{value}" is not a valid non-empty Kubernetes label value.')
     return value
 
 
@@ -113,8 +113,14 @@ def parse_workflow_label_assignment(assignment: str) -> tuple[str, str]:
     return validate_workflow_label_key(key), validate_workflow_label_value(value)
 
 
-def _expand_workflow_label_selector_pattern(value: str) -> tuple[str, ...]:
-    """Expand non-nested alternation groups into complete glob patterns."""
+def _expand_workflow_label_selector_value(value: str) -> tuple[str, ...]:
+    """Expand a selector value's alternation groups into glob patterns.
+
+    Expansion is eager: the full cross product is materialized, capped at
+    MAX_WORKFLOW_LABEL_SELECTOR_PATTERNS before wildcard-run collapsing and
+    deduplication, and every expanded pattern must satisfy label-value
+    syntax.
+    """
     segments: list[tuple[str, ...]] = []
     literal_characters: list[str] = []
     position = 0
@@ -166,6 +172,8 @@ def _expand_workflow_label_selector_pattern(value: str) -> tuple[str, ...]:
         _WILDCARD_RUN_PATTERN.sub('*', ''.join(parts))
         for parts in itertools.product(*segments))
     for normalized_pattern in normalized_patterns:
+        # Wildcards are not valid label characters; validate syntax and
+        # length with a stand-in character per wildcard.
         validate_workflow_label_value(normalized_pattern.replace('*', 'a'))
     return tuple(normalized_patterns)
 
@@ -178,7 +186,7 @@ def parse_workflow_label_selector(selector: str) -> WorkflowLabelSelector:
     key, value = selector.split('=', 1)
     return WorkflowLabelSelector(
         key=validate_workflow_label_key(key),
-        values=_expand_workflow_label_selector_pattern(value),
+        values=_expand_workflow_label_selector_value(value),
     )
 
 

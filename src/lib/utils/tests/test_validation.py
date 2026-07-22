@@ -232,7 +232,7 @@ class TestSanitizedPath(unittest.TestCase):
 
 
 class TestWorkflowLabelValidation(unittest.TestCase):
-    """Tests for workflow label syntax shared by specs, config, and CLI."""
+    """Tests for the workflow label validation helpers."""
 
     def test_accepts_kubernetes_label_key_and_nonempty_value(self):
         self.assertEqual(validation.validate_workflow_label_key('PPP'), 'PPP')
@@ -274,7 +274,7 @@ class TestWorkflowLabelValidation(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'at most 16'):
             validation.validate_workflow_labels(labels)
 
-    def test_rejects_nested_label_values(self):
+    def test_rejects_non_string_label_values(self):
         labels = cast(
             dict[str, str],
             {'PPP': {'team': 'robotics'}},
@@ -296,7 +296,7 @@ class TestWorkflowLabelValidation(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'key=value'):
             validation.parse_workflow_label_assignment('experiment')
 
-    def test_assignment_validation_remains_strict_for_selector_syntax(self):
+    def test_parse_assignment_rejects_selector_syntax(self):
         for assignment in (
             'PPP=*',
             'PPP=robotics_*',
@@ -315,7 +315,7 @@ class TestWorkflowLabelValidation(unittest.TestCase):
             ),
         )
 
-    def test_parse_glob_label_selector(self):
+    def test_parse_glob_selector_collapses_wildcard_runs(self):
         self.assertEqual(
             validation.parse_workflow_label_selector('PPP=robotics_**'),
             validation.WorkflowLabelSelector(
