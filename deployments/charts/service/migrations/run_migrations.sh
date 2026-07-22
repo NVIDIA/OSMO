@@ -73,52 +73,62 @@ run_psql() {
     PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "$1" 2>&1
 }
 
+# Runs a query and prints its result. On failure prints an ERROR line to
+# stderr and returns nonzero so assignments can abort with `|| exit 1`.
+query() {
+    local description="$1" sql="$2" output
+    if ! output=$(run_psql "$sql"); then
+        echo "ERROR: ${description}: $(echo "$output" | head -1)" >&2
+        return 1
+    fi
+    printf '%s\n' "$output"
+}
+
 create_baseline() {
     local baseline_name="$1"
-    local baseline_directory output
+    local baseline_directory output status
 
     if ! baseline_directory=$(mktemp -d "${TMPDIR:-/tmp}/osmo-pgroll-baseline.XXXXXX"); then
         echo "ERROR: Failed to create a temporary baseline directory."
         return 1
     fi
-    if output=$(pgroll baseline "$baseline_name" "$baseline_directory" --yes --json --postgres-url "$PGROLL_URL" 2>&1); then
-        rm -rf "$baseline_directory"
-        return 0
-    fi
-
+    output=$(pgroll baseline "$baseline_name" "$baseline_directory" --yes --json --postgres-url "$PGROLL_URL" 2>&1)
+    status=$?
     rm -rf "$baseline_directory"
-    echo "ERROR: Failed to create pgroll baseline $baseline_name: $(echo "$output" | head -1)"
-    return 1
+    if [ "$status" -ne 0 ]; then
+        echo "ERROR: Failed to create pgroll baseline $baseline_name: $(echo "$output" | head -1)"
+        return 1
+    fi
+}
+
+# Known migration boundaries in apply order. Baselines and migrations share
+# one table; an unknown name has no rank and never covers anything.
+migration_rank() {
+    case "$1" in
+        000_baseline) echo 0 ;;
+        "$V6_0_DATA_MIGRATION") echo 1 ;;
+        "$V6_0_SCHEMA_MIGRATION") echo 2 ;;
+        "$V6_2_SCHEMA_MIGRATION") echo 3 ;;
+        "$V6_2_DATA_MIGRATION") echo 4 ;;
+        "$V6_3_SCHEMA_MIGRATION") echo 5 ;;
+        *) return 1 ;;
+    esac
 }
 
 baseline_covers_migration() {
-    local migration_name="$1"
     local baseline_rank migration_rank
-
-    case "$BASELINE_MIGRATION" in
-        000_baseline) baseline_rank=0 ;;
-        "$V6_0_DATA_MIGRATION") baseline_rank=1 ;;
-        "$V6_0_SCHEMA_MIGRATION") baseline_rank=2 ;;
-        "$V6_2_SCHEMA_MIGRATION") baseline_rank=3 ;;
-        "$V6_2_DATA_MIGRATION") baseline_rank=4 ;;
-        "$V6_3_SCHEMA_MIGRATION") baseline_rank=5 ;;
-        *)
-            return 1
-            ;;
-    esac
-
-    # Schema fingerprints never infer data migrations. Only an exact completed
-    # history row or an explicit trusted baseline can cover migrations 001/004.
-    case "$migration_name" in
-        "$V6_0_DATA_MIGRATION") migration_rank=1 ;;
-        "$V6_0_SCHEMA_MIGRATION") migration_rank=2 ;;
-        "$V6_2_SCHEMA_MIGRATION") migration_rank=3 ;;
-        "$V6_2_DATA_MIGRATION") migration_rank=4 ;;
-        "$V6_3_SCHEMA_MIGRATION") migration_rank=5 ;;
-        *) return 1 ;;
-    esac
-
+    baseline_rank=$(migration_rank "$BASELINE_MIGRATION") || return 1
+    migration_rank=$(migration_rank "$1") || return 1
     (( baseline_rank >= migration_rank ))
+}
+
+# Whether pgroll history promises a migration's schema: an exact completed
+# row, or a trusted baseline at or past the migration's boundary.
+migration_covered() {
+    local migration_name="$1" recorded
+    recorded=$(query "Failed to check migration history for ${migration_name}" \
+        "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public' AND name = '${migration_name}' AND done = true);") || exit 1
+    [ "$recorded" = "t" ] || baseline_covers_migration "$migration_name"
 }
 
 echo "pgroll migration runner"
@@ -136,22 +146,18 @@ fi
 # --- Step 2: Read migration history ---
 echo ""
 echo "Step 2: Checking migration history..."
-if ! STATUS=$(pgroll status --postgres-url "$PGROLL_URL" 2>&1); then
-    echo "ERROR: Failed to read pgroll status: $(echo "$STATUS" | head -1)"
-    exit 1
-fi
+HISTORY_EXISTS=$(query "Failed to read pgroll migration history" \
+    "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public');") || exit 1
 NO_MIGRATION_HISTORY=false
-if echo "$STATUS" | grep -q '"status": "No migrations"'; then
+if [ "$HISTORY_EXISTS" != "t" ]; then
     NO_MIGRATION_HISTORY=true
 fi
 
 # --- Step 3: Complete any in-progress migration ---
 echo ""
 echo "Step 3: Completing any in-progress migration..."
-if ! ACTIVE_MIGRATION=$(run_psql "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public' AND done = false);"); then
-    echo "ERROR: Failed to check for an active migration: $(echo "$ACTIVE_MIGRATION" | head -1)"
-    exit 1
-fi
+ACTIVE_MIGRATION=$(query "Failed to check for an active migration" \
+    "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public' AND done = false);") || exit 1
 if [ "$ACTIVE_MIGRATION" = "t" ]; then
     if OUTPUT=$(pgroll complete --postgres-url "$PGROLL_URL" 2>&1); then
         echo "  Completed"
@@ -166,11 +172,9 @@ fi
 # --- Step 4: Baseline schemas created before migration tracking ---
 echo ""
 echo "Step 4: Checking bootstrap state..."
-if ! BASELINE_MIGRATION=$(run_psql "SELECT COALESCE((SELECT name FROM pgroll.migrations WHERE schema = 'public' AND migration_type = 'baseline' ORDER BY created_at DESC LIMIT 1), '');"); then
-    echo "ERROR: Failed to read pgroll baseline: $(echo "$BASELINE_MIGRATION" | head -1)"
-    exit 1
-fi
-if ! V6_0_SCHEMA_CURRENT=$(run_psql "
+BASELINE_MIGRATION=$(query "Failed to read pgroll baseline" \
+    "SELECT COALESCE((SELECT name FROM pgroll.migrations WHERE schema = 'public' AND migration_type = 'baseline' ORDER BY created_at DESC LIMIT 1), '');") || exit 1
+V6_0_SCHEMA_CURRENT=$(query "Failed to inspect the existing OSMO v6.0 schema" "
     SELECT
         to_regclass('public.backends') IS NOT NULL
         AND to_regclass('public.pools') IS NOT NULL
@@ -187,15 +191,12 @@ if ! V6_0_SCHEMA_CURRENT=$(run_psql "
                   ('backends', 'cache_config'),
                   ('pools', 'enable_nccl_test')))
         AS v6_0_schema_current;
-"); then
-    echo "ERROR: Failed to inspect the existing OSMO v6.0 schema: $(echo "$V6_0_SCHEMA_CURRENT" | head -1)"
-    exit 1
-fi
+") || exit 1
 # Older deployments created the v6.2 schema through release SQL and application
 # initialization before pgroll tracked every structural migration. Verify the
 # application-compatible structure represented by migrations 002 and 003. The
 # data-bearing migrations 001 and 004 are covered only by history or execution.
-if ! V6_2_SCHEMA_CURRENT=$(run_psql "
+V6_2_SCHEMA_CURRENT=$(query "Failed to inspect the existing OSMO v6.2 schema" "
     WITH expected_columns(
         table_name,
         column_name,
@@ -382,11 +383,11 @@ if ! V6_2_SCHEMA_CURRENT=$(run_psql "
                        AND attribute_info.attnum = key_info.attribute_number
                       ORDER BY key_info.key_order) = expected_index.column_names))
         AS v6_2_schema_current;
-"); then
-    echo "ERROR: Failed to inspect the existing OSMO v6.2 schema: $(echo "$V6_2_SCHEMA_CURRENT" | head -1)"
-    exit 1
-fi
-if ! RELEASED_SCHEMA_CURRENT=$(run_psql "
+") || exit 1
+# Migration 005 formalizes the resources timestamp columns that prerelease
+# deployments already carry; no released code reads them yet (the operator
+# redesign will).
+RELEASED_SCHEMA_CURRENT=$(query "Failed to inspect the migration 005 schema" "
     SELECT COUNT(*) = 2
     FROM information_schema.columns
     WHERE table_schema = 'public'
@@ -395,33 +396,18 @@ if ! RELEASED_SCHEMA_CURRENT=$(run_psql "
       AND data_type = 'timestamp without time zone'
       AND is_nullable = 'YES'
       AND column_default IS NULL;
-"); then
-    echo "ERROR: Failed to inspect the released migration 005 schema: $(echo "$RELEASED_SCHEMA_CURRENT" | head -1)"
-    exit 1
-fi
+") || exit 1
 # A recorded or explicitly baselined migration boundary is a promise that its
-# schema exists. Fail closed instead of silently skipping a missing release
-# migration.
-if ! V6_3_SCHEMA_RECORDED=$(run_psql "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public' AND name = '${V6_3_SCHEMA_MIGRATION}' AND done = true);"); then
-    echo "ERROR: Failed to check migration history for ${V6_3_SCHEMA_MIGRATION}: $(echo "$V6_3_SCHEMA_RECORDED" | head -1)"
-    exit 1
-fi
-V6_3_SCHEMA_COVERED=false
-if [ "$V6_3_SCHEMA_RECORDED" = "t" ] \
-        || baseline_covers_migration "$V6_3_SCHEMA_MIGRATION"; then
-    V6_3_SCHEMA_COVERED=true
-fi
-if [ "$V6_3_SCHEMA_COVERED" = "true" ] && [ "$RELEASED_SCHEMA_CURRENT" != "t" ]; then
+# schema exists. Fail closed instead of silently skipping a missing migration.
+if migration_covered "$V6_3_SCHEMA_MIGRATION" && [ "$RELEASED_SCHEMA_CURRENT" != "t" ]; then
     echo "ERROR: Migration ${V6_3_SCHEMA_MIGRATION} is covered by pgroll history, but its resources columns are missing."
     echo "NEXT: Restore resources.last_updated and resources.last_usage_updated before rerunning migrations."
     exit 1
 fi
 
 if [ "$NO_MIGRATION_HISTORY" = "true" ]; then
-    if ! HAS_OSMO_SCHEMA=$(run_psql "SELECT to_regclass('public.workflows') IS NOT NULL;"); then
-        echo "ERROR: Failed to inspect the public schema: $(echo "$HAS_OSMO_SCHEMA" | head -1)"
-        exit 1
-    fi
+    HAS_OSMO_SCHEMA=$(query "Failed to inspect the public schema" \
+        "SELECT to_regclass('public.workflows') IS NOT NULL;") || exit 1
     if [ "$HAS_OSMO_SCHEMA" = "t" ]; then
         echo "  Existing OSMO schema has no history; creating initial baseline..."
         if ! create_baseline "000_baseline"; then
@@ -444,15 +430,13 @@ for migration_file in "$SCRIPT_DIR"/0*.json; do
         continue
     fi
 
-    if ! MIGRATION_APPLIED=$(run_psql "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public' AND name = '${migration_name}' AND done = true);"); then
-        echo "ERROR: Failed to check migration history: $(echo "$MIGRATION_APPLIED" | head -1)"
-        exit 1
-    fi
-    if [ "$MIGRATION_APPLIED" = "t" ]; then
+    if migration_covered "$migration_name"; then
         echo "    Already applied"
         continue
     fi
 
+    # Schema fingerprints cover only structural migrations; the data-bearing
+    # migrations 001/004 are covered only by history or execution.
     SCHEMA_MIGRATION_CURRENT=false
     case "$migration_name" in
         "$V6_0_SCHEMA_MIGRATION")
@@ -484,14 +468,10 @@ done
 if [ "$TARGET_SCHEMA" != "public" ]; then
     echo ""
     echo "Step 6: Refreshing versioned schema ${TARGET_SCHEMA}..."
-    if ! OUTPUT=$(run_psql "CREATE SCHEMA IF NOT EXISTS ${TARGET_SCHEMA};"); then
-        echo "ERROR: Failed to create versioned schema: $(echo "$OUTPUT" | head -1)"
-        exit 1
-    fi
-    if ! OUTPUT=$(run_psql "DO \$\$ DECLARE tbl RECORD; BEGIN FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP EXECUTE format('CREATE OR REPLACE VIEW ${TARGET_SCHEMA}.%I AS SELECT * FROM public.%I', tbl.tablename, tbl.tablename); END LOOP; END \$\$;"); then
-        echo "ERROR: Failed to refresh versioned-schema views: $(echo "$OUTPUT" | head -1)"
-        exit 1
-    fi
+    query "Failed to create versioned schema" \
+        "CREATE SCHEMA IF NOT EXISTS ${TARGET_SCHEMA};" >/dev/null || exit 1
+    query "Failed to refresh versioned-schema views" \
+        "DO \$\$ DECLARE tbl RECORD; BEGIN FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP EXECUTE format('CREATE OR REPLACE VIEW ${TARGET_SCHEMA}.%I AS SELECT * FROM public.%I', tbl.tablename, tbl.tablename); END LOOP; END \$\$;" >/dev/null || exit 1
     echo "  Refreshed"
 fi
 

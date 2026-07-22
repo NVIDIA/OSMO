@@ -44,40 +44,32 @@ class RunMigrationsTest(unittest.TestCase):
         self.binary_directory.mkdir()
         self.pgroll_log = temporary_path / 'pgroll.log'
         self.psql_log = temporary_path / 'psql.log'
-        self.status_count = temporary_path / 'status-count'
         self._write_executable('psql', r"""#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$MIGRATION_TEST_PSQL_LOG"
+flag() {
+    if [[ "$1" == 'true' ]]; then
+        printf 't\n'
+    else
+        printf 'f\n'
+    fi
+}
 if [[ "$*" == *"AS v6_2_schema_current"* ]]; then
-    if [[ "$MIGRATION_TEST_V6_2_SCHEMA" == 'true' ]]; then
-        printf 't\n'
-    else
-        printf 'f\n'
-    fi
+    flag "$MIGRATION_TEST_V6_2_SCHEMA"
 elif [[ "$*" == *"AS v6_0_schema_current"* ]]; then
-    if [[ "$MIGRATION_TEST_V6_0_SCHEMA" == 'true' ]]; then
-        printf 't\n'
-    else
-        printf 'f\n'
-    fi
+    flag "$MIGRATION_TEST_V6_0_SCHEMA"
 elif [[ "$*" == *"last_usage_updated"* ]]; then
-    if [[ "$MIGRATION_TEST_RELEASED_SCHEMA" == 'true' ]]; then
-        printf 't\n'
-    else
-        printf 'f\n'
-    fi
+    flag "$MIGRATION_TEST_RELEASED_SCHEMA"
 elif [[ "$*" == *"migration_type = 'baseline'"* ]]; then
     printf '%s\n' "$MIGRATION_TEST_BASELINE"
 elif [[ "$*" == *"to_regclass('public.workflows')"* ]]; then
-    if [[ "$MIGRATION_TEST_HAS_OSMO_SCHEMA" == 'true' ]]; then
-        printf 't\n'
-    else
-        printf 'f\n'
-    fi
+    flag "$MIGRATION_TEST_HAS_OSMO_SCHEMA"
 elif [[ "$*" == *"done = false"* ]]; then
-    if [[ "$MIGRATION_TEST_ACTIVE_MIGRATION" == 'true' ]]; then
-        printf 't\n'
-    else
+    flag "$MIGRATION_TEST_ACTIVE_MIGRATION"
+elif [[ "$*" == *"FROM pgroll.migrations WHERE schema = 'public')"* ]]; then
+    if [[ "$MIGRATION_TEST_NO_HISTORY" == 'true' ]]; then
         printf 'f\n'
+    else
+        printf 't\n'
     fi
 elif [[ "$*" == *"FROM pgroll.migrations"* ]]; then
     if [[ -n "$MIGRATION_TEST_BASELINE" \
@@ -107,27 +99,11 @@ case "$1" in
         exit 0
         ;;
     status)
-        status_count=0
-        if [[ -f "$MIGRATION_TEST_STATUS_COUNT" ]]; then
-            read -r status_count < "$MIGRATION_TEST_STATUS_COUNT"
-        fi
-        status_count=$((status_count + 1))
-        printf '%s\n' "$status_count" > "$MIGRATION_TEST_STATUS_COUNT"
-        if [[ "$MIGRATION_TEST_FAIL_COMMAND" == 'status_initial' \
-              && "$status_count" -eq 1 ]]; then
-            printf 'simulated initial status failure\n' >&2
+        if [[ "$MIGRATION_TEST_FAIL_COMMAND" == 'status' ]]; then
+            printf 'simulated status failure\n' >&2
             exit 42
         fi
-        if [[ "$MIGRATION_TEST_FAIL_COMMAND" == 'status_final' \
-              && "$status_count" -eq 2 ]]; then
-            printf 'simulated final status failure\n' >&2
-            exit 43
-        fi
-        if [[ "$MIGRATION_TEST_NO_HISTORY" == 'true' ]]; then
-            printf '{"status": "No migrations"}\n'
-        else
-            printf '{"status": "Complete"}\n'
-        fi
+        printf '{"status": "Complete"}\n'
         exit 0
         ;;
     baseline)
@@ -177,13 +153,12 @@ exit 48
         has_osmo_schema: bool = False,
         no_history: bool = False,
         released_schema: bool = False,
-        target_schema: str = 'public_v6_3_0',
+        target_schema: str = 'public',
         v6_0_schema: bool = False,
         v6_2_schema: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         self.pgroll_log.unlink(missing_ok=True)
         self.psql_log.unlink(missing_ok=True)
-        self.status_count.unlink(missing_ok=True)
 
         environment = os.environ.copy()
         existing_path = environment['PATH']
@@ -203,7 +178,6 @@ exit 48
             'MIGRATION_TEST_PSQL_LOG': str(self.psql_log),
             'MIGRATION_TEST_RELEASED_SCHEMA':
                 str(released_schema).lower(),
-            'MIGRATION_TEST_STATUS_COUNT': str(self.status_count),
             'MIGRATION_TEST_V6_0_SCHEMA': str(v6_0_schema).lower(),
             'MIGRATION_TEST_V6_2_SCHEMA': str(v6_2_schema).lower(),
             'OSMO_POSTGRES_PASSWORD': 'test-password',
@@ -229,7 +203,7 @@ exit 48
         ]
 
     def test_runs_all_migrations_and_refreshes_versioned_views(self) -> None:
-        result = self._run()
+        result = self._run(target_schema='public_v6_3_0')
 
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(list(MIGRATION_FILES), self._start_migrations())
@@ -239,14 +213,10 @@ exit 48
     def test_pgroll_status_and_init_failures_exit_nonzero(self) -> None:
         for failing_command, expected_message in (
             ('init', 'Failed to initialize pgroll'),
-            ('status_initial', 'Failed to read pgroll status'),
-            ('status_final', 'Failed to read final pgroll status'),
+            ('status', 'Failed to read final pgroll status'),
         ):
             with self.subTest(failing_command=failing_command):
-                result = self._run(
-                    failing_command=failing_command,
-                    target_schema='public',
-                )
+                result = self._run(failing_command=failing_command)
 
                 self.assertNotEqual(
                     0, result.returncode, result.stdout + result.stderr)
@@ -257,7 +227,6 @@ exit 48
         result = self._run(
             active_migration=True,
             failing_command='complete',
-            target_schema='public',
         )
 
         self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
@@ -271,7 +240,6 @@ exit 48
         result = self._run(
             active_migration=True,
             complete_succeeds=True,
-            target_schema='public',
         )
 
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -292,7 +260,6 @@ exit 48
             failing_command='baseline',
             has_osmo_schema=True,
             no_history=True,
-            target_schema='public',
         )
 
         self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
@@ -305,7 +272,6 @@ exit 48
     def test_pgroll_start_failure_exits_nonzero(self) -> None:
         result = self._run(
             failing_migration='005_v6_3_0_schema.json',
-            target_schema='public',
         )
 
         self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
@@ -316,7 +282,6 @@ exit 48
         result = self._run(
             has_osmo_schema=True,
             no_history=True,
-            target_schema='public',
             v6_0_schema=True,
             v6_2_schema=True,
         )
@@ -342,7 +307,6 @@ exit 48
                 for migration_file in MIGRATION_FILES
             ),
             released_schema=True,
-            target_schema='public',
             v6_0_schema=True,
             v6_2_schema=True,
         )
@@ -350,41 +314,34 @@ exit 48
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertFalse(self._start_migrations())
 
-    def test_recorded_005_requires_its_resources_columns(self) -> None:
-        result = self._run(
-            applied_migrations='005_v6_3_0_schema',
-            target_schema='public',
-            v6_0_schema=True,
-            v6_2_schema=True,
-        )
+    def test_covered_005_requires_its_resources_columns(self) -> None:
+        for applied_migrations, baseline_migration in (
+            ('005_v6_3_0_schema', ''),
+            ('', '005_v6_3_0_schema'),
+        ):
+            with self.subTest(applied=applied_migrations,
+                              baseline=baseline_migration):
+                result = self._run(
+                    applied_migrations=applied_migrations,
+                    baseline_migration=baseline_migration,
+                    v6_0_schema=True,
+                    v6_2_schema=True,
+                )
 
-        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertIn(
-            'covered by pgroll history', result.stdout + result.stderr)
-        self.assertIn(
-            'resources columns are missing', result.stdout + result.stderr)
-        self.assertFalse(self._start_migrations())
-
-    def test_005_baseline_requires_its_resources_columns(self) -> None:
-        result = self._run(
-            baseline_migration='005_v6_3_0_schema',
-            target_schema='public',
-            v6_0_schema=True,
-            v6_2_schema=True,
-        )
-
-        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertIn(
-            'covered by pgroll history', result.stdout + result.stderr)
-        self.assertIn(
-            'resources columns are missing', result.stdout + result.stderr)
-        self.assertFalse(self._start_migrations())
+                self.assertNotEqual(
+                    0, result.returncode, result.stdout + result.stderr)
+                self.assertIn(
+                    'covered by pgroll history', result.stdout + result.stderr)
+                self.assertIn(
+                    'resources columns are missing',
+                    result.stdout + result.stderr,
+                )
+                self.assertFalse(self._start_migrations())
 
     def test_valid_005_baseline_covers_released_migrations(self) -> None:
         result = self._run(
             baseline_migration='005_v6_3_0_schema',
             released_schema=True,
-            target_schema='public',
             v6_0_schema=True,
             v6_2_schema=True,
         )
@@ -395,7 +352,6 @@ exit 48
     def test_004_baseline_does_not_cover_005(self) -> None:
         result = self._run(
             baseline_migration='004_v6_2_0_data',
-            target_schema='public',
             v6_0_schema=True,
             v6_2_schema=True,
         )
@@ -411,7 +367,6 @@ exit 48
                 '004_v6_2_0_data',
             ]),
             baseline_migration='000_baseline',
-            target_schema='public',
             v6_0_schema=True,
             v6_2_schema=True,
         )
@@ -441,8 +396,7 @@ exit 48
                 result = self._run(
                     applied_migrations=applied_migrations,
                     baseline_migration='000_baseline',
-                    target_schema='public',
-                    v6_0_schema=True,
+                            v6_0_schema=True,
                     v6_2_schema=True,
                 )
 
@@ -454,7 +408,6 @@ exit 48
         result = self._run(
             applied_migrations='001_v6_0_0_data_prep',
             baseline_migration='000_baseline',
-            target_schema='public',
             v6_0_schema=True,
         )
 
@@ -476,7 +429,6 @@ exit 48
             ]),
             baseline_migration='000_baseline',
             failing_migration='002_v6_0_0_schema.json',
-            target_schema='public',
             v6_2_schema=True,
         )
 
@@ -495,7 +447,6 @@ exit 48
                 '004_v6_2_0_data',
             ]),
             baseline_migration='006_future_migration',
-            target_schema='public',
             v6_0_schema=True,
             v6_2_schema=True,
         )
