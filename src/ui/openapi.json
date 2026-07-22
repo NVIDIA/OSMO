@@ -8681,7 +8681,8 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Allow List"
+            "title": "Allow List",
+            "default": []
           },
           "enforcement": {
             "$ref": "#/components/schemas/LabelEnforcement",
@@ -8703,7 +8704,8 @@
               "$ref": "#/components/schemas/LabelPolicy"
             },
             "type": "array",
-            "title": "Policy"
+            "title": "Policy",
+            "default": []
           }
         },
         "additionalProperties": false,
@@ -8718,7 +8720,8 @@
               "$ref": "#/components/schemas/LabelPolicy"
             },
             "type": "array",
-            "title": "Policy"
+            "title": "Policy",
+            "default": []
           }
         },
         "additionalProperties": false,
@@ -13195,7 +13198,10 @@
             }
           },
           "labels_config": {
-            "$ref": "#/components/schemas/LabelsConfig-Input"
+            "$ref": "#/components/schemas/LabelsConfig-Input",
+            "default": {
+              "policy": []
+            }
           },
           "max_num_tasks": {
             "type": "integer",
@@ -13359,7 +13365,10 @@
             }
           },
           "labels_config": {
-            "$ref": "#/components/schemas/LabelsConfig-Output"
+            "$ref": "#/components/schemas/LabelsConfig-Output",
+            "default": {
+              "policy": []
+            }
           },
           "max_num_tasks": {
             "type": "integer",

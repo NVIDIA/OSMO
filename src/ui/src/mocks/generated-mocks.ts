@@ -8328,24 +8328,15 @@ export const getReadWorkflowConfigsApiConfigsWorkflowGetResponseMock = (
       client_upload_rate_limit: faker.number.int({ min: 0 }),
     },
   },
-  labels_config: faker.helpers.arrayElement([
-    {
-      policy: faker.helpers.arrayElement([
-        Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() => ({
-          key: faker.string.alpha({ length: { min: 10, max: 20 } }),
-          allow_list: faker.helpers.arrayElement([
-            Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() =>
-              faker.string.alpha({ length: { min: 10, max: 20 } }),
-            ),
-            undefined,
-          ]),
-          enforcement: faker.helpers.arrayElement(Object.values(LabelEnforcement)),
-        })),
-        undefined,
-      ]),
-    },
-    undefined,
-  ]),
+  labels_config: {
+    policy: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() => ({
+      key: faker.string.alpha({ length: { min: 10, max: 20 } }),
+      allow_list: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() =>
+        faker.string.alpha({ length: { min: 10, max: 20 } }),
+      ),
+      enforcement: faker.helpers.arrayElement(Object.values(LabelEnforcement)),
+    })),
+  },
   max_num_tasks: faker.number.int(),
   max_num_ports_per_task: faker.number.int(),
   max_retry_per_task: faker.number.int(),
