@@ -542,7 +542,9 @@ def get_recent_tasks(database: connectors.PostgresConnector,
         w.pool AS pool,
         w.submitted_by AS user,
         w.workflow_uuid AS workflow_uuid,
-        t.status AS status
+        t.status AS status,
+        w.labels AS labels,
+        COUNT(*) AS count
     FROM
         tasks t
     JOIN
@@ -551,7 +553,7 @@ def get_recent_tasks(database: connectors.PostgresConnector,
         (t.end_time is NULL
             AND w.status IN ('WAITING', 'PENDING', 'RUNNING'))
         OR t.end_time > %s
-    GROUP BY w.pool, w.submitted_by, t.status, w.workflow_uuid
+    GROUP BY w.pool, w.submitted_by, w.workflow_uuid, t.status, w.labels
     """
 
     return database.execute_fetch_command(query, (cutoff_time,), True)
