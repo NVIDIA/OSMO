@@ -473,6 +473,12 @@ services:
       max_exec_timeout: "30d"
       default_exec_timeout: "7d"
       ## Optional curated workflow-label policy. Empty by default.
+      ## Each entry curates one label key, for example:
+      ##   policy:
+      ##   - key: cost-center
+      ##     allow_list: [team-a, team-b]   # empty allows any well-formed value
+      ##     enforcement: warn              # "off" | warn | enforce
+      ## Quote "off" — unquoted YAML off parses as boolean false.
       ##
       labels_config:
         policy: []
