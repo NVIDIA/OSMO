@@ -19,10 +19,11 @@ SPDX-License-Identifier: Apache-2.0
 import argparse
 from collections.abc import Mapping
 import dataclasses
+import itertools
+import math
 import os
 import pathlib
 import re
-from typing import Dict
 
 from . import common, osmo_errors
 from ..data.storage import constants
@@ -35,6 +36,7 @@ WORKFLOW_LABEL_RESERVED_DNS_SUFFIXES = ('kubernetes.io', 'k8s.io')
 
 _LABEL_NAME_PATTERN = re.compile(
     r'^[A-Za-z0-9](?:[-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$')
+_WILDCARD_RUN_PATTERN = re.compile(r'\*+')
 _DNS_LABEL_PATTERN = r'[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?'
 _DNS_PREFIX_PATTERN = re.compile(
     rf'^(?=.{{1,253}}$){_DNS_LABEL_PATTERN}(?:\.{_DNS_LABEL_PATTERN})*$')
@@ -56,7 +58,7 @@ def validate_workflow_label_key(key: str) -> str:
     """Validate a workflow label key against Kubernetes qualified-name syntax."""
     if not isinstance(key, str):
         raise ValueError('Workflow label keys must be strings.')
-    if any(key.startswith(prefix) for prefix in WORKFLOW_LABEL_RESERVED_PREFIXES):
+    if key.startswith(WORKFLOW_LABEL_RESERVED_PREFIXES):
         raise ValueError(f'Workflow label key "{key}" is reserved.')
 
     parts = key.split('/')
@@ -92,7 +94,7 @@ def validate_workflow_label_value(value: str) -> str:
     return value
 
 
-def validate_workflow_labels(labels: Mapping[str, str]) -> Dict[str, str]:
+def validate_workflow_labels(labels: Mapping[str, str]) -> dict[str, str]:
     """Validate and copy a complete workflow labels map."""
     if not isinstance(labels, Mapping):
         raise ValueError('Workflow labels must be a map of string keys to string values.')
@@ -100,16 +102,15 @@ def validate_workflow_labels(labels: Mapping[str, str]) -> Dict[str, str]:
         raise ValueError(
             f'Workflows can have at most {MAX_WORKFLOW_LABELS} labels.')
 
-    validated_labels: Dict[str, str] = {}
     for key, value in labels.items():
-        validated_key = validate_workflow_label_key(key)
-        validated_labels[validated_key] = validate_workflow_label_value(value)
-    return validated_labels
+        validate_workflow_label_key(key)
+        validate_workflow_label_value(value)
+    return dict(labels)
 
 
 def parse_workflow_label_assignment(assignment: str) -> tuple[str, str]:
     """Parse and validate a workflow label assignment in key=value form."""
-    if not isinstance(assignment, str) or '=' not in assignment:
+    if '=' not in assignment:
         raise ValueError('Workflow labels must use key=value format.')
     key, value = assignment.split('=', 1)
     return validate_workflow_label_key(key), validate_workflow_label_value(value)
@@ -158,31 +159,23 @@ def _expand_workflow_label_selector_pattern(value: str) -> tuple[str, ...]:
     if literal_characters:
         segments.append((''.join(literal_characters),))
 
-    expanded_patterns: tuple[str, ...] = ('',)
-    for alternatives in segments:
-        if (len(expanded_patterns) * len(alternatives) >
-                MAX_WORKFLOW_LABEL_SELECTOR_PATTERNS):
-            raise ValueError(
-                'Workflow label selectors can expand to at most '
-                f'{MAX_WORKFLOW_LABEL_SELECTOR_PATTERNS} patterns.')
-        expanded_patterns = tuple(
-            prefix + alternative
-            for prefix in expanded_patterns
-            for alternative in alternatives
-        )
+    if (math.prod(len(alternatives) for alternatives in segments) >
+            MAX_WORKFLOW_LABEL_SELECTOR_PATTERNS):
+        raise ValueError(
+            'Workflow label selectors can expand to at most '
+            f'{MAX_WORKFLOW_LABEL_SELECTOR_PATTERNS} patterns.')
 
-    normalized_patterns: list[str] = []
-    for pattern in expanded_patterns:
-        normalized_pattern = re.sub(r'\*+', '*', pattern)
+    normalized_patterns = dict.fromkeys(
+        _WILDCARD_RUN_PATTERN.sub('*', ''.join(parts))
+        for parts in itertools.product(*segments))
+    for normalized_pattern in normalized_patterns:
         validate_workflow_label_value(normalized_pattern.replace('*', 'a'))
-        if normalized_pattern not in normalized_patterns:
-            normalized_patterns.append(normalized_pattern)
     return tuple(normalized_patterns)
 
 
 def parse_workflow_label_selector(selector: str) -> WorkflowLabelSelector:
     """Parse an exact or anchored glob-alternation selector."""
-    if not isinstance(selector, str) or '=' not in selector:
+    if '=' not in selector:
         raise ValueError('Workflow label selectors must use key=value format.')
 
     key, value = selector.split('=', 1)

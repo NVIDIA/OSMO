@@ -427,9 +427,8 @@ class TestWorkflowLabelValidation(unittest.TestCase):
                 validation.parse_workflow_label_selector(selector)
 
     def test_selector_accepts_max_expanded_patterns(self):
-        selector = ''.join('(a|b)' for _ in range(5))
         parsed_selector = validation.parse_workflow_label_selector(
-            f'PPP={selector}')
+            f"PPP={'(a|b)' * 5}")
         self.assertEqual(len(parsed_selector.values), 32)
 
     def test_selector_rejects_too_many_expanded_patterns(self):
@@ -440,7 +439,7 @@ class TestWorkflowLabelValidation(unittest.TestCase):
         )
         for selector in (
             f'PPP=({alternatives})',
-            f"PPP={''.join('(a|b)' for _ in range(6))}",
+            f"PPP={'(a|b)' * 6}",
         ):
             with self.subTest(selector=selector), self.assertRaisesRegex(
                     ValueError, 'at most 32 patterns'):
