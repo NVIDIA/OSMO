@@ -219,14 +219,13 @@ def setup_parser(parser: argparse._SubParsersAction):
                                     'LOW. LOW workflows may be preempted to allow a '
                                     'higher priority workflow to run.',
                                choices=[p.value for p in wf_priority.WorkflowPriority])
-    submit_parser.add_argument(
-        '--label',
-        action='append',
-        dest='labels',
-        default=[],
-        metavar='KEY=VALUE',
-        help='Set a workflow label. Repeat to set multiple labels. Values override labels '
-             'declared by the app.')
+    submit_parser.add_argument('--label',
+                               action='append',
+                               dest='labels',
+                               default=[],
+                               metavar='KEY=VALUE',
+                               help='Set a workflow label. Repeat to set multiple labels. '
+                                    'Values override labels declared by the app.')
     submit_parser.set_defaults(func=_submit_app)
 
 

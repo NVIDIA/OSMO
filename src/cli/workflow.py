@@ -147,14 +147,13 @@ def setup_parser(parser: argparse._SubParsersAction):
                                     'LOW. LOW workflows may be preempted to allow a '
                                     'higher priority workflow to run.',
                                choices=[p.value for p in wf_priority.WorkflowPriority])
-    submit_parser.add_argument(
-        '--label',
-        action='append',
-        dest='labels',
-        default=[],
-        metavar='KEY=VALUE',
-        help='Set a workflow label. Repeat to set multiple labels. Values override labels '
-             'declared in the workflow file.')
+    submit_parser.add_argument('--label',
+                               action='append',
+                               dest='labels',
+                               default=[],
+                               metavar='KEY=VALUE',
+                               help='Set a workflow label. Repeat to set multiple labels. '
+                                    'Values override labels declared in the workflow file.')
     submit_parser.set_defaults(func=_submit_workflow)
 
     # Handle 'restart' command
@@ -201,13 +200,14 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  help='The target pool to run the workflow with. If no pool is '
                                       'specified, the default pool assigned in the profile will '
                                       'be used.')
-    validate_parser.add_argument(
-        '--label',
-        action='append',
-        dest='labels',
-        default=[],
-        metavar='KEY=VALUE',
-        help='Set a workflow label for validation. Repeat to set multiple labels.')
+    validate_parser.add_argument('--label',
+                                 action='append',
+                                 dest='labels',
+                                 default=[],
+                                 metavar='KEY=VALUE',
+                                 help='Set a workflow label for validation. Repeat to set '
+                                      'multiple labels. Values override labels declared in '
+                                      'the workflow file.')
     validate_parser.set_defaults(func=_validate_workflow)
 
     # Handle 'logs' command
@@ -339,23 +339,22 @@ def setup_parser(parser: argparse._SubParsersAction):
                              nargs='+',
                              choices=[p.value for p in wf_priority.WorkflowPriority],
                              help='Filter workflows by priority levels.')
-    list_parser.add_argument(
-        '--label',
-        action='append',
-        dest='labels',
-        default=[],
-        metavar='KEY=SELECTOR',
-        help=(
-            'Filter by an exact value, * wildcards, or (VALUE|VALUE) alternatives within a '
-            'selector, such as PPP=(team_*|osmo_*) or PPP=team_(a|b). '
-            'Repeat to require all selectors.'))
-    list_parser.add_argument(
-        '--no-label',
-        action='append',
-        dest='no_labels',
-        default=[],
-        metavar='KEY',
-        help='Filter for workflows without this label key. Repeat to require all keys missing.')
+    list_parser.add_argument('--label',
+                             action='append',
+                             dest='labels',
+                             default=[],
+                             metavar='KEY=SELECTOR',
+                             help='Filter for workflows whose label matches KEY=SELECTOR: '
+                                  'an exact value, * wildcards, or (VALUE|VALUE) '
+                                  'alternatives, such as project=(sim_*|hil_*) or '
+                                  'team=robotics_(a|b). Repeat to require all selectors.')
+    list_parser.add_argument('--no-label',
+                             action='append',
+                             dest='no_labels',
+                             default=[],
+                             metavar='KEY',
+                             help='Filter for workflows without this label key. Repeat to '
+                                  'require every listed key to be absent.')
     group = list_parser.add_mutually_exclusive_group()
     group.add_argument('--user', '-u',
                        nargs='+',

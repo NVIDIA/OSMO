@@ -43,14 +43,10 @@ Workflow
      - No
      - The pool to submit the workflow to.
    * - :kbd:`labels`
-     - ``dict[string, string]``
+     - ``dict``
      - No
-     - Immutable workflow metadata copied to every task Pod. Keys and values use
-       Kubernetes label syntax, values must be non-empty, and a workflow can
-       define at most 16 labels. Any syntactically valid key is accepted;
-       where a workflow label collides with a system-owned Pod label (the
-       ``osmo.`` selectors or scheduler queue labels), the system value wins
-       on the Pod.
+     - Immutable workflow metadata copied to every task pod. See
+       :ref:`workflow_spec_labels`.
    * - :kbd:`timeout`
      - ``dict``
      - No
@@ -68,12 +64,18 @@ Workflow
      - **Yes** (or :kbd:`tasks`)
      - List of :ref:`group definitions <workflow_spec_group>`.
 
-Workflow labels
+.. _workflow_spec_labels:
+
+Workflow Labels
 ---------------
 
-Labels identify a workflow independently of mutable tags. They are stored with
-the submitted specification and copied only to task Pods, not to Services,
-Secrets, scheduler groups, or other objects.
+Labels identify a workflow independently of mutable tags. Keys and values use
+Kubernetes label syntax, values must be non-empty, and a workflow can define
+at most 16 labels. Labels are stored with the submitted specification and
+copied only to task pods, not to Services, Secrets, scheduler groups, or
+other objects. Any syntactically valid key is accepted; where a workflow
+label collides with a system-owned pod label (the ``osmo.`` selectors or
+scheduler queue labels), the system value wins on the pod.
 
 .. code-block:: yaml
 
@@ -89,7 +91,7 @@ Secrets, scheduler groups, or other objects.
        args: [-lc, "echo training"]
 
 Your administrator may configure particular keys in ``off``, ``warn``, or
-``enforce`` mode. An accepted workflow can still return a warning while an
+``enforce`` mode. A submission can succeed and still print a warning while an
 administrator is rolling out a requirement. Use :ref:`workflow_submission` to
 validate and override labels without editing a shared specification.
 

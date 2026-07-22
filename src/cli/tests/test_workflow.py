@@ -33,6 +33,7 @@ WARN_MISSING_PROJECT_MESSAGE = (
 
 
 class TestWorkflowLabelParser(unittest.TestCase):
+    """Label flag parsing and forwarding for submit, validate, and list."""
 
     def _build_parser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser()
@@ -164,8 +165,8 @@ class TestWorkflowLabelParser(unittest.TestCase):
             priority=None,
             labels=[
                 'team=alpha',
-                'PPP=(team_*|osmo_*)',
-                'PPP=team_(a|b)',
+                'project=(sim_*|hil_*)',
+                'team=robotics_(a|b)',
             ],
             no_labels=['project'],
             submitted_after=None,
@@ -183,13 +184,14 @@ class TestWorkflowLabelParser(unittest.TestCase):
             params['label'],
             [
                 'team=alpha',
-                'PPP=(team_*|osmo_*)',
-                'PPP=team_(a|b)',
+                'project=(sim_*|hil_*)',
+                'team=robotics_(a|b)',
             ])
         self.assertEqual(params['no_label'], ['project'])
 
 
 class TestWorkflowLabelOutput(unittest.TestCase):
+    """Label rendering in list tables, query output, and warning lines."""
 
     def test_submission_text_prints_server_warnings(self):
         result = {
