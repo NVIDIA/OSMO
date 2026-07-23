@@ -1,10 +1,20 @@
+---
+name: vda-two-video-poc
+description: Run the accepted two-video Video Data Augmentation demonstration through the generic OSMO agentic-workflow framework. Use only when the task explicitly requests this VDA POC, its model-artifact cache, PAIDF stages, or its locked output contract.
+---
+
 # VDA two-video POC
+
+This is an opt-in domain skill, not part of the agentic-workflow framework.
+The framework never loads it implicitly. A task that requests this demo must
+name this public, commit-pinned skill path in its task-scoped instructions and
+read this file and the listed references before planning or delegation.
 
 Complete the locked VDA `e2e` demonstration for exactly the two inputs below.
 Follow the accepted topology and contracts in
-`projects/agents/poc/locked-topology.md`,
-`projects/agents/poc/00-architecture-and-contracts.md`, and
-`projects/agents/poc/02-runtime-environments.md`. Do not change those
+[`references/locked-topology.md`](references/locked-topology.md),
+[`references/00-architecture-and-contracts.md`](references/00-architecture-and-contracts.md),
+and [`references/02-runtime-environments.md`](references/02-runtime-environments.md). Do not change those
 constraints or substitute inputs, models, images, or storage locations.
 
 ## Immutable inputs
@@ -61,20 +71,21 @@ reuse, overwrite, or repair the earlier cache generation. The cache lock must
 cover the current source-manifest SHA-256, materializer-script SHA-256,
 consumer-readiness-verifier SHA-256, and consumer-ready publication policy.
 
-The VDA-specific source of truth is the static repository at this task's exact
-`STATIC_REPOSITORY_REF`:
+The VDA-specific source of truth is this skill's public repository at this
+task's exact `STATIC_REPOSITORY_REF`:
 
 ```text
-projects/agents/poc/model-artifact-materializer/
+projects/agents/poc/skills/vda-two-video-poc/assets/model-artifact-materializer/
   model-artifact-sources-v1.json
   materialize-model-artifacts.sh
   verify-vda-cache.py
 ```
 
-The task's static-kit subdirectory may not include those sibling files. When
+The generic framework kit deliberately does not include these assets. When
 their bytes are needed, clone `STATIC_REPOSITORY_URL` at exactly
-`STATIC_REPOSITORY_REF`, verify the detached commit, and use those files. Do
-not replace them with copied, invented, or differently-versioned inline code.
+`STATIC_REPOSITORY_REF`, verify the detached commit, and use the skill paths
+above. Do not replace them with copied, invented, or differently-versioned
+inline code.
 
 The environment pipeline may issue `environment-ready.json` only after it has
 verified the materializer's root-level `cache-manifest.json` and

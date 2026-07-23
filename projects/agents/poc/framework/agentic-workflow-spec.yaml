@@ -1,7 +1,7 @@
 version: 2
 
 default-values:
-  workflow_name: agentic-vla
+  workflow_name: agentic-workflow
   agent_runtime_image: "nvcr.io/nvstaging/osmo/agent-runtime@sha256:REPLACE_WITH_64_HEX"
   goal_prompt: "Describe the overarching goal for the lead agent."
   static_repository_url: "https://github.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPOSITORY.git"
@@ -10,8 +10,8 @@ default-values:
   osmo_service_url: "https://us-west-2-aws.osmo.nvidia.com"
   run_id: replace-with-dns-safe-run-id
   platform: REPLACE_WITH_VISIBLE_PLATFORM
-  result_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/replace-with-run-id/agent/lead/"
-  control_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/replace-with-run-id/agent/lead/control/"
+  result_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/agentic-workflows/replace-with-run-id/agent/lead/"
+  control_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/agentic-workflows/replace-with-run-id/agent/lead/control/"
 
 workflow:
   name: "{{workflow_name}}"

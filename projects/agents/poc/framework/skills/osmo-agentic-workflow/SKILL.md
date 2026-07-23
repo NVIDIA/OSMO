@@ -49,10 +49,10 @@ artifact into prose or reconstruct a URL from a prefix. The child must download
 the referenced bytes, verify the SHA-256, parse the verified artifact locally,
 and use the fields it contains exactly as written.
 
-For example, an environment handoff passes only `environmentReadyUrl` and
-`environmentReadySha256`. A video child verifies that one document, then reads
-its exact artifact-root, payload, manifest, result, and lock values from that
-document. This rule applies to every artifact type, not only environments.
+For example, a parent result manifest passes only its URL and SHA-256. The
+child verifies that document, then reads its exact artifact locations and
+contract fields from the verified bytes. This rule applies to every artifact
+type.
 
 ## Create one child
 

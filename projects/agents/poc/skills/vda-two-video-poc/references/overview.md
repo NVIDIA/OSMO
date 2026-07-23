@@ -164,9 +164,9 @@ with frozen downloader entrypoint `v1`; it alone installs Python and
 The environment pipeline validates that the lead-selected profile has at least
 4 CPU, 16 GiB memory, and 200 GiB local storage for this one task.
 The frozen source manifest and script are
-[`model-artifact-sources-v1.json`](model-artifact-materializer/model-artifact-sources-v1.json)
+[`model-artifact-sources-v1.json`](../assets/model-artifact-materializer/model-artifact-sources-v1.json)
 and
-[`materialize-model-artifacts.sh`](model-artifact-materializer/materialize-model-artifacts.sh),
+[`materialize-model-artifacts.sh`](../assets/model-artifact-materializer/materialize-model-artifacts.sh),
 derived from NVIDIA Skills commit `6379b9ce5498d56626caa9e93a8c8a599f90046d`.
 
 This prefix is durable Swift object storage, not a shared node, pod, container,

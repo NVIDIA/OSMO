@@ -244,9 +244,9 @@ modelArtifactWorkspace:
     seedvrVariant: none
     sources:
       nvidiaSkillsCommit: 6379b9ce5498d56626caa9e93a8c8a599f90046d
-      manifest: model-artifact-materializer/model-artifact-sources-v1.json
+      manifest: projects/agents/poc/skills/vda-two-video-poc/assets/model-artifact-materializer/model-artifact-sources-v1.json
       manifestSha256: a588491f689c869f304ecca6f0f536d9636e9fb8d94f27a75606d3e510c41db8
-      script: model-artifact-materializer/materialize-model-artifacts.sh
+      script: projects/agents/poc/skills/vda-two-video-poc/assets/model-artifact-materializer/materialize-model-artifacts.sh
       scriptSha256: cbaa7031eaa58a17c4a1a5216de05f8c84e7c94da5bf24e5e5d7d49cdc54f9d0
 ```
 
