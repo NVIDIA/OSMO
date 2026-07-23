@@ -58,6 +58,13 @@ workflow:
         a delegated subgoal's domain work directly or predefine its worker
         graph.
 
+        Before delegating, reconcile workflow and durable artifact evidence for
+        this Run ID. Reuse every existing child whose typed result satisfies its
+        contract. Submit the same logical child only when none exists, or when
+        a prior non-successful child is terminal and a replacement is warranted;
+        a previous lead attempt being terminal is not itself a reason to repeat
+        successful descendant work.
+
         Do not mutate OSMO pools, profiles, quotas, credentials, or service
         configuration. Request human direction only for ambiguity that cannot
         be resolved safely from this task's instructions, evidence, and OSMO

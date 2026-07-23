@@ -57,6 +57,7 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   rg -Fq 'install -m 0644 "${iteration_result}" "${result_file}"' runtime/run-agent.sh
   rg -Fq 'HumanInterventionRequired)' runtime/run-agent.sh
   rg -Fq 'Agent reached TerminalFailure' runtime/run-agent.sh
+  rg -Fq 'Before delegating, reconcile workflow and durable artifact evidence' agentic-vla-workflow-spec.yaml
   rg -Fq 'human-response-<request-id>.json' skills/osmo-agentic-workflow/SKILL.md
   rg -Fq 'CPU-only capsule at `HIGH` priority' goal.md
   rg -Fq 'GPU-requesting deterministic VDA capsule at `LOW` priority' goal.md
