@@ -913,6 +913,66 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(blocked_stream.iterated_chunks, 1)
         self.assertEqual(blocked_stream.close_count, 1)
 
+    async def test_text_prefix_preserves_safe_partial_body_on_timeout(
+        self,
+    ) -> None:
+        bearer_token = 'stream-timeout-bearer-secret'
+        partial_stream = _TrackingStream(
+            [b'partial log\n'],
+            block_after_chunks=True,
+        )
+        empty_stream = _TrackingStream([], block_after_chunks=True)
+        reflected_stream = _TrackingStream(
+            [bearer_token.encode()],
+            block_after_chunks=True,
+        )
+        streams = [partial_stream, empty_stream, reflected_stream]
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return httpx.Response(200, stream=streams.pop(0))
+
+        credentials = self._credentials(
+            authorization_header=f'Bearer {bearer_token}'
+        )
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=0.01,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            partial = await app_context.gateway.request_text_prefix(
+                'GET',
+                '/api/workflow/test-1/logs',
+                credentials=credentials,
+                max_response_bytes=1024,
+            )
+            empty = await app_context.gateway.request_text_prefix(
+                'GET',
+                '/api/workflow/test-1/events',
+                credentials=credentials,
+                max_response_bytes=1024,
+            )
+            with self.assertRaisesRegex(
+                gateway.GatewayClientError,
+                'invalid response',
+            ) as raised:
+                await app_context.gateway.request_text_prefix(
+                    'GET',
+                    '/api/workflow/test-1/logs',
+                    credentials=credentials,
+                    max_response_bytes=1024,
+                )
+
+        self.assertEqual(partial.body, b'partial log\n')
+        self.assertTrue(partial.body_truncated)
+        self.assertEqual(partial.truncation_reason, 'response_timeout')
+        self.assertEqual(empty.body, b'')
+        self.assertTrue(empty.body_truncated)
+        self.assertEqual(empty.truncation_reason, 'response_timeout')
+        self.assertNotIn(bearer_token, str(raised.exception))
+        for stream in (partial_stream, empty_stream, reflected_stream):
+            self.assertEqual(stream.close_count, 1)
+
     async def test_app_context_owns_and_closes_transport(self) -> None:
         async def handler(request: httpx.Request) -> httpx.Response:
             del request

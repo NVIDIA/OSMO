@@ -27,6 +27,7 @@ from src.service.mcp import (
     protocol,
     resources,
     tool_registry,
+    workflows,
 )
 
 
@@ -68,14 +69,51 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'Get one node\'s resource quantities and task configuration for a '
         'selected pool/platform assignment.',
     ),
+    (
+        workflows.osmo_list_workflows,
+        'osmo_list_workflows',
+        'List OSMO workflows',
+        'List the active user\'s workflows across accessible pools, newest first.',
+    ),
+    (
+        workflows.osmo_get_workflow,
+        'osmo_get_workflow',
+        'Get OSMO workflow',
+        'Get one workflow\'s status and optional task-group metadata; '
+        'set skip_groups=true for a compact result.',
+    ),
+    (
+        workflows.osmo_get_workflow_logs,
+        'osmo_get_workflow_logs',
+        'Get OSMO workflow logs',
+        'Get bounded workflow or task logs; set last_n_lines for an explicit '
+        'tail and select error logs explicitly.',
+    ),
+    (
+        workflows.osmo_get_workflow_events,
+        'osmo_get_workflow_events',
+        'Get OSMO workflow events',
+        'Get bounded scheduling and lifecycle events; use the logs tool for output.',
+    ),
+    (
+        workflows.osmo_get_workflow_spec,
+        'osmo_get_workflow_spec',
+        'Get OSMO workflow spec',
+        'Get the bounded, server-redacted resolved or template workflow YAML.',
+    ),
 )
 
-_EXPECTED_REQUIRED_FIELDS: dict[str, list[str]] = {
+_EXPECTED_REQUIRED_FIELDS = {
     'osmo_health': [],
     'osmo_get_profile': [],
     'osmo_search_pools': [],
     'osmo_list_resources': [],
     'osmo_get_resource': ['node_name'],
+    'osmo_list_workflows': [],
+    'osmo_get_workflow': ['workflow_id'],
+    'osmo_get_workflow_logs': ['workflow_id'],
+    'osmo_get_workflow_events': ['workflow_id'],
+    'osmo_get_workflow_spec': ['workflow_id'],
 }
 
 _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
@@ -88,6 +126,25 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
         'offset': 0,
     },
     'osmo_get_resource': {'pool': None, 'platform': None},
+    'osmo_list_workflows': {
+        'status': None,
+        'name': None,
+        'pool': None,
+        'tags': None,
+        'app': None,
+        'priority': None,
+        'limit': 50,
+        'offset': 0,
+    },
+    'osmo_get_workflow': {'verbose': False, 'skip_groups': False},
+    'osmo_get_workflow_logs': {
+        'task_name': None,
+        'retry_id': None,
+        'last_n_lines': None,
+        'error_logs': False,
+    },
+    'osmo_get_workflow_events': {'task_name': None, 'retry_id': None},
+    'osmo_get_workflow_spec': {'use_template': False},
 }
 
 
@@ -95,7 +152,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
     """Lock the ordered, agent-facing external MCP tool contract."""
 
     def test_registry_has_exact_metadata_and_direct_unique_functions(self) -> None:
-        self.assertEqual(len(tool_registry.TOOL_SPECS), 5)
+        self.assertEqual(len(tool_registry.TOOL_SPECS), 10)
         self.assertEqual(
             [
                 (spec.name, spec.title, spec.description)
@@ -110,7 +167,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         registered_functions = [
             spec.function for spec in tool_registry.TOOL_SPECS
         ]
-        self.assertEqual(len({id(function) for function in registered_functions}), 5)
+        self.assertEqual(len({id(function) for function in registered_functions}), 10)
         for spec, (function, _, _, _) in zip(
             tool_registry.TOOL_SPECS,
             _EXPECTED_SPECS,
@@ -123,7 +180,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
         tool_registry.register_tools(mcp_server)
 
-        self.assertEqual(mcp_server.add_tool.call_count, 5)
+        self.assertEqual(mcp_server.add_tool.call_count, 10)
         for call, (function, name, title, description) in zip(
             mcp_server.add_tool.call_args_list,
             _EXPECTED_SPECS,
@@ -182,11 +239,22 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         for tool_name in (
             'osmo_search_pools',
             'osmo_list_resources',
+            'osmo_list_workflows',
         ):
             properties = tools_by_name[tool_name].inputSchema['properties']
             self.assertEqual(properties['limit']['minimum'], 1)
             self.assertEqual(properties['limit']['maximum'], 200)
             self.assertEqual(properties['offset']['minimum'], 0)
+
+        log_properties = tools_by_name[
+            'osmo_get_workflow_logs'
+        ].inputSchema['properties']
+        self.assertEqual(log_properties['last_n_lines']['anyOf'][0]['minimum'], 1)
+        self.assertEqual(
+            log_properties['last_n_lines']['anyOf'][0]['maximum'],
+            10_000,
+        )
+        self.assertEqual(log_properties['retry_id']['anyOf'][0]['minimum'], 0)
 
     async def test_selection_retains_canonical_order(self) -> None:
         selected_names = {

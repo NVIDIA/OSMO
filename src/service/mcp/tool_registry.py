@@ -27,6 +27,7 @@ from src.service.mcp import (
     pools,
     profile,
     resources,
+    workflows,
 )
 
 
@@ -84,6 +85,48 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         description=(
             'Get one node\'s resource quantities and task configuration for a '
             'selected pool/platform assignment.'
+        ),
+    ),
+    ToolSpec(
+        function=workflows.osmo_list_workflows,
+        name='osmo_list_workflows',
+        title='List OSMO workflows',
+        description=(
+            'List the active user\'s workflows across accessible pools, newest first.'
+        ),
+    ),
+    ToolSpec(
+        function=workflows.osmo_get_workflow,
+        name='osmo_get_workflow',
+        title='Get OSMO workflow',
+        description=(
+            'Get one workflow\'s status and optional task-group metadata; '
+            'set skip_groups=true for a compact result.'
+        ),
+    ),
+    ToolSpec(
+        function=workflows.osmo_get_workflow_logs,
+        name='osmo_get_workflow_logs',
+        title='Get OSMO workflow logs',
+        description=(
+            'Get bounded workflow or task logs; set last_n_lines for an explicit '
+            'tail and select error logs explicitly.'
+        ),
+    ),
+    ToolSpec(
+        function=workflows.osmo_get_workflow_events,
+        name='osmo_get_workflow_events',
+        title='Get OSMO workflow events',
+        description=(
+            'Get bounded scheduling and lifecycle events; use the logs tool for output.'
+        ),
+    ),
+    ToolSpec(
+        function=workflows.osmo_get_workflow_spec,
+        name='osmo_get_workflow_spec',
+        title='Get OSMO workflow spec',
+        description=(
+            'Get the bounded, server-redacted resolved or template workflow YAML.'
         ),
     ),
 )

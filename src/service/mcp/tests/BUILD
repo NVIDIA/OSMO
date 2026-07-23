@@ -43,6 +43,7 @@ osmo_py_test(
         "//src/service/mcp:protocol",
         "//src/service/mcp:resource_tools",
         "//src/service/mcp:tool_registry",
+        "//src/service/mcp:workflow_tools",
     ],
 )
 
@@ -153,5 +154,17 @@ osmo_py_test(
     deps = [
         "//src/service/mcp:request_context",
         "//src/service/mcp:telemetry",
+    ],
+)
+
+osmo_py_test(
+    name = "test_workflows",
+    srcs = ["test_workflows.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("mcp"),
+        ":protocol_harness",
+        "//src/service/mcp:request_context",
+        "//src/service/mcp:workflow_tools",
     ],
 )

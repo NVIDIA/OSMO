@@ -35,7 +35,8 @@ _JSON_OBJECT_ADAPTER = pydantic.TypeAdapter(JsonObject)
 _PROFILE_PATH = '/api/profile/settings'
 _MAX_PROFILE_RESPONSE_BYTES = 64 * 1024
 _TEXT_TRUNCATION_SENTINEL = (
-    '\n... truncated: OSMO response exceeded the configured byte limit.'
+    '\n... truncated: OSMO response did not complete within the configured '
+    'output boundary.'
 )
 _TEXT_TRUNCATION_SENTINEL_BYTES = len(
     _TEXT_TRUNCATION_SENTINEL.encode('utf-8')
@@ -118,7 +119,7 @@ async def request_truncated_text(
     query: gateway.QueryParams | None = None,
     suppress_upstream_details: bool = False,
 ) -> TruncatedTextResult:
-    """Relay one fixed GET and truncate oversized UTF-8 text with a sentinel."""
+    """Relay one fixed GET and mark an incomplete UTF-8 response prefix."""
     if max_response_bytes <= _TEXT_TRUNCATION_SENTINEL_BYTES:
         raise tool_errors.PublicToolError(
             f'Invalid MCP request while attempting to {operation}.'

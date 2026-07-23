@@ -65,6 +65,7 @@ class GatewayResponse:
 
 
 _RESPONSE_SIZE_LIMIT = 'response_size_limit'
+_RESPONSE_TIMEOUT = 'response_timeout'
 
 
 class GatewayClient:
@@ -161,6 +162,11 @@ class GatewayClient:
         start_time = time.monotonic()
         status_code: int | None = None
         outcome = 'transport_error'
+        response: httpx.Response | None = None
+        response_body = b''
+        response_body_prefix = bytearray()
+        body_truncated = False
+        truncation_reason: str | None = None
         try:
             try:
                 async with asyncio.timeout(self._request_timeout_seconds):
@@ -178,20 +184,24 @@ class GatewayClient:
                                 'OSMO Gateway returned an invalid response.')
 
                         if not response.is_success:
-                            response_body, body_truncated = (
-                                await _read_bounded_prefix(
-                                    response,
-                                    _MAX_ERROR_RESPONSE_BYTES,
-                                )
+                            body_truncated = await _read_bounded_prefix(
+                                response,
+                                _MAX_ERROR_RESPONSE_BYTES,
+                                response_body_prefix,
                             )
+                            response_body = bytes(response_body_prefix)
+                            if body_truncated:
+                                truncation_reason = _RESPONSE_SIZE_LIMIT
                             outcome = 'upstream_error'
                         elif truncate_success:
-                            response_body, body_truncated = (
-                                await _read_bounded_prefix(
-                                    response,
-                                    max_response_bytes,
-                                )
+                            body_truncated = await _read_bounded_prefix(
+                                response,
+                                max_response_bytes,
+                                response_body_prefix,
                             )
+                            response_body = bytes(response_body_prefix)
+                            if body_truncated:
+                                truncation_reason = _RESPONSE_SIZE_LIMIT
                             outcome = (
                                 'response_truncated'
                                 if body_truncated
@@ -206,11 +216,26 @@ class GatewayClient:
                             outcome = 'response_received'
                     finally:
                         await response.aclose()
-            except (TimeoutError, httpx.RequestError):
+            except (TimeoutError, httpx.TimeoutException):
+                if (
+                    not truncate_success
+                    or response is None
+                    or not response.is_success
+                ):
+                    outcome = 'transport_error'
+                    raise GatewayClientError(
+                        'OSMO Gateway is unavailable.') from None
+                response_body = bytes(response_body_prefix)
+                body_truncated = True
+                truncation_reason = _RESPONSE_TIMEOUT
+                outcome = 'response_truncated'
+            except httpx.RequestError:
                 outcome = 'transport_error'
                 raise GatewayClientError(
                     'OSMO Gateway is unavailable.') from None
 
+            if response is None:
+                raise AssertionError('Gateway response state is unavailable.')
             if _contains_relayed_credentials(
                 response_body,
                 credentials,
@@ -223,9 +248,7 @@ class GatewayClient:
                 response.status_code,
                 response_body,
                 body_truncated=body_truncated,
-                truncation_reason=(
-                    _RESPONSE_SIZE_LIMIT if body_truncated else None
-                ),
+                truncation_reason=truncation_reason,
             )
         finally:
             # Set-Cookie is upstream response data, never caller-independent
@@ -429,13 +452,13 @@ async def _read_strict_body(
 async def _read_bounded_prefix(
     response: httpx.Response,
     max_response_bytes: int,
-) -> tuple[bytes, bool]:
+    response_body: bytearray,
+) -> bool:
     """Read at most one prefix and report whether more response bytes exist."""
     content_length = _content_length(response)
     body_truncated = (
         content_length is not None and content_length > max_response_bytes
     )
-    response_body = bytearray()
     async for chunk in response.aiter_bytes():
         remaining = max_response_bytes - len(response_body)
         if len(chunk) > remaining:
@@ -445,7 +468,7 @@ async def _read_bounded_prefix(
         response_body.extend(chunk)
         if len(response_body) == max_response_bytes and body_truncated:
             break
-    return bytes(response_body), body_truncated
+    return body_truncated
 
 
 def _contains_relayed_credentials(
