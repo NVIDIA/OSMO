@@ -58,7 +58,11 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   rg -Fq 'HumanInterventionRequired)' runtime/run-agent.sh
   rg -Fq 'Agent reached TerminalFailure' runtime/run-agent.sh
   rg -Fq 'human-response-<request-id>.json' skills/osmo-agentic-workflow/SKILL.md
-  rg -Fq -- '--priority LOW' goal.md README.md skills/osmo-agentic-workflow/SKILL.md
+  rg -Fq 'CPU-only capsule at `HIGH` priority' goal.md
+  rg -Fq 'GPU-requesting deterministic VDA capsule at `LOW` priority' goal.md
+  rg -Fq 'all OSMO pools and resource profiles accessible to the user' goal.md
+  rg -Fq -- '--priority HIGH' README.md
+  rg -Fq 'declared resource profile' skills/osmo-agentic-workflow/SKILL.md
   rg -Fq 'capacity-migration authority' skills/osmo-agentic-workflow/SKILL.md
   rg -Fq '"workflow cancel"' runtime-lock.json
   rg -Fq 'checkpoint:' agentic-vla-workflow-spec.yaml \
@@ -155,7 +159,9 @@ export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
 export STATIC_REPOSITORY_SUBDIR='projects/agents/poc/prototype'
 export OSMO_SERVICE_URL='https://us-west-2-aws.osmo.nvidia.com'
 export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:098afe976ab1dcc746a06835ad0b7e806eeeb7b410fddd84ad6132a3a8d9c20f'
-# Pick any visible pool/platform that can schedule the small lead profile.
+# Inspect every user-accessible pool, then select the current best fit for the
+# small CPU-only lead profile. This is the operator-selected entry placement;
+# every agent-created child makes its own fresh best-fit selection.
 osmo pool list --mode free --format-type json
 export POOL='<initial-eligible-pool>'
 osmo resource list --pool "$POOL" --all --format-type json
@@ -192,20 +198,24 @@ has run yet.
 
 ```bash
 osmo workflow submit agentic-vla-workflow-spec.yaml --pool "$POOL" \
-  --priority LOW --format-type json "${set_values[@]}" | tee .local/entry.submission.json
+  --priority HIGH --format-type json "${set_values[@]}" | tee .local/entry.submission.json
 ```
 
 Expected: one lead workflow ID. The lead owns dynamic delegation; do not submit
 child workflows manually. Every child embeds a bounded, task-scoped `AGENTS.md`
 in its YAML, is previewed and validated, then is submitted and reconciled by
-its owning agent at `LOW` priority. Every capsule records its verified
-pool/platform selection. A retry uses a new child YAML only after the agent has
-queried the previous child and found it terminal; an explicitly authorized,
-non-running capacity-blocked child may first be canceled without `--force` and
-replaced on another eligible pool. Agent JSONL streams to task stdout and
-stderr during every Codex iteration; the typed `agent-result.json` and durable
-workflow evidence are uploaded to the declared output URL, while a human
-request checkpoints only to its paired control URL.
+its owning agent at the priority required by its declared resource profile:
+`HIGH` for CPU-only capsules and `LOW` for GPU-requesting deterministic VDA
+capsules. Before every child submission, its owner compares all pools accessible
+to the user and selects the best fit for that capsule; it does not default to
+the creator's pool. Every capsule records that selection and its justification.
+A retry uses a new child YAML only after the agent has queried the previous
+child and found it terminal; an explicitly authorized, non-running
+capacity-blocked child may first be canceled without `--force` and replaced on
+another eligible pool. Agent JSONL streams to task stdout and stderr during
+every Codex iteration; the typed `agent-result.json` and durable workflow
+evidence are uploaded to the declared output URL, while a human request
+checkpoints only to its paired control URL.
 
 ## Later live activation — respond to a genuine ambiguity
 

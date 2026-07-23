@@ -21,19 +21,25 @@ been verified against this manifest.
 
 ## Scheduling and recovery policy
 
-Use any visible OSMO pool and platform that the owning agent verifies is
-eligible for the specific capsule. Before every submission, inspect the
-accessible pools and resources with the OSMO CLI. Eligibility requires the
-selected platform, resource profile, and pinned image to be compatible with
-the capsule; record the selected pool, platform, priority, workflow ID, and
-output URL in durable evidence. A selection is frozen for that immutable
-capsule only; a later replacement may use a different verified eligible pool
-or platform.
+Every agent that submits a capsule must inspect all OSMO pools and resource
+profiles accessible to the user with the OSMO CLI before that submission. From
+the compatible eligible choices, select the best-fit pool and platform for its
+specific capsule based on its declared resource profile, pinned-image platform
+compatibility, and current observed scheduling evidence. The creator's pool is
+not a default or a constraint on a child. Record the considered eligible
+choices, selected pool, platform, priority, workflow ID, output URL, and reason
+for the selection in durable evidence. A selection is frozen for that immutable
+capsule only; a later replacement repeats this selection and may use a different
+verified eligible pool or platform.
 
-Submit the lead and every child capsule with `--priority LOW`. Low priority is
-intentionally allowed to bypass normal quota when physical capacity is idle and
-may be preempted. Do not alter OSMO pools, profiles, quotas, credentials, or
-service configuration.
+Set the priority from the capsule's declared resource profile: submit every
+CPU-only capsule at `HIGH` priority (the lead, environment pipeline,
+per-video pipelines, CPU-only materializer, and equivalent CPU-only work), and
+submit every GPU-requesting deterministic VDA capsule at `LOW` priority
+(PAIDF auto-labeling, PAIDF augmentation, and equivalent GPU work). Low
+priority is intentionally allowed to bypass normal quota when physical capacity
+is idle and may be preempted. Do not alter OSMO pools, profiles, quotas,
+credentials, or service configuration.
 
 There is no numeric retry or resubmission limit for this run. A pending task,
 temporary capacity or quota block, preemption, or failed child is a known

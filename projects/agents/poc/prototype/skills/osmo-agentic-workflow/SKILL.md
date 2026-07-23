@@ -37,6 +37,10 @@ including its priority, pool-selection constraints, and any narrowly granted
 replacement authority. Do not invent cancellation authority in a generic child
 handoff.
 
+Do not treat the parent workflow's pool as the child's default or as evidence
+that it is the best fit. When the inherited policy permits selection across the
+user's accessible compute, the child must make its own fresh selection.
+
 ## Pass verified evidence by reference
 
 Pass a parent artifact to a child only as its immutable URL and SHA-256. Put
@@ -60,12 +64,15 @@ document. This rule applies to every artifact type, not only environments.
    and SHA-256 values only. Do not put secret values or copied artifact fields
    in it.
 4. When the parent permits pool selection, read `osmo-user` resource guidance,
-   inspect the visible pools and resource profiles, and choose a compatible
-   pool/platform for this capsule. Record that selection and the reason it is
-   eligible in durable evidence before submission.
+   inspect all pools and resource profiles accessible to the user, and select
+   the best-fit compatible pool/platform for this capsule. Base the selection
+   on the declared resource profile, image-platform compatibility, and current
+   observed scheduling evidence; record the eligible choices, selection, and
+   reason in durable evidence before submission.
 5. Read the relevant `osmo-user` reference, then use the existing OSMO CLI to
-   preview, validate, and submit the child YAML. Use `--priority LOW` only when
-   the parent execution policy authorizes it.
+   preview, validate, and submit the child YAML. Select `--priority` exactly
+   from the inherited parent execution policy and the child's declared resource
+   profile; do not infer a different priority.
 6. Persist the returned workflow ID, output URL, pool, platform, and priority
    in the parent result's evidence before monitoring it.
 
