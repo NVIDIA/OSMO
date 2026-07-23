@@ -38,6 +38,7 @@ import {
   RESOURCE_COLUMN_SIZE_CONFIG,
 } from "@/features/resources/lib/resource-columns";
 import { createResourceColumns } from "@/features/resources/lib/resource-column-defs";
+import { getResourceRowId } from "@/features/resources/lib/resource-selection";
 import { useResourcesTableStore } from "@/features/resources/stores/resources-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
@@ -45,9 +46,6 @@ import { naturalCompare } from "@/lib/utils";
 // =============================================================================
 // Helpers
 // =============================================================================
-
-/** Stable row ID extractor - defined outside component to avoid recreating */
-const getRowId = (resource: Resource) => resource.name;
 
 // Module-level constant — stable reference, no useMemo needed
 const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
@@ -225,7 +223,7 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
       <DataTable<Resource>
         data={sortedResources}
         columns={columns}
-        getRowId={getRowId}
+        getRowId={getResourceRowId}
         // Column management
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}

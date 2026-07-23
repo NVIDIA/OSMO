@@ -59,9 +59,7 @@ See [../README.md](../README.md) for the full two-chart flow.
 | `global.logs.logLevel` | Log level for application | `DEBUG` |
 | `global.logs.k8sLogLevel` | Log level for Kubernetes | `WARNING` |
 
-OSMO services write logs to stdout for collection by the platform log agent. `osmo-agent` also
-retains backend-forwarded logs in a bounded `/logs` volume; its dedicated logrotate sidecar keeps
-five 10 MiB copies by default.
+OSMO services write logs to standard streams for collection by the platform log agent.
 
 
 ### Configuration File Settings

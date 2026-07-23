@@ -262,15 +262,16 @@ export { invalidateResourcesCache };
 export { getResourceFilterOptions };
 
 // WORKAROUND: Must query all_pools=true to get full memberships (Issue: BACKEND_TODOS.md#7)
-function extractPoolMemberships(
+export function extractPoolMemberships(
   data: ResourcesResponse | GeneratedPoolResourcesResponse,
   resourceName: string,
+  backend: string,
 ): PoolMembership[] {
   const backendResources: ResourcesResponse["resources"] = ("resources" in data ? data.resources : undefined) ?? [];
 
   const backendResource = backendResources.find((r) => {
     const nameField = (r.exposed_fields as Record<string, unknown>)?.node;
-    return r.hostname === resourceName || nameField === resourceName;
+    return r.backend === backend && (r.hostname === resourceName || nameField === resourceName);
   });
 
   if (!backendResource) return [];
@@ -327,7 +328,7 @@ export function useResourceDetail(
     // Get pool memberships - prefer fetched data over resource's initial data
     let memberships = resource.poolMemberships;
     if (resourcesQuery.data) {
-      const fetched = extractPoolMemberships(resourcesQuery.data, resource.name);
+      const fetched = extractPoolMemberships(resourcesQuery.data, resource.name, resource.backend);
       if (fetched.length > 0) {
         memberships = fetched;
       }

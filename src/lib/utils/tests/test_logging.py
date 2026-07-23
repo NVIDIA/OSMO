@@ -15,6 +15,8 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import contextlib
+import io
 import json
 import logging
 import sys
@@ -217,6 +219,46 @@ class TestMakeServiceFormatter(unittest.TestCase):
         payload = json.loads(formatter.format(_make_record()))
         self.assertEqual(payload['service'], 'osmo-test')
         self.assertEqual(payload['backend'], 'aws')
+
+
+class TestGetBackendLogger(unittest.TestCase):
+    """Unit tests for backend logger handler selection."""
+
+    LOGGER_NAME = 'osmo-test-backend-logger'
+
+    def setUp(self):
+        self._remove_logger()
+
+    def tearDown(self):
+        self._remove_logger()
+
+    def _remove_logger(self):
+        logger = logging.getLogger(self.LOGGER_NAME)
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+            handler.close()
+        logging.Logger.manager.loggerDict.pop(self.LOGGER_NAME, None)
+
+    def test_without_log_dir_writes_to_stream(self):
+        stream = io.StringIO()
+        config = logging_utils.LoggingConfig(log_level='INFO', log_format='json')
+
+        with contextlib.redirect_stderr(stream):
+            logger = logging_utils.get_backend_logger(
+                self.LOGGER_NAME, 'test-backend', config
+            )
+        logger.setLevel(logging.INFO)
+        logger.info('backend message', extra={'workflow_uuid': 'wf-123'})
+
+        self.assertFalse(logger.propagate)
+        self.assertEqual(len(logger.handlers), 1)
+        self.assertIsInstance(logger.handlers[0], logging.StreamHandler)
+        self.assertNotIsInstance(logger.handlers[0], logging.FileHandler)
+        payload = json.loads(stream.getvalue())
+        self.assertEqual(payload['service'], self.LOGGER_NAME)
+        self.assertEqual(payload['backend'], 'test-backend')
+        self.assertEqual(payload['workflow_uuid'], 'wf-123')
+        self.assertEqual(payload['message'], 'backend message')
 
 
 if __name__ == '__main__':

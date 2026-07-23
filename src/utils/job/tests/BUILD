@@ -150,3 +150,14 @@ osmo_py_test(
     size = "large",
     tags = ["requires-network"],
 )
+
+osmo_py_test(
+    name = "test_task_units",
+    srcs = ["test_task_units.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors",
+        "//src/utils/job",
+        requirement("pydantic"),
+    ],
+)

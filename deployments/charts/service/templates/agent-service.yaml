@@ -121,10 +121,6 @@ spec:
         - {{ .Values.global.logs.k8sLogLevel }}
         - --log_format
         - {{ .Values.global.logs.logFormat | default "text" }}
-        - --log_dir
-        - /logs
-        - --log_name
-        - agent_service
         {{- end }}
         {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.agent.extraArgs }}
@@ -155,7 +151,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.agent.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) }}
+        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -164,10 +160,6 @@ spec:
           subPath: mek.yaml
         {{- end }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          mountPath: /logs
-        {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.agent | nindent 8 }}
         {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         resources:
@@ -202,45 +194,10 @@ spec:
           failureThreshold: 3
           timeoutSeconds: 20
 
-
-      {{- if .Values.global.logs.enabled }}
-      # TODO: Remove this sidecar when backend-forwarded agent logs can be sent to stdout.
-      # get_backend_logger currently suppresses propagation without a file handler.
-      - name: logrotate
-        image: fluent/fluent-bit:4.0.8-debug
-        imagePullPolicy: IfNotPresent
-        securityContext:
-          allowPrivilegeEscalation: false
-          runAsUser: 0
-          runAsGroup: 0
-        command: ["/bin/sh", "-c"]
-        args:
-        - |
-          while true; do
-            logrotate --state /tmp/logrotate.status /etc/osmo-logrotate/logrotate.conf
-            sleep 60
-          done
-        volumeMounts:
-        - name: logs
-          mountPath: /logs
-        - name: agent-logrotate-config
-          mountPath: /etc/osmo-logrotate
-          readOnly: true
-      {{- end }}
       {{- include "osmo.extra-sidecars" .Values.services.agent | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.agent | nindent 8 }}
         {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
-        {{- if .Values.global.logs.enabled }}
-        - name: logs
-          emptyDir:
-            sizeLimit: 256Mi
-        {{- end}}
-        {{- if .Values.global.logs.enabled }}
-        - name: agent-logrotate-config
-          configMap:
-            name: {{ .Values.services.agent.serviceName }}-logrotate
-        {{- end}}
         {{- if .Values.services.configFile.enabled}}
         - configMap:
             defaultMode: 420

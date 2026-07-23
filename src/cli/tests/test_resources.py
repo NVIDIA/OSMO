@@ -383,6 +383,25 @@ class TestInfoResource(unittest.TestCase):
         self.assertIn('platform-1', output)
         self.assertIn('Resource Capacity', output)
 
+    def test_duplicate_resources_without_pool_platform_prints_ambiguity(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.return_value = {
+            'resources': [
+                _make_resource(pool_name='pool-a', platform_name='platform-a'),
+                _make_resource(pool_name='pool-b', platform_name='platform-b'),
+            ]
+        }
+        args = self._make_args()
+
+        with mock.patch('builtins.print') as mock_print:
+            resources._info_resource(service_client, args)
+
+        output = _capture(mock_print)
+        self.assertIn('Multiple resources named node-1 exist', output)
+        self.assertIn('--pool', output)
+        self.assertIn('--platform', output)
+        self.assertNotIn('Resource Capacity', output)
+
     def test_invalid_pool_prints_keyerror_message(self):
         service_client = mock.Mock(spec=client.ServiceClient)
         service_client.request.return_value = {'resources': [_make_resource()]}
@@ -406,6 +425,29 @@ class TestInfoResource(unittest.TestCase):
         self.assertIn('cpu: 8', output)
         self.assertIn('Default Mounts', output)
         self.assertIn('/data', output)
+
+    def test_specified_pool_platform_selects_matching_duplicate_resource(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        first_resource = _make_resource(
+            pool_name='pool-a', platform_name='platform-a', node='node-1')
+        selected_resource = _make_resource(
+            pool_name='pool-b', platform_name='platform-b', node='node-1')
+        selected_resource['platform_allocatable_fields']['pool-b']['platform-b']['cpu'] = '32'
+        selected_resource['config_fields']['pool-b']['platform-b']['default_mounts'] = [
+            '/pool-b-data'
+        ]
+        service_client.request.return_value = {
+            'resources': [first_resource, selected_resource]
+        }
+        args = self._make_args(pool='pool-b', platform='platform-b')
+
+        with mock.patch('builtins.print') as mock_print:
+            resources._info_resource(service_client, args)
+
+        output = _capture(mock_print)
+        self.assertIn('cpu: 32', output)
+        self.assertIn('/pool-b-data', output)
+        self.assertNotIn('pool-a', output)
 
 
 if __name__ == '__main__':
