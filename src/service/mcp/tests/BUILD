@@ -20,12 +20,37 @@ load("//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
+    name = "test_catalog",
+    srcs = ["test_catalog.py"],
+    deps = [
+        "//src/service/mcp:health_tools",
+        "//src/service/mcp:profile_tools",
+        "//src/service/mcp:protocol",
+        "//src/service/mcp:tool_registry",
+    ],
+)
+
+osmo_py_test(
     name = "test_gateway",
     srcs = ["test_gateway.py"],
     deps = [
         requirement("httpx"),
         "//src/service/mcp:gateway",
         "//src/service/mcp:request_context",
+    ],
+)
+
+osmo_py_test(
+    name = "test_protocol",
+    srcs = ["test_protocol.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("mcp"),
+        requirement("pydantic"),
+        "//src/lib/utils:login",
+        "//src/service/mcp:protocol",
+        "//src/service/mcp:request_context",
+        "//src/service/mcp:tool_errors",
     ],
 )
 
@@ -58,7 +83,32 @@ osmo_py_test(
         requirement("starlette"),
         "//src/lib/utils:login",
         "//src/service/mcp:gateway",
+        "//src/service/mcp:request_body",
         "//src/service/mcp:request_context",
         "//src/service/mcp:mcp_service_lib",
+        "//src/service/mcp:tool_registry",
+    ],
+)
+
+osmo_py_test(
+    name = "test_tool_support",
+    srcs = ["test_tool_support.py"],
+    deps = [
+        requirement("mcp"),
+        "//src/lib/utils:osmo_errors",
+        "//src/service/mcp:gateway",
+        "//src/service/mcp:request_context",
+        "//src/service/mcp:tool_errors",
+        "//src/service/mcp:tool_requests",
+        "//src/service/mcp:tool_validation",
+    ],
+)
+
+osmo_py_test(
+    name = "test_telemetry",
+    srcs = ["test_telemetry.py"],
+    deps = [
+        "//src/service/mcp:request_context",
+        "//src/service/mcp:telemetry",
     ],
 )

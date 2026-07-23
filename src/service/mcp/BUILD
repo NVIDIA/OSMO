@@ -33,12 +33,76 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "request_body",
+    srcs = ["request_body.py"],
+    deps = [
+        requirement("starlette"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "gateway",
     srcs = ["gateway.py"],
     deps = [
         requirement("httpx"),
         ":request_context",
+        ":telemetry",
         "//src/lib/utils:login",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "telemetry",
+    srcs = ["telemetry.py"],
+    deps = [
+        ":request_context",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "tool_errors",
+    srcs = ["tool_errors.py"],
+    deps = [
+        requirement("mcp"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "tool_validation",
+    srcs = ["tool_validation.py"],
+    deps = [
+        requirement("pydantic"),
+        ":tool_errors",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "tool_requests",
+    srcs = ["tool_requests.py"],
+    deps = [
+        requirement("mcp"),
+        requirement("pydantic"),
+        requirement("starlette"),
+        ":gateway",
+        ":request_context",
+        ":tool_errors",
+        "//src/lib/api:profile",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "access_scope",
+    srcs = ["access_scope.py"],
+    deps = [
+        requirement("mcp"),
+        ":tool_requests",
+        ":tool_validation",
     ],
     visibility = ["//visibility:public"],
 )
@@ -49,10 +113,29 @@ osmo_py_library(
     deps = [
         requirement("mcp"),
         requirement("pydantic"),
-        requirement("starlette"),
-        ":gateway",
-        ":request_context",
-        "//src/lib/api:profile",
+        ":access_scope",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "health_tools",
+    srcs = ["health.py"],
+    deps = [
+        requirement("mcp"),
+        requirement("pydantic"),
+        ":access_scope",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "tool_registry",
+    srcs = ["tool_registry.py"],
+    deps = [
+        requirement("mcp"),
+        ":health_tools",
+        ":profile_tools",
     ],
     visibility = ["//visibility:public"],
 )
@@ -64,6 +147,8 @@ osmo_py_library(
         requirement("mcp"),
         requirement("pydantic"),
         ":request_context",
+        ":telemetry",
+        ":tool_errors",
     ],
     visibility = ["//visibility:public"],
 )
@@ -78,9 +163,11 @@ osmo_py_library(
         requirement("starlette"),
         requirement("uvicorn"),
         ":gateway",
-        ":profile_tools",
         ":protocol",
+        ":request_body",
         ":request_context",
+        ":tool_registry",
+        "//src/lib/utils:logging",
         "//src/utils:ssl_config",
         "//src/utils:static_config",
     ],

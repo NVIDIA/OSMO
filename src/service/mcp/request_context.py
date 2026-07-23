@@ -49,6 +49,7 @@ MAX_AUTHORIZATION_HEADER_BYTES = 128 * 1024
 MAX_USER_HEADER_BYTES = 256
 MAX_REQUEST_ID_HEADER_BYTES = 128
 MIN_BEARER_TOKEN_SUBSTRING_BYTES = 16
+MIN_BEARER_TOKEN_BYTES = MIN_BEARER_TOKEN_SUBSTRING_BYTES
 _INVALID_CONTEXT_RESPONSE = {'error': 'Invalid MCP authentication context.'}
 
 
@@ -64,6 +65,10 @@ class RequestCredentials:
     user_name: str
     request_id: str | None
 
+    def __post_init__(self) -> None:
+        if not _is_supported_authorization_header(self.authorization_header):
+            raise ValueError('Unsupported MCP authorization header.')
+
 
 @dataclasses.dataclass(slots=True)
 class _RequestState:
@@ -75,6 +80,8 @@ class _RequestState:
 
 _request_state: contextvars.ContextVar[_RequestState | None] = (
     contextvars.ContextVar('mcp_request_state', default=None))
+_active_tool_name: contextvars.ContextVar[str | None] = (
+    contextvars.ContextVar('mcp_active_tool_name', default=None))
 
 
 class RequestContextMiddleware:
@@ -126,6 +133,21 @@ def get_request_credentials() -> RequestCredentials:
     return request_state.credentials
 
 
+def get_active_tool_name() -> str | None:
+    """Return the canonical MCP tool name for the active invocation, if any."""
+    return _active_tool_name.get()
+
+
+@contextlib.contextmanager
+def track_tool(name: str) -> Iterator[None]:
+    """Bind a canonical tool name to downstream Gateway telemetry."""
+    token = _active_tool_name.set(name)
+    try:
+        yield
+    finally:
+        _active_tool_name.reset(token)
+
+
 @contextlib.contextmanager
 def track_request_task() -> Iterator[RequestCredentials]:
     """Cancel the current tool task when its owning MCP request ends."""
@@ -145,6 +167,32 @@ def track_request_task() -> Iterator[RequestCredentials]:
         yield credentials
     finally:
         request_state.active_tasks.discard(current_task)
+
+
+def request_id_overlaps_bearer(
+    authorization_header: str,
+    request_id: str | None,
+) -> bool:
+    """Return whether a request ID discloses meaningful bearer material."""
+    if request_id is None:
+        return False
+    _, separator, bearer_token = authorization_header.partition(' ')
+    if not separator or not bearer_token:
+        return False
+    if request_id == bearer_token:
+        return True
+    if (
+        len(request_id) < MIN_BEARER_TOKEN_SUBSTRING_BYTES
+        or len(bearer_token) < MIN_BEARER_TOKEN_SUBSTRING_BYTES
+    ):
+        return False
+    return any(
+        request_id[start:start + MIN_BEARER_TOKEN_SUBSTRING_BYTES]
+        in bearer_token
+        for start in range(
+            len(request_id) - MIN_BEARER_TOKEN_SUBSTRING_BYTES + 1
+        )
+    )
 
 
 def _parse_credentials(
@@ -176,7 +224,7 @@ def _parse_credentials(
     user_name = _decode_utf8(user_values[0])
     if (
         authorization_header is None
-        or _BEARER_VALUE.fullmatch(authorization_header) is None
+        or not _is_supported_authorization_header(authorization_header)
         or user_name is None
         or not _is_valid_user_name(user_name)
     ):
@@ -185,7 +233,14 @@ def _parse_credentials(
     request_id: str | None = None
     if request_id_values:
         request_id = _decode_ascii(request_id_values[0])
-        if request_id is None or _REQUEST_ID.fullmatch(request_id) is None:
+        if (
+            request_id is None
+            or _REQUEST_ID.fullmatch(request_id) is None
+            or request_id_overlaps_bearer(
+                authorization_header,
+                request_id,
+            )
+        ):
             return None
 
     return RequestCredentials(
@@ -193,6 +248,14 @@ def _parse_credentials(
         user_name=user_name,
         request_id=request_id,
     )
+
+
+def _is_supported_authorization_header(value: str) -> bool:
+    """Require enough bearer entropy for reliable reflection detection."""
+    if _BEARER_VALUE.fullmatch(value) is None:
+        return False
+    _, _, bearer_token = value.partition(' ')
+    return len(bearer_token) >= MIN_BEARER_TOKEN_BYTES
 
 
 def _decode_ascii(value: bytes) -> str | None:
