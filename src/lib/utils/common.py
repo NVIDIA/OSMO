@@ -38,7 +38,7 @@ import pytz
 import requests  # type: ignore
 import texttable  # type: ignore
 
-from . import osmo_errors
+from . import osmo_errors, resource_quantities
 
 
 # If no registry hostname is provided, default to dockerhub
@@ -83,7 +83,7 @@ UuidPattern = Annotated[
         pattern=f'^{UUID_REGEX}|{OLD_UUID_REGEX}|{GROUP_UUID_REGEX}$')]
 
 WFID_REGEX = r'[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?-\d+$'
-RESOURCE_REGEX = r'(?P<size>(\d+(?:\.\d+)?))(?P<unit>([a-zA-Z]*))'
+RESOURCE_REGEX = resource_quantities.RESOURCE_REGEX
 
 # What encoding to accept from docker registry http requests
 OCI_IMAGE_INDEX_ENCODING = 'application/vnd.oci.image.index.v1+json'
@@ -99,26 +99,9 @@ USERNAME_REGEX = r'^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$'
 DOCKER_AUTH_TOKEN_KEYS = ['token', 'access_token']
 
 # A dict to convert different measurements to TiB, GiB, MiB, KiB or B.
-MEASUREMENTS = {
-    'T': 10,
-    'Ti': 10,
-    'TiB': 10,
-    'G': 0,
-    'Gi': 0,
-    'GiB': 0,
-    'M': -10,
-    'Mi': -10,
-    'MiB': -10,
-    'K': -20,
-    'Ki': -20,
-    'KiB': -20,
-    'B': -30,
-    'm': -40
-}
+MEASUREMENTS = resource_quantities.MEASUREMENTS
 
-MEASUREMENTS_SHORT = {
-    'Ti', 'Gi', 'Mi', 'Ki', 'B', 'm'
-}
+MEASUREMENTS_SHORT = resource_quantities.MEASUREMENTS_SHORT
 
 # Default chunk size for etags
 CHUNK_SIZE = 8 * 1024 * 1024
@@ -680,24 +663,12 @@ def convert_resource_value_str(resource_val: str, target: str = 'GiB') -> float:
     Raises:
         utils.OSMOSchemaError: The given measurement of is not supported.
     """
-    resource_val = str(resource_val)
-    pattern = RESOURCE_REGEX
-    match = re.fullmatch(pattern, resource_val)
-    if not match:
-        raise ValueError(
-            f'Failure in converting resource value {resource_val}'
-        )
-    num = match.group('size')
-    unit = match.group('unit')
-
-    if not unit:
-        unit = 'B'
-    if unit not in MEASUREMENTS:
-        raise osmo_errors.OSMOSchemaError(f'Can not recognize {resource_val}.')
-    if target not in MEASUREMENTS:
-        raise osmo_errors.OSMOSchemaError(f'Can not recognize {target}.')
-    raise_power = MEASUREMENTS[unit] - MEASUREMENTS[target]
-    return float(num) * 2 ** raise_power
+    try:
+        return resource_quantities.convert_resource_value(resource_val, target)
+    except resource_quantities.UnsupportedResourceUnitError as error:
+        raise osmo_errors.OSMOSchemaError(
+            f'Can not recognize {error.value}.'
+        ) from error
 
 
 def collect_file_sizes(files: List[str]) -> Tuple[Dict[str, int], int]:

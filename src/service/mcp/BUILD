@@ -72,6 +72,15 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "tool_models",
+    srcs = ["tool_models.py"],
+    deps = [
+        requirement("pydantic"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "tool_validation",
     srcs = ["tool_validation.py"],
     deps = [
@@ -108,6 +117,26 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "pool_models",
+    srcs = ["pool_models.py"],
+    deps = [
+        requirement("pydantic"),
+        ":tool_models",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "resource_models",
+    srcs = ["resource_models.py"],
+    deps = [
+        requirement("pydantic"),
+        ":tool_models",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "profile_tools",
     srcs = ["profile.py"],
     deps = [
@@ -130,12 +159,44 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "pool_tools",
+    srcs = ["pools.py"],
+    deps = [
+        requirement("mcp"),
+        ":access_scope",
+        ":pool_models",
+        ":tool_errors",
+        ":tool_requests",
+        ":tool_validation",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "resource_tools",
+    srcs = ["resources.py"],
+    deps = [
+        requirement("mcp"),
+        requirement("pydantic"),
+        ":access_scope",
+        ":resource_models",
+        ":tool_errors",
+        ":tool_requests",
+        ":tool_validation",
+        "//src/lib/utils:resource_quantities",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "tool_registry",
     srcs = ["tool_registry.py"],
     deps = [
         requirement("mcp"),
         ":health_tools",
+        ":pool_tools",
         ":profile_tools",
+        ":resource_tools",
     ],
     visibility = ["//visibility:public"],
 )

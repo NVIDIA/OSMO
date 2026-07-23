@@ -16,16 +16,32 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_test")
+load("//bzl:py.bzl", "osmo_py_library", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+
+osmo_py_library(
+    name = "protocol_harness",
+    srcs = ["protocol_harness.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("starlette"),
+        "//src/lib/utils:login",
+        "//src/service/mcp:gateway",
+        "//src/service/mcp:protocol",
+        "//src/service/mcp:request_context",
+        "//src/service/mcp:tool_registry",
+    ],
+)
 
 osmo_py_test(
     name = "test_catalog",
     srcs = ["test_catalog.py"],
     deps = [
         "//src/service/mcp:health_tools",
+        "//src/service/mcp:pool_tools",
         "//src/service/mcp:profile_tools",
         "//src/service/mcp:protocol",
+        "//src/service/mcp:resource_tools",
         "//src/service/mcp:tool_registry",
     ],
 )
@@ -37,6 +53,19 @@ osmo_py_test(
         requirement("httpx"),
         "//src/service/mcp:gateway",
         "//src/service/mcp:request_context",
+    ],
+)
+
+osmo_py_test(
+    name = "test_pools",
+    srcs = ["test_pools.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("mcp"),
+        ":protocol_harness",
+        "//src/service/mcp:pool_tools",
+        "//src/service/mcp:request_context",
+        "//src/service/mcp:tool_requests",
     ],
 )
 
@@ -61,6 +90,20 @@ osmo_py_test(
         requirement("httpx"),
         "//src/lib/utils:login",
         "//src/service/mcp:mcp_service_lib",
+    ],
+)
+
+osmo_py_test(
+    name = "test_resources",
+    srcs = ["test_resources.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("mcp"),
+        ":protocol_harness",
+        "//src/lib/utils:resource_quantities",
+        "//src/service/mcp:request_context",
+        "//src/service/mcp:resource_tools",
+        "//src/service/mcp:tool_requests",
     ],
 )
 

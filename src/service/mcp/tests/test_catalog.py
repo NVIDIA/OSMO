@@ -20,7 +20,14 @@ from collections.abc import Callable, Mapping
 from unittest import mock
 import unittest
 
-from src.service.mcp import health, profile, protocol, tool_registry
+from src.service.mcp import (
+    health,
+    pools,
+    profile,
+    protocol,
+    resources,
+    tool_registry,
+)
 
 
 _ExpectedSpec = tuple[Callable[..., object], str, str, str]
@@ -40,21 +47,55 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'Get the active user\'s OSMO profile settings, roles, accessible '
         'pools, and non-secret token identity metadata.',
     ),
+    (
+        pools.osmo_search_pools,
+        'osmo_search_pools',
+        'Search OSMO pools',
+        'Search compute pools accessible to the active user. Results retain '
+        'node-set sharing information, GPU quota usage, and bounded output.',
+    ),
+    (
+        resources.osmo_list_resources,
+        'osmo_list_resources',
+        'List OSMO resources',
+        'List node capacity, usage, and available resources for selected '
+        'pools and platforms with bounded output.',
+    ),
+    (
+        resources.osmo_get_resource,
+        'osmo_get_resource',
+        'Get OSMO resource',
+        'Get one node\'s resource quantities and task configuration for a '
+        'selected pool/platform assignment.',
+    ),
 )
 
 _EXPECTED_REQUIRED_FIELDS: dict[str, list[str]] = {
     'osmo_health': [],
     'osmo_get_profile': [],
+    'osmo_search_pools': [],
+    'osmo_list_resources': [],
+    'osmo_get_resource': ['node_name'],
 }
 
-_EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {}
+_EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
+    'osmo_search_pools': {'query': None, 'limit': 50, 'offset': 0},
+    'osmo_list_resources': {
+        'pool': None,
+        'platform': None,
+        'all_pools': False,
+        'limit': 50,
+        'offset': 0,
+    },
+    'osmo_get_resource': {'pool': None, 'platform': None},
+}
 
 
 class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
     """Lock the ordered, agent-facing external MCP tool contract."""
 
     def test_registry_has_exact_metadata_and_direct_unique_functions(self) -> None:
-        self.assertEqual(len(tool_registry.TOOL_SPECS), 2)
+        self.assertEqual(len(tool_registry.TOOL_SPECS), 5)
         self.assertEqual(
             [
                 (spec.name, spec.title, spec.description)
@@ -69,7 +110,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         registered_functions = [
             spec.function for spec in tool_registry.TOOL_SPECS
         ]
-        self.assertEqual(len({id(function) for function in registered_functions}), 2)
+        self.assertEqual(len({id(function) for function in registered_functions}), 5)
         for spec, (function, _, _, _) in zip(
             tool_registry.TOOL_SPECS,
             _EXPECTED_SPECS,
@@ -82,7 +123,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
         tool_registry.register_tools(mcp_server)
 
-        self.assertEqual(mcp_server.add_tool.call_count, 2)
+        self.assertEqual(mcp_server.add_tool.call_count, 5)
         for call, (function, name, title, description) in zip(
             mcp_server.add_tool.call_args_list,
             _EXPECTED_SPECS,
@@ -137,17 +178,27 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
                     f'{tool.name}.{field} default changed',
                 )
 
+        tools_by_name = {tool.name: tool for tool in tools}
+        for tool_name in (
+            'osmo_search_pools',
+            'osmo_list_resources',
+        ):
+            properties = tools_by_name[tool_name].inputSchema['properties']
+            self.assertEqual(properties['limit']['minimum'], 1)
+            self.assertEqual(properties['limit']['maximum'], 200)
+            self.assertEqual(properties['offset']['minimum'], 0)
+
     async def test_selection_retains_canonical_order(self) -> None:
         selected_names = {
             'osmo_health',
-            'osmo_get_profile',
+            'osmo_get_resource',
         }
         selected_specs = tool_registry.select_tool_specs(selected_names)
         self.assertEqual(
             [spec.name for spec in selected_specs],
             [
                 'osmo_health',
-                'osmo_get_profile',
+                'osmo_get_resource',
             ],
         )
 
@@ -159,7 +210,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             [tool.name for tool in await mcp_server.list_tools()],
             [
                 'osmo_health',
-                'osmo_get_profile',
+                'osmo_get_resource',
             ],
         )
 
