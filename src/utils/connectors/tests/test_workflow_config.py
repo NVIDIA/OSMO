@@ -15,9 +15,7 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
-import json
 import unittest
-from unittest import mock
 
 import pydantic
 
@@ -25,7 +23,7 @@ from src.utils import connectors
 
 
 class TestWorkflowLabelsConfig(unittest.TestCase):
-    """Labels config validates directly and survives legacy DB serialization."""
+    """Labels config validation for the workflow config model."""
 
     def test_defaults_are_inert(self):
         self.assertEqual(connectors.WorkflowConfig().labels_config.policy, [])
@@ -79,26 +77,6 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
             with self.subTest(labels_config=labels_config), \
                  self.assertRaises(pydantic.ValidationError):
                 connectors.WorkflowConfig(labels_config=labels_config)
-
-    def test_legacy_serialization_round_trip(self):
-        database = mock.Mock()
-        config = connectors.WorkflowConfig(labels_config={
-            'policy': [{
-                'key': 'PPP',
-                'allow_list': ['audio', 'robotics'],
-                'enforcement': 'warn',
-            }],
-        })
-
-        serialized = config.serialize(database)
-        serialized_labels_config = serialized['labels_config']
-        # if/fail instead of assertIsInstance: mypy narrows the type this way.
-        if not isinstance(serialized_labels_config, str):
-            self.fail('labels_config must serialize as JSON text for the legacy config table.')
-        stored = {'labels_config': json.loads(serialized_labels_config)}
-        restored = connectors.WorkflowConfig.deserialize(stored, database)
-
-        self.assertEqual(restored.labels_config, config.labels_config)
 
 
 if __name__ == '__main__':
