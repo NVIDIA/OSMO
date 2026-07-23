@@ -78,6 +78,8 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   rg -Fq 'consumerReadinessVerifier' goal.md "$materializer_dir/materialize-model-artifacts.sh"
   rg -Fq 'AUGMENT_CONFIG' goal.md
   rg -Fq 'it is not a reason to stop after a fixed retry count' goal.md
+  rg -Fq 'augmentation caption/prompt inference' goal.md
+  rg -Fq 'or `localhost` URL' goal.md
   rg -Fq -- '--dangerously-bypass-approvals-and-sandbox' runtime/run-agent.sh
   ! rg -Fq -- '--ask-for-approval' runtime/run-agent.sh
   test "$(python3 -c 'import json; print(json.load(open("runtime-lock.json"))["agentRuntime"]["osmoUserSkill"]["ref"])')" = "$(sed -n "s/^readonly OSMO_SKILL_REF='\\([0-9a-f]\\{40\\}\\)'$/\\1/p" runtime/run-agent.sh)"

@@ -139,10 +139,14 @@ replacement at `LOW`; it is not a reason to stop after a fixed retry count.
 
 Use the accepted OpenAI-compatible VLM and LLM endpoint
 `https://inference-api.nvidia.com/v1` with the existing runtime inference
-credential mapped only in memory. Do not replace it with an unverified
-in-cluster `*.svc.cluster.local` URL. A retry after an endpoint-readiness
-failure must re-read and enforce this frozen endpoint contract before it
-submits another stage capsule.
+credential mapped only in memory. Every deterministic video stage—including
+augmentation caption/prompt inference—receives the `nvidia_inference`
+credential and maps it only in-process to the upstream PAIDF worker's
+NVIDIA/OpenAI-compatible key variables; it must not unset that key before an
+inference call. Do not replace the hosted endpoint with an unverified
+in-cluster `*.svc.cluster.local` or `localhost` URL. A retry after an
+endpoint-readiness failure must re-read and enforce this frozen endpoint
+contract before it submits another stage capsule.
 
 The pinned PAIDF images may expose only `python` rather than `python3`. Every
 stage entrypoint must resolve and require an interpreter with

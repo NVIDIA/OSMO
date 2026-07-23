@@ -65,10 +65,12 @@ Both roles use the `nvidia_inference` custom provider with
 `https://inference-api.nvidia.com/v1/`, the Responses wire API, and the
 runtime-only `INFERENCE_API_KEY` variable. The image never contains that key.
 The lead, environment-pipeline, and video-pipeline capsules receive it through
-the OSMO `GENERIC` credential named `nvidia_inference`. The original and
-augmented auto-labeling capsules receive that same credential and map
-`INFERENCE_API_KEY` to `NVIDIA_API_KEY` in process before calling the upstream
-worker; augmentation capsules do not receive it.
+the OSMO `GENERIC` credential named `nvidia_inference`. Every deterministic
+video stage—the original and augmented auto-labeling capsules and the
+augmentation capsule—receives that same credential and maps
+`INFERENCE_API_KEY` to `NVIDIA_API_KEY` (and any compatible OpenAI-style key
+variable) in process before calling the upstream worker. No stage unsets or
+persists the key.
 
 The auto-labeling stage's frozen external inference pair is:
 
@@ -158,7 +160,7 @@ The custom stage entrypoint runs inside the PAIDF task:
 ```text
 verify contract, bundle, and cache manifest -> materialize scripts/configuration
 -> prepare environment and writable cache paths from the binding
--> map `INFERENCE_API_KEY` to `NVIDIA_API_KEY` for auto-labeling only
+-> map `INFERENCE_API_KEY` to in-memory NVIDIA/OpenAI key variables
 -> verify declared endpoints and models -> execute PAIDF
 -> validate outputs -> write stage-result.json
 ```
@@ -198,7 +200,7 @@ credentials:
     name: nvidia_inference
     type: GENERIC
     runtimeKey: INFERENCE_API_KEY
-    consumers: [lead-agent, environment-pipeline, video-pipeline, auto-label-original, auto-label-augmented]
+    consumers: [lead-agent, environment-pipeline, video-pipeline, auto-label-original, augment, auto-label-augmented]
   swiftOsmo:
     name: swift_osmo_cred
     type: DATA
@@ -210,7 +212,7 @@ credentials:
     consumers: [model-artifact-materializer]
 vdaEndpoints:
   credential: nvidia_inference
-  stageKeyMapping: "INFERENCE_API_KEY -> NVIDIA_API_KEY"
+  stageKeyMapping: "INFERENCE_API_KEY -> NVIDIA_API_KEY and compatible OpenAI-style key variables, in process only"
   vlm:
     baseUrl: https://inference-api.nvidia.com/v1
     model: nvidia/meta/llama-3.2-11b-vision-instruct
@@ -284,11 +286,12 @@ modelArtifactWorkspace:
   not match it.
 - Each capsule that pulls from NVCR references `ngc_cred`; no registry `auth`
   value is present in its YAML, image, lock, or output.
-- Lead, environment-pipeline, video-pipeline, and auto-labeling capsules
-  reference `nvidia_inference`, which supplies `INFERENCE_API_KEY` at runtime.
-  The auto-label entrypoint maps it only in process to `NVIDIA_API_KEY`; the
-  key is never in an image, bundle, contract, lock, prompt, log, or output.
-  Augmentation capsules do not receive this credential.
+- Lead, environment-pipeline, video-pipeline, and every deterministic video
+  stage reference `nvidia_inference`, which supplies `INFERENCE_API_KEY` at
+  runtime. Each stage maps it only in process to the key variables required by
+  the hosted NVIDIA endpoint; the key is never in an image, bundle, contract,
+  lock, prompt, log, or output. No stage targets a local or in-cluster
+  inference service.
 - Every submitted VDA stage references the pinned upstream PAIDF image digest,
   not a tag alone or a derived image.
 - The lead admits video fan-out only after a verified `environment-ready`

@@ -65,9 +65,11 @@ and dynamic fan-out to deterministic GPU stages. The workload target is the VDA
   it is never baked into an image or written to an artifact.
 - The lead and video-pipeline capsules reference the OSMO `GENERIC` credential
   named `nvidia_inference`. Its `INFERENCE_API_KEY` entry supplies that runtime
-  variable. The two auto-labeling stage capsules also receive it; their
-  entrypoint maps it in-memory to `NVIDIA_API_KEY` immediately before invoking
-  the upstream PAIDF worker. Augmentation capsules do not receive it.
+  variable. Every deterministic video stage, including both auto-labeling and
+  augmentation capsules, also receives it. Its entrypoint maps the value
+  in-memory to the PAIDF worker's `NVIDIA_API_KEY` (and any compatible
+  OpenAI-style key variable) immediately before invocation. No stage unsets or
+  persists the runtime key.
 - The provider configuration is container-user-level Codex configuration. It
   must not depend on a project `.codex/config.toml`, because that surface cannot
   select a provider or redirect provider authentication.
@@ -91,8 +93,9 @@ The custom image also carries the compatible Codex model catalog currently used
 by the selected provider. Its path and content digest are recorded in the
 runtime lock.
 
-The VDA auto-labeling stages use NVIDIA Inference directly, without in-cluster
-NIMs:
+Every VDA inference call, including augmentation caption/prompt generation,
+uses NVIDIA-hosted inference directly. No stage assumes an in-cluster NIM or a
+`localhost` inference service:
 
 ```text
 VLM: https://inference-api.nvidia.com/v1
@@ -273,7 +276,7 @@ this sequence inside the selected upstream PAIDF image:
 verify frozen stage contract and video-stage bundle
   -> materialize scripts/configuration at expected paths
   -> set environment and writable cache paths
-  -> map `INFERENCE_API_KEY` to the PAIDF process's `NVIDIA_API_KEY`
+  -> map `INFERENCE_API_KEY` to the PAIDF process's in-memory NVIDIA/OpenAI key variables
   -> verify or wait for declared inference endpoints and models
   -> execute the installed PAIDF application
   -> validate declared outputs and write stage-result.json

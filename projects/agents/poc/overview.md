@@ -62,13 +62,12 @@ osmo credential set ngc_cred \
 
 Each NVCR-backed capsule then references `ngc_cred` by name only.
 
-Create the Codex inference credential separately. Only the lead,
-environment-pipeline, and video-pipeline agent capsules and the two
-auto-labeling stage capsules reference it; it is injected as
-`INFERENCE_API_KEY` at task runtime. The auto-label entrypoint maps it to
-`NVIDIA_API_KEY` only in its process environment because the upstream PAIDF
-worker accepts that conventional key name. The OSMO credential still has exactly
-one secret entry.
+Create the Codex inference credential separately. The lead,
+environment-pipeline, video-pipeline, and every deterministic video-stage
+capsule reference it; it is injected as `INFERENCE_API_KEY` at task runtime.
+Each stage maps it only in its process environment to `NVIDIA_API_KEY` and any
+compatible OpenAI-style key variable required by the upstream PAIDF worker.
+The OSMO credential still has exactly one secret entry.
 
 ```bash
 osmo credential set nvidia_inference \
@@ -249,7 +248,7 @@ same task, in this order:
 ```text
 verify stage contract, video-stage bundle, and cache binding -> materialize
 scripts/config -> prepare writable cache paths from the verified binding
--> map `INFERENCE_API_KEY` to `NVIDIA_API_KEY` for auto-labeling only
+-> map `INFERENCE_API_KEY` to in-memory NVIDIA/OpenAI key variables
 -> verify declared endpoints and models -> execute PAIDF
 -> validate outputs -> write stage-result.json
 ```
