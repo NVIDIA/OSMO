@@ -214,10 +214,11 @@ def rename_app(name: objects.AppNamePattern,
     # Check if the new name already exists
     try:
         app.App.fetch_from_db(postgres, new_name)
-        raise osmo_errors.OSMOUserError(f'App with name "{new_name}" already exists.')
     except osmo_errors.OSMOUserError:
         # App doesn't exist, which is what we want
         pass
+    else:
+        raise osmo_errors.OSMOUserError(f'App with name "{new_name}" already exists.')
 
     # Rename the app
     app_info.rename(postgres, new_name)

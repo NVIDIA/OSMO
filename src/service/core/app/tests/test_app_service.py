@@ -510,11 +510,7 @@ class TestRenameApp(unittest.TestCase):
         rename_mock.assert_called_once()
         self.assertEqual(result, 'new_app')
 
-    # SUSPECTED BUG: app_service.py:215-218 rename_app — the `except OSMOUserError`
-    # swallows the "App already exists" error that the code itself raises on line 217,
-    # so a rename to a name that is already taken silently succeeds instead of failing.
-    @unittest.skip('source bug — see comment above')
-    def test_rename_app_new_name_already_exists_should_raise(self):
+    def test_rename_app_new_name_already_exists_raises(self):
         app_info = _make_app(owner='alice@example.com', name='my_app')
         existing = _make_app(owner='alice@example.com', name='new_app', uuid='other-uuid')
 
@@ -531,13 +527,14 @@ class TestRenameApp(unittest.TestCase):
              mock.patch.object(job_app.App, 'rename') as rename_mock:
             postgres_cls.get_instance.return_value = mock.Mock()
 
-            with self.assertRaises(osmo_errors.OSMOUserError):
+            with self.assertRaises(osmo_errors.OSMOUserError) as ctx:
                 app_service.rename_app(
                     name='my_app',
                     new_name='new_app',
                     username='alice@example.com',
                 )
 
+        self.assertIn('already exists', str(ctx.exception))
         rename_mock.assert_not_called()
 
 
