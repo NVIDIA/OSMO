@@ -60,7 +60,7 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   rg -Fq 'human-response-<request-id>.json' skills/osmo-agentic-workflow/SKILL.md
   rg -Fq 'CPU-only capsule at `HIGH` priority' goal.md
   rg -Fq 'GPU-requesting deterministic VDA capsule at `LOW` priority' goal.md
-  rg -Fq 'all OSMO pools and resource profiles accessible to the user' goal.md
+  rg -Uq 'all OSMO pools and resource\s+profiles accessible to the user' goal.md
   rg -Fq -- '--priority HIGH' README.md
   rg -Fq 'declared resource profile' skills/osmo-agentic-workflow/SKILL.md
   rg -Fq 'capacity-migration authority' skills/osmo-agentic-workflow/SKILL.md
