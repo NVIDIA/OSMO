@@ -78,8 +78,7 @@ trap 'rm -f "${prompt_file}"' EXIT
 
 codex exec \
   --strict-config \
-  --sandbox danger-full-access \
-  --ask-for-approval never \
+  --dangerously-bypass-approvals-and-sandbox \
   --skip-git-repo-check \
   --ephemeral \
   --json \

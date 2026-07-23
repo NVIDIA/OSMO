@@ -37,6 +37,8 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
     skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   ! rg -Fq 'agentic_skill_root="${kit_root}/skills/osmo-agentic-workflow"' runtime/run-agent.sh
   ! rg -n 'codex-events\.jsonl' runtime/run-agent.sh
+  rg -Fq -- '--dangerously-bypass-approvals-and-sandbox' runtime/run-agent.sh
+  ! rg -Fq -- '--ask-for-approval' runtime/run-agent.sh
   test "$(python3 -c 'import json; print(json.load(open("runtime-lock.json"))["agentRuntime"]["osmoUserSkill"]["ref"])')" = "$(sed -n "s/^readonly OSMO_SKILL_REF='\\([0-9a-f]\\{40\\}\\)'$/\\1/p" runtime/run-agent.sh)"
   rg -q '^  result_url: "swift://pdx\.s8k\.io/AUTH_team-osmo/dev/fernandol/agents_poc/' agentic-vla-workflow-spec.yaml
   rg -Fq '{{ goal_prompt | indent(8) }}' agentic-vla-workflow-spec.yaml
@@ -99,7 +101,7 @@ mkdir -p .local
 export STATIC_REPOSITORY_URL='https://github.com/<owner>/<repository>.git'
 export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
 export STATIC_REPOSITORY_SUBDIR='projects/agents/poc/prototype'
-export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:9b11afb6edf64981cd9083cf656617ff1f798ef8e91e939e7be9c472d21ec3c0'
+export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:1f16b3c78c595251f510479bf269fd0926d84a538f64a722c29e08b1bf715f92'
 export POOL='isaac-dev-l40-03'
 export PLATFORM='ovx-l40'
 export RUN_ID='<dns-safe-run-id>'
