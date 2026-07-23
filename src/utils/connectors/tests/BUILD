@@ -87,3 +87,12 @@ py_test(
     ],
     size = "small"
 )
+
+py_test(
+    name = "test_workflow_label_schema",
+    srcs = ["test_workflow_label_schema.py"],
+    deps = [
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+)

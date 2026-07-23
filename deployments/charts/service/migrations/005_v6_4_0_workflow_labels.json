@@ -1,0 +1,14 @@
+{
+  "operations": [
+    {
+      "add_column": {
+        "table": "workflows",
+        "column": {
+          "name": "labels",
+          "type": "JSONB",
+          "nullable": true
+        }
+      }
+    }
+  ]
+}

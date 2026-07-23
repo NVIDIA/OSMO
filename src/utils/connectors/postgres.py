@@ -875,6 +875,7 @@ class PostgresConnector:
                 app_uuid TEXT,
                 app_version INT,
                 plugins JSONB,
+                labels JSONB,
                 priority TEXT DEFAULT 'NORMAL',
                 PRIMARY KEY (workflow_uuid),
                 CONSTRAINT workflows_name_job UNIQUE(workflow_name, job_id),
@@ -894,6 +895,11 @@ class PostgresConnector:
             CREATE INDEX CONCURRENTLY IF NOT EXISTS workflow_list_index_pool_status
                 ON workflows
                 USING btree (pool, status, submit_time ASC);
+            ''',
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS workflow_labels_gin_idx
+                ON workflows
+                USING gin (labels jsonb_ops);
             '''
         ]
         for cmd in index_cmds:
