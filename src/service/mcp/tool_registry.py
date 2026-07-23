@@ -23,6 +23,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from src.service.mcp import (
+    apps,
+    credentials,
     health,
     pools,
     profile,
@@ -127,6 +129,43 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         title='Get OSMO workflow spec',
         description=(
             'Get the bounded, server-redacted resolved or template workflow YAML.'
+        ),
+    ),
+    ToolSpec(
+        function=apps.osmo_list_apps,
+        name='osmo_list_apps',
+        title='List OSMO apps',
+        description=(
+            'List a bounded page of OSMO apps newest first. By default, '
+            'results are scoped to apps associated with the active user.'
+        ),
+    ),
+    ToolSpec(
+        function=apps.osmo_get_app,
+        name='osmo_get_app',
+        title='Get OSMO app',
+        description=(
+            'Get stable metadata and newest-first version information for '
+            'one OSMO app.'
+        ),
+    ),
+    ToolSpec(
+        function=apps.osmo_get_app_spec,
+        name='osmo_get_app_spec',
+        title='Get OSMO app spec',
+        description=(
+            'Get the bounded plain-text workflow spec for one OSMO app. '
+            'When version is omitted, resolve the newest READY version from '
+            'bounded version history.'
+        ),
+    ),
+    ToolSpec(
+        function=credentials.osmo_list_credentials,
+        name='osmo_list_credentials',
+        title='List OSMO credentials',
+        description=(
+            'List only the active user\'s credential names and types. '
+            'Profiles and credential payloads are never returned.'
         ),
     ),
 )

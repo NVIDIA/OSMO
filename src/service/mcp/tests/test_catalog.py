@@ -21,6 +21,8 @@ from unittest import mock
 import unittest
 
 from src.service.mcp import (
+    apps,
+    credentials,
     health,
     pools,
     profile,
@@ -101,6 +103,35 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'Get OSMO workflow spec',
         'Get the bounded, server-redacted resolved or template workflow YAML.',
     ),
+    (
+        apps.osmo_list_apps,
+        'osmo_list_apps',
+        'List OSMO apps',
+        'List a bounded page of OSMO apps newest first. By default, '
+        'results are scoped to apps associated with the active user.',
+    ),
+    (
+        apps.osmo_get_app,
+        'osmo_get_app',
+        'Get OSMO app',
+        'Get stable metadata and newest-first version information for '
+        'one OSMO app.',
+    ),
+    (
+        apps.osmo_get_app_spec,
+        'osmo_get_app_spec',
+        'Get OSMO app spec',
+        'Get the bounded plain-text workflow spec for one OSMO app. '
+        'When version is omitted, resolve the newest READY version from '
+        'bounded version history.',
+    ),
+    (
+        credentials.osmo_list_credentials,
+        'osmo_list_credentials',
+        'List OSMO credentials',
+        'List only the active user\'s credential names and types. '
+        'Profiles and credential payloads are never returned.',
+    ),
 )
 
 _EXPECTED_REQUIRED_FIELDS = {
@@ -114,6 +145,10 @@ _EXPECTED_REQUIRED_FIELDS = {
     'osmo_get_workflow_logs': ['workflow_id'],
     'osmo_get_workflow_events': ['workflow_id'],
     'osmo_get_workflow_spec': ['workflow_id'],
+    'osmo_list_apps': [],
+    'osmo_get_app': ['name'],
+    'osmo_get_app_spec': ['name'],
+    'osmo_list_credentials': [],
 }
 
 _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
@@ -145,6 +180,15 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
     },
     'osmo_get_workflow_events': {'task_name': None, 'retry_id': None},
     'osmo_get_workflow_spec': {'use_template': False},
+    'osmo_list_apps': {
+        'name': None,
+        'users': None,
+        'all_users': False,
+        'limit': 50,
+        'offset': 0,
+    },
+    'osmo_get_app': {'version': None, 'limit': 50},
+    'osmo_get_app_spec': {'version': None},
 }
 
 
@@ -152,7 +196,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
     """Lock the ordered, agent-facing external MCP tool contract."""
 
     def test_registry_has_exact_metadata_and_direct_unique_functions(self) -> None:
-        self.assertEqual(len(tool_registry.TOOL_SPECS), 10)
+        self.assertEqual(len(tool_registry.TOOL_SPECS), 14)
         self.assertEqual(
             [
                 (spec.name, spec.title, spec.description)
@@ -167,7 +211,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         registered_functions = [
             spec.function for spec in tool_registry.TOOL_SPECS
         ]
-        self.assertEqual(len({id(function) for function in registered_functions}), 10)
+        self.assertEqual(len({id(function) for function in registered_functions}), 14)
         for spec, (function, _, _, _) in zip(
             tool_registry.TOOL_SPECS,
             _EXPECTED_SPECS,
@@ -180,7 +224,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
         tool_registry.register_tools(mcp_server)
 
-        self.assertEqual(mcp_server.add_tool.call_count, 10)
+        self.assertEqual(mcp_server.add_tool.call_count, 14)
         for call, (function, name, title, description) in zip(
             mcp_server.add_tool.call_args_list,
             _EXPECTED_SPECS,
@@ -240,6 +284,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             'osmo_search_pools',
             'osmo_list_resources',
             'osmo_list_workflows',
+            'osmo_list_apps',
         ):
             properties = tools_by_name[tool_name].inputSchema['properties']
             self.assertEqual(properties['limit']['minimum'], 1)
@@ -258,6 +303,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_selection_retains_canonical_order(self) -> None:
         selected_names = {
+            'osmo_get_app_spec',
             'osmo_health',
             'osmo_get_resource',
         }
@@ -267,6 +313,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             [
                 'osmo_health',
                 'osmo_get_resource',
+                'osmo_get_app_spec',
             ],
         )
 
@@ -279,6 +326,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             [
                 'osmo_health',
                 'osmo_get_resource',
+                'osmo_get_app_spec',
             ],
         )
 
