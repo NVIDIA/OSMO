@@ -122,6 +122,12 @@ The stage bundle records the verifier SHA-256 and it must equal the
 consumer-readiness check is a typed stage failure and must not start expensive
 inference.
 
+The pinned PAIDF images may expose only `python` rather than `python3`. Every
+stage entrypoint must resolve and require an interpreter with
+`command -v python3 || command -v python`, then use that resolved executable
+for the verifier and any inline Python helper. Do not install packages, add a
+Python runtime, or derive an image to work around an interpreter name.
+
 ## Goal and acceptance
 
 Use the existing OSMO CLI and the public, commit-pinned static kit to plan and
