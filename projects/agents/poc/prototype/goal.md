@@ -19,19 +19,34 @@ The input source is Hugging Face
 `0b914ba2d32bd6991e73e31f0de7c9d381076e17`; the Swift mirror has already
 been verified against this manifest.
 
-## Execution target
+## Scheduling and recovery policy
 
-Use OSMO pool `isaac-dev-l40-03` and platform `ovx-l40` for the lead and every
-child workflow capsule in this run. Include `--pool isaac-dev-l40-03` whenever
-submitting a capsule and set each capsule's resource platform to `ovx-l40`.
+Use any visible OSMO pool and platform that the owning agent verifies is
+eligible for the specific capsule. Before every submission, inspect the
+accessible pools and resources with the OSMO CLI. Eligibility requires the
+selected platform, resource profile, and pinned image to be compatible with
+the capsule; record the selected pool, platform, priority, workflow ID, and
+output URL in durable evidence. A selection is frozen for that immutable
+capsule only; a later replacement may use a different verified eligible pool
+or platform.
 
-Use no other pool or platform in this run without human direction. A pending
-task, a temporary capacity or quota block, or an in-progress child is a known
-non-terminal condition: preserve the evidence, return `Retrying`, and
-reconcile again after the runtime's controlled delay. Do not alter OSMO
-service configuration or silently select another target. Ask the human only
-when the next safe action is genuinely ambiguous after inspecting the frozen
-contracts, evidence, and OSMO state.
+Submit the lead and every child capsule with `--priority LOW`. Low priority is
+intentionally allowed to bypass normal quota when physical capacity is idle and
+may be preempted. Do not alter OSMO pools, profiles, quotas, credentials, or
+service configuration.
+
+There is no numeric retry or resubmission limit for this run. A pending task,
+temporary capacity or quota block, preemption, or failed child is a known
+non-terminal condition: preserve the evidence, reconcile the existing
+workflow, then recover or retry. If a non-running child is demonstrably blocked
+and a different verified eligible pool could make progress, you are authorized
+to cancel that child without `--force`, wait for its terminal state, and submit
+a new immutable replacement. Never cancel a running child merely to chase
+capacity, and never submit a replacement before the prior attempt is terminal.
+If no safe replacement exists yet, return `Retrying` and reconcile again after
+the runtime's controlled delay. Ask the human only when the next safe action is
+genuinely ambiguous after inspecting the frozen contracts, evidence, and OSMO
+state.
 
 ## Immutable recovery rules for this run
 

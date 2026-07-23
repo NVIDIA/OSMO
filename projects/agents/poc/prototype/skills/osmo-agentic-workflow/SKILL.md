@@ -32,6 +32,11 @@ control URL is a non-secret object-storage location for a checkpointed human
 request and matched response; it is not inherited from the parent and is not a
 credential.
 
+Carry every active parent execution policy into the child's `AGENTS.md`,
+including its priority, pool-selection constraints, and any narrowly granted
+replacement authority. Do not invent cancellation authority in a generic child
+handoff.
+
 ## Pass verified evidence by reference
 
 Pass a parent artifact to a child only as its immutable URL and SHA-256. Put
@@ -54,10 +59,15 @@ document. This rule applies to every artifact type, not only environments.
    `/run/agent/AGENTS.md` in that YAML. Include immutable parent-evidence URLs
    and SHA-256 values only. Do not put secret values or copied artifact fields
    in it.
-4. Read the relevant `osmo-user` reference, then use the existing OSMO CLI to
-   preview, validate, and submit the child YAML.
-5. Persist the returned workflow ID and output URL in the parent result's
-   evidence before monitoring it.
+4. When the parent permits pool selection, read `osmo-user` resource guidance,
+   inspect the visible pools and resource profiles, and choose a compatible
+   pool/platform for this capsule. Record that selection and the reason it is
+   eligible in durable evidence before submission.
+5. Read the relevant `osmo-user` reference, then use the existing OSMO CLI to
+   preview, validate, and submit the child YAML. Use `--priority LOW` only when
+   the parent execution policy authorizes it.
+6. Persist the returned workflow ID, output URL, pool, platform, and priority
+   in the parent result's evidence before monitoring it.
 
 ## Monitor, recurse, and retry
 
@@ -69,6 +79,14 @@ Before retrying, query the previous child and reconcile its typed result and
 referenced evidence. A terminal OSMO workflow status alone is not a successful
 subgoal. Create a new immutable child YAML only after the previous child is
 terminal. There is no numeric retry limit.
+
+When the parent explicitly grants capacity-migration authority, a child that
+has not started work and is demonstrably blocked may be canceled without
+`--force`, reconciled to a terminal state, and replaced on another verified
+eligible pool. Never cancel a running child merely to chase capacity and never
+submit a parallel replacement for a non-terminal child. Without that explicit
+authority, leave the child intact and return `Retrying` while it remains a
+known non-terminal condition.
 
 Return `Retrying` for known non-terminal conditions, including an existing
 child that is pending, temporarily out of capacity, or still producing its

@@ -8,7 +8,7 @@
     "registryCredential": "ngc_cred",
     "osmoCli": {
       "source": "existing OSMO task runtime",
-      "requiredCommands": ["workflow submit", "workflow validate", "workflow query", "workflow logs", "workflow events", "data check", "data download"]
+      "requiredCommands": ["pool list", "resource list", "workflow submit", "workflow validate", "workflow query", "workflow logs", "workflow events", "workflow cancel", "data check", "data download"]
     },
     "agenticWorkflowSubmit": {
       "name": "agentic_workflow_submit",
