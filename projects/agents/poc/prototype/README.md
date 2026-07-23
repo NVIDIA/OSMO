@@ -18,6 +18,7 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   bash -n runtime/run-agent.sh
   python3 -m json.tool runtime-lock.json >/dev/null
   python3 -m json.tool skills/osmo-agentic-workflow/assets/agent-result.schema.json >/dev/null
+  python3 -c 'import json; schema=json.load(open("skills/osmo-agentic-workflow/assets/agent-result.schema.json")); assert set(schema["required"]) == set(schema["properties"]); assert schema["properties"]["nextAction"]["type"] == ["string", "null"]'
   test ! -e runtime/model-catalog.json
   ! rg -n 'model_catalog_json|model-catalog\.json' Dockerfile runtime runtime-lock.json
   ruby -e '
