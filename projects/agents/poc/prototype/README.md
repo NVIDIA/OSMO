@@ -102,7 +102,7 @@ OSMO, Docker, storage, inference, or a network service.
 | Recovery source revision | The published static-kit commit includes `run-agent.sh`, the generic skill, and the sibling `model-artifact-materializer` v2 source. |
 | OSMO pool and platform | The selected pool can schedule the `lead` resource profile. |
 | Output URL | A writable OSMO-supported output location is selected for this run. |
-| Credentials | `ngc_cred` pulls the private runtime image; `nvidia_inference` injects `INFERENCE_API_KEY`; `agentic_workflow_submit` injects the short-lived OSMO submission token into agent tasks only. |
+| Credentials | `ngc_cred` pulls the private runtime image; `nvidia_inference` injects `INFERENCE_API_KEY`; `agentic_workflow_submit` injects the short-lived OSMO submission token; `swift_osmo_cred` covers the Swift output/control prefix. All values remain runtime-only. |
 
 ## Later live activation — build and credentials
 
