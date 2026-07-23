@@ -35,6 +35,9 @@ workflow:
         # Child agent
 
         Replace this with the bounded child subgoal, acceptance criteria, and
-        relevant parent evidence. Do not include secret values.
+        relevant parent evidence. Pass each parent artifact only as its exact
+        immutable URL and SHA-256. Download and verify it before using its
+        fields; do not reconstruct or copy derived values from prose. Do not
+        include secret values.
     outputs:
     - url: "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/agent-results/replace-with-child-name/"

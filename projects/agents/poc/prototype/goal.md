@@ -30,6 +30,74 @@ does not schedule or cannot reach a required endpoint, preserve the failure
 evidence and ask the human operator to resolve that environment prerequisite;
 do not alter OSMO service configuration or silently select another target.
 
+## Immutable recovery rules for this run
+
+Use a new `RUN_ID` and a new content-addressed cache lock for this run. Never
+reuse, overwrite, or repair the earlier cache generation. The cache lock must
+cover the current source-manifest SHA-256, materializer-script SHA-256,
+consumer-readiness-verifier SHA-256, and consumer-ready publication policy.
+
+The VDA-specific source of truth is the static repository at this task's exact
+`STATIC_REPOSITORY_REF`:
+
+```text
+projects/agents/poc/model-artifact-materializer/
+  model-artifact-sources-v1.json
+  materialize-model-artifacts.sh
+  verify-vda-cache.py
+```
+
+The task's static-kit subdirectory may not include those sibling files. When
+their bytes are needed, clone `STATIC_REPOSITORY_URL` at exactly
+`STATIC_REPOSITORY_REF`, verify the detached commit, and use those files. Do
+not replace them with copied, invented, or differently-versioned inline code.
+
+The environment pipeline may issue `environment-ready.json` only after it has
+verified the materializer's root-level `cache-manifest.json` and
+`cache-result.json`, their SHA-256 values, and the remote object inventory
+required by the v2 manifest. The v2 manifest intentionally excludes only the
+declared transient Hugging Face metadata; do not require excluded `.locks`,
+`xet`, `.agent_harnesses.json`, `.no_exist`, or `trees/*.json` objects.
+
+Write `environment-ready.json` with these exact, explicit fields:
+
+```json
+{
+  "schemaVersion": "v2",
+  "outcome": "Completed",
+  "cacheLock": "<content-addressed-lock>",
+  "artifactRootUrl": "swift://.../model-artifacts/vda/<cache-lock>/",
+  "payloadUrl": "swift://.../model-artifacts/vda/<cache-lock>/",
+  "manifestUrl": "swift://.../model-artifacts/vda/<cache-lock>/cache-manifest.json",
+  "manifestSha256": "<64-lowercase-hex>",
+  "resultUrl": "swift://.../model-artifacts/vda/<cache-lock>/cache-result.json"
+}
+```
+
+`artifactRootUrl` and `payloadUrl` are both explicit even when this v2 layout
+uses the same prefix. Downstream code must use the values as written; it must
+not append `cache/`, rebuild a URL from the lock, or copy their values from a
+parent's prose.
+
+The lead passes each video child only `environmentReadyUrl` and
+`environmentReadySha256`. Each video child downloads and verifies that document
+before using its exact fields. It repeats the same reference-only rule for
+every deterministic stage contract.
+
+Before running PAIDF inference, each deterministic stage must materialize its
+declared cache payload locally, verify its manifest binding, and execute the
+pinned `verify-vda-cache.py` from its stage bundle inside the PAIDF image:
+
+```text
+auto-label stages: verify-vda-cache.py --component auto-labeling
+augmentation stage: verify-vda-cache.py --component augmentation
+```
+
+The stage bundle records the verifier SHA-256 and it must equal the
+`consumerReadinessVerifier.sha256` in the verified cache manifest. A failed
+consumer-readiness check is a typed stage failure and must not start expensive
+inference.
+
 ## Goal and acceptance
 
 Use the existing OSMO CLI and the public, commit-pinned static kit to plan and

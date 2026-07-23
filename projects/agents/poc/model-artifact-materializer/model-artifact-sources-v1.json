@@ -6,11 +6,22 @@
     "derivedFrom": "skills/physical-ai-video-data-augmentation/assets/configs/osmo/setup_model_cache.yaml"
   },
   "materializer": {
-    "entrypointVersion": "v1",
+    "entrypointVersion": "v2",
     "baseImage": "nvcr.io/nvidia/base/ubuntu@sha256:2a9f71d82aa4daac444c1b4b74d5d7b01f93eb23662c1236f89d817f083abecd",
     "huggingfaceHubVersion": "1.24.0",
     "superResolution": false,
     "seedvrVariant": "none"
+  },
+  "publication": {
+    "schemaVersion": "v2",
+    "excludedTransientPaths": [
+      "any .locks subtree",
+      "any xet subtree",
+      "any .agent_harnesses.json file",
+      "any .no_exist subtree",
+      "any trees/*.json Hugging Face metadata file"
+    ],
+    "consumerReadinessSchemaVersion": "v1"
   },
   "cosmos": {
     "hubDownloads": [

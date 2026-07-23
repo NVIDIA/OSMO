@@ -15,10 +15,16 @@ controller.
 cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
 (
   set -euo pipefail
+  materializer_dir=../model-artifact-materializer
   bash -n runtime/run-agent.sh
+  bash -n "$materializer_dir/materialize-model-artifacts.sh"
   python3 -m json.tool runtime-lock.json >/dev/null
   python3 -m json.tool skills/osmo-agentic-workflow/assets/agent-result.schema.json >/dev/null
+  python3 -m json.tool "$materializer_dir/model-artifact-sources-v1.json" >/dev/null
+  python3 -c 'from pathlib import Path; path=Path("../model-artifact-materializer/verify-vda-cache.py"); compile(path.read_text(encoding="utf-8"), str(path), "exec")'
+  python3 "$materializer_dir/verify-vda-cache.py" --help >/dev/null
   python3 -c 'import json; schema=json.load(open("skills/osmo-agentic-workflow/assets/agent-result.schema.json")); assert set(schema["required"]) == set(schema["properties"]); assert schema["properties"]["nextAction"]["type"] == ["string", "null"]'
+  python3 -c 'import json; source=json.load(open("../model-artifact-materializer/model-artifact-sources-v1.json")); assert source["materializer"]["entrypointVersion"] == "v2"; assert source["publication"]["schemaVersion"] == "v2"; assert source["publication"]["consumerReadinessSchemaVersion"] == "v1"'
   test ! -e runtime/model-catalog.json
   ! rg -n 'model_catalog_json|model-catalog\.json' Dockerfile runtime runtime-lock.json
   ruby -e '
@@ -46,6 +52,12 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
     skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   ! rg -Fq 'agentic_skill_root="${kit_root}/skills/osmo-agentic-workflow"' runtime/run-agent.sh
   ! rg -n 'codex-events\.jsonl' runtime/run-agent.sh
+  rg -Fq -- '--json' runtime/run-agent.sh
+  rg -Fq 'Agent requested continuation' runtime/run-agent.sh
+  rg -Fq 'Return `Retrying` only' skills/osmo-agentic-workflow/SKILL.md
+  rg -Fq 'Pass verified evidence by reference' skills/osmo-agentic-workflow/SKILL.md
+  rg -Fq 'environmentReadyUrl' skills/osmo-agentic-workflow/SKILL.md goal.md
+  rg -Fq 'consumerReadinessVerifier' goal.md "$materializer_dir/materialize-model-artifacts.sh"
   rg -Fq -- '--dangerously-bypass-approvals-and-sandbox' runtime/run-agent.sh
   ! rg -Fq -- '--ask-for-approval' runtime/run-agent.sh
   test "$(python3 -c 'import json; print(json.load(open("runtime-lock.json"))["agentRuntime"]["osmoUserSkill"]["ref"])')" = "$(sed -n "s/^readonly OSMO_SKILL_REF='\\([0-9a-f]\\{40\\}\\)'$/\\1/p" runtime/run-agent.sh)"
@@ -64,10 +76,11 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
 ```
 
 Expected: the runtime script, JSON configuration, root YAML, child template,
-and skill metadata parse locally. It also rejects mutable image references,
-credential-value fields, old role selection, and obsolete controller machinery.
-This command does not invoke OSMO, Docker, storage, inference, or a network
-service.
+skill metadata, and VDA materializer sources parse locally. It also confirms
+the generic continuation/evidence rules and consumer-ready cache contract,
+while rejecting mutable image references, credential-value fields, old role
+selection, and obsolete controller machinery. This command does not invoke
+OSMO, Docker, storage, inference, or a network service.
 
 ## Later live activation — prerequisites
 
@@ -75,6 +88,7 @@ service.
 |---|---|
 | Public static-kit repository | Every agent clones one public GitHub URL at one full 40-character commit SHA and uses the configured relative kit directory (`.` for repository root). |
 | Runtime image | A locally built `linux/amd64` `nvcr.io/nvstaging/osmo/agent-runtime:<tag>` has a resolved digest. |
+| Recovery source revision | The published static-kit commit includes `run-agent.sh`, the generic skill, and the sibling `model-artifact-materializer` v2 source. |
 | OSMO pool and platform | The selected pool can schedule the `lead` resource profile. |
 | Output URL | A writable OSMO-supported output location is selected for this run. |
 | Credentials | `ngc_cred` pulls the private runtime image; `nvidia_inference` injects `INFERENCE_API_KEY`; `agentic_workflow_submit` injects the short-lived OSMO submission token into agent tasks only. |
@@ -91,6 +105,10 @@ docker buildx imagetools inspect "$RUNTIME_TAG"
 
 Expected: one digest-pinned runtime image is available for the lead and every
 agent-created child workflow.
+
+Use a new run ID after publishing the recovery source. The lead computes a new
+cache lock from that commit's materializer sources and only publishes a new
+immutable cache generation; it must not reuse the prior cache prefix.
 
 ```bash
 osmo credential set ngc_cred --type REGISTRY \
@@ -121,10 +139,10 @@ export STATIC_REPOSITORY_URL='https://github.com/<owner>/<repository>.git'
 export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
 export STATIC_REPOSITORY_SUBDIR='projects/agents/poc/prototype'
 export OSMO_SERVICE_URL='https://us-west-2-aws.osmo.nvidia.com'
-export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:9cf85c297a36cd8dbda91e059ccef78c9270defa2f412542dd8e46b56dcd1a30'
+export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:<new-recovery-image-64-hex-digest>'
 export POOL='isaac-dev-l40-03'
 export PLATFORM='ovx-l40'
-export RUN_ID='<dns-safe-run-id>'
+export RUN_ID='vda-recovery-<dns-safe-unique-suffix>'
 export WORKFLOW_NAME="agentic-vla-$RUN_ID"
 export RESULT_URL="swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-${RUN_ID}/agent/lead/"
 export GOAL_PROMPT="$(<./goal.md)"
@@ -161,4 +179,6 @@ Expected: one lead workflow ID. The lead owns dynamic delegation; do not submit
 child workflows manually. Every child embeds a bounded, task-scoped `AGENTS.md`
 in its YAML, is previewed and validated, then is submitted and reconciled by
 its owning agent. A retry uses a new child YAML only after the agent has queried
-the previous child and found it terminal.
+the previous child and found it terminal. Agent JSONL streams to task stdout
+and stderr during every Codex iteration; only the typed `agent-result.json` and
+durable workflow evidence are uploaded to the declared output URL.

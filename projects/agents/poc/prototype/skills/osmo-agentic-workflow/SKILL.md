@@ -27,13 +27,28 @@ template's `REPLACE_WITH_OSMO_SERVICE_HOST` with the parent task's
 to authenticate to OSMO and recursively delegate; never copy a token value
 into YAML, instructions, evidence, or artifacts.
 
+## Pass verified evidence by reference
+
+Pass a parent artifact to a child only as its immutable URL and SHA-256. Put
+those two values in the child `AGENTS.md`; do not copy derived fields from the
+artifact into prose or reconstruct a URL from a prefix. The child must download
+the referenced bytes, verify the SHA-256, parse the verified artifact locally,
+and use the fields it contains exactly as written.
+
+For example, an environment handoff passes only `environmentReadyUrl` and
+`environmentReadySha256`. A video child verifies that one document, then reads
+its exact artifact-root, payload, manifest, result, and lock values from that
+document. This rule applies to every artifact type, not only environments.
+
 ## Create one child
 
 1. Bound the child to one clear subgoal, acceptance criteria, and relevant
    parent evidence. Escalate ambiguity that cannot be resolved safely.
 2. Copy `assets/child-workflow-template.yaml` to a new child YAML.
 3. Replace every `REPLACE_*` value and write the bounded subgoal into
-   `/run/agent/AGENTS.md` in that YAML. Do not put secret values in it.
+   `/run/agent/AGENTS.md` in that YAML. Include immutable parent-evidence URLs
+   and SHA-256 values only. Do not put secret values or copied artifact fields
+   in it.
 4. Read the relevant `osmo-user` reference, then use the existing OSMO CLI to
    preview, validate, and submit the child YAML.
 5. Persist the returned workflow ID and output URL in the parent result's
@@ -45,8 +60,18 @@ Use `osmo-user` and the existing CLI to query child state, inspect logs/events
 when needed, and collect its output. A child agent may repeat this same
 process for a further bounded subgoal.
 
-Before retrying, query the previous child. Create a new immutable child YAML
-only after the previous child is terminal. There is no numeric retry limit.
+Before retrying, query the previous child and reconcile its typed result and
+referenced evidence. A terminal OSMO workflow status alone is not a successful
+subgoal. Create a new immutable child YAML only after the previous child is
+terminal. There is no numeric retry limit.
+
+Return `Retrying` only when this same agent task must continue its bounded
+subgoal. It is not successful completion. The agent runtime starts another
+Codex turn with the prior typed result, so read that result and its evidence on
+the next turn instead of restating the plan or treating prior children as new.
+Return `Completed` only after reconciling every child needed for the assigned
+acceptance criteria. Return `HumanInterventionRequired` only for ambiguity that
+cannot be resolved safely from the task contract, evidence, and OSMO state.
 
 ## Boundaries
 

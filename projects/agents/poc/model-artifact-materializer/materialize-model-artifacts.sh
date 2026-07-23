@@ -10,6 +10,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 sources_file="${MODEL_ARTIFACT_SOURCES_FILE:-${script_dir}/model-artifact-sources-v1.json}"
+verifier_file="${MODEL_ARTIFACT_VERIFIER_SCRIPT:-${script_dir}/verify-vda-cache.py}"
 cache_root="${CACHE_ROOT:?CACHE_ROOT is required}"
 cache_lock="${CACHE_LOCK:?CACHE_LOCK is required}"
 result_path="${CACHE_RESULT_PATH:-${cache_root}/cache-result.json}"
@@ -29,6 +30,11 @@ fi
 
 if [[ ! -f "${sources_file}" ]]; then
   echo "Cache source manifest is missing: ${sources_file}" >&2
+  exit 2
+fi
+
+if [[ ! -f "${verifier_file}" ]]; then
+  echo "VDA cache verifier is missing: ${verifier_file}" >&2
   exit 2
 fi
 
@@ -66,12 +72,15 @@ MODEL_ARTIFACT_SOURCES_FILE="${sources_file}" \
 CACHE_MANIFEST_PATH="${manifest_path}" \
 CACHE_RESULT_PATH="${result_path}" \
 MODEL_ARTIFACT_MATERIALIZER_SCRIPT="${BASH_SOURCE[0]}" \
+MODEL_ARTIFACT_VERIFIER_SCRIPT="${verifier_file}" \
 HF_HOME="${cache_root}/cosmos_transfer" \
 python3 - <<'PY'
 import hashlib
 import json
 import os
 import shutil
+import subprocess
+import sys
 import urllib.request
 from pathlib import Path
 
@@ -105,10 +114,15 @@ sources_path = Path(os.environ["MODEL_ARTIFACT_SOURCES_FILE"])
 manifest_path = Path(os.environ["CACHE_MANIFEST_PATH"])
 result_path = Path(os.environ["CACHE_RESULT_PATH"])
 script_path = Path(os.environ["MODEL_ARTIFACT_MATERIALIZER_SCRIPT"])
+verifier_path = Path(os.environ["MODEL_ARTIFACT_VERIFIER_SCRIPT"])
 sources = json.loads(sources_path.read_text(encoding="utf-8"))
 
 if sources["materializer"]["superResolution"] or sources["materializer"]["seedvrVariant"] != "none":
     raise SystemExit("this POC materializer supports superResolution=false and seedvrVariant=none only")
+if sources.get("publication", {}).get("schemaVersion") != "v2":
+    raise SystemExit("this POC materializer requires the consumer-ready publication schema v2")
+if not verifier_path.is_file():
+    raise SystemExit(f"VDA cache verifier is missing: {verifier_path}")
 
 token = os.environ["HF_TOKEN"]
 cosmos_root = root / "cosmos_transfer"
@@ -150,17 +164,51 @@ for link in sorted(hub_root.rglob("*")):
 for item in sources["autoLabeling"]["directDownloads"]:
     download_direct(item["url"], auto_label_root / item["path"])
 
+
+def transient_cache_metadata(path: Path) -> bool:
+    parts = path.parts
+    return (
+        ".locks" in parts
+        or "xet" in parts
+        or ".no_exist" in parts
+        or path.name == ".agent_harnesses.json"
+        or (len(parts) >= 2 and parts[-2] == "trees" and path.suffix == ".json")
+    )
+
+
 files = []
 for path in sorted(root.rglob("*")):
-    if path.is_file() and path not in {manifest_path, result_path}:
+    relative_path = path.relative_to(root)
+    if (
+        path.is_file()
+        and path not in {manifest_path, result_path}
+        and not transient_cache_metadata(relative_path)
+    ):
         files.append({
-            "path": str(path.relative_to(root)),
+            "path": str(relative_path),
             "bytes": path.stat().st_size,
             "sha256": sha256(path),
         })
 
+consumer_readiness = {
+    "schemaVersion": sources["publication"]["consumerReadinessSchemaVersion"],
+    "components": {
+        "augmentation": {
+            "requiredPathPrefixes": ["cosmos_transfer"],
+            "hubCacheRelativePath": "cosmos_transfer/hub",
+            "hubDownloads": sources["cosmos"]["hubDownloads"],
+            "snapshots": sources["cosmos"]["snapshots"],
+        },
+        "auto-labeling": {
+            "requiredFiles": [
+                f"auto_labeling/{item['path']}"
+                for item in sources["autoLabeling"]["directDownloads"]
+            ],
+        },
+    },
+}
 manifest = {
-    "schemaVersion": "v1",
+    "schemaVersion": "v2",
     "cacheLock": lock,
     "sourcesManifest": {
         "path": sources_path.name,
@@ -172,15 +220,42 @@ manifest = {
     },
     "source": sources["source"],
     "materializer": sources["materializer"],
+    "publication": sources["publication"],
+    "consumerReadiness": consumer_readiness,
+    "consumerReadinessVerifier": {
+        "path": verifier_path.name,
+        "sha256": sha256(verifier_path),
+    },
     "files": files,
 }
 atomic_json(manifest_path, manifest)
+subprocess.run(
+    [
+        sys.executable,
+        str(verifier_path),
+        "--cache-root",
+        str(root),
+        "--manifest",
+        str(manifest_path),
+        "--component",
+        "all",
+        "--verify-payload",
+    ],
+    check=True,
+)
 atomic_json(result_path, {
     "outcome": "Completed",
+    "schemaVersion": "v2",
     "cacheLock": lock,
     "manifest": manifest_path.name,
     "manifestSha256": sha256(manifest_path),
     "fileCount": len(files),
+    "consumerReadiness": {
+        "schemaVersion": consumer_readiness["schemaVersion"],
+        "verifier": verifier_path.name,
+        "verifierSha256": sha256(verifier_path),
+        "verified": True,
+    },
 })
 PY
 

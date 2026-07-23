@@ -2,8 +2,8 @@
   "schemaVersion": "v1",
   "agentRuntime": {
     "parent": "ubuntu:22.04@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8",
-    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-workflow-submit-auth-20260722-1",
-    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:9cf85c297a36cd8dbda91e059ccef78c9270defa2f412542dd8e46b56dcd1a30",
+    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-recovery-v2-REPLACE_WITH_TAG",
+    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:REPLACE_WITH_64_HEX",
     "platform": "linux/amd64",
     "registryCredential": "ngc_cred",
     "osmoCli": {
