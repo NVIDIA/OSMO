@@ -122,6 +122,13 @@ The stage bundle records the verifier SHA-256 and it must equal the
 consumer-readiness check is a typed stage failure and must not start expensive
 inference.
 
+Use the accepted OpenAI-compatible VLM and LLM endpoint
+`https://inference-api.nvidia.com/v1` with the existing runtime inference
+credential mapped only in memory. Do not replace it with an unverified
+in-cluster `*.svc.cluster.local` URL. A retry after an endpoint-readiness
+failure must re-read and enforce this frozen endpoint contract before it
+submits another stage capsule.
+
 The pinned PAIDF images may expose only `python` rather than `python3`. Every
 stage entrypoint must resolve and require an interpreter with
 `command -v python3 || command -v python`, then use that resolved executable
