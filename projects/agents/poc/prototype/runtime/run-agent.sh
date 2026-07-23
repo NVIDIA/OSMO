@@ -5,6 +5,7 @@ set -euo pipefail
 readonly OSMO_SKILL_REPOSITORY='https://github.com/NVIDIA/OSMO.git'
 readonly OSMO_SKILL_REF='3603b853f62dd38dfe1dc0a76cf68dfa3f07461a'
 readonly AGENTS_FILE='/run/agent/AGENTS.md'
+readonly DEFAULT_OSMO_SERVICE_URL='https://us-west-2-aws.osmo.nvidia.com'
 
 result_root=""
 while [[ $# -gt 0 ]]; do
@@ -21,7 +22,23 @@ done
 [[ -n "${result_root}" ]] || { echo "--result-root is required" >&2; exit 2; }
 [[ -r "${AGENTS_FILE}" ]] || { echo "${AGENTS_FILE} is required and must be readable" >&2; exit 2; }
 [[ -n "${INFERENCE_API_KEY:-}" ]] || { echo "INFERENCE_API_KEY is required at runtime" >&2; exit 2; }
+[[ -n "${OSMO_AGENTIC_WORKFLOW_TOKEN:-}" ]] || {
+  echo "OSMO_AGENTIC_WORKFLOW_TOKEN is required at runtime" >&2
+  exit 2
+}
 command -v osmo >/dev/null || { echo "OSMO CLI is not available in this task runtime" >&2; exit 2; }
+
+osmo_service_url="${OSMO_SERVICE_URL:-${DEFAULT_OSMO_SERVICE_URL}}"
+[[ "${osmo_service_url}" =~ ^https://[A-Za-z0-9.-]+$ ]] || {
+  echo "OSMO_SERVICE_URL must be an https service root without a path" >&2
+  exit 2
+}
+
+# Pass the one-time credential through an inherited file descriptor rather than
+# an argument or a file, then remove it from the environment before Codex runs.
+osmo login "${osmo_service_url}" --method token --token-file /dev/fd/3 \
+  3<<<"${OSMO_AGENTIC_WORKFLOW_TOKEN}" >/dev/null
+unset OSMO_AGENTIC_WORKFLOW_TOKEN
 
 checkout_pinned() {
   local repository_url="$1" repository_ref="$2" destination="$3"

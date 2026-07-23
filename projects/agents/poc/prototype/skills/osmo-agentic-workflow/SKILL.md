@@ -21,6 +21,12 @@ commit SHA, and `STATIC_REPOSITORY_SUBDIR` (use `.` when the kit is at the
 repository root) unless the parent task instructions explicitly supply
 replacements.
 
+Preserve the `agentic_workflow_submit` credential mapping. Replace the child
+template's `REPLACE_WITH_OSMO_SERVICE_HOST` with the parent task's
+`OSMO_SERVICE_URL` host. Together they give the child its runtime-only ability
+to authenticate to OSMO and recursively delegate; never copy a token value
+into YAML, instructions, evidence, or artifacts.
+
 ## Create one child
 
 1. Bound the child to one clear subgoal, acceptance criteria, and relevant

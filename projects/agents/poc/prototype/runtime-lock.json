@@ -2,13 +2,19 @@
   "schemaVersion": "v1",
   "agentRuntime": {
     "parent": "ubuntu:22.04@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8",
-    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-model-fallback-20260723-002325",
-    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:b9f2d724368d91b9e34bcaef15df8555383ad558bea224e6c9fc0c0ac43dc3ff",
+    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-workflow-submit-auth-20260722-1",
+    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:9cf85c297a36cd8dbda91e059ccef78c9270defa2f412542dd8e46b56dcd1a30",
     "platform": "linux/amd64",
     "registryCredential": "ngc_cred",
     "osmoCli": {
       "source": "existing OSMO task runtime",
       "requiredCommands": ["workflow submit", "workflow validate", "workflow query", "workflow logs", "workflow events", "data download"]
+    },
+    "agenticWorkflowSubmit": {
+      "name": "agentic_workflow_submit",
+      "type": "GENERIC",
+      "runtimeKey": "OSMO_AGENTIC_WORKFLOW_TOKEN",
+      "serviceUrl": "https://us-west-2-aws.osmo.nvidia.com"
     },
     "osmoUserSkill": {
       "repository": "https://github.com/NVIDIA/OSMO.git",
@@ -32,6 +38,7 @@
   },
   "credentials": {
     "registry": {"name": "ngc_cred", "type": "REGISTRY", "registry": "nvcr.io"},
-    "inference": {"name": "nvidia_inference", "type": "GENERIC", "runtimeKey": "INFERENCE_API_KEY"}
+    "inference": {"name": "nvidia_inference", "type": "GENERIC", "runtimeKey": "INFERENCE_API_KEY"},
+    "workflowSubmit": {"name": "agentic_workflow_submit", "type": "GENERIC", "runtimeKey": "OSMO_AGENTIC_WORKFLOW_TOKEN"}
   }
 }

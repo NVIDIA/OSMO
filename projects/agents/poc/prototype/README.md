@@ -38,6 +38,12 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   rg -Fq "readonly AGENTS_FILE='/run/agent/AGENTS.md'" runtime/run-agent.sh
   rg -Fq 'STATIC_REPOSITORY_SUBDIR' runtime/run-agent.sh agentic-vla-workflow-spec.yaml \
     skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  rg -Fq 'agentic_workflow_submit:' agentic-vla-workflow-spec.yaml \
+    skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  rg -Fq 'OSMO_AGENTIC_WORKFLOW_TOKEN: OSMO_AGENTIC_WORKFLOW_TOKEN' agentic-vla-workflow-spec.yaml \
+    skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  rg -Fq 'OSMO_SERVICE_URL' runtime/run-agent.sh agentic-vla-workflow-spec.yaml \
+    skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   ! rg -Fq 'agentic_skill_root="${kit_root}/skills/osmo-agentic-workflow"' runtime/run-agent.sh
   ! rg -n 'codex-events\.jsonl' runtime/run-agent.sh
   rg -Fq -- '--dangerously-bypass-approvals-and-sandbox' runtime/run-agent.sh
@@ -71,7 +77,7 @@ service.
 | Runtime image | A locally built `linux/amd64` `nvcr.io/nvstaging/osmo/agent-runtime:<tag>` has a resolved digest. |
 | OSMO pool and platform | The selected pool can schedule the `lead` resource profile. |
 | Output URL | A writable OSMO-supported output location is selected for this run. |
-| Credentials | `ngc_cred` pulls the private runtime image; `nvidia_inference` injects `INFERENCE_API_KEY` at task runtime. |
+| Credentials | `ngc_cred` pulls the private runtime image; `nvidia_inference` injects `INFERENCE_API_KEY`; `agentic_workflow_submit` injects the short-lived OSMO submission token into agent tasks only. |
 
 ## Later live activation — build and credentials
 
@@ -91,11 +97,21 @@ osmo credential set ngc_cred --type REGISTRY \
   --payload registry=nvcr.io username='$oauthtoken' auth="${NGC_API_KEY:?set NGC_API_KEY}"
 osmo credential set nvidia_inference --type GENERIC \
   --payload INFERENCE_API_KEY="${INFERENCE_API_KEY:?set INFERENCE_API_KEY}"
+
+# One time: create a short-lived OSMO PAT and store its one-time value directly
+# in the runtime-only generic credential. Do not print or save the token.
+osmo token set agentic-vla-child-submit \
+  --expires-at <YYYY-MM-DD> \
+  --description 'Recursive workflow submission for agent POC' \
+  --format-type json \
+  | jq -er '.token' \
+  | osmo credential set agentic_workflow_submit --type GENERIC \
+      --payload-file OSMO_AGENTIC_WORKFLOW_TOKEN=/dev/stdin
 ```
 
 Expected: OSMO manages the `nvcr.io` image-pull credential outside workflow
-YAML; the inference value is injected only at task runtime. Neither secret is
-written into this repository or an artifact.
+YAML; the inference and OSMO-submission values are injected only at task
+runtime. Neither secret is written into this repository or an artifact.
 
 ## Later live activation — inspect then submit the entry YAML
 
@@ -104,7 +120,8 @@ mkdir -p .local
 export STATIC_REPOSITORY_URL='https://github.com/<owner>/<repository>.git'
 export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
 export STATIC_REPOSITORY_SUBDIR='projects/agents/poc/prototype'
-export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:b9f2d724368d91b9e34bcaef15df8555383ad558bea224e6c9fc0c0ac43dc3ff'
+export OSMO_SERVICE_URL='https://us-west-2-aws.osmo.nvidia.com'
+export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:9cf85c297a36cd8dbda91e059ccef78c9270defa2f412542dd8e46b56dcd1a30'
 export POOL='isaac-dev-l40-03'
 export PLATFORM='ovx-l40'
 export RUN_ID='<dns-safe-run-id>'
@@ -120,6 +137,7 @@ set_values=(
   "static_repository_url=$STATIC_REPOSITORY_URL"
   "static_repository_ref=$STATIC_REPOSITORY_REF"
   "static_repository_subdir=$STATIC_REPOSITORY_SUBDIR"
+  "osmo_service_url=$OSMO_SERVICE_URL"
   "run_id=$RUN_ID"
   "platform=$PLATFORM"
   "result_url=$RESULT_URL"
