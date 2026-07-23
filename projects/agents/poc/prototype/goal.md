@@ -122,6 +122,21 @@ The stage bundle records the verifier SHA-256 and it must equal the
 consumer-readiness check is a typed stage failure and must not start expensive
 inference.
 
+The video-stage bundle must materialize each application configuration at the
+path selected by its worker, and record that resolved path in the immutable
+stage contract. In particular, an augmentation worker must not infer a
+per-video `configs/<video>_aug<index>.yaml` filename when the bundle publishes
+the canonical `configs/augmentation/augmentation.yaml`. Pass the verified
+canonical path explicitly (for example through `AUGMENT_CONFIG`), have the
+worker use that value, and checksum it as part of the bundle. This keeps a
+stage capsule portable across the two fixed inputs while preserving its frozen
+configuration binding.
+
+A missing configured file is a terminal result only for that immutable
+capsule. Its owning video agent must reconcile that evidence, correct the
+next immutable bundle/contract, re-inspect accessible pools, and submit one
+replacement at `LOW`; it is not a reason to stop after a fixed retry count.
+
 Use the accepted OpenAI-compatible VLM and LLM endpoint
 `https://inference-api.nvidia.com/v1` with the existing runtime inference
 credential mapped only in memory. Do not replace it with an unverified
