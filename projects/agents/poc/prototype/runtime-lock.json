@@ -2,8 +2,8 @@
   "schemaVersion": "v1",
   "agentRuntime": {
     "parent": "ubuntu:22.04@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8",
-    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-codex-cli-20260723-001902",
-    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:1f16b3c78c595251f510479bf269fd0926d84a538f64a722c29e08b1bf715f92",
+    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-model-fallback-20260723-002325",
+    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:b9f2d724368d91b9e34bcaef15df8555383ad558bea224e6c9fc0c0ac43dc3ff",
     "platform": "linux/amd64",
     "registryCredential": "ngc_cred",
     "osmoCli": {
@@ -28,11 +28,7 @@
     "npmIntegrity": "sha512-wk+2CWiBNXiJLBoN2D08N9RceWkSBnlgk5g2K1a4CXrP/C0gdlHyRUG7RFzm9y41DCK/7tvCct233JVxyFmznw==",
     "provider": "nvidia_inference",
     "model": "openai/openai/gpt-5.6-terra",
-    "reasoningEffort": "xhigh",
-    "modelCatalog": {
-      "path": "/home/agent/.codex/model-catalog.json",
-      "sha256": "f4579b8209b27e8d6d708e8dcb5b0a865c1a8d846b544ab83a73190ca74d1d2e"
-    }
+    "reasoningEffort": "xhigh"
   },
   "credentials": {
     "registry": {"name": "ngc_cred", "type": "REGISTRY", "registry": "nvcr.io"},

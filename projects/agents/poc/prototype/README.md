@@ -18,6 +18,8 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   bash -n runtime/run-agent.sh
   python3 -m json.tool runtime-lock.json >/dev/null
   python3 -m json.tool skills/osmo-agentic-workflow/assets/agent-result.schema.json >/dev/null
+  test ! -e runtime/model-catalog.json
+  ! rg -n 'model_catalog_json|model-catalog\.json' Dockerfile runtime runtime-lock.json
   ruby -e '
     require "yaml"
     skill = File.read(ARGV.shift)
@@ -101,7 +103,7 @@ mkdir -p .local
 export STATIC_REPOSITORY_URL='https://github.com/<owner>/<repository>.git'
 export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
 export STATIC_REPOSITORY_SUBDIR='projects/agents/poc/prototype'
-export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:1f16b3c78c595251f510479bf269fd0926d84a538f64a722c29e08b1bf715f92'
+export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:b9f2d724368d91b9e34bcaef15df8555383ad558bea224e6c9fc0c0ac43dc3ff'
 export POOL='isaac-dev-l40-03'
 export PLATFORM='ovx-l40'
 export RUN_ID='<dns-safe-run-id>'

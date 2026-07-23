@@ -1,7 +1,6 @@
 model = "openai/openai/gpt-5.6-terra"
 model_provider = "nvidia_inference"
 model_reasoning_effort = "xhigh"
-model_catalog_json = "/home/agent/.codex/model-catalog.json"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
 project_root_markers = []

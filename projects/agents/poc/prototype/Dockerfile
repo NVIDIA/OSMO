@@ -31,7 +31,6 @@ RUN useradd --create-home --shell /bin/bash agent \
     && mkdir -p /opt/agent-runtime /home/agent/.codex
 
 COPY runtime/codex-config.toml /home/agent/.codex/config.toml
-COPY runtime/model-catalog.json /home/agent/.codex/model-catalog.json
 COPY runtime/run-agent.sh /opt/agent-runtime/run-agent.sh
 
 RUN chmod 0555 /opt/agent-runtime/run-agent.sh \
