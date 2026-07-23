@@ -23,6 +23,7 @@ workflow:
     environment:
       STATIC_REPOSITORY_URL: "https://github.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPOSITORY.git"
       STATIC_REPOSITORY_REF: "REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA"
+      STATIC_REPOSITORY_SUBDIR: "."
     command: ["/opt/agent-runtime/run-agent.sh"]
     args: ["--result-root", "{{output}}"]
     files:

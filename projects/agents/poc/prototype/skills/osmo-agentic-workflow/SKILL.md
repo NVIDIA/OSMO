@@ -16,8 +16,10 @@ needed. Do not change the parent goal or execute a different subgoal.
 
 Select a domain skill, script, or deterministic worker only from a public
 repository pinned to a full commit SHA, and record that source in durable
-evidence. Preserve the child template's runtime-image and static-repository
-references unless the parent task instructions explicitly supply replacements.
+evidence. Preserve the child template's runtime-image, static-repository URL,
+commit SHA, and `STATIC_REPOSITORY_SUBDIR` (use `.` when the kit is at the
+repository root) unless the parent task instructions explicitly supply
+replacements.
 
 ## Create one child
 

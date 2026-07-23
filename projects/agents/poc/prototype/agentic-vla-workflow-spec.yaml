@@ -6,6 +6,7 @@ default-values:
   goal_prompt: "Describe the overarching goal for the lead agent."
   static_repository_url: "https://github.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPOSITORY.git"
   static_repository_ref: "REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA"
+  static_repository_subdir: "."
   run_id: replace-with-dns-safe-run-id
   platform: REPLACE_WITH_VISIBLE_PLATFORM
   result_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/replace-with-run-id/agent/lead/"
@@ -32,6 +33,7 @@ workflow:
       RUN_ID: "{{run_id}}"
       STATIC_REPOSITORY_URL: "{{static_repository_url}}"
       STATIC_REPOSITORY_REF: "{{static_repository_ref}}"
+      STATIC_REPOSITORY_SUBDIR: "{{static_repository_subdir}}"
     command: ["/opt/agent-runtime/run-agent.sh"]
     args: ["--result-root", "{{output}}"]
     files:

@@ -33,6 +33,9 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   ! rg -n -i '(^|[[:space:]])(auth|access_key|password):' agentic-vla-workflow-spec.yaml skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   rg -q '\$osmo-agentic-workflow' skills/osmo-agentic-workflow/agents/openai.yaml
   rg -Fq "readonly AGENTS_FILE='/run/agent/AGENTS.md'" runtime/run-agent.sh
+  rg -Fq 'STATIC_REPOSITORY_SUBDIR' runtime/run-agent.sh agentic-vla-workflow-spec.yaml \
+    skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  ! rg -Fq 'agentic_skill_root="${kit_root}/skills/osmo-agentic-workflow"' runtime/run-agent.sh
   ! rg -n 'codex-events\.jsonl' runtime/run-agent.sh
   test "$(python3 -c 'import json; print(json.load(open("runtime-lock.json"))["agentRuntime"]["osmoUserSkill"]["ref"])')" = "$(sed -n "s/^readonly OSMO_SKILL_REF='\\([0-9a-f]\\{40\\}\\)'$/\\1/p" runtime/run-agent.sh)"
   rg -q '^  result_url: "swift://pdx\.s8k\.io/AUTH_team-osmo/dev/fernandol/agents_poc/' agentic-vla-workflow-spec.yaml
@@ -59,7 +62,7 @@ service.
 
 | Need | Outcome |
 |---|---|
-| Public static-kit repository | Every agent clones one public GitHub URL at one full 40-character commit SHA. |
+| Public static-kit repository | Every agent clones one public GitHub URL at one full 40-character commit SHA and uses the configured relative kit directory (`.` for repository root). |
 | Runtime image | A locally built `linux/amd64` `nvcr.io/nvstaging/osmo/agent-runtime:<tag>` has a resolved digest. |
 | OSMO pool and platform | The selected pool can schedule the `lead` resource profile. |
 | Output URL | A writable OSMO-supported output location is selected for this run. |
@@ -95,23 +98,26 @@ written into this repository or an artifact.
 mkdir -p .local
 export STATIC_REPOSITORY_URL='https://github.com/<owner>/<repository>.git'
 export STATIC_REPOSITORY_REF='<full-40-character-commit-sha>'
-export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:331494cd7b60759662851370c3c9ea60a40cb863817c1416fbeefd88e007f9c7'
-export POOL='isaac-h100-dev'
-export PLATFORM='infra'
+export STATIC_REPOSITORY_SUBDIR='projects/agents/poc/prototype'
+export AGENT_RUNTIME_IMAGE='nvcr.io/nvstaging/osmo/agent-runtime@sha256:9b11afb6edf64981cd9083cf656617ff1f798ef8e91e939e7be9c472d21ec3c0'
+export POOL='isaac-dev-l40-03'
+export PLATFORM='ovx-l40'
 export RUN_ID='<dns-safe-run-id>'
 export WORKFLOW_NAME="agentic-vla-$RUN_ID"
 export RESULT_URL="swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-${RUN_ID}/agent/lead/"
 export GOAL_PROMPT="$(<./goal.md)"
 
 set_values=(
-  --set-string "workflow_name=$WORKFLOW_NAME"
-  --set-string "agent_runtime_image=$AGENT_RUNTIME_IMAGE"
-  --set-string "goal_prompt=$GOAL_PROMPT"
-  --set-string "static_repository_url=$STATIC_REPOSITORY_URL"
-  --set-string "static_repository_ref=$STATIC_REPOSITORY_REF"
-  --set-string "run_id=$RUN_ID"
-  --set-string "platform=$PLATFORM"
-  --set-string "result_url=$RESULT_URL"
+  --set-string
+  "workflow_name=$WORKFLOW_NAME"
+  "agent_runtime_image=$AGENT_RUNTIME_IMAGE"
+  "goal_prompt=$GOAL_PROMPT"
+  "static_repository_url=$STATIC_REPOSITORY_URL"
+  "static_repository_ref=$STATIC_REPOSITORY_REF"
+  "static_repository_subdir=$STATIC_REPOSITORY_SUBDIR"
+  "run_id=$RUN_ID"
+  "platform=$PLATFORM"
+  "result_url=$RESULT_URL"
 )
 
 osmo workflow submit agentic-vla-workflow-spec.yaml --pool "$POOL" \

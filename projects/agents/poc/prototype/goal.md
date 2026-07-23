@@ -19,6 +19,17 @@ The input source is Hugging Face
 `0b914ba2d32bd6991e73e31f0de7c9d381076e17`; the Swift mirror has already
 been verified against this manifest.
 
+## Execution target
+
+Use OSMO pool `isaac-dev-l40-03` and platform `ovx-l40` for the lead and every
+child workflow capsule in this run. Include `--pool isaac-dev-l40-03` whenever
+submitting a capsule and set each capsule's resource platform to `ovx-l40`.
+
+Use no other pool or platform in this run without human direction. If a task
+does not schedule or cannot reach a required endpoint, preserve the failure
+evidence and ask the human operator to resolve that environment prerequisite;
+do not alter OSMO service configuration or silently select another target.
+
 ## Goal and acceptance
 
 Use the existing OSMO CLI and the public, commit-pinned static kit to plan and

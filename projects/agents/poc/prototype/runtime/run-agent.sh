@@ -41,18 +41,26 @@ checkout_pinned() {
   echo "STATIC_REPOSITORY_REF must be a full immutable Git commit SHA" >&2
   exit 2
 }
+static_repository_subdir="${STATIC_REPOSITORY_SUBDIR:-.}"
+if [[ "${static_repository_subdir}" != "." ]] && \
+  { ! [[ "${static_repository_subdir}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]] || \
+    [[ "/${static_repository_subdir}/" == *"/./"* || "/${static_repository_subdir}/" == *"/../"* ]]; }; then
+  echo "STATIC_REPOSITORY_SUBDIR must be . or a relative, traversal-free path" >&2
+  exit 2
+fi
 
 kit_root="$(mktemp -d /tmp/agent-kit.XXXXXX)"
 osmo_root="$(mktemp -d /tmp/osmo-user.XXXXXX)"
 checkout_pinned "${STATIC_REPOSITORY_URL}" "${STATIC_REPOSITORY_REF}" "${kit_root}"
 checkout_pinned "${OSMO_SKILL_REPOSITORY}" "${OSMO_SKILL_REF}" "${osmo_root}"
-agentic_skill_root="${kit_root}/skills/osmo-agentic-workflow"
+kit_workdir="${kit_root}/${static_repository_subdir}"
+agentic_skill_root="${kit_workdir}/skills/osmo-agentic-workflow"
 agentic_skill_file="${agentic_skill_root}/SKILL.md"
 agentic_result_schema="${agentic_skill_root}/assets/agent-result.schema.json"
 child_template="${agentic_skill_root}/assets/child-workflow-template.yaml"
 osmo_skill_file="${osmo_root}/skills/osmo-user/SKILL.md"
-[[ -f "${agentic_skill_file}" && -f "${agentic_result_schema}" && -f "${child_template}" && -f "${osmo_skill_file}" ]] || {
-  echo "cloned sources do not provide the required agentic-workflow and OSMO skills" >&2
+[[ -d "${kit_workdir}" && -f "${agentic_skill_file}" && -f "${agentic_result_schema}" && -f "${child_template}" && -f "${osmo_skill_file}" ]] || {
+  echo "cloned sources do not provide the required agentic-workflow skill at STATIC_REPOSITORY_SUBDIR=${static_repository_subdir}" >&2
   exit 2
 }
 mkdir -p "${result_root}"
@@ -65,7 +73,7 @@ trap 'rm -f "${prompt_file}"' EXIT
   cat "${osmo_skill_file}"
   printf '\n\n## Task-scoped AGENTS instructions\n\n'
   cat "${AGENTS_FILE}"
-  printf '\nThe full OSMO skill source, including its references, is at %s/skills/osmo-user. Before any OSMO operation, read the relevant reference there and use the existing OSMO CLI directly. The generic child workflow template is %s. Copy it to a new child YAML and edit the copy; its embedded task-scoped AGENTS.md is the complete handoff. Record child workflow IDs and output URLs in durable evidence before monitoring or retrying. Clone additional public, commit-pinned domain repositories only when the task-scoped AGENTS.md requires them. Do not place secret values in output.\n' "${osmo_root}" "${child_template}"
+  printf '\nThe full OSMO skill source, including its references, is at %s/skills/osmo-user. Before any OSMO operation, read the relevant reference there and use the existing OSMO CLI directly. The static-kit root is %s. The generic child workflow template is %s. Copy it to a new child YAML and edit the copy; preserve STATIC_REPOSITORY_URL, STATIC_REPOSITORY_REF, and STATIC_REPOSITORY_SUBDIR from this task. Its embedded task-scoped AGENTS.md is the complete handoff. Record child workflow IDs and output URLs in durable evidence before monitoring or retrying. Clone additional public, commit-pinned domain repositories only when the task-scoped AGENTS.md requires them. Do not place secret values in output.\n' "${osmo_root}" "${kit_workdir}" "${child_template}"
 } > "${prompt_file}"
 
 codex exec \
@@ -77,5 +85,5 @@ codex exec \
   --json \
   --output-schema "${agentic_result_schema}" \
   --output-last-message "${result_root}/agent-result.json" \
-  -C "${kit_root}" \
+  -C "${kit_workdir}" \
   - < "${prompt_file}"
