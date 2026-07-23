@@ -27,6 +27,11 @@ template's `REPLACE_WITH_OSMO_SERVICE_HOST` with the parent task's
 to authenticate to OSMO and recursively delegate; never copy a token value
 into YAML, instructions, evidence, or artifacts.
 
+Give every child its own control URL beneath that child's result URL. The
+control URL is a non-secret object-storage location for a checkpointed human
+request and matched response; it is not inherited from the parent and is not a
+credential.
+
 ## Pass verified evidence by reference
 
 Pass a parent artifact to a child only as its immutable URL and SHA-256. Put
@@ -65,13 +70,23 @@ referenced evidence. A terminal OSMO workflow status alone is not a successful
 subgoal. Create a new immutable child YAML only after the previous child is
 terminal. There is no numeric retry limit.
 
-Return `Retrying` only when this same agent task must continue its bounded
-subgoal. It is not successful completion. The agent runtime starts another
-Codex turn with the prior typed result, so read that result and its evidence on
-the next turn instead of restating the plan or treating prior children as new.
+Return `Retrying` for known non-terminal conditions, including an existing
+child that is pending, temporarily out of capacity, or still producing its
+declared result. State the exact reconciliation or recovery action in
+`nextAction`. The runtime applies a controlled delay before starting another
+Codex turn with the prior typed result, so read that result and its evidence
+instead of restating the plan or treating prior children as new.
+
 Return `Completed` only after reconciling every child needed for the assigned
-acceptance criteria. Return `HumanInterventionRequired` only for ambiguity that
-cannot be resolved safely from the task contract, evidence, and OSMO state.
+acceptance criteria. Return `HumanInterventionRequired` only for an ambiguity
+that cannot be resolved safely from the task contract, evidence, and OSMO
+state. Its `nextAction` must be a concrete question and the safe choices the
+human must decide. The runtime writes a request with a content-derived request
+ID to the task's checkpointed control URL, then waits for the matching
+`human-response-<request-id>.json`; it does not complete the OSMO task. A
+valid response has exactly `schemaVersion: "v1"`, that `requestId`,
+`action: "continue"`, and a non-empty `instruction`. The next Codex turn gets
+that instruction and continues the same bounded task.
 
 ## Boundaries
 
@@ -84,3 +99,4 @@ or Kubernetes resources.
 
 - `assets/child-workflow-template.yaml`: copy and complete for each child.
 - `assets/agent-result.schema.json`: final response shape for agents.
+- `assets/human-response.schema.json`: required operator response shape.

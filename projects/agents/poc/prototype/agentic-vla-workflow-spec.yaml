@@ -11,6 +11,7 @@ default-values:
   run_id: replace-with-dns-safe-run-id
   platform: REPLACE_WITH_VISIBLE_PLATFORM
   result_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/replace-with-run-id/agent/lead/"
+  control_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/replace-with-run-id/agent/lead/control/"
 
 workflow:
   name: "{{workflow_name}}"
@@ -38,8 +39,14 @@ workflow:
       STATIC_REPOSITORY_URL: "{{static_repository_url}}"
       STATIC_REPOSITORY_REF: "{{static_repository_ref}}"
       STATIC_REPOSITORY_SUBDIR: "{{static_repository_subdir}}"
+      AGENT_RETRY_DELAY_SECONDS: "60"
+      AGENT_CONTROL_POLL_SECONDS: "60"
     command: ["/opt/agent-runtime/run-agent.sh"]
-    args: ["--result-root", "{{output}}"]
+    args:
+    - "--result-root"
+    - "{{output}}"
+    - "--control-url"
+    - "{{control_url}}"
     files:
     - path: /run/agent/AGENTS.md
       contents: |
@@ -61,5 +68,14 @@ workflow:
         ## User goal
 
         {{ goal_prompt | indent(8) }}
+    checkpoint:
+    - path: "{{output}}/*"
+      url: "{{result_url}}"
+      frequency: 60s
+      regex: '^agent-result\.json$'
+    - path: /tmp/agent-control/*
+      url: "{{control_url}}"
+      frequency: 60s
+      regex: '^human-request-[0-9a-f]{64}\.json$'
     outputs:
     - url: "{{result_url}}"

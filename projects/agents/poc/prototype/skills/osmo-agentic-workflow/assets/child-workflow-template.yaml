@@ -27,8 +27,14 @@ workflow:
       STATIC_REPOSITORY_URL: "https://github.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPOSITORY.git"
       STATIC_REPOSITORY_REF: "REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA"
       STATIC_REPOSITORY_SUBDIR: "."
+      AGENT_RETRY_DELAY_SECONDS: "60"
+      AGENT_CONTROL_POLL_SECONDS: "60"
     command: ["/opt/agent-runtime/run-agent.sh"]
-    args: ["--result-root", "{{output}}"]
+    args:
+    - "--result-root"
+    - "{{output}}"
+    - "--control-url"
+    - "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/agent-results/replace-with-child-name/control/"
     files:
     - path: /run/agent/AGENTS.md
       contents: |
@@ -39,5 +45,14 @@ workflow:
         immutable URL and SHA-256. Download and verify it before using its
         fields; do not reconstruct or copy derived values from prose. Do not
         include secret values.
+    checkpoint:
+    - path: "{{output}}/*"
+      url: "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/agent-results/replace-with-child-name/"
+      frequency: 60s
+      regex: '^agent-result\.json$'
+    - path: /tmp/agent-control/*
+      url: "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/agent-results/replace-with-child-name/control/"
+      frequency: 60s
+      regex: '^human-request-[0-9a-f]{64}\.json$'
     outputs:
     - url: "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/agent-results/replace-with-child-name/"

@@ -20,10 +20,12 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   bash -n "$materializer_dir/materialize-model-artifacts.sh"
   python3 -m json.tool runtime-lock.json >/dev/null
   python3 -m json.tool skills/osmo-agentic-workflow/assets/agent-result.schema.json >/dev/null
+  python3 -m json.tool skills/osmo-agentic-workflow/assets/human-response.schema.json >/dev/null
   python3 -m json.tool "$materializer_dir/model-artifact-sources-v1.json" >/dev/null
   python3 -c 'from pathlib import Path; path=Path("../model-artifact-materializer/verify-vda-cache.py"); compile(path.read_text(encoding="utf-8"), str(path), "exec")'
   python3 "$materializer_dir/verify-vda-cache.py" --help >/dev/null
   python3 -c 'import json; schema=json.load(open("skills/osmo-agentic-workflow/assets/agent-result.schema.json")); assert set(schema["required"]) == set(schema["properties"]); assert schema["properties"]["nextAction"]["type"] == ["string", "null"]'
+  python3 -c 'import json; schema=json.load(open("skills/osmo-agentic-workflow/assets/human-response.schema.json")); assert set(schema["required"]) == set(schema["properties"]); assert schema["properties"]["action"]["const"] == "continue"'
   python3 -c 'import json; source=json.load(open("../model-artifact-materializer/model-artifact-sources-v1.json")); assert source["materializer"]["entrypointVersion"] == "v2"; assert source["publication"]["schemaVersion"] == "v2"; assert source["publication"]["consumerReadinessSchemaVersion"] == "v1"'
   test ! -e runtime/model-catalog.json
   ! rg -n 'model_catalog_json|model-catalog\.json' Dockerfile runtime runtime-lock.json
@@ -50,11 +52,19 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
     skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   rg -Fq 'OSMO_SERVICE_URL' runtime/run-agent.sh agentic-vla-workflow-spec.yaml \
     skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  rg -Fq -- '--control-url' runtime/run-agent.sh agentic-vla-workflow-spec.yaml \
+    skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
+  rg -Fq 'install -m 0644 "${iteration_result}" "${result_file}"' runtime/run-agent.sh
+  rg -Fq 'HumanInterventionRequired)' runtime/run-agent.sh
+  rg -Fq 'Agent reached TerminalFailure' runtime/run-agent.sh
+  rg -Fq 'human-response-<request-id>.json' skills/osmo-agentic-workflow/SKILL.md
+  rg -Fq 'checkpoint:' agentic-vla-workflow-spec.yaml \
+    skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   ! rg -Fq 'agentic_skill_root="${kit_root}/skills/osmo-agentic-workflow"' runtime/run-agent.sh
   ! rg -n 'codex-events\.jsonl' runtime/run-agent.sh
   rg -Fq -- '--json' runtime/run-agent.sh
   rg -Fq 'Agent requested continuation' runtime/run-agent.sh
-  rg -Fq 'Return `Retrying` only' skills/osmo-agentic-workflow/SKILL.md
+  rg -Fq 'Return `Retrying` for known non-terminal conditions' skills/osmo-agentic-workflow/SKILL.md
   rg -Fq 'Pass verified evidence by reference' skills/osmo-agentic-workflow/SKILL.md
   rg -Fq 'environmentReadyUrl' skills/osmo-agentic-workflow/SKILL.md goal.md
   rg -Fq 'consumerReadinessVerifier' goal.md "$materializer_dir/materialize-model-artifacts.sh"
@@ -62,6 +72,7 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
   ! rg -Fq -- '--ask-for-approval' runtime/run-agent.sh
   test "$(python3 -c 'import json; print(json.load(open("runtime-lock.json"))["agentRuntime"]["osmoUserSkill"]["ref"])')" = "$(sed -n "s/^readonly OSMO_SKILL_REF='\\([0-9a-f]\\{40\\}\\)'$/\\1/p" runtime/run-agent.sh)"
   rg -q '^  result_url: "swift://pdx\.s8k\.io/AUTH_team-osmo/dev/fernandol/agents_poc/' agentic-vla-workflow-spec.yaml
+  rg -q '^  control_url: "swift://pdx\.s8k\.io/AUTH_team-osmo/dev/fernandol/agents_poc/' agentic-vla-workflow-spec.yaml
   rg -Fq '{{ goal_prompt | indent(8) }}' agentic-vla-workflow-spec.yaml
   rg -q 'url: "swift://REPLACE_WITH_SWIFT_HOST/REPLACE_WITH_SWIFT_NAMESPACE/REPLACE_WITH_CONTAINER/' skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
   ! rg -n 'https://.*STORAGE_ROOT' agentic-vla-workflow-spec.yaml skills/osmo-agentic-workflow/assets/child-workflow-template.yaml
@@ -77,8 +88,8 @@ cd /Users/fernandol/Workspace/osmo/external/projects/agents/poc/prototype
 
 Expected: the runtime script, JSON configuration, root YAML, child template,
 skill metadata, and VDA materializer sources parse locally. It also confirms
-the generic continuation/evidence rules and consumer-ready cache contract,
-while rejecting mutable image references, credential-value fields, old role
+the generic retry, human-control, output-permission, and evidence rules while
+rejecting mutable image references, credential-value fields, old role
 selection, and obsolete controller machinery. This command does not invoke
 OSMO, Docker, storage, inference, or a network service.
 
@@ -145,6 +156,7 @@ export PLATFORM='ovx-l40'
 export RUN_ID='vda-recovery-<dns-safe-unique-suffix>'
 export WORKFLOW_NAME="agentic-vla-$RUN_ID"
 export RESULT_URL="swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/datasets/vda-poc-two-video-outputs/run-${RUN_ID}/agent/lead/"
+export CONTROL_URL="${RESULT_URL}control/"
 export GOAL_PROMPT="$(<./goal.md)"
 
 set_values=(
@@ -159,10 +171,11 @@ set_values=(
   "run_id=$RUN_ID"
   "platform=$PLATFORM"
   "result_url=$RESULT_URL"
+  "control_url=$CONTROL_URL"
 )
 
 osmo workflow submit agentic-vla-workflow-spec.yaml --pool "$POOL" \
-  --dry-run --format-type json "${set_values[@]}" | tee .local/entry.preview.json
+  --dry-run "${set_values[@]}" | tee .local/entry.preview.yaml
 osmo workflow validate agentic-vla-workflow-spec.yaml --pool "$POOL" \
   "${set_values[@]}" | tee .local/entry.validation.txt
 ```
@@ -180,5 +193,35 @@ child workflows manually. Every child embeds a bounded, task-scoped `AGENTS.md`
 in its YAML, is previewed and validated, then is submitted and reconciled by
 its owning agent. A retry uses a new child YAML only after the agent has queried
 the previous child and found it terminal. Agent JSONL streams to task stdout
-and stderr during every Codex iteration; only the typed `agent-result.json` and
-durable workflow evidence are uploaded to the declared output URL.
+and stderr during every Codex iteration; the typed `agent-result.json` and
+durable workflow evidence are uploaded to the declared output URL, while a
+human request checkpoints only to its paired control URL.
+
+## Later live activation — respond to a genuine ambiguity
+
+The agent does not finish when it returns `HumanInterventionRequired`. Its
+native OSMO checkpoint writes a request under `CONTROL_URL`, and the runtime
+waits without starting additional Codex turns. Known transient scheduling or
+quota conditions use `Retrying`, not this channel.
+
+```bash
+osmo data list "$CONTROL_URL" --recursive --no-pager
+
+# Copy the 64-hex ID from human-request-<REQUEST_ID>.json, then inspect it.
+export REQUEST_ID='<64-hex-request-id>'
+mkdir -p .local/human-control
+osmo data download "${CONTROL_URL}human-request-${REQUEST_ID}.json" .local/human-control
+jq . ".local/human-control/human-request-${REQUEST_ID}.json"
+
+jq -n \
+  --arg request_id "$REQUEST_ID" \
+  --arg instruction 'Continue monitoring the existing workflow IDs. Do not submit replacements.' \
+  '{schemaVersion:"v1", requestId:$request_id, action:"continue", instruction:$instruction}' \
+  > ".local/human-control/human-response-${REQUEST_ID}.json"
+osmo data upload "$CONTROL_URL" \
+  ".local/human-control/human-response-${REQUEST_ID}.json"
+```
+
+Expected: the runtime validates that exact response, adds it to one continuation
+turn, and resumes the same bounded task. Never reuse a response file for a
+different request ID or put secret values in the request or response.

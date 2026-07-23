@@ -25,10 +25,13 @@ Use OSMO pool `isaac-dev-l40-03` and platform `ovx-l40` for the lead and every
 child workflow capsule in this run. Include `--pool isaac-dev-l40-03` whenever
 submitting a capsule and set each capsule's resource platform to `ovx-l40`.
 
-Use no other pool or platform in this run without human direction. If a task
-does not schedule or cannot reach a required endpoint, preserve the failure
-evidence and ask the human operator to resolve that environment prerequisite;
-do not alter OSMO service configuration or silently select another target.
+Use no other pool or platform in this run without human direction. A pending
+task, a temporary capacity or quota block, or an in-progress child is a known
+non-terminal condition: preserve the evidence, return `Retrying`, and
+reconcile again after the runtime's controlled delay. Do not alter OSMO
+service configuration or silently select another target. Ask the human only
+when the next safe action is genuinely ambiguous after inspecting the frozen
+contracts, evidence, and OSMO state.
 
 ## Immutable recovery rules for this run
 
