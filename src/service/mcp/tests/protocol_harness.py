@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from collections.abc import AsyncIterator, Callable, Collection, Coroutine
+from collections.abc import AsyncIterator, Callable, Collection, Coroutine, Mapping
 import contextlib
 from typing import Any, TypeAlias
 import unittest
@@ -44,6 +44,18 @@ READ_ONLY_ANNOTATIONS = {
     'readOnlyHint': True,
     'destructiveHint': False,
     'idempotentHint': True,
+    'openWorldHint': False,
+}
+WRITE_ANNOTATIONS = {
+    'readOnlyHint': False,
+    'destructiveHint': False,
+    'idempotentHint': False,
+    'openWorldHint': False,
+}
+DESTRUCTIVE_WRITE_ANNOTATIONS = {
+    'readOnlyHint': False,
+    'destructiveHint': True,
+    'idempotentHint': False,
     'openWorldHint': False,
 }
 
@@ -218,16 +230,34 @@ class ProtocolHarness:
         response: httpx.Response,
     ) -> dict[str, dict[str, Any]]:
         """Assert common external read-tool annotations and schema closure."""
+        return self.assert_closed_catalog(
+            test_case,
+            response,
+            expected_annotations={
+                name: READ_ONLY_ANNOTATIONS
+                for name in self.tool_names
+            },
+        )
+
+    def assert_closed_catalog(
+        self,
+        test_case: unittest.TestCase,
+        response: httpx.Response,
+        *,
+        expected_annotations: Mapping[str, dict[str, bool]],
+    ) -> dict[str, dict[str, Any]]:
+        """Assert exact annotations and recursively closed tool schemas."""
         test_case.assertEqual(response.status_code, 200)
         tools = {
             tool['name']: tool
             for tool in response.json()['result']['tools']
         }
         test_case.assertEqual(set(tools), set(self.tool_names))
-        for tool in tools.values():
+        test_case.assertEqual(set(expected_annotations), set(self.tool_names))
+        for name, tool in tools.items():
             test_case.assertEqual(
                 tool['annotations'],
-                READ_ONLY_ANNOTATIONS,
+                expected_annotations[name],
             )
             input_schema = tool['inputSchema']
             test_case.assertFalse(input_schema['additionalProperties'])

@@ -66,6 +66,14 @@ class PublicToolError(ToolError):
         )
 
 
+def uncertain_write_error(operation: str) -> PublicToolError:
+    """Return the fixed recovery guidance for an ambiguous mutation result."""
+    return PublicToolError(
+        f'The OSMO write outcome is unknown while attempting to {operation}. '
+        'Inspect OSMO state before retrying.'
+    )
+
+
 def from_fastmcp_error(error: ToolError) -> PublicToolError | None:
     """Recover an intentional public error from FastMCP's generic wrapper."""
     cause = error.__cause__

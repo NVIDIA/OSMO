@@ -157,6 +157,16 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "workflow_action_models",
+    srcs = ["workflow_action_models.py"],
+    deps = [
+        requirement("pydantic"),
+        ":tool_models",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "profile_tools",
     srcs = ["profile.py"],
     deps = [
@@ -224,6 +234,20 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "workflow_action_tools",
+    srcs = ["workflow_actions.py"],
+    deps = [
+        requirement("mcp"),
+        ":access_scope",
+        ":tool_errors",
+        ":tool_requests",
+        ":tool_validation",
+        ":workflow_action_models",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "app_tools",
     srcs = ["apps.py"],
     deps = [
@@ -259,6 +283,7 @@ osmo_py_library(
         ":pool_tools",
         ":profile_tools",
         ":resource_tools",
+        ":workflow_action_tools",
         ":workflow_tools",
     ],
     visibility = ["//visibility:public"],

@@ -18,7 +18,7 @@ from src.lib.utils.client import RequestMethod
 from test.oetf.smoke_fixture import SmokeFixture
 
 
-_PHASE_ONE_TOOL_NAMES = frozenset({
+_EXPECTED_TOOL_NAMES = frozenset({
     "osmo_get_app",
     "osmo_get_app_spec",
     "osmo_get_profile",
@@ -33,6 +33,7 @@ _PHASE_ONE_TOOL_NAMES = frozenset({
     "osmo_list_resources",
     "osmo_list_workflows",
     "osmo_search_pools",
+    "osmo_validate_workflow",
 })
 _MCP_ACCEPT_HEADERS = {
     "Accept": "application/json, text/event-stream",
@@ -50,7 +51,7 @@ _TOKEN_FIELDS = (
 
 
 class McpChecks(SmokeFixture):
-    """Exercise the deployed Phase 1 MCP through its public Gateway route."""
+    """Exercise the deployed external MCP through its public Gateway route."""
 
     def _jsonrpc_result(self, response, request_id):
         if (
@@ -66,7 +67,7 @@ class McpChecks(SmokeFixture):
             self.fail("MCP returned an invalid JSON-RPC result.")
         return result
 
-    def test_phase_one_catalog_and_profile_round_trip(self):
+    def test_catalog_and_profile_round_trip(self):
         base_url = self.config.url.rstrip("/")
         unauthenticated_response = requests.post(
             f"{base_url}/mcp",
@@ -108,10 +109,10 @@ class McpChecks(SmokeFixture):
             self.fail("MCP returned an invalid tool catalog.")
         tool_names = [tool.get("name") for tool in catalog_tools]
         if (
-            len(tool_names) != len(_PHASE_ONE_TOOL_NAMES)
-            or set(tool_names) != _PHASE_ONE_TOOL_NAMES
+            len(tool_names) != len(_EXPECTED_TOOL_NAMES)
+            or set(tool_names) != _EXPECTED_TOOL_NAMES
         ):
-            self.fail("MCP tool catalog does not match the Phase 1 contract.")
+            self.fail("MCP tool catalog does not match the expected contract.")
 
         direct_profile = self.service_client.request(
             method=RequestMethod.GET,

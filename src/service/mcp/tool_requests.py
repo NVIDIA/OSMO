@@ -76,12 +76,33 @@ async def request_json_object(
         suppress_upstream_details=suppress_upstream_details,
         not_found_message=not_found_message,
     )
+    return _validate_json_object_body(response.body, operation=operation)
+
+
+async def request_json_mutation(
+    context: Context,
+    *,
+    path: str,
+    operation: str,
+    max_response_bytes: int,
+    query: gateway.QueryParams | None = None,
+    payload: JsonObject | None = None,
+) -> JsonObject:
+    """Relay one fixed POST without retries and require a bounded JSON object."""
+    response = await _request(
+        context,
+        method='POST',
+        path=path,
+        operation=operation,
+        max_response_bytes=max_response_bytes,
+        query=query,
+        json_body=payload,
+        suppress_upstream_details=True,
+    )
     try:
-        return _JSON_OBJECT_ADAPTER.validate_json(response.body, strict=True)
-    except pydantic.ValidationError:
-        raise tool_errors.PublicToolError(
-            f'OSMO returned an invalid response while attempting to {operation}.'
-        ) from None
+        return _validate_json_object_body(response.body, operation=operation)
+    except tool_errors.PublicToolError:
+        raise tool_errors.uncertain_write_error(operation) from None
 
 
 async def request_text(
@@ -189,10 +210,12 @@ def get_app_context(context: Context) -> gateway.AppContext:
 async def _request(
     context: Context,
     *,
+    method: str = 'GET',
     path: str,
     operation: str,
     max_response_bytes: int,
     query: gateway.QueryParams | None,
+    json_body: JsonObject | None = None,
     suppress_upstream_details: bool = False,
     truncate_text: bool = False,
     not_found_message: str | None = None,
@@ -212,13 +235,20 @@ async def _request(
             else app_context.gateway.request
         )
         response = await request_method(
-            'GET',
+            method,
             path,
             credentials=credentials,
             max_response_bytes=max_response_bytes,
             query=query,
+            **(
+                {'json_body': json_body}
+                if not truncate_text
+                else {}
+            ),
         )
     except gateway.GatewayClientError as error:
+        if method != 'GET':
+            raise tool_errors.uncertain_write_error(operation) from None
         raise tool_errors.PublicToolError(str(error)) from None
     except ValueError:
         raise tool_errors.PublicToolError(
@@ -229,6 +259,8 @@ async def _request(
         raise tool_errors.PublicToolError(
             tool_errors.bounded_safe_error(not_found_message)
         )
+    if method != 'GET' and response.status_code >= 500:
+        raise tool_errors.uncertain_write_error(operation)
     if response.status_code != 200:
         raise tool_errors.PublicToolError(tool_errors.upstream_error(
             operation,
@@ -240,6 +272,15 @@ async def _request(
             suppress_upstream_details=suppress_upstream_details,
         ))
     return response
+
+
+def _validate_json_object_body(body: bytes, *, operation: str) -> JsonObject:
+    try:
+        return _JSON_OBJECT_ADAPTER.validate_json(body, strict=True)
+    except pydantic.ValidationError:
+        raise tool_errors.PublicToolError(
+            f'OSMO returned an invalid response while attempting to {operation}.'
+        ) from None
 
 
 def _decode_text_prefix(

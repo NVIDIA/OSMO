@@ -20,6 +20,7 @@ import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
 import contextlib
 import dataclasses
+import json
 import math
 import re
 import time
@@ -37,6 +38,7 @@ _USER_AGENT = 'osmo-mcp'
 _IDENTITY_ENCODING = 'identity'
 _QUERY_KEY = re.compile(r'[A-Za-z][A-Za-z0-9_]*')
 _MAX_QUERY_BYTES = 16 * 1024
+_MAX_JSON_REQUEST_BYTES = 1024 * 1024
 _MAX_ERROR_RESPONSE_BYTES = 16 * 1024
 _HTTP_LIMITS = httpx.Limits(
     max_connections=100,
@@ -52,6 +54,10 @@ QueryParams: TypeAlias = Mapping[str, QueryValue]
 
 class GatewayClientError(RuntimeError):
     """A sanitized failure while calling the configured OSMO Gateway."""
+
+
+class GatewayUncertainWriteError(GatewayClientError):
+    """A write may have reached OSMO, but no authoritative result was received."""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -88,6 +94,7 @@ class GatewayClient:
         credentials: request_context.RequestCredentials,
         max_response_bytes: int,
         query: QueryParams | None = None,
+        json_body: Mapping[str, object] | None = None,
     ) -> GatewayResponse:
         """Call a fixed API path and require its 2xx response body to fit."""
         return await self._request(
@@ -96,6 +103,7 @@ class GatewayClient:
             credentials=credentials,
             max_response_bytes=max_response_bytes,
             query=query,
+            json_body=json_body,
             truncate_success=False,
         )
 
@@ -115,6 +123,7 @@ class GatewayClient:
             credentials=credentials,
             max_response_bytes=max_response_bytes,
             query=query,
+            json_body=None,
             truncate_success=True,
         )
 
@@ -126,6 +135,7 @@ class GatewayClient:
         credentials: request_context.RequestCredentials,
         max_response_bytes: int,
         query: QueryParams | None,
+        json_body: Mapping[str, object] | None,
         truncate_success: bool,
     ) -> GatewayResponse:
         """Call a fixed API path with credentials from the active MCP request."""
@@ -140,6 +150,12 @@ class GatewayClient:
         ):
             raise ValueError('Gateway request credentials are invalid.')
         encoded_query = _encode_query_params(query)
+        encoded_body = _encode_json_body(method, json_body)
+        if (
+            encoded_body is not None
+            and _contains_relayed_credentials(encoded_body, credentials)
+        ):
+            raise ValueError('Gateway request body is invalid.')
 
         headers = {
             login.OSMO_AUTH_HEADER: credentials.authorization_header,
@@ -148,12 +164,15 @@ class GatewayClient:
         }
         if credentials.request_id is not None:
             headers[request_context.REQUEST_ID_HEADER] = credentials.request_id
+        if encoded_body is not None:
+            headers['Content-Type'] = 'application/json'
 
         request = self._client.build_request(
             method,
             path,
             headers=headers,
             params=encoded_query,
+            content=encoded_body,
         )
         # HTTPX stores response cookies on the process-wide client. Never let
         # that shared state become credentials on a later caller's request.
@@ -223,16 +242,14 @@ class GatewayClient:
                     or not response.is_success
                 ):
                     outcome = 'transport_error'
-                    raise GatewayClientError(
-                        'OSMO Gateway is unavailable.') from None
+                    raise _transport_error(method) from None
                 response_body = bytes(response_body_prefix)
                 body_truncated = True
                 truncation_reason = _RESPONSE_TIMEOUT
                 outcome = 'response_truncated'
             except httpx.RequestError:
                 outcome = 'transport_error'
-                raise GatewayClientError(
-                    'OSMO Gateway is unavailable.') from None
+                raise _transport_error(method) from None
 
             if response is None:
                 raise AssertionError('Gateway response state is unavailable.')
@@ -407,6 +424,37 @@ def _encode_query_params(
     if len(parse.urlencode(encoded).encode('ascii')) > _MAX_QUERY_BYTES:
         raise ValueError('Gateway query parameters exceed the size limit.')
     return httpx.QueryParams(encoded)
+
+
+def _encode_json_body(
+    method: str,
+    json_body: Mapping[str, object] | None,
+) -> bytes | None:
+    """Serialize one bounded JSON object for an explicit write request."""
+    if json_body is None:
+        return None
+    if method == 'GET' or not isinstance(json_body, Mapping):
+        raise ValueError('Gateway request body is not allowed.')
+    try:
+        encoded_body = json.dumps(
+            dict(json_body),
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(',', ':'),
+        ).encode('utf-8')
+    except (TypeError, ValueError, UnicodeEncodeError):
+        raise ValueError('Gateway request body is invalid.') from None
+    if len(encoded_body) > _MAX_JSON_REQUEST_BYTES:
+        raise ValueError('Gateway request body exceeds the size limit.')
+    return encoded_body
+
+
+def _transport_error(method: str) -> GatewayClientError:
+    if method == 'GET':
+        return GatewayClientError('OSMO Gateway is unavailable.')
+    return GatewayUncertainWriteError(
+        'OSMO Gateway write outcome is unknown.'
+    )
 
 
 def _validate_content_length(

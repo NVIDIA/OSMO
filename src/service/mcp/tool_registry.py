@@ -29,8 +29,27 @@ from src.service.mcp import (
     pools,
     profile,
     resources,
+    workflow_actions,
     workflows,
 )
+
+
+def _read_only_annotations() -> ToolAnnotations:
+    return ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+
+
+def _write_annotations(*, destructive: bool) -> ToolAnnotations:
+    return ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=destructive,
+        idempotentHint=False,
+        openWorldHint=False,
+    )
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -41,6 +60,9 @@ class ToolSpec:
     name: str
     title: str
     description: str
+    annotations: ToolAnnotations = dataclasses.field(
+        default_factory=_read_only_annotations
+    )
 
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
@@ -132,6 +154,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         ),
     ),
     ToolSpec(
+        function=workflow_actions.osmo_validate_workflow,
+        name='osmo_validate_workflow',
+        title='Validate an OSMO workflow',
+        description=(
+            'Validate workflow YAML with OSMO Core without submitting it. '
+            'A failed validation may create a FAILED_SUBMISSION record.'
+        ),
+        annotations=_write_annotations(destructive=False),
+    ),
+    ToolSpec(
         function=apps.osmo_list_apps,
         name='osmo_list_apps',
         title='List OSMO apps',
@@ -201,11 +233,6 @@ def register_tools(
             name=spec.name,
             title=spec.title,
             description=spec.description,
-            annotations=ToolAnnotations(
-                readOnlyHint=True,
-                destructiveHint=False,
-                idempotentHint=True,
-                openWorldHint=False,
-            ),
+            annotations=spec.annotations,
             structured_output=True,
         )
