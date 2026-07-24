@@ -33,6 +33,7 @@ _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_list_resources",
     "osmo_list_workflows",
     "osmo_search_pools",
+    "osmo_submit_workflow",
     "osmo_validate_workflow",
 })
 _MCP_ACCEPT_HEADERS = {

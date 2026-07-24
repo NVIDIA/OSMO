@@ -154,6 +154,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         ),
     ),
     ToolSpec(
+        function=workflow_actions.osmo_submit_workflow,
+        name='osmo_submit_workflow',
+        title='Submit an OSMO workflow',
+        description=(
+            'Submit raw workflow YAML to run in OSMO. This consumes real '
+            'compute and is not automatically retried.'
+        ),
+        annotations=_write_annotations(destructive=False),
+    ),
+    ToolSpec(
         function=workflow_actions.osmo_validate_workflow,
         name='osmo_validate_workflow',
         title='Validate an OSMO workflow',

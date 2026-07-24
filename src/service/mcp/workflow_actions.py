@@ -26,17 +26,91 @@ from src.service.mcp import (
 )
 from src.service.mcp.workflow_action_models import (
     PoolName,
+    SubmitWorkflowSpecText,
+    SubmitWorkflowResult,
+    UpstreamSubmitResult,
     UpstreamValidationResult,
     ValidateWorkflowResult,
     VariableOverrides,
     WorkflowSpecText,
     WorkflowTemplatePayload,
 )
+from src.service.mcp.workflow_models import (
+    WORKFLOW_PRIORITIES,
+    WorkflowPriority,
+)
 
 
 _MAX_JSON_RESPONSE_BYTES = 64 * 1024
-_MAX_WORKFLOW_SPEC_BYTES = 256 * 1024
+_MAX_VALIDATION_SPEC_BYTES = 256 * 1024
+_MAX_SUBMISSION_SPEC_BYTES = 128 * 1024
 _MAX_OVERRIDE_BYTES = 2048
+_CLI_TEMPLATE_MARKERS = ('{%%', '{{', '{#', 'default-values')
+
+
+async def osmo_submit_workflow(
+    context: Context,
+    workflow_spec: SubmitWorkflowSpecText,
+    pool: PoolName | None = None,
+    set_variables: VariableOverrides | None = None,
+    set_string_variables: VariableOverrides | None = None,
+    priority: WorkflowPriority = 'NORMAL',
+) -> SubmitWorkflowResult:
+    """Submit raw workflow YAML to Core using the caller's OSMO identity."""
+    validated_spec = _validate_workflow_spec(
+        workflow_spec,
+        max_bytes=_MAX_SUBMISSION_SPEC_BYTES,
+    )
+    validated_set_variables = _validate_overrides(
+        set_variables,
+        field='set_variables',
+    )
+    validated_set_string_variables = _validate_overrides(
+        set_string_variables,
+        field='set_string_variables',
+    )
+    if priority not in WORKFLOW_PRIORITIES:
+        raise tool_errors.PublicToolError('Invalid workflow priority.')
+
+    pool_name = await _resolve_pool(context, pool)
+    encoded_pool = tool_validation.safe_path_segment(
+        pool_name,
+        field='pool',
+    )
+    payload = WorkflowTemplatePayload(
+        file=validated_spec,
+        set_variables=validated_set_variables,
+        set_string_variables=validated_set_string_variables,
+        uploaded_templated_spec=(
+            validated_spec
+            if _is_templated_workflow(validated_spec)
+            else None
+        ),
+    )
+    query = (
+        {'priority': priority}
+        if priority != 'NORMAL'
+        else None
+    )
+    response = await tool_requests.request_json_mutation(
+        context,
+        path=f'/api/pool/{encoded_pool}/workflow',
+        operation='submit a workflow',
+        max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
+        query=query,
+        payload=payload.model_dump(mode='json', exclude_none=True),
+    )
+    upstream = tool_validation.validate_mutation_response(
+        UpstreamSubmitResult,
+        response,
+        operation='submit a workflow',
+    )
+    return SubmitWorkflowResult(
+        workflow_id=upstream.name,
+        pool=pool_name,
+        priority=priority,
+        submitted=True,
+    )
 
 
 async def osmo_validate_workflow(
@@ -47,7 +121,10 @@ async def osmo_validate_workflow(
     set_string_variables: VariableOverrides | None = None,
 ) -> ValidateWorkflowResult:
     """Validate workflow YAML using Core's authoritative submission checks."""
-    validated_spec = _validate_workflow_spec(workflow_spec)
+    validated_spec = _validate_workflow_spec(
+        workflow_spec,
+        max_bytes=_MAX_VALIDATION_SPEC_BYTES,
+    )
     validated_set_variables = _validate_overrides(
         set_variables,
         field='set_variables',
@@ -72,7 +149,7 @@ async def osmo_validate_workflow(
         operation='validate a workflow',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
         query={'validation_only': True},
-        payload=payload.model_dump(mode='json'),
+        payload=payload.model_dump(mode='json', exclude_none=True),
     )
     upstream = tool_validation.validate_mutation_response(
         UpstreamValidationResult,
@@ -104,7 +181,11 @@ async def _resolve_pool(context: Context, pool: str | None) -> str:
     )
 
 
-def _validate_workflow_spec(workflow_spec: str) -> str:
+def _validate_workflow_spec(
+    workflow_spec: str,
+    *,
+    max_bytes: int,
+) -> str:
     try:
         encoded_spec = workflow_spec.encode('utf-8')
     except (AttributeError, UnicodeEncodeError):
@@ -112,7 +193,7 @@ def _validate_workflow_spec(workflow_spec: str) -> str:
     if (
         not isinstance(workflow_spec, str)
         or not workflow_spec.strip()
-        or len(encoded_spec) > _MAX_WORKFLOW_SPEC_BYTES
+        or len(encoded_spec) > max_bytes
         or any(
             not character.isprintable()
             and character not in '\n\r\t'
@@ -121,6 +202,11 @@ def _validate_workflow_spec(workflow_spec: str) -> str:
     ):
         raise tool_errors.PublicToolError('Invalid workflow_spec.')
     return workflow_spec
+
+
+def _is_templated_workflow(workflow_spec: str) -> bool:
+    """Match the CLI's lightweight template detection without its runtime."""
+    return any(marker in workflow_spec for marker in _CLI_TEMPLATE_MARKERS)
 
 
 def _validate_overrides(

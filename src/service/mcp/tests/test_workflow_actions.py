@@ -28,7 +28,10 @@ from src.service.mcp.tests import protocol_harness
 
 _BEARER_SECRET = 'phase-two-opaque-bearer-secret'
 _HARNESS = protocol_harness.ProtocolHarness(
-    tool_names=('osmo_validate_workflow',),
+    tool_names=(
+        'osmo_submit_workflow',
+        'osmo_validate_workflow',
+    ),
     bearer_secret=_BEARER_SECRET,
     request_id='workflow-action-request-123',
 )
@@ -56,31 +59,234 @@ workflow:
 class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
     """Exercise mutation mappings through the real Streamable HTTP protocol."""
 
-    async def test_validation_catalog_is_closed_and_not_read_only(self) -> None:
+    async def test_action_catalog_is_closed_and_not_read_only(self) -> None:
         response = await _HARNESS.list_tools()
         tools = _HARNESS.assert_closed_catalog(
             self,
             response,
             expected_annotations={
+                'osmo_submit_workflow':
+                    protocol_harness.WRITE_ANNOTATIONS,
                 'osmo_validate_workflow':
                     protocol_harness.WRITE_ANNOTATIONS,
             },
         )
-        schema = tools['osmo_validate_workflow']['inputSchema']
-        self.assertEqual(schema['required'], ['workflow_spec'])
-        self.assertEqual(schema['properties']['pool']['default'], None)
+        validation_schema = tools[
+            'osmo_validate_workflow'
+        ]['inputSchema']
+        self.assertEqual(validation_schema['required'], ['workflow_spec'])
         self.assertEqual(
-            schema['properties']['set_variables']['default'],
+            validation_schema['properties']['pool']['default'],
             None,
         )
         self.assertEqual(
-            schema['properties']['set_string_variables']['default'],
+            validation_schema['properties']['set_variables']['default'],
             None,
         )
         self.assertEqual(
-            schema['properties']['workflow_spec']['maxLength'],
+            validation_schema[
+                'properties'
+            ]['set_string_variables']['default'],
+            None,
+        )
+        self.assertEqual(
+            validation_schema['properties']['workflow_spec']['maxLength'],
             256 * 1024,
         )
+        submit_schema = tools['osmo_submit_workflow']['inputSchema']
+        self.assertEqual(submit_schema['required'], ['workflow_spec'])
+        self.assertEqual(
+            submit_schema['properties']['workflow_spec']['maxLength'],
+            128 * 1024,
+        )
+        self.assertEqual(
+            submit_schema['properties']['priority']['default'],
+            'NORMAL',
+        )
+        for excluded_argument in (
+            'workflow_id',
+            'dry_run',
+            'env_vars',
+            'uploaded_templated_spec',
+        ):
+            self.assertNotIn(
+                excluded_argument,
+                submit_schema['properties'],
+            )
+
+    async def test_submit_posts_exact_body_and_projects_result(self) -> None:
+        captured_requests: list[httpx.Request] = []
+        upstream_secret = 'submission-upstream-sensitive-value'
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json={
+                'name': 'mcp-submission-1',
+                'overview': (
+                    'https://user:password@example.test/'
+                    f'?token={upstream_secret}'
+                ),
+                'logs': (
+                    'https://example.test/logs'
+                    f'?signature={upstream_secret}'
+                ),
+                'dashboard_url': (
+                    f'https://example.test/?secret={upstream_secret}'
+                ),
+            })
+
+        response = await _HARNESS.call_tool(
+            handler,
+            'osmo_submit_workflow',
+            {
+                'workflow_spec': _WORKFLOW_SPEC,
+                'pool': 'pool-a',
+                'set_variables': ['replicas=2'],
+                'set_string_variables': ['image_tag=latest'],
+                'priority': 'HIGH',
+            },
+        )
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'])
+        self.assertEqual(result['structuredContent'], {
+            'workflow_id': 'mcp-submission-1',
+            'pool': 'pool-a',
+            'priority': 'HIGH',
+            'submitted': True,
+        })
+        self.assertNotIn(upstream_secret, response.text)
+        self.assertEqual(len(captured_requests), 1)
+        request = captured_requests[0]
+        self.assertEqual(request.method, 'POST')
+        self.assertEqual(request.url.path, '/api/pool/pool-a/workflow')
+        self.assertEqual(
+            request.url.params.multi_items(),
+            [('priority', 'HIGH')],
+        )
+        self.assertEqual(json.loads(request.content), {
+            'file': _WORKFLOW_SPEC,
+            'set_variables': ['replicas=2'],
+            'set_string_variables': ['image_tag=latest'],
+        })
+
+    async def test_submit_preserves_template_and_uses_defaults(self) -> None:
+        captured_requests: list[httpx.Request] = []
+        templated_spec = (
+            _WORKFLOW_SPEC
+            + '\ndefault-values:\n  replicas: 1\n'
+            + '# {{ replicas }}\n'
+        )
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            if request.url.path == '/api/profile/settings':
+                return httpx.Response(200, json=_PROFILE_RESULT)
+            return httpx.Response(200, json={
+                'name': 'mcp-template-1',
+                'overview': 'https://example.test/workflow',
+                'logs': 'https://example.test/logs',
+            })
+
+        response = await _HARNESS.call_tool(
+            handler,
+            'osmo_submit_workflow',
+            {'workflow_spec': templated_spec},
+        )
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'])
+        self.assertEqual(result['structuredContent'], {
+            'workflow_id': 'mcp-template-1',
+            'pool': 'pool-a',
+            'priority': 'NORMAL',
+            'submitted': True,
+        })
+        self.assertEqual(
+            [request.url.path for request in captured_requests],
+            [
+                '/api/profile/settings',
+                '/api/pool/pool-a/workflow',
+            ],
+        )
+        submit_request = captured_requests[1]
+        self.assertEqual(submit_request.url.params.multi_items(), [])
+        self.assertEqual(json.loads(submit_request.content), {
+            'file': templated_spec,
+            'set_variables': [],
+            'set_string_variables': [],
+            'uploaded_templated_spec': templated_spec,
+        })
+
+    async def test_submit_rejects_unsupported_or_invalid_arguments(
+        self,
+    ) -> None:
+        transport_calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            nonlocal transport_calls
+            transport_calls += 1
+            return httpx.Response(200, json={})
+
+        invalid_arguments: tuple[dict[str, object], ...] = (
+            {
+                'workflow_spec': _WORKFLOW_SPEC,
+                'workflow_id': 'private-workflow-1',
+            },
+            {'workflow_spec': _WORKFLOW_SPEC, 'dry_run': True},
+            {'workflow_spec': _WORKFLOW_SPEC, 'priority': 'URGENT'},
+            {'workflow_spec': 'x' * (128 * 1024 + 1)},
+        )
+        async with _HARNESS.client(handler) as client:
+            for request_id, arguments in enumerate(
+                invalid_arguments,
+                start=1,
+            ):
+                with self.subTest(arguments=arguments):
+                    response = await _HARNESS.call_tool_with_client(
+                        client,
+                        'osmo_submit_workflow',
+                        arguments,
+                        request_id=request_id,
+                    )
+                    self.assertTrue(response.json()['result']['isError'])
+
+        self.assertEqual(transport_calls, 0)
+
+    async def test_submit_ambiguous_results_are_not_retried(self) -> None:
+        responses = [
+            httpx.Response(503, content=b'private-server-detail'),
+            httpx.Response(200, json={'name': 'mcp-submission-1'}),
+        ]
+        calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            nonlocal calls
+            calls += 1
+            return responses.pop(0)
+
+        async with _HARNESS.client(handler) as client:
+            for request_id in range(1, 3):
+                response = await _HARNESS.call_tool_with_client(
+                    client,
+                    'osmo_submit_workflow',
+                    {
+                        'workflow_spec': _WORKFLOW_SPEC,
+                        'pool': 'pool-a',
+                    },
+                    request_id=request_id,
+                )
+                self.assertTrue(response.json()['result']['isError'])
+                self.assertIn('write outcome is unknown', response.text)
+                self.assertIn(
+                    'Inspect OSMO state before retrying',
+                    response.text,
+                )
+                self.assertNotIn('private-server-detail', response.text)
+
+        self.assertEqual(calls, 2)
 
     async def test_explicit_pool_posts_exact_template_payload(self) -> None:
         captured_requests: list[httpx.Request] = []
