@@ -162,6 +162,7 @@ osmo_py_library(
     deps = [
         requirement("pydantic"),
         ":tool_models",
+        ":workflow_models",
     ],
     visibility = ["//visibility:public"],
 )
@@ -243,6 +244,7 @@ osmo_py_library(
         ":tool_requests",
         ":tool_validation",
         ":workflow_action_models",
+        ":workflow_models",
     ],
     visibility = ["//visibility:public"],
 )

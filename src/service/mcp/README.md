@@ -102,15 +102,22 @@ authorization value.
 
 The external catalog contains 14 read-only tools for caller-bound health,
 profile, pool, resource, workflow, application, and credential-metadata
-inspection, plus `osmo_validate_workflow`. Each tool maps to a fixed external
-API, returns a structured allowlisted result, and applies a domain-specific
-response limit. Credential inspection returns names and types only. Profile
-inspection intentionally includes non-secret access-token identity metadata
-(name and expiry), unlike the hosted internal MCP projection.
+inspection, plus `osmo_validate_workflow` and `osmo_submit_workflow`. Each tool
+maps to a fixed external API, returns a structured allowlisted result, and
+applies a domain-specific response limit. Credential inspection returns names
+and types only. Profile inspection intentionally includes non-secret
+access-token identity metadata (name and expiry), unlike the hosted internal
+MCP projection.
 
 Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
 write because a failed validation can create a `FAILED_SUBMISSION` record.
+Workflow submission accepts bounded raw YAML, template overrides, a target
+pool, and scheduling priority. It intentionally does not accept local paths,
+environment injection, dry-run rendering, or source workflow IDs. The latter
+would let Core read a source spec without a source-pool authorization check.
+The result contains only the new workflow ID, pool, priority, and submission
+confirmation; Core-generated URLs are not returned.
 
 JSON tools require one complete bounded response. Bounded text tools may
 instead return a safe UTF-8 prefix with `truncated=true` and a machine-readable

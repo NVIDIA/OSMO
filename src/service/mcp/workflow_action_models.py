@@ -21,6 +21,7 @@ from typing import Annotated, Literal
 import pydantic
 
 from src.service.mcp.tool_models import ClosedToolModel
+from src.service.mcp.workflow_models import WorkflowId, WorkflowPriority
 
 
 PoolName = Annotated[
@@ -30,6 +31,10 @@ PoolName = Annotated[
 WorkflowSpecText = Annotated[
     str,
     pydantic.Field(min_length=1, max_length=256 * 1024),
+]
+SubmitWorkflowSpecText = Annotated[
+    str,
+    pydantic.Field(min_length=1, max_length=128 * 1024),
 ]
 VariableOverride = Annotated[
     str,
@@ -47,6 +52,7 @@ class WorkflowTemplatePayload(ClosedToolModel):
     file: str
     set_variables: list[str]
     set_string_variables: list[str]
+    uploaded_templated_spec: str | None = None
 
 
 class UpstreamValidationResult(ClosedToolModel):
@@ -64,3 +70,22 @@ class ValidateWorkflowResult(ClosedToolModel):
     valid: bool
     pool: PoolName
     logs: Literal['Workflow validation succeeded.']
+
+
+class UpstreamSubmitResult(ClosedToolModel):
+    """Allowlisted normal-submission fields from Core's SubmitResponse."""
+
+    model_config = pydantic.ConfigDict(extra='ignore')
+
+    name: WorkflowId
+    overview: Annotated[str, pydantic.Field(min_length=1, max_length=16_384)]
+    logs: Annotated[str, pydantic.Field(min_length=1, max_length=16_384)]
+
+
+class SubmitWorkflowResult(ClosedToolModel):
+    """Compact confirmation that Core accepted a workflow submission."""
+
+    workflow_id: WorkflowId
+    pool: PoolName
+    priority: WorkflowPriority
+    submitted: Literal[True]

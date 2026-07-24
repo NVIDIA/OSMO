@@ -65,14 +65,22 @@ projection therefore returns only `cred_name` and `cred_type`.
 
 ## Phase 2: workflow actions (in progress)
 
-`osmo_validate_workflow` is implemented using the exact bounded TemplateSpec
-projection and `validation_only=true`. It is a non-idempotent write because a
-failed validation can create a `FAILED_SUBMISSION` workflow record. The shared
-mutation relay sends bounded JSON, never retries, and reports an unknown
-outcome for ambiguous transport or server failures.
+`osmo_validate_workflow` and `osmo_submit_workflow` are implemented using
+bounded TemplateSpec projections. Validation sets `validation_only=true` and
+is a non-idempotent write because a failed validation can create a
+`FAILED_SUBMISSION` workflow record. Submission accepts raw YAML and preserves
+the original template when it detects the same template markers as the CLI.
+It returns only the new workflow ID, selected pool, and effective priority.
+The shared mutation relay sends bounded JSON, never retries, and reports an
+unknown outcome for ambiguous transport or server failures.
 
-Add `osmo_submit_workflow`, `osmo_restart_workflow`, and
-`osmo_cancel_workflow` as the remaining Phase 2 actions.
+Submit-by-workflow-ID is intentionally omitted. Core authorizes creation in the
+target pool but reads the source workflow internally without a source-pool
+read check. Dry-run rendering, environment injection, local-file expansion,
+and rsync are also omitted from the agent-facing contract.
+
+Add `osmo_restart_workflow` and `osmo_cancel_workflow` as the remaining Phase 2
+actions.
 
 ## Phase 3: user-owned mutations
 
