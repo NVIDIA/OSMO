@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+from collections import Counter
 import datetime
 import json
 import logging
@@ -140,10 +141,10 @@ _SUSPECTED_BUG_RE = re.compile(
     """
 )
 
-# Map a generated test file back to the source file it covers, so the
-# Stage-2 picker rationale (keyed on source path) can be attached to the
-# right test in the PR body. Mirrors the conventions enforced by
-# TESTBOT_RULES.md and the basename-stripping in the title generator.
+# Best-effort fallback for ad-hoc runs without picker metadata. Normal
+# workflow runs get their source targets directly from targets_meta.json;
+# generated test names are output artifacts and do not reliably encode the
+# source they exercise (for example, test_task_pure.py tests task.py).
 _TEST_TO_SOURCE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"(.*?)/tests/test_([^/]+\.py)$"), r"\1/\2"),
     (re.compile(r"(.+)_test(\.go)$"), r"\1\2"),
@@ -163,8 +164,9 @@ def _test_to_source_paths(test_path: str) -> list[str]:
     #1058 surfaced this — the naive strip didn't match the picker's
     meta key and the rationale section got dropped.
 
-    Callers walk the returned list and pick the first candidate that
-    exists in the picker meta (or on disk).
+    This is used only when picker metadata is unavailable. Callers prefer a
+    candidate that exists on disk before falling back to the conventional
+    first result.
     """
     candidates: list[str] = []
     for pattern, replacement in _TEST_TO_SOURCE_PATTERNS:
@@ -209,11 +211,86 @@ def _load_targets_meta(path: str) -> dict[str, dict]:
     if not isinstance(entries, list):
         logger.warning("targets meta is not a list: %r", entries)
         return {}
-    return {
-        entry["file_path"]: entry
-        for entry in entries
-        if isinstance(entry, dict) and entry.get("file_path")
+    meta: dict[str, dict] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        raw_file_path = entry.get("file_path")
+        if not isinstance(raw_file_path, str) or not raw_file_path.strip():
+            logger.warning(
+                "Skipping target metadata entry with invalid file_path: %r",
+                entry,
+            )
+            continue
+        file_path = raw_file_path.strip()
+        if file_path in meta:
+            logger.warning(
+                "Duplicate target metadata for %s; using the last entry",
+                file_path,
+            )
+        meta[file_path] = entry
+    return meta
+
+
+def _source_paths_for_pr(
+    changed_files: list[str],
+    meta: dict[str, dict],
+) -> list[str]:
+    """Return source targets for the PR, preserving authoritative order.
+
+    Picker metadata records what the workflow selected and is therefore the
+    source of truth. Generated test paths only describe how the generator
+    organized its output; one source can have multiple semantically named test
+    files, and one test can exercise multiple selected sources.
+
+    Filename inference remains as a compatibility fallback for local or ad-hoc
+    runs that do not provide picker metadata.
+    """
+    if meta:
+        return list(meta)
+
+    logger.warning(
+        "No target metadata available; inferring source paths from test names",
+    )
+    source_paths: list[str] = []
+    seen: set[str] = set()
+    for test_path in changed_files:
+        candidates = _test_to_source_paths(test_path)
+        if not candidates:
+            continue
+        source_path = next(
+            (candidate for candidate in candidates if Path(candidate).is_file()),
+            candidates[0],
+        )
+        if source_path not in seen:
+            seen.add(source_path)
+            source_paths.append(source_path)
+    return source_paths
+
+
+def _files_summary_for_pr(
+    source_paths: list[str],
+    changed_files: list[str],
+) -> str:
+    """Summarize source targets for titles and commit subjects.
+
+    Unique source basenames stay compact. When multiple selected sources share
+    a basename, their full paths disambiguate them. Changed-file basenames are
+    used only when no source target can be resolved.
+    """
+    if not source_paths:
+        changed_basenames = {
+            path.rsplit("/", maxsplit=1)[-1] for path in changed_files
+        }
+        return ", ".join(sorted(changed_basenames))
+
+    basenames = [path.rsplit("/", maxsplit=1)[-1] for path in source_paths]
+    basename_counts = Counter(basenames)
+    summary_parts = {
+        path if basename_counts[basename] > 1 else basename
+        for path, basename in zip(source_paths, basenames, strict=True)
     }
+    return ", ".join(sorted(summary_parts))
 
 
 def _build_generator_summary_section(path: str) -> str:
@@ -320,36 +397,17 @@ def _build_coverage_section(path: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _build_rationale_section(
-    changed_files: list[str],
-    meta: dict[str, dict],
-) -> str:
+def _build_rationale_section(meta: dict[str, dict]) -> str:
     """Render the 'Why ... was targeted' section, or '' when no rationale."""
-    seen_sources: list[str] = []
-    seen_set: set[str] = set()
-    for test_path in changed_files:
-        # Walk candidates in specificity order — most-specific (naive
-        # `_test` strip) first, falling back to `_integration_test`
-        # stripping. The first match against the picker meta wins, so
-        # `user_role_sync_integration_test.go` correctly attaches the
-        # rationale meant for `user_role_sync.go` while a hypothetical
-        # `kafka_integration_test.go` testing `kafka_integration.go`
-        # still resolves to the more-specific target.
-        for candidate in _test_to_source_paths(test_path):
-            if candidate in meta and candidate not in seen_set:
-                seen_set.add(candidate)
-                seen_sources.append(candidate)
-                break
-    if not seen_sources:
+    if not meta:
         return ""
     heading = (
         "## Why this file was targeted"
-        if len(seen_sources) == 1
+        if len(meta) == 1
         else "## Why these files were targeted"
     )
     blocks: list[str] = [heading, ""]
-    for source in seen_sources:
-        entry = meta[source]
+    for source, entry in meta.items():
         try:
             coverage = float(entry.get("coverage_pct", 0.0))
         except (TypeError, ValueError):
@@ -552,48 +610,27 @@ def main() -> None:
 
     logger.info("Changed test files: %s", changed_files)
 
-    # Load picker meta early so the title can prefer the picker's
-    # canonical source path over the naive `_test` strip — important
-    # for `_integration_test.go` files where the strip otherwise
-    # yields a non-existent `foo_integration.go` instead of `foo.go`.
+    # Picker metadata is authoritative for the selected source targets.
+    # Generated test filenames describe output organization and may not
+    # mirror source basenames (for example, test_task_pure.py tests task.py).
     targets_meta = _load_targets_meta(args.targets_meta)
-
-    # Walk each changed test file to its source-file equivalent using the
-    # meta-aware mapping (handles _integration_test.go correctly).
-    # Non-test changes (BUILD edits) are recorded separately so we can
-    # render them under "Files tested" without confusing source vs test.
-    source_paths: set[str] = set()
-    non_test_basenames: set[str] = set()
-    for test_path in changed_files:
-        candidates = _test_to_source_paths(test_path)
-        if not candidates:
-            # Non-test file (e.g., the BUILD edit) — keep its basename
-            # for the title fallback.
-            non_test_basenames.add(test_path.rsplit("/", maxsplit=1)[-1])
-            continue
-        # Prefer the candidate the picker actually targeted; fall back
-        # to the most-specific naive strip when no picker meta is
-        # available (local dry-run, ad-hoc dispatch).
-        chosen = next(
-            (c for c in candidates if c in targets_meta),
-            candidates[0],
+    if args.targets_meta and not targets_meta:
+        logger.error(
+            "Target metadata was provided but contained no valid targets: %s",
+            args.targets_meta,
         )
-        source_paths.add(chosen)
+        sys.exit(1)
+    source_paths = _source_paths_for_pr(changed_files, targets_meta)
 
-    # Title uses basenames of the source files (and non-test files like
-    # BUILD), summarized — keeps the historical title shape.
-    source_basenames = {p.rsplit("/", maxsplit=1)[-1] for p in source_paths}
-    files_summary = ", ".join(sorted(source_basenames | non_test_basenames))
+    # Title names selected source files, not generated tests or BUILD wiring.
+    files_summary = _files_summary_for_pr(source_paths, changed_files)
 
-    # "Files tested" body section lists the SOURCE files the picker
-    # targeted — what reviewers actually want to scan. The committed
-    # test file paths still appear in the diff, so we don't lose
-    # information by hiding them here. Fall back to listing all
-    # changed files when we couldn't resolve any source path (entirely
-    # non-test diff — shouldn't happen for a real testbot run but keeps
-    # the section non-empty defensively).
+    # "Targets selected" lists the source files chosen by the picker. It does
+    # not claim a one-to-one mapping to generated files; per-target coverage
+    # below reports how much each selected source was actually exercised.
+    # Fall back to changed files only for ad-hoc runs without metadata.
     if source_paths:
-        files_list = "\n".join(f"- `{p}`" for p in sorted(source_paths))
+        files_list = "\n".join(f"- `{p}`" for p in source_paths)
     else:
         files_list = "\n".join(f"- `{f}`" for f in changed_files)
 
@@ -622,7 +659,7 @@ def main() -> None:
         bugs_section = f"\n## Suspected bugs\n{bugs_list}\n"
 
     # targets_meta already loaded above for the title computation.
-    rationale_section = _build_rationale_section(changed_files, targets_meta)
+    rationale_section = _build_rationale_section(targets_meta)
     if rationale_section:
         rationale_section = "\n" + rationale_section
 
@@ -642,7 +679,7 @@ AI-generated tests targeting file(s) with low coverage.
 
 Issue - None
 
-## Files tested
+## Targets selected
 {files_list}
 {rationale_section}{generator_summary_section}{coverage_section}{bugs_section}
 ## Checklist

@@ -19,11 +19,13 @@ from src.scripts.testbot.create_pr import (  # noqa: E501
     _build_slack_review_payload,
     _enable_auto_merge,
     _extract_pr_url,
+    _files_summary_for_pr,
     _get_slack_bot_token,
     _load_targets_meta,
     _post_slack_review_request,
     _resolve_slack_channel,
     _scan_suspected_bugs,
+    _source_paths_for_pr,
     _test_to_source_path,
     _test_to_source_paths,
     has_unapproved_testbot_pr,
@@ -235,6 +237,30 @@ class TestPrCreationHelpers(unittest.TestCase):
         )
         post_slack_mock.assert_not_called()
 
+    def test_main_rejects_missing_explicit_target_metadata(self):
+        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                   return_value=False), \
+                patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                      return_value=["src/utils/job/tests/test_task_units.py"]), \
+                patch("src.scripts.testbot.create_pr.run") as run_mock, \
+                patch("src.scripts.testbot.create_pr.subprocess.run") \
+                as subprocess_run_mock, \
+                patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "create_pr.py",
+                        "--targets-meta",
+                        "/no/such/targets_meta.json",
+                    ],
+                ):
+            with self.assertRaises(SystemExit) as exit_ctx:
+                main()
+
+        self.assertNotIn(exit_ctx.exception.code, (0, None))
+        run_mock.assert_not_called()
+        subprocess_run_mock.assert_not_called()
+
 
 class TestSlackReviewRequest(unittest.TestCase):
     """Tests for Slack review request helpers."""
@@ -401,14 +427,10 @@ class TestSlackReviewRequest(unittest.TestCase):
         self.assertEqual(post_mock.call_args.kwargs["bot_token"], "token")
         self.assertEqual(post_mock.call_args.kwargs["channel"], "#osmo-slack-test")
 
-    def test_main_pr_body_files_tested_lists_source_paths(self):
-        # "Files tested" should list the source files the picker
-        # targeted, not the test files that were committed (those
-        # appear in the diff already). PR #1065 surfaced this — the
-        # body showed src/utils/job/tests/test_backend_jobs.py
-        # instead of the more reviewer-useful
-        # src/utils/job/backend_jobs.py. Test by capturing the body
-        # passed to gh pr create via subprocess.run's args.
+    def test_main_uses_picker_target_when_test_has_semantic_name(self):
+        # PR #1184 regression: task.py was selected, but the generator
+        # organized its output as test_task_units.py. Source identity comes
+        # from picker metadata, never by reversing the generated test name.
         gh_create_result = subprocess.CompletedProcess(
             [], 0, stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
         )
@@ -417,10 +439,10 @@ class TestSlackReviewRequest(unittest.TestCase):
         ) as meta_fh:
             json.dump([
                 {
-                    "file_path": "src/utils/job/backend_jobs.py",
-                    "coverage_pct": 23.6,
-                    "uncovered_lines": 60,
-                    "uncovered_ranges": [[105, 110]],
+                    "file_path": "src/utils/job/task.py",
+                    "coverage_pct": 63.8,
+                    "uncovered_lines": 393,
+                    "uncovered_ranges": [[100, 110]],
                     "reason": "test rationale",
                 },
             ], meta_fh)
@@ -431,7 +453,7 @@ class TestSlackReviewRequest(unittest.TestCase):
                        return_value=False), \
                     patch("src.scripts.testbot.create_pr.get_changed_test_files",
                           return_value=[
-                              "src/utils/job/tests/test_backend_jobs.py",
+                              "src/utils/job/tests/test_task_units.py",
                               "src/utils/job/tests/BUILD",
                           ]), \
                     patch("src.scripts.testbot.create_pr.run",
@@ -460,17 +482,27 @@ class TestSlackReviewRequest(unittest.TestCase):
         argv = gh_calls[0].args[0]
         body = argv[argv.index("--body") + 1]
 
-        self.assertIn("## Files tested", body)
-        # Source path appears in body, test file path does NOT.
-        self.assertIn("`src/utils/job/backend_jobs.py`", body)
-        self.assertNotIn(
-            "`src/utils/job/tests/test_backend_jobs.py`", body,
-            "test file path leaked into 'Files tested' — should show source",
-        )
-        # Title still uses the source basename as before.
+        self.assertIn("## Targets selected", body)
+        self.assertIn("`src/utils/job/task.py`", body)
+        self.assertIn("## Why this file was targeted", body)
+        self.assertIn("> test rationale", body)
+        targets_selected = body.split("## Targets selected\n", maxsplit=1)[1]
+        targets_selected = targets_selected.split("\n## ", maxsplit=1)[0]
+        self.assertNotIn("test_task_units.py", targets_selected)
+
         title = argv[argv.index("--title") + 1]
-        self.assertIn("backend_jobs.py", title)
-        self.assertNotIn("test_backend_jobs.py", title)
+        self.assertEqual(title, "[testbot] Add tests for task.py")
+        self.assertNotIn("BUILD", title)
+
+        commit_calls = [
+            call for call in run_mock.call_args_list
+            if call.args and call.args[0] and call.args[0][:2] == ["git", "commit"]
+        ]
+        self.assertEqual(len(commit_calls), 1)
+        self.assertIn(
+            "Add AI-generated tests for task.py",
+            commit_calls[0].args[0],
+        )
 
     def test_main_skips_slack_when_skip_slack_env_true(self):
         # workflow_dispatch skip_slack=true sets SKIP_SLACK=true.
@@ -750,111 +782,171 @@ class TestLoadTargetsMeta(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_skips_entries_with_invalid_file_paths(self):
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8",
+        ) as fh:
+            json.dump([
+                42,
+                {"file_path": ["not", "hashable"], "reason": "bad"},
+                {"file_path": "", "reason": "empty"},
+                {"file_path": "   ", "reason": "whitespace"},
+                {"reason": "missing"},
+                {"file_path": "  src/lib/padded.py  ", "reason": "trimmed"},
+                {"file_path": "src/lib/valid.py", "reason": "kept"},
+            ], fh)
+            path = fh.name
+        try:
+            self.assertEqual(
+                list(_load_targets_meta(path)),
+                ["src/lib/padded.py", "src/lib/valid.py"],
+            )
+        finally:
+            os.unlink(path)
+
+    def test_duplicate_file_path_uses_last_entry(self):
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8",
+        ) as fh:
+            json.dump([
+                {"file_path": "src/lib/foo.py", "reason": "first"},
+                {"file_path": "src/lib/foo.py", "reason": "second"},
+            ], fh)
+            path = fh.name
+        try:
+            meta = _load_targets_meta(path)
+            self.assertEqual(list(meta), ["src/lib/foo.py"])
+            self.assertEqual(meta["src/lib/foo.py"]["reason"], "second")
+        finally:
+            os.unlink(path)
+
+
+class TestSourcePathsForPr(unittest.TestCase):
+    """Tests for authoritative source-target selection."""
+
+    def test_uses_ordered_metadata_for_semantic_test_filename(self):
+        meta = {
+            "src/utils/job/task.py": {"reason": "first"},
+            "src/utils/job/jobs.py": {"reason": "second"},
+        }
+
+        source_paths = _source_paths_for_pr(
+            [
+                "src/utils/job/tests/BUILD",
+                "src/utils/job/tests/test_task_units.py",
+            ],
+            meta,
+        )
+
+        self.assertEqual(source_paths, [
+            "src/utils/job/task.py",
+            "src/utils/job/jobs.py",
+        ])
+
+    def test_infers_source_from_test_name_without_metadata(self):
+        source_paths = _source_paths_for_pr(
+            [
+                "src/lib/tests/BUILD",
+                "src/lib/tests/test_foo.py",
+            ],
+            {},
+        )
+
+        self.assertEqual(source_paths, ["src/lib/foo.py"])
+
+    @patch(
+        "src.scripts.testbot.create_pr.Path.is_file",
+        side_effect=[False, True],
+    )
+    def test_fallback_prefers_existing_integration_source(self, mock_is_file):
+        source_paths = _source_paths_for_pr(
+            ["src/utils/roles/user_role_sync_integration_test.go"],
+            {},
+        )
+
+        self.assertEqual(mock_is_file.call_count, 2)
+        self.assertEqual(
+            source_paths,
+            ["src/utils/roles/user_role_sync.go"],
+        )
+
+
+class TestFilesSummaryForPr(unittest.TestCase):
+    """Tests for concise, unambiguous target summaries."""
+
+    def test_uses_basenames_for_unique_sources(self):
+        self.assertEqual(
+            _files_summary_for_pr(
+                ["src/a/foo.py", "src/b/bar.py"],
+                ["src/tests/BUILD"],
+            ),
+            "bar.py, foo.py",
+        )
+
+    def test_uses_paths_for_duplicate_basenames(self):
+        self.assertEqual(
+            _files_summary_for_pr(
+                ["src/a/foo.py", "src/b/foo.py"],
+                ["src/tests/test_foo.py"],
+            ),
+            "src/a/foo.py, src/b/foo.py",
+        )
+
+    def test_falls_back_to_changed_basenames_without_sources(self):
+        self.assertEqual(
+            _files_summary_for_pr(
+                [],
+                ["src/tests/BUILD", "src/tests/test_custom.py"],
+            ),
+            "BUILD, test_custom.py",
+        )
+
 
 class TestBuildRationaleSection(unittest.TestCase):
     """Tests for the 'Why this file was targeted' PR-body section."""
 
     def test_empty_when_no_meta(self):
-        self.assertEqual(_build_rationale_section(["src/x/tests/test_y.py"], {}), "")
+        self.assertEqual(_build_rationale_section({}), "")
 
-    def test_go_integration_test_attaches_rationale_to_underscore_source(self):
-        # PR #1058 regression: the rationale silently dropped because
-        # the naive `_test` strip mapped the integration test to
-        # `user_role_sync_integration.go` instead of the picker's
-        # target `user_role_sync.go`. The fallback candidate must
-        # match the picker meta.
+    def test_renders_authoritative_picker_target(self):
         meta = {
-            "src/utils/roles/user_role_sync.go": {
-                "file_path": "src/utils/roles/user_role_sync.go",
-                "coverage_pct": 0.0,
-                "uncovered_lines": 97,
-                "reason": "Owns IDP-to-OSMO role sync — RBAC blast radius.",
+            "src/utils/job/task.py": {
+                "file_path": "src/utils/job/task.py",
+                "coverage_pct": 63.8,
+                "uncovered_lines": 393,
+                "reason": "Owns task lifecycle behavior.",
             },
         }
-        section = _build_rationale_section(
-            ["src/utils/roles/user_role_sync_integration_test.go"],
-            meta,
-        )
-        self.assertIn("`src/utils/roles/user_role_sync.go`", section)
-        self.assertIn("Owns IDP-to-OSMO role sync", section)
 
-    def test_prefers_naive_strip_when_both_candidates_match_meta(self):
-        # Hypothetical: meta has BOTH `kafka_integration.go` (a real
-        # source file) and `kafka.go`. The naive strip wins so we
-        # don't accidentally attach the kafka-integration rationale to
-        # kafka.go.
-        meta = {
-            "src/foo/kafka.go": {
-                "file_path": "src/foo/kafka.go",
-                "coverage_pct": 50.0, "uncovered_lines": 10,
-                "reason": "kafka rationale",
-            },
-            "src/foo/kafka_integration.go": {
-                "file_path": "src/foo/kafka_integration.go",
-                "coverage_pct": 30.0, "uncovered_lines": 20,
-                "reason": "kafka_integration rationale",
-            },
-        }
-        section = _build_rationale_section(
-            ["src/foo/kafka_integration_test.go"], meta,
-        )
-        self.assertIn("kafka_integration rationale", section)
-        self.assertNotIn("kafka rationale", section)
+        section = _build_rationale_section(meta)
 
-    def test_singular_heading_for_one_target(self):
-        meta = {
-            "src/lib/utils/common.py": {
-                "file_path": "src/lib/utils/common.py",
-                "coverage_pct": 45.3,
-                "uncovered_lines": 332,
-                "reason": "Highest fan-in file packed with pure utilities.",
-            },
-        }
-        section = _build_rationale_section(
-            ["src/lib/utils/tests/test_common.py"], meta,
-        )
         self.assertIn("## Why this file was targeted", section)
-        self.assertIn("**`src/lib/utils/common.py`**", section)
-        self.assertIn("45.3% coverage", section)
-        self.assertIn("332 uncovered lines", section)
-        self.assertIn("> Highest fan-in", section)
+        self.assertIn("**`src/utils/job/task.py`**", section)
+        self.assertIn("63.8% coverage", section)
+        self.assertIn("393 uncovered lines", section)
+        self.assertIn("> Owns task lifecycle behavior.", section)
 
-    def test_plural_heading_for_multiple_targets(self):
+    def test_plural_heading_preserves_picker_order(self):
         meta = {
-            "src/a/foo.py": {
-                "file_path": "src/a/foo.py",
+            "src/z/first.py": {
+                "file_path": "src/z/first.py",
                 "coverage_pct": 10.0, "uncovered_lines": 50,
                 "reason": "first",
             },
-            "src/b/bar.py": {
-                "file_path": "src/b/bar.py",
+            "src/a/second.py": {
+                "file_path": "src/a/second.py",
                 "coverage_pct": 20.0, "uncovered_lines": 80,
                 "reason": "second",
             },
         }
-        section = _build_rationale_section(
-            ["src/a/tests/test_foo.py", "src/b/tests/test_bar.py"],
-            meta,
-        )
-        self.assertIn("## Why these files were targeted", section)
-        self.assertIn("**`src/a/foo.py`**", section)
-        self.assertIn("**`src/b/bar.py`**", section)
 
-    def test_skips_test_with_no_meta(self):
-        meta = {
-            "src/lib/foo.py": {
-                "file_path": "src/lib/foo.py",
-                "coverage_pct": 10.0, "uncovered_lines": 5,
-                "reason": "covered",
-            },
-        }
-        section = _build_rationale_section(
-            ["src/lib/tests/test_foo.py", "src/lib/tests/test_unrelated.py"],
-            meta,
+        section = _build_rationale_section(meta)
+
+        self.assertIn("## Why these files were targeted", section)
+        self.assertLess(
+            section.index("src/z/first.py"),
+            section.index("src/a/second.py"),
         )
-        self.assertIn("**`src/lib/foo.py`**", section)
-        self.assertNotIn("test_unrelated", section)
-        self.assertNotIn("unrelated.py", section)
 
     def test_multi_sentence_reason_with_roi_clause_preserved(self):
         # Per the picker prompt's 3-clause contract, the reason names
@@ -875,9 +967,7 @@ class TestBuildRationaleSection(unittest.TestCase):
                 ),
             },
         }
-        section = _build_rationale_section(
-            ["src/utils/job/tests/test_jobs.py"], meta,
-        )
+        section = _build_rationale_section(meta)
         self.assertIn("workflow job state machine", section)
         self.assertIn("would corrupt workflow state", section)
         self.assertIn("Highest ROI on today's shortlist", section)
@@ -899,26 +989,10 @@ class TestBuildRationaleSection(unittest.TestCase):
                 ),
             },
         }
-        section = _build_rationale_section(
-            ["src/lib/tests/test_foo.py"], meta,
-        )
+        section = _build_rationale_section(meta)
         self.assertIn("> Owns the foo contract.", section)
         self.assertIn("> Regression class: silent serializer drift.", section)
         self.assertIn("> ROI: highest fan-in (47) on the list.", section)
-
-    def test_dedupes_when_two_tests_map_to_same_source(self):
-        meta = {
-            "src/lib/foo.py": {
-                "file_path": "src/lib/foo.py",
-                "coverage_pct": 10.0, "uncovered_lines": 5,
-                "reason": "covered",
-            },
-        }
-        section = _build_rationale_section(
-            ["src/lib/tests/test_foo.py", "src/lib/tests/test_foo.py"],
-            meta,
-        )
-        self.assertEqual(section.count("**`src/lib/foo.py`**"), 1)
 
     def test_coerces_unexpected_field_types(self):
         # Defensive: a malformed sidecar (string coverage, list uncovered,
@@ -932,9 +1006,7 @@ class TestBuildRationaleSection(unittest.TestCase):
                 "reason": 42,
             },
         }
-        section = _build_rationale_section(
-            ["src/lib/tests/test_foo.py"], meta,
-        )
+        section = _build_rationale_section(meta)
         self.assertIn("**`src/lib/foo.py`**", section)
         self.assertIn("0.0% coverage", section)
         self.assertIn("0 uncovered lines", section)
@@ -948,9 +1020,7 @@ class TestBuildRationaleSection(unittest.TestCase):
                 "reason": "",
             },
         }
-        section = _build_rationale_section(
-            ["src/lib/tests/test_foo.py"], meta,
-        )
+        section = _build_rationale_section(meta)
         self.assertIn("**`src/lib/foo.py`**", section)
         self.assertNotIn("> ", section)
 
