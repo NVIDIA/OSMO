@@ -98,15 +98,19 @@ The Gateway, MCP process, receiving OSMO APIs, and applicable middleware are
 inside the bearer-token handling boundary. None of them may log or persist the
 authorization value.
 
-## Available read tools
+## Available tools
 
-The first external catalog contains 14 read-only tools for caller-bound health,
+The external catalog contains 14 read-only tools for caller-bound health,
 profile, pool, resource, workflow, application, and credential-metadata
-inspection. Each tool maps to a fixed external API, returns a structured
-allowlisted result, and applies a domain-specific response limit. Credential
-inspection returns names and types only. Profile inspection intentionally
-includes non-secret access-token identity metadata (name and expiry), unlike
-the hosted internal MCP projection.
+inspection, plus `osmo_validate_workflow`. Each tool maps to a fixed external
+API, returns a structured allowlisted result, and applies a domain-specific
+response limit. Credential inspection returns names and types only. Profile
+inspection intentionally includes non-secret access-token identity metadata
+(name and expiry), unlike the hosted internal MCP projection.
+
+Workflow validation calls Core's submission endpoint with
+`validation_only=true`. It is intentionally annotated as a non-idempotent
+write because a failed validation can create a `FAILED_SUBMISSION` record.
 
 JSON tools require one complete bounded response. Bounded text tools may
 instead return a safe UTF-8 prefix with `truncated=true` and a machine-readable

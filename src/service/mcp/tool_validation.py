@@ -22,7 +22,7 @@ from urllib import parse
 
 import pydantic
 
-from src.service.mcp.tool_errors import PublicToolError
+from src.service.mcp.tool_errors import PublicToolError, uncertain_write_error
 
 
 _MAX_PATH_SEGMENT_BYTES = 512
@@ -70,6 +70,23 @@ def validate_response(
             f'OSMO returned an invalid response while attempting to {operation}.'
         )
         raise PublicToolError(message) from None
+
+
+def validate_mutation_response(
+    model: type[_Model],
+    response: object,
+    *,
+    operation: str,
+) -> _Model:
+    """Validate a successful write result or classify its outcome as unknown."""
+    try:
+        return validate_response(
+            model,
+            response,
+            operation=operation,
+        )
+    except PublicToolError:
+        raise uncertain_write_error(operation) from None
 
 
 def validate_integer(

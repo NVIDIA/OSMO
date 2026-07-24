@@ -63,14 +63,16 @@ though the CLI and hosted internal MCP may display them. Legacy profile values
 can contain secret-bearing userinfo, queries, or fragments; the external
 projection therefore returns only `cred_name` and `cred_type`.
 
-## Phase 2: workflow actions
+## Phase 2: workflow actions (in progress)
 
-Add `osmo_validate_workflow`, `osmo_submit_workflow`,
-`osmo_restart_workflow`, and `osmo_cancel_workflow` after the read-only request
-path is established. The transport body limit is already in place; this phase
-still requires exact mutation-body schemas, uncertain-write handling, and
-explicit side-effect annotations. Validation belongs in this phase because a
-failed validation can create a `FAILED_SUBMISSION` workflow record.
+`osmo_validate_workflow` is implemented using the exact bounded TemplateSpec
+projection and `validation_only=true`. It is a non-idempotent write because a
+failed validation can create a `FAILED_SUBMISSION` workflow record. The shared
+mutation relay sends bounded JSON, never retries, and reports an unknown
+outcome for ambiguous transport or server failures.
+
+Add `osmo_submit_workflow`, `osmo_restart_workflow`, and
+`osmo_cancel_workflow` as the remaining Phase 2 actions.
 
 ## Phase 3: user-owned mutations
 

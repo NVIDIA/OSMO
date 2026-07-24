@@ -357,5 +357,107 @@ class TruncatedTextRequestTest(unittest.IsolatedAsyncioTestCase):
         )
 
 
+class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def _credentials() -> request_context.RequestCredentials:
+        return request_context.RequestCredentials(
+            authorization_header='Bearer write-test-token-value',
+            user_name='test-user',
+            request_id='write-request-1',
+        )
+
+    async def test_mutation_relays_one_fixed_post_and_validates_json(self) -> None:
+        gateway_client = mock.AsyncMock(spec=gateway.GatewayClient)
+        gateway_client.request.return_value = gateway.GatewayResponse(
+            200,
+            b'{"name":"workflow-1"}',
+        )
+        credentials = self._credentials()
+        payload: tool_requests.JsonObject = {
+            'file': 'version: 2',
+            'set_variables': [],
+            'set_string_variables': [],
+        }
+
+        with (
+            mock.patch.object(
+                tool_requests,
+                'get_app_context',
+                return_value=gateway.AppContext(gateway=gateway_client),
+            ),
+            mock.patch.object(
+                request_context,
+                'get_request_credentials',
+                return_value=credentials,
+            ),
+        ):
+            result = await tool_requests.request_json_mutation(
+                mock.Mock(),
+                path='/api/pool/pool-a/workflow',
+                operation='validate a workflow',
+                max_response_bytes=1024,
+                query={'validation_only': True},
+                payload=payload,
+            )
+
+        self.assertEqual(result, {'name': 'workflow-1'})
+        gateway_client.request.assert_awaited_once_with(
+            'POST',
+            '/api/pool/pool-a/workflow',
+            credentials=credentials,
+            max_response_bytes=1024,
+            query={'validation_only': True},
+            json_body=payload,
+        )
+
+    async def test_mutation_transport_and_server_failures_are_uncertain(
+        self,
+    ) -> None:
+        gateway_client = mock.AsyncMock(spec=gateway.GatewayClient)
+        credentials = self._credentials()
+        failures = (
+            gateway.GatewayUncertainWriteError(
+                'transport-upstream-secret'
+            ),
+            gateway.GatewayResponse(
+                503,
+                b'{"message":"server-upstream-secret"}',
+            ),
+        )
+
+        with (
+            mock.patch.object(
+                tool_requests,
+                'get_app_context',
+                return_value=gateway.AppContext(gateway=gateway_client),
+            ),
+            mock.patch.object(
+                request_context,
+                'get_request_credentials',
+                return_value=credentials,
+            ),
+        ):
+            for failure in failures:
+                with self.subTest(failure=type(failure).__name__):
+                    if isinstance(failure, Exception):
+                        gateway_client.request.side_effect = failure
+                    else:
+                        gateway_client.request.side_effect = None
+                        gateway_client.request.return_value = failure
+                    with self.assertRaisesRegex(
+                        ToolError,
+                        'write outcome is unknown',
+                    ) as raised:
+                        await tool_requests.request_json_mutation(
+                            mock.Mock(),
+                            path='/api/pool/pool-a/workflow',
+                            operation='validate a workflow',
+                            max_response_bytes=1024,
+                        )
+                    message = str(raised.exception)
+                    self.assertIn('Inspect OSMO state before retrying', message)
+                    self.assertNotIn('upstream-secret', message)
+
+
 if __name__ == '__main__':
     unittest.main()

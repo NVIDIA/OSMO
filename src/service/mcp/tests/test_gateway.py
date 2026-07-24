@@ -278,6 +278,90 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('alpha%26beta', str(request.url))
         self.assertIn('release+candidate', str(request.url))
 
+    async def test_write_encodes_one_bounded_json_object(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, content=b'{"name":"workflow-1"}')
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            response = await app_context.gateway.request(
+                'POST',
+                '/api/pool/pool-a/workflow',
+                credentials=self._credentials(),
+                max_response_bytes=1024,
+                query={'validation_only': True},
+                json_body={
+                    'file': 'version: 2\n',
+                    'set_variables': ['replicas=2'],
+                    'set_string_variables': [],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(captured_requests), 1)
+        request = captured_requests[0]
+        self.assertEqual(request.method, 'POST')
+        self.assertEqual(
+            request.url.path,
+            '/api/pool/pool-a/workflow',
+        )
+        self.assertEqual(
+            request.url.params.multi_items(),
+            [('validation_only', 'true')],
+        )
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(
+            request.content,
+            (
+                b'{"file":"version: 2\\n","set_variables":["replicas=2"],'
+                b'"set_string_variables":[]}'
+            ),
+        )
+
+    async def test_invalid_json_bodies_are_rejected_before_transport(self) -> None:
+        transport_calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            nonlocal transport_calls
+            transport_calls += 1
+            return httpx.Response(200, content=b'{}')
+
+        credentials = self._credentials(
+            authorization_header='Bearer request-body-bearer-secret'
+        )
+        invalid_requests = (
+            ('GET', {'file': 'version: 2'}),
+            ('POST', {'value': object()}),
+            ('POST', {'value': float('nan')}),
+            ('POST', {'value': '\ud800'}),
+            ('POST', {'file': 'x' * (1024 * 1024)}),
+            ('POST', {'file': 'request-body-bearer-secret'}),
+        )
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            for method, json_body in invalid_requests:
+                with self.subTest(method=method):
+                    with self.assertRaises(ValueError):
+                        await app_context.gateway.request(
+                            method,
+                            '/api/pool/pool-a/workflow',
+                            credentials=credentials,
+                            max_response_bytes=1024,
+                            json_body=json_body,
+                        )
+
+        self.assertEqual(transport_calls, 0)
+
     async def test_only_fixed_api_paths_and_methods_are_allowed(self) -> None:
         transport_calls = 0
 
@@ -482,6 +566,43 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(transport_calls, 1)
         self.assertNotIn('connection-upstream-secret', str(raised.exception))
+        self.assertIsNone(raised.exception.__cause__)
+
+    async def test_write_transport_failure_has_uncertain_outcome_and_no_retry(
+        self,
+    ) -> None:
+        transport_calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal transport_calls
+            transport_calls += 1
+            raise httpx.ConnectError(
+                'write-transport-upstream-secret',
+                request=request,
+            )
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            with self.assertRaisesRegex(
+                gateway.GatewayUncertainWriteError,
+                'write outcome is unknown',
+            ) as raised:
+                await app_context.gateway.request(
+                    'POST',
+                    '/api/pool/pool-a/workflow',
+                    credentials=self._credentials(),
+                    max_response_bytes=1024,
+                    json_body={'file': 'version: 2'},
+                )
+
+        self.assertEqual(transport_calls, 1)
+        self.assertNotIn(
+            'write-transport-upstream-secret',
+            str(raised.exception),
+        )
         self.assertIsNone(raised.exception.__cause__)
 
     async def test_error_status_body_is_read_with_an_independent_cap(self) -> None:

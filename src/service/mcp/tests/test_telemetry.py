@@ -31,6 +31,9 @@ class TelemetryTest(unittest.TestCase):
             ),
             '/api/app/user/private-app/spec': '/api/app/user/{app_name}/spec',
             '/api/resources/private-node': '/api/resources/{node_name}',
+            '/api/pool/private-pool/workflow': (
+                '/api/pool/{pool}/workflow'
+            ),
             '/api/unrecognized/private-value': '/api/{unclassified}',
             '/api/profile/settings': '/api/profile/settings',
         }
@@ -38,7 +41,12 @@ class TelemetryTest(unittest.TestCase):
             with self.subTest(path=path):
                 template = telemetry.route_template(path)
                 self.assertEqual(template, expected)
-                for secret in ('private-workflow-1', 'private-app', 'private-node'):
+                for secret in (
+                    'private-workflow-1',
+                    'private-app',
+                    'private-node',
+                    'private-pool',
+                ):
                     self.assertNotIn(secret, template)
 
     def test_log_includes_required_static_fields_only(self) -> None:
