@@ -436,7 +436,7 @@ class TestValidateConfigs(unittest.TestCase):
             'workflow': {
                 'labels_config': {
                     'policy': [{
-                        'key': 'PPP',
+                        'key': 'project',
                         'allow_list': ['audio'],
                         'enforcement': 'warn',
                     }],
@@ -451,7 +451,7 @@ class TestValidateConfigs(unittest.TestCase):
         # second case pins that the abandoned 'required' field stays rejected.
         for policy in (
             [{'key': '-invalid-key'}],
-            [{'key': 'PPP', 'required': False}],
+            [{'key': 'project', 'required': False}],
         ):
             with self.subTest(policy=policy):
                 errors = configmap_loader._validate_configs({

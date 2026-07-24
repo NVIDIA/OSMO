@@ -92,7 +92,7 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
                 'default_exec_timeout': '7d',
                 'labels_config': {
                     'policy': [{
-                        'key': 'PPP',
+                        'key': 'project',
                         'allow_list': ['audio'],
                         'enforcement': 'warn',
                     }],
@@ -103,7 +103,7 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         workflow_config = postgres.get_workflow_configs()
         self.assertEqual(workflow_config.max_num_tasks, 999)
         label_policy = workflow_config.labels_config.policy[0]
-        self.assertEqual(label_policy.key, 'PPP')
+        self.assertEqual(label_policy.key, 'project')
         self.assertEqual(label_policy.allow_list, ['audio'])
         self.assertEqual(
             label_policy.enforcement,

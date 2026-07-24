@@ -31,7 +31,7 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
     def test_accepts_independent_enforcement_modes(self):
         config = connectors.WorkflowConfig(labels_config={
             'policy': [
-                {'key': 'PPP', 'allow_list': ['audio'], 'enforcement': 'warn'},
+                {'key': 'project', 'allow_list': ['audio'], 'enforcement': 'warn'},
                 {'key': 'team', 'enforcement': 'enforce'},
             ],
         })
@@ -47,16 +47,16 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
 
     def test_policy_defaults_to_off_and_rejects_unknown_mode(self):
         self.assertEqual(
-            connectors.LabelPolicy(key='PPP').enforcement,
+            connectors.LabelPolicy(key='project').enforcement,
             connectors.LabelEnforcement.OFF,
         )
         with self.assertRaises(pydantic.ValidationError):
-            connectors.LabelPolicy(key='PPP', enforcement='block')
+            connectors.LabelPolicy(key='project', enforcement='block')
 
     def test_rejects_duplicate_policy_keys(self):
         with self.assertRaisesRegex(pydantic.ValidationError, 'Duplicate label policy key'):
             connectors.WorkflowConfig(labels_config={
-                'policy': [{'key': 'PPP'}, {'key': 'PPP'}],
+                'policy': [{'key': 'project'}, {'key': 'project'}],
             })
 
     def test_rejects_more_policy_keys_than_a_workflow_can_carry(self):
@@ -71,7 +71,7 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
     def test_rejects_invalid_policy_key_and_allow_list_value(self):
         invalid_configs = [
             {'policy': [{'key': '-invalid-key'}]},
-            {'policy': [{'key': 'PPP', 'allow_list': ['']}]},
+            {'policy': [{'key': 'project', 'allow_list': ['']}]},
         ]
         for labels_config in invalid_configs:
             with self.subTest(labels_config=labels_config), \
