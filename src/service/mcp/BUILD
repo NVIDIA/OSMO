@@ -240,11 +240,13 @@ osmo_py_library(
     deps = [
         requirement("mcp"),
         ":access_scope",
+        ":gateway",
         ":tool_errors",
         ":tool_requests",
         ":tool_validation",
         ":workflow_action_models",
         ":workflow_models",
+        ":workflow_tools",
     ],
     visibility = ["//visibility:public"],
 )

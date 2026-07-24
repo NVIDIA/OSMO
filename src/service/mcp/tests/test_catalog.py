@@ -119,6 +119,20 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'A failed validation may create a FAILED_SUBMISSION record.',
     ),
     (
+        workflow_actions.osmo_restart_workflow,
+        'osmo_restart_workflow',
+        'Restart an OSMO workflow',
+        'Restart one failed workflow as a new run. This consumes real '
+        'compute and requires source-workflow read access.',
+    ),
+    (
+        workflow_actions.osmo_cancel_workflow,
+        'osmo_cancel_workflow',
+        'Cancel an OSMO workflow',
+        'Request cancellation of one workflow; force cancellation is '
+        'destructive and not reversible.',
+    ),
+    (
         apps.osmo_list_apps,
         'osmo_list_apps',
         'List OSMO apps',
@@ -162,6 +176,8 @@ _EXPECTED_REQUIRED_FIELDS = {
     'osmo_get_workflow_spec': ['workflow_id'],
     'osmo_submit_workflow': ['workflow_spec'],
     'osmo_validate_workflow': ['workflow_spec'],
+    'osmo_restart_workflow': ['workflow_id'],
+    'osmo_cancel_workflow': ['workflow_id'],
     'osmo_list_apps': [],
     'osmo_get_app': ['name'],
     'osmo_get_app_spec': ['name'],
@@ -208,6 +224,8 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
         'set_variables': None,
         'set_string_variables': None,
     },
+    'osmo_restart_workflow': {'pool': None},
+    'osmo_cancel_workflow': {'force': False},
     'osmo_list_apps': {
         'name': None,
         'users': None,
@@ -224,7 +242,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
     """Lock the ordered, agent-facing external MCP tool contract."""
 
     def test_registry_has_exact_metadata_and_direct_unique_functions(self) -> None:
-        self.assertEqual(len(tool_registry.TOOL_SPECS), 16)
+        self.assertEqual(len(tool_registry.TOOL_SPECS), 18)
         self.assertEqual(
             [
                 (spec.name, spec.title, spec.description)
@@ -239,7 +257,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         registered_functions = [
             spec.function for spec in tool_registry.TOOL_SPECS
         ]
-        self.assertEqual(len({id(function) for function in registered_functions}), 16)
+        self.assertEqual(len({id(function) for function in registered_functions}), 18)
         for spec, (function, _, _, _) in zip(
             tool_registry.TOOL_SPECS,
             _EXPECTED_SPECS,
@@ -252,7 +270,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
         tool_registry.register_tools(mcp_server)
 
-        self.assertEqual(mcp_server.add_tool.call_count, 16)
+        self.assertEqual(mcp_server.add_tool.call_count, 18)
         for call, (function, name, title, description) in zip(
             mcp_server.add_tool.call_args_list,
             _EXPECTED_SPECS,
@@ -265,11 +283,17 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(call.kwargs['structured_output'])
             annotations = call.kwargs['annotations']
             is_write = name in {
+                'osmo_cancel_workflow',
+                'osmo_restart_workflow',
                 'osmo_submit_workflow',
                 'osmo_validate_workflow',
             }
+            is_destructive = name in {
+                'osmo_cancel_workflow',
+                'osmo_restart_workflow',
+            }
             self.assertIs(annotations.readOnlyHint, not is_write)
-            self.assertFalse(annotations.destructiveHint)
+            self.assertIs(annotations.destructiveHint, is_destructive)
             self.assertIs(annotations.idempotentHint, not is_write)
             self.assertFalse(annotations.openWorldHint)
 
@@ -288,11 +312,20 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(tool.annotations)
             assert tool.annotations is not None
             is_write = tool.name in {
+                'osmo_cancel_workflow',
+                'osmo_restart_workflow',
                 'osmo_submit_workflow',
                 'osmo_validate_workflow',
             }
+            is_destructive = tool.name in {
+                'osmo_cancel_workflow',
+                'osmo_restart_workflow',
+            }
             self.assertIs(tool.annotations.readOnlyHint, not is_write)
-            self.assertFalse(tool.annotations.destructiveHint)
+            self.assertIs(
+                tool.annotations.destructiveHint,
+                is_destructive,
+            )
             self.assertIs(tool.annotations.idempotentHint, not is_write)
             self.assertFalse(tool.annotations.openWorldHint)
             self._assert_recursively_closed(tool.inputSchema, tool.name)

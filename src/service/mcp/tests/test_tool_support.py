@@ -423,6 +423,13 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
                 503,
                 b'{"message":"server-upstream-secret"}',
             ),
+            gateway.GatewayResponse(
+                400,
+                (
+                    b'{"error_code":"DATABASE",'
+                    b'"message":"database-upstream-secret"}'
+                ),
+            ),
         )
 
         with (

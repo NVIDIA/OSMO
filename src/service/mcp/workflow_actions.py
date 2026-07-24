@@ -20,14 +20,20 @@ from mcp.server.fastmcp import Context
 
 from src.service.mcp import (
     access_scope,
+    gateway,
     tool_errors,
     tool_requests,
     tool_validation,
+    workflows,
 )
 from src.service.mcp.workflow_action_models import (
+    CancelWorkflowResult,
+    ForceCancel,
     PoolName,
+    RestartWorkflowResult,
     SubmitWorkflowSpecText,
     SubmitWorkflowResult,
+    UpstreamCancelResult,
     UpstreamSubmitResult,
     UpstreamValidationResult,
     ValidateWorkflowResult,
@@ -37,6 +43,7 @@ from src.service.mcp.workflow_action_models import (
 )
 from src.service.mcp.workflow_models import (
     WORKFLOW_PRIORITIES,
+    WorkflowId,
     WorkflowPriority,
 )
 
@@ -160,6 +167,80 @@ async def osmo_validate_workflow(
         valid=True,
         pool=pool_name,
         logs=upstream.logs,
+    )
+
+
+async def osmo_restart_workflow(
+    context: Context,
+    workflow_id: WorkflowId,
+    pool: PoolName | None = None,
+) -> RestartWorkflowResult:
+    """Restart a failed workflow after authorizing read access to its source."""
+    source = await workflows.osmo_get_workflow(
+        context,
+        workflow_id,
+        skip_groups=True,
+    )
+    pool_name = (
+        await _resolve_pool(context, pool)
+        if pool is not None or source.workflow.pool is None
+        else source.workflow.pool
+    )
+    encoded_pool = tool_validation.safe_path_segment(
+        pool_name,
+        field='pool',
+    )
+    encoded_workflow_id = workflows.workflow_path_segment(workflow_id)
+    response = await tool_requests.request_json_mutation(
+        context,
+        path=(
+            f'/api/pool/{encoded_pool}/workflow/'
+            f'{encoded_workflow_id}/restart'
+        ),
+        operation='restart a workflow',
+        max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
+    )
+    upstream = tool_validation.validate_mutation_response(
+        UpstreamSubmitResult,
+        response,
+        operation='restart a workflow',
+    )
+    return RestartWorkflowResult(
+        workflow_id=upstream.name,
+        parent_workflow_id=workflow_id,
+        pool=pool_name,
+        restart_submitted=True,
+    )
+
+
+async def osmo_cancel_workflow(
+    context: Context,
+    workflow_id: WorkflowId,
+    force: ForceCancel = False,
+) -> CancelWorkflowResult:
+    """Request cancellation of one workflow through Core."""
+    if not isinstance(force, bool):
+        raise tool_errors.PublicToolError('Invalid force.')
+    encoded_workflow_id = workflows.workflow_path_segment(workflow_id)
+    query: dict[str, gateway.QueryValue] = {'force': force}
+    response = await tool_requests.request_json_mutation(
+        context,
+        path=f'/api/workflow/{encoded_workflow_id}/cancel',
+        operation='cancel a workflow',
+        max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
+        query=query,
+    )
+    upstream = tool_validation.validate_mutation_response(
+        UpstreamCancelResult,
+        response,
+        operation='cancel a workflow',
+    )
+    if upstream.name != workflow_id:
+        raise tool_errors.uncertain_write_error('cancel a workflow')
+    return CancelWorkflowResult(
+        workflow_id=upstream.name,
+        force=force,
+        cancellation_submitted=True,
     )
 
 

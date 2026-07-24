@@ -29,10 +29,16 @@ class TelemetryTest(unittest.TestCase):
             '/api/workflow/private-workflow-1/logs': (
                 '/api/workflow/{workflow_id}/logs'
             ),
+            '/api/workflow/private-workflow-1/cancel': (
+                '/api/workflow/{workflow_id}/cancel'
+            ),
             '/api/app/user/private-app/spec': '/api/app/user/{app_name}/spec',
             '/api/resources/private-node': '/api/resources/{node_name}',
             '/api/pool/private-pool/workflow': (
                 '/api/pool/{pool}/workflow'
+            ),
+            '/api/pool/private-pool/workflow/private-workflow-1/restart': (
+                '/api/pool/{pool}/workflow/{workflow_id}/restart'
             ),
             '/api/unrecognized/private-value': '/api/{unclassified}',
             '/api/profile/settings': '/api/profile/settings',

@@ -79,6 +79,8 @@ __all__ = (
     'WorkflowStatuses',
     'WorkflowSummary',
     'WorkflowTask',
+    'workflow_path',
+    'workflow_path_segment',
     'osmo_get_workflow',
     'osmo_get_workflow_events',
     'osmo_get_workflow_logs',
@@ -224,7 +226,7 @@ async def osmo_get_workflow(
     skip_groups: bool = False,
 ) -> GetWorkflowResult:
     """Get one workflow's status, task groups, and task metadata."""
-    path = _workflow_path(workflow_id)
+    path = workflow_path(workflow_id)
     query: dict[str, bool] = {}
     if verbose:
         query['verbose'] = True
@@ -255,7 +257,7 @@ async def osmo_get_workflow_logs(
     retry_id: RetryId | None = None,
 ) -> WorkflowLogsResult:
     """Get bounded workflow or task logs; error/retry logs require a task."""
-    path = _workflow_path(
+    path = workflow_path(
         workflow_id,
         suffix='error_logs' if error_logs else 'logs',
     )
@@ -302,7 +304,7 @@ async def osmo_get_workflow_events(
     retry_id: RetryId | None = None,
 ) -> WorkflowEventsResult:
     """Get bounded workflow scheduling and lifecycle events."""
-    path = _workflow_path(workflow_id, suffix='events')
+    path = workflow_path(workflow_id, suffix='events')
     validated_task_name = _validate_task_controls(
         task_name=task_name,
         retry_id=retry_id,
@@ -336,7 +338,7 @@ async def osmo_get_workflow_spec(
     use_template: bool = False,
 ) -> WorkflowSpecResult:
     """Get a bounded, redacted workflow YAML spec."""
-    path = _workflow_path(workflow_id, suffix='spec')
+    path = workflow_path(workflow_id, suffix='spec')
     spec_result = await tool_requests.request_truncated_text(
         context,
         path=path,
@@ -353,15 +355,25 @@ async def osmo_get_workflow_spec(
     )
 
 
-def _workflow_path(workflow_id: str, *, suffix: str | None = None) -> str:
+def workflow_path(
+    workflow_id: str,
+    *,
+    suffix: str | None = None,
+) -> str:
+    """Build a fixed Core workflow route from one canonical ID."""
+    encoded_workflow_id = workflow_path_segment(workflow_id)
+    path = f'{_WORKFLOWS_PATH}/{encoded_workflow_id}'
+    return f'{path}/{suffix}' if suffix is not None else path
+
+
+def workflow_path_segment(workflow_id: str) -> str:
+    """Validate and encode one canonical workflow ID for a fixed route."""
     if re.fullmatch(_WORKFLOW_ID_PATTERN, workflow_id) is None:
         raise tool_errors.PublicToolError('Invalid workflow_id.')
-    encoded_workflow_id = tool_validation.safe_path_segment(
+    return tool_validation.safe_path_segment(
         workflow_id,
         field='workflow_id',
     )
-    path = f'{_WORKFLOWS_PATH}/{encoded_workflow_id}'
-    return f'{path}/{suffix}' if suffix is not None else path
 
 
 def _validate_task_controls(

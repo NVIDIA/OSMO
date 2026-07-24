@@ -261,6 +261,11 @@ async def _request(
         )
     if method != 'GET' and response.status_code >= 500:
         raise tool_errors.uncertain_write_error(operation)
+    if (
+        method != 'GET'
+        and _mutation_error_code(response) == 'DATABASE'
+    ):
+        raise tool_errors.uncertain_write_error(operation)
     if response.status_code != 200:
         raise tool_errors.PublicToolError(tool_errors.upstream_error(
             operation,
@@ -272,6 +277,26 @@ async def _request(
             suppress_upstream_details=suppress_upstream_details,
         ))
     return response
+
+
+def _mutation_error_code(
+    response: gateway.GatewayResponse,
+) -> str | None:
+    """Read only the bounded structural error code from a failed mutation."""
+    if (
+        response.status_code == 200
+        or response.body_truncated
+        or not response.body
+    ):
+        return None
+    try:
+        payload = json.loads(response.body)
+    except (UnicodeDecodeError, ValueError, TypeError, RecursionError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    error_code = payload.get('error_code')
+    return error_code if isinstance(error_code, str) else None
 
 
 def _validate_json_object_body(body: bytes, *, operation: str) -> JsonObject:
