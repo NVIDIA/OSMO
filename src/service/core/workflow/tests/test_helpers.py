@@ -805,20 +805,20 @@ class TestGetWorkflows(unittest.TestCase):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        self._run(database, label_filters=['PPP=robotics_*'])
+        self._run(database, label_filters=['project=robotics_*'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
         self.assertEqual(cmd.count(expression), 1)
         self.assertIn('robotics#_%', params)
-        self.assertIn('PPP', params)
+        self.assertIn('project', params)
         self.assertNotIn('robotics_*', cmd)
 
     def test_get_workflows_with_alternation_uses_containment_predicates(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        self._run(database, label_filters=['PPP=(team_a|team_b)'])
+        self._run(database, label_filters=['project=(team_a|team_b)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         expression = 'workflows.labels @> jsonb_build_object(%s, %s)'
@@ -826,7 +826,7 @@ class TestGetWorkflows(unittest.TestCase):
         self.assertIn(' OR ', cmd)
         self.assertIn('team_a', params)
         self.assertIn('team_b', params)
-        self.assertIn('PPP', params)
+        self.assertIn('project', params)
         self.assertNotIn('team_a', cmd)
         self.assertNotIn('team_b', cmd)
 
@@ -834,14 +834,14 @@ class TestGetWorkflows(unittest.TestCase):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        self._run(database, label_filters=['PPP=(team_*|osmo_*)'])
+        self._run(database, label_filters=['project=(team_*|osmo_*)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
         self.assertEqual(cmd.count(expression), 2)
         self.assertIn('team#_%', params)
         self.assertIn('osmo#_%', params)
-        self.assertIn('PPP', params)
+        self.assertIn('project', params)
         self.assertNotIn('team_*', cmd)
         self.assertNotIn('osmo_*', cmd)
 
@@ -849,7 +849,7 @@ class TestGetWorkflows(unittest.TestCase):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        self._run(database, label_filters=['PPP=team_(a|b*)'])
+        self._run(database, label_filters=['project=team_(a|b*)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         exact_expression = 'workflows.labels @> jsonb_build_object(%s, %s)'
@@ -858,7 +858,7 @@ class TestGetWorkflows(unittest.TestCase):
         self.assertEqual(cmd.count(like_expression), 1)
         self.assertIn('team_a', params)
         self.assertIn('team#_b%', params)
-        self.assertIn('PPP', params)
+        self.assertIn('project', params)
         self.assertIn(' OR ', cmd)
         self.assertNotIn('team_a', cmd)
         self.assertNotIn('team_b*', cmd)
@@ -867,19 +867,19 @@ class TestGetWorkflows(unittest.TestCase):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        self._run(database, label_filters=['PPP=*'])
+        self._run(database, label_filters=['project=*'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         self.assertIn("workflows.labels ? %s", cmd)
         self.assertNotIn('LIKE', cmd)
-        self.assertIn('PPP', params)
+        self.assertIn('project', params)
         self.assertNotIn('%', params)
 
     def test_get_workflows_with_match_all_alternative_collapses_to_existence(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        self._run(database, label_filters=['PPP=(*|team_a)'])
+        self._run(database, label_filters=['project=(*|team_a)'])
 
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         self.assertEqual(cmd.count("workflows.labels ? %s"), 1)
@@ -928,8 +928,8 @@ class TestGetWorkflows(unittest.TestCase):
 
     def test_get_workflows_rejects_nested_or_injection_syntax_before_query(self):
         for label_filter in (
-            'PPP=(team_a|(team_b|team_c))',
-            'PPP=robotics_*) OR TRUE --',
+            'project=(team_a|(team_b|team_c))',
+            'project=robotics_*) OR TRUE --',
         ):
             with self.subTest(label_filter=label_filter):
                 database = mock.Mock()
@@ -944,7 +944,7 @@ class TestGetWorkflows(unittest.TestCase):
         with self.assertRaises(osmo_errors.OSMOUsageError):
             self._run(
                 database,
-                missing_label_filters=["PPP') OR TRUE --"],
+                missing_label_filters=["project') OR TRUE --"],
             )
 
         database.execute_fetch_command.assert_not_called()

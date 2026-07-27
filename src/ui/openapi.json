@@ -5138,50 +5138,6 @@
             "explode": true
           },
           {
-            "name": "label",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Workflow label selector: key=value with optional * wildcards and (a|b) alternatives, for example key=(team_*|osmo_*) or key=team_(a|b). Repeat for AND semantics.",
-              "title": "Label"
-            },
-            "description": "Workflow label selector: key=value with optional * wildcards and (a|b) alternatives, for example key=(team_*|osmo_*) or key=team_(a|b). Repeat for AND semantics.",
-            "explode": true
-          },
-          {
-            "name": "no_label",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Label key that must be absent from the workflow; workflows without any labels match. Repeat for AND semantics.",
-              "title": "No Label"
-            },
-            "description": "Label key that must be absent from the workflow; workflows without any labels match. Repeat for AND semantics.",
-            "explode": true
-          },
-          {
             "name": "x-osmo-user",
             "in": "header",
             "required": false,
@@ -13928,13 +13884,6 @@
           "priority": {
             "type": "string",
             "title": "Priority"
-          },
-          "labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Labels"
           }
         },
         "additionalProperties": false,

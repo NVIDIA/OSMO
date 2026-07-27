@@ -111,23 +111,23 @@ class WorkflowLabelFiltersDatabaseTest(WorkflowLabelFiltersFixture):
     def test_glob_and_alternation_filters_execute_against_jsonb(self):
         robotics_alpha_id = self.insert_workflow(
             'labels-robotics-alpha',
-            {'PPP': 'robotics_alpha', 'stage': 'prod'})
+            {'project': 'robotics_alpha', 'stage': 'prod'})
         robotics_beta_id = self.insert_workflow(
             'labels-robotics-beta',
-            {'PPP': 'robotics_beta', 'stage': 'dev'})
+            {'project': 'robotics_beta', 'stage': 'dev'})
         robotics_no_underscore_id = self.insert_workflow(
             'labels-robotics-no-underscore',
-            {'PPP': 'roboticsXalpha', 'stage': 'prod'})
+            {'project': 'roboticsXalpha', 'stage': 'prod'})
         case_variant_id = self.insert_workflow(
             'labels-robotics-case-variant',
-            {'PPP': 'Robotics_alpha', 'stage': 'prod'})
+            {'project': 'Robotics_alpha', 'stage': 'prod'})
         team_a_id = self.insert_workflow(
-            'labels-team-a', {'PPP': 'team_a'})
+            'labels-team-a', {'project': 'team_a'})
         team_b_id = self.insert_workflow(
-            'labels-team-b', {'PPP': 'team_b'})
-        team_c_id = self.insert_workflow('labels-team-c', {'PPP': 'team_c'})
+            'labels-team-b', {'project': 'team_b'})
+        team_c_id = self.insert_workflow('labels-team-c', {'project': 'team_c'})
         osmo_alpha_id = self.insert_workflow(
-            'labels-osmo-alpha', {'PPP': 'osmo_alpha'})
+            'labels-osmo-alpha', {'project': 'osmo_alpha'})
         legacy_id = self.insert_workflow('labels-selector-legacy', {})
         self.database.execute_commit_command(
             'UPDATE workflows SET labels = NULL WHERE workflow_id = %s',
@@ -137,20 +137,20 @@ class WorkflowLabelFiltersDatabaseTest(WorkflowLabelFiltersFixture):
         with mock.patch.object(
                 objects.WorkflowServiceContext, 'get', return_value=context):
             glob_rows = helpers.get_workflows(
-                label_filters=['PPP=robotics_*'], return_raw=True)
+                label_filters=['project=robotics_*'], return_raw=True)
             alternation_rows = helpers.get_workflows(
-                label_filters=['PPP=(team_a|team_b)'], return_raw=True)
+                label_filters=['project=(team_a|team_b)'], return_raw=True)
             wildcard_alternation_rows = helpers.get_workflows(
-                label_filters=['PPP=(team_*|osmo_*)'], return_raw=True)
+                label_filters=['project=(team_*|osmo_*)'], return_raw=True)
             inline_alternation_rows = helpers.get_workflows(
-                label_filters=['PPP=team_(a|b)'], return_raw=True)
+                label_filters=['project=team_(a|b)'], return_raw=True)
             combined_rows = helpers.get_workflows(
-                label_filters=['PPP=robotics_*', 'stage=prod'],
+                label_filters=['project=robotics_*', 'stage=prod'],
                 return_raw=True)
             match_all_rows = helpers.get_workflows(
-                label_filters=['PPP=*'], return_raw=True)
+                label_filters=['project=*'], return_raw=True)
             match_all_alternative_rows = helpers.get_workflows(
-                label_filters=['PPP=(*|absent)'], return_raw=True)
+                label_filters=['project=(*|absent)'], return_raw=True)
 
         self.assertEqual(
             {row['workflow_id'] for row in glob_rows},
@@ -189,11 +189,11 @@ class WorkflowLabelFiltersDatabaseTest(WorkflowLabelFiltersFixture):
         # restores tables with LIKE ... INCLUDING ALL, which regenerates
         # index names between tests. Only one index exists on labels.
         explain_cases = (
-            ("SELECT workflow_id FROM workflows WHERE labels ? 'PPP'", ()),
+            ("SELECT workflow_id FROM workflows WHERE labels ? 'project'", ()),
             (
                 'SELECT workflow_id FROM workflows '
                 'WHERE labels @> jsonb_build_object(%s, %s)',
-                ('PPP', 'team_a'),
+                ('project', 'team_a'),
             ),
         )
 
