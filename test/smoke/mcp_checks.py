@@ -22,6 +22,7 @@ from test.oetf.smoke_fixture import SmokeFixture
 
 _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_cancel_workflow",
+    "osmo_delete_credential",
     "osmo_get_app",
     "osmo_get_app_spec",
     "osmo_get_profile",
@@ -38,6 +39,7 @@ _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_search_pools",
     "osmo_restart_workflow",
     "osmo_set_profile",
+    "osmo_set_credential",
     "osmo_submit_workflow",
     "osmo_validate_workflow",
 })

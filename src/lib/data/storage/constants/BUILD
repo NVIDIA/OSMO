@@ -24,5 +24,6 @@ osmo_py_library(
     srcs = glob(["*.py"]),
     deps = [
         requirement("pydantic"),
+        "//src/lib/api:storage",
     ],
 )

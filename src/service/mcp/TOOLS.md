@@ -95,17 +95,29 @@ consume compute or mutate existing workflow state.
 
 ## Phase 3: user-owned mutations (in progress)
 
-`osmo_set_profile` is implemented. It updates exactly one external
-CLI-supported setting per call: the default pool, email notifications, or
-Slack notifications. Other profile settings are outside this tool's public
-contract. Core returns JSON `null` after accepting the write, so MCP returns a
-compact confirmation rather than implying it read back authoritative state.
+`osmo_set_profile`, `osmo_set_credential`, and `osmo_delete_credential` are
+implemented. Profile updates change exactly one external CLI-supported
+setting per call: the default pool, email notifications, or Slack
+notifications. Other profile settings are outside this tool's public contract.
+Core returns JSON `null` after accepting the write, so MCP returns a compact
+confirmation rather than implying it read back authoritative state.
 
-Remaining work adds `osmo_set_credential`, `osmo_delete_credential`,
-`osmo_create_app`, `osmo_update_app`, `osmo_delete_app`, `osmo_rename_app`,
-and `osmo_submit_app`. Credential writes require dedicated secret-argument and
-error-reflection tests. Application writes must preserve their asynchronous
-API semantics.
+Credential writes accept the canonical documented REGISTRY, DATA, and GENERIC
+payload shapes used by the CLI and Core. Values are bounded strings and are
+sent only in the fixed Core request body; they are never returned or logged by
+MCP. Registry and data profile fields reject URL userinfo, query, and fragment
+components. Delete results project only the matching credential name and type,
+omitting Core's legacy profile field. The MCP cannot control whether the
+calling client retains the original secret-bearing tool arguments, so callers
+must use an appropriate client.
+Core currently maps the CLI's credential set POST route to
+`credentials:Create` and conflicts records by profile. A same-name update with
+a different or null profile can therefore be rejected instead of replaced;
+MCP preserves that existing API/RBAC behavior.
+
+Remaining work adds `osmo_create_app`, `osmo_update_app`, `osmo_delete_app`,
+`osmo_rename_app`, and `osmo_submit_app`. Application writes must preserve
+their asynchronous API semantics.
 
 ## Out of scope
 

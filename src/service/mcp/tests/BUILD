@@ -47,6 +47,7 @@ osmo_py_test(
     srcs = ["test_catalog.py"],
     deps = [
         "//src/service/mcp:app_tools",
+        "//src/service/mcp:credential_action_tools",
         "//src/service/mcp:credential_tools",
         "//src/service/mcp:health_tools",
         "//src/service/mcp:pool_tools",
@@ -65,6 +66,18 @@ osmo_py_test(
     deps = [
         requirement("httpx"),
         ":protocol_harness",
+    ],
+)
+
+osmo_py_test(
+    name = "test_credential_actions",
+    srcs = ["test_credential_actions.py"],
+    deps = [
+        requirement("httpx"),
+        requirement("mcp"),
+        ":protocol_harness",
+        "//src/service/mcp:credential_action_models",
+        "//src/service/mcp:credential_action_tools",
     ],
 )
 

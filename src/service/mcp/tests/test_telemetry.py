@@ -33,6 +33,9 @@ class TelemetryTest(unittest.TestCase):
                 '/api/workflow/{workflow_id}/cancel'
             ),
             '/api/app/user/private-app/spec': '/api/app/user/{app_name}/spec',
+            '/api/credentials/private-credential': (
+                '/api/credentials/{credential_name}'
+            ),
             '/api/resources/private-node': '/api/resources/{node_name}',
             '/api/pool/private-pool/workflow': (
                 '/api/pool/{pool}/workflow'
@@ -50,6 +53,7 @@ class TelemetryTest(unittest.TestCase):
                 for secret in (
                     'private-workflow-1',
                     'private-app',
+                    'private-credential',
                     'private-node',
                     'private-pool',
                 ):
