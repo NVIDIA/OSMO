@@ -44,6 +44,10 @@ _DESTRUCTIVE_IDEMPOTENT_ANNOTATIONS = {
     **protocol_harness.DESTRUCTIVE_WRITE_ANNOTATIONS,
     'idempotentHint': True,
 }
+_DESTRUCTIVE_IDEMPOTENT_OPEN_WORLD_ANNOTATIONS = {
+    **_DESTRUCTIVE_IDEMPOTENT_ANNOTATIONS,
+    'openWorldHint': True,
+}
 
 
 class CredentialActionProtocolTest(unittest.IsolatedAsyncioTestCase):
@@ -58,7 +62,7 @@ class CredentialActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             response,
             expected_annotations={
                 'osmo_set_credential':
-                    _DESTRUCTIVE_IDEMPOTENT_ANNOTATIONS,
+                    _DESTRUCTIVE_IDEMPOTENT_OPEN_WORLD_ANNOTATIONS,
                 'osmo_delete_credential':
                     _DESTRUCTIVE_IDEMPOTENT_ANNOTATIONS,
             },

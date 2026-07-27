@@ -48,12 +48,13 @@ def _write_annotations(
     *,
     destructive: bool,
     idempotent: bool = False,
+    open_world: bool = False,
 ) -> ToolAnnotations:
     return ToolAnnotations(
         readOnlyHint=False,
         destructiveHint=destructive,
         idempotentHint=idempotent,
-        openWorldHint=False,
+        openWorldHint=open_world,
     )
 
 
@@ -262,6 +263,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         annotations=_write_annotations(
             destructive=True,
             idempotent=True,
+            open_world=True,
         ),
     ),
     ToolSpec(

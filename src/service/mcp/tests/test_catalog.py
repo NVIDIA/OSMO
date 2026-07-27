@@ -287,6 +287,9 @@ _IDEMPOTENT_WRITE_TOOL_NAMES = frozenset({
     'osmo_set_credential',
     'osmo_set_profile',
 })
+_OPEN_WORLD_TOOL_NAMES = frozenset({
+    'osmo_set_credential',
+})
 
 
 class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
@@ -350,7 +353,10 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
                 annotations.idempotentHint,
                 name in _IDEMPOTENT_WRITE_TOOL_NAMES or not is_write,
             )
-            self.assertFalse(annotations.openWorldHint)
+            self.assertIs(
+                annotations.openWorldHint,
+                name in _OPEN_WORLD_TOOL_NAMES,
+            )
 
     async def test_all_tools_have_closed_schemas_and_stable_arguments(self) -> None:
         mcp_server = protocol.OSMOFastMCP(
@@ -380,7 +386,10 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
                     or not is_write
                 ),
             )
-            self.assertFalse(tool.annotations.openWorldHint)
+            self.assertIs(
+                tool.annotations.openWorldHint,
+                tool.name in _OPEN_WORLD_TOOL_NAMES,
+            )
             self._assert_recursively_closed(tool.inputSchema, tool.name)
             self.assertIsNotNone(tool.outputSchema)
             assert tool.outputSchema is not None
