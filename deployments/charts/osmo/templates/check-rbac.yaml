@@ -22,7 +22,7 @@ metadata:
     {{- include "osmo-install.hook-annotations" . | nindent 4 }}
 rules:
   - apiGroups: [""]
-    resources: ["namespaces", "secrets", "services"]
+    resources: ["configmaps", "namespaces", "secrets", "services"]
     verbs: ["get", "list"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]

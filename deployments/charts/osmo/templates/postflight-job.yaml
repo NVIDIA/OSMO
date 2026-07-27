@@ -56,6 +56,17 @@ spec:
               {{- end }}
               kubectl get service osmo-gateway \
                 --namespace {{ .Values.namespaces.controlPlane }}
+              {{- if .Values.controlPlane.services.configs.enabled }}
+              echo "Checking workflow runtime service URL"
+              if ! kubectl get configmap \
+                  {{ .Values.controlPlane.services.service.serviceName }}-configs \
+                  --namespace {{ .Values.namespaces.controlPlane }} \
+                  -o jsonpath='{.data.config\.yaml}' | \
+                  grep -Eq '^[[:space:]]+service_base_url: https?://'; then
+                echo "OSMO workflow service_base_url is missing or invalid"
+                exit 1
+              fi
+              {{- end }}
               {{- end }}
               {{- if .Values.computePlane.enabled }}
               echo "Waiting for the OSMO compute plane"

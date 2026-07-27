@@ -27,12 +27,18 @@ metadata:
 data:
   config.yaml: |
     {{- $cfg := .Values.services.configs }}
-    {{- if $cfg.service }}
+    {{- $service := deepCopy ($cfg.service | default dict) }}
+    {{- if not (index $service "service_base_url") }}
+    {{- $hostname := .Values.services.service.hostname | default .Values.global.hostname }}
+    {{- if $hostname }}
+    {{- $_ := set $service "service_base_url" (printf "https://%s" $hostname) }}
+    {{- else if .Values.gateway.envoy.enabled }}
+    {{- $gatewayScheme := ternary "https" "http" .Values.gateway.envoy.ssl.enabled }}
+    {{- $_ := set $service "service_base_url" (printf "%s://%s.%s.svc.cluster.local" $gatewayScheme (include "osmo.gateway-name" .) .Release.Namespace) }}
+    {{- end }}
+    {{- end }}
+    {{- if $service }}
     service:
-      {{- $service := deepCopy $cfg.service }}
-      {{- if and (not (index $service "service_base_url")) .Values.services.service.hostname }}
-      {{- $_ := set $service "service_base_url" (printf "https://%s" .Values.services.service.hostname) }}
-      {{- end }}
       {{- toYaml $service | nindent 6 }}
     {{- end }}
     {{- if $cfg.workflow }}

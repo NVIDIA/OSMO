@@ -683,6 +683,26 @@ def update_backend_node_pool_platform(pool: str, platform: str | None = None):
         )
 
 
+def update_backend_pool_resources_from_configmap(
+    backend: str,
+    pools: List[connectors.Pool],
+) -> bool:
+    """Reconcile persisted resource matches with ConfigMap-managed pools."""
+    postgres = connectors.PostgresConnector.get_instance()
+    pool_names = [pool.name for pool in pools]
+    cleanup_command = 'DELETE FROM resource_platforms WHERE backend = %s'
+    cleanup_parameters: tuple[Any, ...] = (backend,)
+    if pool_names:
+        cleanup_command += ' AND pool NOT IN %s'
+        cleanup_parameters = (backend, tuple(pool_names))
+    postgres.execute_commit_command(
+        f'{cleanup_command};', cleanup_parameters)
+
+    for pool in pools:
+        update_backend_node_pool_platform(pool=pool.name, platform=None)
+    return True
+
+
 def pod_labels_and_tolerations_equal(t1: Dict, t2: Dict) -> bool:
     """
     Check to see if two pod specs have the same node selectors and tolerations.

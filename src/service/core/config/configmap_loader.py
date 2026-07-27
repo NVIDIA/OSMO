@@ -130,6 +130,7 @@ class ConfigMapWatcher:
         enable_reconciliation: bool = False,
         backend_queue_updater: Callable[..., bool] | None = None,
         backend_test_updater: Callable[..., bool] | None = None,
+        backend_pool_resource_updater: Callable[..., bool] | None = None,
     ):
         # Kept for existing service/test wiring. ConfigMap loads must not
         # hydrate ConfigMap-managed values from Postgres.
@@ -139,6 +140,7 @@ class ConfigMapWatcher:
         self._enable_reconciliation = enable_reconciliation
         self._backend_queue_updater = backend_queue_updater
         self._backend_test_updater = backend_test_updater
+        self._backend_pool_resource_updater = backend_pool_resource_updater
         self._watch_directory = os.path.dirname(config_file_path)
         self._config_filename = os.path.basename(config_file_path)
         self._observer: Any = None
@@ -272,7 +274,8 @@ class ConfigMapWatcher:
             try:
                 reconciled = _reconcile_backend_side_effects(
                     reconciliation_baseline, managed_configs,
-                    self._backend_queue_updater, self._backend_test_updater)
+                    self._backend_queue_updater, self._backend_test_updater,
+                    self._backend_pool_resource_updater)
                 if reconciled:
                     self._last_reconciled_snapshot = copy.deepcopy(managed_configs)
             except Exception:  # pylint: disable=broad-exception-caught
@@ -289,6 +292,7 @@ def start_config_watcher(
     is_api_service: bool = False,
     backend_queue_updater: Callable[..., bool] | None = None,
     backend_test_updater: Callable[..., bool] | None = None,
+    backend_pool_resource_updater: Callable[..., bool] | None = None,
 ) -> 'ConfigMapWatcher | None':
     """Initialize and start a ConfigMapWatcher when `config_file` is set.
 
@@ -328,6 +332,7 @@ def start_config_watcher(
         enable_reconciliation=is_api_service,
         backend_queue_updater=backend_queue_updater,
         backend_test_updater=backend_test_updater,
+        backend_pool_resource_updater=backend_pool_resource_updater,
     )
     watcher.start()
     return watcher
@@ -452,6 +457,74 @@ def _affected_backends_for_queue_sync(
     return affected
 
 
+def _pod_placement_signature(pod_template: Any) -> tuple[Any, Any]:
+    """Return the pod fields that control resource-to-pool matching."""
+    if not isinstance(pod_template, dict):
+        return ({}, {})
+    spec = pod_template.get('spec', {})
+    if not isinstance(spec, dict):
+        return ({}, {})
+    return (
+        spec.get('nodeSelector', {}),
+        spec.get('tolerations', {}),
+    )
+
+
+def _pool_resource_signature(pool_config: Any) -> Any:
+    """Return the pool fields that require existing resources to be rematched."""
+    if not isinstance(pool_config, dict):
+        return None
+    platforms = pool_config.get('platforms', {})
+    if not isinstance(platforms, dict):
+        platforms = {}
+    return (
+        _pool_backend(pool_config),
+        _pod_placement_signature(pool_config.get('parsed_pod_template', {})),
+        {
+            platform_name: _pod_placement_signature(
+                platform_config.get('parsed_pod_template', {})
+                if isinstance(platform_config, dict) else {})
+            for platform_name, platform_config in platforms.items()
+        },
+    )
+
+
+def _affected_backends_for_pool_resource_sync(
+    previous: Dict[str, Any] | None,
+    current: Dict[str, Any],
+) -> set[str]:
+    """Find backends whose cached resource-to-pool matches may be stale."""
+    if previous is None:
+        backends = {
+            backend_name
+            for backend_name, backend_config in current.get('backends', {}).items()
+            if isinstance(backend_config, dict)
+        }
+        backends.update(
+            backend
+            for pool_config in current.get('pools', {}).values()
+            if (backend := _pool_backend(pool_config)) is not None
+        )
+        return backends
+
+    affected: set[str] = set()
+    old_pools = previous.get('pools', {})
+    new_pools = current.get('pools', {})
+    for pool_name in set(old_pools) | set(new_pools):
+        old_pool = old_pools.get(pool_name)
+        new_pool = new_pools.get(pool_name)
+        if (_pool_resource_signature(old_pool) ==
+                _pool_resource_signature(new_pool)):
+            continue
+        old_backend = _pool_backend(old_pool)
+        new_backend = _pool_backend(new_pool)
+        if old_backend:
+            affected.add(old_backend)
+        if new_backend:
+            affected.add(new_backend)
+    return affected
+
+
 def _backend_test_template_names(test_config: Any) -> set[str]:
     if not isinstance(test_config, dict):
         return set()
@@ -532,15 +605,19 @@ def _reconcile_backend_side_effects(
     current: Dict[str, Any],
     backend_queue_updater: Callable[..., bool] | None,
     backend_test_updater: Callable[..., bool] | None,
+    backend_pool_resource_updater: Callable[..., bool] | None,
 ) -> bool:
-    """Queue backend sync jobs for ConfigMap-driven config changes."""
-    if backend_queue_updater is None or backend_test_updater is None:
+    """Reconcile backend side effects for ConfigMap-driven config changes."""
+    if (backend_queue_updater is None or backend_test_updater is None or
+            backend_pool_resource_updater is None):
         logging.warning(
-            'ConfigMap backend reconciliation enabled without enqueue callbacks')
+            'ConfigMap backend reconciliation enabled without all callbacks')
         return False
 
     queue_backends = _affected_backends_for_queue_sync(previous, current)
     test_backends = _affected_backends_for_test_sync(previous, current)
+    pool_resource_backends = _affected_backends_for_pool_resource_sync(
+        previous, current)
     success = True
 
     for backend_name in sorted(queue_backends):
@@ -625,6 +702,17 @@ def _reconcile_backend_side_effects(
             success = False
             logging.exception(
                 'Failed to queue ConfigMap backend test sync for %s',
+                backend_name)
+
+    for backend_name in sorted(pool_resource_backends):
+        try:
+            updated = backend_pool_resource_updater(
+                backend_name, _pools_from_snapshot(current, backend_name))
+            success = success and updated
+        except Exception:  # pylint: disable=broad-exception-caught
+            success = False
+            logging.exception(
+                'Failed to reconcile ConfigMap pool resources for %s',
                 backend_name)
 
     return success

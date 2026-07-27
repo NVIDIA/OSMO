@@ -486,8 +486,8 @@ services:
     ##
     extraAnnotations: {}
 
-    ## Service config. service_base_url is auto-derived from
-    ## services.service.hostname if not set here.
+    ## Service config. service_base_url is auto-derived from the configured
+    ## hostname, or from the in-cluster gateway address when no hostname is set.
     ##
     service: {}
 

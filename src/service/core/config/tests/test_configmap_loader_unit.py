@@ -899,11 +899,15 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         *,
         queue_updater: Any | None = None,
         test_updater: Any | None = None,
+        pool_resource_updater: Any | None = None,
     ) -> None:
         watcher._backend_queue_updater = (
             queue_updater if queue_updater is not None else mock.MagicMock())
         watcher._backend_test_updater = (
             test_updater if test_updater is not None else mock.MagicMock())
+        watcher._backend_pool_resource_updater = (
+            pool_resource_updater
+            if pool_resource_updater is not None else mock.MagicMock())
 
     def test_load_file_not_found(self):
         watcher = configmap_loader.ConfigMapWatcher('/nonexistent/path.yaml')
@@ -1644,6 +1648,94 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_api_reconcile_pool_resources_after_placement_change_is_scoped(self):
+        old_snapshot: Dict[str, Any] = {
+            'backends': {
+                'backend-a': {
+                    'tests': [],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
+                'backend-b': {
+                    'tests': [],
+                    'k8s_namespace': 'runtime-ns-b',
+                },
+            },
+            'pools': {
+                'pool-a': {
+                    'backend': 'backend-a',
+                    'common_pod_template': ['tmpl-a'],
+                    'platforms': {},
+                },
+                'pool-b': {
+                    'backend': 'backend-b',
+                    'common_pod_template': ['tmpl-b'],
+                    'platforms': {},
+                },
+            },
+            'pod_templates': {
+                'tmpl-a': {'spec': {'nodeSelector': {'group': 'old'}}},
+                'tmpl-b': {'spec': {'nodeSelector': {'group': 'stable'}}},
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(old_snapshot)
+        new_config = copy.deepcopy(old_snapshot)
+        new_config['pod_templates']['tmpl-a'] = {
+            'spec': {'nodeSelector': {'group': 'new'}},
+        }
+        path = self._write_config_file(_with_service_auth(new_config))
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, enable_reconciliation=True)
+            watcher._last_reconciled_snapshot = old_snapshot
+            mock_pool_resources = mock.MagicMock(return_value=True)
+            self._wire_reconciliation_callbacks(
+                watcher, pool_resource_updater=mock_pool_resources)
+
+            result = watcher._load_and_apply()
+
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+            mock_pool_resources.assert_called_once()
+            args, _ = mock_pool_resources.call_args
+            self.assertEqual(args[0], 'backend-a')
+            self.assertEqual([pool.name for pool in args[1]], ['pool-a'])
+        finally:
+            os.unlink(path)
+
+    def test_api_reconcile_pool_resources_cleans_removed_pool(self):
+        old_snapshot: Dict[str, Any] = {
+            'backends': {
+                'backend-a': {
+                    'tests': [],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
+            },
+            'pools': {
+                'pool-a': {
+                    'backend': 'backend-a',
+                    'common_pod_template': [],
+                    'platforms': {},
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(old_snapshot)
+        new_config = copy.deepcopy(old_snapshot)
+        new_config['pools'] = {}
+        path = self._write_config_file(_with_service_auth(new_config))
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, enable_reconciliation=True)
+            watcher._last_reconciled_snapshot = old_snapshot
+            mock_pool_resources = mock.MagicMock(return_value=True)
+            self._wire_reconciliation_callbacks(
+                watcher, pool_resource_updater=mock_pool_resources)
+
+            result = watcher._load_and_apply()
+
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+            mock_pool_resources.assert_called_once_with('backend-a', [])
+        finally:
+            os.unlink(path)
+
     def test_api_reconcile_failure_does_not_fail_reload(self):
         config: Dict[str, Any] = {
             'backends': {
@@ -1859,6 +1951,55 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         self.assertEqual(
             kwargs['job_id'], 'backend-a-modify-queues-configmap-test')
         mock_job.return_value.send_job_to_queue.assert_called_once()
+
+    def test_update_backend_pool_resources_cleans_stale_pools_and_rematches(self):
+        postgres = mock.MagicMock()
+        pool_a = mock.MagicMock()
+        pool_a.name = 'pool-a'
+        pool_b = mock.MagicMock()
+        pool_b.name = 'pool-b'
+
+        with mock.patch(
+            'src.service.core.config.helpers.connectors.PostgresConnector.get_instance',
+            return_value=postgres,
+        ), mock.patch(
+            'src.service.core.config.helpers.update_backend_node_pool_platform',
+        ) as mock_update_pool:
+            result = helpers.update_backend_pool_resources_from_configmap(
+                'backend-a', [pool_a, pool_b])
+
+        self.assertTrue(result)
+        postgres.execute_commit_command.assert_called_once_with(
+            'DELETE FROM resource_platforms WHERE backend = %s'
+            ' AND pool NOT IN %s;',
+            ('backend-a', ('pool-a', 'pool-b')),
+        )
+        self.assertEqual(
+            mock_update_pool.call_args_list,
+            [
+                mock.call(pool='pool-a', platform=None),
+                mock.call(pool='pool-b', platform=None),
+            ],
+        )
+
+    def test_update_backend_pool_resources_cleans_removed_backend_pools(self):
+        postgres = mock.MagicMock()
+
+        with mock.patch(
+            'src.service.core.config.helpers.connectors.PostgresConnector.get_instance',
+            return_value=postgres,
+        ), mock.patch(
+            'src.service.core.config.helpers.update_backend_node_pool_platform',
+        ) as mock_update_pool:
+            result = helpers.update_backend_pool_resources_from_configmap(
+                'backend-a', [])
+
+        self.assertTrue(result)
+        postgres.execute_commit_command.assert_called_once_with(
+            'DELETE FROM resource_platforms WHERE backend = %s;',
+            ('backend-a',),
+        )
+        mock_update_pool.assert_not_called()
 
 
 class TestResolvePoolComputedFields(unittest.TestCase):

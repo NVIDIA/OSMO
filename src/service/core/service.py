@@ -559,7 +559,9 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     target_app.state.config_watcher = configmap_loader.start_config_watcher(
         config.config_file, postgres, is_api_service=True,
         backend_queue_updater=config_helpers.update_backend_queues_from_configmap,
-        backend_test_updater=config_helpers.update_backend_tests_cronjobs_from_configmap)
+        backend_test_updater=config_helpers.update_backend_tests_cronjobs_from_configmap,
+        backend_pool_resource_updater=(
+            config_helpers.update_backend_pool_resources_from_configmap))
 
     if config.method != 'dev':
         FastAPIInstrumentor().instrument_app(
