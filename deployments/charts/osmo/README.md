@@ -87,7 +87,8 @@ version through the gateway, verify that workflow runtime callbacks have a
 valid service URL, and wait for the compute backend heartbeat to report online.
 The backend check exchanges the configured backend token for a short-lived JWT
 without logging either credential. The checks use a read-only temporary
-ClusterRole and do not modify cluster resources.
+ClusterRole and do not modify cluster resources. Successful check Jobs are
+retained until the next hook run so `helm test --logs` can return their output.
 
 ## Scheduler portability
 

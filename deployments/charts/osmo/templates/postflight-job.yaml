@@ -10,7 +10,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade,test
     "helm.sh/hook-weight": "10"
-    {{- include "osmo-install.hook-annotations" . | nindent 4 }}
+    {{- include "osmo-install.hook-job-annotations" . | nindent 4 }}
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: 660
