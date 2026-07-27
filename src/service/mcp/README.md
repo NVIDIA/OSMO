@@ -106,8 +106,7 @@ inspection, plus four workflow actions: validation, submission, restart, and
 cancellation. Each tool maps to a fixed external API, returns a structured
 allowlisted result, and applies a domain-specific response limit. Credential
 inspection returns names and types only. Profile inspection intentionally
-includes non-secret access-token identity metadata (name and expiry), unlike
-the hosted internal MCP projection.
+includes non-secret access-token identity metadata (name and expiry).
 
 Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
@@ -143,17 +142,18 @@ caller-bound Gateway authentication and OSMO profile access.
 
 ## Code organization
 
-The external MCP remains independent from the hosted internal MCP. Runtime
-security boundaries live in `request_context.py`, `request_body.py`,
-`gateway.py`, `protocol.py`, and `telemetry.py`. Shared, dependency-light tool
-support lives in `tool_errors.py`, `tool_requests.py`, `tool_validation.py`, and
-`access_scope.py`. Each larger domain keeps its public and upstream contracts in
-`*_models.py` and its fixed routes, authorization decisions, projection, and
-handlers in the matching domain module. `tool_registry.py` is the single source
-of registration metadata used by both the server and catalog.
+The MCP remains a self-contained service. Runtime security boundaries live in
+`request_context.py`, `request_body.py`, `gateway.py`, `protocol.py`, and
+`telemetry.py`. Shared, dependency-light tool support lives in `tool_errors.py`,
+`tool_requests.py`, `tool_validation.py`, and `access_scope.py`. Each larger
+domain keeps its public and upstream contracts in `*_models.py` and its fixed
+routes, authorization decisions, projection, and handlers in the matching
+domain module. `tool_registry.py` is the single source of registration metadata
+used by both the server and catalog.
 
-Do not import the CLI runtime or internal MCP implementation. Extract only pure
-public helpers when behavior genuinely needs to match another OSMO surface.
+Do not import the CLI runtime or non-public service implementations. Extract
+only pure public helpers when behavior genuinely needs to match another OSMO
+surface.
 
 ## Adding a tool
 

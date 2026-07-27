@@ -14,13 +14,12 @@ that matches what you have:
 
 ### Run (against an existing instance)
 
-You have an already-running OSMO instance (staging, dev cluster, your
-own KIND, …). Just point OETF at it.
+You have an already-running OSMO instance (staging, another managed
+environment, your own KIND, …). Just point OETF at it.
 
 ```bash
-# First-time setup for staging: export an auth token for the env.
-# Get one via `osmo login https://staging.example` +
-# `osmo token set oetf --roles osmo-admin`.
+# First-time setup for staging: authenticate with the target instance,
+# then export the issued token for the env.
 export OETF_TOKEN=<your-staging-token>
 
 # All smoke + scenario tests against staging
@@ -102,34 +101,6 @@ bazel run //test/oetf:deploy_and_run -- --env kind --build-local --tags kind
 bazel run //test/oetf:deploy_and_run -- --env kind --tags kind --keep-on-failure
 ```
 
-### Deploy to your dev instance (`type: dev`)
-
-Roll your persistent dev cluster (e.g. `<user>-dev.osmo.nvidia.com`)
-with a laptop-built image set. Mirrors the Jenkins
-`osmo_dev.jenkinsfile` flow but skips the `argocd` CLI — ArgoCD
-auto-sync picks up the value-file commit on its own; OETF verifies
-rollout via `/api/version`. See [`Dev-instance deploy`](#dev-instance-deploy-type-dev)
-for the full story.
-
-```bash
-# First-time setup: token for your dev env (token_env from your overlay)
-export OSMO_DEV_TOKEN=<your dev token>
-
-# Build everything locally + push to nvcr.io + bump charts_value/dev/<user>_*.yaml
-# + commit to argocd/<user> + wait for /api/version.hash to match.
-bazel run //test/oetf:deploy -- --env <user>-dev --build-local
-
-# Redeploy an existing image tag (no push, just bump argocd):
-bazel run //test/oetf:deploy -- --env <user>-dev --image-tag <existing-tag>
-
-# Cross-arch push (e.g. arm64 laptop → amd64 dev cluster) — see
-# external/BUILD_AND_TEST.md for the builder-container path.
-bazel run //test/oetf:deploy -- --env <user>-dev --build-local --target-arch x86_64
-
-# Teardown is a no-op for dev (persistent infra; managed in ArgoCD).
-bazel run //test/oetf:teardown -- --env <user>-dev
-```
-
 ## Environment config
 
 `--env <name>` resolves to a URL + pool + auth method from two layered
@@ -139,7 +110,7 @@ config files — nothing silently defaults beyond what's declared.
    `staging` and `kind`. `--env staging` works out of the box; the user
    just exports the auth token referenced in the entry
    (e.g. `OETF_TOKEN`).
-2. **User overlay:** `~/.config/osmo/oetf.yaml` — same XDG discovery rules
+2. **User config:** `~/.config/osmo/oetf.yaml` — same XDG discovery rules
    as the osmo CLI (`$OSMO_CONFIG_FILE_DIR`, then `$XDG_CONFIG_HOME/osmo/`,
    then `~/.config/osmo/`). Add personal envs here and/or override
    canonical entries field-by-field.
@@ -161,14 +132,11 @@ environments:
       strategy: token | dev
       token_env: OETF_TOKEN     # required when strategy=token
       username: testuser                # required when strategy=dev
-    type: kind | dev | custom           # required
+    type: kind | custom                 # required
     allow_deploy: true | false          # default false; type=custom always false
     cluster_name: osmo                  # required when type=kind
     mode: cpu | gpu                     # kind only; default cpu
-    dev_user: testuser                    # required when type=dev
-    image_registry: nvcr.io/...         # dev only; default registry.example.com/project
-    argocd_branch: argocd/<user>        # dev only; default argocd/<dev_user>
-    pool: default                 # optional
+    pool: default                       # optional
     exclude_tags: [auth]                # optional
 ```
 
@@ -176,7 +144,7 @@ environments:
 
 | Field | Values | Meaning |
 |---|---|---|
-| `type` | `kind`, `dev`, `custom` | What kind of infra this env is. Drives adapter selection. `custom` = externally managed, `oetf:run` only. |
+| `type` | `kind`, `custom` | What kind of infrastructure this env is. `custom` means externally managed and supports `oetf:run` only. |
 | `allow_deploy` | `true` / `false` (default `false`) | Safety gate — `oetf:deploy` refuses unless explicitly `true`. `type: custom` always pins this to `false`. |
 
 **Canonical entries** (from `test/oetf/data/oetf.default.yaml`):
@@ -200,19 +168,17 @@ environments:
     exclude_tags: [auth]              # KIND uses dev-auth; skip JWT-only checks
 ```
 
-**User overlay** (optional) — `~/.config/osmo/oetf.yaml`. Merged on load;
+**User config** (optional) — `~/.config/osmo/oetf.yaml`. Merged on load;
 user keys win on conflict. Use this for personal envs without polluting the
 repo file:
 
 ```yaml
 # ~/.config/osmo/oetf.yaml
 environments:
-  testuser-dev:
-    url: https://dev.example
-    auth: {strategy: token, token_env: OSMO_DEV_TOKEN}
-    type: dev
-    allow_deploy: true
-    dev_user: testuser
+  my-environment:
+    url: https://osmo.example
+    auth: {strategy: token, token_env: OETF_MY_ENV_TOKEN}
+    type: custom
     pool: cpu-pool
 
   # Override a canonical entry (e.g. point `staging` at a different pool):
@@ -779,9 +745,10 @@ fairness, backend latency percentiles, error-rate spikes under load.
 
 The wrapper (`test/oetf/main.py`) is thin:
 
-1. Load `data/oetf.default.yaml` + user overlay at `~/.config/osmo/oetf.yaml`.
+1. Load `data/oetf.default.yaml` + user config at `~/.config/osmo/oetf.yaml`.
 2. Resolve `--env` to `OETF_URL` / `OETF_AUTH_TOKEN` / `OETF_POOL` (CLI flags win).
-3. If `--data-cred-*` flags are set, `osmo login` + `osmo credential set osmo_cred --type DATA …` so CLI-mode scenarios find the DATA cred.
+3. If `--data-cred-*` flags are set, configure a DATA credential for
+   CLI-mode storage scenarios.
 4. `bazel query` for the target list matching `--tags` (needed because OETF
    targets are `manual`-tagged; wildcard expansion skips them). For `--name`,
    resolve via split-target naming first, fall back to combined target.
@@ -800,12 +767,12 @@ The wrapper (`test/oetf/main.py`) is thin:
 | `--env <name>` | Target environment resolved from `data/oetf.default.yaml` + `~/.config/osmo/oetf.yaml`. Canonical: `staging`, `kind`. |
 | `--tags smoke,scenario,router,kind,...` | Comma-separated Bazel tag filter. `smoke` / `scenario` are aliases for `oetf-smoke` / `oetf-scenario`. The `kind` tag selects tests verified to pass against `oetf:deploy --env kind` (see "Tests that pass on local KIND" below). |
 | `--name test_foo` or `Class.test_foo` | Run a single test method. Wrapper scans `test/smoke/` and `test/scenarios/` and prefers the split target when one filters to that method. |
-| `--jobs N` | `--local_test_jobs=N` (default 3 — staging sweet spot). |
+| `--jobs N` | `--local_test_jobs=N` (default 3). |
 | `--url` | Override the env's URL. Useful for quick-test against an arbitrary instance. |
 | `--auth-method {token,dev}` | Override the env's auth strategy. `token` uses `--auth-token` / `${env.auth.token_env}`; `dev` uses `--auth-username` with no JWT. Auto-adds the `auth` smoke suite to `exclude_tags` when `dev` is chosen (the auth suite needs a real JWT issuer). |
 | `--auth-token`, `--auth-username`, `--pool`, `--local-osmo` | Override env defaults. `--auth-username` is required for `--auth-method=dev`. |
 | `--data-cred-access-key-id`, `--data-cred-access-key`, `--data-cred-endpoint`, `--data-cred-region` | Seed the osmo CLI's DATA credential cache before tests run. Needed for CLI-mode storage scenarios. All four required together (or none). |
-| `--output-json PATH` | Write per-target results JSON after the run. Jenkins archives this as a build artifact. |
+| `--output-json PATH` | Write per-target results JSON after the run, suitable for CI artifact collection. |
 | `--bazel-arg FLAG` | Extra arg passed verbatim to `bazel test`. Repeat for multiple. |
 | `--verbose` | Enable debug logging. |
 
@@ -826,7 +793,7 @@ The wrapper (`test/oetf/main.py`) is thin:
   `oetf:deploy --env kind`**. `oetf:run --env kind --tags kind` runs
   this curated subset (currently 10 tests: 2 smoke probes + 4
   submission-validation scenarios + 3 self-contained 3-file scenarios +
-  `serial-workflow-mounting`). Tests that require NVIDIA-only platforms,
+  `serial-workflow-mounting`). Tests that require specialized platforms,
   registry credentials, or pre-existing data are intentionally not
   tagged.
 - User-supplied `tags = [...]` on individual targets pass through for
@@ -1079,101 +1046,10 @@ events surface the scheduler's reason (`InsufficientResources`,
 `PodScheduled`, etc.) directly in the test output, without needing a
 separate `osmo workflow events` follow-up.
 
-## Dev-instance deploy (`type: dev`)
-
-`oetf:deploy --env <user>-dev` rolls a developer's persistent dev
-cluster (e.g. `dev.example`) the same way the
-`osmo_dev.jenkinsfile` Jenkins pipeline does — without requiring the
-`argocd` CLI (laptop users typically don't have the cluster permissions
-Jenkins runs with).
-
-### Prereqs (one-time setup for a new dev user)
-
-Assumes your `<user>-dev.osmo.nvidia.com` cluster + `argocd/<user>`
-branch are already set up.
-OETF fails fast with `ERROR: / NEXT:` when any of these is missing.
-
-1. **Auth token for the env.** OETF talks to the live service via the
-   bearer token resolved from `auth.token_env` — used both by
-   `wait_for_rollout` (`/api/version` polling) and by
-   `update_service_configs` (PATCH the service's runtime `osmo_images`
-   / `cli` defaults after rollout):
-   ```bash
-   osmo login https://<user>-dev.osmo.nvidia.com
-   osmo token set oetf --roles osmo-admin
-   # copy the printed token, then:
-   export OSMO_DEV_TOKEN=<token>   # name must match `auth.token_env` in your overlay
-   ```
-   Add the export to your shell rc so it persists.
-
-2. **NGC registry credentials** (only for `--build-local`). Get an NGC
-   API key at https://org.ngc.nvidia.com/setup/personal-keys with
-   **both** scopes:
-   - Public Catalog (Read) — for base images like
-     `nvcr.io/nvidia/distroless/python`
-   - Private Registry (Write) — to push to `registry.example.com/project/*`
-
-   Then export (single quotes on the username are mandatory — the
-   literal `$oauthtoken` is what NGC expects, not a shell-expanded
-   variable):
-   ```bash
-   export CONTAINER_REGISTRY=nvcr.io
-   export CONTAINER_REGISTRY_USERNAME='$oauthtoken'
-   export CONTAINER_REGISTRY_PASSWORD=<NGC API key>
-   ```
-
-3. **Docker Desktop running** (only for `--build-local` on a non-Linux
-   host or cross-arch). The adapter wraps `bazel run //ci:push_images`
-   in `osmo-builder:latest-<arch>` automatically; first-time builder
-   image load takes ~3-5 min via
-   `bazel run @osmo_workspace//run:builder_image_load_<arch>`.
-
-4. **Git push access to `origin`** for the `argocd/<user>` branch (SSH
-   key or HTTPS credential helper — whatever your existing `git push`
-   already uses). The pre-flight verifies branch reachability with
-   `git ls-remote --exit-code --heads origin argocd/<user>`.
-
-5. **OETF env entry** in `~/.config/osmo/oetf.yaml` (see
-   [Schema additions](#schema-additions) below for the full template).
-
-### Pipeline
-
-| Phase | What | Underlying command |
-|---|---|---|
-| 1. Tag | If `--image-tag` set, use it. Else compute `<Y>.<M>.<D>.<git-short>.<user><build>` matching Jenkins' `precomputeTag`. | `git rev-parse --short=8 HEAD` |
-| 2. Push (only with `--build-local`) | Stamp version + push images to `registry.example.com/project` (override via `image_registry:` or `--image-location`). | `bazel run //ci:set_version_hash`, `bazel run //ci:push_images -- --target_cpu_arch <arch> --tag_override <tag>` |
-| 3. Bump charts | Regex-replace `osmoImageTag:` in every `charts_value/{osmo,ui,backend-operator}/dev/<user>*.yaml`. | (in-process, no `yq` required) |
-| 4. Commit + push | Single commit, push to `argocd/<user>` with one `git pull --rebase`-and-retry on rejection. | `git add / commit / push` |
-| 5. Wait for rollout | Poll `<env.url>/api/version` until `Version.hash` matches the tag's git-short — confirms ArgoCD auto-sync ran AND every replica has the new image. | (in-process; no `argocd` CLI) |
-
-`oetf:teardown --env <user>-dev` is a deliberate no-op: dev clusters
-are persistent infrastructure managed by ArgoCD outside this tool's
-scope.
-
-### Schema additions
-
-Add the following to `~/.config/osmo/oetf.yaml`:
-
-```yaml
-environments:
-  testuser-dev:
-    url: https://dev.example
-    auth: {strategy: token, token_env: OSMO_DEV_TOKEN}
-    type: dev
-    allow_deploy: true
-    dev_user: testuser
-    pool: cpu-pool
-    # Optional overrides; defaults shown:
-    # image_registry: registry.example.com/project
-    # argocd_branch:  argocd/testuser
-```
-
 ## Layout
 
 Framework code lives at `test/oetf/`; the actual test suites are siblings
-under `test/smoke/`, `test/scenarios/`, and `test/workflow/`. Downstream
-overlay packages consume this tree as a Bazel external module under
-`@osmo_workspace` and can add their own adapter / scenarios on top.
+under `test/smoke/`, `test/scenarios/`, and `test/workflow/`.
 
 ```
 test/oetf/                   # Framework + 4 entry-point binaries.
@@ -1190,12 +1066,11 @@ test/oetf/                   # Framework + 4 entry-point binaries.
 │                            #   add_deploy_args / add_run_args) +
 │                            #   forward_run_args / forward_env_args.
 │                            #   Single source of truth for all binary flags.
-├── environments.py          # named-env loader (default + user overlay).
+├── environments.py          # named-env loader (default + user config).
 ├── preflight.py             # ERROR/NEXT contract; check_auth, check_deployable.
 ├── breadcrumb.py            # ~/.cache/oetf/last-deploy.json read/write.
 ├── deploy_adapters/         # DeployAdapter Protocol + KIND / Noop adapters
-│                            #   + factory (optional-import auto-registration
-│                            #   for downstream-overlay DevAdapter).
+│                            #   + adapter factory.
 ├── local_images.py          # bazel build + kind load for --build-local.
 ├── fixture_base.py          # OetfFixture — env reader + ServiceClient base.
 ├── smoke_fixture.py         # SmokeFixture + HttpProbe / CliProbe / WsProbe.
@@ -1215,10 +1090,7 @@ test/oetf/                   # Framework + 4 entry-point binaries.
 │   └── categories.json      # Allure failure-bucket rules.
 ├── bzl/
 │   ├── BUILD
-│   └── oetf.bzl             # oetf_smoke_test, oetf_scenario_test macros
-│                            #   (cross-package deps qualified with
-│                            #   @osmo_workspace// so the macros work from
-│                            #   downstream-overlay callers).
+│   └── oetf.bzl             # oetf_smoke_test, oetf_scenario_test macros.
 └── tests/                   # Unit tests for the framework itself.
     ├── BUILD
     ├── test_aggregate.py, test_sinks.py, test_reporter.py,
@@ -1234,8 +1106,6 @@ test/smoke/                  # Smoke tests.
 ├── api_checks.py
 ├── cli_checks.py
 └── websocket_checks.py
-                             # (auth-checks ships in the internal overlay —
-                             # the public quick-start chart has no JWT issuer.)
 
 test/scenarios/              # Scenario tests.
 ├── BUILD
@@ -1290,20 +1160,19 @@ targets. Verify with `bazel query 'attr(tags, "X", tests(//test/...))'`.
 
 **"Data credential not found for swift://…"** — a CLI-mode scenario tried to
 access storage with no stored credential. Pass all four
-`--data-cred-*` flags so the wrapper runs `osmo credential set osmo_cred
---type DATA …` before `bazel test`. The Jenkins stage does this via the
-`team-osmo` credential.
+`--data-cred-*` flags so the wrapper configures a DATA credential before
+`bazel test`.
 
 **"There are no resources in platform <X> and pool <Y>"** — the workflow's
 resolved platform doesn't exist in the chosen pool. If `<X>` is
-unexpected (e.g. `ovx-a40` when main's yamls default to `cpu-x86`), the
-pool's server-side `default_platform` is out of sync with the yaml's
-declared / expected platform; coordinate with staging-config owners.
+unexpected, the pool's server-side `default_platform` may be out of sync
+with the workflow's declared or expected platform. Check the target
+environment's pool configuration.
 
-**Known staging-state failures (not framework bugs):** tests that require
-`agx-orin-jp6` / `orin-nano-jp6` arm nodes, `data-ops` platform, or
-`omni_svc` / swift creds may fail when those aren't available. Outcomes
-should match `osmo workflow submit` behavior for the same yaml.
+**Known environment-state failures (not framework bugs):** tests that require
+optional hardware, platforms, data, or credentials may fail when those
+resources aren't available. Outcomes should match `osmo workflow submit`
+behavior for the same yaml.
 
 ## Reporting (optional)
 
@@ -1343,10 +1212,10 @@ Trended sources (history accumulates over time) require an explicit `--report-so
 | Use case | Flag |
 |---|---|
 | Local laptop / agent | (none — defaults to `users/<actor>`, no history) |
-| Jenkins nightly | `--report-source staging` (or `prod`) |
-| GitLab CI | `--report-source ci` |
+| Scheduled CI | `--report-source <environment>` |
+| Other CI | `--report-source ci` |
 
-This makes accidental "I ran from my laptop and polluted the staging trend" impossible.
+This prevents a local run from accidentally polluting a shared trend.
 
 ### Flag reference
 
