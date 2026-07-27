@@ -47,7 +47,7 @@ See [../README.md](../README.md) for the full two-chart flow.
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
-| `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `staging.osmo.nvidia.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
+| `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `osmo.example.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
 
 > **Startup probe tuning.** Each service has its own `services.<svc>.startupProbe` block in `values.yaml` (api/agent/logger/router/ui/worker/delayedJobMonitor). To loosen tolerance on slow-I/O clusters, bump `failureThreshold` (with `periodSeconds: 5`, the value × 5 is roughly the seconds of init slack before CrashLoopBackOff). Defaults are 24 across the board — about 2 minutes — and don't affect healthy startups since the first successful probe ends the startup phase.
 
@@ -270,7 +270,7 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.imagePullPolicy` | Image pull policy | `Always` |
 | `services.router.serviceName` | Service name | `osmo-router` |
 | `services.router.initContainers` | Init containers for router service | `[]` |
-| `services.router.hostname` | External hostname (e.g. `staging.osmo.nvidia.com`) used by the router to extract a session key from `Host` / `X-Forwarded-Host` headers — requests to `<key>.<hostname>` resolve to session `<key>`. Required for subdomain-based session routing. When empty, falls back to `global.hostname`; if both are empty the chart omits `--hostname` and the binary's default of `localhost` applies (only matches `*.localhost`). | `""` |
+| `services.router.hostname` | External hostname (e.g. `osmo.example.com`) used by the router to extract a session key from `Host` / `X-Forwarded-Host` headers — requests to `<key>.<hostname>` resolve to session `<key>`. Required for subdomain-based session routing. When empty, falls back to `global.hostname`; if both are empty the chart omits `--hostname` and the binary's default of `localhost` applies (only matches `*.localhost`). | `""` |
 | `services.router.webserverEnabled` | Enable webserver functionality for wildcard subdomain support | `false` |
 | `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
 | `services.router.extraArgs` | Additional command line arguments | `[]` |

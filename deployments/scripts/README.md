@@ -319,7 +319,7 @@ Pre-create the IAM role with the OSMO service-account trust, then:
 | `OSMO_IMAGE_REGISTRY` | OSMO Docker image registry | `nvcr.io/nvidia/osmo` |
 | `OSMO_IMAGE_TAG` | OSMO Docker image tag | `latest` |
 | `OSMO_CHART_VERSION` | Pin OSMO Helm chart version. **Required** for prerelease channels (chart RCs aren't tagged `latest`). | _(latest in repo)_ |
-| `OSMO_HELM_REPO_URL` | OSMO Helm chart repo URL. Override to `https://helm.ngc.nvidia.com/nvstaging/osmo` for prerelease testing. | `https://helm.ngc.nvidia.com/nvidia/osmo` |
+| `OSMO_HELM_REPO_URL` | OSMO Helm chart repo URL. Override when testing a chart version published in another repository. | `https://helm.ngc.nvidia.com/nvidia/osmo` |
 | `OSMO_HELM_REPO_NAME` | Local helm repo alias | `osmo` |
 | `BACKEND_TOKEN_EXPIRY` | Backend operator token expiry | `2027-01-01` |
 | `OSMO_REACHABILITY_PATH` | Lightweight unauthenticated path used by `verify.sh` for the pre-login reachability probe | `/api/version` |
@@ -424,7 +424,7 @@ az aks command invoke \
 
 ### Helm install fails: "no chart matching constraint"
 
-Likely cause: testing against a prerelease tag without setting `OSMO_CHART_VERSION` (chart RCs aren't tagged `latest`). Set both `OSMO_IMAGE_TAG` and `OSMO_CHART_VERSION` to the matching RC and point `OSMO_HELM_REPO_URL` at the staging repo.
+Likely cause: testing against a prerelease tag without setting `OSMO_CHART_VERSION` (chart RCs aren't tagged `latest`). Set both `OSMO_IMAGE_TAG` and `OSMO_CHART_VERSION` to the matching RC and point `OSMO_HELM_REPO_URL` at the repository containing that chart version.
 
 ## Documentation
 

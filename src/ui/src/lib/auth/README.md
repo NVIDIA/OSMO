@@ -50,12 +50,10 @@ Redirect to `/signout`. The gateway redirects that path to OAuth2 Proxy sign out
 
 ## Local Development
 
-For local dev against a production backend:
-
-1. Open the production app, go to DevTools > Application > Cookies
-2. Copy the `_osmo_session` cookie value
-3. In localhost console: `document.cookie = "_osmo_session=<value>; path=/; max-age=604800"`
-4. Set `NEXT_PUBLIC_OSMO_API_HOSTNAME` to the production hostname
-5. API requests proxy through Next.js, forwarding the cookie to prod Envoy
+For local development against a remote backend, use a non-production test
+environment and credentials provisioned for that environment. Set
+`NEXT_PUBLIC_OSMO_API_HOSTNAME` to the test hostname; API requests proxy through
+Next.js to the configured backend. Do not copy session cookies from another
+environment into localhost.
 
 For UI-only development, use mock mode: `pnpm dev:mock`
