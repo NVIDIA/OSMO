@@ -189,7 +189,7 @@ version: 2
 workflow:
   name: workflow
   labels:
-    PPP:
+    project:
       team: alpha
 '''
 
@@ -629,7 +629,7 @@ class TestWorkflowLabelResponses(unittest.TestCase):
 
     def test_detail_warnings_are_recomputed_from_current_warn_policy(self):
         warning_policy = [
-            _label_policy('PPP', connectors.LabelEnforcement.WARN, ['team_a']),
+            _label_policy('project', connectors.LabelEnforcement.WARN, ['team_a']),
         ]
 
         response = self._fetch_detail_response(
@@ -639,7 +639,7 @@ class TestWorkflowLabelResponses(unittest.TestCase):
         )
 
         self.assertEqual(response.warnings, [
-            "Workflow is missing label 'PPP'; add it now to avoid rejected "
+            "Workflow is missing label 'project'; add it now to avoid rejected "
             "submissions once it is required.",
         ])
 
@@ -648,7 +648,7 @@ class TestWorkflowLabelResponses(unittest.TestCase):
             status=workflow.WorkflowStatus.RUNNING,
             policy=[
                 _label_policy(
-                    'PPP', connectors.LabelEnforcement.ENFORCE, ['team_a']),
+                    'project', connectors.LabelEnforcement.ENFORCE, ['team_a']),
             ],
         )
         omitted_response = self._fetch_detail_response(
@@ -662,11 +662,11 @@ class TestWorkflowLabelResponses(unittest.TestCase):
 
     def test_detail_invalid_warning_does_not_disclose_values(self):
         response = self._fetch_detail_response(
-            labels={'PPP': 'submitted-secret'},
+            labels={'project': 'submitted-secret'},
             status=workflow.WorkflowStatus.RUNNING,
             policy=[
                 _label_policy(
-                    'PPP', connectors.LabelEnforcement.WARN,
+                    'project', connectors.LabelEnforcement.WARN,
                     ['allow-list-secret']),
             ],
         )
@@ -674,7 +674,7 @@ class TestWorkflowLabelResponses(unittest.TestCase):
         self.assertEqual(
             response.warnings,
             [
-                "Workflow label 'PPP' has a value that is not allowed; use an "
+                "Workflow label 'project' has a value that is not allowed; use an "
                 "allowed value now to avoid rejected submissions once the label "
                 "is required."
             ],
@@ -685,7 +685,7 @@ class TestWorkflowLabelResponses(unittest.TestCase):
 
     def test_detail_warnings_are_recomputed_for_every_workflow_status(self):
         warning_policy = [
-            _label_policy('PPP', connectors.LabelEnforcement.WARN),
+            _label_policy('project', connectors.LabelEnforcement.WARN),
         ]
 
         for status in workflow.WorkflowStatus:
