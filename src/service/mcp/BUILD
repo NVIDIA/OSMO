@@ -168,6 +168,16 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "credential_action_models",
+    srcs = ["credential_action_models.py"],
+    deps = [
+        requirement("pydantic"),
+        ":tool_models",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "profile_tools",
     srcs = ["profile.py"],
     deps = [
@@ -280,11 +290,26 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "credential_action_tools",
+    srcs = ["credential_actions.py"],
+    deps = [
+        requirement("mcp"),
+        ":credential_action_models",
+        ":tool_errors",
+        ":tool_requests",
+        ":tool_validation",
+        "//src/lib/api:storage",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "tool_registry",
     srcs = ["tool_registry.py"],
     deps = [
         requirement("mcp"),
         ":app_tools",
+        ":credential_action_tools",
         ":credential_tools",
         ":health_tools",
         ":pool_tools",

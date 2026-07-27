@@ -65,6 +65,9 @@ def route_template(path: str) -> str:
     if len(parts) == 4 and parts[:3] == ['', 'api', 'resources']:
         return '/api/resources/{node_name}'
 
+    if len(parts) == 4 and parts[:3] == ['', 'api', 'credentials']:
+        return '/api/credentials/{credential_name}'
+
     if (
         len(parts) == 5
         and parts[:3] == ['', 'api', 'pool']

@@ -28,3 +28,12 @@ osmo_py_library(
     deps = [requirement("pydantic")],
     visibility = ["//visibility:public"],
 )
+
+osmo_py_library(
+    name = "storage",
+    srcs = [
+        "__init__.py",
+        "storage.py",
+    ],
+    visibility = ["//visibility:public"],
+)

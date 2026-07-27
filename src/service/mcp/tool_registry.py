@@ -24,6 +24,7 @@ from mcp.types import ToolAnnotations
 
 from src.service.mcp import (
     apps,
+    credential_actions,
     credentials,
     health,
     pools,
@@ -245,6 +246,35 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         description=(
             'List only the active user\'s credential names and types. '
             'Profiles and credential payloads are never returned.'
+        ),
+    ),
+    ToolSpec(
+        function=credential_actions.osmo_set_credential,
+        name='osmo_set_credential',
+        title='Set OSMO credential',
+        description=(
+            'Set one credential. REGISTRY requires auth and optionally '
+            'registry/username; DATA requires access_key_id, access_key, and '
+            'endpoint and optionally region/override_url/addressing_style; '
+            'GENERIC accepts string key/value pairs. MCP does not return or '
+            'log payload values; the calling client may retain its arguments.'
+        ),
+        annotations=_write_annotations(
+            destructive=True,
+            idempotent=True,
+        ),
+    ),
+    ToolSpec(
+        function=credential_actions.osmo_delete_credential,
+        name='osmo_delete_credential',
+        title='Delete OSMO credential',
+        description=(
+            'Delete one active-user credential without returning its payload '
+            'or legacy profile value.'
+        ),
+        annotations=_write_annotations(
+            destructive=True,
+            idempotent=True,
         ),
     ),
 )

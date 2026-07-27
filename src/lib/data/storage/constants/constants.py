@@ -18,10 +18,54 @@
 Constants for the data module.
 """
 
-import re
 from typing import Annotated
 
 import pydantic
+
+from src.lib.api.storage import (
+    AZURE_PROFILE_REGEX,
+    AZURE_REGEX,
+    GS_PROFILE_REGEX,
+    GS_REGEX,
+    S3_PROFILE_REGEX,
+    S3_REGEX,
+    STORAGE_BACKEND_REGEX,
+    STORAGE_BACKEND_SCHEMES,
+    STORAGE_CREDENTIAL_REGEX,
+    STORAGE_PROFILE_REGEX,
+    SWIFT_PROFILE_REGEX,
+    SWIFT_REGEX,
+    TOS_PROFILE_REGEX,
+    TOS_REGEX,
+    URI_COMPONENT,
+)
+
+__all__ = [
+    'AZURE_PROFILE_REGEX',
+    'AZURE_REGEX',
+    'DEFAULT_AZURE_HOST',
+    'DEFAULT_AZURE_REGION',
+    'DEFAULT_BOTO3_REGION',
+    'DEFAULT_GS_HOST',
+    'DEFAULT_GS_REGION',
+    'DEFAULT_TOS_REGION',
+    'GS_PROFILE_REGEX',
+    'GS_REGEX',
+    'S3_PROFILE_REGEX',
+    'S3_REGEX',
+    'STORAGE_BACKEND_REGEX',
+    'STORAGE_BACKEND_SCHEMES',
+    'STORAGE_CREDENTIAL_REGEX',
+    'STORAGE_PROFILE_REGEX',
+    'SWIFT_PROFILE_REGEX',
+    'SWIFT_REGEX',
+    'StorageBackendPattern',
+    'StorageCredentialPattern',
+    'StorageProfilePattern',
+    'TOS_PROFILE_REGEX',
+    'TOS_REGEX',
+    'URI_COMPONENT',
+]
 
 DEFAULT_BOTO3_REGION = 'us-east-1'
 DEFAULT_GS_REGION = 'us-east1'
@@ -31,34 +75,8 @@ DEFAULT_GS_HOST = 'storage.googleapis.com'
 DEFAULT_AZURE_HOST = 'blob.core.windows.net'
 
 
-# Regex rules for uris
-URI_COMPONENT = r'[^/,;*]+'
-SWIFT_REGEX = fr'^swift://{URI_COMPONENT}(/{URI_COMPONENT}){{2,}}/*$'
-S3_REGEX = fr'^s3://{URI_COMPONENT}(/{URI_COMPONENT})*/*$'
-GS_REGEX = fr'^gs://{URI_COMPONENT}(/{URI_COMPONENT})*/*$'
-TOS_REGEX = fr'^tos://{URI_COMPONENT}(/{URI_COMPONENT})+/*$'
-AZURE_REGEX = fr'^azure://{URI_COMPONENT}(/{URI_COMPONENT})+/*$'
-STORAGE_BACKEND_REGEX = fr'({SWIFT_REGEX}|{S3_REGEX}|{GS_REGEX}|{TOS_REGEX}|{AZURE_REGEX})'
 StorageBackendPattern = Annotated[str, pydantic.Field(pattern=STORAGE_BACKEND_REGEX)]
 
-# Schemes are derived from STORAGE_BACKEND_REGEX so adding a new backend
-# (e.g., a new *_REGEX included in the union above) auto-propagates here
-# and to any consumer that lists supported schemes (e.g., error messages).
-STORAGE_BACKEND_SCHEMES: tuple[str, ...] = tuple(
-    re.findall(r'\^(\w+)://', STORAGE_BACKEND_REGEX)
-)
-
-
-# Regex rules for storage profiles
-SWIFT_PROFILE_REGEX = fr'^swift://{URI_COMPONENT}(/{URI_COMPONENT})/*'
-S3_PROFILE_REGEX = fr'^s3://{URI_COMPONENT}/*'
-GS_PROFILE_REGEX = fr'^gs://{URI_COMPONENT}/*'
-TOS_PROFILE_REGEX = fr'^tos://{URI_COMPONENT}(/{URI_COMPONENT})/*'
-AZURE_PROFILE_REGEX = fr'^azure://{URI_COMPONENT}/*'
-STORAGE_PROFILE_REGEX = fr'({SWIFT_PROFILE_REGEX}|{S3_PROFILE_REGEX}|' \
-    fr'{GS_PROFILE_REGEX}|{TOS_PROFILE_REGEX}|' \
-    fr'{AZURE_PROFILE_REGEX})'
 StorageProfilePattern = Annotated[str, pydantic.Field(pattern=STORAGE_PROFILE_REGEX)]
 
-STORAGE_CREDENTIAL_REGEX = fr'({STORAGE_PROFILE_REGEX}|{STORAGE_BACKEND_REGEX})'
 StorageCredentialPattern = Annotated[str, pydantic.Field(pattern=STORAGE_CREDENTIAL_REGEX)]

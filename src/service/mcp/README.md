@@ -102,18 +102,35 @@ authorization value.
 
 The external catalog contains 14 read-only tools for caller-bound health,
 profile, pool, resource, workflow, application, and credential-metadata
-inspection, four workflow actions, and one profile-setting action. Each tool
-maps to a fixed external API, returns a structured allowlisted result, and
-applies a domain-specific response limit. Credential inspection returns names
-and types only. Profile inspection intentionally includes non-secret
-access-token identity metadata (name and expiry). Bearer values are never
-returned.
+inspection, plus four workflow actions, one profile-setting action, and two
+credential actions. Each tool maps to a fixed external API, returns a
+structured allowlisted result, and applies a domain-specific response limit.
+Credential inspection returns names and types only. Profile inspection
+intentionally includes non-secret access-token identity metadata (name and
+expiry). Bearer values are never returned.
 
 `osmo_set_profile` updates only the default pool or email/Slack notification
 state supported by the external CLI and Core contract. Other profile settings
 are outside this tool's public contract. Core returns no updated profile
 object, so the tool reports only the validated setting that was accepted.
 Profile writes are one-shot and are not automatically retried.
+
+`osmo_set_credential` accepts the canonical documented REGISTRY, DATA, and
+GENERIC payload shapes used by the CLI and Core, with bounded string-only
+values. The MCP sends the validated payload to Core but never returns or logs
+it. Registry and data profile fields reject URL userinfo, query, and fragment
+components before the write, and `osmo_delete_credential` omits Core's legacy
+profile value from its result.
+Credential mutations are destructive, one-shot operations. The calling MCP
+client still owns the tool arguments it submitted and may retain them in its
+own transcript or logs; callers must use a client appropriate for secret
+entry.
+
+Core currently authorizes credential POST requests as `credentials:Create`
+even though it is the CLI's set route. Core also conflicts records by profile,
+so a same-name update with a different or null profile can be rejected instead
+of replaced. The external MCP preserves those API/RBAC semantics and reports
+the Core failure rather than emulating a replacement.
 
 Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
@@ -209,12 +226,14 @@ authentication. Its token needs `mcp:Access`, `profile:Read`, and
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
 ```
 
-The smoke test rejects unauthenticated access, verifies the exact 19-tool
+The smoke test rejects unauthenticated access, verifies the exact 21-tool
 catalog, compares the profile projection with Core, checks caller-bound
 health, and validates a small workflow through Gateway → MCP → Gateway → Core.
 A successful validation does not enqueue compute or create a workflow row.
 The smoke suite intentionally sends only this known-good case because a failed
 Core validation can create a `FAILED_SUBMISSION` row.
+Profile and credential mutations remain manual Inspector checks against
+disposable user-owned state.
 
 When the deployment cannot validate the default public `ubuntu:22.04` image,
 pass an approved image into the Bazel test environment:
