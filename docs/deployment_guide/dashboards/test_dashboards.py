@@ -59,10 +59,10 @@ class WorkflowResourcesDashboardTest(unittest.TestCase):
 
     def test_dashboard_is_deployment_neutral(self):
         variables = _variables(self.dashboard)
-        self.assertNotIn('PPP', variables)
+        self.assertNotIn('project', variables)
         uuid_query = _query(variables['uuid'])
         self.assertIn('kube_pod_info', uuid_query)
-        self.assertNotIn('label_PPP', json.dumps(self.dashboard))
+        self.assertNotIn('label_project', json.dumps(self.dashboard))
 
     def test_panel_ids_are_unique(self):
         panel_ids = [panel['id'] for panel in self.dashboard['panels']]

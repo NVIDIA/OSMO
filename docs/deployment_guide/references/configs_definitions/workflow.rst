@@ -314,7 +314,7 @@ Only configured policy keys become workflow-label dimensions on
 ``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
 and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
 ``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
-``PPP`` is exported as ``workflow_label_PPP``. Values in the configured
+``project`` is exported as ``workflow_label_project``. Values in the configured
 allow-list are exported verbatim; a present value outside that list is clamped
 to ``<other>``, and a missing key is reported as ``<missing>``. Angle
 brackets are not valid in label values, so the sentinels never collide with

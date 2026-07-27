@@ -70,7 +70,7 @@ class GetTaskMetricsTest(unittest.TestCase):
                 'workflow_uuid': 'workflow-1',
                 'status': 'RUNNING',
                 'labels': {
-                    'PPP': 'project-a',
+                    'project': 'project-a',
                     'cost-center': 'center-1',
                     'experiment': 'first',
                 },
@@ -82,7 +82,7 @@ class GetTaskMetricsTest(unittest.TestCase):
                 'workflow_uuid': 'workflow-1',
                 'status': 'RUNNING',
                 'labels': {
-                    'PPP': 'project-a',
+                    'project': 'project-a',
                     'cost-center': 'center-1',
                     'experiment': 'second',
                 },
@@ -93,7 +93,7 @@ class GetTaskMetricsTest(unittest.TestCase):
                 'user': 'alice',
                 'workflow_uuid': 'workflow-1',
                 'status': 'RUNNING',
-                'labels': {'PPP': 'project-a'},
+                'labels': {'project': 'project-a'},
                 'count': 4,
             },
             {
@@ -117,13 +117,13 @@ class GetTaskMetricsTest(unittest.TestCase):
                 'user': 'alice',
                 'workflow_uuid': 'workflow-1',
                 'status': 'RUNNING',
-                'labels': {'PPP': 'unattributed'},
+                'labels': {'project': 'unattributed'},
                 'count': 6,
             },
         ]
         database = mock.Mock()
         database.get_workflow_configs.return_value = _workflow_config({
-            'PPP': ['project-a'],
+            'project': ['project-a'],
             'cost-center': ['center-1'],
         })
 
@@ -138,7 +138,7 @@ class GetTaskMetricsTest(unittest.TestCase):
             if attributes is None:
                 self.fail('Task metric observation is missing attributes.')
             counts[(
-                attributes['workflow_label_PPP'],
+                attributes['workflow_label_project'],
                 attributes['workflow_label_cost_dash_center'],
             )] = observation.value
             self.assertEqual(attributes['pool'], 'pool-a')
@@ -153,11 +153,11 @@ class GetTaskMetricsTest(unittest.TestCase):
         })
 
     def test_empty_allow_list_clamps_all_present_values_to_other(self):
-        label_policy = connectors.LabelPolicy(key='PPP')
+        label_policy = connectors.LabelPolicy(key='project')
 
         metric_value = workflow_metrics._workflow_label_metric_value  # pylint: disable=protected-access
         self.assertEqual(
-            metric_value({'PPP': 'arbitrary'}, label_policy), '<other>')
+            metric_value({'project': 'arbitrary'}, label_policy), '<other>')
         self.assertEqual(metric_value({}, label_policy), '<missing>')
 
     def test_policy_label_attributes_cannot_overwrite_or_sanitize_to_same_name(self):
@@ -229,13 +229,13 @@ class GetTaskMetricsTest(unittest.TestCase):
 
     def test_cache_is_reused_until_30_second_ttl_expires(self):
         database = mock.Mock()
-        database.get_workflow_configs.return_value = _workflow_config({'PPP': ['project-a']})
+        database.get_workflow_configs.return_value = _workflow_config({'project': ['project-a']})
         first_rows = [{
             'pool': 'pool-a',
             'user': 'alice',
             'workflow_uuid': 'workflow-1',
             'status': 'RUNNING',
-            'labels': {'PPP': 'project-a'},
+            'labels': {'project': 'project-a'},
             'count': 2,
         }]
         refreshed_rows = [{
