@@ -71,6 +71,7 @@ services:
         credential:
           endpoint: s3://osmo/workflows
           override_url: http://localstack-s3.osmo:4566
+          addressing_style: path
           access_key_id: test
           access_key: test
           region: us-east-1
@@ -78,6 +79,7 @@ services:
         credential:
           endpoint: s3://osmo/workflows
           override_url: http://localstack-s3.osmo:4566
+          addressing_style: path
           access_key_id: test
           access_key: test
           region: us-east-1
@@ -85,6 +87,7 @@ services:
         credential:
           endpoint: s3://osmo/apps
           override_url: http://localstack-s3.osmo:4566
+          addressing_style: path
           access_key_id: test
           access_key: test
           region: us-east-1
