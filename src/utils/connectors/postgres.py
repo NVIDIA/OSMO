@@ -2391,6 +2391,7 @@ class BackendResource(pydantic.BaseModel):
 class BackendSchedulerType(enum.Enum):
     """ Defines the type of scheduler used by the backend """
     KAI = 'kai'
+    KUBERNETES = 'kubernetes'
 
 
 class BackendSchedulerSettings(pydantic.BaseModel):
@@ -2398,6 +2399,20 @@ class BackendSchedulerSettings(pydantic.BaseModel):
     scheduler_type: BackendSchedulerType = BackendSchedulerType.KAI
     scheduler_name: str = 'kai-scheduler'
     scheduler_timeout: int = 30
+
+    @pydantic.model_validator(mode='before')
+    @classmethod
+    def default_scheduler_name(cls, values):
+        """Use the built-in Kubernetes scheduler unless one is explicitly configured."""
+        if not isinstance(values, dict):
+            return values
+        scheduler_type = values.get('scheduler_type')
+        if scheduler_type in (
+                BackendSchedulerType.KUBERNETES,
+                BackendSchedulerType.KUBERNETES.value) and 'scheduler_name' not in values:
+            values = values.copy()
+            values['scheduler_name'] = 'default-scheduler'
+        return values
 
 
 class BackendNodeConditions(pydantic.BaseModel):

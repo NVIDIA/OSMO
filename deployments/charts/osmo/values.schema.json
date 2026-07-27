@@ -1,0 +1,196 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["global", "namespaces", "secretManagement", "controlPlane", "computePlane"],
+  "properties": {
+    "global": {
+      "type": "object",
+      "required": ["osmoImageLocation", "osmoImageTag"],
+      "properties": {
+        "osmoImageLocation": {"type": "string", "minLength": 1},
+        "osmoImageTag": {"type": "string", "minLength": 1}
+      }
+    },
+    "namespaces": {
+      "type": "object",
+      "required": ["controlPlane", "computePlane", "workflows"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "controlPlane": {"type": "string", "minLength": 1},
+        "computePlane": {"type": "string", "minLength": 1},
+        "workflows": {"type": "string", "minLength": 1},
+        "tests": {"type": "string", "minLength": 1},
+        "createTests": {"type": "boolean"}
+      }
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"type": "string", "minLength": 1},
+        "timeout": {"type": "string", "pattern": "^[0-9]+[smh]$"}
+      }
+    },
+    "secretManagement": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["existing", "external-secrets", "generated"]
+        },
+        "externalSecrets": {
+          "type": "object",
+          "properties": {
+            "refreshInterval": {"type": "string", "minLength": 1},
+            "secretStoreRef": {
+              "type": "object",
+              "required": ["name", "kind"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "kind": {
+                  "type": "string",
+                  "enum": ["SecretStore", "ClusterSecretStore"]
+                }
+              }
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "namespace", "targetSecretName", "data"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1},
+                  "namespace": {"type": "string", "minLength": 1},
+                  "targetSecretName": {"type": "string", "minLength": 1},
+                  "data": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": ["secretKey", "remoteRef"],
+                      "properties": {
+                        "secretKey": {"type": "string", "minLength": 1},
+                        "remoteRef": {
+                          "type": "object",
+                          "required": ["key"],
+                          "properties": {
+                            "key": {"type": "string", "minLength": 1},
+                            "property": {"type": "string", "minLength": 1}
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "controlPlane": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "services": {
+          "type": "object",
+          "properties": {
+            "bootstrapPrincipals": {
+              "type": "object",
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "principals": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "username",
+                      "tokenName",
+                      "roles",
+                      "secretName",
+                      "secretKey"
+                    ],
+                    "properties": {
+                      "username": {"type": "string", "minLength": 1},
+                      "tokenName": {"type": "string", "minLength": 1},
+                      "roles": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string", "minLength": 1}
+                      },
+                      "secretName": {"type": "string", "minLength": 1},
+                      "secretKey": {"type": "string", "minLength": 1},
+                      "expiresInDays": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "configs": {
+              "type": "object",
+              "properties": {
+                "backends": {
+                  "type": "object",
+                  "properties": {
+                    "default": {
+                      "type": "object",
+                      "properties": {
+                        "scheduler_settings": {
+                          "type": "object",
+                          "required": ["scheduler_type", "scheduler_name"],
+                          "properties": {
+                            "scheduler_type": {
+                              "type": "string",
+                              "enum": ["kubernetes", "kai"]
+                            },
+                            "scheduler_name": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "scheduler_timeout": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "computePlane": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "global": {
+          "type": "object",
+          "properties": {
+            "serviceUrl": {"type": "string"},
+            "scheduler": {
+              "type": "object",
+              "required": ["type", "name"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["kubernetes", "kai"]
+                },
+                "name": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

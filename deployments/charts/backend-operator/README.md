@@ -38,7 +38,7 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
 |-----------|-------------|---------|
 | `global.name` | Name override for deployment (optional) | `null` |
 | `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvidia/osmo` |
-| `global.osmoImageTag` | Tag of the OSMO images | `latest` |
+| `global.osmoImageTag` | Tag of the OSMO images | `6.3.0` |
 | `global.imagePullSecret` | Name of the image pull secret | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
 | `global.agentNamespace` | Namespace for agent deployment | `osmo` |

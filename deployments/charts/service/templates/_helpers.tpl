@@ -152,6 +152,18 @@ data:
 {{- end }}
 
 {{/*
+Merge global and component node selectors. Component keys win, avoiding
+duplicate YAML keys when a profile overrides global placement.
+*/}}
+{{- define "osmo.node-selector" -}}
+{{- $selector := mergeOverwrite (deepCopy (.global | default dict)) (.component | default dict) -}}
+{{- with $selector }}
+nodeSelector:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
 ConfigMap-mode mounts (shared by api-service, worker, agent, logger).
 All four services need the same configs ConfigMap and its referenced
 secrets so they can read the in-memory snapshot via ConfigMapWatcher
@@ -203,4 +215,3 @@ OSMO_CONFIGMAP_NAME deliberately references services.service.serviceName
 {{- end }}
 {{- end }}
 {{- end -}}
-

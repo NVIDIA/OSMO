@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.checks.enabled }}
+{{- $name := include "osmo-install.fullname" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-postflight
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade,test
+    "helm.sh/hook-weight": "10"
+    {{- include "osmo-install.hook-annotations" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 660
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: postflight
+        app.kubernetes.io/part-of: osmo
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $name }}-check
+      containers:
+        - name: osmo-check
+          image: {{ .Values.checks.image }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              {{- if eq .Values.secretManagement.mode "external-secrets" }}
+              echo "Waiting for External Secrets"
+              {{- range .Values.secretManagement.externalSecrets.items }}
+              kubectl wait --for=condition=Ready externalsecret/{{ .name }} \
+                --namespace {{ .namespace }} --timeout={{ $.Values.checks.timeout }}
+              kubectl get secret {{ .targetSecretName }} --namespace {{ .namespace }}
+              {{- end }}
+              {{- end }}
+              {{- if .Values.controlPlane.enabled }}
+              echo "Waiting for the OSMO control plane"
+              {{- range $deployment := list "osmo-service" "osmo-agent" "osmo-worker" "osmo-logger" "osmo-router" "osmo-delayed-job-monitor" }}
+              kubectl wait --for=condition=Available deployment/{{ $deployment }} \
+                --namespace {{ $.Values.namespaces.controlPlane }} \
+                --timeout={{ $.Values.checks.timeout }}
+              {{- end }}
+              {{- if .Values.controlPlane.services.ui.enabled }}
+              kubectl wait --for=condition=Available deployment/osmo-ui \
+                --namespace {{ .Values.namespaces.controlPlane }} \
+                --timeout={{ .Values.checks.timeout }}
+              {{- end }}
+              {{- if .Values.controlPlane.gateway.envoy.enabled }}
+              kubectl wait --for=condition=Available deployment/osmo-gateway-envoy \
+                --namespace {{ .Values.namespaces.controlPlane }} \
+                --timeout={{ .Values.checks.timeout }}
+              {{- end }}
+              kubectl get service osmo-gateway \
+                --namespace {{ .Values.namespaces.controlPlane }}
+              {{- end }}
+              {{- if .Values.computePlane.enabled }}
+              echo "Waiting for the OSMO compute plane"
+              kubectl wait --for=condition=Available \
+                deployment/{{ .Release.Name }}-{{ .Values.computePlane.services.backendListener.serviceName }} \
+                --namespace {{ .Values.namespaces.computePlane }} \
+                --timeout={{ .Values.checks.timeout }}
+              kubectl wait --for=condition=Available \
+                deployment/{{ .Release.Name }}-{{ .Values.computePlane.services.backendWorker.serviceName }} \
+                --namespace {{ .Values.namespaces.computePlane }} \
+                --timeout={{ .Values.checks.timeout }}
+              {{- end }}
+              echo "OSMO postflight checks passed"
+{{- end }}

@@ -1,0 +1,23 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+*/ -}}
+{{- if and (not .Values.controlPlane.enabled) (not .Values.computePlane.enabled) -}}
+{{- fail "at least one of controlPlane.enabled or computePlane.enabled must be true" -}}
+{{- end -}}
+{{- if and .Values.controlPlane.enabled (ne .Release.Namespace .Values.namespaces.controlPlane) -}}
+{{- fail "install the release into namespaces.controlPlane (use --namespace and --create-namespace)" -}}
+{{- end -}}
+{{- if and (eq .Values.secretManagement.mode "generated") (ne .Values.namespaces.controlPlane .Values.namespaces.computePlane) -}}
+{{- fail "generated secrets are development-only and require control and compute planes in one namespace" -}}
+{{- end -}}
+{{- if and (eq .Values.secretManagement.mode "external-secrets") (empty .Values.secretManagement.externalSecrets.items) -}}
+{{- fail "secretManagement.externalSecrets.items must not be empty in external-secrets mode" -}}
+{{- end -}}
+{{- if and .Values.controlPlane.enabled .Values.computePlane.enabled -}}
+{{- $controlScheduler := .Values.controlPlane.services.configs.backends.default.scheduler_settings.scheduler_type -}}
+{{- $computeScheduler := .Values.computePlane.global.scheduler.type -}}
+{{- if ne $controlScheduler $computeScheduler -}}
+{{- fail "controlPlane backend and computePlane scheduler types must match" -}}
+{{- end -}}
+{{- end -}}

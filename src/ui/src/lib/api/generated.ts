@@ -105,6 +105,7 @@ export type BackendSchedulerType = typeof BackendSchedulerType[keyof typeof Back
 
 export const BackendSchedulerType = {
   kai: 'kai',
+  kubernetes: 'kubernetes',
 } as const;
 
 /**

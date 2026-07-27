@@ -64,8 +64,7 @@ export default defineConfig({
             // Customize specific fields for realistic data
             '/.*hostname.*/': () => `node-${Math.random().toString(36).slice(2, 7)}.cluster.local`,
             '/.*description.*/': 'A test resource',
-            // Workaround: Orval bug with allOf enum refs generates invalid spread syntax.
-            // BackendSchedulerType = { kai: 'kai' } — use the only valid value directly.
+            // Prefer a stable scheduler value in generated mocks.
             '/scheduler_type/': 'kai',
           },
         },

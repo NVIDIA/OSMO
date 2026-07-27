@@ -1,0 +1,35 @@
+# Compute/backend side of a split-plane deployment. Set serviceUrl to the
+# externally reachable control-plane gateway before installation.
+secretManagement:
+  mode: external-secrets
+  externalSecrets:
+    refreshInterval: 1h
+    secretStoreRef:
+      name: nvault
+      kind: ClusterSecretStore
+    items:
+      - name: osmo-backend-token
+        namespace: osmo-agent
+        targetSecretName: osmo-backend-token
+        data:
+          - secretKey: backend-token
+            remoteRef:
+              key: osmo/deployments/example/control
+              property: backend-token
+
+namespaces:
+  controlPlane: osmo-system
+  computePlane: osmo-agent
+  workflows: osmo-workflows
+
+controlPlane:
+  enabled: false
+
+computePlane:
+  enabled: true
+  global:
+    serviceUrl: https://osmo.example.com
+    agentNamespace: osmo-agent
+    backendNamespace: osmo-workflows
+    accountTokenSecret: osmo-backend-token
+    accountTokenSecretKey: backend-token

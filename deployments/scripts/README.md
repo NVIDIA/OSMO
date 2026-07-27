@@ -18,6 +18,11 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO Deployment Scripts
 
+> **Deprecation notice:** these scripts are retained as migration references.
+> New installation behavior belongs in `deployments/charts/osmo`. The target
+> user path is a Helm install into an existing Kubernetes cluster; Terraform
+> provisioning and provider-specific bootstrap are outside that contract.
+
 End-to-end deployer for OSMO 6.3 across multiple Kubernetes flavors and storage backends. The single entry point is `deploy-osmo-minimal.sh`; everything else (Terraform, KAI install, GPU Operator, MinIO, storage credential wiring, smoke tests) is invoked as a phase.
 
 ## Quick Start

@@ -488,12 +488,12 @@ spec:
           {{- if .Values.services.postgres.password }}
           - name: OSMO_POSTGRES_PASSWORD
             value: {{ .Values.services.postgres.password }}
-          {{- else if .Values.services.configFile.enabled }}
+          {{- else if .Values.services.postgres.passwordSecretName }}
           - name: OSMO_POSTGRES_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: db-secret
-                key: db-password
+                name: {{ .Values.services.postgres.passwordSecretName }}
+                key: {{ .Values.services.postgres.passwordSecretKey }}
           {{- end }}
         {{- if or .Values.services.configs.enabled $gw.authz.extraVolumeMounts }}
         volumeMounts:

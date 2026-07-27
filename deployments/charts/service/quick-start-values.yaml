@@ -20,7 +20,7 @@
 
 global:
   osmoImageLocation: nvcr.io/nvidia/osmo
-  osmoImageTag: latest
+  osmoImageTag: "6.3.0"
   imagePullSecret: null
   hostname: quick-start.osmo
   nodeSelector:
@@ -89,8 +89,8 @@ services:
           access_key: test
           region: us-east-1
       backend_images:
-        init: nvcr.io/nvidia/osmo/init-container:latest
-        client: nvcr.io/nvidia/osmo/client:latest
+        init: nvcr.io/nvidia/osmo/init-container:6.3.0
+        client: nvcr.io/nvidia/osmo/client:6.3.0
       credential_config:
         disable_data_validation: ["s3"]
     podTemplates:

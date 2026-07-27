@@ -55,13 +55,7 @@ spec:
             app: {{ $.Values.services.router.serviceName }}
       {{- end }}
       {{- end }}
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector }}
-        {{ $k }}: {{ $v }}
-        {{- end }}
-        {{- range $k, $v := .Values.services.router.nodeSelector }}
-        {{ $k }}: {{ $v }}
-        {{- end }}
+      {{- include "osmo.node-selector" (dict "global" .Values.global.nodeSelector "component" .Values.services.router.nodeSelector) | nindent 6 }}
       {{- with .Values.services.router.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -123,12 +117,12 @@ spec:
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password }}
-        {{- else if .Values.services.configFile.enabled }}
+        {{- else if .Values.services.postgres.passwordSecretName }}
         - name: OSMO_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: db-secret
-              key: db-password
+              name: {{ .Values.services.postgres.passwordSecretName }}
+              key: {{ .Values.services.postgres.passwordSecretKey }}
         {{- end }}
         {{- with .Values.services.router.extraEnvs }}
         {{- range . }}
@@ -194,12 +188,12 @@ spec:
       {{- end }}
       volumes:
         {{- if .Values.services.configFile.enabled}}
-        - configMap:
+        - secret:
             defaultMode: 420
             items:
-            - key: mek.yaml
+            - key: {{ .Values.services.configFile.secretKey }}
               path: mek.yaml
-            name: mek-config
+            secretName: {{ .Values.services.configFile.secretName }}
           name: mek-volume
         {{- end}}
         {{- with .Values.services.router.extraVolumes }}

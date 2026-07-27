@@ -50,13 +50,7 @@ spec:
           matchLabels:
             app: {{ $.Values.services.ui.serviceName }}
       {{- end }}
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
-        {{- range $k, $v := .Values.services.ui.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
+      {{- include "osmo.node-selector" (dict "global" .Values.global.nodeSelector "component" .Values.services.ui.nodeSelector) | nindent 6 }}
       tolerations:
       {{ toYaml .Values.services.ui.tolerations | nindent 8 }}
       {{- if .Values.global.imagePullSecret }}

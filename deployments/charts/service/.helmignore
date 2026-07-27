@@ -15,7 +15,9 @@
 *.bak
 *.tmp
 *.orig
+*.rej
 *~
+/tests/
 # Various IDEs
 .project
 .idea/

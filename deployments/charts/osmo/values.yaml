@@ -1,0 +1,130 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+global:
+  osmoImageLocation: nvcr.io/nvidia/osmo
+  osmoImageTag: "6.3.0"
+  imagePullSecret: null
+  hostname: ""
+  nodeSelector: {}
+
+namespaces:
+  create: true
+  controlPlane: osmo-system
+  computePlane: osmo-system
+  workflows: osmo-workflows
+  tests: osmo-tests
+  createTests: false
+
+checks:
+  enabled: true
+  image: docker.io/bitnami/kubectl:1.32.2
+  timeout: 10m
+
+secretManagement:
+  # existing: consume pre-created Kubernetes Secrets.
+  # external-secrets: reconcile Secrets from a SecretStore/ClusterSecretStore.
+  # generated: development-only credentials preserved with lookup on upgrade.
+  mode: existing
+  externalSecrets:
+    refreshInterval: 1h
+    secretStoreRef:
+      name: nvault
+      kind: ClusterSecretStore
+    items: []
+    # - name: osmo-control-secrets
+    #   namespace: osmo-system
+    #   targetSecretName: osmo-control-secrets
+    #   data:
+    #   - secretKey: db-password
+    #     remoteRef:
+    #       key: osmo/deployments/example
+    #       property: db-password
+  generated:
+    controlSecretName: osmo-generated
+    computeSecretName: osmo-generated
+
+controlPlane:
+  enabled: true
+  services:
+    ui:
+      enabled: true
+    configFile:
+      enabled: true
+      secretName: osmo-control-secrets
+      secretKey: mek.yaml
+    migration:
+      # Fresh-install and upgrade migration orchestration remains a production
+      # hardening gate. Enable only with a pre-existing reachable database.
+      enabled: false
+    postgres:
+      enabled: true
+      enableNodePort: false
+      passwordSecretName: osmo-control-secrets
+      passwordSecretKey: db-password
+    redis:
+      enabled: true
+      enableNodePort: false
+      tlsEnabled: false
+      auth:
+        enabled: true
+        passwordSecretName: osmo-control-secrets
+        passwordSecretKey: redis-password
+    defaultAdmin:
+      enabled: false
+    bootstrapPrincipals:
+      enabled: true
+      principals:
+        - username: osmo-backend
+          tokenName: backend-token
+          roles: ["osmo-backend"]
+          secretName: osmo-control-secrets
+          secretKey: backend-token
+          expiresInDays: 3650
+          description: Backend operator identity managed by Helm
+    configs:
+      enabled: true
+      workflow:
+        backend_images:
+          init: nvcr.io/nvidia/osmo/init-container:6.3.0
+          client: nvcr.io/nvidia/osmo/client:6.3.0
+      backends:
+        default:
+          description: Portable Kubernetes backend
+          scheduler_settings:
+            scheduler_type: kubernetes
+            scheduler_name: default-scheduler
+            scheduler_timeout: 30
+    localstackS3:
+      enabled: false
+  gateway:
+    envoy:
+      enabled: true
+    oauth2Proxy:
+      enabled: false
+    authz:
+      enabled: false
+    rateLimit:
+      enabled: false
+
+computePlane:
+  enabled: true
+  services:
+    backendListener:
+      serviceName: osmo-backend-listener
+    backendWorker:
+      serviceName: osmo-backend-worker
+  global:
+    serviceUrl: http://osmo-gateway.osmo-system.svc.cluster.local
+    loginMethod: token
+    accountTokenSecret: osmo-control-secrets
+    accountTokenSecretKey: backend-token
+    agentNamespace: osmo-system
+    backendName: default
+    backendNamespace: osmo-workflows
+    backendTestNamespace: null
+    scheduler:
+      type: kubernetes
+      name: default-scheduler
+    priorityClasses:
+      enabled: false

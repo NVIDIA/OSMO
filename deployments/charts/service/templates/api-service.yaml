@@ -32,6 +32,9 @@ spec:
         {{- end }}
       annotations:
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
+        {{- if .Values.services.bootstrapPrincipals.enabled }}
+        checksum/bootstrap-principals: {{ include (print $.Template.BasePath "/bootstrap-principals.yaml") . | sha256sum }}
+        {{- end }}
     spec:
       {{- with .Values.services.service.hostAliases }}
       hostAliases:
@@ -49,13 +52,7 @@ spec:
           matchLabels:
             app: {{ $.Values.services.service.serviceName }}
       {{- end }}
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
-        {{- range $k, $v := .Values.services.service.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
+      {{- include "osmo.node-selector" (dict "global" .Values.global.nodeSelector "component" .Values.services.service.nodeSelector) | nindent 6 }}
       tolerations:
       {{ toYaml .Values.services.service.tolerations | nindent 8 }}
       {{- if .Values.global.imagePullSecret }}
@@ -144,6 +141,10 @@ spec:
         - --default_admin_username
         - {{ .Values.services.defaultAdmin.username | quote }}
         {{- end }}
+        {{- if .Values.services.bootstrapPrincipals.enabled }}
+        - --bootstrap_principals_file
+        - {{ .Values.services.bootstrapPrincipals.configPath | quote }}
+        {{- end }}
         {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
@@ -161,17 +162,19 @@ spec:
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password }}
-        {{- else if .Values.services.configFile.enabled }}
+        {{- else if .Values.services.postgres.passwordSecretName }}
         - name: OSMO_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: db-secret
-              key: db-password
+              name: {{ .Values.services.postgres.passwordSecretName }}
+              key: {{ .Values.services.postgres.passwordSecretKey }}
+        {{- end }}
+        {{- if .Values.services.redis.auth.enabled }}
         - name: OSMO_REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: redis-secret
-              key: redis-password
+              name: {{ .Values.services.redis.auth.passwordSecretName }}
+              key: {{ .Values.services.redis.auth.passwordSecretKey }}
         {{- end }}
         {{- if .Values.services.defaultAdmin.enabled }}
         - name: OSMO_DEFAULT_ADMIN_PASSWORD
@@ -190,13 +193,24 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) }}
+        {{- if or .Values.services.configFile.enabled .Values.services.bootstrapPrincipals.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
         - mountPath: {{ .Values.services.configFile.path }}
           name: mek-volume
           subPath: mek.yaml
+        {{- end }}
+        {{- if .Values.services.bootstrapPrincipals.enabled }}
+        - mountPath: {{ .Values.services.bootstrapPrincipals.configPath }}
+          name: bootstrap-principals
+          subPath: principals.yaml
+          readOnly: true
+        {{- range $index, $principal := .Values.services.bootstrapPrincipals.principals }}
+        - mountPath: {{ printf "%s/%s" $.Values.services.bootstrapPrincipals.tokenMountRoot $principal.username }}
+          name: bootstrap-token-{{ $index }}
+          readOnly: true
+        {{- end }}
         {{- end }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- include "osmo.extra-volume-mounts" .Values.services.service | nindent 8 }}
@@ -234,14 +248,27 @@ spec:
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
         {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         {{- if .Values.services.configFile.enabled}}
-        - configMap:
+        - secret:
             defaultMode: 420
             items:
-            - key: mek.yaml
+            - key: {{ .Values.services.configFile.secretKey }}
               path: mek.yaml
-            name: mek-config
+            secretName: {{ .Values.services.configFile.secretName }}
           name: mek-volume
         {{- end}}
+        {{- if .Values.services.bootstrapPrincipals.enabled }}
+        - configMap:
+            name: {{ .Values.services.service.serviceName }}-bootstrap-principals
+          name: bootstrap-principals
+        {{- range $index, $principal := .Values.services.bootstrapPrincipals.principals }}
+        - name: bootstrap-token-{{ $index }}
+          secret:
+            items:
+            - key: {{ $principal.secretKey }}
+              path: token
+            secretName: {{ $principal.secretName }}
+        {{- end }}
+        {{- end }}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}
 ---
 

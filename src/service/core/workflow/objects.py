@@ -37,6 +37,39 @@ from src.utils import connectors, ssl_config, static_config, yaml as util_yaml
 from src.utils.metrics import metrics
 
 
+class BootstrapPrincipalSpec(pydantic.BaseModel):
+    """The desired state of a service identity and its access token."""
+    username: str
+    token_name: str = 'bootstrap-token'
+    roles: List[str] = pydantic.Field(default_factory=lambda: ['osmo-backend'])
+    description: str = 'Bootstrap token managed by the OSMO deployment'
+    expires_in_days: int = pydantic.Field(default=3650, gt=0)
+
+    @pydantic.field_validator('roles')
+    @classmethod
+    def roles_must_not_be_empty(cls, value: List[str]) -> List[str]:
+        if not value:
+            raise ValueError('roles must contain at least one role')
+        return value
+
+
+class BootstrapPrincipal(BootstrapPrincipalSpec):
+    """A service identity reconciled from a Kubernetes-mounted token."""
+    token_file: str
+
+    @pydantic.field_validator('token_file')
+    @classmethod
+    def token_file_must_be_absolute(cls, value: str) -> str:
+        if not value.startswith('/'):
+            raise ValueError('token_file must be an absolute path')
+        return value
+
+
+class BootstrapPrincipalsConfig(pydantic.BaseModel):
+    """The non-secret bootstrap principal configuration mounted by Helm."""
+    principals: List[BootstrapPrincipal] = pydantic.Field(default_factory=list)
+
+
 class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                             src.lib.utils.logging.LoggingConfig,
                             static_config.StaticConfig,
@@ -106,6 +139,12 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'default_admin_password',
             'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
         })
+    bootstrap_principals_file: str | None = pydantic.Field(
+        default=None,
+        description='Path to bootstrap principal metadata. Token values are read from '
+                    'the Kubernetes Secret files referenced by each principal.',
+        json_schema_extra={'command_line': 'bootstrap_principals_file'})
+
     @pydantic.model_validator(mode='before')
     @classmethod
     def validate_default_admin(cls, values):

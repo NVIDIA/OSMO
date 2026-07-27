@@ -451,16 +451,28 @@ create_secrets() {
 
     # MEK (Master Encryption Key) — DO NOT regenerate on re-run. Any data
     # encrypted with the previous MEK becomes unreadable if we replace it.
-    # Generate only when the ConfigMap is missing, OR when RESET_MEK=true is
+    # Generate only when the Secret is missing, OR when RESET_MEK=true is
     # set explicitly (use only on a clean DB — replacing the MEK against an
     # existing DB silently breaks decryption of every encrypted field).
     local mek_exists="false"
-    if $RUN_KUBECTL "get configmap mek-config -n $OSMO_NAMESPACE" &>/dev/null; then
+    if $RUN_KUBECTL "get secret osmo-mek -n $OSMO_NAMESPACE" &>/dev/null; then
+        mek_exists="true"
+    elif $RUN_KUBECTL "get configmap mek-config -n $OSMO_NAMESPACE" &>/dev/null; then
+        log_info "Migrating legacy mek-config ConfigMap to osmo-mek Secret"
+        local legacy_mek
+        legacy_mek=$($RUN_KUBECTL \
+            "get configmap mek-config -n $OSMO_NAMESPACE -o go-template='{{index .data \"mek.yaml\"}}'")
+        local legacy_mek_secret_yaml
+        legacy_mek_secret_yaml=$(kubectl create secret generic osmo-mek \
+            --from-literal=mek.yaml="$legacy_mek" \
+            --namespace "$OSMO_NAMESPACE" \
+            --dry-run=client -o yaml)
+        $RUN_KUBECTL_APPLY_STDIN "$legacy_mek_secret_yaml"
         mek_exists="true"
     fi
 
     if [[ "$mek_exists" == "true" && "$RESET_MEK" != "true" ]]; then
-        log_info "MEK ConfigMap already present in $OSMO_NAMESPACE — preserving (re-using existing key)"
+        log_info "MEK Secret already present in $OSMO_NAMESPACE — preserving (re-using existing key)"
         log_info "  Pass RESET_MEK=true (or --reset-mek) to force a fresh key — DESTRUCTIVE if DB has encrypted data"
     else
         if [[ "$RESET_MEK" == "true" ]]; then
@@ -474,9 +486,9 @@ create_secrets() {
                 log_error "Retry once Postgres connectivity is healthy, or pass RESET_MEK=true to acknowledge data loss and proceed."
                 exit 1
             elif [[ -n "$DB_TABLE_COUNT" && "$DB_TABLE_COUNT" -gt 0 ]]; then
-                log_error "MEK ConfigMap 'mek-config' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has $DB_TABLE_COUNT user table(s)."
+                log_error "MEK Secret 'osmo-mek' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has $DB_TABLE_COUNT user table(s)."
                 log_error "Generating a new MEK now would orphan every encrypted column (service_auth.private_key, workflow secrets, ...). To resolve:"
-                log_error "  - Restore the previous 'mek-config' ConfigMap from backup, OR"
+                log_error "  - Restore the previous 'osmo-mek' Secret from backup, OR"
                 log_error "  - Wipe the database before re-running:"
                 log_error "      psql -h $POSTGRES_HOST -U ${POSTGRES_USERNAME} -d postgres \\"
                 log_error "        -c 'DROP DATABASE IF EXISTS ${POSTGRES_DB_NAME:-osmo}; CREATE DATABASE ${POSTGRES_DB_NAME:-osmo};'"
@@ -490,11 +502,12 @@ create_secrets() {
         local encoded_jwk=$(echo -n "$jwk_json" | base64 | tr -d '\n')
 
         local mek_manifest="apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
-  name: mek-config
+  name: osmo-mek
   namespace: $OSMO_NAMESPACE
-data:
+type: Opaque
+stringData:
   mek.yaml: |
     currentMek: key1
     meks:

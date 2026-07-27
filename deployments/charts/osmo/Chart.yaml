@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v2
+name: osmo
+description: Portable, Kubernetes-native installation of the OSMO control and compute planes
+type: application
+version: 0.1.0
+appVersion: "6.3.0"
+kubeVersion: ">=1.29.0-0"
+dependencies:
+  - name: service
+    alias: controlPlane
+    version: 1.4.0
+    repository: file://../service
+    condition: controlPlane.enabled
+  - name: backend-operator
+    alias: computePlane
+    version: 1.4.0
+    repository: file://../backend-operator
+    condition: computePlane.enabled

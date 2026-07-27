@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.namespaces.create }}
+{{- $releaseNamespace := .Release.Namespace }}
+{{- $namespaces := list .Values.namespaces.controlPlane .Values.namespaces.computePlane .Values.namespaces.workflows }}
+{{- if .Values.namespaces.createTests }}
+{{- $namespaces = append $namespaces .Values.namespaces.tests }}
+{{- end }}
+{{- range $namespace := uniq $namespaces }}
+{{- if ne $namespace $releaseNamespace }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    app.kubernetes.io/part-of: osmo
+{{- end }}
+{{- end }}
+{{- end }}

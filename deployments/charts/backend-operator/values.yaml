@@ -27,7 +27,15 @@ global:
 
   ## Docker image tag for Osmo backend operators
   ##
-  osmoImageTag: latest
+  osmoImageTag: "6.3.0"
+
+  ## Scheduler contract advertised by this backend.
+  ## "kubernetes" uses only core Pod resources and works on any conformant
+  ## cluster. "kai" enables KAI-specific PodGroups, queues, and topology.
+  ##
+  scheduler:
+    type: kubernetes
+    name: default-scheduler
 
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##

@@ -33,12 +33,14 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get"]
+{{- if eq .Values.global.scheduler.type "kai" }}
 - apiGroups: ["scheduling.run.ai"]
   resources: ["queues"]
   verbs: ["list", "delete", "create", "update", "get"]
 - apiGroups: ["kai.scheduler"]
   resources: ["topologies"]
   verbs: ["list", "delete", "create", "update", "get"]
+{{- end }}
 ---
 # ClusterRoleBinding for Backend Worker
 kind: ClusterRoleBinding
@@ -68,9 +70,11 @@ rules:
 - apiGroups: [""]
   resources: ["pods/log"]
   verbs: ["get"]
+{{- if eq .Values.global.scheduler.type "kai" }}
 - apiGroups: ["scheduling.run.ai"]
   resources: ["podgroups"]
   verbs: ["list", "delete", "create"]
+{{- end }}
 {{- with (((.Values.services).backendWorker).extraRBACRules) }}
 {{ toYaml . }}
 {{- end }}

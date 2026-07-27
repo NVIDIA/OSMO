@@ -53,20 +53,21 @@ spec:
         app: postgres
     spec:
       tolerations: {{ toYaml .Values.services.postgres.tolerations | nindent 8 }}
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
-        {{- range $k, $v := .Values.services.postgres.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
+      {{- include "osmo.node-selector" (dict "global" .Values.global.nodeSelector "component" .Values.services.postgres.nodeSelector) | nindent 6 }}
       containers:
       - name: postgres
         image: {{ .Values.services.postgres.image }}
         imagePullPolicy: {{ .Values.services.postgres.imagePullPolicy }}
         env:
         - name: POSTGRES_PASSWORD
-          value: {{ .Values.services.postgres.password }}
+          {{- if .Values.services.postgres.password }}
+          value: {{ .Values.services.postgres.password | quote }}
+          {{- else }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.services.postgres.passwordSecretName }}
+              key: {{ .Values.services.postgres.passwordSecretKey }}
+          {{- end }}
         - name: POSTGRES_DB
           value: {{ .Values.services.postgres.db}}
         - name: PGDATA

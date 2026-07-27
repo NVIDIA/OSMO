@@ -115,13 +115,7 @@ spec:
       labels:
         app: localstack-s3
     spec:
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
-        {{- range $k, $v := $s3.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
+      {{- include "osmo.node-selector" (dict "global" .Values.global.nodeSelector "component" $s3.nodeSelector) | nindent 6 }}
       containers:
       - name: localstack
         image: {{ $s3.image }}

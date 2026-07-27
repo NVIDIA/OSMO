@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.checks.enabled }}
+{{- $name := include "osmo-install.fullname" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-preflight
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    {{- include "osmo-install.hook-annotations" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 660
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: preflight
+        app.kubernetes.io/part-of: osmo
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $name }}-check
+      containers:
+        - name: osmo-check
+          image: {{ .Values.checks.image }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              echo "Checking Kubernetes API access"
+              kubectl version
+              kubectl auth can-i get deployments --all-namespaces | grep -q yes
+              {{- if and .Values.controlPlane.enabled .Values.controlPlane.services.postgres.enabled }}
+              echo "Checking persistent storage"
+              {{- if .Values.controlPlane.services.postgres.storageClassName }}
+              kubectl get storageclass {{ .Values.controlPlane.services.postgres.storageClassName | quote }}
+              {{- else }}
+              kubectl get storageclass -o name | grep -q .
+              {{- end }}
+              {{- end }}
+              {{- if or (and .Values.computePlane.enabled (eq .Values.computePlane.global.scheduler.type "kai")) (and .Values.controlPlane.enabled (eq .Values.controlPlane.services.configs.backends.default.scheduler_settings.scheduler_type "kai")) }}
+              echo "Checking KAI scheduler APIs"
+              kubectl get crd podgroups.scheduling.run.ai
+              kubectl get crd queues.scheduling.run.ai
+              {{- end }}
+              {{- if eq .Values.secretManagement.mode "external-secrets" }}
+              echo "Checking External Secrets API"
+              kubectl get crd externalsecrets.external-secrets.io
+              {{- if eq .Values.secretManagement.externalSecrets.secretStoreRef.kind "ClusterSecretStore" }}
+              kubectl get clustersecretstore \
+                {{ .Values.secretManagement.externalSecrets.secretStoreRef.name }}
+              {{- else }}
+              kubectl get secretstore \
+                {{ .Values.secretManagement.externalSecrets.secretStoreRef.name }} \
+                --namespace {{ .Release.Namespace }}
+              {{- end }}
+              {{- end }}
+              {{- if eq .Values.secretManagement.mode "existing" }}
+              echo "Checking existing Secrets"
+              {{- if .Values.controlPlane.enabled }}
+              kubectl get secret {{ .Values.controlPlane.services.configFile.secretName }} \
+                --namespace {{ .Values.namespaces.controlPlane }}
+              kubectl get secret {{ .Values.controlPlane.services.postgres.passwordSecretName }} \
+                --namespace {{ .Values.namespaces.controlPlane }}
+              kubectl get secret {{ .Values.controlPlane.services.redis.auth.passwordSecretName }} \
+                --namespace {{ .Values.namespaces.controlPlane }}
+              {{- range .Values.controlPlane.services.bootstrapPrincipals.principals }}
+              kubectl get secret {{ .secretName }} \
+                --namespace {{ $.Values.namespaces.controlPlane }}
+              {{- end }}
+              {{- end }}
+              {{- if .Values.computePlane.enabled }}
+              kubectl get secret {{ .Values.computePlane.global.accountTokenSecret }} \
+                --namespace {{ .Values.namespaces.computePlane }}
+              {{- end }}
+              {{- end }}
+              echo "OSMO preflight checks passed"
+{{- end }}

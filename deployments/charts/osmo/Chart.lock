@@ -1,0 +1,9 @@
+dependencies:
+- name: service
+  repository: file://../service
+  version: 1.4.0
+- name: backend-operator
+  repository: file://../backend-operator
+  version: 1.4.0
+digest: sha256:56957e12a6238ef56fb1074a1ecad746e728fcfecc717ec8a57a5e14dfebd569
+generated: "2026-07-26T22:22:30.516312-07:00"

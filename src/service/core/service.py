@@ -29,7 +29,9 @@ from urllib.parse import urlparse
 import fastapi
 import fastapi.middleware.cors
 import fastapi.responses
+import pydantic
 import uvicorn  # type: ignore
+import yaml
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
 
 from src.lib.utils import common, login, osmo_errors, version
@@ -369,81 +371,144 @@ def set_client_install_url(postgres: connectors.PostgresConnector,
         logging.info('Updated client_install_url to: %s', config.client_install_url)
 
 
-def setup_default_admin(postgres: connectors.PostgresConnector,
-                        config: objects.WorkflowServiceConfig):
-    """
-    Set up the default admin user if configured.
-
-    Creates a user with the osmo-admin role and an access_token with the
-    configured password. The access_token is stored hashed like other access_token keys.
-
-    This is idempotent - if the user already exists, it will update the access_token.
-    """
-    if not config.default_admin_username or not config.default_admin_password:
-        return
-
-    admin_username = config.default_admin_username
-    admin_password = config.default_admin_password
-    token_name = 'default-admin-token'
-
-    if len(admin_password) != task_lib.REFRESH_TOKEN_STR_LENGTH:
+def setup_bootstrap_principal(postgres: connectors.PostgresConnector,
+                              principal: objects.BootstrapPrincipalSpec,
+                              access_token: str):
+    """Reconcile one bootstrap principal and its access token."""
+    if len(access_token) != task_lib.REFRESH_TOKEN_STR_LENGTH:
         raise osmo_errors.OSMOUserError(
-            f'Default admin password must be {task_lib.REFRESH_TOKEN_STR_LENGTH} characters long')
+            f'Bootstrap token for {principal.username} must be '
+            f'{task_lib.REFRESH_TOKEN_STR_LENGTH} characters long')
 
-    logging.info('Setting up default admin user: %s', admin_username)
+    logging.info('Reconciling bootstrap principal: %s', principal.username)
 
-    # Create or update the user
-    connectors.upsert_user(postgres, admin_username)
+    connectors.upsert_user(postgres, principal.username)
 
-    # Assign the osmo-admin role if not already assigned
     now = common.current_time()
     assign_role_cmd = '''
         INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (user_id, role_name) DO NOTHING;
     '''
-    postgres.execute_commit_command(
-        assign_role_cmd, (admin_username, 'osmo-admin', 'System', now))
+    for role in principal.roles:
+        postgres.execute_commit_command(
+            assign_role_cmd, (principal.username, role, 'System', now))
 
-    # Check if token already exists and compare hashed values
     check_token_cmd = '''
-        SELECT access_token FROM access_token
-        WHERE user_name = %s AND token_name = %s;
+        SELECT
+            at.access_token,
+            COALESCE(
+                ARRAY_AGG(ur.role_name ORDER BY ur.role_name)
+                FILTER (WHERE ur.role_name IS NOT NULL),
+                ARRAY[]::text[]
+            ) AS roles
+        FROM access_token at
+        LEFT JOIN access_token_roles atr
+            ON at.user_name = atr.user_name AND at.token_name = atr.token_name
+        LEFT JOIN user_roles ur ON atr.user_role_id = ur.id
+        WHERE at.user_name = %s AND at.token_name = %s
+        GROUP BY at.access_token;
     '''
     existing_token = postgres.execute_fetch_command(
-        check_token_cmd, (admin_username, token_name), True)
+        check_token_cmd, (principal.username, principal.token_name), True)
 
-    new_hashed_token = auth.hash_access_token(admin_password)
+    new_hashed_token = auth.hash_access_token(access_token)
 
     if existing_token:
-        # Compare the hashed values - only update if different
         existing_hashed_token = bytes(existing_token[0]['access_token'])
-        if existing_hashed_token == new_hashed_token:
+        existing_roles = set(existing_token[0]['roles'])
+        if existing_hashed_token == new_hashed_token and existing_roles == set(principal.roles):
             logging.info(
-                'Default admin user %s already configured with matching access_token',
-                admin_username)
+                'Bootstrap principal %s already matches the desired state',
+                principal.username)
             return
 
-        # Password has changed, delete the old token
-        logging.info('Default admin access_token password changed, updating token')
-        auth_objects.AccessToken.delete_from_db(postgres, token_name, admin_username)
+        logging.info('Updating bootstrap token for principal %s', principal.username)
+        delete_token_cmd = '''
+            DELETE FROM access_token
+            WHERE token_name = %s AND user_name = %s;
+        '''
+        postgres.execute_commit_command(
+            delete_token_cmd, (principal.token_name, principal.username))
 
-    # Create the access_token with far future expiration (10 years)
-    # Use 10 years from now as the expiration date
-    expires_at = (datetime.datetime.now() + datetime.timedelta(days=3650)).strftime('%Y-%m-%d')
+    expires_at = (
+        datetime.datetime.now() +
+        datetime.timedelta(days=principal.expires_in_days)
+    ).strftime('%Y-%m-%d')
 
-    auth_objects.AccessToken.insert_into_db(
-        database=postgres,
-        user_name=admin_username,
-        token_name=token_name,
-        access_token=admin_password,  # This gets hashed inside insert_into_db
-        expires_at=expires_at,
-        description='Default admin access_token created during service initialization',
-        roles=['osmo-admin'],
-        assigned_by='System'
-    )
+    try:
+        auth_objects.AccessToken.insert_into_db(
+            database=postgres,
+            user_name=principal.username,
+            token_name=principal.token_name,
+            access_token=access_token,
+            expires_at=expires_at,
+            description=principal.description,
+            roles=principal.roles,
+            assigned_by='System'
+        )
+    except osmo_errors.OSMOUserError as error:
+        # Multiple API replicas can reconcile the same principal concurrently.
+        # A unique-key loser is successful only if the winner wrote the desired state.
+        if 'already exists' not in str(error).lower():
+            raise
+        concurrent_token = postgres.execute_fetch_command(
+            check_token_cmd, (principal.username, principal.token_name), True)
+        if not concurrent_token:
+            raise
+        concurrent_hashed_token = bytes(concurrent_token[0]['access_token'])
+        concurrent_roles = set(concurrent_token[0]['roles'])
+        if (concurrent_hashed_token != new_hashed_token or
+                concurrent_roles != set(principal.roles)):
+            raise
+        logging.info(
+            'Bootstrap principal %s was reconciled by another service replica',
+            principal.username)
+        return
 
-    logging.info('Default admin user %s configured successfully with access_token', admin_username)
+    logging.info('Bootstrap principal %s reconciled successfully', principal.username)
+
+
+def setup_default_admin(postgres: connectors.PostgresConnector,
+                        config: objects.WorkflowServiceConfig):
+    """Set up the backward-compatible default admin user if configured."""
+    if not config.default_admin_username or not config.default_admin_password:
+        return
+
+    setup_bootstrap_principal(
+        postgres,
+        objects.BootstrapPrincipalSpec(
+            username=config.default_admin_username,
+            token_name='default-admin-token',
+            roles=['osmo-admin'],
+            description='Default admin access_token created during service initialization',
+        ),
+        config.default_admin_password)
+
+
+def setup_bootstrap_principals(postgres: connectors.PostgresConnector,
+                               config: objects.WorkflowServiceConfig):
+    """Load bootstrap principal metadata and tokens from mounted Kubernetes resources."""
+    if not config.bootstrap_principals_file:
+        return
+
+    config_path = Path(config.bootstrap_principals_file)
+    try:
+        raw_config = yaml.safe_load(config_path.read_text(encoding='utf-8')) or {}
+        principals_config = objects.BootstrapPrincipalsConfig.model_validate(raw_config)
+    except (OSError, pydantic.ValidationError, yaml.YAMLError) as error:
+        raise osmo_errors.OSMOUserError(
+            f'Unable to load bootstrap principals from {config_path}: {error}') from error
+
+    for principal in principals_config.principals:
+        token_path = Path(principal.token_file)
+        try:
+            access_token = token_path.read_text(encoding='utf-8').strip()
+        except OSError as error:
+            raise osmo_errors.OSMOUserError(
+                f'Unable to read bootstrap token for {principal.username} '
+                f'from {token_path}: {error}') from error
+        setup_bootstrap_principal(postgres, principal, access_token)
 
 
 def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceConfig):
@@ -488,6 +553,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
         set_default_service_url(postgres)
 
     setup_default_admin(postgres, config)
+    setup_bootstrap_principals(postgres, config)
 
     # Store on app state to prevent GC from killing the watcher thread.
     target_app.state.config_watcher = configmap_loader.start_config_watcher(

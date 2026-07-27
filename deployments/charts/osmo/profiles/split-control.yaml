@@ -1,0 +1,45 @@
+# Control/hub side of a split-plane deployment using External Secrets with an
+# NVault-backed SecretStore or ClusterSecretStore.
+secretManagement:
+  mode: external-secrets
+  externalSecrets:
+    refreshInterval: 1h
+    secretStoreRef:
+      name: nvault
+      kind: ClusterSecretStore
+    items:
+      - name: osmo-control-secrets
+        namespace: osmo-system
+        targetSecretName: osmo-control-secrets
+        data:
+          - secretKey: db-password
+            remoteRef:
+              key: osmo/deployments/example/control
+              property: db-password
+          - secretKey: redis-password
+            remoteRef:
+              key: osmo/deployments/example/control
+              property: redis-password
+          - secretKey: backend-token
+            remoteRef:
+              key: osmo/deployments/example/control
+              property: backend-token
+          - secretKey: mek.yaml
+            remoteRef:
+              key: osmo/deployments/example/control
+              property: mek.yaml
+
+namespaces:
+  controlPlane: osmo-system
+  computePlane: osmo-system
+  workflows: osmo-workflows
+
+controlPlane:
+  enabled: true
+  gateway:
+    envoy:
+      service:
+        type: LoadBalancer
+
+computePlane:
+  enabled: false

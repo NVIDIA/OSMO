@@ -70,6 +70,18 @@ osmo_py_test(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_test(
+    name = "test_bootstrap_principals",
+    srcs = ["test_bootstrap_principals.py"],
+    deps = [
+        "//src/service/core:service_lib",
+        "//src/service/core/workflow",
+        "//src/utils:auth",
+        "//src/utils/job",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 osmo_py_library(
     name = "fixture",
     srcs = ["fixture.py"],

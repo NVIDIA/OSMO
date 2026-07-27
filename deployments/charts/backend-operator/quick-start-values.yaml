@@ -19,7 +19,7 @@
 
 global:
   osmoImageLocation: nvcr.io/nvidia/osmo
-  osmoImageTag: latest
+  osmoImageTag: "6.3.0"
   imagePullSecret: null
   serviceUrl: http://quick-start.osmo.svc.cluster.local
   agentNamespace: osmo

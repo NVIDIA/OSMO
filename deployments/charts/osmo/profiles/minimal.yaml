@@ -1,0 +1,38 @@
+# Small production-shaped deployment. All credentials are existing Kubernetes
+# Secrets; they may be created directly or reconciled by another controller.
+secretManagement:
+  mode: existing
+
+namespaces:
+  controlPlane: osmo-system
+  computePlane: osmo-system
+  workflows: osmo-workflows
+
+controlPlane:
+  services:
+    configFile:
+      secretName: osmo-control-secrets
+    postgres:
+      passwordSecretName: osmo-control-secrets
+      storageClassName: ""
+    redis:
+      auth:
+        passwordSecretName: osmo-control-secrets
+      storageClassName: ""
+    bootstrapPrincipals:
+      principals:
+        - username: osmo-backend
+          tokenName: backend-token
+          roles: ["osmo-backend"]
+          secretName: osmo-control-secrets
+          secretKey: backend-token
+          expiresInDays: 3650
+          description: Backend operator identity managed by Helm
+  gateway:
+    envoy:
+      service:
+        type: ClusterIP
+
+computePlane:
+  global:
+    accountTokenSecret: osmo-control-secrets

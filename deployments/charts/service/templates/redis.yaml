@@ -52,13 +52,7 @@ spec:
         app: redis
     spec:
       tolerations: {{ toYaml .Values.services.redis.tolerations | nindent 8 }}
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
-        {{- range $k, $v := .Values.services.redis.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
+      {{- include "osmo.node-selector" (dict "global" .Values.global.nodeSelector "component" .Values.services.redis.nodeSelector) | nindent 6 }}
       containers:
       - name: redis
         image: {{ .Values.services.redis.image }}
@@ -69,6 +63,16 @@ spec:
         - "always"
         - "--loglevel"
         - "debug"
+        {{- if .Values.services.redis.auth.enabled }}
+        - "--requirepass"
+        - "$(REDIS_PASSWORD)"
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.services.redis.auth.passwordSecretName }}
+              key: {{ .Values.services.redis.auth.passwordSecretKey }}
+        {{- end }}
         imagePullPolicy: {{ .Values.services.redis.imagePullPolicy }}
         ports:
         - name: redis

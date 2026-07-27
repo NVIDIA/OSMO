@@ -8,6 +8,7 @@ MODULE.bazel.lock
 # Ignore helm chart lock files and downloaded dependencies
 *.tgz
 **/Chart.lock
+!deployments/charts/osmo/Chart.lock
 
 # Ignore Intelij config files
 .idea

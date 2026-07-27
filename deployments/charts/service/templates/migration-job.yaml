@@ -101,7 +101,7 @@ spec:
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password }}
-        {{- else if .Values.services.configFile.enabled }}
+        {{- else if .Values.services.postgres.passwordSecretName }}
         - name: OSMO_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:

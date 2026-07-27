@@ -45,13 +45,7 @@ spec:
           matchLabels:
             app: {{ $.Values.services.service.serviceName }}
       {{- end }}
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
-        {{- range $k, $v := .Values.services.worker.nodeSelector}}
-        {{ $k }}: {{ $v }}
-        {{- end}}
+      {{- include "osmo.node-selector" (dict "global" .Values.global.nodeSelector "component" .Values.services.worker.nodeSelector) | nindent 6 }}
       tolerations:
       {{ toYaml .Values.services.worker.tolerations | nindent 8 }}
       {{- if .Values.global.imagePullSecret }}
@@ -129,17 +123,19 @@ spec:
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password }}
-        {{- else if .Values.services.configFile.enabled }}
+        {{- else if .Values.services.postgres.passwordSecretName }}
         - name: OSMO_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: db-secret
-              key: db-password
+              name: {{ .Values.services.postgres.passwordSecretName }}
+              key: {{ .Values.services.postgres.passwordSecretKey }}
+        {{- end }}
+        {{- if .Values.services.redis.auth.enabled }}
         - name: OSMO_REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: redis-secret
-              key: redis-password
+              name: {{ .Values.services.redis.auth.passwordSecretName }}
+              key: {{ .Values.services.redis.auth.passwordSecretKey }}
         {{- end }}
         {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.worker.extraVolumeMounts }}
         volumeMounts:
@@ -175,12 +171,12 @@ spec:
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.worker | nindent 8 }}
         {{- if .Values.services.configFile.enabled}}
-        - configMap:
+        - secret:
             defaultMode: 420
             items:
-            - key: mek.yaml
+            - key: {{ .Values.services.configFile.secretKey }}
               path: mek.yaml
-            name: mek-config
+            secretName: {{ .Values.services.configFile.secretName }}
           name: mek-volume
         {{- end}}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}

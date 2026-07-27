@@ -22,7 +22,7 @@ global:
 
   ## Docker image tag for Osmo services
   ##
-  osmoImageTag: latest
+  osmoImageTag: "6.3.0"
 
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
@@ -100,16 +100,26 @@ serviceAccount:
 ## Configuration for individual Osmo services
 ##
 services:
-  ## Configuration file service settings
+  ## Master Encryption Key (MEK) configuration.
+  ## The MEK must be supplied by an existing Kubernetes Secret or a Secret
+  ## reconciled by External Secrets. Never store it in a ConfigMap.
   ##
   configFile:
-    ## Enable external configuration file loading
+    ## Mount the MEK Secret into services that encrypt or decrypt data.
     ##
     enabled: false
 
-    ## Path to the configuration file (used when enabled is true)
+    ## Path where the MEK YAML is mounted.
     ##
     path: /opt/osmo/config.yaml
+
+    ## Secret containing the MEK YAML.
+    ##
+    secretName: osmo-mek
+
+    ## Key in secretName containing the MEK YAML.
+    ##
+    secretKey: mek.yaml
 
   ## UI service configuration
   ##
@@ -436,6 +446,23 @@ services:
     ##
     passwordSecretKey: password
 
+  ## Declarative service identities reconciled by the API service on startup.
+  ## Principal metadata is non-secret. Each token is mounted from secretName
+  ## and read from a file; token values never appear in Helm values or ConfigMaps.
+  ##
+  bootstrapPrincipals:
+    enabled: false
+    configPath: /etc/osmo/bootstrap/principals.yaml
+    tokenMountRoot: /etc/osmo/bootstrap/tokens
+    principals: []
+    # - username: osmo-backend
+    #   tokenName: backend-token
+    #   roles: ["osmo-backend"]
+    #   secretName: osmo-backend-token
+    #   secretKey: token
+    #   expiresInDays: 3650
+    #   description: Backend operator identity managed by Helm
+
   ## Dynamic configuration loaded from ConfigMap.
   ## When enabled, all configs are served from in-memory (parsed from the mounted
   ## ConfigMap file). CLI/API writes return 409. The authz_sidecar reads roles
@@ -612,8 +639,8 @@ services:
       default:
         description: "Default backend"
         scheduler_settings:
-          scheduler_type: kai
-          scheduler_name: kai-scheduler
+          scheduler_type: kubernetes
+          scheduler_name: default-scheduler
           scheduler_timeout: 30
 
     ## Pool definitions. The "default" pool references the "default" backend.
@@ -722,6 +749,13 @@ services:
     ##
     tlsEnabled: true
 
+    ## Authenticate clients using this Kubernetes Secret.
+    ##
+    auth:
+      enabled: true
+      passwordSecretName: redis-secret
+      passwordSecretKey: redis-password
+
   ## Localstack S3 Object storage service configuration (local development + testing only)
   ## Set enabled to false if using an external Object storage deployment
   ##
@@ -733,7 +767,7 @@ services:
 
     ## Localstack S3 Object storage Docker image to use
     ##
-    image: "gresau/localstack-persist:latest"
+    image: "gresau/localstack-persist:4.14.0"
 
     ## Kubernetes image pull policy for Localstack S3 Object storage
     ##

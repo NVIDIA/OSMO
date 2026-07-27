@@ -7789,7 +7789,8 @@
       "BackendSchedulerType": {
         "type": "string",
         "enum": [
-          "kai"
+          "kai",
+          "kubernetes"
         ],
         "title": "BackendSchedulerType",
         "description": "Defines the type of scheduler used by the backend "

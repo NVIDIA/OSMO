@@ -106,6 +106,79 @@ class TopologyTestBase(unittest.TestCase):
         return spec
 
 
+class KubernetesSchedulerTests(TopologyTestBase):
+    """Test the portable scheduler path that only creates core Kubernetes resources."""
+
+    def create_kubernetes_backend(
+            self, scheduler_name: str | None = None) -> connectors.Backend:
+        scheduler_settings: Dict[str, Any] = {
+            'scheduler_type': connectors.BackendSchedulerType.KUBERNETES,
+        }
+        if scheduler_name is not None:
+            scheduler_settings['scheduler_name'] = scheduler_name
+        return connectors.Backend(
+            name='test-backend',
+            description='Test backend',
+            version='1.0.0',
+            k8s_uid='test-uid',
+            k8s_namespace='test-namespace',
+            dashboard_url='http://test',
+            grafana_url='http://test',
+            tests=[],
+            scheduler_settings=connectors.BackendSchedulerSettings(**scheduler_settings),
+            node_conditions=connectors.BackendNodeConditions(),
+            last_heartbeat=datetime.datetime.now(),
+            created_date=datetime.datetime.now(),
+            router_address='test-router',
+            online=True
+        )
+
+    def test_defaults_to_cluster_scheduler(self):
+        backend = self.create_kubernetes_backend()
+
+        self.assertEqual(
+            backend.scheduler_settings.scheduler_name,
+            'default-scheduler')
+        self.assertIsInstance(
+            kb_objects.get_k8s_object_factory(backend),
+            kb_objects.KubernetesK8sObjectFactory)
+
+    def test_creates_only_plain_pods(self):
+        backend = self.create_kubernetes_backend()
+        factory = kb_objects.get_k8s_object_factory(backend)
+        pod = self.create_mock_pod_spec('task1')
+
+        resources = factory.create_group_k8s_resources(
+            'test-group-uuid',
+            [pod],
+            {'test-label': 'test-value'},
+            'test-pool',
+            wf_priority.WorkflowPriority.NORMAL,
+            [],
+            [topology.TaskTopology(name='task1', topology_requirements=[])])
+
+        self.assertEqual(resources, [pod])
+        self.assertNotIn('schedulerName', pod['spec'])
+        self.assertNotIn('pod-group-name', pod['metadata']['annotations'])
+        self.assertNotIn('kai.scheduler/queue', pod['metadata']['labels'])
+        self.assertFalse(factory.priority_supported())
+        self.assertFalse(factory.topology_supported())
+        self.assertEqual(factory.get_scheduler_resources_spec(backend, []), [])
+
+    def test_preserves_explicit_custom_scheduler(self):
+        backend = self.create_kubernetes_backend('my-scheduler')
+        factory = kb_objects.get_k8s_object_factory(backend)
+        pod = self.create_mock_pod_spec('task1')
+
+        factory.update_pod_k8s_resource(
+            pod,
+            'test-group-uuid',
+            'test-pool',
+            wf_priority.WorkflowPriority.NORMAL)
+
+        self.assertEqual(pod['spec']['schedulerName'], 'my-scheduler')
+
+
 class BasicTopologyTests(TopologyTestBase):
     """Test basic topology requirements functionality."""
 

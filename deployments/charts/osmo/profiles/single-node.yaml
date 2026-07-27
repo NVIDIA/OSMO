@@ -1,0 +1,95 @@
+# Development and evaluation profile for one Kubernetes node.
+# Credentials are generated once and retained on Helm upgrades. Do not use this
+# mode for production; use the minimal or split profiles with External Secrets.
+secretManagement:
+  mode: generated
+
+namespaces:
+  controlPlane: osmo-system
+  computePlane: osmo-system
+  workflows: osmo-workflows
+
+controlPlane:
+  services:
+    configFile:
+      secretName: osmo-generated
+    postgres:
+      passwordSecretName: osmo-generated
+      storageClassName: ""
+      storageSize: 20Gi
+    redis:
+      auth:
+        passwordSecretName: osmo-generated
+      storageClassName: ""
+      storageSize: 20Gi
+    bootstrapPrincipals:
+      principals:
+        - username: osmo-backend
+          tokenName: backend-token
+          roles: ["osmo-backend"]
+          secretName: osmo-generated
+          secretKey: backend-token
+          expiresInDays: 3650
+          description: Backend operator identity managed by Helm
+    localstackS3:
+      enabled: true
+      buckets: ["osmo"]
+      persistence:
+        enabled: true
+        storageClassName: ""
+    configs:
+      workflow:
+        workflow_data:
+          credential:
+            endpoint: s3://osmo/workflows
+            override_url: http://localstack-s3.osmo-system:4566
+            access_key_id: test
+            access_key: test
+            region: us-east-1
+        workflow_log:
+          credential:
+            endpoint: s3://osmo/workflows
+            override_url: http://localstack-s3.osmo-system:4566
+            access_key_id: test
+            access_key: test
+            region: us-east-1
+        workflow_app:
+          credential:
+            endpoint: s3://osmo/apps
+            override_url: http://localstack-s3.osmo-system:4566
+            access_key_id: test
+            access_key: test
+            region: us-east-1
+        credential_config:
+          disable_data_validation: ["s3"]
+    service:
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+    router:
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+    agent:
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+    worker:
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+    logger:
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+  gateway:
+    envoy:
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+      service:
+        type: ClusterIP
+
+computePlane:
+  global:
+    accountTokenSecret: osmo-generated

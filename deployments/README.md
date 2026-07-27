@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,193 +16,60 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OSMO Deployments
+# OSMO deployments
 
-This directory contains all resources for deploying OSMO on various cloud providers and environments.
-
-> ⚠️ **Note:** These scripts deploy a **minimal version of OSMO** without authentication.
-> Users will interact with OSMO as a **guest user**. For production deployments with
-> authentication (SSO, LDAP, etc.), refer to the [full deployment guide](https://nvidia.github.io/OSMO/main/deployment_guide/).
-
-## Quick Start
-
-**Deploy OSMO Minimal with one command:**
+The proposed deployment entry point is the Kubernetes-native
+[`osmo` umbrella chart](charts/osmo/README.md). It installs OSMO into an
+existing Kubernetes cluster without Terraform or cloud-provider-specific
+bootstrap logic.
 
 ```bash
-# Azure deployment
-cd scripts
-./deploy-osmo-minimal.sh --provider azure
-
-# AWS deployment
-cd scripts
-./deploy-osmo-minimal.sh --provider aws
-```
-
-## Directory Structure
-
-```
-deployments/
-├── scripts/           # Automated deployment scripts (recommended)
-│   ├── deploy-osmo-minimal.sh   # Main deployment script
-│   ├── azure/         # Azure-specific provisioning
-│   └── aws/           # AWS-specific provisioning
-├── terraform/         # Raw Terraform configurations
-│   ├── azure/         # Azure infrastructure modules
-│   └── aws/           # AWS infrastructure modules
-└── charts/            # Helm charts for OSMO components
-```
-
-## Deployment Options
-
-### 1. Automated Scripts (Recommended)
-
-The easiest way to deploy OSMO. The scripts handle infrastructure provisioning and OSMO deployment automatically.
-
-📖 **[scripts/README.md](scripts/README.md)** - Full documentation
-
-```bash
-cd scripts
-./deploy-osmo-minimal.sh --provider azure  # or aws
-```
-
-**Features:**
-- Interactive configuration prompts
-- Terraform infrastructure provisioning
-- Automatic secret creation (database, Redis, MEK)
-- Helm chart deployment
-- Post-deployment verification
-
-**Limitations (Minimal Deployment):**
-- No authentication - all users access as **guest**
-- Development/testing purposes only
-- Not recommended for production without additional configuration
-
-### 2. Terraform Only
-
-For users who want to provision infrastructure separately and have more control.
-
-📖 **[terraform/azure/example/README.md](terraform/azure/example/README.md)** - Azure Terraform docs
-📖 **[terraform/aws/example/README.md](terraform/aws/example/README.md)** - AWS Terraform docs
-
-```bash
-cd terraform/azure/example
-terraform init
-terraform apply
-```
-
-### 3. Helm Charts Only
-
-For users who already have Kubernetes infrastructure and want to deploy OSMO directly.
-
-📖 **[charts/](charts/)** - Helm chart install guide
-
-> **Note:** Before installing Helm charts manually, you must create:
-> - Kubernetes namespaces (`osmo-minimal`, `osmo-operator`, `osmo-workflows`)
-> - Database secrets (`db-secret` with PostgreSQL password)
-> - Redis secrets (`redis-secret` with Redis password)
-> - MEK ConfigMap (Master Encryption Key)
-> - The PostgreSQL database itself
->
-> **Recommended:** Use the deployment script which handles all prerequisites.
-> You'll need to provide your existing infrastructure details:
-
-```bash
-cd scripts
-
-# Set environment variables for your existing infrastructure
-export POSTGRES_HOST="your-postgres-host.database.azure.com"
-export POSTGRES_USERNAME="postgres"
-export POSTGRES_PASSWORD="your-password"
-export REDIS_HOST="your-redis-host.redis.cache.windows.net"
-export REDIS_PASSWORD="your-redis-password"
-
-./deploy-osmo-minimal.sh --provider azure --skip-terraform
-```
-
-For a direct Helm install, deploy the charts in this order:
-
-```bash
-kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
-BACKEND_OPERATOR_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
-kubectl create secret generic backend-operator-password \
-  --namespace osmo \
-  --from-literal=password="$BACKEND_OPERATOR_PASSWORD" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
-  MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
-  MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
-  MEK_FILE=$(mktemp)
-  printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
-  kubectl create configmap mek-config \
-    --namespace osmo \
-    --from-file=mek.yaml="$MEK_FILE" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  rm -f "$MEK_FILE"
-fi
-
-helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-helm repo update osmo
-
-helm upgrade --install osmo osmo/service \
-  --namespace osmo \
-  -f charts/service/quick-start-values.yaml \
-  --wait
-
-helm upgrade --install osmo-backend-operator osmo/backend-operator \
-  --namespace osmo \
-  -f charts/backend-operator/quick-start-values.yaml \
+helm dependency build charts/osmo
+helm upgrade --install osmo charts/osmo \
+  --namespace osmo-system \
+  --create-namespace \
+  --values charts/osmo/profiles/single-node.yaml \
   --wait
 ```
 
-After installing the CLI and logging in, set the demo pool and LocalStack data credential:
+The chart includes validated reference values for a development single-node
+cluster, a minimal production-shaped installation, and both sides of a
+split-plane installation.
 
-```bash
-osmo login http://quick-start.osmo --method=dev --username=testuser
-osmo profile set pool default
-osmo credential set osmo --type DATA --payload \
-  access_key_id=test \
-  access_key=test \
-  endpoint=s3://osmo \
-  override_url=http://localstack-s3.osmo:4566 \
-  region=us-east-1
-```
+It defaults to the built-in Kubernetes scheduler. KAI is optional and its CRDs,
+RBAC, and PriorityClasses are only required when explicitly selected. Secrets
+are consumed through standard Kubernetes Secret references; production
+profiles can render External Secrets against an NVault-backed SecretStore.
 
-The `quick-start-values.yaml` files preserve the local-development settings from the former umbrella chart. They use the chart-managed LocalStack S3 service, so `scripts/configure-storage.sh` is not needed for this local flow. For production, replace them with environment-specific values for your hostname, identity provider, databases, Redis, object storage, and backend credentials. If you use the charts directly with external object storage, run `scripts/configure-storage.sh` before the service Helm install and pass the generated values file after your base values file.
+## Scope
 
-These values assume the OSMO images are pullable without a registry Secret. If your registry requires credentials, create a Kubernetes image pull Secret and pass `--set global.imagePullSecret=<secret-name>` to both chart installs.
+Helm owns OSMO resources inside Kubernetes:
 
-## Supported Platforms
+- OSMO services and backend operators;
+- namespaces and Kubernetes RBAC;
+- references to databases, Redis, object storage, identity, and image
+  registries;
+- ExternalSecret resources; and
+- preflight, postflight, and `helm test` verification.
 
-| Platform | Status | Documentation |
-|----------|--------|---------------|
-| **Azure** (AKS) | ✅ Fully Supported | [scripts/README.md](scripts/README.md) |
-| **AWS** (EKS) | ✅ Fully Supported | [scripts/README.md](scripts/README.md) |
+The chart does not create clusters, networks, managed databases, cloud IAM
+principals, DNS zones, or secret stores. Those remain optional platform inputs
+exposed through portable Kubernetes interfaces.
 
-## Prerequisites
+## Legacy deployment paths
 
-- **Terraform** >= 1.9
-- **kubectl**
-- **Helm**
-- **Cloud CLI** (`az` for Azure, `aws` for AWS)
+[`scripts/deploy-osmo-minimal.sh`](scripts/deploy-osmo-minimal.sh) and
+[`scripts/deploy-k8s.sh`](scripts/deploy-k8s.sh) are retained temporarily as
+migration references while the umbrella chart reaches feature parity. New
+deployment behavior must be implemented in the charts and checks instead of
+these scripts. They can be removed after the profile and upgrade test matrix is
+green.
 
-## Post-Deployment Access
+Terraform under [`terraform/`](terraform/) remains an optional infrastructure
+example. It is not part of the OSMO installation contract.
 
-After deployment, access OSMO via port-forwarding:
+## Design
 
-```bash
-# Access OSMO UI
-kubectl port-forward svc/osmo-ui 3000:80 -n osmo-minimal
-# Open: http://localhost:3000
-
-# Access OSMO API
-kubectl port-forward svc/osmo-service 9000:80 -n osmo-minimal
-# Open: http://localhost:9000/api/docs
-```
-
-## Documentation
-
-- [OSMO Deployment Guide](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_minimal.html)
-- [Configure Data Storage](https://nvidia.github.io/OSMO/main/deployment_guide/getting_started/configure_data_storage.html)
-- [Install KAI Scheduler](https://nvidia.github.io/OSMO/main/deployment_guide/byoc/install_dependencies.html)
+The rationale, target architecture, workstreams, sequencing, and exit criteria
+are in
+[`projects/kubernetes-native-deployment-plan.md`](../projects/kubernetes-native-deployment-plan.md).

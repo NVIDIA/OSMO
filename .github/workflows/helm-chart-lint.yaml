@@ -67,6 +67,18 @@ jobs:
             fi
           done
 
+          # Changes to either dependency must also validate the composed chart.
+          if echo "$CHANGED_FILES" | grep -Eq \
+            "^deployments/charts/(service|backend-operator)/"; then
+            if [[ "$CHARTS" != *'"osmo"'* ]]; then
+              if [ -z "$CHARTS" ]; then
+                CHARTS="\"osmo\""
+              else
+                CHARTS="${CHARTS},\"osmo\""
+              fi
+            fi
+          fi
+
           if [ -z "$CHARTS" ]; then
             echo "No chart changes detected"
             echo "has_changes=false" >> $GITHUB_OUTPUT
@@ -100,7 +112,7 @@ jobs:
       - name: Build Helm Dependencies
         run: |
           echo "Building dependencies for: ${{ matrix.chart }}"
-          helm dependency build deployments/charts/${{ matrix.chart }} || true
+          helm dependency build deployments/charts/${{ matrix.chart }}
           # Show what was fetched
           if [ -d "deployments/charts/${{ matrix.chart }}/charts" ]; then
             echo "Dependencies fetched:"
@@ -110,16 +122,40 @@ jobs:
       - name: Helm Lint
         run: |
           echo "Linting chart: ${{ matrix.chart }}"
-          helm lint deployments/charts/${{ matrix.chart }}
+          if [ "${{ matrix.chart }}" = "osmo" ]; then
+            for profile in single-node minimal split-control split-compute; do
+              namespace=osmo-system
+              if [ "$profile" = "split-compute" ]; then
+                namespace=osmo-agent
+              fi
+              helm lint deployments/charts/osmo \
+                --namespace "$namespace" \
+                --values "deployments/charts/osmo/profiles/${profile}.yaml"
+            done
+          else
+            helm lint deployments/charts/${{ matrix.chart }}
+          fi
 
       - name: Helm Template (validate rendering)
         run: |
           echo "Validating template rendering for: ${{ matrix.chart }}"
-          # Capture output, only show on failure
-          if ! OUTPUT=$(helm template test-release deployments/charts/${{ matrix.chart }} 2>&1); then
-            echo "❌ Template rendering failed:"
-            echo "$OUTPUT"
-            exit 1
+          if [ "${{ matrix.chart }}" = "osmo" ]; then
+            for profile in single-node minimal split-control split-compute; do
+              namespace=osmo-system
+              if [ "$profile" = "split-compute" ]; then
+                namespace=osmo-agent
+              fi
+              helm template test-release deployments/charts/osmo \
+                --namespace "$namespace" \
+                --values "deployments/charts/osmo/profiles/${profile}.yaml" \
+                > "/tmp/osmo-${profile}.yaml"
+            done
+          else
+            # Capture output, only show on failure
+            if ! OUTPUT=$(helm template test-release deployments/charts/${{ matrix.chart }} 2>&1); then
+              echo "❌ Template rendering failed:"
+              echo "$OUTPUT"
+              exit 1
+            fi
           fi
           echo "✓ Template rendering successful"
-

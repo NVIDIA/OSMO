@@ -20,20 +20,21 @@
 
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
-For a local deployment that previously used quick-start values, create the
-namespaces, `backend-operator-password` Secret, and `mek-config` ConfigMap from
-[../README.md](../README.md), then install this chart first with
-`quick-start-values.yaml`. Install the `backend-operator` chart with its
-matching values file after the service release is available:
+For a complete local deployment, use the
+[`osmo` umbrella chart](../osmo/README.md). It composes this chart with the
+backend operator, creates namespaces, supports External Secrets, and runs
+preflight/postflight checks:
 
 ```bash
-helm upgrade --install osmo osmo/service \
-  --namespace osmo \
-  -f quick-start-values.yaml \
+helm upgrade --install osmo ../osmo \
+  --namespace osmo-system \
+  --create-namespace \
+  -f ../osmo/profiles/single-node.yaml \
   --wait
 ```
 
-See [../README.md](../README.md) for the full two-chart flow.
+Install this subchart directly only when a separately managed control plane is
+required.
 
 ## Values
 
@@ -44,7 +45,7 @@ See [../README.md](../README.md) for the full two-chart flow.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvidia/osmo` |
-| `global.osmoImageTag` | Tag of the OSMO images | `latest` |
+| `global.osmoImageTag` | Tag of the OSMO images | `6.3.0` |
 | `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
 | `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `staging.osmo.nvidia.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
@@ -62,14 +63,19 @@ See [../README.md](../README.md) for the full two-chart flow.
 OSMO services write logs to standard streams for collection by the platform log agent.
 
 
-### Configuration File Settings
+### Master Encryption Key and Configuration Settings
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `services.configFile.enabled` | Enable external configuration file loading | `false` |
-| `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
+| `services.configFile.enabled` | Mount the MEK from a Kubernetes Secret | `false` |
+| `services.configFile.path` | Path where the MEK YAML is mounted | `/opt/osmo/config.yaml` |
+| `services.configFile.secretName` | Secret containing the MEK YAML | `osmo-mek` |
+| `services.configFile.secretKey` | Secret key containing the MEK YAML | `mek.yaml` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
+
+MEK material must never be stored in a ConfigMap. Use an existing Secret or an
+ExternalSecret reconciled from NVault.
 
 ### Database Migration Settings (pgroll)
 
@@ -102,8 +108,8 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.postgres.port` | PostgreSQL port | `5432` |
 | `services.postgres.db` | Database name | `osmo` |
 | `services.postgres.user` | PostgreSQL username | `postgres` |
-| `services.postgres.passwordSecretName` | Name of the Kubernetes secret containing the PostgreSQL password | `postgres-secret` |
-| `services.postgres.passwordSecretKey` | Key name in the secret that contains the PostgreSQL password | `password` |
+| `services.postgres.passwordSecretName` | Name of the Kubernetes secret containing the PostgreSQL password | `db-secret` |
+| `services.postgres.passwordSecretKey` | Key name in the secret that contains the PostgreSQL password | `db-password` |
 | `services.postgres.storageSize` | Storage size | `20Gi` |
 | `services.postgres.storageClassName` | Storage class name | `""` |
 | `services.postgres.enableNodePort` | Enable NodePort service | `true` |
@@ -123,6 +129,9 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.redis.storageSize` | Storage size | `20Gi` |
 | `services.redis.storageClassName` | Storage class name | `""` |
 | `services.redis.tlsEnabled` | Enable TLS | `true` |
+| `services.redis.auth.enabled` | Read and enforce a Redis password from a Secret | `true` |
+| `services.redis.auth.passwordSecretName` | Secret containing the Redis password | `redis-secret` |
+| `services.redis.auth.passwordSecretKey` | Secret key containing the Redis password | `redis-password` |
 | `services.redis.enableNodePort` | Enable NodePort service | `true` |
 | `services.redis.nodePort` | NodePort value | `30034` |
 | `services.redis.nodeSelector` | Node selector constraints | `{}` |

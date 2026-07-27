@@ -42,13 +42,7 @@ spec:
       {{- end }}
 
     spec:
-      nodeSelector:
-        {{- range $k, $v := .Values.global.nodeSelector}}
-        {{ $k }}: "{{ $v }}"
-        {{- end}}
-        {{- range $k, $v := .Values.services.backendListener.nodeSelector}}
-        {{ $k }}: "{{ $v }}"
-        {{- end}}
+      {{- include "backend-operator.node-selector" (dict "global" .Values.global.nodeSelector "component" .Values.services.backendListener.nodeSelector) | nindent 6 }}
       {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}

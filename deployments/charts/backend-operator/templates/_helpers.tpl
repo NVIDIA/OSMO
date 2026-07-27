@@ -97,3 +97,14 @@ Create the name of the service account to use for test-runner pods.
 {{- define "backend-operator.testRunner.serviceAccountName" -}}
 {{- include "backend-operator.serviceAccountName" (dict "root" . "serviceConfig" .Values.backendTestRunner "component" "test-runner") -}}
 {{- end }}
+
+{{/*
+Merge global and component node selectors. Component keys win.
+*/}}
+{{- define "backend-operator.node-selector" -}}
+{{- $selector := mergeOverwrite (deepCopy (.global | default dict)) (.component | default dict) -}}
+{{- with $selector }}
+nodeSelector:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}

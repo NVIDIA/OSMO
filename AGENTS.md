@@ -209,6 +209,17 @@ AI-powered test generation and review response using Claude Code CLI. See `scrip
 | `ui/e2e/`                                   | Playwright                     | Frontend E2E tests with page object models                                                                                                                 |
 | `scripts/testbot/tests/`                    | unittest                       | Testbot unit tests (coverage targets, guardrails, respond, create_pr)                                                                                      |
 
+## Deployment Structure (`deployments/`)
+
+| Path | Purpose |
+|------|---------|
+| `charts/osmo/` | Kubernetes-native umbrella chart with single-node, minimal, split-control, and split-compute profiles; Secret/ExternalSecret contracts; and install verification hooks. |
+| `charts/service/` | Independently installable OSMO control-plane chart. |
+| `charts/backend-operator/` | Independently installable compute-plane/backend operator chart with Kubernetes and optional KAI scheduler RBAC. |
+| `values/` | Legacy script values retained during migration to the umbrella chart. |
+| `scripts/` | Deprecated provider-specific bootstrap path retained until Helm lifecycle parity gates pass. |
+| `terraform/` | Optional infrastructure examples outside the OSMO installation contract. |
+
 ### Key Architecture Patterns
 
 - **Container runtime**: Three container types per workflow — ctrl (orchestrator), user (execution), data (rsync sidecar)
