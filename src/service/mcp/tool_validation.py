@@ -208,6 +208,34 @@ def validate_query_values(
     return list(dict.fromkeys(validated)) if deduplicate else validated
 
 
+def validate_inline_text(
+    value: object,
+    *,
+    field: str,
+    max_bytes: int,
+) -> str:
+    """Validate bounded, non-empty multiline UTF-8 tool input."""
+    if not isinstance(value, str):
+        encoded_value = b''
+    else:
+        try:
+            encoded_value = value.encode('utf-8')
+        except UnicodeEncodeError:
+            encoded_value = b''
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(encoded_value) > max_bytes
+        or any(
+            not character.isprintable()
+            and character not in '\n\r\t'
+            for character in value
+        )
+    ):
+        raise PublicToolError(f'Invalid {field}.')
+    return value
+
+
 def _is_valid_integer(
     value: object,
     *,

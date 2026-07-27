@@ -64,8 +64,9 @@ async def osmo_submit_workflow(
     priority: WorkflowPriority = 'NORMAL',
 ) -> SubmitWorkflowResult:
     """Submit raw workflow YAML to Core using the caller's OSMO identity."""
-    validated_spec = _validate_workflow_spec(
+    validated_spec = tool_validation.validate_inline_text(
         workflow_spec,
+        field='workflow_spec',
         max_bytes=_MAX_SUBMISSION_SPEC_BYTES,
     )
     validated_set_variables = _validate_overrides(
@@ -128,8 +129,9 @@ async def osmo_validate_workflow(
     set_string_variables: VariableOverrides | None = None,
 ) -> ValidateWorkflowResult:
     """Validate workflow YAML using Core's authoritative submission checks."""
-    validated_spec = _validate_workflow_spec(
+    validated_spec = tool_validation.validate_inline_text(
         workflow_spec,
+        field='workflow_spec',
         max_bytes=_MAX_VALIDATION_SPEC_BYTES,
     )
     validated_set_variables = _validate_overrides(
@@ -260,29 +262,6 @@ async def _resolve_pool(context: Context, pool: str | None) -> str:
     raise tool_errors.PublicToolError(
         'No unambiguous accessible pool is configured.'
     )
-
-
-def _validate_workflow_spec(
-    workflow_spec: str,
-    *,
-    max_bytes: int,
-) -> str:
-    try:
-        encoded_spec = workflow_spec.encode('utf-8')
-    except (AttributeError, UnicodeEncodeError):
-        encoded_spec = b''
-    if (
-        not isinstance(workflow_spec, str)
-        or not workflow_spec.strip()
-        or len(encoded_spec) > max_bytes
-        or any(
-            not character.isprintable()
-            and character not in '\n\r\t'
-            for character in workflow_spec
-        )
-    ):
-        raise tool_errors.PublicToolError('Invalid workflow_spec.')
-    return workflow_spec
 
 
 def _is_templated_workflow(workflow_spec: str) -> bool:

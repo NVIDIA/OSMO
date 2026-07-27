@@ -33,6 +33,9 @@ class TelemetryTest(unittest.TestCase):
                 '/api/workflow/{workflow_id}/cancel'
             ),
             '/api/app/user/private-app/spec': '/api/app/user/{app_name}/spec',
+            '/api/app/user/private-app/rename': (
+                '/api/app/user/{app_name}/rename'
+            ),
             '/api/credentials/private-credential': (
                 '/api/credentials/{credential_name}'
             ),

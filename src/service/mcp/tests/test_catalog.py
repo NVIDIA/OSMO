@@ -21,6 +21,7 @@ from unittest import mock
 import unittest
 
 from src.service.mcp import (
+    app_actions,
     apps,
     credential_actions,
     credentials,
@@ -163,6 +164,36 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'bounded version history.',
     ),
     (
+        app_actions.osmo_create_app,
+        'osmo_create_app',
+        'Create OSMO app',
+        'Create an app from bounded inline workflow YAML and schedule '
+        'version 1 for upload. The non-secret description is sent as a '
+        'query parameter and may appear in Gateway logs.',
+    ),
+    (
+        app_actions.osmo_update_app,
+        'osmo_update_app',
+        'Update OSMO app',
+        'Always create and schedule upload of a new app version from bounded '
+        'inline workflow YAML; unlike the CLI editor flow, this tool does not '
+        'skip unchanged content.',
+    ),
+    (
+        app_actions.osmo_delete_app,
+        'osmo_delete_app',
+        'Delete OSMO app',
+        'Schedule deletion of one version or all non-deleted versions. '
+        'Specify exactly one of version or all_versions=true.',
+    ),
+    (
+        app_actions.osmo_rename_app,
+        'osmo_rename_app',
+        'Rename OSMO app',
+        'Synchronously rename one active-user-owned app. This changes the '
+        'app identifier and is not automatically retried.',
+    ),
+    (
         credentials.osmo_list_credentials,
         'osmo_list_credentials',
         'List OSMO credentials',
@@ -207,6 +238,10 @@ _EXPECTED_REQUIRED_FIELDS = {
     'osmo_list_apps': [],
     'osmo_get_app': ['name'],
     'osmo_get_app_spec': ['name'],
+    'osmo_create_app': ['name', 'description', 'spec_content'],
+    'osmo_update_app': ['name', 'spec_content'],
+    'osmo_delete_app': ['name'],
+    'osmo_rename_app': ['original_name', 'new_name'],
     'osmo_list_credentials': [],
     'osmo_set_credential': ['name', 'cred_type', 'payload'],
     'osmo_delete_credential': ['name'],
@@ -264,20 +299,27 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
     },
     'osmo_get_app': {'version': None, 'limit': 50},
     'osmo_get_app_spec': {'version': None},
+    'osmo_delete_app': {'version': None, 'all_versions': False},
 }
 
 _WRITE_TOOL_NAMES = frozenset({
     'osmo_cancel_workflow',
+    'osmo_create_app',
+    'osmo_delete_app',
     'osmo_delete_credential',
+    'osmo_rename_app',
     'osmo_restart_workflow',
     'osmo_set_credential',
     'osmo_set_profile',
     'osmo_submit_workflow',
+    'osmo_update_app',
     'osmo_validate_workflow',
 })
 _DESTRUCTIVE_TOOL_NAMES = frozenset({
     'osmo_cancel_workflow',
+    'osmo_delete_app',
     'osmo_delete_credential',
+    'osmo_rename_app',
     'osmo_restart_workflow',
     'osmo_set_credential',
     'osmo_set_profile',

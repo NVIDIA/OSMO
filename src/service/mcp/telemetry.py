@@ -57,8 +57,8 @@ def route_template(path: str) -> str:
         and parts[:4] == ['', 'api', 'app', 'user']
     ):
         template = '/api/app/user/{app_name}'
-        if len(parts) == 6 and parts[5] == 'spec':
-            return f'{template}/spec'
+        if len(parts) == 6 and parts[5] in ('rename', 'spec'):
+            return f'{template}/{parts[5]}'
         if len(parts) == 5:
             return template
 

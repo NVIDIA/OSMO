@@ -23,6 +23,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from src.service.mcp import (
+    app_actions,
     apps,
     credential_actions,
     credentials,
@@ -239,6 +240,48 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
             'When version is omitted, resolve the newest READY version from '
             'bounded version history.'
         ),
+    ),
+    ToolSpec(
+        function=app_actions.osmo_create_app,
+        name='osmo_create_app',
+        title='Create OSMO app',
+        description=(
+            'Create an app from bounded inline workflow YAML and schedule '
+            'version 1 for upload. The non-secret description is sent as a '
+            'query parameter and may appear in Gateway logs.'
+        ),
+        annotations=_write_annotations(destructive=False),
+    ),
+    ToolSpec(
+        function=app_actions.osmo_update_app,
+        name='osmo_update_app',
+        title='Update OSMO app',
+        description=(
+            'Always create and schedule upload of a new app version from '
+            'bounded inline workflow YAML; unlike the CLI editor flow, this '
+            'tool does not skip unchanged content.'
+        ),
+        annotations=_write_annotations(destructive=False),
+    ),
+    ToolSpec(
+        function=app_actions.osmo_delete_app,
+        name='osmo_delete_app',
+        title='Delete OSMO app',
+        description=(
+            'Schedule deletion of one version or all non-deleted versions. '
+            'Specify exactly one of version or all_versions=true.'
+        ),
+        annotations=_write_annotations(destructive=True),
+    ),
+    ToolSpec(
+        function=app_actions.osmo_rename_app,
+        name='osmo_rename_app',
+        title='Rename OSMO app',
+        description=(
+            'Synchronously rename one active-user-owned app. This changes '
+            'the app identifier and is not automatically retried.'
+        ),
+        annotations=_write_annotations(destructive=True),
     ),
     ToolSpec(
         function=credentials.osmo_list_credentials,

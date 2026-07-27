@@ -22,6 +22,8 @@ from test.oetf.smoke_fixture import SmokeFixture
 
 _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_cancel_workflow",
+    "osmo_create_app",
+    "osmo_delete_app",
     "osmo_delete_credential",
     "osmo_get_app",
     "osmo_get_app_spec",
@@ -38,9 +40,11 @@ _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_list_workflows",
     "osmo_search_pools",
     "osmo_restart_workflow",
+    "osmo_rename_app",
     "osmo_set_profile",
     "osmo_set_credential",
     "osmo_submit_workflow",
+    "osmo_update_app",
     "osmo_validate_workflow",
 })
 _MCP_ACCEPT_HEADERS = {
