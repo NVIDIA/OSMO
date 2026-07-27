@@ -10,6 +10,6 @@ SPDX-License-Identifier: Apache-2.0
 "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 {{- end -}}
 
-{{- define "osmo-install.hook-job-annotations" -}}
+{{- define "osmo-install.retained-hook-annotations" -}}
 "helm.sh/hook-delete-policy": before-hook-creation
 {{- end -}}

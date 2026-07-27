@@ -2,33 +2,30 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- if .Values.checks.enabled }}
 {{- $name := include "osmo-install.fullname" . }}
-apiVersion: batch/v1
-kind: Job
+{{- $checkName := printf "%s-check" $name | trunc 63 | trimSuffix "-" }}
+apiVersion: v1
+kind: Pod
 metadata:
   name: {{ $name }}-postflight
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: postflight
+    app.kubernetes.io/part-of: osmo
   annotations:
     "helm.sh/hook": post-install,post-upgrade,test
     "helm.sh/hook-weight": "10"
-    {{- include "osmo-install.hook-job-annotations" . | nindent 4 }}
+    {{- include "osmo-install.retained-hook-annotations" . | nindent 4 }}
 spec:
-  backoffLimit: 0
   activeDeadlineSeconds: 660
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/component: postflight
-        app.kubernetes.io/part-of: osmo
-    spec:
-      restartPolicy: Never
-      serviceAccountName: {{ $name }}-check
-      containers:
-        - name: osmo-check
-          image: {{ .Values.checks.image }}
-          imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-ec"]
-          args:
-            - |
+  restartPolicy: Never
+  serviceAccountName: {{ $checkName }}
+  containers:
+    - name: osmo-check
+      image: {{ .Values.checks.image }}
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sh", "-ec"]
+      args:
+        - |
               {{- if eq .Values.secretManagement.mode "external-secrets" }}
               echo "Waiting for External Secrets"
               {{- range .Values.secretManagement.externalSecrets.items }}

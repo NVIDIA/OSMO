@@ -66,7 +66,7 @@ spec:
       {{- end }}
       containers:
       - name: {{ .Values.services.logger.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.logger.imageName }}:{{ .Values.global.osmoImageTag }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.logger.imageName }}:{{ .Values.services.logger.imageTag | default .Values.global.osmoImageTag }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

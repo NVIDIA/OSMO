@@ -2,17 +2,25 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- if .Values.checks.enabled }}
 {{- $name := include "osmo-install.fullname" . }}
-{{- $checkName := printf "%s-check" $name | trunc 63 | trimSuffix "-" }}
+{{- $preflightName := printf "%s-preflight" $name | trunc 63 | trimSuffix "-" }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ $checkName }}
+  name: {{ $preflightName }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    {{- include "osmo-install.hook-annotations" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ $checkName }}
+  name: {{ $preflightName }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    {{- include "osmo-install.hook-annotations" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["configmaps", "namespaces", "secrets", "services"]
@@ -36,13 +44,17 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ $checkName }}
+  name: {{ $preflightName }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    {{- include "osmo-install.hook-annotations" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
-    name: {{ $checkName }}
+    name: {{ $preflightName }}
     namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ $checkName }}
+  name: {{ $preflightName }}
 {{- end }}

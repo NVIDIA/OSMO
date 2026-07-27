@@ -1478,6 +1478,11 @@ services:
     ##
     imageName: logger
 
+    ## Optional logger image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
+
     ## Kubernetes image pull policy for the logger service
     ##
     imagePullPolicy: Always

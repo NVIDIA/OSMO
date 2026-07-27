@@ -87,8 +87,11 @@ version through the gateway, verify that workflow runtime callbacks have a
 valid service URL, and wait for the compute backend heartbeat to report online.
 The backend check exchanges the configured backend token for a short-lived JWT
 without logging either credential. The checks use a read-only temporary
-ClusterRole and do not modify cluster resources. Successful check Jobs are
-retained until the next hook run so `helm test --logs` can return their output.
+ClusterRole during preflight and a release-owned read-only ClusterRole for
+postflight and `helm test`; neither check modifies cluster resources. Successful
+postflight Pods are retained until the next hook run so `helm test --logs` can
+return their output, and the release-owned test RBAC is removed by
+`helm uninstall`.
 
 ## Scheduler portability
 
