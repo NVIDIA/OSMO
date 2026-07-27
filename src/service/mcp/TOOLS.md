@@ -63,7 +63,7 @@ though the CLI and hosted internal MCP may display them. Legacy profile values
 can contain secret-bearing userinfo, queries, or fragments; the external
 projection therefore returns only `cred_name` and `cred_type`.
 
-## Phase 2: workflow actions (code complete)
+## Phase 2: workflow actions (implemented; deployment verification pending)
 
 `osmo_validate_workflow`, `osmo_submit_workflow`,
 `osmo_restart_workflow`, and `osmo_cancel_workflow` are implemented.
@@ -87,7 +87,12 @@ query-string cancellation message because Gateway and authz access logs record
 it. The shared mutation relay never retries and reports an unknown outcome for
 ambiguous transport, server, database, or malformed-success failures.
 
-Deployment smoke coverage remains before Phase 2 is considered released.
+The `//test/smoke:mcp-checks` target verifies the exact catalog and exercises
+successful validation through a deployed Gateway/MCP/Core path without
+launching compute. It must pass against an MCP-enabled deployment before Phase
+2 is considered released. Submission, restart, and cancellation remain manual
+Inspector checks against disposable workflows so the smoke suite does not
+consume compute or mutate existing workflow state.
 
 ## Phase 3: user-owned mutations
 

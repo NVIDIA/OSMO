@@ -109,11 +109,12 @@ not mount a service-account token, and the chart creates no MCP credential
 Secret. Gateway-to-MCP TLS continues to use the shared `gateway.tls`
 configuration described below.
 
-The current `osmo_get_profile` tool maps only to
-`GET /api/profile/settings`, accepts no caller-selected route or headers, and
-requires `profile:Read`. MCP health probes do not call this API; a tool-level
-authentication, authorization, timeout, or dependency error does not by
-itself make the pod unhealthy.
+The external MCP exposes an 18-tool catalog with fixed API routes and no
+caller-selected origin, method, route, or headers. See the
+[external MCP tool plan](../../../src/service/mcp/TOOLS.md) for its exact
+contracts and API mappings. MCP health probes do not call these APIs; a
+tool-level authentication, authorization, timeout, or dependency error does
+not by itself make the pod unhealthy.
 
 Run the enabled and disabled rendering checks locally with:
 

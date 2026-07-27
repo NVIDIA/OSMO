@@ -8,8 +8,10 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
-# Smoke: the external MCP catalog and caller-bound profile round trip work.
+# Smoke: the deployed external MCP catalog and safe caller-bound tools work.
 
+import json
+import os
 import unittest
 
 import requests
@@ -53,6 +55,26 @@ _TOKEN_FIELDS = (
 )
 
 
+def _validation_workflow_spec():
+    image = os.environ.get("OETF_DEFAULT_IMAGE") or "ubuntu:22.04"
+    return f"""\
+version: 2
+workflow:
+  name: mcp-smoke-validation
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: check
+    image: {json.dumps(image)}
+    command: [echo]
+    args: [mcp-validation]
+    resource: default
+"""
+
+
 class McpChecks(SmokeFixture):
     """Exercise the deployed external MCP through its public Gateway route."""
 
@@ -69,6 +91,38 @@ class McpChecks(SmokeFixture):
         if not isinstance(result, dict):
             self.fail("MCP returned an invalid JSON-RPC result.")
         return result
+
+    def _mcp_request(self, request_id, method, params):
+        response = self.service_client.request(
+            method=RequestMethod.POST,
+            endpoint="mcp",
+            headers=dict(_MCP_ACCEPT_HEADERS),
+            payload={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": method,
+                "params": params,
+            },
+            version_header=False,
+        )
+        return self._jsonrpc_result(response, request_id)
+
+    def _call_tool(self, request_id, name, arguments):
+        result = self._mcp_request(
+            request_id,
+            "tools/call",
+            {
+                "name": name,
+                "arguments": arguments,
+            },
+        )
+        structured_content = result.get("structuredContent")
+        if (
+            result.get("isError") is not False
+            or not isinstance(structured_content, dict)
+        ):
+            self.fail(f"MCP tool {name} returned an unsuccessful result.")
+        return structured_content
 
     def test_catalog_and_profile_round_trip(self):
         base_url = self.config.url.rstrip("/")
@@ -91,20 +145,7 @@ class McpChecks(SmokeFixture):
             ).startswith("Bearer resource_metadata=")
         )
 
-        catalog_response = self.service_client.request(
-            method=RequestMethod.POST,
-            endpoint="mcp",
-            headers=dict(_MCP_ACCEPT_HEADERS),
-            payload={
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/list",
-                "params": {},
-            },
-            version_header=False,
-        )
-
-        catalog_result = self._jsonrpc_result(catalog_response, 1)
+        catalog_result = self._mcp_request(1, "tools/list", {})
         catalog_tools = catalog_result.get("tools")
         if not isinstance(catalog_tools, list) or not all(
             isinstance(tool, dict) for tool in catalog_tools
@@ -150,54 +191,37 @@ class McpChecks(SmokeFixture):
             "token": expected_token,
         }
 
-        profile_response = self.service_client.request(
-            method=RequestMethod.POST,
-            endpoint="mcp",
-            headers=dict(_MCP_ACCEPT_HEADERS),
-            payload={
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {
-                    "name": "osmo_get_profile",
-                    "arguments": {},
-                },
-            },
-            version_header=False,
-        )
-
-        profile_result = self._jsonrpc_result(profile_response, 2)
-        if (
-            profile_result.get("isError") is not False
-            or profile_result.get("structuredContent") != expected_profile
-        ):
+        profile = self._call_tool(2, "osmo_get_profile", {})
+        if profile != expected_profile:
             self.fail(
                 "MCP profile projection does not match the direct Core profile."
             )
 
-        health_response = self.service_client.request(
-            method=RequestMethod.POST,
-            endpoint="mcp",
-            headers=dict(_MCP_ACCEPT_HEADERS),
-            payload={
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "tools/call",
-                "params": {
-                    "name": "osmo_health",
-                    "arguments": {},
-                },
-            },
-            version_header=False,
-        )
-
-        health_result = self._jsonrpc_result(health_response, 3)
-        if (
-            health_result.get("isError") is not False
-            or health_result.get("structuredContent")
-            != {"status": "healthy"}
-        ):
+        health = self._call_tool(3, "osmo_health", {})
+        if health != {"status": "healthy"}:
             self.fail("MCP health tool returned an invalid response.")
+
+    def test_workflow_validation_round_trip(self):
+        pool = self.config.pool
+        if not pool:
+            self.fail("OETF_POOL must select a workflow validation pool.")
+
+        validation = self._call_tool(
+            1,
+            "osmo_validate_workflow",
+            {
+                "workflow_spec": _validation_workflow_spec(),
+                "pool": pool,
+            },
+        )
+        self.assertEqual(
+            validation,
+            {
+                "valid": True,
+                "pool": pool,
+                "logs": "Workflow validation succeeded.",
+            },
+        )
 
 
 if __name__ == "__main__":

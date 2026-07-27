@@ -182,10 +182,46 @@ Keep each new tool a narrow adapter:
 
 ```bash
 bazel test --test_output=errors //src/service/mcp/...
-bazel build //src/service/mcp:mcp_binary
+bazel build \
+  //src/service/mcp:mcp_binary \
+  //test/smoke:mcp-checks
+bazel test //test/smoke:mcp-checks-pylint
 bash deployments/charts/service/ci/validate-mcp-chart.sh
 ```
 
 The chart validation covers MCP-disabled and MCP-enabled renders, the derived
 Gateway origin, OAuth metadata, probes, ingress isolation, absence of MCP
 credential material, and expected configuration failures.
+
+## Deployment validation
+
+The MCP smoke target requires an MCP-enabled deployment with JWT
+authentication. Its token needs `mcp:Access`, `profile:Read`, and
+`workflow:Create` for `OETF_POOL`.
+
+```bash
+bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
+```
+
+The smoke test rejects unauthenticated access, verifies the exact 18-tool
+catalog, compares the profile projection with Core, checks caller-bound
+health, and validates a small workflow through Gateway → MCP → Gateway → Core.
+A successful validation does not enqueue compute or create a workflow row.
+The smoke suite intentionally sends only this known-good case because a failed
+Core validation can create a `FAILED_SUBMISSION` row.
+
+When the deployment cannot validate the default public `ubuntu:22.04` image,
+pass an approved image into the Bazel test environment:
+
+```bash
+bazel run //test/oetf:run -- \
+  --env <mcp-enabled-env> \
+  --tags mcp \
+  --bazel-arg=--test_env=OETF_DEFAULT_IMAGE=<registry/image:tag>
+```
+
+Submission, restart, and cancellation remain deliberate Inspector checks
+against disposable workflows. They are not automated in the smoke target
+because doing so would consume compute or mutate existing workflow state.
+For each one-shot action, inspect the workflow after an ambiguous error before
+retrying.
