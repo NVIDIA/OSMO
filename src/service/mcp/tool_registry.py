@@ -174,6 +174,26 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         annotations=_write_annotations(destructive=False),
     ),
     ToolSpec(
+        function=workflow_actions.osmo_restart_workflow,
+        name='osmo_restart_workflow',
+        title='Restart an OSMO workflow',
+        description=(
+            'Restart one failed workflow as a new run. This consumes real '
+            'compute and requires source-workflow read access.'
+        ),
+        annotations=_write_annotations(destructive=True),
+    ),
+    ToolSpec(
+        function=workflow_actions.osmo_cancel_workflow,
+        name='osmo_cancel_workflow',
+        title='Cancel an OSMO workflow',
+        description=(
+            'Request cancellation of one workflow; force cancellation is '
+            'destructive and not reversible.'
+        ),
+        annotations=_write_annotations(destructive=True),
+    ),
+    ToolSpec(
         function=apps.osmo_list_apps,
         name='osmo_list_apps',
         title='List OSMO apps',

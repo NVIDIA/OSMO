@@ -102,12 +102,12 @@ authorization value.
 
 The external catalog contains 14 read-only tools for caller-bound health,
 profile, pool, resource, workflow, application, and credential-metadata
-inspection, plus `osmo_validate_workflow` and `osmo_submit_workflow`. Each tool
-maps to a fixed external API, returns a structured allowlisted result, and
-applies a domain-specific response limit. Credential inspection returns names
-and types only. Profile inspection intentionally includes non-secret
-access-token identity metadata (name and expiry), unlike the hosted internal
-MCP projection.
+inspection, plus four workflow actions: validation, submission, restart, and
+cancellation. Each tool maps to a fixed external API, returns a structured
+allowlisted result, and applies a domain-specific response limit. Credential
+inspection returns names and types only. Profile inspection intentionally
+includes non-secret access-token identity metadata (name and expiry), unlike
+the hosted internal MCP projection.
 
 Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
@@ -118,6 +118,15 @@ environment injection, dry-run rendering, or source workflow IDs. The latter
 would let Core read a source spec without a source-pool authorization check.
 The result contains only the new workflow ID, pool, priority, and submission
 confirmation; Core-generated URLs are not returned.
+
+Restart accepts only a failed source workflow and always performs a compact
+workflow read before its POST, including when the target pool is explicit.
+This requires source-workflow read access in addition to create access on the
+target pool before Core reads the source spec. Cancellation accepts one
+canonical workflow ID per call. It intentionally omits the CLI's cancellation
+message because that value is persisted and appears in Gateway/authz URL logs.
+Both actions are destructive, one-shot operations whose ambiguous outcomes
+must be inspected before retrying.
 
 JSON tools require one complete bounded response. Bounded text tools may
 instead return a safe UTF-8 prefix with `truncated=true` and a machine-readable

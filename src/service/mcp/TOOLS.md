@@ -63,24 +63,31 @@ though the CLI and hosted internal MCP may display them. Legacy profile values
 can contain secret-bearing userinfo, queries, or fragments; the external
 projection therefore returns only `cred_name` and `cred_type`.
 
-## Phase 2: workflow actions (in progress)
+## Phase 2: workflow actions (code complete)
 
-`osmo_validate_workflow` and `osmo_submit_workflow` are implemented using
-bounded TemplateSpec projections. Validation sets `validation_only=true` and
-is a non-idempotent write because a failed validation can create a
-`FAILED_SUBMISSION` workflow record. Submission accepts raw YAML and preserves
-the original template when it detects the same template markers as the CLI.
-It returns only the new workflow ID, selected pool, and effective priority.
-The shared mutation relay sends bounded JSON, never retries, and reports an
-unknown outcome for ambiguous transport or server failures.
+`osmo_validate_workflow`, `osmo_submit_workflow`,
+`osmo_restart_workflow`, and `osmo_cancel_workflow` are implemented.
+Validation sets `validation_only=true` and is a non-idempotent write because a
+failed validation can create a `FAILED_SUBMISSION` workflow record. Submission
+accepts raw YAML and preserves the original template when it detects the same
+template markers as the CLI. It returns only the new workflow ID, selected
+pool, and effective priority. Restart and cancel are destructive one-shot
+operations.
 
 Submit-by-workflow-ID is intentionally omitted. Core authorizes creation in the
 target pool but reads the source workflow internally without a source-pool
 read check. Dry-run rendering, environment injection, local-file expansion,
 and rsync are also omitted from the agent-facing contract.
 
-Add `osmo_restart_workflow` and `osmo_cancel_workflow` as the remaining Phase 2
-actions.
+Restart accepts only a failed source workflow and always performs a compact
+source-workflow GET before its POST. This requires `workflow:Read` on the
+source before Core's restart route enforces `workflow:Create` on the target
+pool. Cancel accepts one canonical ID per call and omits the CLI's persisted,
+query-string cancellation message because Gateway and authz access logs record
+it. The shared mutation relay never retries and reports an unknown outcome for
+ambiguous transport, server, database, or malformed-success failures.
+
+Deployment smoke coverage remains before Phase 2 is considered released.
 
 ## Phase 3: user-owned mutations
 

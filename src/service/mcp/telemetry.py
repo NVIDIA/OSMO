@@ -30,7 +30,13 @@ _STATIC_ROUTES = frozenset({
     '/api/app',
     '/api/credentials',
 })
-_WORKFLOW_SUFFIXES = frozenset({'logs', 'error_logs', 'events', 'spec'})
+_WORKFLOW_SUFFIXES = frozenset({
+    'logs',
+    'error_logs',
+    'events',
+    'spec',
+    'cancel',
+})
 
 
 def route_template(path: str) -> str:
@@ -65,6 +71,14 @@ def route_template(path: str) -> str:
         and parts[4] == 'workflow'
     ):
         return '/api/pool/{pool}/workflow'
+
+    if (
+        len(parts) == 7
+        and parts[:3] == ['', 'api', 'pool']
+        and parts[4] == 'workflow'
+        and parts[6] == 'restart'
+    ):
+        return '/api/pool/{pool}/workflow/{workflow_id}/restart'
 
     return '/api/{unclassified}'
 

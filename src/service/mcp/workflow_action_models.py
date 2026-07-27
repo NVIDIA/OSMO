@@ -44,6 +44,10 @@ VariableOverrides = Annotated[
     list[VariableOverride],
     pydantic.Field(max_length=50),
 ]
+ForceCancel = Annotated[
+    pydantic.StrictBool,
+    pydantic.Field(),
+]
 
 
 class WorkflowTemplatePayload(ClosedToolModel):
@@ -89,3 +93,28 @@ class SubmitWorkflowResult(ClosedToolModel):
     pool: PoolName
     priority: WorkflowPriority
     submitted: Literal[True]
+
+
+class UpstreamCancelResult(ClosedToolModel):
+    """Allowlisted fields from Core's CancelResponse."""
+
+    model_config = pydantic.ConfigDict(extra='ignore')
+
+    name: WorkflowId
+
+
+class RestartWorkflowResult(ClosedToolModel):
+    """Compact confirmation that Core accepted a workflow restart."""
+
+    workflow_id: WorkflowId
+    parent_workflow_id: WorkflowId
+    pool: PoolName
+    restart_submitted: Literal[True]
+
+
+class CancelWorkflowResult(ClosedToolModel):
+    """Compact confirmation that Core accepted a cancellation request."""
+
+    workflow_id: WorkflowId
+    force: bool
+    cancellation_submitted: Literal[True]

@@ -29,6 +29,8 @@ from src.service.mcp.tests import protocol_harness
 _BEARER_SECRET = 'phase-two-opaque-bearer-secret'
 _HARNESS = protocol_harness.ProtocolHarness(
     tool_names=(
+        'osmo_cancel_workflow',
+        'osmo_restart_workflow',
         'osmo_submit_workflow',
         'osmo_validate_workflow',
     ),
@@ -54,6 +56,17 @@ workflow:
     command: [echo]
     args: [ok]
 """
+_FAILED_WORKFLOW = {
+    'name': 'source-workflow-1',
+    'uuid': 'source-workflow-uuid',
+    'submitted_by': 'alice@example.com',
+    'submit_time': '2026-07-23T12:00:00Z',
+    'status': 'FAILED',
+    'priority': 'NORMAL',
+    'tags': [],
+    'pool': 'pool-a',
+    'groups': [],
+}
 
 
 class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
@@ -65,6 +78,10 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             self,
             response,
             expected_annotations={
+                'osmo_cancel_workflow':
+                    protocol_harness.DESTRUCTIVE_WRITE_ANNOTATIONS,
+                'osmo_restart_workflow':
+                    protocol_harness.DESTRUCTIVE_WRITE_ANNOTATIONS,
                 'osmo_submit_workflow':
                     protocol_harness.WRITE_ANNOTATIONS,
                 'osmo_validate_workflow':
@@ -113,6 +130,19 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 excluded_argument,
                 submit_schema['properties'],
             )
+        restart_schema = tools['osmo_restart_workflow']['inputSchema']
+        self.assertEqual(restart_schema['required'], ['workflow_id'])
+        self.assertEqual(
+            restart_schema['properties']['pool']['default'],
+            None,
+        )
+        cancel_schema = tools['osmo_cancel_workflow']['inputSchema']
+        self.assertEqual(cancel_schema['required'], ['workflow_id'])
+        self.assertEqual(
+            cancel_schema['properties']['force']['default'],
+            False,
+        )
+        self.assertNotIn('message', cancel_schema['properties'])
 
     async def test_submit_posts_exact_body_and_projects_result(self) -> None:
         captured_requests: list[httpx.Request] = []
@@ -287,6 +317,233 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn('private-server-detail', response.text)
 
         self.assertEqual(calls, 2)
+
+    async def test_restart_preflights_source_and_uses_its_pool(self) -> None:
+        captured_requests: list[httpx.Request] = []
+        upstream_secret = 'restart-upstream-sensitive-value'
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            if request.method == 'GET':
+                return httpx.Response(200, json=_FAILED_WORKFLOW)
+            return httpx.Response(200, json={
+                'name': 'restarted-workflow-2',
+                'overview': (
+                    f'https://example.test/?token={upstream_secret}'
+                ),
+                'logs': (
+                    f'https://example.test/logs?secret={upstream_secret}'
+                ),
+            })
+
+        response = await _HARNESS.call_tool(
+            handler,
+            'osmo_restart_workflow',
+            {'workflow_id': 'source-workflow-1'},
+        )
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'])
+        self.assertEqual(result['structuredContent'], {
+            'workflow_id': 'restarted-workflow-2',
+            'parent_workflow_id': 'source-workflow-1',
+            'pool': 'pool-a',
+            'restart_submitted': True,
+        })
+        self.assertNotIn(upstream_secret, response.text)
+        self.assertEqual(len(captured_requests), 2)
+        source_request = captured_requests[0]
+        restart_request = captured_requests[1]
+        self.assertEqual(source_request.method, 'GET')
+        self.assertEqual(
+            source_request.url.path,
+            '/api/workflow/source-workflow-1',
+        )
+        self.assertEqual(
+            source_request.url.params.multi_items(),
+            [('skip_groups', 'true')],
+        )
+        self.assertEqual(restart_request.method, 'POST')
+        self.assertEqual(
+            restart_request.url.path,
+            '/api/pool/pool-a/workflow/source-workflow-1/restart',
+        )
+        self.assertEqual(restart_request.content, b'')
+
+    async def test_restart_explicit_pool_still_requires_source_read(
+        self,
+    ) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(403, json={
+                'message': 'private authorization detail',
+            })
+
+        response = await _HARNESS.call_tool(
+            handler,
+            'osmo_restart_workflow',
+            {
+                'workflow_id': 'source-workflow-1',
+                'pool': 'pool-b',
+            },
+        )
+
+        self.assertTrue(response.json()['result']['isError'])
+        self.assertIn('authorization denied', response.text)
+        self.assertNotIn('private authorization detail', response.text)
+        self.assertNotIn('write outcome is unknown', response.text)
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(
+            captured_requests[0].url.path,
+            '/api/workflow/source-workflow-1',
+        )
+
+    async def test_cancel_posts_force_and_projects_result(
+        self,
+    ) -> None:
+        captured_requests: list[httpx.Request] = []
+        upstream_secret = 'cancel-upstream-sensitive-value'
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json={
+                'name': 'source-workflow-1',
+                'detail': upstream_secret,
+            })
+
+        response = await _HARNESS.call_tool(
+            handler,
+            'osmo_cancel_workflow',
+            {
+                'workflow_id': 'source-workflow-1',
+                'force': True,
+            },
+        )
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'])
+        self.assertEqual(result['structuredContent'], {
+            'workflow_id': 'source-workflow-1',
+            'force': True,
+            'cancellation_submitted': True,
+        })
+        self.assertNotIn(upstream_secret, response.text)
+        self.assertEqual(len(captured_requests), 1)
+        request = captured_requests[0]
+        self.assertEqual(request.method, 'POST')
+        self.assertEqual(
+            request.url.path,
+            '/api/workflow/source-workflow-1/cancel',
+        )
+        self.assertEqual(
+            request.url.params.multi_items(),
+            [('force', 'true')],
+        )
+        self.assertEqual(request.content, b'')
+
+    async def test_lifecycle_rejects_invalid_arguments_before_relay(
+        self,
+    ) -> None:
+        transport_calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            nonlocal transport_calls
+            transport_calls += 1
+            return httpx.Response(200, json={})
+
+        calls: tuple[tuple[str, dict[str, object]], ...] = (
+            (
+                'osmo_restart_workflow',
+                {'workflow_id': '../private-workflow-1'},
+            ),
+            (
+                'osmo_cancel_workflow',
+                {'workflow_id': '550e8400-e29b-41d4-a716-446655440000'},
+            ),
+            (
+                'osmo_cancel_workflow',
+                {'workflow_id': 'source-workflow-1', 'force': 1},
+            ),
+            (
+                'osmo_cancel_workflow',
+                {
+                    'workflow_id': 'source-workflow-1',
+                    'message': 'not accepted by the external MCP',
+                },
+            ),
+        )
+        async with _HARNESS.client(handler) as client:
+            for request_id, (tool_name, arguments) in enumerate(
+                calls,
+                start=1,
+            ):
+                with self.subTest(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                ):
+                    response = await _HARNESS.call_tool_with_client(
+                        client,
+                        tool_name,
+                        arguments,
+                        request_id=request_id,
+                    )
+                    self.assertTrue(response.json()['result']['isError'])
+
+        self.assertEqual(transport_calls, 0)
+
+    async def test_lifecycle_ambiguous_results_are_not_retried(
+        self,
+    ) -> None:
+        restart_calls = 0
+
+        async def restart_handler(
+            request: httpx.Request,
+        ) -> httpx.Response:
+            nonlocal restart_calls
+            restart_calls += 1
+            if request.method == 'GET':
+                return httpx.Response(200, json=_FAILED_WORKFLOW)
+            return httpx.Response(503, content=b'private-restart-detail')
+
+        restart_response = await _HARNESS.call_tool(
+            restart_handler,
+            'osmo_restart_workflow',
+            {'workflow_id': 'source-workflow-1'},
+        )
+        self.assertTrue(restart_response.json()['result']['isError'])
+        self.assertIn(
+            'write outcome is unknown',
+            restart_response.text,
+        )
+        self.assertNotIn('private-restart-detail', restart_response.text)
+        self.assertEqual(restart_calls, 2)
+
+        cancel_calls = 0
+
+        async def cancel_handler(
+            request: httpx.Request,
+        ) -> httpx.Response:
+            del request
+            nonlocal cancel_calls
+            cancel_calls += 1
+            return httpx.Response(200, json={
+                'name': 'different-workflow-2',
+            })
+
+        cancel_response = await _HARNESS.call_tool(
+            cancel_handler,
+            'osmo_cancel_workflow',
+            {'workflow_id': 'source-workflow-1'},
+        )
+        self.assertTrue(cancel_response.json()['result']['isError'])
+        self.assertIn(
+            'write outcome is unknown',
+            cancel_response.text,
+        )
+        self.assertEqual(cancel_calls, 1)
 
     async def test_explicit_pool_posts_exact_template_payload(self) -> None:
         captured_requests: list[httpx.Request] = []
