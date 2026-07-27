@@ -17,11 +17,31 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import datetime
+from typing import Annotated, Literal
 
 from mcp.server.fastmcp import Context
 import pydantic
 
-from src.service.mcp import access_scope
+from src.service.mcp import (
+    access_scope,
+    tool_errors,
+    tool_requests,
+    tool_validation,
+)
+
+
+ProfileSetting = Literal['pool', 'notifications']
+ProfileValue = Annotated[
+    str,
+    pydantic.Field(min_length=1, max_length=512),
+]
+ProfileEnabled = Annotated[
+    pydantic.StrictBool,
+    pydantic.Field(),
+]
+
+_MAX_PROFILE_UPDATE_RESPONSE_BYTES = 1024
+_MAX_PROFILE_VALUE_BYTES = 512
 
 
 class ProfileSettings(pydantic.BaseModel):
@@ -55,6 +75,17 @@ class ProfileResult(pydantic.BaseModel):
     token: TokenIdentity | None = None
 
 
+class ProfileUpdateResult(pydantic.BaseModel):
+    """Closed confirmation of one applied active-user profile setting."""
+
+    model_config = pydantic.ConfigDict(extra='forbid')
+
+    setting: ProfileSetting
+    value: str
+    enabled: bool | None
+    updated: Literal[True]
+
+
 async def osmo_get_profile(context: Context) -> ProfileResult:
     """Get the active user's OSMO profile, roles, and accessible pools."""
     active_profile = (
@@ -63,4 +94,65 @@ async def osmo_get_profile(context: Context) -> ProfileResult:
     return ProfileResult.model_validate(
         active_profile.model_dump(),
         strict=True,
+    )
+
+
+async def osmo_set_profile(
+    context: Context,
+    setting: ProfileSetting,
+    value: ProfileValue,
+    enabled: ProfileEnabled | None = None,
+) -> ProfileUpdateResult:
+    """Update one allowlisted setting for the active OSMO user."""
+    if setting not in ('pool', 'notifications'):
+        raise tool_errors.PublicToolError('Invalid profile setting.')
+    if enabled is not None and not isinstance(enabled, bool):
+        raise tool_errors.PublicToolError('Invalid enabled.')
+
+    payload: tool_requests.JsonObject
+    applied_enabled: bool | None
+    if setting == 'pool':
+        if enabled is not None:
+            raise tool_errors.PublicToolError(
+                'Do not specify enabled when updating the default pool.'
+            )
+        validated_value = tool_validation.validate_query_text(
+            value,
+            field='profile value',
+            max_bytes=_MAX_PROFILE_VALUE_BYTES,
+        )
+        payload = {'pool': validated_value}
+        applied_enabled = None
+    else:
+        if value not in ('email', 'slack'):
+            raise tool_errors.PublicToolError(
+                'Notification value must be email or slack.'
+            )
+        validated_value = value
+        applied_enabled = True if enabled is None else enabled
+        payload = {
+            (
+                'email_notification'
+                if value == 'email'
+                else 'slack_notification'
+            ): applied_enabled,
+        }
+
+    response = await tool_requests.request_json_mutation(
+        context,
+        method='POST',
+        path='/api/profile/settings',
+        operation='update the active user profile',
+        max_response_bytes=_MAX_PROFILE_UPDATE_RESPONSE_BYTES,
+        payload=payload,
+    )
+    if response is not None:
+        raise tool_errors.uncertain_write_error(
+            'update the active user profile'
+        )
+    return ProfileUpdateResult(
+        setting=setting,
+        value=validated_value,
+        enabled=applied_enabled,
+        updated=True,
     )

@@ -43,11 +43,15 @@ def _read_only_annotations() -> ToolAnnotations:
     )
 
 
-def _write_annotations(*, destructive: bool) -> ToolAnnotations:
+def _write_annotations(
+    *,
+    destructive: bool,
+    idempotent: bool = False,
+) -> ToolAnnotations:
     return ToolAnnotations(
         readOnlyHint=False,
         destructiveHint=destructive,
-        idempotentHint=False,
+        idempotentHint=idempotent,
         openWorldHint=False,
     )
 
@@ -82,6 +86,19 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         description=(
             'Get the active user\'s OSMO profile settings, roles, accessible '
             'pools, and non-secret token identity metadata.'
+        ),
+    ),
+    ToolSpec(
+        function=profile.osmo_set_profile,
+        name='osmo_set_profile',
+        title='Update OSMO profile',
+        description=(
+            'Update the active user\'s default pool or notification settings. '
+            'This overwrites saved profile state and is not automatically retried.'
+        ),
+        annotations=_write_annotations(
+            destructive=True,
+            idempotent=True,
         ),
     ),
     ToolSpec(

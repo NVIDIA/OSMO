@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
 import json
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from mcp.server.fastmcp import Context
 import pydantic
@@ -29,9 +29,13 @@ from src.service.mcp import gateway, request_context, tool_errors
 
 
 JsonObject: TypeAlias = dict[str, pydantic.JsonValue]
+JsonMutationResult: TypeAlias = JsonObject | str | None
 ActiveProfile: TypeAlias = profile_contract.ProfileResponse
 
 _JSON_OBJECT_ADAPTER = pydantic.TypeAdapter(JsonObject)
+_JSON_MUTATION_RESULT_ADAPTER: pydantic.TypeAdapter[JsonMutationResult] = (
+    pydantic.TypeAdapter(JsonMutationResult)
+)
 _PROFILE_PATH = '/api/profile/settings'
 _MAX_PROFILE_RESPONSE_BYTES = 64 * 1024
 _TEXT_TRUNCATION_SENTINEL = (
@@ -82,16 +86,17 @@ async def request_json_object(
 async def request_json_mutation(
     context: Context,
     *,
+    method: Literal['POST', 'PATCH', 'DELETE'] = 'POST',
     path: str,
     operation: str,
     max_response_bytes: int,
     query: gateway.QueryParams | None = None,
-    payload: JsonObject | None = None,
-) -> JsonObject:
-    """Relay one fixed POST without retries and require a bounded JSON object."""
+    payload: gateway.JsonRequestBody | None = None,
+) -> JsonMutationResult:
+    """Relay one fixed write and require a bounded object, string, or null."""
     response = await _request(
         context,
-        method='POST',
+        method=method,
         path=path,
         operation=operation,
         max_response_bytes=max_response_bytes,
@@ -100,8 +105,11 @@ async def request_json_mutation(
         suppress_upstream_details=True,
     )
     try:
-        return _validate_json_object_body(response.body, operation=operation)
-    except tool_errors.PublicToolError:
+        return _JSON_MUTATION_RESULT_ADAPTER.validate_json(
+            response.body,
+            strict=True,
+        )
+    except pydantic.ValidationError:
         raise tool_errors.uncertain_write_error(operation) from None
 
 
@@ -215,7 +223,7 @@ async def _request(
     operation: str,
     max_response_bytes: int,
     query: gateway.QueryParams | None,
-    json_body: JsonObject | None = None,
+    json_body: gateway.JsonRequestBody | None = None,
     suppress_upstream_details: bool = False,
     truncate_text: bool = False,
     not_found_message: str | None = None,

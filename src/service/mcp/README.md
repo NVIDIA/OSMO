@@ -102,12 +102,18 @@ authorization value.
 
 The external catalog contains 14 read-only tools for caller-bound health,
 profile, pool, resource, workflow, application, and credential-metadata
-inspection, plus four workflow actions: validation, submission, restart, and
-cancellation. Each tool maps to a fixed external API, returns a structured
-allowlisted result, and applies a domain-specific response limit. Credential
-inspection returns names and types only. Profile inspection intentionally
-includes non-secret access-token identity metadata (name and expiry), unlike
-the hosted internal MCP projection.
+inspection, four workflow actions, and one profile-setting action. Each tool
+maps to a fixed external API, returns a structured allowlisted result, and
+applies a domain-specific response limit. Credential inspection returns names
+and types only. Profile inspection intentionally includes non-secret
+access-token identity metadata (name and expiry). Bearer values are never
+returned.
+
+`osmo_set_profile` updates only the default pool or email/Slack notification
+state supported by the external CLI and Core contract. Other profile settings
+are outside this tool's public contract. Core returns no updated profile
+object, so the tool reports only the validated setting that was accepted.
+Profile writes are one-shot and are not automatically retried.
 
 Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
@@ -143,17 +149,17 @@ caller-bound Gateway authentication and OSMO profile access.
 
 ## Code organization
 
-The external MCP remains independent from the hosted internal MCP. Runtime
-security boundaries live in `request_context.py`, `request_body.py`,
+Runtime security boundaries live in `request_context.py`, `request_body.py`,
 `gateway.py`, `protocol.py`, and `telemetry.py`. Shared, dependency-light tool
-support lives in `tool_errors.py`, `tool_requests.py`, `tool_validation.py`, and
-`access_scope.py`. Each larger domain keeps its public and upstream contracts in
-`*_models.py` and its fixed routes, authorization decisions, projection, and
-handlers in the matching domain module. `tool_registry.py` is the single source
-of registration metadata used by both the server and catalog.
+support lives in `tool_errors.py`, `tool_requests.py`, `tool_validation.py`,
+and `access_scope.py`. Each larger domain keeps its public and upstream
+contracts in `*_models.py` and its fixed routes, authorization decisions,
+projection, and handlers in the matching domain module. `tool_registry.py` is
+the single source of registration metadata used by both the server and
+catalog.
 
-Do not import the CLI runtime or internal MCP implementation. Extract only pure
-public helpers when behavior genuinely needs to match another OSMO surface.
+Do not import the CLI runtime. Extract only pure public helpers when behavior
+genuinely needs to match another OSMO surface.
 
 ## Adding a tool
 
@@ -203,7 +209,7 @@ authentication. Its token needs `mcp:Access`, `profile:Read`, and
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
 ```
 
-The smoke test rejects unauthenticated access, verifies the exact 18-tool
+The smoke test rejects unauthenticated access, verifies the exact 19-tool
 catalog, compares the profile projection with Core, checks caller-bound
 health, and validates a small workflow through Gateway → MCP → Gateway → Core.
 A successful validation does not enqueue compute or create a workflow row.
@@ -220,8 +226,7 @@ bazel run //test/oetf:run -- \
   --bazel-arg=--test_env=OETF_DEFAULT_IMAGE=<registry/image:tag>
 ```
 
-Submission, restart, and cancellation remain deliberate Inspector checks
-against disposable workflows. They are not automated in the smoke target
-because doing so would consume compute or mutate existing workflow state.
-For each one-shot action, inspect the workflow after an ambiguous error before
-retrying.
+Profile updates, submission, restart, and cancellation remain deliberate
+Inspector checks. They are not automated in the smoke target because doing so
+would mutate saved user or workflow state or consume compute. For each
+one-shot action, inspect OSMO state after an ambiguous error before retrying.
