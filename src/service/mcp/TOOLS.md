@@ -54,14 +54,13 @@ intersection on the resource request itself. Large accessible-pool sets can
 also reach the shared 16-KiB query ceiling for list requests even when MCP
 output is small; this is bounded output, not end-to-end pagination.
 
-Returning token name/expiry from `osmo_get_profile` is an intentional external
-product choice; the hosted internal MCP currently omits that metadata. Neither
-surface returns bearer values.
+Returning token name/expiry from `osmo_get_profile` is intentional. The tool
+never returns bearer values.
 
-Credential profiles are intentionally omitted from the external MCP even
-though the CLI and hosted internal MCP may display them. Legacy profile values
-can contain secret-bearing userinfo, queries, or fragments; the external
-projection therefore returns only `cred_name` and `cred_type`.
+Credential profiles are intentionally omitted even though the CLI may display
+them. Legacy profile values can contain secret-bearing userinfo, queries, or
+fragments; the external projection therefore returns only `cred_name` and
+`cred_type`.
 
 ## Phase 2: workflow actions (implemented; deployment verification pending)
 
@@ -75,9 +74,9 @@ pool, and effective priority. Restart and cancel are destructive one-shot
 operations.
 
 Submit-by-workflow-ID is intentionally omitted. Core authorizes creation in the
-target pool but reads the source workflow internally without a source-pool
-read check. Dry-run rendering, environment injection, local-file expansion,
-and rsync are also omitted from the agent-facing contract.
+target pool but does not enforce source-pool read access when retrieving the
+source workflow. Dry-run rendering, environment injection, local-file
+expansion, and rsync are also omitted from the agent-facing contract.
 
 Restart accepts only a failed source workflow and always performs a compact
 source-workflow GET before its POST. This requires `workflow:Read` on the
@@ -94,13 +93,19 @@ launching compute. It must pass against an MCP-enabled deployment before Phase
 Inspector checks against disposable workflows so the smoke suite does not
 consume compute or mutate existing workflow state.
 
-## Phase 3: user-owned mutations
+## Phase 3: user-owned mutations (in progress)
 
-Add `osmo_set_profile`, `osmo_set_credential`, `osmo_delete_credential`,
-`osmo_create_app`, `osmo_update_app`, `osmo_delete_app`, `osmo_rename_app`, and
-`osmo_submit_app`. Credential writes require dedicated secret-argument and
-error-reflection tests. Application writes must preserve their asynchronous API
-semantics.
+`osmo_set_profile` is implemented. It updates exactly one external
+CLI-supported setting per call: the default pool, email notifications, or
+Slack notifications. Other profile settings are outside this tool's public
+contract. Core returns JSON `null` after accepting the write, so MCP returns a
+compact confirmation rather than implying it read back authoritative state.
+
+Remaining work adds `osmo_set_credential`, `osmo_delete_credential`,
+`osmo_create_app`, `osmo_update_app`, `osmo_delete_app`, `osmo_rename_app`,
+and `osmo_submit_app`. Credential writes require dedicated secret-argument and
+error-reflection tests. Application writes must preserve their asynchronous
+API semantics.
 
 ## Out of scope
 

@@ -50,6 +50,7 @@ _HTTP_LIMITS = httpx.Limits(
 QueryScalar: TypeAlias = str | int | bool
 QueryValue: TypeAlias = QueryScalar | Sequence[QueryScalar]
 QueryParams: TypeAlias = Mapping[str, QueryValue]
+JsonRequestBody: TypeAlias = Mapping[str, object] | str
 
 
 class GatewayClientError(RuntimeError):
@@ -94,7 +95,7 @@ class GatewayClient:
         credentials: request_context.RequestCredentials,
         max_response_bytes: int,
         query: QueryParams | None = None,
-        json_body: Mapping[str, object] | None = None,
+        json_body: JsonRequestBody | None = None,
     ) -> GatewayResponse:
         """Call a fixed API path and require its 2xx response body to fit."""
         return await self._request(
@@ -135,7 +136,7 @@ class GatewayClient:
         credentials: request_context.RequestCredentials,
         max_response_bytes: int,
         query: QueryParams | None,
-        json_body: Mapping[str, object] | None,
+        json_body: JsonRequestBody | None,
         truncate_success: bool,
     ) -> GatewayResponse:
         """Call a fixed API path with credentials from the active MCP request."""
@@ -428,16 +429,24 @@ def _encode_query_params(
 
 def _encode_json_body(
     method: str,
-    json_body: Mapping[str, object] | None,
+    json_body: JsonRequestBody | None,
 ) -> bytes | None:
-    """Serialize one bounded JSON object for an explicit write request."""
+    """Serialize one bounded JSON object or string for a write request."""
     if json_body is None:
         return None
-    if method == 'GET' or not isinstance(json_body, Mapping):
+    if (
+        method == 'GET'
+        or not isinstance(json_body, (Mapping, str))
+    ):
         raise ValueError('Gateway request body is not allowed.')
+    json_value = (
+        dict(json_body)
+        if isinstance(json_body, Mapping)
+        else json_body
+    )
     try:
         encoded_body = json.dumps(
-            dict(json_body),
+            json_value,
             ensure_ascii=False,
             allow_nan=False,
             separators=(',', ':'),

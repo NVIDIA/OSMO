@@ -109,7 +109,7 @@ not mount a service-account token, and the chart creates no MCP credential
 Secret. Gateway-to-MCP TLS continues to use the shared `gateway.tls`
 configuration described below.
 
-The external MCP exposes an 18-tool catalog with fixed API routes and no
+The external MCP exposes a 19-tool catalog with fixed API routes and no
 caller-selected origin, method, route, or headers. See the
 [external MCP tool plan](../../../src/service/mcp/TOOLS.md) for its exact
 contracts and API mappings. MCP health probes do not call these APIs; a

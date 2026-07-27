@@ -186,6 +186,258 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(login.OSMO_USER_HEADER, upstream_request.headers)
         self.assertNotIn('cookie', upstream_request.headers)
 
+    async def test_set_profile_pool_relays_one_closed_mutation(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, content=b'null')
+
+        response, catalog_response = await self._invoke_tool(
+            handler,
+            arguments={
+                'setting': 'pool',
+                'value': 'training-pool',
+            },
+            include_catalog=True,
+            tool_name='osmo_set_profile',
+        )
+
+        self.assertIsNotNone(catalog_response)
+        assert catalog_response is not None
+        tools = {
+            item['name']: item
+            for item in catalog_response.json()['result']['tools']
+        }
+        tool = tools['osmo_set_profile']
+        self.assertEqual(tool['name'], 'osmo_set_profile')
+        self.assertFalse(tool['inputSchema']['additionalProperties'])
+        self.assertEqual(
+            tool['inputSchema']['properties']['setting']['enum'],
+            ['pool', 'notifications'],
+        )
+        enabled_schema = tool['inputSchema']['properties']['enabled']
+        self.assertIn(
+            {'type': 'boolean'},
+            enabled_schema['anyOf'],
+        )
+        self.assertFalse(tool['outputSchema']['additionalProperties'])
+        self.assertEqual(tool['annotations'], {
+            'readOnlyHint': False,
+            'destructiveHint': True,
+            'idempotentHint': True,
+            'openWorldHint': False,
+        })
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'], result)
+        self.assertEqual(result['structuredContent'], {
+            'setting': 'pool',
+            'value': 'training-pool',
+            'enabled': None,
+            'updated': True,
+        })
+        self.assertEqual(len(captured_requests), 1)
+        upstream_request = captured_requests[0]
+        self.assertEqual(upstream_request.method, 'POST')
+        self.assertEqual(
+            str(upstream_request.url),
+            'https://gateway.test/api/profile/settings',
+        )
+        self.assertEqual(
+            upstream_request.content,
+            b'{"pool":"training-pool"}',
+        )
+        self.assertEqual(
+            upstream_request.headers['authorization'],
+            f'Bearer {_BEARER_SECRET}',
+        )
+        self.assertEqual(
+            upstream_request.headers['x-request-id'],
+            'profile-request-123',
+        )
+        self.assertNotIn(_BEARER_SECRET, response.text)
+
+    async def test_set_profile_notifications_default_and_explicit_enabled(
+        self,
+    ) -> None:
+        cases: tuple[
+            tuple[dict[str, object], dict[str, object], bool],
+            ...,
+        ] = (
+            (
+                {'setting': 'notifications', 'value': 'email'},
+                {'email_notification': True},
+                True,
+            ),
+            (
+                {
+                    'setting': 'notifications',
+                    'value': 'slack',
+                    'enabled': False,
+                },
+                {'slack_notification': False},
+                False,
+            ),
+        )
+
+        def success_handler(
+            captured_requests: list[httpx.Request],
+        ) -> _Handler:
+            async def handler(request: httpx.Request) -> httpx.Response:
+                captured_requests.append(request)
+                return httpx.Response(200, content=b'null')
+
+            return handler
+
+        for arguments, expected_payload, expected_enabled in cases:
+            with self.subTest(arguments=arguments):
+                captured_requests: list[httpx.Request] = []
+
+                response, _ = await self._invoke_tool(
+                    success_handler(captured_requests),
+                    arguments=arguments,
+                    tool_name='osmo_set_profile',
+                )
+                result = response.json()['result']
+                self.assertFalse(result['isError'], result)
+                self.assertEqual(
+                    result['structuredContent']['enabled'],
+                    expected_enabled,
+                )
+                self.assertEqual(len(captured_requests), 1)
+                self.assertEqual(
+                    json.loads(captured_requests[0].content),
+                    expected_payload,
+                )
+
+    async def test_set_profile_rejects_invalid_combinations_before_transport(
+        self,
+    ) -> None:
+        input_secret = 'profile-invalid-input-secret'
+        cases: tuple[dict[str, object], ...] = (
+            {
+                'setting': 'pool',
+                'value': 'training-pool',
+                'enabled': True,
+            },
+            {
+                'setting': 'notifications',
+                'value': 'sms',
+            },
+            {
+                'setting': 'notifications',
+                'value': 'email',
+                'enabled': 1,
+            },
+            {
+                'setting': 'bucket',
+                'value': input_secret,
+            },
+            {
+                'setting': 'notifications',
+                'value': 'email',
+                'enabled': input_secret,
+            },
+        )
+
+        async def unexpected_handler(
+            request: httpx.Request,
+        ) -> httpx.Response:
+            raise AssertionError(f'unexpected request: {request.url}')
+
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                response, _ = await self._invoke_tool(
+                    unexpected_handler,
+                    arguments=arguments,
+                    tool_name='osmo_set_profile',
+                )
+                result = response.json()['result']
+                self.assertTrue(result['isError'])
+                self.assertNotIn(input_secret, json.dumps(result))
+                self.assertNotIn(_BEARER_SECRET, json.dumps(result))
+
+    async def test_set_profile_write_failures_do_not_reflect_or_retry(
+        self,
+    ) -> None:
+        upstream_secret = 'profile-write-upstream-secret'
+        cases = (
+            httpx.Response(
+                422,
+                json={
+                    'error_code': 'USER',
+                    'message': upstream_secret,
+                },
+            ),
+            httpx.Response(
+                200,
+                json={
+                    'unexpected': upstream_secret,
+                },
+            ),
+        )
+
+        def fixed_response_handler(
+            upstream_response: httpx.Response,
+        ) -> tuple[_Handler, list[httpx.Request]]:
+            captured_requests: list[httpx.Request] = []
+
+            async def handler(request: httpx.Request) -> httpx.Response:
+                captured_requests.append(request)
+                return upstream_response
+
+            return handler, captured_requests
+
+        for upstream_response in cases:
+            with self.subTest(status=upstream_response.status_code):
+                handler, captured_requests = fixed_response_handler(
+                    upstream_response
+                )
+
+                response, _ = await self._invoke_tool(
+                    handler,
+                    arguments={
+                        'setting': 'pool',
+                        'value': 'training-pool',
+                    },
+                    tool_name='osmo_set_profile',
+                )
+                result = response.json()['result']
+                self.assertTrue(result['isError'])
+                self.assertEqual(len(captured_requests), 1)
+                self.assertNotIn(upstream_secret, json.dumps(result))
+                self.assertNotIn(_BEARER_SECRET, json.dumps(result))
+                if upstream_response.status_code == 200:
+                    self.assertIn(
+                        'write outcome is unknown',
+                        json.dumps(result),
+                    )
+
+        transport_calls = 0
+
+        async def transport_failure(
+            request: httpx.Request,
+        ) -> httpx.Response:
+            nonlocal transport_calls
+            transport_calls += 1
+            raise httpx.ConnectError(upstream_secret, request=request)
+
+        response, _ = await self._invoke_tool(
+            transport_failure,
+            arguments={
+                'setting': 'pool',
+                'value': 'training-pool',
+            },
+            tool_name='osmo_set_profile',
+        )
+        result = response.json()['result']
+        self.assertTrue(result['isError'])
+        self.assertEqual(transport_calls, 1)
+        self.assertIn('write outcome is unknown', json.dumps(result))
+        self.assertNotIn(upstream_secret, json.dumps(result))
+        self.assertNotIn(_BEARER_SECRET, json.dumps(result))
+
     async def test_health_is_a_minimal_caller_bound_profile_probe(self) -> None:
         captured_requests: list[httpx.Request] = []
 

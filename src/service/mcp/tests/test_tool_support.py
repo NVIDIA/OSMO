@@ -410,6 +410,155 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
             json_body=payload,
         )
 
+    async def test_general_mutation_supports_methods_bodies_and_result_values(
+        self,
+    ) -> None:
+        gateway_client = mock.AsyncMock(spec=gateway.GatewayClient)
+        credentials = self._credentials()
+        cases = (
+            (
+                'POST',
+                {'pool': 'pool-a'},
+                b'null',
+                None,
+            ),
+            (
+                'PATCH',
+                'version: 2',
+                b'{"name":"app-a","version":2}',
+                {'name': 'app-a', 'version': 2},
+            ),
+            (
+                'DELETE',
+                None,
+                b'"app-a"',
+                'app-a',
+            ),
+        )
+
+        with (
+            mock.patch.object(
+                tool_requests,
+                'get_app_context',
+                return_value=gateway.AppContext(gateway=gateway_client),
+            ),
+            mock.patch.object(
+                request_context,
+                'get_request_credentials',
+                return_value=credentials,
+            ),
+        ):
+            for method, payload, body, expected in cases:
+                with self.subTest(method=method):
+                    gateway_client.reset_mock()
+                    gateway_client.request.return_value = (
+                        gateway.GatewayResponse(200, body)
+                    )
+                    result = await tool_requests.request_json_mutation(
+                        mock.Mock(),
+                        method=method,  # type: ignore[arg-type]
+                        path='/api/profile/settings',
+                        operation='update a setting',
+                        max_response_bytes=1024,
+                        payload=payload,
+                    )
+
+                    self.assertEqual(result, expected)
+                    gateway_client.request.assert_awaited_once_with(
+                        method,
+                        '/api/profile/settings',
+                        credentials=credentials,
+                        max_response_bytes=1024,
+                        query=None,
+                        json_body=payload,
+                    )
+
+    async def test_mutation_rejects_unsupported_json_without_reflection_or_retry(
+        self,
+    ) -> None:
+        gateway_client = mock.AsyncMock(spec=gateway.GatewayClient)
+        credentials = self._credentials()
+        invalid_bodies = (
+            b'["malformed-success-upstream-secret"',
+            b'{"value":"malformed-success-upstream-secret"',
+            b'[]',
+            b'true',
+            b'1',
+        )
+
+        with (
+            mock.patch.object(
+                tool_requests,
+                'get_app_context',
+                return_value=gateway.AppContext(gateway=gateway_client),
+            ),
+            mock.patch.object(
+                request_context,
+                'get_request_credentials',
+                return_value=credentials,
+            ),
+        ):
+            for body in invalid_bodies:
+                with self.subTest(body=body):
+                    gateway_client.reset_mock()
+                    gateway_client.request.return_value = (
+                        gateway.GatewayResponse(200, body)
+                    )
+                    with self.assertRaisesRegex(
+                        ToolError,
+                        'write outcome is unknown',
+                    ) as raised:
+                        await tool_requests.request_json_mutation(
+                            mock.Mock(),
+                            method='PATCH',
+                            path='/api/app/user/app-a',
+                            operation='update an app',
+                            max_response_bytes=1024,
+                            payload='version: 2',
+                        )
+
+                    self.assertNotIn('upstream-secret', str(raised.exception))
+                    gateway_client.request.assert_awaited_once()
+
+    async def test_mutation_suppresses_upstream_error_body_without_retry(
+        self,
+    ) -> None:
+        gateway_client = mock.AsyncMock(spec=gateway.GatewayClient)
+        gateway_client.request.return_value = gateway.GatewayResponse(
+            422,
+            (
+                b'{"error_code":"USER",'
+                b'"message":"profile-write-upstream-secret"}'
+            ),
+        )
+        credentials = self._credentials()
+
+        with (
+            mock.patch.object(
+                tool_requests,
+                'get_app_context',
+                return_value=gateway.AppContext(gateway=gateway_client),
+            ),
+            mock.patch.object(
+                request_context,
+                'get_request_credentials',
+                return_value=credentials,
+            ),
+        ):
+            with self.assertRaisesRegex(ToolError, 'HTTP 422') as raised:
+                await tool_requests.request_json_mutation(
+                    mock.Mock(),
+                    method='POST',
+                    path='/api/profile/settings',
+                    operation='update the active user profile',
+                    max_response_bytes=1024,
+                    payload={'pool': 'pool-a'},
+                )
+
+        self.assertNotIn('profile-write-upstream-secret', str(raised.exception))
+        self.assertNotIn('error_code=USER', str(raised.exception))
+        gateway_client.request.assert_awaited_once()
+
     async def test_mutation_transport_and_server_failures_are_uncertain(
         self,
     ) -> None:
@@ -446,6 +595,7 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
         ):
             for failure in failures:
                 with self.subTest(failure=type(failure).__name__):
+                    gateway_client.reset_mock()
                     if isinstance(failure, Exception):
                         gateway_client.request.side_effect = failure
                     else:
@@ -464,6 +614,7 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
                     message = str(raised.exception)
                     self.assertIn('Inspect OSMO state before retrying', message)
                     self.assertNotIn('upstream-secret', message)
+                    gateway_client.request.assert_awaited_once()
 
 
 if __name__ == '__main__':

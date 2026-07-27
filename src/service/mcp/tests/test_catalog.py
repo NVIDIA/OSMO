@@ -52,6 +52,13 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'pools, and non-secret token identity metadata.',
     ),
     (
+        profile.osmo_set_profile,
+        'osmo_set_profile',
+        'Update OSMO profile',
+        'Update the active user\'s default pool or notification settings. '
+        'This overwrites saved profile state and is not automatically retried.',
+    ),
+    (
         pools.osmo_search_pools,
         'osmo_search_pools',
         'Search OSMO pools',
@@ -166,6 +173,7 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
 _EXPECTED_REQUIRED_FIELDS = {
     'osmo_health': [],
     'osmo_get_profile': [],
+    'osmo_set_profile': ['setting', 'value'],
     'osmo_search_pools': [],
     'osmo_list_resources': [],
     'osmo_get_resource': ['node_name'],
@@ -185,6 +193,7 @@ _EXPECTED_REQUIRED_FIELDS = {
 }
 
 _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
+    'osmo_set_profile': {'enabled': None},
     'osmo_search_pools': {'query': None, 'limit': 50, 'offset': 0},
     'osmo_list_resources': {
         'pool': None,
@@ -242,7 +251,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
     """Lock the ordered, agent-facing external MCP tool contract."""
 
     def test_registry_has_exact_metadata_and_direct_unique_functions(self) -> None:
-        self.assertEqual(len(tool_registry.TOOL_SPECS), 18)
+        self.assertEqual(len(tool_registry.TOOL_SPECS), 19)
         self.assertEqual(
             [
                 (spec.name, spec.title, spec.description)
@@ -257,7 +266,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         registered_functions = [
             spec.function for spec in tool_registry.TOOL_SPECS
         ]
-        self.assertEqual(len({id(function) for function in registered_functions}), 18)
+        self.assertEqual(len({id(function) for function in registered_functions}), 19)
         for spec, (function, _, _, _) in zip(
             tool_registry.TOOL_SPECS,
             _EXPECTED_SPECS,
@@ -270,7 +279,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
         tool_registry.register_tools(mcp_server)
 
-        self.assertEqual(mcp_server.add_tool.call_count, 18)
+        self.assertEqual(mcp_server.add_tool.call_count, 19)
         for call, (function, name, title, description) in zip(
             mcp_server.add_tool.call_args_list,
             _EXPECTED_SPECS,
@@ -285,16 +294,21 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             is_write = name in {
                 'osmo_cancel_workflow',
                 'osmo_restart_workflow',
+                'osmo_set_profile',
                 'osmo_submit_workflow',
                 'osmo_validate_workflow',
             }
             is_destructive = name in {
                 'osmo_cancel_workflow',
                 'osmo_restart_workflow',
+                'osmo_set_profile',
             }
             self.assertIs(annotations.readOnlyHint, not is_write)
             self.assertIs(annotations.destructiveHint, is_destructive)
-            self.assertIs(annotations.idempotentHint, not is_write)
+            self.assertIs(
+                annotations.idempotentHint,
+                name == 'osmo_set_profile' or not is_write,
+            )
             self.assertFalse(annotations.openWorldHint)
 
     async def test_all_tools_have_closed_schemas_and_stable_arguments(self) -> None:
@@ -314,19 +328,24 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             is_write = tool.name in {
                 'osmo_cancel_workflow',
                 'osmo_restart_workflow',
+                'osmo_set_profile',
                 'osmo_submit_workflow',
                 'osmo_validate_workflow',
             }
             is_destructive = tool.name in {
                 'osmo_cancel_workflow',
                 'osmo_restart_workflow',
+                'osmo_set_profile',
             }
             self.assertIs(tool.annotations.readOnlyHint, not is_write)
             self.assertIs(
                 tool.annotations.destructiveHint,
                 is_destructive,
             )
-            self.assertIs(tool.annotations.idempotentHint, not is_write)
+            self.assertIs(
+                tool.annotations.idempotentHint,
+                tool.name == 'osmo_set_profile' or not is_write,
+            )
             self.assertFalse(tool.annotations.openWorldHint)
             self._assert_recursively_closed(tool.inputSchema, tool.name)
             self.assertIsNotNone(tool.outputSchema)

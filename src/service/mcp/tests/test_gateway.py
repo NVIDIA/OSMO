@@ -324,6 +324,41 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
+    async def test_writes_json_encode_string_bodies(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, content=b'null')
+
+        async with gateway.create_app_context(
+            gateway_url='https://gateway.test',
+            request_timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+        ) as app_context:
+            for method in ('POST', 'PATCH', 'DELETE'):
+                await app_context.gateway.request(
+                    method,
+                    '/api/app/user/training-app',
+                    credentials=self._credentials(),
+                    max_response_bytes=1024,
+                    json_body='version: 2\nname: "training"',
+                )
+
+        self.assertEqual(
+            [request.method for request in captured_requests],
+            ['POST', 'PATCH', 'DELETE'],
+        )
+        for request in captured_requests:
+            self.assertEqual(
+                request.content,
+                b'"version: 2\\nname: \\"training\\""',
+            )
+            self.assertEqual(
+                request.headers['content-type'],
+                'application/json',
+            )
+
     async def test_invalid_json_bodies_are_rejected_before_transport(self) -> None:
         transport_calls = 0
 
@@ -343,6 +378,8 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
             ('POST', {'value': '\ud800'}),
             ('POST', {'file': 'x' * (1024 * 1024)}),
             ('POST', {'file': 'request-body-bearer-secret'}),
+            ('POST', ['json', 'arrays']),
+            ('PATCH', 1),
         )
         async with gateway.create_app_context(
             gateway_url='https://gateway.test',
@@ -357,7 +394,7 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                             '/api/pool/pool-a/workflow',
                             credentials=credentials,
                             max_response_bytes=1024,
-                            json_body=json_body,
+                            json_body=json_body,  # type: ignore[arg-type]
                         )
 
         self.assertEqual(transport_calls, 0)

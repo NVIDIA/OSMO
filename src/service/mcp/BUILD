@@ -174,6 +174,9 @@ osmo_py_library(
         requirement("mcp"),
         requirement("pydantic"),
         ":access_scope",
+        ":tool_errors",
+        ":tool_requests",
+        ":tool_validation",
     ],
     visibility = ["//visibility:public"],
 )

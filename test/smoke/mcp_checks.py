@@ -37,6 +37,7 @@ _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_list_workflows",
     "osmo_search_pools",
     "osmo_restart_workflow",
+    "osmo_set_profile",
     "osmo_submit_workflow",
     "osmo_validate_workflow",
 })
