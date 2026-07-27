@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import dataclasses
 import re
 
 from mcp.server.fastmcp import Context
@@ -45,6 +46,15 @@ _MAX_APP_RESPONSE_BYTES = 1024 * 1024
 _MAX_APP_SPEC_BYTES = 32 * 1024
 _DEFAULT_APP_LIST_LIMIT = 50
 _APP_VERSION_RESOLUTION_LIMIT = 200
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class ResolvedAppVersion:
+    """Validated app identity and one concrete READY version."""
+
+    encoded_name: str
+    uuid: str
+    version: int
 
 
 async def osmo_list_apps(
@@ -131,33 +141,14 @@ async def osmo_get_app_spec(
     encoded_name = validated_app_name(name)
     resolved_version = version
     if resolved_version is None:
-        upstream = await _request_app(
+        resolved = await resolve_ready_app_version(
             context,
-            encoded_name=encoded_name,
+            name=name,
             version=None,
-            limit=_APP_VERSION_RESOLUTION_LIMIT + 1,
             operation='resolve the newest READY OSMO app version',
         )
-        resolved_version = max(
-            (
-                app_version.version
-                for app_version in upstream.versions[
-                    :_APP_VERSION_RESOLUTION_LIMIT
-                ]
-                if app_version.status == 'READY'
-            ),
-            default=None,
-        )
-        if resolved_version is None:
-            if len(upstream.versions) > _APP_VERSION_RESOLUTION_LIMIT:
-                raise PublicToolError(
-                    'Unable to resolve the newest READY OSMO app version '
-                    'within the bounded version history; specify version '
-                    'explicitly.'
-                )
-            raise PublicToolError(
-                'The requested OSMO app has no READY versions.'
-            )
+        encoded_name = resolved.encoded_name
+        resolved_version = resolved.version
 
     spec_result = await tool_requests.request_truncated_text(
         context,
@@ -187,6 +178,100 @@ def validated_app_name(
     ):
         raise PublicToolError(f'Invalid {field}.')
     return tool_validation.safe_path_segment(name, field=field)
+
+
+async def resolve_ready_app_version(
+    context: Context,
+    *,
+    name: AppName,
+    version: AppVersionNumber | None,
+    operation: str,
+) -> ResolvedAppVersion:
+    """Resolve and validate one concrete READY app version for reuse."""
+    encoded_name = validated_app_name(name)
+    validated_version = tool_validation.validate_optional_integer(
+        version,
+        field='app version',
+        minimum=1,
+    )
+    upstream = await _request_app(
+        context,
+        encoded_name=encoded_name,
+        version=validated_version,
+        limit=(
+            1
+            if validated_version is not None
+            else _APP_VERSION_RESOLUTION_LIMIT + 1
+        ),
+        operation=operation,
+    )
+    if upstream.name != name:
+        raise PublicToolError(
+            f'OSMO returned an invalid response while attempting to {operation}.'
+        )
+    try:
+        uuid = tool_validation.validate_query_text(
+            upstream.uuid,
+            field='app UUID',
+            max_bytes=512,
+        )
+    except PublicToolError:
+        raise PublicToolError(
+            f'OSMO returned an invalid response while attempting to {operation}.'
+        ) from None
+    if len(upstream.versions) != len({
+        app_version.version for app_version in upstream.versions
+    }):
+        raise PublicToolError(
+            f'OSMO returned an invalid response while attempting to {operation}.'
+        )
+
+    resolved_version: int | None
+    if validated_version is not None:
+        if not upstream.versions:
+            raise PublicToolError(
+                'The requested OSMO app version is not READY.'
+            )
+        app_version = upstream.versions[0]
+        if (
+            len(upstream.versions) != 1
+            or app_version.version != validated_version
+        ):
+            raise PublicToolError(
+                f'OSMO returned an invalid response while attempting to {operation}.'
+            )
+        if app_version.status != 'READY':
+            raise PublicToolError(
+                'The requested OSMO app version is not READY.'
+            )
+        resolved_version = validated_version
+    else:
+        resolved_version = max(
+            (
+                app_version.version
+                for app_version in upstream.versions[
+                    :_APP_VERSION_RESOLUTION_LIMIT
+                ]
+                if app_version.status == 'READY'
+            ),
+            default=None,
+        )
+        if resolved_version is None:
+            if len(upstream.versions) > _APP_VERSION_RESOLUTION_LIMIT:
+                raise PublicToolError(
+                    'Unable to resolve the newest READY OSMO app version '
+                    'within the bounded version history; specify version '
+                    'explicitly.'
+                )
+            raise PublicToolError(
+                'The requested OSMO app has no READY versions.'
+            )
+
+    return ResolvedAppVersion(
+        encoded_name=encoded_name,
+        uuid=uuid,
+        version=resolved_version,
+    )
 
 
 async def _request_app(

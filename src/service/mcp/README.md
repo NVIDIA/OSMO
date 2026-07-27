@@ -100,14 +100,15 @@ authorization value.
 
 ## Available tools
 
-The external catalog contains 14 read-only tools for caller-bound health,
-profile, pool, resource, workflow, application, and credential-metadata
-inspection, plus four workflow actions, one profile-setting action, and two
-credential actions, and four app lifecycle actions. Each tool maps to a fixed
-external API, returns a structured allowlisted result, and applies a
-domain-specific response limit. Credential inspection returns names and types
-only. Profile inspection intentionally includes non-secret access-token
-identity metadata (name and expiry). Bearer values are never returned.
+The external catalog contains 26 tools: 14 read-only tools for caller-bound
+health, profile, pool, resource, workflow, application, and
+credential-metadata inspection, plus four workflow actions, one
+profile-setting action, two credential actions, four app lifecycle actions,
+and app submission. Each tool maps to a fixed external API, returns a
+structured allowlisted result, and applies a domain-specific response limit.
+Credential inspection returns names and types only. Profile inspection
+intentionally includes non-secret access-token identity metadata (name and
+expiry). Bearer values are never returned.
 
 `osmo_set_profile` updates only the default pool or email/Slack notification
 state supported by the external CLI and Core contract. Other profile settings
@@ -147,6 +148,20 @@ version is a successful no-op. Rename is synchronous and one-shot. App
 descriptions are non-secret query values and may appear in Gateway/authz
 access logs. Core currently authorizes rename's POST route as `app:Create`;
 the external MCP preserves that existing API/RBAC contract.
+
+`osmo_submit_app` resolves and pins one concrete READY version, reads its
+complete spec under a 128-KiB ceiling, and submits it through the same shared
+workflow-submission path as raw YAML. This avoids the CLI's independent
+metadata/spec resolution while preserving its template overrides and priority
+semantics. Overrides may contain sensitive values, so callers should prefer
+OSMO credentials for secrets; MCP does not return or log overrides, but the
+calling client may retain its arguments. Explicit pools rely on the
+authoritative `workflow:Create` check; an omitted pool additionally reads the
+profile to select its accessible default or sole pool. The preflight app reads
+require `app:Read`. Local paths, environment injection, dry-run, rsync, and
+local-file expansion remain excluded. Submission consumes compute, can create
+a `FAILED_SUBMISSION` record when Core rejects the workflow during validation,
+and is never automatically retried.
 
 Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
@@ -242,14 +257,14 @@ authentication. Its token needs `mcp:Access`, `profile:Read`, and
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
 ```
 
-The smoke test rejects unauthenticated access, verifies the exact 25-tool
+The smoke test rejects unauthenticated access, verifies the exact 26-tool
 catalog, compares the profile projection with Core, checks caller-bound
 health, and validates a small workflow through Gateway → MCP → Gateway → Core.
 A successful validation does not enqueue compute or create a workflow row.
 The smoke suite intentionally sends only this known-good case because a failed
 Core validation can create a `FAILED_SUBMISSION` row.
-Profile, credential, and app mutations remain manual Inspector checks against
-disposable user-owned state.
+Profile, credential, app lifecycle, and app-submission mutations remain manual
+Inspector checks against disposable user-owned state.
 
 When the deployment cannot validate the default public `ubuntu:22.04` image,
 pass an approved image into the Bazel test environment:
@@ -261,7 +276,7 @@ bazel run //test/oetf:run -- \
   --bazel-arg=--test_env=OETF_DEFAULT_IMAGE=<registry/image:tag>
 ```
 
-Profile updates, submission, restart, and cancellation remain deliberate
-Inspector checks. They are not automated in the smoke target because doing so
-would mutate saved user or workflow state or consume compute. For each
+Profile updates, workflow and app submission, restart, and cancellation remain
+deliberate Inspector checks. They are not automated in the smoke target because
+doing so would mutate saved user or workflow state or consume compute. For each
 one-shot action, inspect OSMO state after an ambiguous error before retrying.

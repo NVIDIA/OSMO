@@ -133,6 +133,8 @@ osmo_py_library(
         requirement("pydantic"),
         ":app_models",
         ":tool_models",
+        ":workflow_action_models",
+        ":workflow_models",
     ],
     visibility = ["//visibility:public"],
 )
@@ -259,17 +261,32 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "workflow_submission",
+    srcs = ["workflow_submission.py"],
+    deps = [
+        requirement("mcp"),
+        ":access_scope",
+        ":tool_errors",
+        ":tool_requests",
+        ":tool_validation",
+        ":workflow_action_models",
+        ":workflow_models",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "workflow_action_tools",
     srcs = ["workflow_actions.py"],
     deps = [
         requirement("mcp"),
-        ":access_scope",
         ":gateway",
         ":tool_errors",
         ":tool_requests",
         ":tool_validation",
         ":workflow_action_models",
         ":workflow_models",
+        ":workflow_submission",
         ":workflow_tools",
     ],
     visibility = ["//visibility:public"],
@@ -300,6 +317,23 @@ osmo_py_library(
         ":tool_errors",
         ":tool_requests",
         ":tool_validation",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "app_submission_tools",
+    srcs = ["app_submission.py"],
+    deps = [
+        requirement("mcp"),
+        ":app_action_models",
+        ":app_models",
+        ":app_tools",
+        ":tool_requests",
+        ":tool_validation",
+        ":workflow_action_models",
+        ":workflow_models",
+        ":workflow_submission",
     ],
     visibility = ["//visibility:public"],
 )
@@ -336,6 +370,7 @@ osmo_py_library(
     deps = [
         requirement("mcp"),
         ":app_action_tools",
+        ":app_submission_tools",
         ":app_tools",
         ":credential_action_tools",
         ":credential_tools",

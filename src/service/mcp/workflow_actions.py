@@ -19,11 +19,11 @@ SPDX-License-Identifier: Apache-2.0
 from mcp.server.fastmcp import Context
 
 from src.service.mcp import (
-    access_scope,
     gateway,
     tool_errors,
     tool_requests,
     tool_validation,
+    workflow_submission,
     workflows,
 )
 from src.service.mcp.workflow_action_models import (
@@ -41,18 +41,11 @@ from src.service.mcp.workflow_action_models import (
     WorkflowSpecText,
     WorkflowTemplatePayload,
 )
-from src.service.mcp.workflow_models import (
-    WORKFLOW_PRIORITIES,
-    WorkflowId,
-    WorkflowPriority,
-)
+from src.service.mcp.workflow_models import WorkflowId, WorkflowPriority
 
 
 _MAX_JSON_RESPONSE_BYTES = 64 * 1024
 _MAX_VALIDATION_SPEC_BYTES = 256 * 1024
-_MAX_SUBMISSION_SPEC_BYTES = 128 * 1024
-_MAX_OVERRIDE_BYTES = 2048
-_CLI_TEMPLATE_MARKERS = ('{%%', '{{', '{#', 'default-values')
 
 
 async def osmo_submit_workflow(
@@ -64,59 +57,38 @@ async def osmo_submit_workflow(
     priority: WorkflowPriority = 'NORMAL',
 ) -> SubmitWorkflowResult:
     """Submit raw workflow YAML to Core using the caller's OSMO identity."""
-    validated_spec = tool_validation.validate_inline_text(
-        workflow_spec,
-        field='workflow_spec',
-        max_bytes=_MAX_SUBMISSION_SPEC_BYTES,
-    )
-    validated_set_variables = _validate_overrides(
+    validated_set_variables = workflow_submission.validate_variable_overrides(
         set_variables,
         field='set_variables',
     )
-    validated_set_string_variables = _validate_overrides(
-        set_string_variables,
-        field='set_string_variables',
+    validated_set_string_variables = (
+        workflow_submission.validate_variable_overrides(
+            set_string_variables,
+            field='set_string_variables',
+        )
     )
-    if priority not in WORKFLOW_PRIORITIES:
-        raise tool_errors.PublicToolError('Invalid workflow priority.')
-
-    pool_name = await _resolve_pool(context, pool)
-    encoded_pool = tool_validation.safe_path_segment(
-        pool_name,
-        field='pool',
-    )
-    payload = WorkflowTemplatePayload(
-        file=validated_spec,
+    validated_priority = workflow_submission.validate_priority(priority)
+    validated_pool = workflow_submission.validate_pool_name(pool)
+    payload = workflow_submission.build_submission_payload(
+        workflow_spec,
         set_variables=validated_set_variables,
         set_string_variables=validated_set_string_variables,
-        uploaded_templated_spec=(
-            validated_spec
-            if _is_templated_workflow(validated_spec)
-            else None
-        ),
     )
-    query = (
-        {'priority': priority}
-        if priority != 'NORMAL'
-        else None
-    )
-    response = await tool_requests.request_json_mutation(
+    pool_name = await workflow_submission.resolve_pool(
         context,
-        path=f'/api/pool/{encoded_pool}/workflow',
-        operation='submit a workflow',
-        max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
-        query=query,
-        payload=payload.model_dump(mode='json', exclude_none=True),
+        validated_pool,
     )
-    upstream = tool_validation.validate_mutation_response(
-        UpstreamSubmitResult,
-        response,
+    upstream = await workflow_submission.request_submission(
+        context,
+        pool=pool_name,
+        priority=validated_priority,
+        payload=payload,
         operation='submit a workflow',
     )
     return SubmitWorkflowResult(
         workflow_id=upstream.name,
         pool=pool_name,
-        priority=priority,
+        priority=validated_priority,
         submitted=True,
     )
 
@@ -134,15 +106,21 @@ async def osmo_validate_workflow(
         field='workflow_spec',
         max_bytes=_MAX_VALIDATION_SPEC_BYTES,
     )
-    validated_set_variables = _validate_overrides(
+    validated_set_variables = workflow_submission.validate_variable_overrides(
         set_variables,
         field='set_variables',
     )
-    validated_set_string_variables = _validate_overrides(
-        set_string_variables,
-        field='set_string_variables',
+    validated_set_string_variables = (
+        workflow_submission.validate_variable_overrides(
+            set_string_variables,
+            field='set_string_variables',
+        )
     )
-    pool_name = await _resolve_pool(context, pool)
+    validated_pool = workflow_submission.validate_pool_name(pool)
+    pool_name = await workflow_submission.resolve_pool(
+        context,
+        validated_pool,
+    )
     encoded_pool = tool_validation.safe_path_segment(
         pool_name,
         field='pool',
@@ -178,14 +156,15 @@ async def osmo_restart_workflow(
     pool: PoolName | None = None,
 ) -> RestartWorkflowResult:
     """Restart a failed workflow after authorizing read access to its source."""
+    validated_pool = workflow_submission.validate_pool_name(pool)
     source = await workflows.osmo_get_workflow(
         context,
         workflow_id,
         skip_groups=True,
     )
     pool_name = (
-        await _resolve_pool(context, pool)
-        if pool is not None or source.workflow.pool is None
+        await workflow_submission.resolve_pool(context, validated_pool)
+        if validated_pool is not None or source.workflow.pool is None
         else source.workflow.pool
     )
     encoded_pool = tool_validation.safe_path_segment(
@@ -244,63 +223,3 @@ async def osmo_cancel_workflow(
         force=force,
         cancellation_submitted=True,
     )
-
-
-async def _resolve_pool(context: Context, pool: str | None) -> str:
-    if pool is not None:
-        return tool_validation.validate_query_text(
-            pool,
-            field='pool',
-            max_bytes=512,
-        )
-
-    scope = await access_scope.request_access_scope(context)
-    if scope.default_pool is not None:
-        return scope.default_pool
-    if len(scope.pools) == 1:
-        return scope.pools[0]
-    raise tool_errors.PublicToolError(
-        'No unambiguous accessible pool is configured.'
-    )
-
-
-def _is_templated_workflow(workflow_spec: str) -> bool:
-    """Match the CLI's lightweight template detection without its runtime."""
-    return any(marker in workflow_spec for marker in _CLI_TEMPLATE_MARKERS)
-
-
-def _validate_overrides(
-    values: list[str] | None,
-    *,
-    field: str,
-) -> list[str]:
-    if values is None:
-        return []
-    if (
-        not isinstance(values, list)
-        or len(values) > 50
-    ):
-        raise tool_errors.PublicToolError(f'Invalid {field}.')
-
-    validated: list[str] = []
-    for value in values:
-        try:
-            encoded_value = value.encode('utf-8')
-        except (AttributeError, UnicodeEncodeError):
-            encoded_value = b''
-        key, separator, _ = value.partition('=') if isinstance(
-            value, str
-        ) else ('', '', '')
-        if (
-            not separator
-            or not key
-            or key != key.strip()
-            or len(encoded_value) > _MAX_OVERRIDE_BYTES
-            or any(
-                ord(character) < 0x20 or ord(character) == 0x7F
-                for character in value
-            )
-        ):
-            raise tool_errors.PublicToolError(f'Invalid {field}.')
-        validated.append(value)
-    return validated

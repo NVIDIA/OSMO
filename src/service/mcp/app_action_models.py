@@ -22,6 +22,8 @@ import pydantic
 
 from src.service.mcp.app_models import AppName, AppVersionNumber
 from src.service.mcp.tool_models import ClosedToolModel, ExtensibleUpstreamModel
+from src.service.mcp.workflow_action_models import PoolName
+from src.service.mcp.workflow_models import WorkflowId, WorkflowPriority
 
 
 MAX_APP_DESCRIPTION_BYTES = 2048
@@ -131,3 +133,14 @@ class RenameAppResult(ClosedToolModel):
     original_name: AppName
     new_name: AppName
     renamed: Literal[True]
+
+
+class SubmitAppResult(ClosedToolModel):
+    """Compact confirmation that Core accepted one app submission."""
+
+    workflow_id: WorkflowId
+    app_name: AppName
+    app_version: AppVersionNumber
+    pool: PoolName
+    priority: WorkflowPriority
+    submitted: Literal[True]

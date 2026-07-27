@@ -22,6 +22,7 @@ import unittest
 
 from src.service.mcp import (
     app_actions,
+    app_submission,
     apps,
     credential_actions,
     credentials,
@@ -194,6 +195,13 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'app identifier and is not automatically retried.',
     ),
     (
+        app_submission.osmo_submit_app,
+        'osmo_submit_app',
+        'Submit OSMO app',
+        'Resolve and pin a READY app version, then submit it to run in '
+        'OSMO. This consumes real compute and is not automatically retried.',
+    ),
+    (
         credentials.osmo_list_credentials,
         'osmo_list_credentials',
         'List OSMO credentials',
@@ -242,6 +250,7 @@ _EXPECTED_REQUIRED_FIELDS = {
     'osmo_update_app': ['name', 'spec_content'],
     'osmo_delete_app': ['name'],
     'osmo_rename_app': ['original_name', 'new_name'],
+    'osmo_submit_app': ['name'],
     'osmo_list_credentials': [],
     'osmo_set_credential': ['name', 'cred_type', 'payload'],
     'osmo_delete_credential': ['name'],
@@ -300,6 +309,13 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
     'osmo_get_app': {'version': None, 'limit': 50},
     'osmo_get_app_spec': {'version': None},
     'osmo_delete_app': {'version': None, 'all_versions': False},
+    'osmo_submit_app': {
+        'pool': None,
+        'version': None,
+        'set_variables': None,
+        'set_string_variables': None,
+        'priority': 'NORMAL',
+    },
 }
 
 _WRITE_TOOL_NAMES = frozenset({
@@ -312,6 +328,7 @@ _WRITE_TOOL_NAMES = frozenset({
     'osmo_set_credential',
     'osmo_set_profile',
     'osmo_submit_workflow',
+    'osmo_submit_app',
     'osmo_update_app',
     'osmo_validate_workflow',
 })
