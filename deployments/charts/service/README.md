@@ -20,7 +20,7 @@
 
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
-For a complete local deployment, use the
+This chart is consumed by the
 [`osmo` umbrella chart](../osmo/README.md). It composes this chart with the
 backend operator, creates namespaces, supports External Secrets, and runs
 preflight/postflight checks:
@@ -33,8 +33,9 @@ helm upgrade --install osmo ../osmo \
   --wait
 ```
 
-Install this subchart directly only when a separately managed control plane is
-required.
+Use the umbrella chart's `split-control.yaml` profile for a separately managed
+control plane. Direct subchart installation is retained for chart development
+and migration testing, not as a separate end-user installation path.
 
 ## Values
 
@@ -204,6 +205,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.logger.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.logger.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.logger.imageName` | Logger image name | `logger` |
+| `services.logger.imageTag` | Optional logger image tag override | `""` |
 | `services.logger.serviceName` | Service name | `osmo-logger` |
 | `services.logger.initContainers` | Init containers for logger service | `[]` |
 | `services.logger.nodeSelector` | Node selector constraints | `{}` |

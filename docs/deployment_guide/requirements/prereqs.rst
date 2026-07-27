@@ -64,4 +64,6 @@ Before deploying OSMO, ensure you have the following cloud components:
 
 
 .. note::
-  A sample terraform setup on AWS and Azure is available in our repository: `AWS <https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/aws/example>`_ and `Azure <https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/azure/example>`_
+  OSMO starts at the Kubernetes boundary. Use your organization's approved
+  infrastructure tooling to create the cluster, network, managed data
+  services, IAM, and DNS before installing the OSMO Helm chart.

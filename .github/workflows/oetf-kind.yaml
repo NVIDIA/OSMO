@@ -5,8 +5,6 @@ on:
     branches: [main]
     paths:
       - 'deployments/charts/**'
-      - 'deployments/scripts/**'
-      - 'deployments/values/**'
       - 'test/oetf/**'
       - 'test/smoke/**'
       - 'test/scenarios/**'
@@ -86,13 +84,13 @@ jobs:
           disk-cache: ${{ github.workflow }}
           repository-cache: true
 
-      - name: Add quick-start.osmo to /etc/hosts
+      - name: Add local.osmo to /etc/hosts
         run: |
           # The KIND adapter's check_kind_prereqs requires this name to
-          # resolve so tests can reach the chart's ingress at
-          # http://quick-start.osmo via the host port mapping published by
+          # resolve so tests can reach the chart's gateway at
+          # http://local.osmo via the host port mapping published by
           # `kind create cluster --config`.
-          echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+          echo "127.0.0.1 local.osmo" | sudo tee -a /etc/hosts
 
       - name: Preflight (OETF KIND adapter check_kind_prereqs)
         run: |
@@ -110,8 +108,8 @@ jobs:
         # Reclaim ~22-25 GB by removing pre-installed tooling the OETF
         # gate doesn't use. Pairs with the intra-step host-docker cleanup
         # in local_images.build_and_load (docker rmi + tarball delete per
-        # image after kind-load), needed because the chart's 6-node KIND
-        # profile duplicates every loaded image into 6 separate
+        # image after kind-load), useful because direct kind loading
+        # duplicates every loaded image into each node's
         # containerd content stores. Without both mitigations the runner
         # crashes mid-job with "No space left on device" (measured #29,
         # #31, #32).
@@ -145,21 +143,15 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --build-local + --use-local-registry: build 9 OSMO service images
+          # --build-local + --use-local-registry: build 8 enabled OSMO service images
           # + web-ui from PR source, push to a host-side `registry:2`
           # container, KIND nodes pull from it on-demand. Replaces `kind
           # load docker-image` which duplicates each image into every node's
-          # containerd content store (6 nodes × 10 images = 60 image-copies
-          # — overruns hosted ubuntu-latest's 145 GB disk). With registry
-          # mode each KIND node only pulls images its pods actually
-          # schedule (1-2 nodes per image under the chart's node_group
-          # selectors), dropping the multiplier from 6x to 1-2x.
+          # containerd content store. With registry mode each KIND node only
+          # pulls images its pods actually schedule.
           #
-          # web-ui IS built and pushed: ingress-nginx has a hard
-          # `wait-for-web-ui` init container that polls osmo-ui:80, so
-          # scaling web-ui to 0 deadlocks the chart (verified empirically
-          # in run #35). Registry-push UI keeps the chart whole at ~1 GB
-          # host disk vs the prior ~5 GB kind-load duplication.
+          # web-ui is built and pushed so the gateway and UI paths are
+          # validated from the same source revision.
           #
           # "Free runner disk" step above reclaims 22-25 GB pre-deploy.
           #
@@ -169,8 +161,8 @@ jobs:
           # backend-listener / backend-worker / osmo_ctrl runtime get
           # touched.
           #
-          # --jobs=1 serializes: chart's single-replica ingress-nginx 504s
-          # under parallel scenario submits.
+          # --jobs=1 keeps this resource-constrained local profile stable
+          # under workflow submission load.
           #
           # `time` writes total wall clock to the step log so regressions
           # past the ~15-min PR-gate budget show up in the run timeline.
@@ -213,8 +205,8 @@ jobs:
           kubectl get events -A --sort-by=.lastTimestamp 2>/dev/null | tail -100 || true
           echo "::endgroup::"
 
-          echo "::group::Non-Ready pod descriptions (osmo + kai-scheduler + ingress-nginx + kube-system)"
-          for ns in osmo kai-scheduler ingress-nginx kube-system; do
+          echo "::group::Non-Ready pod descriptions (osmo-system + osmo-workflows + kube-system)"
+          for ns in osmo-system osmo-workflows kube-system; do
             # `kubectl get pods` field-selector can't filter on .status.conditions; do it in jsonpath.
             not_ready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
             also_unready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.containerStatuses[*].ready==false)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
@@ -227,7 +219,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Non-Ready pod logs (last 200 lines, with --previous on crash)"
-          for ns in osmo kai-scheduler ingress-nginx; do
+          for ns in osmo-system osmo-workflows; do
             not_ready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
             also_unready=$(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.containerStatuses[*].ready==false)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
             for pod in $(printf '%s\n%s\n' "$not_ready" "$also_unready" | sort -u); do

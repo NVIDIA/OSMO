@@ -1,6 +1,6 @@
 # OSMO Kubernetes-native installer
 
-This umbrella chart is the proposal entry point for installing OSMO into any
+This umbrella chart is the supported entry point for installing OSMO into any
 conformant Kubernetes cluster. It composes the control-plane `service` chart and
 the compute-plane `backend-operator` chart without provisioning cloud
 infrastructure or requiring a Terraform provider.
@@ -10,7 +10,7 @@ infrastructure or requiring a Terraform provider.
 Build local dependencies once when working from a source checkout:
 
 ```bash
-helm dependency build deployments/charts/osmo
+helm dependency build --skip-refresh deployments/charts/osmo
 ```
 
 Render and inspect the single-node profile without contacting a cluster:
@@ -29,6 +29,12 @@ helm upgrade --install osmo deployments/charts/osmo \
   --create-namespace \
   --values deployments/charts/osmo/profiles/single-node.yaml \
   --wait
+```
+
+Run the retained post-install checks at any time:
+
+```bash
+helm test osmo --namespace osmo-system --logs
 ```
 
 The single-node profile is for development and evaluation. It generates and

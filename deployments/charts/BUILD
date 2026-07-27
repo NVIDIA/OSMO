@@ -26,3 +26,9 @@ filegroup(
     srcs = glob(["backend-operator/**"]),
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "osmo",
+    srcs = glob(["osmo/**"]),
+    visibility = ["//visibility:public"],
+)

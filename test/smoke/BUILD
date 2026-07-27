@@ -18,15 +18,14 @@ oetf_smoke_test(
     tags = ["api", "kind"],
 )
 
-# auth-checks stays internal — public quick-start chart ships no JWT issuer
-# (only oauth2Proxy). Re-enable here once the public chart adds one.
+# auth-checks stays internal — the local profile has no JWT issuer.
 
 oetf_smoke_test(
     name = "cli-checks",
     src = "cli_checks.py",
     # No `kind` tag: cli-checks invokes `osmo login` which requires the
-    # full JWT auth flow; quick-start with auth.disabled=true (the kind
-    # default) doesn't satisfy that. Re-add `kind` here when the chart
+    # full JWT auth flow; the local profile has gateway auth disabled and
+    # doesn't satisfy that. Re-add `kind` here when the chart
     # ships a working dev-mode login (or the test fixture switches to
     # passing --auth-method=dev through to the CLI).
     tags = ["cli"],

@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 # Equivalence tests for the OETF CLI argument layout.
 #
 # These tests guard against the historical drift bugs (e.g. ``--auth-method``
-# regressed in run, ``--list-versions`` missing on deploy_and_run, ``--set``
+# regressed in run, ``--set``
 # vs ``--extra-set``). They assert that ``oetf:deploy_and_run`` is a
 # proper superset of ``oetf:deploy`` (env + deploy args) and ``oetf:run``
 # (env + run args), and that ``forward_run_args`` covers every flag

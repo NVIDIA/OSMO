@@ -29,10 +29,7 @@ from typing import Any, Dict
 from run.check_tools import check_required_tools
 from run.host_ip import get_host_ip
 from run.kind_utils import detect_platform
-from run.localstack import (
-    LOCALSTACK_S3_ENDPOINT_KIND,
-    LOCALSTACK_S3_ENDPOINT_BAZEL_HOST,
-)
+from run.localstack import LOCALSTACK_S3_ENDPOINT_BAZEL_HOST
 from run.print_next_steps import print_next_steps
 from run.run_command import run_command_with_logging, login_osmo, logout_osmo
 from src.lib.utils import logging as logging_utils
@@ -221,18 +218,13 @@ def _update_pod_template_config(detected_platform: str) -> None:
         raise RuntimeError(f'Unexpected error updating pod template configuration: {e}') from e
 
 
-def _update_service_config(mode: str) -> None:
+def _update_service_config() -> None:
     """Update service configuration."""
     logger.info('🔧 Updating service configuration...')
 
     try:
-        if mode == 'bazel':
-            # For bazel mode, use the host IP and port
-            host_ip = get_host_ip()
-            service_base_url = f'http://{host_ip}:8000'
-        else:
-            # For kind mode, use the cluster-local service
-            service_base_url = 'http://ingress-nginx-controller.ingress-nginx.svc.cluster.local'
+        host_ip = get_host_ip()
+        service_base_url = f'http://{host_ip}:8000'
 
         service_config = {
             'service_base_url': service_base_url
@@ -265,16 +257,13 @@ def _update_service_config(mode: str) -> None:
         raise RuntimeError(f'Unexpected error updating service configuration: {e}') from e
 
 
-def _update_backend_config(mode: str) -> None:
+def _update_backend_config() -> None:
     """Update backend configuration."""
     logger.info('🔧 Updating backend configuration...')
 
     try:
-        if mode == 'bazel':
-            host_ip = get_host_ip()
-            router_address = f'ws://{host_ip}:8001'
-        else:
-            router_address = 'ws://ingress-nginx-controller.ingress-nginx.svc.cluster.local'
+        host_ip = get_host_ip()
+        router_address = f'ws://{host_ip}:8001'
 
         backend_config = {
             'router_address': router_address,
@@ -330,17 +319,7 @@ def _set_default_pool() -> None:
 def main():
     """Main function to orchestrate the OSMO configuration updates."""
     parser = argparse.ArgumentParser(
-        description='Update OSMO configurations for local development')
-    parser.add_argument(
-        '--mode',
-        choices=['kind', 'bazel'],
-        default='kind',
-        help='''
-        Mode to update configurations for (default: kind). Use "kind" for configurations
-        compatible with KIND cluster setup or "bazel" for configurations compatible with
-        bazel-based services.
-        '''
-    )
+        description='Update OSMO configurations for local Bazel development')
     parser.add_argument(
         '--log-level', type=logging_utils.LoggingLevel.parse,
         default=logging_utils.LoggingLevel.INFO)
@@ -386,10 +365,7 @@ def main():
         detected_platform = detect_platform()
         logger.info('📱 Detected platform: %s', detected_platform)
 
-        login_osmo(args.mode)
-
-        localstack_endpoint = LOCALSTACK_S3_ENDPOINT_BAZEL_HOST \
-            if args.mode == 'bazel' else LOCALSTACK_S3_ENDPOINT_KIND
+        login_osmo()
 
         try:
             _update_workflow_config(
@@ -397,7 +373,7 @@ def main():
                 args.container_registry_username,
                 args.container_registry_password,
                 args.object_storage_endpoint,
-                localstack_endpoint,
+                LOCALSTACK_S3_ENDPOINT_BAZEL_HOST,
                 args.object_storage_access_key_id,
                 args.object_storage_access_key,
                 args.object_storage_region,
@@ -405,8 +381,8 @@ def main():
                 args.image_tag)
 
             _update_pod_template_config(detected_platform)
-            _update_service_config(args.mode)
-            _update_backend_config(args.mode)
+            _update_service_config()
+            _update_backend_config()
             _set_default_pool()
 
             logout_osmo()
@@ -415,14 +391,12 @@ def main():
             logger.info('\n🎉 OSMO configuration updates complete in %.2fs!', total_time)
             logger.info('=' * 50)
 
-            host_ip = None
-            port = None
-            if args.mode == 'bazel':
-                host_ip = get_host_ip()
-                port = 8000
-
-            print_next_steps(mode=args.mode, show_start_backend=False, show_update_configs=False,
-                             host_ip=host_ip, port=port)
+            print_next_steps(
+                show_start_backend=False,
+                show_update_configs=False,
+                host_ip=get_host_ip(),
+                port=8000,
+            )
         except Exception:
             logout_osmo()
             raise

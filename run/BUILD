@@ -48,17 +48,10 @@ osmo_py_binary(
     main = "start_service.py",
     srcs = [
         "start_service.py",
-        "start_service_kind.py",
         "start_service_bazel.py",
-    ],
-    data = [
-        "kind-osmo-cluster-config.yaml",
-        "//deployments/charts:service",
-        "//run/minimal:minimal",
     ],
     deps = [
         ":utils",
-        "@bazel_tools//tools/python/runfiles",
         "@osmo_workspace//src/lib/utils:logging",
     ],
     visibility = ["//visibility:public"],
@@ -69,13 +62,10 @@ osmo_py_binary(
     main = "start_backend.py",
     srcs = [
         "start_backend.py",
-        "start_backend_kind.py",
         "start_backend_bazel.py",
     ],
     data = [
         "kind-osmo-cluster-config.yaml",
-        "//deployments/charts:backend-operator",
-        "//run/minimal:minimal",
     ],
     deps = [
         ":utils",

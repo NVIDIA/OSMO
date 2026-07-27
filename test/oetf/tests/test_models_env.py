@@ -34,7 +34,7 @@ class EnvironmentConfigTests(unittest.TestCase):
     def test_kind_env_fields(self):
         env = EnvironmentConfig(
             name="kind",
-            url="http://quick-start.osmo",
+            url="http://local.osmo",
             auth=EnvironmentAuth(strategy="dev", username="testuser"),
             type="kind",
             allow_deploy=True,

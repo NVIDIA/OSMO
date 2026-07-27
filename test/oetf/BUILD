@@ -67,6 +67,9 @@ osmo_py_library(
     srcs = ["deploy_adapters/kind_adapter.py"],
     data = [
         "data/kind-osmo-cluster-config.yaml",
+        "//deployments/charts:backend-operator",
+        "//deployments/charts:osmo",
+        "//deployments/charts:service",
     ],
     deps = [
         ":deploy_adapters_base",

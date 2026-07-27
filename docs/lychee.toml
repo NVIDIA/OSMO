@@ -56,7 +56,7 @@ exclude = [
     '^https://auth/$',
     '^https://token/$',
     '^https://[^/:]+:[^@]+@',
-    '^http://quick-start.osmo/$',
+    '^http://local.osmo/$',
     '^http://[0-9a-f]+-[0-9a-f]+:',
 ]
 

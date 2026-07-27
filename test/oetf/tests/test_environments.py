@@ -42,7 +42,7 @@ environments:
     type: custom
     pool: default
   kind:
-    url: http://quick-start.osmo
+    url: http://local.osmo
     auth:
       strategy: dev
       username: testuser

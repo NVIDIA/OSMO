@@ -21,7 +21,6 @@ import argparse
 import logging
 
 from run.start_service_bazel import start_service_bazel
-from run.start_service_kind import start_service_kind
 from src.lib.utils import logging as logging_utils
 
 logging.basicConfig(format='%(message)s')
@@ -29,43 +28,12 @@ logger = logging.getLogger()
 
 
 def main():
-    """Main function to orchestrate the OSMO service setup."""
+    """Run OSMO services as local Bazel processes."""
     parser = argparse.ArgumentParser(
-        description='Run OSMO services in a KIND cluster or with bazel')
+        description='Run OSMO services as local Bazel processes')
     parser.add_argument(
         '--log-level', type=logging_utils.LoggingLevel.parse,
         default=logging_utils.LoggingLevel.INFO)
-    parser.add_argument(
-        '--mode',
-        choices=['kind', 'bazel'],
-        default='kind',
-        help='''
-        Mode to run services in (default: kind). Use "kind" to run services as docker images
-        in a KIND cluster or "bazel" to run services with bazel (no container images are used).
-        '''
-    )
-
-    # KIND cluster arguments
-    cluster_group = parser.add_argument_group('KIND cluster arguments',
-                                              'Arguments only used with --mode kind')
-    cluster_group.add_argument(
-        '--cluster-name', default='osmo',
-        help='Name of the KIND cluster (default: osmo)')
-    cluster_group.add_argument(
-        '--container-registry', default='nvcr.io',
-        help='Container registry URL (default: nvcr.io)')
-    cluster_group.add_argument(
-        '--container-registry-username', default='$oauthtoken',
-        help='Container registry username (default: $oauthtoken)')
-    cluster_group.add_argument(
-        '--container-registry-password',
-        help='Container registry password')
-    cluster_group.add_argument(
-        '--image-location', default='nvcr.io/nvidia/osmo',
-        help='OSMO image location (default: nvcr.io/nvidia/osmo)')
-    cluster_group.add_argument(
-        '--image-tag', default='latest',
-        help='OSMO image tag (default: latest)')
 
     args = parser.parse_args()
 
@@ -74,12 +42,8 @@ def main():
     logger.info('🚀 OSMO Service Cluster Setup')
     logger.info('=' * 50)
 
-    if args.mode == 'kind':
-        logger.info('Running services as docker images in a KIND cluster')
-        start_service_kind(args)
-    elif args.mode == 'bazel':
-        logger.info('Running services with bazel')
-        start_service_bazel()
+    logger.info('Running services with Bazel')
+    start_service_bazel()
 
 
 if __name__ == '__main__':

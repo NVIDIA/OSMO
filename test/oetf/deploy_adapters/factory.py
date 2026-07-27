@@ -71,11 +71,9 @@ _KIND_ONLY_FLAGS: Tuple[Tuple[str, str], ...] = (
     # (argparse_dest, user-facing flag name)
     ("mode", "--mode"),
     ("cluster_name", "--cluster-name"),
-    ("chart_version", "--chart-version"),
     ("build_images", "--build-images"),
     ("with_metrics_server", "--with-metrics-server"),
     ("extra_sets", "--extra-set"),
-    ("list_versions", "--list-versions"),
 )
 _DEV_ONLY_FLAGS: Tuple[Tuple[str, str], ...] = (
     ("target_arch", "--target-arch"),
@@ -241,7 +239,6 @@ def _build_kind_adapter(args: argparse.Namespace, env: EnvironmentConfig) -> Kin
         mode=getattr(args, "mode", None) or env.mode,
         image_location=image_location,
         image_tag=image_tag,
-        chart_version=getattr(args, "chart_version", ""),
         extra_helm_sets=list(getattr(args, "extra_sets", []) or []),
         install_metrics_server=getattr(args, "with_metrics_server", False),
         pre_install_hook=pre_install_hook,
@@ -272,14 +269,14 @@ def _build_custom_teardown_adapter(env: EnvironmentConfig) -> NoopAdapter:
 def _make_build_local_hook(image_selector: str, use_local_registry: bool = False):
     """Return a pre_install_hook callable that builds + ships local images.
 
-    The 9 Python services build via bazel + oci_load + tarball; the web-ui
+    The 8 enabled services build via bazel + oci_load + tarball; the web-ui
     builds via docker buildx (multi-stage Next.js Dockerfile). Independent
     pipelines, run concurrently for ~halved wall-clock vs. sequential.
 
     Two delivery paths:
       - default: ``kind load docker-image`` into every KIND node.
       - ``use_local_registry=True``: docker push to a host-side ``registry:2``
-        container that the KIND nodes pull from on-demand. The 6x node-side
+        container that the KIND nodes pull from on-demand. Per-node
         containerd duplication is replaced with single-copy registry
         storage; required on disk-constrained CI runners.
     """

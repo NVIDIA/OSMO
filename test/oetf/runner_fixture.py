@@ -451,7 +451,7 @@ class RunnerFixture(OetfFixture):
         """Default platform/pool tag for scenario workflows.
 
         Reads ``OETF_DEFAULT_PLATFORM`` at access time. Falls back to ``cpu``
-        which the public quick-start chart's default pool satisfies.
+        which the local Helm profile's default pool satisfies.
         """
         return os.environ.get("OETF_DEFAULT_PLATFORM", "cpu")
 
@@ -756,7 +756,7 @@ class WorkflowHandle:
         # Default 180s (was 90s): on local KIND with a cold image cache the
         # first ``docker pull`` of python:3.10-slim plus
         # container init regularly takes >90s. 180s is comfortably above the
-        # observed worst case on a 6-node CPU KIND on Apple Silicon and still
+        # observed worst case on CPU KIND on Apple Silicon and still
         # well below the workflow's exec_timeout.
         def task_running(workflow: Dict) -> Optional[Dict]:
             for group in workflow.get("groups", []):

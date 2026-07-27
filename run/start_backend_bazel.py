@@ -172,8 +172,12 @@ def start_backend_bazel(cluster_name: str = 'osmo'):
         logger.info('💡 Press Ctrl+C to stop all backend services\n')
 
         host_ip = get_host_ip()
-        print_next_steps(mode='bazel', show_start_backend=False, show_update_configs=True,
-                         host_ip=host_ip, port=8000)
+        print_next_steps(
+            show_start_backend=False,
+            show_update_configs=True,
+            host_ip=host_ip,
+            port=8000,
+        )
 
         logger.info('\n%s', '=' * 50)
 

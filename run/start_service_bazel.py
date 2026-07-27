@@ -451,8 +451,12 @@ def start_service_bazel():
         logger.info('🔀 Router: http://%s:8001/api/router/docs\n', host_ip)
         logger.info('💡 Press Ctrl+C to stop all services\n')
 
-        print_next_steps(mode='bazel', show_start_backend=True, show_update_configs=True,
-                         host_ip=host_ip, port=8000)
+        print_next_steps(
+            show_start_backend=True,
+            show_update_configs=True,
+            host_ip=host_ip,
+            port=8000,
+        )
 
         logger.info('\n%s', '=' * 50)
 

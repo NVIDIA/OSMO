@@ -17,243 +17,74 @@
 
 .. _deploy_backend:
 
-================================================
-Deploy Backend Operator
-================================================
+===========================
+Deploy a Split Compute Plane
+===========================
 
-Deploying the backend operator will register your compute backend with OSMO, making its resources available for running workflows. Follow these steps to deploy and connect your backend to OSMO.
+Install the ``osmo`` umbrella chart with the ``split-compute`` profile in each
+compute cluster. The profile enables only the backend operator and workflow
+namespaces; it does not duplicate the control plane.
 
-.. admonition:: Prerequisites
-  :class: important
+Prerequisites
+=============
 
-  - Install :ref:`OSMO CLI <cli_install>` before you begin
-  - Replace ``osmo.example.com`` with your domain name in the commands below
+* A reachable OSMO control-plane gateway.
+* A Kubernetes Secret containing the same backend token reconciled by the
+  control-plane bootstrap principal.
+* External Secrets Operator and an NVault-backed SecretStore when using the
+  reference profile.
+* Working cluster DNS, registry access, and compute-node capacity.
+* NVIDIA GPU Operator for GPU pools.
+* KAI CRDs only when selecting the optional KAI scheduler.
 
-.. _create_osmo_token:
+The backend user and token are declarative chart inputs. Do not create them
+imperatively with the OSMO CLI.
 
-Step 1: Create Service Account for Backend Operator
-----------------------------------------------------
-
-Create a service account and access token using OSMO CLI for backend operator authentication.
-
-First, log in to OSMO:
-
-.. code-block:: bash
-
-   $ osmo login https://osmo.example.com
-
-Create a service account user for the backend operator:
-
-.. code-block:: bash
-
-   $ osmo user create backend-operator --roles osmo-backend
-
-Create a Access Token for the service account with the ``osmo-backend`` role:
+Prepare Values
+==============
 
 .. code-block:: bash
 
-   $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
-       --user backend-operator \
-       --expires-at <insert-date> \
-       --description "Backend Operator Token" \
-       --roles osmo-backend \
-       -t json | jq -r '.token')
+   $ cp deployments/charts/osmo/profiles/split-compute.yaml osmo-compute.yaml
 
-.. note::
+Set ``computePlane.global.serviceUrl`` to the externally reachable control
+gateway. Configure the compute namespace, workflow namespace, backend name,
+image versions, scheduler, and ExternalSecret mapping. Both planes must resolve
+the same backend token without exposing it in values or command output.
 
-  Replace ``<insert-date>`` with an expiration date in UTC format (YYYY-MM-DD). Save the token securely as it will not be shown again.
+Install
+-------
 
-.. tip::
-
-  The ``--roles osmo-backend`` option limits the token to only the ``osmo-backend`` role. If omitted, the token inherits all roles from the user.
-
-.. seealso::
-
-  See :ref:`service_accounts` for more details on creating and managing service accounts.
-
-
-Step 2: Create K8s Namespaces and Secrets
-------------------------------------------------
-
-Create Kubernetes namespaces and secrets necessary for the backend deployment.
-
-.. code-block:: bash
-  :substitutions:
-
-    # Create namespaces for osmo operator and osmo workflows
-    $ kubectl create namespace osmo-operator
-    $ kubectl create namespace osmo-workflows
-
-    # Create the secret used to authenticate with osmo
-    $ kubectl create secret generic osmo-operator-token -n osmo-operator \
-        --from-literal=token=$OSMO_SERVICE_TOKEN
-
-
-Step 3: Deploy Backend Operator
--------------------------------
-
-Deploy the backend operator to the backend kubernetes cluster.
-
-Prepare the ``backend_operator_values.yaml`` file:
-
-.. dropdown:: ``backend_operator_values.yaml``
-  :color: info
-  :icon: file
-
-  .. code-block:: yaml
-    :emphasize-lines: 2, 6
-
-    global:
-      osmoImageTag: <insert-osmo-image-tag>  # REQUIRED: Update with OSMO image tag
-      serviceUrl: https://osmo.example.com
-      agentNamespace: osmo-operator
-      backendNamespace: osmo-workflows
-      backendName: default  # REQUIRED: Update with your backend name
-      accountTokenSecret: osmo-operator-token
-      loginMethod: token
-
-      services:
-        backendListener:
-          resources:
-            requests:
-                cpu: "1"
-                memory: "1Gi"
-            limits:
-                memory: "1Gi"
-        backendWorker:
-          resources:
-            requests:
-                cpu: "1"
-                memory: "1Gi"
-            limits:
-                memory: "1Gi"
-
-.. note::
-
-   If you plan to use group templates that create ConfigMaps, CRDs, or other Kubernetes objects,
-   you must grant the backend worker permission for those resource kinds via
-   ``services.backendWorker.extraRBACRules``. See :ref:`group_template_permissions` for details and examples.
-
-Deploy the backend operator:
+Use the compute cluster's explicit kube context:
 
 .. code-block:: bash
 
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   $ helm dependency build --skip-refresh deployments/charts/osmo
+   $ helm lint deployments/charts/osmo --values osmo-compute.yaml
+   $ helm template osmo-compute deployments/charts/osmo \
+       --kube-context <compute-context> \
+       --namespace osmo-agent \
+       --values osmo-compute.yaml > /tmp/osmo-compute-rendered.yaml
+   $ helm upgrade --install osmo-compute deployments/charts/osmo \
+       --kube-context <compute-context> \
+       --namespace osmo-agent \
+       --create-namespace \
+       --values osmo-compute.yaml \
+       --wait \
+       --rollback-on-failure \
+       --timeout 15m
 
-   $ helm repo update
-
-   $ helm upgrade --install osmo-operator osmo/backend-operator \
-     -f ./backend_operator_values.yaml \
-     --version <insert-chart-version> \
-     --namespace osmo-operator
-
-Step 4: Validate Deployment
-----------------------------
-
-Use the OSMO CLI to validate the backend configuration
-
-.. code-block:: bash
-  :substitutions:
-
-  $ export BACKEND_NAME=default  # Update with your backend name
-
-  $ osmo config show BACKEND $BACKEND_NAME
-
-Alternatively, visit http://osmo.example.com/api/configs/backend in your browser.
-
-Ensure the backend is online (see the highlighted line in the JSON output):
-
-.. code-block:: json
-  :emphasize-lines: 25
-
-  {
-    "backends": [
-        {
-            "name": "default",
-            "description": "Default backend",
-            "version": "6.0.0",
-            "k8s_uid": "6bae3562-6d32-4ff1-9317-09dd973c17a2",
-            "k8s_namespace": "osmo-workflows",
-            "dashboard_url": "",
-            "grafana_url": "",
-            "tests": [],
-            "scheduler_settings": {
-                "scheduler_type": "kai",
-                "scheduler_name": "kai-scheduler",
-                "scheduler_timeout": 30
-            },
-            "node_conditions": {
-                "rules": null,
-                "prefix": "osmo.example.com/"
-            },
-            "last_heartbeat": "2025-11-15T02:35:17.957569",
-            "created_date": "2025-09-03T19:48:21.969688",
-            "router_address": "wss://osmo.example.com",
-            "online": true
-        }
-    ]
-  }
-
-.. seealso::
-
-  See :ref:`backend_config` for more information
-
-.. _configure_pool:
-
-Step 5: Default Pool Is Ready
-------------------------------
-
-The Helm chart ships with a default pool wired to a backend named ``default``. If your backend is named ``default`` (as used throughout this guide), the default pool will automatically link to it as soon as the backend shows as online in the previous step — no additional configuration is needed.
-
-Verify:
+Verify
+======
 
 .. code-block:: bash
 
-  $ osmo pool list
-  Pool      Description    Status    GPU [#]
-                                   Quota Used   Quota Limit   Total Usage   Total Capacity
-  =============================================================================================
-  default   Default pool   ONLINE    N/A          N/A           0             24
-  =============================================================================================
-                                                                0             24
+   $ helm test osmo-compute \
+       --kube-context <compute-context> \
+       --namespace osmo-agent \
+       --logs
 
-If the pool shows ``OFFLINE``, wait a few seconds for the backend heartbeat or re-check Step 4.
-
-If you chose a different backend name, update the default pool in ``osmo_values.yaml`` to point at it:
-
-.. code-block:: yaml
-
-  services:
-    configs:
-      pools:
-        default:
-          backend: <your-backend-name>
-
-Re-apply with ``helm upgrade``. To add additional pools or platforms, see :ref:`advanced_pool_configuration`.
-
-
-Troubleshooting
----------------
-
-Token Expiration Error
-~~~~~~~~~~~~~~~~~~~~~~
-
-
-.. code-block:: bash
-
-  Connection failed with error: {OSMOUserError: Token is expired, but no refresh token is present}
-
-Check if the token is expired by listing the service account's tokens:
-
-.. code-block:: bash
-
-   $ osmo token list --user backend-operator
-
-If the token is expired, create a new one following :ref:`create_osmo_token`. Remember to update
-the Kubernetes secret with the new token:
-
-.. code-block:: bash
-
-   $ kubectl delete secret osmo-operator-token -n osmo-operator
-   $ kubectl create secret generic osmo-operator-token -n osmo-operator \
-       --from-literal=token=$OSMO_SERVICE_TOKEN
+The postflight check waits for the backend listener and worker and confirms
+that the control plane reports the configured backend online. Submit the CPU
+smoke workflow after the check passes. Use the GPU smoke workflow only when the
+pool is expected to advertise GPUs.

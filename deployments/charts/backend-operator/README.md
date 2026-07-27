@@ -19,16 +19,13 @@
 
 # NVIDIA OSMO - Backend-Operator Helm Chart
 
-This Helm chart deploys the OSMO Backend-Operator for managing compute backend resources and monitoring.
+This Helm chart deploys the OSMO Backend-Operator for managing compute backend
+resources and monitoring.
 
-Install this chart after the `service` chart. For a local deployment that previously used quick-start values, use `quick-start-values.yaml` after creating the local prerequisites documented in [../README.md](../README.md):
-
-```bash
-helm upgrade --install osmo-backend-operator osmo/backend-operator \
-  --namespace osmo \
-  -f quick-start-values.yaml \
-  --wait
-```
+It is consumed by the [`osmo` umbrella chart](../osmo/README.md). Use the
+umbrella chart's `single-node.yaml`, `minimal.yaml`, or `split-compute.yaml`
+profile instead of installing this subchart separately. Direct installation is
+retained for chart development and migration testing.
 
 ## Values
 
@@ -191,7 +188,7 @@ This chart requires:
 - Access to NVIDIA container registry
 - Prometheus Operator (if `podMonitor.enabled` is true)
 - Slack integration (if monitor Slack notifications enabled)
-- KAI scheduler
+- KAI scheduler only when the backend is configured for KAI
 
 
 ## Notes

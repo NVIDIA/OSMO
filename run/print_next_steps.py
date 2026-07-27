@@ -19,14 +19,13 @@ SPDX-License-Identifier: Apache-2.0
 
 import logging
 import os
-from typing import Literal, Optional
+from typing import Optional
 
 
 logger = logging.getLogger()
 
 
 def print_next_steps(
-    mode: Literal['kind', 'bazel'],
     show_start_backend: bool = True,
     show_update_configs: bool = True,
     host_ip: Optional[str] = None,
@@ -35,7 +34,6 @@ def print_next_steps(
     """Print the next steps for OSMO setup.
 
     Args:
-        mode: The mode being used ("kind" or "bazel")
         show_start_backend: Whether to show the start_backend step (default: True)
         show_update_configs: Whether to show the update_configs step (default: True)
         host_ip: The host IP to use for bazel mode (default: None)
@@ -44,53 +42,25 @@ def print_next_steps(
     logger.info('Next steps:\n')
 
     step_number = 1
-    is_bazel_mode = mode == 'bazel'
-    terminal_prefix = 'in another terminal, ' if is_bazel_mode else ''
+    terminal_prefix = 'in another terminal, '
 
     if show_start_backend:
-        # Only show /etc/hosts step for kind mode
-        if not is_bazel_mode:
-            logger.info(
-                '%d. Add the following line to your /etc/hosts file. '
-                'If you are SSH-ing into a remote workstation you must add this line to '
-                '/etc/hosts on both your local and remote hosts.',
-                step_number
-            )
-            logger.info('   127.0.0.1 ingress-nginx-controller.ingress-nginx.svc.cluster.local\n')
-            step_number += 1
-
         logger.info('%d. Start the backend %s:', step_number, terminal_prefix.rstrip(', '))
-        logger.info(
-            '   bazel run @osmo_workspace//run:start_backend -- '
-            '--mode=%s\n',
-            mode
-        )
+        logger.info('   bazel run @osmo_workspace//run:start_backend\n')
         step_number += 1
 
     if show_update_configs:
         logger.info('%d. Update OSMO configurations %s:', step_number, terminal_prefix.rstrip(', '))
-        logger.info(
-            '   bazel run @osmo_workspace//run:update_configs -- '
-            '--mode=%s\n',
-            mode
-        )
+        logger.info('   bazel run @osmo_workspace//run:update_configs\n')
         step_number += 1
 
     # Login step
     logger.info('%d. Log into OSMO using the CLI:', step_number)
-    if is_bazel_mode:
-        # Use provided host_ip and port, or fallback to localhost:8080
-        login_host = f'http://{host_ip}:{port}' if host_ip and port else 'http://localhost:8080'
-        logger.info(
-            '   bazel run @osmo_workspace//src/cli -- login %s '
-            '--method=dev --username=testuser\n', login_host
-        )
-    else:
-        logger.info(
-            '   bazel run @osmo_workspace//src/cli -- login '
-            'http://ingress-nginx-controller.ingress-nginx.svc.cluster.local '
-            '--method=dev --username=testuser\n'
-        )
+    login_host = f'http://{host_ip}:{port}' if host_ip and port else 'http://localhost:8080'
+    logger.info(
+        '   bazel run @osmo_workspace//src/cli -- login %s '
+        '--method=dev --username=testuser\n', login_host
+    )
     step_number += 1
 
     workspace_root = os.environ.get('BUILD_WORKSPACE_DIRECTORY', os.getcwd())

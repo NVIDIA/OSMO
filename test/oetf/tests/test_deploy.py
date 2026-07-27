@@ -156,7 +156,7 @@ def _always_ok_opener(*_args, **_kwargs):
 
 
 class TestKindAdapter(unittest.TestCase):
-    """KindAdapter drives kind + helm with correct flags via osmo/quick-start."""
+    """KindAdapter drives KIND through the local OSMO umbrella chart."""
 
     def _adapter(
         self,
@@ -168,9 +168,8 @@ class TestKindAdapter(unittest.TestCase):
     ):
         """Build a KindAdapter with a fake subprocess runner.
 
-        ``capture_stdouts`` supplies stdout for ``_run_capture`` calls in order
-        (e.g. ``kind get clusters`` then ``helm repo list``). ``returncodes``
-        overrides exit codes per call.
+        ``capture_stdouts`` supplies stdout for ``_run_capture`` calls in
+        order. ``returncodes`` overrides exit codes per call.
         """
         if calls is None:
             calls = []
@@ -199,44 +198,51 @@ class TestKindAdapter(unittest.TestCase):
         ), calls
 
     def test_deploy_creates_cluster_then_helm_installs(self):
-        adapter, calls = self._adapter(capture_stdouts=["", "", ""])
+        adapter, calls = self._adapter(capture_stdouts=[""])
         env = adapter.deploy(DeployParams(type="kind", env_name="kind"))
 
         by_prefix = [tuple(call[:3]) for call in calls]
-        # Public CPU path: kind get + kind create + kai-scheduler install +
-        # kubectl wait + helm repo add + osmo upgrade + kubectl wait.
         self.assertIn(("kind", "get", "clusters"), by_prefix)
         self.assertIn(("kind", "create", "cluster"), by_prefix)
-        self.assertIn(("helm", "list", "-n"), by_prefix)
-        kai_calls = [c for c in calls if "kai-scheduler" in c and c[1] == "upgrade"]
-        self.assertTrue(kai_calls, msg="kai-scheduler install missing")
+        dependency_calls = [
+            c for c in calls if c[:3] == ["helm", "dependency", "build"]
+        ]
+        self.assertEqual(len(dependency_calls), 1)
+        osmo_calls = [
+            c for c in calls
+            if c[:4] == ["helm", "upgrade", "--install", "osmo"]
+        ]
+        self.assertEqual(len(osmo_calls), 1)
         self.assertTrue(
-            any("global.nodeSelector.node_group=kai-scheduler" in c for c in kai_calls),
-            msg="kai-scheduler pin to node_group=kai-scheduler missing",
+            osmo_calls[0][4].endswith("/osmo"),
+            msg=f"expected local umbrella chart path, got {osmo_calls[0][4]}",
         )
-        osmo_calls = [c for c in calls if "osmo/quick-start" in c]
-        self.assertTrue(osmo_calls, msg="osmo/quick-start install missing")
+        self.assertIn("--values", osmo_calls[0])
+        self.assertTrue(
+            any(arg.endswith("/profiles/single-node.yaml") for arg in osmo_calls[0]),
+        )
         self.assertIn("global.osmoImageTag=ci-123", osmo_calls[0])
-        # One remap only: ingress-nginx → node_group=service (public config
-        # has no node_group=ingress worker; chart 1.2.1 expects ingress pool).
         self.assertIn(
-            "ingress-nginx.controller.nodeSelector.node_group=service",
+            "controlPlane.gateway.envoy.service.type=NodePort",
             osmo_calls[0],
         )
-        # Sub-charts should NOT be remapped — our 6-node config has the
-        # native data/compute/etc labels. Only ingress-nginx needs overriding.
-        for arg in osmo_calls[0]:
-            for sub in ("postgres.nodeSelector", "redis.nodeSelector",
-                        "localstackS3.nodeSelector"):
-                self.assertNotIn(
-                    sub, arg,
-                    msg=f"{sub} should not be remapped on multi-node CPU path",
-                )
+        self.assertIn(
+            "controlPlane.gateway.envoy.service.nodePort=30080",
+            osmo_calls[0],
+        )
+        self.assertIn(
+            "controlPlane.gateway.envoy.service.httpsPort=null",
+            osmo_calls[0],
+        )
+        self.assertFalse(
+            any("kai-scheduler" in arg for call in calls for arg in call),
+            msg="the Kubernetes-scheduler profile must not install KAI",
+        )
         self.assertEqual(env.auth.strategy, "dev")
 
     def test_deploy_reuses_existing_cluster(self):
         # kind get clusters returns 'osmo' → no create call
-        adapter, calls = self._adapter(capture_stdouts=["osmo\n", "", ""])
+        adapter, calls = self._adapter(capture_stdouts=["osmo\n"])
         adapter.deploy(DeployParams(type="kind", env_name="kind", cluster_name="osmo"))
         # First call = kind get clusters; there must NOT be a kind create call.
         self.assertEqual(calls[0][:3], ["kind", "get", "clusters"])
@@ -244,31 +250,10 @@ class TestKindAdapter(unittest.TestCase):
         self.assertEqual(create_calls, [])
 
     def test_fresh_forces_delete_first(self):
-        adapter, calls = self._adapter(capture_stdouts=["", "", ""])
+        adapter, calls = self._adapter(capture_stdouts=[""])
         adapter.deploy(DeployParams(type="kind", env_name="kind", fresh=True))
         # First call should be kind delete
         self.assertEqual(calls[0][:4], ["kind", "delete", "cluster", "--name"])
-
-    def test_helm_repo_add_skipped_when_already_present(self):
-        existing_repos = '[{"name":"osmo","url":"https://helm.ngc.nvidia.com/nvidia/osmo"}]'
-        # Captures: kind get, helm list kai, helm repo list (osmo present).
-        adapter, calls = self._adapter(capture_stdouts=["", "", existing_repos])
-        adapter.deploy(DeployParams(type="kind", env_name="kind"))
-        repo_add_calls = [c for c in calls if c[:3] == ["helm", "repo", "add"]]
-        self.assertEqual(repo_add_calls, [],
-                         msg="helm repo add should be skipped when already present")
-
-    def test_kai_scheduler_install_skipped_when_already_present(self):
-        existing_kai = '[{"name":"kai-scheduler","namespace":"kai-scheduler"}]'
-        # Captures: kind get, helm list kai (found), helm repo list (osmo).
-        adapter, calls = self._adapter(capture_stdouts=["", existing_kai, ""])
-        adapter.deploy(DeployParams(type="kind", env_name="kind"))
-        kai_installs = [
-            c for c in calls
-            if c[:2] == ["helm", "upgrade"] and "kai-scheduler" in c
-        ]
-        self.assertEqual(kai_installs, [],
-                         msg="kai-scheduler upgrade should be skipped when already present")
 
     def test_metrics_server_installed_when_requested(self):
         """--with-metrics-server opts into metrics-server install."""
@@ -293,7 +278,7 @@ class TestKindAdapter(unittest.TestCase):
 
     def test_metrics_server_not_installed_by_default(self):
         """Default behavior skips metrics-server."""
-        adapter, calls = self._adapter(capture_stdouts=["", "", ""])
+        adapter, calls = self._adapter(capture_stdouts=[""])
         adapter.deploy(DeployParams(type="kind", env_name="kind"))
         metrics_installs = [
             c for c in calls
@@ -315,7 +300,7 @@ class TestKindAdapter(unittest.TestCase):
             adapter.deploy(DeployParams(type="kind", env_name="kind"))
 
     def test_configure_is_noop(self):
-        """With the public multi-node KIND config, configure() is a no-op."""
+        """All configuration is rendered by Helm, so configure() is a no-op."""
         calls: List[List[str]] = []
 
         def runner(args, **_kw):
@@ -324,22 +309,17 @@ class TestKindAdapter(unittest.TestCase):
 
         adapter = KindAdapter(subprocess_runner=runner)
         env = EnvironmentConfig(
-            name="kind", url="http://quick-start.osmo",
+            name="kind", url="http://local.osmo",
             auth=EnvironmentAuth(strategy="dev", username="testuser"),
         )
         adapter.configure(env)
         self.assertEqual(calls, [])
 
     def test_deploy_raises_on_helm_failure(self):
-        # 10 calls in CPU multi-node happy path (no fresh, no existing
-        # repos/kai/metrics):
-        #   1 kind get, 2 kind create, 3 helm list kai, 4 helm upgrade kai,
-        #   5 kubectl wait kai, 6 helm repo list, 7 helm repo add,
-        #   8 helm repo update, 9 helm upgrade osmo, 10 kubectl wait osmo.
-        # Make helm upgrade osmo (call 9, index 8) fail.
+        # kind get, kind create, helm dependency build, helm upgrade.
         adapter, _ = self._adapter(
-            capture_stdouts=["", "", ""],
-            returncodes=[0] * 8 + [1],
+            capture_stdouts=[""],
+            returncodes=[0, 0, 0, 1],
         )
         with self.assertRaises(RuntimeError):
             adapter.deploy(DeployParams(type="kind", env_name="kind"))
@@ -404,27 +384,27 @@ class TestKindAdapter(unittest.TestCase):
         adapter.deploy(DeployParams(type="kind", env_name="kind"))
         cmds = [tuple(c) for c in calls]
         self.assertIn(
-            ("kubectl", "rollout", "restart", "deployment", "-n", "osmo"),
+            ("kubectl", "rollout", "restart", "deployment", "-n", "osmo-system"),
             cmds,
             f"expected rollout restart on re-deploy, got: {cmds}",
         )
         self.assertIn(
             ("kubectl", "rollout", "status", "deployment",
-             "-n", "osmo", "--timeout=10m"),
+             "-n", "osmo-system", "--timeout=10m"),
             cmds,
         )
         # Build-local helm overrides include UI's pull policy (UI now built locally).
         helm_args_concat = " ".join(
             arg for cmd in cmds for arg in cmd
-            if isinstance(arg, str) and arg.startswith("web-ui.")
+            if isinstance(arg, str) and arg.startswith("controlPlane.services.ui.")
         )
         self.assertIn(
-            "web-ui.services.ui.imagePullPolicy=IfNotPresent",
+            "controlPlane.services.ui.imagePullPolicy=IfNotPresent",
             helm_args_concat,
             f"expected web-ui pull policy override, got: {helm_args_concat}",
         )
         self.assertNotIn(
-            "web-ui.services.ui.replicas=0",
+            "controlPlane.services.ui.replicas=0",
             helm_args_concat,
             "build-local should NO LONGER scale UI to 0; we build it locally now",
         )
@@ -547,7 +527,7 @@ class TestKindPreflight(unittest.TestCase):
             errors = check_kind_prereqs()
             self.assertFalse(
                 any("NVCR_PASSWORD" in e.error for e in errors),
-                "quick-start uses public nvcr.io — NVCR creds should not be required",
+                "the OSMO images are public — NVCR creds should not be required",
             )
         finally:
             for key, value in saved.items():

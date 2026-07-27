@@ -14,8 +14,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 # ``oetf:deploy_and_run`` are three independent ``py_binary`` targets with
 # their own ``parse_arguments`` functions. Without a shared source of truth,
 # adding a flag to one drifts the others — historically this caused
-# regressions like ``--auth-method`` (was in run, dropped in deploy
-# refactor), ``--list-versions`` (was in deploy, missed in deploy_and_run),
+# regressions like ``--auth-method`` (was in run, dropped in deploy refactor)
 # and ``--set`` vs ``--extra-set`` divergence.
 #
 # Three add_* functions, one per concern. Each entry-point composes the
@@ -86,10 +85,6 @@ def add_deploy_args(parser: argparse.ArgumentParser) -> None:
         help="Override global.osmoImageTag.",
     )
     parser.add_argument(
-        "--chart-version", default="",
-        help="KIND: pin osmo/quick-start chart version (default: latest).",
-    )
-    parser.add_argument(
         "--build-local", action="store_true",
         help="KIND: build OSMO images from local source and kind-load them "
              "instead of pulling from the chart-default registry.",
@@ -105,7 +100,7 @@ def add_deploy_args(parser: argparse.ArgumentParser) -> None:
              "registry that all KIND nodes pull from, instead of "
              "`kind load docker-image` which duplicates each image into "
              "every node's containerd. Required for environments where "
-             "the 6-node × 9-image kind-load footprint exceeds available "
+             "duplicating every image into every node exceeds available "
              "disk (e.g. hosted GitHub Actions ubuntu-latest runners).",
     )
     parser.add_argument(
@@ -119,10 +114,6 @@ def add_deploy_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--keep-on-failure", action="store_true",
         help="Keep partial deploy state on failure (for debugging).",
-    )
-    parser.add_argument(
-        "--list-versions", action="store_true",
-        help="List available osmo/quick-start chart versions and exit.",
     )
     parser.add_argument(
         "--target-arch", default="",

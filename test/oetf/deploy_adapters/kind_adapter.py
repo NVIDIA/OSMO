@@ -8,24 +8,19 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
-# KIND deploy adapter using the ``osmo/quick-start`` umbrella chart.
+# KIND deploy adapter using the repository's canonical ``osmo`` umbrella chart.
 #
-# The adapter follows the public ``deploy_local.html`` guide: create a KIND
-# cluster (with port 80 → 30080 mapping for ingress), then install the
-# ``osmo/quick-start`` Helm chart which bundles service + web-ui + router +
-# backend-operator + ingress-nginx in one operation.
+# The adapter creates a small KIND cluster (with port 80 → 30080 mapping for
+# the gateway), then installs ``deployments/charts/osmo`` with the
+# ``single-node`` profile. This is the same Helm entry point documented for
+# users, so OETF validates the branch under test instead of a separately
+# published compatibility chart.
 #
 # Image source is configurable via ``image_location`` / ``image_tag``. The
-# default is the public ``nvcr.io/nvidia/osmo`` registry at tag ``6.2`` (the
-# chart's built-in default). For local-built images, pass ``--image-location``
+# default is the public ``nvcr.io/nvidia/osmo`` registry at the chart's app
+# version. For local-built images, pass ``--image-location``
 # and ``--image-tag`` and make sure they are loaded into the KIND cluster
-# beforehand (``kind load docker-image …``); the local-build loop itself is
-# tracked as a follow-up.
-#
-# The legacy ``run:start_service`` / ``run:start_backend`` path is not used by
-# this adapter — it had multiple upstream issues on CPU-only hosts and is
-# redundant with the umbrella chart.
-
+# beforehand (``kind load docker-image …``).
 import dataclasses
 import json
 import logging
@@ -33,7 +28,7 @@ import os
 import shutil
 import socket
 import subprocess
-import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -49,26 +44,12 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CLUSTER_NAME = "osmo"
 # Public URL (mapped to 127.0.0.1 in /etc/hosts) used for tests + CLI access.
-KIND_HOSTNAME = "quick-start.osmo"
+KIND_HOSTNAME = "local.osmo"
 
-# Public Helm chart defaults.
-OSMO_HELM_REPO_NAME = "osmo"
-OSMO_HELM_REPO_URL = "https://helm.ngc.nvidia.com/nvidia/osmo"
-OSMO_CHART_REF = "osmo/quick-start"
-OSMO_NAMESPACE = "osmo"
+OSMO_NAMESPACE = "osmo-system"
 
-# kai-scheduler is a soft dependency of osmo/quick-start — its pods have
-# schedulerName=kai-scheduler and won't schedule without it installed. Version
-# matches the one documented in the public deploy_local.html guide.
-KAI_SCHEDULER_CHART = "oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler"
-KAI_SCHEDULER_VERSION = "v0.12.10"
-KAI_SCHEDULER_NAMESPACE = "kai-scheduler"
-
-# metrics-server is a hidden dependency of osmo/quick-start: the chart creates
-# 5 HorizontalPodAutoscalers that require resource metrics. Without it, HPAs
-# report `AbleToScale=False`, which makes ``helm --wait`` block forever even
-# after every pod is Running. The public deploy_local.html guide doesn't
-# mention it — this is chart/docs drift.
+# metrics-server remains opt-in for OETF scenarios that exercise HPA behavior.
+# It is not an installation dependency of the single-node profile.
 METRICS_SERVER_REPO_NAME = "metrics-server"
 METRICS_SERVER_REPO_URL = "https://kubernetes-sigs.github.io/metrics-server/"
 METRICS_SERVER_CHART = "metrics-server/metrics-server"
@@ -79,23 +60,21 @@ METRICS_SERVER_NAMESPACE = "kube-system"
 # ``imagePullPolicy: Always`` would force kubelet to round-trip to that
 # nonexistent registry on every pod start, ImagePullBackOffing forever.
 # Override per-service to ``IfNotPresent`` so kubelet trusts the kind-loaded
-# image. Sub-chart paths follow each chart's ``services.<camel>`` tree (the
-# router sub-chart's router process lives under ``services.service`` despite
-# the chart name — chart-internal naming we don't control).
+# image. Paths are rooted at the umbrella chart's control and compute aliases.
 _BUILD_LOCAL_SERVICES = (
-    ("service", "agent"),
-    ("service", "service"),
-    ("service", "delayedJobMonitor"),
-    ("service", "logger"),
-    ("service", "worker"),
-    ("router", "service"),
-    ("backend-operator", "backendListener"),
-    ("backend-operator", "backendWorker"),
-    ("web-ui", "ui"),
+    ("controlPlane", "agent"),
+    ("controlPlane", "service"),
+    ("controlPlane", "delayedJobMonitor"),
+    ("controlPlane", "logger"),
+    ("controlPlane", "worker"),
+    ("controlPlane", "router"),
+    ("computePlane", "backendListener"),
+    ("computePlane", "backendWorker"),
+    ("controlPlane", "ui"),
 )
 _BUILD_LOCAL_PULL_POLICY_OVERRIDES = tuple(
-    f"{chart}.services.{svc}.imagePullPolicy=IfNotPresent"
-    for chart, svc in _BUILD_LOCAL_SERVICES
+    f"{plane}.services.{service}.imagePullPolicy=IfNotPresent"
+    for plane, service in _BUILD_LOCAL_SERVICES
 )
 
 
@@ -104,21 +83,15 @@ def _build_local_helm_args() -> List[str]:
 
     Per-service ``imagePullPolicy=IfNotPresent`` so kubelet trusts the
     kind-loaded image instead of round-tripping to the pseudo-registry
-    ``osmo.local``. With the web-ui image now built locally too, the
-    chart's UI Deployment runs normally — no need for the prior
-    ``replicas=0`` + ``ingress-nginx.controller.extraInitContainers=[]``
-    workarounds.
+    ``osmo.local``. The web-ui image is built locally as well.
     """
     args: List[str] = []
     for set_arg in _BUILD_LOCAL_PULL_POLICY_OVERRIDES:
         args += ["--set", set_arg]
     return args
 
-# KIND cluster config. Port 80 → 30080 extraPortMapping is required so that
-# ingress-nginx (installed as part of quick-start) is reachable at
-# http://quick-start.osmo from the host. The bundled single-node config
-# matches what osmo/quick-start expects; the external/run 4-worker config
-# has node_group labels that fight with the umbrella chart's scheduler.
+# KIND cluster config. Port 80 → 30080 extraPortMapping makes the OSMO gateway
+# reachable at http://local.osmo from the host.
 
 
 def _default_kind_config_path() -> str:
@@ -139,51 +112,44 @@ def _default_kind_config_path() -> str:
     )
 
 
+def _default_chart_root() -> str:
+    """Resolve the chart source root from Bazel runfiles or a checkout."""
+    return os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "..", "..", "deployments", "charts",
+    ))
+
+
 @dataclasses.dataclass
 class KindAdapter:
-    """Deploy OSMO on a local KIND cluster via the ``osmo/quick-start`` chart.
+    """Deploy OSMO on KIND through the repository's ``osmo`` umbrella chart.
 
     Attributes:
-        image_location: Override for ``global.osmoImageLocation`` (default:
-            chart default, currently ``nvcr.io/nvidia/osmo``).
-        image_tag: Override for ``global.osmoImageTag`` (default: chart
-            default, currently ``6.2``).
-        chart_version: Pin a specific ``osmo/quick-start`` chart version
-            (default: latest available in the repo).
+        image_location: Override for ``global.osmoImageLocation``.
+        image_tag: Override for ``global.osmoImageTag``.
         kind_config_path: Path to the KIND cluster config file. Defaults to
-            the bundled ``test/oetf/data/kind-osmo-cluster-config.yaml``
-            (6-node layout matching the public deploy_local.html CPU guide).
+            ``test/oetf/data/kind-osmo-cluster-config.yaml``.
+        chart_root: Directory containing the ``osmo``, ``service``, and
+            ``backend-operator`` charts. Defaults to ``deployments/charts`` in
+            the current runfiles tree.
         extra_helm_sets: Additional ``key=value`` pairs for ``helm --set``.
     """
 
-    # 'cpu' (default): 6-node KIND cluster with distinct ``node_group`` labels
-    # (kai-scheduler, data, service×2, compute), matching the public
-    # deploy_local.html CPU path. The ``osmo/quick-start`` chart installs
-    # cleanly with no overrides because every selector has a matching node.
-    # Uses ~2–3 GB extra RAM vs a single-node cluster for the 5 worker
-    # containers.
-    #
-    # 'gpu' (not yet implemented): ``nvkind`` + gpu-operator per the public
-    # deploy_local.html GPU path. Full fidelity to production shape with
-    # real ``nvidia`` RuntimeClass. Requires an NVIDIA GPU on the host.
+    # 'cpu' (default): compact KIND cluster with the Kubernetes scheduler.
+    # 'gpu' (not yet implemented): a GPU-enabled KIND implementation that
+    # still uses the same umbrella chart after platform prerequisites exist.
     mode: DeployMode = "cpu"
-    image_location: str = ""                         # empty → chart default (nvcr.io/nvidia/osmo)
-    image_tag: str = ""                              # empty → chart default (6.2)
-    chart_version: str = ""                          # empty → latest
-    kind_config_path: str = ""                       # empty → repo default
+    image_location: str = ""
+    image_tag: str = ""
+    kind_config_path: str = ""
+    chart_root: str = ""
     extra_helm_sets: List[str] = dataclasses.field(default_factory=list)
-    # metrics-server is OFF by default: the chart's HPAs can't actually scale
-    # anyway (3 of 5 target Deployments have no resources.requests set), so it
-    # only buys ``kubectl top`` which smoke/router tests don't need. Opt in
-    # when testing HPA-dependent features.
+    # metrics-server is off by default; opt in for HPA-focused scenarios.
     install_metrics_server: bool = False
     # Called after cluster exists but before helm install. Used by --build-local
     # to build + kind-load images. Signature: hook(cluster_name: str) -> None.
     pre_install_hook: Optional[Callable[[str], None]] = None
-    # When True, helm install adds overrides that make the chart use
-    # kind-loaded images (imagePullPolicy=IfNotPresent so the pseudo-registry
-    # ``osmo.local`` isn't actually contacted) and skips the web-ui Deployment
-    # (we don't build the UI image locally — only the 9 Python services).
+    # When True, Helm uses kind-loaded images with IfNotPresent pull policy.
     build_local: bool = False
     # When True (paired with build_local), publish locally-built images to a
     # host-side ``registry:2`` container that KIND nodes pull from on-demand
@@ -223,33 +189,12 @@ class KindAdapter:
         return env
 
     def _deploy_cpu(self, cluster_name: str) -> bool:
-        """CPU-only path. Matches the public deploy_local.html CPU guide.
-
-        The bundled KIND config (``data/kind-osmo-cluster-config.yaml``) is a
-        6-node cluster with distinct ``node_group`` labels, and one targeted
-        ``--set ingress-nginx.controller.nodeSelector.node_group=service``
-        lives in :meth:`_helm_install` (the public config doesn't define a
-        ``node_group=ingress`` worker despite the chart defaulting to it).
-
-        Workflow task pods the backend operator generates reference
-        ``runtimeClassName: nvidia`` — in production this is provided by
-        ``gpu-operator``. On CPU-only KIND we stub it with the default
-        ``runc`` handler so pods can be admitted. The stub lives here
-        because it's a CPU-mode-specific shim; GPU mode will install the
-        real RuntimeClass via gpu-operator.
-
-        Returns True if the cluster pre-existed (i.e., this is a re-deploy
-        and ``deploy()`` should run a rollout restart so newly kind-loaded
-        images are picked up by running pods).
-        """
+        """Install the single-node profile after creating or reusing KIND."""
         cluster_existed = self._create_cluster_if_missing(cluster_name)
-        self._install_kai_scheduler()
         if self.install_metrics_server:
             self._install_metrics_server()
-        self._apply_nvidia_runtimeclass_stub()
         if self.pre_install_hook is not None:
             self.pre_install_hook(cluster_name)
-        self._helm_repo_add()
         self._helm_install()
         return cluster_existed
 
@@ -258,8 +203,8 @@ class KindAdapter:
 
         Re-deploying without ``--build-local`` over an existing build-local
         release would helm-upgrade ``global.osmoImageLocation`` and
-        ``imagePullPolicy`` back to chart defaults, causing every osmo
-        Deployment to roll over to ``nvcr.io/nvidia/osmo:6.2`` and
+        ``imagePullPolicy`` back to chart defaults, causing every OSMO
+        Deployment to roll over to the configured registry and
         orphaning the local-built images. The reverse direction is
         non-destructive so we just log it.
 
@@ -332,7 +277,7 @@ class KindAdapter:
         pods, and kubelet — with ``imagePullPolicy: IfNotPresent`` — uses
         the kind-loaded image.
 
-        Restarts every Deployment in the ``osmo`` namespace; the wall-clock
+        Restarts every Deployment in the OSMO control-plane namespace; the wall-clock
         cost (~15-30s) is rounding error vs. a typical bazel re-build.
         """
         # ``kubectl rollout restart`` doesn't accept ``--all``; omitting the
@@ -349,61 +294,34 @@ class KindAdapter:
             description="Waiting for rolled-out pods to become Available",
         )
 
-    def _apply_nvidia_runtimeclass_stub(self) -> None:
-        """CPU-mode shim: create stub ``nvidia`` RuntimeClass with runc handler.
-
-        Chart-generated workflow task pods set ``runtimeClassName: nvidia``.
-        Without gpu-operator, the k8s admission check rejects the pod with
-        ``RuntimeClass "nvidia" not found`` (HTTP 403).
-        """
-        manifest = (
-            "apiVersion: node.k8s.io/v1\n"
-            "kind: RuntimeClass\n"
-            "metadata:\n"
-            "  name: nvidia\n"
-            "handler: runc\n"
-        )
-        runner = self.subprocess_runner or subprocess.run
-        logger.info("▶ Applying nvidia RuntimeClass stub (CPU mode)")
-        result = runner(
-            ["kubectl", "apply", "-f", "-"],
-            check=False, input=manifest, text=True,
-        )
-        if _returncode(result) != 0:
-            raise RuntimeError("Failed to apply nvidia RuntimeClass stub")
-
     def _deploy_gpu(self, cluster_name: str) -> bool:
         """GPU path. Not yet implemented.
 
-        Planned shape (public deploy_local.html Option A):
+        Planned shape:
 
         * Create the cluster with ``nvkind cluster create --config-template=...``
           (NVIDIA's KIND wrapper that injects the ``nvidia-container-runtime``
           and GPU device mounts).
-        * Install ``gpu-operator`` from NGC — this provides the real
-          ``nvidia`` RuntimeClass, device plugin, and node labeling.
-        * Install ``kai-scheduler`` the same way as CPU path.
-        * Install ``osmo/quick-start`` with no overrides (gpu-operator's
-          RuntimeClass + multi-node labels satisfy all chart defaults).
+        * Validate the GPU Operator or equivalent platform integration.
+        * Install the same ``osmo`` chart and ``single-node`` profile with
+          GPU pool values.
         * ``_wait_for_health`` as usual.
 
         Prerequisites beyond CPU mode:
           - Host has NVIDIA GPU + driver installed
           - ``nvkind`` installed (``go install github.com/nvidia/nvkind@...``)
-          - ``gpu-operator`` values file tailored to ``driver.enabled=false``
-            (the host driver is used, not a container-installed one)
+          - A working Kubernetes GPU runtime and device plugin
         """
         del cluster_name
         raise NotImplementedError(
             "GPU mode is not yet implemented. Planned path: nvkind + "
-            "gpu-operator per nvidia.github.io/OSMO/deployment_guide/"
-            "appendix/deploy_local.html (Option A). Use --mode cpu for "
+            "GPU platform prerequisites followed by the same OSMO umbrella "
+            "chart. Use --mode cpu for "
             "CPU-only hosts."
         )
 
     def configure(self, env: EnvironmentConfig) -> None:
-        # Multi-node KIND config matches the chart's node_group defaults, so
-        # no post-install patching is needed — the chart installs clean.
+        # The chart owns all installation configuration.
         del env
 
     def teardown(self, params: DeployParams) -> None:
@@ -447,11 +365,6 @@ class KindAdapter:
             local_images.connect_registry_to_kind(cluster_name)
         return False
 
-    def _helm_repo_add(self) -> None:
-        """Ensure the osmo helm repo is registered and up to date."""
-        self._ensure_helm_repo(OSMO_HELM_REPO_NAME, OSMO_HELM_REPO_URL)
-        self._run(["helm", "repo", "update", OSMO_HELM_REPO_NAME], "Updating osmo helm repo")
-
     def _ensure_helm_repo(self, name: str, url: str) -> None:
         """Idempotent ``helm repo add`` — a no-op if ``name`` is already registered."""
         repos = self._helm_json(
@@ -478,46 +391,8 @@ class KindAdapter:
         )
         return release in out
 
-    def _install_kai_scheduler(self) -> None:
-        """Install kai-scheduler if it isn't already present.
-
-        osmo/quick-start schedules pods with ``schedulerName: kai-scheduler``;
-        without it they stay ``Pending`` forever. The public deploy_local.html
-        guide lists this as a pre-install step.
-        """
-        if self._helm_release_installed("kai-scheduler", KAI_SCHEDULER_NAMESPACE):
-            logger.info("▶ kai-scheduler already installed — skipping")
-            return
-        # Note: intentionally not passing ``--wait`` here. kai-scheduler's
-        # ``SchedulingShard`` custom resource can stay in the ``Reconciling``
-        # phase for 10+ minutes on CPU-only hosts even after all pods are
-        # Ready — helm's ``--wait`` checks the CR status condition, so it
-        # gives up with ``context deadline exceeded``. Instead we install
-        # and then block on pod readiness via ``kubectl wait``.
-        # Match the public deploy_local.html guide exactly — pin kai-scheduler
-        # pods to the dedicated ``node_group=kai-scheduler`` worker defined in
-        # our KIND config.
-        self._run(
-            [
-                "helm", "upgrade", "--install", "kai-scheduler",
-                KAI_SCHEDULER_CHART, "--version", KAI_SCHEDULER_VERSION,
-                "--create-namespace", "-n", KAI_SCHEDULER_NAMESPACE,
-                "--set", "global.nodeSelector.node_group=kai-scheduler",
-                "--set", "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s",
-                "--set", "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true",
-            ],
-            "Installing kai-scheduler (without --wait; pod readiness checked separately)",
-        )
-        self._run(
-            [
-                "kubectl", "wait", "--for=condition=Ready", "pods", "--all",
-                "-n", KAI_SCHEDULER_NAMESPACE, "--timeout=10m",
-            ],
-            "Waiting for kai-scheduler pods to be Ready",
-        )
-
     def _install_metrics_server(self) -> None:
-        """Install metrics-server so quick-start's HPAs can reach Ready.
+        """Install metrics-server for HPA-focused OETF scenarios.
 
         KIND nodes use self-signed kubelet certs; ``--kubelet-insecure-tls``
         tells metrics-server to skip cert verification when scraping them.
@@ -542,43 +417,39 @@ class KindAdapter:
         )
 
     def _helm_install(self) -> None:
-        # Note: intentionally not passing ``--wait``. The chart's HPAs target
-        # CPU/memory utilization but the referenced Deployments don't all set
-        # ``resources.requests`` — so HPA status stays ``ScalingActive=False``
-        # forever, and ``helm --wait`` blocks indefinitely even with
-        # metrics-server installed. We use ``kubectl wait`` on the actual
-        # Deployments (more meaningful anyway).
-        args = [
-            "helm", "upgrade", "--install", "osmo", OSMO_CHART_REF,
-            "--namespace", OSMO_NAMESPACE, "--create-namespace",
-            # First-run image pulls on CPU hosts can easily exceed 15 min;
-            # subsequent runs re-use the docker image cache and are much faster.
-            "--timeout", "25m",
-            # The public deploy_local.html CPU config has no ``node_group=ingress``
-            # worker — the ingress NodePort is mapped on the port-80 ``service``
-            # node. Current chart (1.2.1) pins ingress-nginx to
-            # ``node_group=ingress`` by default, so we retarget it to the
-            # correct node.
-            "--set", "ingress-nginx.controller.nodeSelector.node_group=service",
-            # Bump osmo-agent memory: chart default is 500Mi, but post-Python-3.14
-            # the agent OOMKills under workflow scheduling load (kubelet exit 137,
-            # workflows stick in PENDING/PROCESSING because the agent isn't reachable
-            # to bridge to the compute backend). Upstream chart fix is pending; this
-            # is the minimum override that keeps KIND deploys stable.
-            "--set", "service.services.agent.resources.requests.memory=1Gi",
-            "--set", "service.services.agent.resources.limits.memory=1Gi",
-        ]
-        if self.chart_version:
-            args += ["--version", self.chart_version]
-        if self.image_location:
-            args += ["--set", f"global.osmoImageLocation={self.image_location}"]
-        if self.image_tag:
-            args += ["--set", f"global.osmoImageTag={self.image_tag}"]
-        if self.build_local:
-            args += _build_local_helm_args()
-        for extra in self.extra_helm_sets:
-            args += ["--set", extra]
-        self._run(args, "Installing osmo/quick-start (without --wait)")
+        chart_root = self.chart_root or _default_chart_root()
+        with tempfile.TemporaryDirectory(prefix="oetf-osmo-chart-") as workspace:
+            for chart_name in ("osmo", "service", "backend-operator"):
+                shutil.copytree(
+                    os.path.join(chart_root, chart_name),
+                    os.path.join(workspace, chart_name),
+                )
+            chart_path = os.path.join(workspace, "osmo")
+            profile_path = os.path.join(chart_path, "profiles", "single-node.yaml")
+            self._run(
+                ["helm", "dependency", "build", "--skip-refresh", chart_path],
+                "Building local OSMO chart dependencies",
+            )
+            args = [
+                "helm", "upgrade", "--install", "osmo", chart_path,
+                "--namespace", OSMO_NAMESPACE, "--create-namespace",
+                "--values", profile_path,
+                "--timeout", "25m",
+                "--set", "controlPlane.gateway.envoy.service.type=NodePort",
+                "--set", "controlPlane.gateway.envoy.service.nodePort=30080",
+                "--set-json", "controlPlane.gateway.envoy.service.httpsPort=null",
+                "--set", "controlPlane.services.agent.resources.requests.memory=1Gi",
+                "--set", "controlPlane.services.agent.resources.limits.memory=1Gi",
+            ]
+            if self.image_location:
+                args += ["--set", f"global.osmoImageLocation={self.image_location}"]
+            if self.image_tag:
+                args += ["--set", f"global.osmoImageTag={self.image_tag}"]
+            if self.build_local:
+                args += _build_local_helm_args()
+            for extra in self.extra_helm_sets:
+                args += ["--set", extra]
+            self._run(args, "Installing the local OSMO umbrella chart")
         # Wait for all Deployments to reach Available=True. This is the
         # meaningful readiness signal for the cluster being usable.
         self._run(
@@ -699,60 +570,6 @@ class KindAdapter:
 def _returncode(result: Any) -> int:
     """Normalize a subprocess.run result for test mocks that omit ``returncode``."""
     return getattr(result, "returncode", 0)
-
-
-def list_chart_versions(chart_ref: str = OSMO_CHART_REF) -> List[Dict[str, str]]:
-    """Return the list of available ``osmo/quick-start`` chart versions.
-
-    Each entry is ``{name, version, app_version, description}``. Requires
-    the helm binary and that ``helm repo add osmo …`` has been run at least
-    once. Runs ``helm repo update`` first so results are fresh.
-    """
-    subprocess.run(
-        ["helm", "repo", "update", OSMO_HELM_REPO_NAME],
-        check=False, capture_output=True,
-    )
-    result = subprocess.run(
-        ["helm", "search", "repo", chart_ref, "--versions", "--output", "json"],
-        check=False, capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"helm search failed (exit {result.returncode}): {result.stderr[:200]}"
-        )
-    if not result.stdout.strip():
-        return []
-    return json.loads(result.stdout)
-
-
-def print_chart_versions() -> int:
-    """Print the available osmo/quick-start chart versions; return an exit code.
-
-    Shared by ``oetf:deploy --list-versions`` and ``oetf:deploy_and_run
-    --list-versions``. Returns 0 on success (even with no versions found),
-    non-zero only if the helm-side query fails.
-    """
-    try:
-        versions = list_chart_versions()
-    except Exception as error:  # pylint: disable=broad-except
-        print(f"ERROR: {error}", file=sys.stderr)
-        print("NEXT:  run 'helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo' first",
-              file=sys.stderr)
-        return 1
-    if not versions:
-        print("No versions found for osmo/quick-start.")
-        return 0
-    chart_col = "CHART VERSION"
-    app_col = "APP VERSION"
-    header = f"{chart_col:<18}{app_col:<14}DESCRIPTION"
-    print(header)
-    print("-" * len(header))
-    for entry in versions:
-        version = entry.get("version", "")
-        app_version = entry.get("app_version", "")
-        description = entry.get("description", "")
-        print(f"{version:<18}{app_version:<14}{description}")
-    return 0
 
 
 # --- Pre-flight ----------------------------------------------------------- #

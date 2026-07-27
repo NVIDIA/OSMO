@@ -39,7 +39,7 @@ for development.
 ### Start OSMO Services
 
 ```sh
-bazel run @osmo_workspace//run:start_service -- --mode bazel
+bazel run @osmo_workspace//run:start_service
 ```
 
 This command:
@@ -52,7 +52,7 @@ This command:
 After OSMO services are started, start the backend:
 
 ```sh
-bazel run @osmo_workspace//run:start_backend -- --mode bazel
+bazel run @osmo_workspace//run:start_backend
 ```
 
 This command:
@@ -64,7 +64,7 @@ This command:
 ### Update Configuration
 
 ```sh
-bazel run @osmo_workspace//run:update_configs -- --mode bazel
+bazel run @osmo_workspace//run:update_configs
 ```
 
 This command:

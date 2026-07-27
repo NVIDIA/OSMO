@@ -65,8 +65,8 @@ resources, or other provider-specific infrastructure.
 2. Support a single-command Helm installation for a single-node deployment.
 3. Support single-node, minimal, split control-plane, and split compute-plane
    reference values.
-4. Keep the service and backend-operator charts independently installable for
-   split-plane deployments.
+4. Keep the service and backend-operator charts reusable as umbrella-chart
+   dependencies for split-plane deployments.
 5. Support Linux `amd64` and `arm64` clusters using pinned, multi-architecture
    images.
 6. Support Kubernetes default scheduling for CPU and basic deployments without
@@ -122,11 +122,10 @@ resources, or other provider-specific infrastructure.
 
 1. [OSMO deployments](../deployments/README.md)
 2. [OSMO Helm charts](../deployments/charts/README.md)
-3. [OSMO deployment scripts](../deployments/scripts/README.md)
-4. [OSMO deployment values](../deployments/values/README.md)
-5. [ConfigMap-based configuration](./configmap-configs.md)
-6. _Productize Orion Infrastructure Plan_ (link to be added)
-7. _OSMO for CRDs Engineering Plan_
+3. [OSMO umbrella chart](../deployments/charts/osmo/README.md)
+4. [ConfigMap-based configuration](./configmap-configs.md)
+5. _Productize Orion Infrastructure Plan_ (link to be added)
+6. _OSMO for CRDs Engineering Plan_
 
 # 2\. Design
 
@@ -200,7 +199,7 @@ The target single-node experience is:
 ```bash
 helm install osmo oci://<registry>/osmo \
   --version <version> \
-  --namespace osmo \
+  --namespace osmo-system \
   --create-namespace \
   --values values-single-node.yaml \
   --wait \
@@ -348,13 +347,15 @@ qualification will cover installation, the previous-release-to-current
 upgrade, rollback behavior, Secret preservation, and split-plane version
 compatibility.
 
-Terraform will no longer be part of the OSMO installation contract. Existing
-provider examples may remain temporarily as optional infrastructure examples,
-but Helm will not consume Terraform outputs.
+Terraform is not part of the OSMO installation contract. Provider-specific
+cluster and data-service examples belong with the owning platform rather than
+inside the OSMO deployment surface, and Helm does not consume Terraform
+outputs.
 
-`deploy-osmo-minimal.sh`, `deploy-k8s.sh`, generated values fragments,
-imperative backend token setup, and the shell smoke-test path will be
-deprecated after the Helm path reaches feature and reliability parity.
+The proof-of-concept branch removes `deploy-osmo-minimal.sh`, `deploy-k8s.sh`,
+provider-specific Terraform examples, generated values fragments, imperative
+backend token setup, and the shell smoke-test path. The umbrella chart and its
+profiles are the only supported installation contract.
 
 ## 2.10 Orion Migration
 
@@ -402,7 +403,7 @@ workstreams will proceed mostly independently and can be worked on in parallel.
 
 Create `deployments/charts/osmo` as the umbrella chart while retaining
 `deployments/charts/service` and `deployments/charts/backend-operator` as
-independently installable charts.
+reusable implementation charts.
 
 This workstream adds conditional dependencies, a dependency lock,
 `kubeVersion`, JSON Schema validation, shared chart helpers, optional namespace
@@ -513,13 +514,8 @@ The implementation will remain in the existing OSMO repository:
    reload behavior will live under `src/`.
 3. Chart and deployment lifecycle tests will extend the existing deployment
    and CI test infrastructure.
-4. Provider-specific Terraform will be removed from the supported installation
-   path and may be retained temporarily as clearly separated examples.
-
-The legacy scripts can be removed only after the reference profiles are
-published, automated install and upgrade tests are required, production Secret
-handling is qualified, Orion has migrated, and at least one release has shipped
-with Helm as the default installation path.
+4. Provider-specific Terraform and shell deployment wrappers are not part of
+   the repository installation surface.
 
 ## 3.4 Proof-of-Concept Branch
 
@@ -536,13 +532,16 @@ executable proposal:
    token creation step.
 5. Kubernetes scheduler mode creates plain Pods without KAI resources; KAI
    remains opt-in.
-6. Bounded Helm hook Jobs prototype preflight, postflight, and `helm test`
+6. Bounded Helm hooks implement preflight, postflight, and `helm test`
    behavior using a pinned kubectl image and read-only RBAC.
 7. Chart CI renders every profile and no longer ignores dependency-build
    failures.
+8. The staging proof of concept completed the single-node install checks, ran
+   a CPU workflow to completion, and validated live pool reconciliation without
+   restarting the API service.
 
-The branch intentionally does not deploy to a cluster. Before production
-adoption, the prototype hook scripts must move into the multi-architecture
-`osmo-check` image, the migration Job must stop downloading pgroll at runtime,
-Secret rotation and MEK recovery tests must be added, and the full Kind,
-upgrade, split-cluster, and Orion qualification gates above must pass.
+Before production adoption, the prototype hook scripts must move into the
+multi-architecture `osmo-check` image, the migration Job must stop downloading
+pgroll at runtime, Secret rotation and MEK recovery tests must be added, and
+the full Kind, upgrade, split-cluster, and Orion qualification gates above must
+pass.

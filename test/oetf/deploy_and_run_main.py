@@ -30,7 +30,6 @@ from test.oetf.cli_args import (
     forward_run_args,
 )
 from test.oetf.deploy_adapters.base import DeploySession, install_signal_shim
-from test.oetf.deploy_adapters.kind_adapter import print_chart_versions
 from test.oetf.deploy_pipeline import prepare_deploy
 from test.oetf.models import EnvironmentConfig
 
@@ -101,9 +100,6 @@ def main(arguments: List[str] | None = None) -> int:
         level=log_level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-
-    if args.list_versions:
-        return print_chart_versions()
 
     prepared = prepare_deploy(args)
     if prepared is None:

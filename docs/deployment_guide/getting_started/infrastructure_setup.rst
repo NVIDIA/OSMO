@@ -23,62 +23,21 @@ Setup Infrastructure
 
   Before setting up infrastructure for OSMO, ensure you have the prerequisites as specified in :doc:`../requirements/prereqs`. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
 
-Setup Options
-=============
+Platform-Owned Infrastructure
+=============================
 
-Option 1: Using Terraform (Recommended)
--------------------------------------------------------
+OSMO does not prescribe or ship an infrastructure provisioner. Use your
+organization's approved platform tooling to create a conformant Kubernetes
+cluster, networking, PostgreSQL, Redis, object storage, IAM, DNS, and any
+cluster-wide operators.
 
-This is the recommended way to set up infrastructure for OSMO and the quickest way to get started.
+The installation contract begins when those prerequisites are reachable
+through Kubernetes-native interfaces. The OSMO umbrella chart then installs
+the control plane and compute plane without consuming provider-specific
+Terraform outputs.
 
-.. only:: html
-
-  .. grid:: 1 2 2 2
-      :gutter: 3
-
-      .. grid-item-card:: :octicon:`cloud` AWS Terraform
-          :link: https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/aws/example
-          :class-card: tool-card
-
-          Automated infrastructure setup for AWS with complete reference implementation.
-
-          +++
-
-          **Creates:**
-
-          • VPC
-          • EKS cluster
-          • RDS PostgreSQL
-          • ElastiCache Redis
-
-          **Time**: ~20-30 minutes
-
-      .. grid-item-card:: :octicon:`cloud` Azure Terraform
-          :link: https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/azure/example
-          :class-card: tool-card
-
-          Automated infrastructure setup for Azure with complete reference implementation.
-
-          +++
-
-          **Creates:**
-
-          • VNet
-          • AKS cluster
-          • Azure Database for PostgreSQL
-          • Azure Cache for Redis
-
-          **Time**: ~20-30 minutes
-
-Option 2: Manually
------------------------
-
-.. note::
-
-   Creating infrastructure manually requires familiarity with cloud resources and networking. Consider using the Terraform examples from Option 1 if you're new to cloud infrastructure setup.
-
-
-Follow the below guides to setup the infrastructure manually based on your cloud service provider of choice
+The following provider documentation can help platform teams prepare the
+required infrastructure:
 
 .. only:: html
 
@@ -163,5 +122,4 @@ Best Practices
 3. **Private subnets**: Keep databases and Redis in private subnets
 4. **Minimal access**: Use security groups to restrict access to only required ports
 5. **Service accounts**: Use cloud provider IAM for service-to-service authentication
-
 

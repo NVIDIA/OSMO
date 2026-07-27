@@ -26,7 +26,7 @@ class SerialWorkflows(RunnerFixture):
     # image.
 
     # test_serial_workflow_multi_arch stays internal — needs a heterogeneous
-    # pool not present in the public quick-start chart.
+    # pool not present in the local Helm profile.
 
 
 if __name__ == "__main__":

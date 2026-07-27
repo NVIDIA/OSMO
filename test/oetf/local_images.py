@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 # Build OSMO service images from local source and load them into a KIND cluster.
 #
 # Used by ``oetf:deploy --build-local`` to bridge local code changes to a
-# local ``osmo/quick-start`` install:
+# local ``deployments/charts/osmo`` install:
 #
 #   1. For each service, run the Bazel ``*_image_load_<arch>`` target — this
 #      builds the OCI image and loads it into the host docker daemon with tag
@@ -19,7 +19,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #   2. ``kind load docker-image`` each tag into the KIND cluster's nodes.
 #
 # After this runs, pass ``--image-location=osmo.local`` and
-# ``--image-tag=latest-<arch>`` to ``helm upgrade --install osmo/quick-start``
+# ``--image-tag=latest-<arch>`` to the umbrella chart's Helm install
 # (the adapter does this automatically in ``--build-local`` mode).
 #
 # The web-ui build uses a separate docker buildx path (see build_and_load_ui)
@@ -60,9 +60,9 @@ def _t(tmpl: str, arch: HostArch) -> str:
 def image_specs(arch: HostArch) -> List[ImageSpec]:
     """Return the set of OSMO images that build cleanly with oci_load + repo_tags.
 
-    The 9 Python service images here all produce ``osmo.local/<svc>:latest-<arch>``
+    The 8 enabled service images here all produce ``osmo.local/<svc>:latest-<arch>``
     directly, matching the ``global.osmoImageLocation=osmo.local`` +
-    ``global.osmoImageTag=latest-<arch>`` overrides quick-start accepts.
+    ``global.osmoImageTag=latest-<arch>`` overrides accepted by the OSMO chart.
     """
     return [
         ImageSpec(
@@ -95,11 +95,6 @@ def image_specs(arch: HostArch) -> List[ImageSpec]:
             "router",
             _t("//src/service/router:router_image_load_{arch}", arch),
             _t("osmo.local/router:latest-{arch}", arch),
-        ),
-        ImageSpec(
-            "authz-sidecar",
-            _t("//src/service/authz_sidecar:authz_sidecar_image_load_{arch}", arch),
-            _t("osmo.local/authz-sidecar:latest-{arch}", arch),
         ),
         ImageSpec(
             "backend-listener",
@@ -229,7 +224,7 @@ def build_and_load(
         # Each KIND node now owns its own containerd copy; the host's docker
         # daemon copy and the on-disk tarball are redundant. Reclaim them.
         # On hosted CI (e.g. GHA ubuntu-latest 145 GB / volume) the
-        # 9 × 6-node duplication crowds out the runner mid-run without
+        # Per-node image duplication can crowd out the runner mid-run without
         # this intra-step cleanup. `|| true` is intentional — cleanup
         # failure must not break the build flow.
         subprocess.run(
@@ -256,7 +251,7 @@ def build_and_load(
 #
 # The default build_and_load path uses `kind load docker-image` which copies
 # each image into every KIND node's separate containerd content store. With
-# the chart's 6-node profile and 9 service images that is 54 image-copies
+# a multi-node cluster and several service images that can become many image copies
 # of duplicated storage, which exhausts the disk on small CI runners
 # (e.g. GitHub Actions ubuntu-latest 145 GB).
 #
@@ -264,8 +259,7 @@ def build_and_load(
 # local `registry:2` container. KIND nodes are configured (via
 # `containerdConfigPatches` + a per-node `hosts.toml`) to resolve
 # `localhost:5001` to that registry. Each node then pulls *only* the images
-# its pods schedule — for our chart that's 1-2 nodes per image, dropping
-# the on-disk multiplier from 6x to 1-2x.
+# its pods schedule, keeping image storage proportional to actual placement.
 
 LOCAL_REGISTRY_NAME = "kind-registry"
 LOCAL_REGISTRY_PORT_HOST = 5001
@@ -560,7 +554,7 @@ def build_and_load_ui(
 ) -> None:
     """Build the web-ui image via docker buildx and load it into KIND.
 
-    The web-ui build is genuinely different from the 9 Python service
+    The web-ui build is genuinely different from the 8 service
     images: it uses a multi-stage Next.js Dockerfile (deps → builder →
     distroless runner with ``output: 'standalone'``), not bazel's
     ``oci_image``. We invoke ``docker buildx build --load`` directly,
@@ -599,11 +593,9 @@ def build_and_push_ui_to_registry(arch: HostArch) -> None:
 
     Mirrors :func:`build_and_load_ui` but skips ``kind load`` in favor of
     a ``docker push`` to ``localhost:5001/osmo/web-ui:latest-<arch>``. The
-    chart's ingress-nginx has a hard ``wait-for-web-ui`` init container
-    dependency, so the web-ui Deployment must actually come up — scaling
-    it to ``replicas=0`` deadlocks the entire stack. Pushing to the
-    registry keeps disk impact to a single host-side copy (no 6x KIND-
-    node duplication).
+    web-ui Deployment must come up so the gateway and UI tests exercise the
+    same source revision. Pushing to the registry keeps disk impact to a
+    single host-side copy.
 
     Cleans up host docker storage after push: the registry has the layers
     now, and the built image alone is ~3 GB.

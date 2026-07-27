@@ -50,7 +50,7 @@ bazel test //test/smoke:api-checks \
 ### Deploy (spin up a local KIND OSMO)
 
 You don't have an instance — let OETF spin up a disposable local KIND
-cluster running OSMO via the `osmo/quick-start` chart. See
+cluster running OSMO via the repository's `deployments/charts/osmo` chart. See
 [`Local KIND deploy`](#local-kind-deploy-type-kind) for the full story
 and prereqs.
 
@@ -58,14 +58,10 @@ and prereqs.
 # Default deploy (pulls images from public NGC; ~5-10min first time)
 bazel run //test/oetf:deploy -- --env kind
 
-# Pin a specific osmo image tag (NGC tags include `6.2`, `6.1`, daily
+# Pin a specific OSMO image tag (NGC tags include releases and daily
 # stamped builds, etc.). Useful for reproducing a bug against a known
 # release without local builds.
-bazel run //test/oetf:deploy -- --env kind --image-tag 6.2
-
-# List available `osmo/quick-start` chart versions, then pin one.
-bazel run //test/oetf:deploy -- --list-versions
-bazel run //test/oetf:deploy -- --env kind --chart-version 1.2.1
+bazel run //test/oetf:deploy -- --env kind --image-tag 6.3.0
 
 # Build images from local source and load them into KIND
 # (incremental rebuild + rollout-restart on subsequent re-runs)
@@ -80,7 +76,7 @@ bazel run //test/oetf:teardown
 ```
 
 After `oetf:deploy`, the dashboard is reachable at
-`http://quick-start.osmo/` and tests run with:
+`http://local.osmo/` and tests run with:
 
 ```bash
 bazel run //test/oetf:run -- --env kind --tags kind
@@ -190,7 +186,7 @@ environments:
     pool: default
 
   kind:
-    url: http://quick-start.osmo
+    url: http://local.osmo
     auth: {strategy: dev, username: testuser}
     type: kind
     allow_deploy: true
@@ -836,7 +832,7 @@ The wrapper (`test/oetf/main.py`) is thin:
 
 Four sibling binaries all share the same `--env <name>` flag. With
 `type: kind` the env tells OETF to spin up a disposable local cluster via
-`osmo/quick-start`.
+the canonical `deployments/charts/osmo` chart and its `single-node` profile.
 
 | Binary | When to use |
 |--------|-------------|
@@ -863,8 +859,8 @@ flowchart LR
     end
 
     subgraph Cluster["Local KIND cluster"]
-        CHART["osmo/quick-start chart<br/>+ kai-scheduler"]
-        PODS["osmo services<br/>+ postgres / redis / s3 / ingress"]
+        CHART["deployments/charts/osmo<br/>single-node profile"]
+        PODS["OSMO control + compute planes<br/>postgres / redis / localstack / gateway"]
     end
 
     subgraph Consumers["Test / cleanup"]
@@ -887,8 +883,8 @@ flowchart LR
 detect the existing cluster, do an incremental bazel rebuild, kind-load
 any changed image digests, and `kubectl rollout restart` the osmo
 deployments so running pods pick up the new images. No manual
-`kubectl rollout restart` step. Edits to either the 9 Python services *or*
-the web-ui (Next.js) are picked up by the same re-run — the 9-service bazel
+`kubectl rollout restart` step. Edits to either the 8 enabled services *or*
+the web-ui (Next.js) are picked up by the same re-run — the service Bazel
 build and the UI docker buildx build run concurrently inside the pre-install
 hook.
 
@@ -897,73 +893,26 @@ upgrade), pass `--fresh` — that deletes the cluster first and runs the
 first-deploy path on a clean slate.
 
 
-### Relationship to `osmo/quick-start` and existing deploy scripts
+### Relationship to the deployment chart
 
-The KIND adapter (`deploy_adapters/kind_adapter.py`) is a **consumer** of
-the public `osmo/quick-start` Helm chart, not a reimplementation. The chart
-owns *what* to deploy; the adapter owns *where, how, and when*.
+The KIND adapter (`deploy_adapters/kind_adapter.py`) copies the local `osmo`,
+`service`, and `backend-operator` chart sources into a temporary directory,
+builds the file-based dependencies, and performs one `helm upgrade --install`.
+It does not carry a second set of Kubernetes manifests or bootstrap service
+accounts imperatively.
 
-```
-osmo/quick-start chart  (helm.ngc.nvidia.com/nvidia/osmo)
-  │  Bundles: service · web-ui · router · backend-operator · ingress-nginx
-  │           postgres · redis · localstack-s3
-  │  Owns: k8s manifests, default values, sub-chart pinning, image tags,
-  │        node-selector defaults. Knows nothing about OETF or KIND.
-  ▼
-OETF KIND adapter  (this file)
-  Provides what the chart assumes already exists:
-    • A 6-node KIND cluster with node_group={service, compute, ingress,
-      kai-scheduler, data} labels matching the chart's nodeSelector defaults
-    • kai-scheduler installed (chart expects it pre-existing)
-    • A stub `nvidia` RuntimeClass (CPU-only KIND has no real GPU operator)
-    • /etc/hosts: 127.0.0.1 quick-start.osmo
-  Passes KIND-specific value overrides via `helm upgrade --install`:
-    • ingress-nginx.controller.nodeSelector.node_group=service
-      (KIND has no `node_group=ingress` worker)
-    • global.osmoImageLocation/Tag (when --build-local)
-    • per-service imagePullPolicy=IfNotPresent (build-local)
-  Adds lifecycle the chart doesn't have:
-    • Idempotent re-deploy + `kubectl rollout restart` on rebuild
-    • Health-check wait against http://quick-start.osmo/health
-    • Breadcrumb-driven teardown (oetf:teardown reads ~/.cache/oetf/)
-    • Local image build + `kind load docker-image` (for --build-local)
-```
+The chart owns namespaces, secrets, control-plane and compute-plane resources,
+configuration bootstrap, and pre/post-flight checks. OETF adds only the test
+harness concerns:
 
-`kind_adapter.deploy()` is a thin orchestrator: cluster bringup → single
-`helm upgrade --install osmo/quick-start <overrides>` → post-install wait
-+ optional rollout-restart. The helm step is the only place the adapter
-touches the chart, and it's just one shell-out — no per-component logic,
-no manifest patching.
+- create or reuse a compact KIND cluster;
+- expose the gateway NodePort at `http://local.osmo`;
+- build and deliver branch-local images when `--build-local` is set;
+- wait for the API to stabilize and run Bazel-native scenarios;
+- preserve or delete the cluster according to the requested test lifecycle.
 
-#### Versus `run/start_service_kind.py`
-
-Public users may also know
-[`run/start_service_kind.py`](../../run/start_service_kind.py)
-— an older script that predates the umbrella chart. Comparison:
-
-| Dimension                | OETF KIND adapter                       | `start_service_kind.py`                                  |
-|--------------------------|-----------------------------------------|----------------------------------------------------------|
-| Role                     | Test driver — deploy + run + teardown   | Manual exploration script                                |
-| Cluster shape            | 6 nodes (multi-group labels)            | 2 nodes (control-plane + 1 worker)                       |
-| Component wiring         | One `helm install osmo/quick-start`     | 3+ separate helm installs from `deployments/charts/`     |
-| Image source             | NGC default, or `osmo.local/*` (build-local) | `registry.example.com/project` (NVCR creds required)      |
-| Lifecycle                | Idempotent + rollout-restart            | Fresh setup only                                         |
-| Aligns with public guide | ✅ Mirrors `deploy_local.html` (Option B) | Predates current public deploy guide                    |
-
-Both flows ultimately use the same chart. OETF's adapter takes the
-"blessed" path published at
-`nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html`,
-which is why it's the recommended way to drive a KIND OSMO instance for
-testing. `start_service_kind.py` remains useful for hands-on exploration
-of the lower-level chart wiring.
-
-#### Versioning
-
-The adapter pins no chart version by default — it uses the latest from
-the helm repo. Pass `--chart-version <X.Y.Z>` to lock to a specific
-chart release (CI does this). Forward-compatibility relies on the
-override keys (`global.osmoImageTag`, `ingress-nginx.controller.nodeSelector.*`,
-`web-ui.services.ui.imagePullPolicy`) staying stable across chart releases.
+This makes the CI gate a direct validation of the user-facing Helm path. Chart
+changes and application changes are exercised together from the same checkout.
 
 
 ### Prereqs (one-time)
@@ -971,7 +920,7 @@ override keys (`global.osmoImageTag`, `ingress-nginx.controller.nodeSelector.*`,
 Install `docker`, `kind`, `kubectl`, and `helm`, then add the hosts entry:
 
 ```bash
-echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+echo "127.0.0.1 local.osmo" | sudo tee -a /etc/hosts
 ```
 
 OETF's pre-flight enumerates every missing tool and prints an `ERROR: / NEXT:`
@@ -1008,13 +957,11 @@ bazel run //test/oetf:deploy_and_run -- --env kind --tags smoke
 | `--fresh` | Delete the existing KIND cluster first, then create fresh. Skips the build-local consistency check (see below). |
 | `--mode {cpu,gpu}` | Override `env.mode` for this invocation |
 | `--cluster-name X` | Override `env.cluster_name` (default: `osmo`) |
-| `--chart-version X` | Pin `osmo/quick-start` chart version (default: latest) |
 | `--image-location / --image-tag` | Override chart image defaults |
 | `--build-local` | Build OSMO images from local source, kind-load them, and restart osmo deployments. |
 | `--build-images all,service,…` | With `--build-local`, restrict to specific image short_names (default `all`). |
 | `--with-metrics-server` | Install metrics-server (opt-in; not needed for smoke / router tests) |
 | `--extra-set key=value` | Extra `helm --set` override (repeatable). |
-| `--list-versions` | Print available `osmo/quick-start` chart versions and exit. Available on both `oetf:deploy` and `oetf:deploy_and_run`. |
 | `--keep-on-failure` | Skip rollback teardown on deploy failure (for debugging the partial state). |
 | `--keep` *(deploy_and_run only)* | Skip teardown after a passing test run (leaves cluster running for inspection). |
 
@@ -1038,9 +985,9 @@ written by deploy) so it always tears down the right cluster even if you
 forget the cluster name.
 
 **GPU workstations:** `mode: gpu` (env field or `--mode gpu` flag) is
-reserved for the future nvkind + gpu-operator path but not yet implemented.
-CPU mode installs a stub `nvidia` RuntimeClass so chart-default workflow pods
-can still be admitted.
+reserved for a future nvkind path but is not implemented. GPU enablement is a
+platform prerequisite; OETF will keep using the same umbrella chart once a
+GPU-capable KIND cluster is available.
 
 ### Pre-flight checks (`ERROR: / NEXT:` contract)
 
@@ -1052,8 +999,8 @@ pre-flight that validates:
   probed via `docker info` so a stopped Docker Desktop fails fast
   with `NEXT: open -a Docker` instead of a cryptic socket error from
   deep in the deploy.
-- `quick-start.osmo` resolves **to 127.0.0.1**. A leftover `/etc/hosts`
-  entry pointing at any other IP fails fast (the KIND ingress only
+- `local.osmo` resolves **to 127.0.0.1**. A leftover `/etc/hosts`
+  entry pointing at any other IP fails fast (the KIND gateway only
   listens on loopback) — without this check, deploy succeeds and
   `_wait_for_health` times out 3 minutes later with a misleading
   "did not stabilize" error.
@@ -1211,7 +1158,7 @@ test/oetf/                   # Framework + 4 entry-point binaries.
 ├── sinks.py                 # S3-compatible upload (S3, Swift, MinIO, R2, B2).
 ├── data/
 │   ├── oetf.default.yaml    # canonical `staging` / `kind` env presets.
-│   ├── kind-osmo-cluster-config.yaml  # 6-node CPU KIND layout.
+│   ├── kind-osmo-cluster-config.yaml  # Compact CPU KIND layout.
 │   └── categories.json      # Allure failure-bucket rules.
 ├── bzl/
 │   ├── BUILD
@@ -1234,8 +1181,8 @@ test/smoke/                  # Smoke tests.
 ├── api_checks.py
 ├── cli_checks.py
 └── websocket_checks.py
-                             # (auth-checks ships in the internal overlay —
-                             # the public quick-start chart has no JWT issuer.)
+                             # (auth-checks ships in the internal overlay;
+                             # the local profile has no JWT issuer.)
 
 test/scenarios/              # Scenario tests.
 ├── BUILD

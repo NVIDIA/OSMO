@@ -23,7 +23,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from typing import List, Optional, Tuple, Literal
+from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
@@ -308,22 +308,12 @@ def wait_for_all_processes() -> None:
         time.sleep(5)
 
 
-def login_osmo(mode: Literal['kind', 'bazel']) -> None:
-    """Login to OSMO using the CLI.
-
-    Args:
-        mode: The mode being used ('kind' or 'bazel')
-
-    Raises:
-        RuntimeError: If login fails
-    """
+def login_osmo() -> None:
+    """Login to the locally running Bazel services with the OSMO CLI."""
     logger.info('🔐 Logging in to OSMO...')
 
-    if mode == 'bazel':
-        host_ip = get_host_ip()
-        login_url = f'http://{host_ip}:8000'
-    else:  # kind mode
-        login_url = 'http://ingress-nginx-controller.ingress-nginx.svc.cluster.local'
+    host_ip = get_host_ip()
+    login_url = f'http://{host_ip}:8000'
 
     login_process = run_command_with_logging([
         'bazel', 'run', '@osmo_workspace//src/cli', '--',

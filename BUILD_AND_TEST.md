@@ -206,135 +206,30 @@ bazel run @osmo_workspace//run:push_multiarch_manifests -- \
 
 ## Test OSMO Images in a KIND Cluster
 
-Once you have built OSMO container images you can test that the images work as expected. These
-commands run OSMO within a KIND cluster, providing an environment similar to a deployed environment.
-
-Follow these instructions from your host machine, not the containerized builder environment.
-
-### Start OSMO Services
+OETF is the supported source-image validation path. It creates a compact KIND
+cluster and installs the same `deployments/charts/osmo` umbrella chart used by
+the deployment guide.
 
 ```sh
-# If you followed steps to push images, use the image url and tag from MODULE.bazel
-# Otherwise set your desired image url and tag
-BASE_IMAGE_URL=$(grep 'BASE_IMAGE_URL = ' MODULE.bazel | sed 's/.*= "\(.*\)"/\1/' | sed 's:/*$::')
-IMAGE_TAG=$(grep 'IMAGE_TAG = ' MODULE.bazel | sed 's/.*= "\(.*\)"/\1/')
+echo "127.0.0.1 local.osmo" | sudo tee -a /etc/hosts
 
-bazel run @osmo_workspace//run:start_service --  \
-  --mode kind \
-  --container-registry="$CONTAINER_REGISTRY" \
-  --container-registry-username="$CONTAINER_REGISTRY_USERNAME" \
-  --container-registry-password="$CONTAINER_REGISTRY_PASSWORD" \
-  --image-tag="$IMAGE_TAG" \
-  --image-location="$BASE_IMAGE_URL"
+# Build service and UI images from this checkout, install the single-node
+# profile, run the KIND test set, and tear the cluster down.
+bazel run //test/oetf:deploy_and_run -- \
+  --env kind \
+  --build-local \
+  --tags kind
 ```
 
-This command:
-
-- Creates a KIND cluster if it does not exist
-- Sets up the OSMO namespace and image pull secrets
-- Installs gateway (Envoy) for routing traffic
-- Generates the Master Encryption Key (MEK)
-- Installs core OSMO services (osmo, ui, router)
-
-Add the following line to your `/etc/hosts` file. If you are SSH-ing into a remote workstation you
-must add this line to `/etc/hosts` on both your local and remote hosts.
-
-```text
-127.0.0.1 quick-start.osmo
-```
-
-If you are SSH-ing into a remote workstation, you must also forward port `:80` from your remote
-workstation to your local host.
-
-The OSMO UI and APIs for the core service can now be accessed on your local machine at:
-http://quick-start.osmo
-
-### Start OSMO Backend
+To retain the cluster for interactive testing, deploy it separately:
 
 ```sh
-# If you followed steps to push images, use the image url and tag from MODULE.bazel
-# Otherwise set your desired image url and tag
-BASE_IMAGE_URL=$(grep 'BASE_IMAGE_URL = ' MODULE.bazel | sed 's/.*= "\(.*\)"/\1/' | sed 's:/*$::')
-IMAGE_TAG=$(grep 'IMAGE_TAG = ' MODULE.bazel | sed 's/.*= "\(.*\)"/\1/')
-
-bazel run @osmo_workspace//run:start_backend --  \
-  --mode kind \
-  --container-registry="$CONTAINER_REGISTRY" \
-  --container-registry-username="$CONTAINER_REGISTRY_USERNAME" \
-  --container-registry-password="$CONTAINER_REGISTRY_PASSWORD" \
-  --image-tag="$IMAGE_TAG" \
-  --image-location="$BASE_IMAGE_URL"
+bazel run //test/oetf:deploy -- --env kind --build-local
+bazel run //test/oetf:run -- --env kind --tags kind
+bazel run //test/oetf:teardown
 ```
 
-This command:
-
-- Creates a KIND cluster if it does not exist
-- Configures worker nodes with required labels
-- Creates test namespace
-- Generates backend operator token
-- Installs backend operator
-
-### Update Configuration
-
-```sh
-# If you followed steps to push images, use the image url and tag from MODULE.bazel
-# Otherwise set your desired image url and tag
-BASE_IMAGE_URL=$(grep 'BASE_IMAGE_URL = ' MODULE.bazel | sed 's/.*= "\(.*\)"/\1/' | sed 's:/*$::')
-IMAGE_TAG=$(grep 'IMAGE_TAG = ' MODULE.bazel | sed 's/.*= "\(.*\)"/\1/')
-
-bazel run @osmo_workspace//run:update_configs --  \
-  --container-registry="$CONTAINER_REGISTRY" \
-  --container-registry-username="$CONTAINER_REGISTRY_USERNAME" \
-  --container-registry-password="$CONTAINER_REGISTRY_PASSWORD" \
-  --image-tag="$IMAGE_TAG" \
-  --image-location="$BASE_IMAGE_URL"
-```
-
-This command:
-
-- Updates workflow configuration with local development settings
-- Configures object storage endpoints and credentials
-- Sets up backend image configurations
-- Sets the default pool for the user profile
-
-### Access OSMO
-
-The OSMO UI and APIs can be accessed at:
-http://quick-start.osmo
-
-Log into OSMO using the CLI:
-
-```sh
-bazel run @osmo_workspace//src/cli -- login http://quick-start.osmo --method=dev --username=testuser
-```
-
-## Next steps
-
-Test your setup with [hello_world.yaml](./cookbook/tutorials/hello_world.yaml):
-
-```sh
-bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/cookbook/tutorials/hello_world.yaml
-```
-
-The workflow should successfully submit and run to a "completed" state.
-
-## Deleting the KIND cluster
-
-You can run this command to cleanup the KIND cluster. This will also delete all persistent volumes,
-including the postgres database that was created.
-
-```sh
-kind delete cluster --name osmo
-```
-
-Note: If you used a different `--cluster-name` than the default `osmo`, delete the cluster with
-`kind delete cluster --name <your cluster name>`.
-
-## FAQ
-
-### How do I resolve the issue where `start_service` fails to install helm charts?
-
-This is likely caused by running out of [inotify](https://linux.die.net/man/7/inotify) resources.
-Follow
-[these instructions](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files)
-to raise the limits.
+See [the OETF guide](test/oetf/README.md) for image selection, local registry,
+and failure-preservation options. See
+[the local deployment guide](docs/deployment_guide/appendix/deploy_local.rst)
+for the direct Helm workflow.

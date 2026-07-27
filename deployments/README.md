@@ -18,13 +18,13 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO deployments
 
-The proposed deployment entry point is the Kubernetes-native
+The deployment entry point is the Kubernetes-native
 [`osmo` umbrella chart](charts/osmo/README.md). It installs OSMO into an
 existing Kubernetes cluster without Terraform or cloud-provider-specific
 bootstrap logic.
 
 ```bash
-helm dependency build charts/osmo
+helm dependency build --skip-refresh charts/osmo
 helm upgrade --install osmo charts/osmo \
   --namespace osmo-system \
   --create-namespace \
@@ -56,17 +56,13 @@ The chart does not create clusters, networks, managed databases, cloud IAM
 principals, DNS zones, or secret stores. Those remain optional platform inputs
 exposed through portable Kubernetes interfaces.
 
-## Legacy deployment paths
+## Installation contract
 
-[`scripts/deploy-osmo-minimal.sh`](scripts/deploy-osmo-minimal.sh) and
-[`scripts/deploy-k8s.sh`](scripts/deploy-k8s.sh) are retained temporarily as
-migration references while the umbrella chart reaches feature parity. New
-deployment behavior must be implemented in the charts and checks instead of
-these scripts. They can be removed after the profile and upgrade test matrix is
-green.
-
-Terraform under [`terraform/`](terraform/) remains an optional infrastructure
-example. It is not part of the OSMO installation contract.
+OSMO does not ship a cluster provisioner or a provider-specific deployment
+wrapper. Platform teams may use any infrastructure tooling that produces the
+Kubernetes and external-service prerequisites described by the chart. New
+installation behavior belongs in the chart, its profiles, or its verification
+hooks.
 
 ## Design
 
