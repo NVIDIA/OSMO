@@ -959,6 +959,11 @@ services:
     ##
     imageName: worker
 
+    ## Optional worker image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
+
     ## Kubernetes image pull policy for the worker service
     ##
     imagePullPolicy: Always
@@ -1089,6 +1094,11 @@ services:
     ## Docker image name for the API service
     ##
     imageName: service
+
+    ## Optional API service image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
 
     ## Kubernetes image pull policy for the API service
     ##
@@ -1603,6 +1613,11 @@ services:
     ## Docker image name for the agent service
     ##
     imageName: agent
+
+    ## Optional agent image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
 
     ## Kubernetes image pull policy for the agent service
     ##

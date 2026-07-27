@@ -59,7 +59,7 @@ spec:
       {{- end }}
       containers:
       - name: {{ .Values.services.worker.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.worker.imageName }}:{{ .Values.global.osmoImageTag }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.worker.imageName }}:{{ .Values.services.worker.imageTag | default .Values.global.osmoImageTag }}
         command:
         - "worker"
         securityContext:

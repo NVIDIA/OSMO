@@ -162,6 +162,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.worker.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.worker.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.worker.imageName` | Worker image name | `worker` |
+| `services.worker.imageTag` | Optional worker image tag override | `""` |
 | `services.worker.serviceName` | Service name | `osmo-worker` |
 | `services.worker.initContainers` | Init containers for worker | `[]` |
 | `services.worker.extraArgs` | Additional command line arguments | `[]` |
@@ -180,6 +181,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.service.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.service.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.service.imageName` | Service image name | `service` |
+| `services.service.imageTag` | Optional API service image tag override | `""` |
 | `services.service.serviceName` | Service name | `osmo-service` |
 | `services.service.initContainers` | Init containers for API service | `[]` |
 | `services.service.hostname` | External DNS hostname for the API service (passed as `--service_hostname`, used to set `service_base_url` in the DB-backed configs). When empty, falls back to `global.hostname`. | `""` |
@@ -219,6 +221,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.agent.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.agent.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.agent.imageName` | Agent image name | `agent` |
+| `services.agent.imageTag` | Optional agent image tag override | `""` |
 | `services.agent.serviceName` | Service name | `osmo-agent` |
 | `services.agent.initContainers` | Init containers for agent service | `[]` |
 | `services.agent.nodeSelector` | Node selector constraints | `{}` |

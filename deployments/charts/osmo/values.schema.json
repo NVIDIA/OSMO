@@ -28,7 +28,11 @@
       "properties": {
         "enabled": {"type": "boolean"},
         "image": {"type": "string", "minLength": 1},
-        "timeout": {"type": "string", "pattern": "^[0-9]+[smh]$"}
+        "timeout": {"type": "string", "pattern": "^[0-9]+[smh]$"},
+        "apiVersion": {"type": "boolean"},
+        "backendOnline": {"type": "boolean"},
+        "backendAttempts": {"type": "integer", "minimum": 1},
+        "backendRetryIntervalSeconds": {"type": "integer", "minimum": 1}
       }
     },
     "secretManagement": {

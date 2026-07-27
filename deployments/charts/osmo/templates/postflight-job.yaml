@@ -68,5 +68,57 @@ spec:
                 --namespace {{ .Values.namespaces.computePlane }} \
                 --timeout={{ .Values.checks.timeout }}
               {{- end }}
+              {{- if or .Values.checks.apiVersion (and .Values.checks.backendOnline .Values.computePlane.enabled) }}
+              {{- if .Values.computePlane.enabled }}
+              service_url={{ .Values.computePlane.global.serviceUrl | quote }}
+              {{- else }}
+              service_url={{ printf "http://osmo-gateway.%s.svc.cluster.local" .Values.namespaces.controlPlane | quote }}
+              {{- end }}
+              service_url="${service_url%/}"
+              {{- end }}
+              {{- if .Values.checks.apiVersion }}
+              echo "Checking the OSMO API"
+              api_version="$(wget -qO- "${service_url}/api/version" 2>/dev/null || true)"
+              if ! printf '%s' "${api_version}" | grep -q '"major"'; then
+                echo "OSMO API version check failed"
+                exit 1
+              fi
+              {{- end }}
+              {{- if and .Values.checks.backendOnline .Values.computePlane.enabled }}
+              echo "Waiting for backend {{ .Values.computePlane.global.backendName }} to report online"
+              backend_token_encoded="$(kubectl get secret \
+                {{ .Values.computePlane.global.accountTokenSecret }} \
+                --namespace {{ .Values.namespaces.computePlane }} \
+                -o jsonpath='{.data.{{ .Values.computePlane.global.accountTokenSecretKey }}}')"
+              backend_token="$(printf '%s' "${backend_token_encoded}" | base64 -d)"
+              attempt=1
+              while [ "${attempt}" -le {{ .Values.checks.backendAttempts }} ]; do
+                jwt_response="$(wget -qO- \
+                  --header='Content-Type: application/json' \
+                  --post-data="$(printf '{"token":"%s"}' "${backend_token}")" \
+                  "${service_url}/api/auth/jwt/access_token" 2>/dev/null || true)"
+                jwt_token="$(printf '%s' "${jwt_response}" | \
+                  sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+                backend_status=""
+                if [ -n "${jwt_token}" ]; then
+                  backend_status="$(wget -qO- \
+                    --header="Authorization: Bearer ${jwt_token}" \
+                    "${service_url}/api/configs/backend/{{ .Values.computePlane.global.backendName }}" \
+                    2>/dev/null || true)"
+                fi
+                if printf '%s' "${backend_status}" | \
+                    grep -q '"online"[[:space:]]*:[[:space:]]*true'; then
+                  echo "Backend {{ .Values.computePlane.global.backendName }} is online"
+                  break
+                fi
+                if [ "${attempt}" -eq {{ .Values.checks.backendAttempts }} ]; then
+                  echo "Backend {{ .Values.computePlane.global.backendName }} did not report online"
+                  exit 1
+                fi
+                attempt=$((attempt + 1))
+                sleep {{ .Values.checks.backendRetryIntervalSeconds }}
+              done
+              unset backend_token backend_token_encoded jwt_response jwt_token
+              {{- end }}
               echo "OSMO postflight checks passed"
 {{- end }}

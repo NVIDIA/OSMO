@@ -82,8 +82,11 @@ Pre-install and pre-upgrade hooks check:
 - required existing Secrets.
 
 Post-install, post-upgrade, and `helm test` checks wait for External Secrets and
-the selected OSMO control/compute deployments to become ready. The checks use a
-read-only temporary ClusterRole and do not modify cluster resources.
+the selected OSMO control/compute deployments to become ready, request the API
+version through the gateway, and wait for the compute backend heartbeat to
+report online. The backend check exchanges the configured backend token for a
+short-lived JWT without logging either credential. The checks use a read-only
+temporary ClusterRole and do not modify cluster resources.
 
 ## Scheduler portability
 

@@ -66,7 +66,7 @@ spec:
       {{- end }}
       containers:
       - name: {{ .Values.services.agent.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.agent.imageName }}:{{ .Values.global.osmoImageTag }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.agent.imageName }}:{{ .Values.services.agent.imageTag | default .Values.global.osmoImageTag }}
         command:
         - agent_service
         securityContext:

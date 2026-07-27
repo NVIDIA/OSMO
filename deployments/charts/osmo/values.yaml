@@ -18,8 +18,12 @@ namespaces:
 
 checks:
   enabled: true
-  image: docker.io/bitnami/kubectl:1.32.2
+  image: docker.io/alpine/k8s:1.32.2
   timeout: 10m
+  apiVersion: true
+  backendOnline: true
+  backendAttempts: 60
+  backendRetryIntervalSeconds: 5
 
 secretManagement:
   # existing: consume pre-created Kubernetes Secrets.
