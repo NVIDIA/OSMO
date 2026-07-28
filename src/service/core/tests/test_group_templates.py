@@ -470,13 +470,13 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         kb_resources, pod_specs = self._run_get_kb_specs(
             'nvlink-pool',
             self.task_group,
-            {'PPP': 'project-a', 'osmo.group_uuid': 'user-value'},
+            {'project': 'project-a', 'osmo.group_uuid': 'user-value'},
         )
 
         rendered_labels = kb_resources[0]['metadata']['labels']
         pod_labels = pod_specs['test_task']['metadata']['labels']
         for labels in (rendered_labels, pod_labels):
-            self.assertEqual(labels['PPP'], 'project-a')
+            self.assertEqual(labels['project'], 'project-a')
             self.assertEqual(labels['osmo.group_uuid'], self.task_group.group_uuid)
 
     def test_group_template_resource_types_recorded_on_task_group(self):

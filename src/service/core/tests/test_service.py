@@ -370,7 +370,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         pod_template = {
             'metadata': {
                 'labels': {
-                    'PPP': 'pod-template-value',
+                    'project': 'pod-template-value',
                     'osmo.workflow_uuid': 'pod-template-value',
                 },
             },
@@ -434,13 +434,13 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             workflow_configs,
             task_common.WorkflowPlugins(),
             wf_priority.WorkflowPriority.NORMAL,
-            workflow_labels={'PPP': 'workflow-value', 'team': 'alpha'},
+            workflow_labels={'project': 'workflow-value', 'team': 'alpha'},
             progress_writer=None,
         )
 
         pod_labels = pods[0]['metadata']['labels']
         self.assertEqual(pod_labels['team'], 'alpha')
-        self.assertEqual(pod_labels['PPP'], 'pod-template-value')
+        self.assertEqual(pod_labels['project'], 'pod-template-value')
         self.assertEqual(pod_labels['osmo.workflow_uuid'], workflow_uuid)
 
         # Verify token substitution in pod specs

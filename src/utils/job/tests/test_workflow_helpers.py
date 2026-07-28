@@ -370,7 +370,7 @@ class WorkflowSpecLabelsTest(unittest.TestCase):
         )
 
     def test_saved_spec_preserves_labels_after_reparse(self):
-        spec = self._workflow_spec({'PPP': 'adlr_audio_music', 'experiment': 'run42'})
+        spec = self._workflow_spec({'project': 'adlr_audio_music', 'experiment': 'run42'})
 
         saved_spec = spec.saved_spec()
         reparsed_spec = workflow.WorkflowSpec(**saved_spec)
@@ -379,7 +379,7 @@ class WorkflowSpecLabelsTest(unittest.TestCase):
         self.assertEqual(reparsed_spec.labels, spec.labels)
 
     def test_parse_preserves_labels(self):
-        spec = self._workflow_spec({'PPP': 'adlr_audio_music'})
+        spec = self._workflow_spec({'project': 'adlr_audio_music'})
         pool = mock.Mock(topology_keys=[])
 
         with mock.patch.object(
@@ -387,7 +387,7 @@ class WorkflowSpecLabelsTest(unittest.TestCase):
              mock.patch.object(workflow.connectors.Pool, 'fetch_from_db', return_value=pool):
             parsed = spec.parse(mock.Mock(), 'backend', 'pool', {})
 
-        self.assertEqual(parsed.labels, {'PPP': 'adlr_audio_music'})
+        self.assertEqual(parsed.labels, {'project': 'adlr_audio_music'})
 
     def test_rejects_invalid_labels(self):
         with self.assertRaises(pydantic.ValidationError):
@@ -433,14 +433,14 @@ class WorkflowLabelsPersistenceTest(unittest.TestCase):
             workflow_name='wf', workflow_id_internal='wf-1', workflow_uuid='a' * 32,
             groups=[], user='alice', logs='', database=database, backend='backend', pool='pool',
             priority=workflow.wf_priority.WorkflowPriority.NORMAL,
-            labels={'PPP': 'adlr_audio_music'},
+            labels={'project': 'adlr_audio_music'},
         )
 
         workflow_obj.insert_to_db()
 
         insert_command, insert_args = database.execute_commit_command.call_args_list[0].args
         self.assertIn('labels', insert_command)
-        self.assertIn(json.dumps({'PPP': 'adlr_audio_music'}), insert_args)
+        self.assertIn(json.dumps({'project': 'adlr_audio_music'}), insert_args)
 
     def test_fetch_normalizes_null_labels_to_empty_map(self):
         database = mock.Mock(spec=workflow.connectors.PostgresConnector)
@@ -453,12 +453,12 @@ class WorkflowLabelsPersistenceTest(unittest.TestCase):
     def test_fetch_preserves_stored_labels(self):
         database = mock.Mock(spec=workflow.connectors.PostgresConnector)
         database.execute_fetch_command.return_value = [
-            self._workflow_row({'PPP': 'stored'})
+            self._workflow_row({'project': 'stored'})
         ]
 
         workflow_obj = workflow.Workflow.fetch_from_db(database, 'wf-1', fetch_groups=False)
 
-        self.assertEqual(workflow_obj.labels, {'PPP': 'stored'})
+        self.assertEqual(workflow_obj.labels, {'project': 'stored'})
 
 
 class VersionedWorkflowSpecValidateVersionTest(unittest.TestCase):

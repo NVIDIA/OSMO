@@ -94,7 +94,7 @@ class ApplyWorkflowLabelsTest(unittest.TestCase):
             },
         }
         workflow_labels = {
-            'PPP': 'project-a',
+            'project': 'project-a',
             'precedence': 'workflow-value',
         }
 
@@ -103,7 +103,7 @@ class ApplyWorkflowLabelsTest(unittest.TestCase):
         self.assertIs(result, pod)
         self.assertEqual(result['metadata']['labels'], {
             'platform': 'platform-value',
-            'PPP': 'project-a',
+            'project': 'project-a',
             'precedence': 'pod-template-value',
         })
 
@@ -116,7 +116,7 @@ class ApplySystemLabelsTest(unittest.TestCase):
             'kind': 'Pod',
             'metadata': {
                 'labels': {
-                    'PPP': 'project-a',
+                    'project': 'project-a',
                     'precedence': 'template-value',
                 },
             },
@@ -129,7 +129,7 @@ class ApplySystemLabelsTest(unittest.TestCase):
 
         self.assertIs(result, pod)
         self.assertEqual(result['metadata']['labels'], {
-            'PPP': 'project-a',
+            'project': 'project-a',
             'osmo.pool': 'system-pool',
             'precedence': 'system-value',
         })
@@ -242,7 +242,7 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
             'osmo.submitted_by': user,
             'osmo.task_name': 'worker',
             'osmo.retry_id': '1',
-            'PPP': 'project-a',
+            'project': 'project-a',
         }
         group_labels = {
             'osmo.workflow_uuid': workflow_uuid,
@@ -283,7 +283,7 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
         workflow_obj = mock.Mock()
         workflow_obj.plugins = mock.Mock()
         workflow_obj.priority = wf_priority.WorkflowPriority.NORMAL
-        workflow_obj.labels = {'PPP': 'project-a'}
+        workflow_obj.labels = {'project': 'project-a'}
         update_job = jobs.UpdateGroup(
             workflow_id='workflow-1',
             workflow_uuid=workflow_uuid,
@@ -316,7 +316,7 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
         self.assertEqual(['Secret', 'Pod'], [resource['kind'] for resource in resources])
         self.assertEqual(file_mount.name, resources[0]['metadata']['name'])
         self.assertEqual(group_labels, resources[0]['metadata']['labels'])
-        self.assertNotIn('PPP', resources[0]['metadata']['labels'])
+        self.assertNotIn('project', resources[0]['metadata']['labels'])
         self.assertEqual(pod, resources[1])
         self.assertEqual(
             workflow_obj.labels,
@@ -1304,7 +1304,7 @@ class RenderGroupTemplatesTest(unittest.TestCase):
             templates,
             variables={},
             workflow_labels={
-                'PPP': 'project-a',
+                'project': 'project-a',
                 'precedence': 'workflow-value',
             },
             system_labels={
@@ -1313,7 +1313,7 @@ class RenderGroupTemplatesTest(unittest.TestCase):
             },
         )
         self.assertEqual(rendered[0]['metadata']['labels'], {
-            'PPP': 'project-a',
+            'project': 'project-a',
             'osmo.group_uuid': 'g-1',
             'precedence': 'system-value',
         })

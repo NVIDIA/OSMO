@@ -1367,7 +1367,7 @@ class CreateGroupPrepareExecuteTest(unittest.TestCase):
         wf.pool = 'pool-1'
         wf.plugins = mock.Mock()
         wf.priority = mock.Mock()
-        wf.labels = {'PPP': 'project-a'}
+        wf.labels = {'project': 'project-a'}
 
         ctx = mock.Mock()
         ctx.postgres.get_workflow_configs.return_value = mock.Mock()
