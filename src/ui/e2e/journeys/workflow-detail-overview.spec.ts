@@ -371,7 +371,8 @@ test.describe("Workflow Detail Overview — Details Section", () => {
     // The backend recomputes warnings from the current policy for every
     // status, including COMPLETED, so users see violations on finished runs.
     const wfName = "warnings-wf";
-    const warning = "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
+    const warning =
+      "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
     await setupWorkflowDetail(
       page,
       wfName,

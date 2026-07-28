@@ -275,7 +275,8 @@ test.describe("Submit Workflow Form Validation", () => {
   });
 
   test("shows workflow policy warnings returned by validation", async ({ page }) => {
-    const warning = "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
+    const warning =
+      "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
     let submittedLabels: string[] | null = null;
     await page.route("**/api/pool/test-pool/workflow*", (route) => {
       const url = new URL(route.request().url());
