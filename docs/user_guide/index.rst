@@ -221,6 +221,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store artifacts 
   :hidden:
   :caption: Getting Started
 
+  .. auto-include:: getting_started/index.in.rst
   getting_started/system_requirements
   getting_started/install/index
   getting_started/profile
