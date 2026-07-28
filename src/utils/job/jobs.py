@@ -1216,8 +1216,8 @@ class UpdateGroup(WorkflowJob):
             skip_refresh_token=True,
         )
         k8s_factory.update_pod_k8s_resource(pod, group.group_uuid, pool, workflow_obj.priority)
-        secret_labels = group.system_labels(self.user, self.workflow_uuid)
-        k8s_resources = [file.secret(secret_labels) for file in files.values()]
+        system_labels = group.system_labels(self.user, self.workflow_uuid)
+        k8s_resources = [file.secret(system_labels) for file in files.values()]
         k8s_resources.append(pod)
 
         create_job = CreateGroup(
