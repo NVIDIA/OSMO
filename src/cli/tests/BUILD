@@ -87,3 +87,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_workflow",
+    srcs = [
+        "test_workflow.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)

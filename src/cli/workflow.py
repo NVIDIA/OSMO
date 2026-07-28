@@ -587,7 +587,7 @@ Stop a specific daemon::
 def parse_file_for_template(workflow_contents: str, set_variables: List[str],
                             set_string_variables: List[str]) -> TemplateData:
     # Check to see if the workflow is templated
-    is_templated = (workflow_contents.find('{%%') != -1) or (workflow_contents.find('{{') != -1) \
+    is_templated = (workflow_contents.find('{%') != -1) or (workflow_contents.find('{{') != -1) \
         or (workflow_contents.find('{#') != -1) or (workflow_contents.find('default-values') != -1)
 
     return TemplateData(
