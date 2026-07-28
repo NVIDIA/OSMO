@@ -37,7 +37,7 @@ from src.service.mcp.workflow_models import (
 _MAX_SUBMISSION_SPEC_BYTES = 128 * 1024
 _MAX_JSON_RESPONSE_BYTES = 64 * 1024
 _MAX_OVERRIDE_BYTES = 2048
-_CLI_TEMPLATE_MARKERS = ('{%%', '{{', '{#', 'default-values')
+_TEMPLATE_MARKERS = ('{%', '{{', '{#', 'default-values')
 
 
 def validate_pool_name(pool: str | None) -> str | None:
@@ -194,5 +194,5 @@ async def request_submission(
 
 
 def _is_templated_workflow(workflow_spec: str) -> bool:
-    """Match the CLI's lightweight template detection without its runtime."""
-    return any(marker in workflow_spec for marker in _CLI_TEMPLATE_MARKERS)
+    """Detect standard Jinja and OSMO workflow template markers."""
+    return any(marker in workflow_spec for marker in _TEMPLATE_MARKERS)

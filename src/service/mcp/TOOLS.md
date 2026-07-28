@@ -68,8 +68,8 @@ fragments; the external projection therefore returns only `cred_name` and
 `osmo_restart_workflow`, and `osmo_cancel_workflow` are implemented.
 Validation sets `validation_only=true` and is a non-idempotent write because a
 failed validation can create a `FAILED_SUBMISSION` workflow record. Submission
-accepts raw YAML and preserves the original template when it detects the same
-template markers as the CLI. It returns only the new workflow ID, selected
+accepts raw YAML and preserves the original template when it detects standard
+Jinja and OSMO template markers. It returns only the new workflow ID, selected
 pool, and effective priority. Restart and cancel are destructive one-shot
 operations.
 

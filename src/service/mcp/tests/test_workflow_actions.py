@@ -248,6 +248,45 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             'uploaded_templated_spec': templated_spec,
         })
 
+    async def test_submit_preserves_control_block_only_template(
+        self,
+    ) -> None:
+        captured_requests: list[httpx.Request] = []
+        templated_spec = (
+            _WORKFLOW_SPEC
+            + '\n{% if enabled %}\n'
+            + '# enabled\n'
+            + '{% endif %}\n'
+        )
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json={
+                'name': 'mcp-control-template-1',
+                'overview': 'https://example.test/workflow',
+                'logs': 'https://example.test/logs',
+            })
+
+        response = await _HARNESS.call_tool(
+            handler,
+            'osmo_submit_workflow',
+            {
+                'workflow_spec': templated_spec,
+                'pool': 'pool-a',
+                'set_variables': ['enabled=true'],
+            },
+        )
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'])
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(json.loads(captured_requests[0].content), {
+            'file': templated_spec,
+            'set_variables': ['enabled=true'],
+            'set_string_variables': [],
+            'uploaded_templated_spec': templated_spec,
+        })
+
     async def test_submit_rejects_unsupported_or_invalid_arguments(
         self,
     ) -> None:
