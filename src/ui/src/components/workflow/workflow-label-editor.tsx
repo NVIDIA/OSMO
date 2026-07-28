@@ -95,7 +95,7 @@ export function WorkflowLabelEditor({
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Add label"
+        aria-label="Add workflow label"
         disabled={disabled || labels.length >= MAX_WORKFLOW_LABELS}
         onClick={() => onChange([...labels, { key: "", value: "" }])}
       >
@@ -103,7 +103,7 @@ export function WorkflowLabelEditor({
           className="size-4"
           aria-hidden="true"
         />
-        Add label
+        Add workflow label
       </Button>
       {error && (
         <p
