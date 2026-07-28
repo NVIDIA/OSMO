@@ -24,6 +24,7 @@ from mcp.types import ToolAnnotations
 
 from src.service.mcp import (
     app_actions,
+    app_submission,
     apps,
     credential_actions,
     credentials,
@@ -282,6 +283,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
             'the app identifier and is not automatically retried.'
         ),
         annotations=_write_annotations(destructive=True),
+    ),
+    ToolSpec(
+        function=app_submission.osmo_submit_app,
+        name='osmo_submit_app',
+        title='Submit OSMO app',
+        description=(
+            'Resolve and pin a READY app version, then submit it to run in '
+            'OSMO. This consumes real compute and is not automatically retried.'
+        ),
+        annotations=_write_annotations(destructive=False),
     ),
     ToolSpec(
         function=credentials.osmo_list_credentials,

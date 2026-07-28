@@ -42,7 +42,16 @@ VariableOverride = Annotated[
 ]
 VariableOverrides = Annotated[
     list[VariableOverride],
-    pydantic.Field(max_length=50),
+    pydantic.Field(
+        max_length=50,
+        description=(
+            'Workflow template field=value overrides. Values may be '
+            'sensitive: prefer OSMO credentials for secrets. MCP does not '
+            'return or log overrides, but the calling client may retain its '
+            'submitted arguments.'
+        ),
+        json_schema_extra={'writeOnly': True},
+    ),
 ]
 ForceCancel = Annotated[
     pydantic.StrictBool,

@@ -68,8 +68,8 @@ fragments; the external projection therefore returns only `cred_name` and
 `osmo_restart_workflow`, and `osmo_cancel_workflow` are implemented.
 Validation sets `validation_only=true` and is a non-idempotent write because a
 failed validation can create a `FAILED_SUBMISSION` workflow record. Submission
-accepts raw YAML and preserves the original template when it detects the same
-template markers as the CLI. It returns only the new workflow ID, selected
+accepts raw YAML and preserves the original template when it detects standard
+Jinja and OSMO template markers. It returns only the new workflow ID, selected
 pool, and effective priority. Restart and cancel are destructive one-shot
 operations.
 
@@ -93,15 +93,16 @@ launching compute. It must pass against an MCP-enabled deployment before Phase
 Inspector checks against disposable workflows so the smoke suite does not
 consume compute or mutate existing workflow state.
 
-## Phase 3: user-owned mutations (in progress)
+## Phase 3: user-owned mutations (implemented; deployment verification pending)
 
 `osmo_set_profile`, `osmo_set_credential`, `osmo_delete_credential`,
 `osmo_create_app`, `osmo_update_app`, `osmo_delete_app`, and
-`osmo_rename_app` are implemented. Profile updates change exactly one external
-CLI-supported setting per call: the default pool, email notifications, or
-Slack notifications. Other profile settings are outside this tool's public
-contract. Core returns JSON `null` after accepting the write, so MCP returns a
-compact confirmation rather than implying it read back authoritative state.
+`osmo_rename_app` and `osmo_submit_app` are implemented. Profile updates
+change exactly one external CLI-supported setting per call: the default pool,
+email notifications, or Slack notifications. Other profile settings are
+outside this tool's public contract. Core returns JSON `null` after accepting
+the write, so MCP returns a compact confirmation rather than implying it read
+back authoritative state.
 
 Credential writes accept the canonical documented REGISTRY, DATA, and GENERIC
 payload shapes used by the CLI and Core. Values are bounded strings and are
@@ -127,7 +128,26 @@ arguments. Descriptions are non-secret query values that may appear in
 Gateway/authz logs. Core currently authorizes rename's POST as `app:Create`;
 MCP preserves that existing API/RBAC behavior.
 
-Remaining work adds `osmo_submit_app`.
+App submission uses `GET /api/app/user/{name}` to pin an exact READY version,
+then retrieves the complete spec with
+`GET /api/app/user/{name}/spec?version=...` under a 128-KiB ceiling and sends
+one `POST /api/pool/{pool}/workflow` with the matching `app_uuid` and
+`app_version`. This intentionally avoids the CLI's independent metadata/spec
+resolution, which can associate a newer PENDING version with a spec resolved
+from a READY version. The result contains only the workflow ID, app name and
+version, pool, priority, and confirmation.
+
+App metadata/spec reads require `app:Read`. An omitted pool additionally
+requires `profile:Read`; an explicit pool skips that profile read and relies on
+the final request's pool-scoped `workflow:Create` decision. Template overrides
+and priority match the shared workflow-submission path. Overrides may be
+sensitive; callers should prefer OSMO credentials for secrets because their
+MCP client may retain submitted arguments. Local paths, environment injection,
+dry-run, rsync, and local-file expansion are excluded. Submission consumes
+compute, can leave a `FAILED_SUBMISSION` record when Core rejects the workflow
+during validation, and is never automatically retried. Deployment smoke
+verifies discovery only; app submission remains a manual Inspector check
+against disposable user-owned state.
 
 ## Out of scope
 

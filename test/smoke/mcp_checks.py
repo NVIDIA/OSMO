@@ -43,6 +43,7 @@ _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_rename_app",
     "osmo_set_profile",
     "osmo_set_credential",
+    "osmo_submit_app",
     "osmo_submit_workflow",
     "osmo_update_app",
     "osmo_validate_workflow",
