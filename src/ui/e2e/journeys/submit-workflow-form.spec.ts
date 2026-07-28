@@ -262,7 +262,7 @@ test.describe("Submit Workflow Form Validation", () => {
     await waitForPoolSelected(overlay, "test-pool");
     const editor = overlay.getByRole("textbox", { name: "YAML workflow specification editor" });
     await editor.click();
-    await page.keyboard.insertText("workflow:\n  labels:\n    PPP: robotics\n  tasks:\n  - name: hello");
+    await page.keyboard.insertText("workflow:\n  labels:\n    project: robotics\n  tasks:\n  - name: hello");
 
     await expect(overlay.getByText("Workflow Labels", { exact: true })).toHaveCount(0);
     await expect(overlay.getByRole("button", { name: "Add workflow label" })).toHaveCount(0);
@@ -270,12 +270,12 @@ test.describe("Submit Workflow Form Validation", () => {
 
     await expect.poll(() => submittedLabels).toEqual([]);
     await expect.poll(() => submittedBody).toContain("labels:");
-    await expect.poll(() => submittedBody).toContain("PPP: robotics");
+    await expect.poll(() => submittedBody).toContain("project: robotics");
     await expect(page.getByText("Workflow submitted as yaml-labels")).toBeVisible();
   });
 
   test("shows workflow policy warnings returned by validation", async ({ page }) => {
-    const warning = "Workflow is missing label 'PPP'; add it now to avoid rejected submissions once it is required.";
+    const warning = "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
     let submittedLabels: string[] | null = null;
     await page.route("**/api/pool/test-pool/workflow*", (route) => {
       const url = new URL(route.request().url());

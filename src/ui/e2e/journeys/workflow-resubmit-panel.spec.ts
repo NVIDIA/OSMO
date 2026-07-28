@@ -110,7 +110,7 @@ function createCompletedWorkflow(name: string) {
     app_name: null,
     app_version: null,
     plugins: { rsync: false },
-    labels: { PPP: "robotics" },
+    labels: { project: "robotics" },
   };
 }
 
@@ -255,7 +255,7 @@ test.describe("Workflow Resubmit Panel", () => {
       .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
-    await expect(panel.getByRole("textbox", { name: "Workflow label key 1" })).toHaveValue("PPP");
+    await expect(panel.getByRole("textbox", { name: "Workflow label key 1" })).toHaveValue("project");
     await expect(panel.getByRole("textbox", { name: "Workflow label key 1" })).toBeDisabled();
     await expect(panel.getByRole("button", { name: "Remove workflow label 1" })).toBeDisabled();
     await panel.getByRole("textbox", { name: "Workflow label value 1" }).fill("simulation");

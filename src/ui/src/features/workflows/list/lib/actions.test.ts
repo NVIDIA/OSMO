@@ -27,8 +27,8 @@ vi.mock("@/lib/api/fetcher", () => ({ customFetch }));
 
 import { resubmitWorkflow } from "@/features/workflows/list/lib/actions";
 
-const WARN_MISSING_PPP_MESSAGE =
-  "Workflow is missing label 'PPP'; add it now to avoid rejected submissions once it is required.";
+const WARN_MISSING_PROJECT_MESSAGE =
+  "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
 
 describe("resubmit workflow labels", () => {
   beforeEach(() => {
@@ -38,22 +38,22 @@ describe("resubmit workflow labels", () => {
   it("returns the raw submit name and warnings and sends repeated labels", async () => {
     customFetch.mockResolvedValue({
       name: "workflow-copy-2",
-      warnings: [WARN_MISSING_PPP_MESSAGE],
+      warnings: [WARN_MISSING_PROJECT_MESSAGE],
     });
 
     const result = await resubmitWorkflow({
       workflowId: "workflow-1",
       poolName: "pool-a",
       priority: "NORMAL",
-      labels: ["PPP=robotics", "run=42"],
+      labels: ["project=robotics", "run=42"],
     });
 
     const endpoint = new URL(customFetch.mock.calls[0][0], "https://osmo.invalid");
-    expect(endpoint.searchParams.getAll("label")).toEqual(["PPP=robotics", "run=42"]);
+    expect(endpoint.searchParams.getAll("label")).toEqual(["project=robotics", "run=42"]);
     expect(result).toMatchObject({
       success: true,
       newWorkflowName: "workflow-copy-2",
-      warnings: [WARN_MISSING_PPP_MESSAGE],
+      warnings: [WARN_MISSING_PROJECT_MESSAGE],
     });
   });
 });

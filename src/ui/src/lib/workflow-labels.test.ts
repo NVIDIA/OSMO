@@ -29,8 +29,8 @@ const draft = (key: string, value: string): WorkflowLabelDraft => ({ key, value 
 describe("workflow label drafts", () => {
   it("sends only labels changed from a resubmitted workflow", () => {
     expect(
-      getChangedWorkflowLabelAssignments([draft("PPP", "robotics"), draft("team", "simulation"), draft("run", "42")], {
-        PPP: "robotics",
+      getChangedWorkflowLabelAssignments([draft("project", "robotics"), draft("team", "simulation"), draft("run", "42")], {
+        project: "robotics",
         team: "robotics",
       }),
     ).toEqual(["team=simulation", "run=42"]);

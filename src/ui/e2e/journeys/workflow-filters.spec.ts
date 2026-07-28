@@ -249,7 +249,7 @@ test.describe("Workflow URL Filter State", () => {
 
   test("forwards wildcard and inline-alternative workflow label selectors unchanged", async ({ page }) => {
     const response = createWorkflowsResponse([
-      { name: "label-wf", status: WorkflowStatus.RUNNING, user: "test-user", labels: { PPP: "robotics_team" } },
+      { name: "label-wf", status: WorkflowStatus.RUNNING, user: "test-user", labels: { project: "robotics_team" } },
     ]);
     const observedLabelSelectors: string[][] = [];
     await page.route("**/api/workflow?*", (route) => {
@@ -264,7 +264,7 @@ test.describe("Workflow URL Filter State", () => {
     await page.goto("/workflows?all=true");
     await page.waitForLoadState("networkidle");
 
-    const selectors = ["PPP=(team_*|osmo_*)", "PPP=team_(a|b)"];
+    const selectors = ["project=(team_*|osmo_*)", "project=team_(a|b)"];
     const filterInput = page.getByRole("combobox", { name: /search and filter/i });
     for (const selector of selectors) {
       await filterInput.fill(`label:${selector}`);
