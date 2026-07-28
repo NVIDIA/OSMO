@@ -104,7 +104,7 @@ async def osmo_get_app(
     limit: AppListLimit = _DEFAULT_APP_LIST_LIMIT,
 ) -> AppResult:
     """Get OSMO app metadata and versions, newest version first."""
-    encoded_name = _validated_app_name(name)
+    encoded_name = validated_app_name(name)
     upstream = await _request_app(
         context,
         encoded_name=encoded_name,
@@ -128,7 +128,7 @@ async def osmo_get_app_spec(
     version: AppVersionNumber | None = None,
 ) -> AppSpecResult:
     """Get an app spec, resolving READY metadata from bounded history."""
-    encoded_name = _validated_app_name(name)
+    encoded_name = validated_app_name(name)
     resolved_version = version
     if resolved_version is None:
         upstream = await _request_app(
@@ -175,10 +175,18 @@ async def osmo_get_app_spec(
     )
 
 
-def _validated_app_name(name: str) -> str:
-    if re.fullmatch(_APP_NAME_PATTERN, name) is None:
-        raise PublicToolError('Invalid app name.')
-    return tool_validation.safe_path_segment(name, field='app name')
+def validated_app_name(
+    name: object,
+    *,
+    field: str = 'app name',
+) -> str:
+    """Validate and encode one app name for a fixed Core route."""
+    if (
+        not isinstance(name, str)
+        or re.fullmatch(_APP_NAME_PATTERN, name) is None
+    ):
+        raise PublicToolError(f'Invalid {field}.')
+    return tool_validation.safe_path_segment(name, field=field)
 
 
 async def _request_app(

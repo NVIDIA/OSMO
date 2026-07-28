@@ -103,11 +103,11 @@ authorization value.
 The external catalog contains 14 read-only tools for caller-bound health,
 profile, pool, resource, workflow, application, and credential-metadata
 inspection, plus four workflow actions, one profile-setting action, and two
-credential actions. Each tool maps to a fixed external API, returns a
-structured allowlisted result, and applies a domain-specific response limit.
-Credential inspection returns names and types only. Profile inspection
-intentionally includes non-secret access-token identity metadata (name and
-expiry). Bearer values are never returned.
+credential actions, and four app lifecycle actions. Each tool maps to a fixed
+external API, returns a structured allowlisted result, and applies a
+domain-specific response limit. Credential inspection returns names and types
+only. Profile inspection intentionally includes non-secret access-token
+identity metadata (name and expiry). Bearer values are never returned.
 
 `osmo_set_profile` updates only the default pool or email/Slack notification
 state supported by the external CLI and Core contract. Other profile settings
@@ -131,6 +131,22 @@ even though it is the CLI's set route. Core also conflicts records by profile,
 so a same-name update with a different or null profile can be rejected instead
 of replaced. The external MCP preserves those API/RBAC semantics and reports
 the Core failure rather than emulating a replacement.
+
+App create and update accept bounded inline workflow YAML. Callers should
+reference OSMO credentials rather than inline secrets; MCP does not return or
+log the submitted spec, but the calling client may retain its original tool
+arguments. Create synchronously creates version 1 and schedules its upload.
+Update always creates and schedules a new version, even when the submitted
+content matches the current spec; it intentionally omits the CLI's local
+editor/read-before-write behavior.
+
+App deletion schedules either one requested version or every non-deleted
+version. Its compact result returns at most 200 version numbers plus the total
+scheduled count and a `more_versions` marker. An already-deleted requested
+version is a successful no-op. Rename is synchronous and one-shot. App
+descriptions are non-secret query values and may appear in Gateway/authz
+access logs. Core currently authorizes rename's POST route as `app:Create`;
+the external MCP preserves that existing API/RBAC contract.
 
 Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
@@ -226,13 +242,13 @@ authentication. Its token needs `mcp:Access`, `profile:Read`, and
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
 ```
 
-The smoke test rejects unauthenticated access, verifies the exact 21-tool
+The smoke test rejects unauthenticated access, verifies the exact 25-tool
 catalog, compares the profile projection with Core, checks caller-bound
 health, and validates a small workflow through Gateway → MCP → Gateway → Core.
 A successful validation does not enqueue compute or create a workflow row.
 The smoke suite intentionally sends only this known-good case because a failed
 Core validation can create a `FAILED_SUBMISSION` row.
-Profile and credential mutations remain manual Inspector checks against
+Profile, credential, and app mutations remain manual Inspector checks against
 disposable user-owned state.
 
 When the deployment cannot validate the default public `ubuntu:22.04` image,

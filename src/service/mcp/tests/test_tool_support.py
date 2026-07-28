@@ -65,6 +65,36 @@ class ToolSupportTest(unittest.TestCase):
                 with self.assertRaisesRegex(ToolError, 'Invalid workflow_id'):
                     tool_validation.safe_path_segment(value, field='workflow_id')
 
+    def test_inline_text_validation_is_utf8_bounded_and_multiline_safe(
+        self,
+    ) -> None:
+        value = 'version: 2\nworkflow:\n\tname: test\n'
+        self.assertEqual(
+            tool_validation.validate_inline_text(
+                value,
+                field='workflow_spec',
+                max_bytes=len(value.encode('utf-8')),
+            ),
+            value,
+        )
+        for invalid_value in (
+            '',
+            ' \n\t',
+            'control\x00value',
+            '\u00e9' * 3,
+            1,
+        ):
+            with self.subTest(value=invalid_value):
+                with self.assertRaisesRegex(
+                    ToolError,
+                    '^Invalid workflow_spec\\.$',
+                ):
+                    tool_validation.validate_inline_text(
+                        invalid_value,
+                        field='workflow_spec',
+                        max_bytes=5,
+                    )
+
     def test_actionable_core_errors_preserve_only_safe_known_fields(self) -> None:
         body = (
             b'{"message":"Invalid request; password=\'correct horse battery '
