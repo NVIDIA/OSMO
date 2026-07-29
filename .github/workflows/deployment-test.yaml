@@ -546,7 +546,7 @@ jobs:
             echo ""
             echo "- AKS: \`${AZURE_CLUSTER_NAME}\` in \`${AZURE_RESOURCE_GROUP}\` (${AZURE_REGION})"
             echo "- Postgres flex: \`${AZURE_CLUSTER_NAME}-postgres\`"
-            echo "- Redis: \`$(terraform output -raw redis_cache_name 2>/dev/null || echo 'n/a')\`"
+            echo "- Redis: \`${AZURE_CLUSTER_NAME}-redis\`"
             echo "- finished at: $(date -u +%H:%M:%SZ)"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1038,11 +1038,10 @@ jobs:
           tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
           sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
 
-      # tf-apply's stash step is if:always() and writes a marker file, so
-      # the artifact exists whenever tf-apply ran — a download failure here
-      # is genuinely transient and correctly fails the teardown loudly.
-      # A state-less artifact (marker only) falls through to a no-op
-      # destroy + leftover-count report.
+      # The stash step's marker file makes this artifact exist whenever
+      # tf-apply ran, so a download failure here is a genuine transient and
+      # correctly fails teardown loudly. A marker-only artifact falls
+      # through to a no-op destroy plus a leftover-count report.
       - name: download tf-state artifact
         uses: actions/download-artifact@v4
         with:
