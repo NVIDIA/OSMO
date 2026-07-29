@@ -1115,30 +1115,30 @@ class TaskGroupGetImageSecretNameTest(unittest.TestCase):
 
 
 class TaskGroupLabelsTest(unittest.TestCase):
-    """Tests for TaskGroup._labels."""
+    """Tests for TaskGroup.system_labels."""
 
     def test_regular_user_included(self):
         group = _make_group()
-        labels = group._labels('alice', 'wu' + 'x' * 30)  # pylint: disable=protected-access
+        labels = group.system_labels('alice', 'wu' + 'x' * 30)
         self.assertEqual(labels.get('osmo.submitted_by'), 'alice')
         self.assertEqual(labels.get('osmo.workflow_id'), 'wf-1')
 
     def test_email_user_uses_localpart(self):
         group = _make_group()
-        labels = group._labels(  # pylint: disable=protected-access
+        labels = group.system_labels(
             'alice@example.com', 'wu' + 'x' * 30)
         self.assertEqual(labels.get('osmo.submitted_by'), 'alice')
 
     def test_invalid_user_omits_submitted_by(self):
         group = _make_group()
         # '@' and unusual chars fail the regex → submitted_by dropped.
-        labels = group._labels(  # pylint: disable=protected-access
+        labels = group.system_labels(
             '!bad!!!', 'wu' + 'x' * 30)
         self.assertNotIn('osmo.submitted_by', labels)
 
     def test_invalid_email_localpart_omits_submitted_by(self):
         group = _make_group()
-        labels = group._labels(  # pylint: disable=protected-access
+        labels = group.system_labels(
             '!bad!@example.com', 'wu' + 'x' * 30)
         self.assertNotIn('osmo.submitted_by', labels)
 

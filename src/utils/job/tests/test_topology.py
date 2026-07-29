@@ -19,7 +19,7 @@ import datetime
 import unittest
 from typing import Any, Dict, List
 
-from src.lib.utils import osmo_errors, priority as wf_priority
+from src.lib.utils import osmo_errors, priority as wf_priority, validation
 from src.utils import connectors
 from src.utils.job import kb_objects, topology
 
@@ -123,6 +123,48 @@ class BasicTopologyTests(TopologyTestBase):
         self.assertEqual(len(k8s_resources), 5)  # 1 PodGroup + 4 pods
         for pod in k8s_resources[1:]:
             self.assertNotIn('kai.scheduler/subgroup-name', pod['metadata']['labels'])
+
+    def test_factory_label_writes_override_colliding_user_labels(self):
+        topology_keys = [
+            topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
+        ]
+        task_infos = [
+            topology.TaskTopology(
+                name=f'task-{index}',
+                topology_requirements=[
+                    topology.TopologyRequirement(
+                        key='gpu-clique', group=f'group-{index}', required=True)
+                ],
+            )
+            for index in range(2)
+        ]
+        backend = self.create_mock_backend()
+        factory = kb_objects.KaiK8sObjectFactory(backend)
+        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
+        user_values = {
+            'kai.scheduler/queue': 'user-queue',
+            'runai/queue': 'user-queue',
+            'kai.scheduler/subgroup-name': 'user-subgroup',
+        }
+        pods[0]['metadata']['labels'].update(user_values)
+
+        resources = factory.create_group_k8s_resources(
+            'test-group-uuid',
+            pods,
+            {'test-label': 'test-value'},
+            'test-pool',
+            wf_priority.WorkflowPriority.NORMAL,
+            topology_keys,
+            task_infos,
+        )
+
+        # Users may submit scheduler-domain keys; the factory's final label
+        # writes must override every one of them (merge-order protection).
+        final_labels = resources[1]['metadata']['labels']
+        overwritten_keys = {
+            key for key, value in user_values.items() if final_labels[key] != value
+        }
+        self.assertEqual(overwritten_keys, set(user_values))
 
     def test_single_topology_level_required(self):
         """

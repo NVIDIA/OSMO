@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import datetime
+import json
 import unittest
 from unittest import mock
 
@@ -351,6 +352,113 @@ class WorkflowSpecValidateTasksGroupsTest(unittest.TestCase):
         )
         self.assertEqual(len(spec.groups), 2)
         self.assertEqual(len(spec.tasks), 0)
+
+
+class WorkflowSpecLabelsTest(unittest.TestCase):
+    """WorkflowSpec label validation and serialization."""
+
+    @staticmethod
+    def _workflow_spec(labels: dict[str, str] | None = None) -> workflow.WorkflowSpec:
+        return workflow.WorkflowSpec(
+            name='wf',
+            labels=labels or {},
+            resources={'default': {'platform': 'cpu'}},
+            groups=[{
+                'name': 'group',
+                'tasks': [{'name': 'task', 'image': 'image', 'command': ['echo']}],
+            }],
+        )
+
+    def test_saved_spec_preserves_labels_after_reparse(self):
+        spec = self._workflow_spec({'project': 'adlr_audio_music', 'experiment': 'run42'})
+
+        saved_spec = spec.saved_spec()
+        reparsed_spec = workflow.WorkflowSpec(**saved_spec)
+
+        self.assertEqual(saved_spec['labels'], spec.labels)
+        self.assertEqual(reparsed_spec.labels, spec.labels)
+
+    def test_parse_preserves_labels(self):
+        spec = self._workflow_spec({'project': 'adlr_audio_music'})
+        pool = mock.Mock(topology_keys=[])
+
+        with mock.patch.object(
+                workflow.connectors.PostgresConnector, 'get_instance', return_value=mock.Mock()), \
+             mock.patch.object(workflow.connectors.Pool, 'fetch_from_db', return_value=pool):
+            parsed = spec.parse(mock.Mock(), 'backend', 'pool', {})
+
+        self.assertEqual(parsed.labels, {'project': 'adlr_audio_music'})
+
+    def test_rejects_invalid_labels(self):
+        with self.assertRaises(pydantic.ValidationError):
+            self._workflow_spec({'-invalid-key': 'value'})
+
+
+class WorkflowLabelsPersistenceTest(unittest.TestCase):
+    """The workflows row is the canonical label store."""
+
+    @staticmethod
+    def _workflow_row(labels: dict[str, str] | None) -> dict:
+        return {
+            'workflow_name': 'wf',
+            'job_id': 1,
+            'workflow_id': 'wf-1',
+            'workflow_uuid': 'a' * 32,
+            'submitted_by': 'alice',
+            'logs': '',
+            'submit_time': datetime.datetime(2026, 1, 1),
+            'start_time': None,
+            'end_time': None,
+            'exec_timeout': None,
+            'queue_timeout': None,
+            'status': 'PENDING',
+            'cancelled_by': None,
+            'outputs': '',
+            'backend': 'backend',
+            'pool': 'pool',
+            'failure_message': '',
+            'parent_name': None,
+            'parent_job_id': None,
+            'app_uuid': None,
+            'app_version': None,
+            'plugins': {'rsync': False},
+            'priority': 'NORMAL',
+            'labels': labels,
+        }
+
+    def test_insert_serializes_labels_into_workflows_row(self):
+        database = mock.Mock(spec=workflow.connectors.PostgresConnector)
+        database.get_workflow_configs.return_value.workflow_data.base_url = ''
+        workflow_obj = workflow.Workflow(
+            workflow_name='wf', workflow_id_internal='wf-1', workflow_uuid='a' * 32,
+            groups=[], user='alice', logs='', database=database, backend='backend', pool='pool',
+            priority=workflow.wf_priority.WorkflowPriority.NORMAL,
+            labels={'project': 'adlr_audio_music'},
+        )
+
+        workflow_obj.insert_to_db()
+
+        insert_command, insert_args = database.execute_commit_command.call_args_list[0].args
+        self.assertIn('labels', insert_command)
+        self.assertIn(json.dumps({'project': 'adlr_audio_music'}), insert_args)
+
+    def test_fetch_normalizes_null_labels_to_empty_map(self):
+        database = mock.Mock(spec=workflow.connectors.PostgresConnector)
+        database.execute_fetch_command.return_value = [self._workflow_row(None)]
+
+        workflow_obj = workflow.Workflow.fetch_from_db(database, 'wf-1', fetch_groups=False)
+
+        self.assertEqual(workflow_obj.labels, {})
+
+    def test_fetch_preserves_stored_labels(self):
+        database = mock.Mock(spec=workflow.connectors.PostgresConnector)
+        database.execute_fetch_command.return_value = [
+            self._workflow_row({'project': 'stored'})
+        ]
+
+        workflow_obj = workflow.Workflow.fetch_from_db(database, 'wf-1', fetch_groups=False)
+
+        self.assertEqual(workflow_obj.labels, {'project': 'stored'})
 
 
 class VersionedWorkflowSpecValidateVersionTest(unittest.TestCase):

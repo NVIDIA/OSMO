@@ -98,7 +98,7 @@ def _run_set_command(service_client: client.ServiceClient, args: argparse.Namesp
             try:
                 with open(value, 'r', encoding='utf-8') as file:
                     contents = file.read()
-                    cred_payload[key] = contents
+                    cred_payload[key] = contents.rstrip('\r\n')
             except FileNotFoundError:
                 print(f'File {value} cannot be found.')
                 sys.exit(1)

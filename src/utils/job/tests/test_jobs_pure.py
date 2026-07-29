@@ -1367,6 +1367,7 @@ class CreateGroupPrepareExecuteTest(unittest.TestCase):
         wf.pool = 'pool-1'
         wf.plugins = mock.Mock()
         wf.priority = mock.Mock()
+        wf.labels = {'project': 'project-a'}
 
         ctx = mock.Mock()
         ctx.postgres.get_workflow_configs.return_value = mock.Mock()
@@ -1384,6 +1385,10 @@ class CreateGroupPrepareExecuteTest(unittest.TestCase):
         self.assertEqual(error, '')
         mock_send.assert_called_once()
         group.update_group_template_resource_types.assert_called_once()
+        self.assertEqual(
+            wf.labels,
+            group.get_kb_specs.call_args.kwargs['workflow_labels'],
+        )
 
 
 class UpdateGroupUpdateAllTasksTest(unittest.TestCase):

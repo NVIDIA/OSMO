@@ -111,6 +111,7 @@ py_test(
         "test_topology.py"
     ],
     deps = [
+        "//src/lib/utils:validation",
         "//src/utils/job",
     ]
 )
@@ -143,6 +144,7 @@ osmo_py_test(
     deps = [
         "//src/lib/utils:common",
         "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:priority",
         "//src/tests/common",
         "//src/utils/connectors",
         "//src/utils/job",

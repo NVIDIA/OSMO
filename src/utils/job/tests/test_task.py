@@ -893,6 +893,7 @@ class CredentialSecretBuildTest(unittest.TestCase):
                 progress_iter_freq=datetime.timedelta(seconds=999),
                 workflow_plugins=mock.MagicMock(),
                 priority=mock.MagicMock(),
+                workflow_labels={},
             )
         return mock_k8s_factory.create_secret
 

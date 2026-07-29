@@ -263,6 +263,35 @@ class TestRunSetCommand(unittest.TestCase):
             payload={'registry_credential': {'auth': 'file-contents'}},
         )
 
+    def test_payload_file_strips_trailing_line_ending(self):
+        """Test that payload-file mode strips LF, CRLF, and CR line endings."""
+        for line_ending in (b'\n', b'\r\n', b'\r'):
+            with self.subTest(line_ending=line_ending):
+                service_client = mock.Mock(spec=client.ServiceClient)
+                service_client.request.return_value = {'status': 'ok'}
+
+                with tempfile.NamedTemporaryFile('wb', delete=False) as temp:
+                    temp.write(b' leading\nfile-contents \t' + line_ending)
+                    temp_path = temp.name
+                self.addCleanup(os.unlink, temp_path)
+
+                args = self._args(
+                    type='REGISTRY',
+                    payload=None,
+                    payload_file=[f'auth={temp_path}'],
+                )
+
+                with mock.patch('builtins.print'):
+                    credential._run_set_command(service_client, args)
+
+                service_client.request.assert_called_once_with(
+                    client.RequestMethod.POST,
+                    'api/credentials/mycred',
+                    payload={'registry_credential': {
+                        'auth': ' leading\nfile-contents \t',
+                    }},
+                )
+
     def test_generic_wraps_in_credential_key(self):
         """Test that GENERIC type wraps payload into a nested 'credential' dict."""
         service_client = mock.Mock(spec=client.ServiceClient)

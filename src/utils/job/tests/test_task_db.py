@@ -20,7 +20,7 @@ import json
 from typing import Any, List
 from unittest import mock
 
-from src.lib.utils import common, osmo_errors
+from src.lib.utils import common, osmo_errors, priority as wf_priority
 from src.tests.common import fixtures
 from src.utils import connectors
 from src.utils.connectors import postgres
@@ -1008,6 +1008,52 @@ class CheckQueueTimeoutDbTest(TaskDbFixture):
 
         self.assertEqual(self.dispatched, [])
         self.assertEqual(self.delayed, [])
+
+
+class WorkflowLabelsDbTest(TaskDbFixture):
+    """Workflow labels persist through the workflows.labels JSONB column."""
+
+    def _insert_labeled_workflow(self, name: str, labels: dict[str, str]) -> str:
+        workflow_obj = workflow.Workflow(
+            workflow_name=name,
+            workflow_uuid=common.generate_unique_id(),
+            groups=[],
+            user='alice',
+            labels=labels,
+            logs='',
+            database=self._get_db(),
+            priority=wf_priority.WorkflowPriority.NORMAL,
+            backend='backend',
+            pool='pool',
+        )
+        workflow_obj.insert_to_db()
+        return workflow_obj.workflow_id
+
+    def test_labels_round_trip_through_jsonb_column(self):
+        expected_labels = {'team': 'alpha', 'run': '42'}
+        workflow_id = self._insert_labeled_workflow(
+            'labels-source', expected_labels)
+
+        fetched = workflow.Workflow.fetch_from_db(
+            self._get_db(), workflow_id, fetch_groups=False)
+        column_rows = self._get_db().execute_fetch_command(
+            '''SELECT data_type FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'workflows'
+                 AND column_name = 'labels' ''', (), True)
+
+        self.assertEqual(column_rows, [{'data_type': 'jsonb'}])
+        self.assertEqual(fetched.labels, expected_labels)
+
+    def test_legacy_null_labels_fetch_as_empty_map(self):
+        workflow_id = self._insert_labeled_workflow('labels-legacy', {})
+        self._get_db().execute_commit_command(
+            'UPDATE workflows SET labels = NULL WHERE workflow_id = %s',
+            (workflow_id,))
+
+        fetched = workflow.Workflow.fetch_from_db(
+            self._get_db(), workflow_id, fetch_groups=False)
+
+        self.assertEqual(fetched.labels, {})
 
 
 if __name__ == '__main__':

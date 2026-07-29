@@ -512,6 +512,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                 progress_iter_freq,
                 workflow_obj.plugins,
                 workflow_obj.priority,
+                workflow_labels=workflow_obj.labels,
             )
             self.k8s_resources = resources
             group_obj.update_group_template_resource_types()
@@ -1211,11 +1212,12 @@ class UpdateGroup(WorkflowJob):
             workflow_config,
             backend_config,
             workflow_obj.priority,
+            workflow_labels=workflow_obj.labels,
             skip_refresh_token=True,
         )
         k8s_factory.update_pod_k8s_resource(pod, group.group_uuid, pool, workflow_obj.priority)
-        labels = pod.get('metadata', {}).get('labels', {})
-        k8s_resources = [file.secret(labels) for file in files.values()]
+        system_labels = group.system_labels(self.user, self.workflow_uuid)
+        k8s_resources = [file.secret(system_labels) for file in files.values()]
         k8s_resources.append(pod)
 
         create_job = CreateGroup(
