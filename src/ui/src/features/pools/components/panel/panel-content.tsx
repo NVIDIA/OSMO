@@ -27,6 +27,7 @@ import { getSharingInfo } from "@/lib/api/adapter/transforms";
 import { PlatformSelector } from "@/features/pools/components/panel/platform-selector";
 import { PlatformConfigContent } from "@/features/pools/components/panel/platform-config";
 import { SharedPoolsChips } from "@/features/pools/components/panel/shared-pools-chips";
+import { normalizePhysicalCapacity } from "@/lib/pool-capacity";
 
 // =============================================================================
 // Types
@@ -109,6 +110,7 @@ export const PanelContent = memo(function PanelContent({
 
   const hasExitActions = Object.keys(pool.defaultExitActions).length > 0;
   const hasPoolDetails = pool.description || hasTimeouts || hasExitActions;
+  const physicalCapacity = normalizePhysicalCapacity(pool.quota);
 
   return (
     <div className="flex-1 overflow-auto p-4">
@@ -137,9 +139,9 @@ export const PanelContent = memo(function PanelContent({
               )}
             </span>
           }
-          used={pool.quota.totalUsage}
-          total={pool.quota.totalCapacity}
-          free={pool.quota.totalFree}
+          used={physicalCapacity.used}
+          total={physicalCapacity.total}
+          free={physicalCapacity.free}
         >
           {/* Shared pools info - colocated with capacity bar */}
           {sharedWith && sharedWith.length > 0 && (

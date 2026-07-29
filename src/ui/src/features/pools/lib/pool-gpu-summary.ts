@@ -15,6 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import type { Pool, Quota } from "@/lib/api/adapter/types";
+import { normalizePhysicalCapacity } from "@/lib/pool-capacity";
 
 /**
  * Compute GPU summary for a filtered subset of pools, correctly handling
@@ -49,8 +50,9 @@ export function computePoolGpuSummary(pools: Pool[], sharingGroups: string[][]):
     }
 
     if (isUngrouped || isFirstInGroup) {
-      totalCapacity += pool.quota.totalCapacity;
-      totalFree += pool.quota.totalFree;
+      const physicalCapacity = normalizePhysicalCapacity(pool.quota);
+      totalCapacity += physicalCapacity.total;
+      totalFree += physicalCapacity.free;
     }
   }
 

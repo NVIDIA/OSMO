@@ -18,12 +18,13 @@ import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SortState } from "@/components/data-table/types";
 import { naturalCompare } from "@/lib/utils";
+import { normalizePhysicalCapacity } from "@/lib/pool-capacity";
 
 function utilization(used: number, total: number): number {
   return total > 0 ? used / total : 0;
 }
 
-function sortPools(pools: Pool[], sort: SortState<string> | null): Pool[] {
+export function sortPools(pools: Pool[], sort: SortState<string> | null): Pool[] {
   if (!sort?.column) return pools;
 
   return [...pools].sort((a, b) => {
@@ -44,13 +45,14 @@ function sortPools(pools: Pool[], sort: SortState<string> | null): Pool[] {
       case "quotaFree":
         cmp = a.quota.free - b.quota.free;
         break;
-      case "capacity":
-        cmp =
-          utilization(a.quota.totalUsage, a.quota.totalCapacity) -
-          utilization(b.quota.totalUsage, b.quota.totalCapacity);
+      case "capacity": {
+        const aCapacity = normalizePhysicalCapacity(a.quota);
+        const bCapacity = normalizePhysicalCapacity(b.quota);
+        cmp = utilization(aCapacity.used, aCapacity.total) - utilization(bCapacity.used, bCapacity.total);
         break;
+      }
       case "capacityFree":
-        cmp = a.quota.totalFree - b.quota.totalFree;
+        cmp = normalizePhysicalCapacity(a.quota).free - normalizePhysicalCapacity(b.quota).free;
         break;
     }
     return sort.direction === "asc" ? cmp : -cmp;
