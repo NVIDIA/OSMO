@@ -101,18 +101,35 @@ fi
 #    silently take from inside an automation. `--rm` reaps the new pod after
 #    `mc` exits. `timeout` guards against stuck image pull / Pending-forever
 #    scheduling.
+#    Retried because `-i` races the container: `mc` can exit before kubectl
+#    finishes attaching, kubectl then falls back to streaming logs, and that
+#    fallback fails too once `--rm` has reaped the pod. Both surface as a
+#    non-zero exit even though the bucket was created, so a retry with a
+#    fresh pod name settles it — `--ignore-existing` makes the repeat a
+#    no-op.
 BUCKET_SETUP_TIMEOUT="${BUCKET_SETUP_TIMEOUT:-300}"
-BUCKET_SETUP_POD="minio-bucket-setup-$RANDOM-$RANDOM"
-echo "[INFO] Ensuring MinIO bucket $MINIO_BUCKET exists (helper pod: $BUCKET_SETUP_POD)"
-timeout "$BUCKET_SETUP_TIMEOUT" \
-  $KUBECTL run "$BUCKET_SETUP_POD" --rm -i --restart=Never \
-    --namespace="$MINIO_NAMESPACE" \
-    --image=minio/mc:latest --command -- \
-    /bin/sh -c "
-        mc alias set local $MINIO_ENDPOINT_URL '$MINIO_USER' '$MINIO_PASS' >/dev/null && \
-        mc mb --ignore-existing local/$MINIO_BUCKET && \
-        echo 'Bucket ready: $MINIO_BUCKET'
-    " || { echo "[ERROR] mc bucket setup failed"; exit 1; }
+BUCKET_SETUP_ATTEMPTS="${BUCKET_SETUP_ATTEMPTS:-3}"
+for attempt in $(seq 1 "$BUCKET_SETUP_ATTEMPTS"); do
+    BUCKET_SETUP_POD="minio-bucket-setup-$RANDOM-$RANDOM"
+    echo "[INFO] Ensuring MinIO bucket $MINIO_BUCKET exists (helper pod: $BUCKET_SETUP_POD, attempt $attempt/$BUCKET_SETUP_ATTEMPTS)"
+    if timeout "$BUCKET_SETUP_TIMEOUT" \
+      $KUBECTL run "$BUCKET_SETUP_POD" --rm -i --restart=Never \
+        --namespace="$MINIO_NAMESPACE" \
+        --image=minio/mc:latest --command -- \
+        /bin/sh -c "
+            mc alias set local $MINIO_ENDPOINT_URL '$MINIO_USER' '$MINIO_PASS' >/dev/null && \
+            mc mb --ignore-existing local/$MINIO_BUCKET && \
+            echo 'Bucket ready: $MINIO_BUCKET'
+        "; then
+        break
+    fi
+    if [ "$attempt" -ge "$BUCKET_SETUP_ATTEMPTS" ]; then
+        echo "[ERROR] mc bucket setup failed after $BUCKET_SETUP_ATTEMPTS attempts"
+        exit 1
+    fi
+    echo "[WARN] mc bucket setup attempt $attempt failed — retrying with a fresh pod"
+    sleep 5
+done
 
 # 3. Create 3 K8s Secrets, one per workflow_* credential reference.
 create_workflow_cred_secrets \
