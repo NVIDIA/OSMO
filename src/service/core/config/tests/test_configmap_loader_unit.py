@@ -431,6 +431,38 @@ class TestValidateConfigs(unittest.TestCase):
         errors = configmap_loader._validate_configs({})
         self.assertEqual(errors, [])
 
+    def test_validates_nested_workflow_labels_config(self):
+        errors = configmap_loader._validate_configs({
+            'workflow': {
+                'labels_config': {
+                    'policy': [{
+                        'key': 'project',
+                        'allow_list': ['audio'],
+                        'enforcement': 'warn',
+                    }],
+                },
+            },
+        })
+        self.assertEqual(errors, [])
+
+    def test_rejects_invalid_nested_workflow_labels_config(self):
+        # Model-level rules are pinned in test_workflow_config.py; this only
+        # proves nested labels_config errors surface through the loader. The
+        # second case pins that the abandoned 'required' field stays rejected.
+        for policy in (
+            [{'key': '-invalid-key'}],
+            [{'key': 'project', 'required': False}],
+        ):
+            with self.subTest(policy=policy):
+                errors = configmap_loader._validate_configs({
+                    'workflow': {
+                        'labels_config': {'policy': policy},
+                    },
+                })
+
+                self.assertEqual(len(errors), 1)
+                self.assertIn('labels_config', errors[0])
+
 
 class TestValidationErrorFormatting(unittest.TestCase):
     """Pydantic validation errors must never echo input values.

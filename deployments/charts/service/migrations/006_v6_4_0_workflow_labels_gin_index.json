@@ -1,0 +1,12 @@
+{
+  "operations": [
+    {
+      "create_index": {
+        "name": "workflow_labels_gin_idx",
+        "table": "workflows",
+        "method": "gin",
+        "columns": [{"column": "labels"}]
+      }
+    }
+  ]
+}

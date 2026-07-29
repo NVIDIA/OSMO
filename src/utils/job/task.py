@@ -1464,11 +1464,33 @@ def apply_pod_template(pod: Dict, pod_override: Dict):
     return common.recursive_dict_update(pod, pod_override, common.merge_lists_on_name)
 
 
+def apply_workflow_labels(
+        pod: Dict[str, Any],
+        workflow_labels: Mapping[str, str]) -> Dict[str, Any]:
+    """Apply workflow labels beneath any labels already on the resource."""
+    metadata = pod.setdefault('metadata', {})
+    metadata['labels'] = {**workflow_labels, **metadata.get('labels', {})}
+    return pod
+
+
+def apply_system_labels(
+        pod: Dict[str, Any],
+        system_labels: Mapping[str, str]) -> Dict[str, Any]:
+    """Apply authoritative system labels above user and template labels."""
+    metadata = pod.setdefault('metadata', {})
+    metadata['labels'] = {**metadata.get('labels', {}), **system_labels}
+    return pod
+
+
 def render_group_templates(
         templates: List[Dict[str, Any]],
         variables: Dict[str, Any],
-        labels: Dict[str, str]) -> List[Dict[str, Any]]:
-    """Renders group templates by substituting variables and injecting OSMO labels.
+        workflow_labels: Mapping[str, str],
+        system_labels: Mapping[str, str]) -> List[Dict[str, Any]]:
+    """Render group templates, layering labels as workflow < template < system.
+
+    User workflow labels sit at the bottom; system (osmo.*) labels win over
+    template labels so admin templates cannot break resource selection.
 
     Templates are deep-copied before modification. The namespace field is stripped
     if present; the backend sets namespace at runtime.
@@ -1478,7 +1500,8 @@ def render_group_templates(
         rendered_template = copy.deepcopy(template)
         rendered_template.get('metadata', {}).pop('namespace', None)
         substitute_pod_template_tokens(rendered_template, variables)
-        rendered_template.setdefault('metadata', {}).setdefault('labels', {}).update(labels)
+        apply_workflow_labels(rendered_template, workflow_labels)
+        apply_system_labels(rendered_template, system_labels)
         rendered.append(rendered_template)
     return rendered
 
@@ -2250,6 +2273,7 @@ class TaskGroup(pydantic.BaseModel):
         progress_iter_freq: datetime.timedelta,
         workflow_plugins: task_common.WorkflowPlugins,
         priority: wf_priority.WorkflowPriority,
+        workflow_labels: Mapping[str, str],
     ) -> Tuple[List[Dict], Dict[str, Dict]]:
         """
         Generates the list of resources to be deployed to k8s (In order).
@@ -2273,7 +2297,7 @@ class TaskGroup(pydantic.BaseModel):
 
         k8s_factory = self.get_k8s_object_factory(backend_config)
 
-        labels = self._labels(user, workflow_uuid)
+        labels = self.system_labels(user, workflow_uuid)
 
         file_dir_secrets = k8s_factory.create_secret(
             f'{group_uid}-file-dir',
@@ -2335,6 +2359,7 @@ class TaskGroup(pydantic.BaseModel):
             workflow_config,
             workflow_plugins,
             priority,
+            workflow_labels,
             progress_writer,
             progress_iter_freq,
 
@@ -2376,7 +2401,8 @@ class TaskGroup(pydantic.BaseModel):
             group_template_resources = render_group_templates(
                 pool_obj.parsed_group_templates,
                 template_variables,
-                labels,
+                workflow_labels=workflow_labels,
+                system_labels=labels,
             )
             kb_resources = group_template_resources + kb_resources
 
@@ -2391,10 +2417,11 @@ class TaskGroup(pydantic.BaseModel):
 
         return kb_resources, pod_specs
 
-    def _labels(self, user: str,
-                workflow_uuid: str) -> Dict[str, str]:
+    def system_labels(self, user: str,
+                      workflow_uuid: str) -> Dict[str, str]:
         """
-        Creates workflow id, task name, and user labels.
+        Creates the authoritative osmo.* system labels: workflow id and uuid,
+        group name and uuid, and the submitting user.
 
         If 'user' is a string that does not satisfy the requirements of a Kubernetes label,
         if 'user' is an email, it will parse the username of the email and check to
@@ -2433,7 +2460,7 @@ class TaskGroup(pydantic.BaseModel):
         """
         Creates labels for k8s task resources.
         """
-        labels = self._labels(user, workflow_uuid)
+        labels = self.system_labels(user, workflow_uuid)
         labels['osmo.task_name'] = shorten_name_to_fit_kb(task.name)
         labels['osmo.task_uuid'] = task.task_uuid
         labels['osmo.retry_id'] = str(task.retry_id)
@@ -2537,6 +2564,7 @@ class TaskGroup(pydantic.BaseModel):
         workflow_config: connectors.WorkflowConfig,
         backend_config: connectors.Backend,
         priority: wf_priority.WorkflowPriority,
+        workflow_labels: Mapping[str, str],
         # Optional arguments
         service_config: connectors.ServiceConfig | None = None,
         pool_info: connectors.Pool | None = None,
@@ -2878,10 +2906,13 @@ class TaskGroup(pydantic.BaseModel):
             },
             'spec': spec
         }
+        pod = apply_workflow_labels(pod, workflow_labels)
 
         override_pod_template = copy.deepcopy(task_platform.parsed_pod_template)
         substitute_pod_template_tokens(override_pod_template, jinja_variables)
         pod = apply_pod_template(pod, override_pod_template)
+        # Re-assert system labels so pod-template overrides cannot replace them.
+        pod = apply_system_labels(pod, labels)
 
         return pod, all_files, refresh_token_info
 
@@ -2893,6 +2924,7 @@ class TaskGroup(pydantic.BaseModel):
         workflow_config: connectors.WorkflowConfig,
         workflow_plugins: task_common.WorkflowPlugins,
         priority: wf_priority.WorkflowPriority,
+        workflow_labels: Mapping[str, str],
         progress_writer: progress.ProgressWriter | None = None,
         progress_iter_freq: datetime.timedelta = datetime.timedelta(minutes=1),
     ) -> Tuple[List, List[kb_objects.FileMount], List]:
@@ -2958,6 +2990,7 @@ class TaskGroup(pydantic.BaseModel):
                 workflow_config,
                 backend_config,
                 priority,
+                workflow_labels,
                 service_config,
                 pool_info,
                 data_endpoints,

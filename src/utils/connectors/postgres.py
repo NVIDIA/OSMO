@@ -44,7 +44,7 @@ from jwcrypto.common import JWException  # type: ignore
 
 from src.utils import configmap_state
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
-                           osmo_errors, role, version)
+                           osmo_errors, role, validation, version)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, SecretManager
 
@@ -875,6 +875,7 @@ class PostgresConnector:
                 app_uuid TEXT,
                 app_version INT,
                 plugins JSONB,
+                labels JSONB,
                 priority TEXT DEFAULT 'NORMAL',
                 PRIMARY KEY (workflow_uuid),
                 CONSTRAINT workflows_name_job UNIQUE(workflow_name, job_id),
@@ -894,6 +895,11 @@ class PostgresConnector:
             CREATE INDEX CONCURRENTLY IF NOT EXISTS workflow_list_index_pool_status
                 ON workflows
                 USING btree (pool, status, submit_time ASC);
+            ''',
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS workflow_labels_gin_idx
+                ON workflows
+                USING gin (labels jsonb_ops);
             '''
         ]
         for cmd in index_cmds:
@@ -2926,6 +2932,55 @@ class PluginsConfig(ExtraArgBaseModel):
     rsync: RsyncConfig = RsyncConfig()
 
 
+class LabelEnforcement(str, enum.Enum):
+    """Per-key policy strictness: 'off' skips checking, 'warn' surfaces
+    missing or unlisted values as submission warnings, and 'enforce'
+    rejects them."""
+    OFF = 'off'
+    WARN = 'warn'
+    ENFORCE = 'enforce'
+
+
+class LabelPolicy(ExtraArgBaseModel):
+    """Configuration for one admin-designated workflow label key.
+
+    An empty allow_list accepts any well-formed value; enforcement then
+    applies only to the key being present.
+    """
+    key: str
+    allow_list: List[str] = []
+    enforcement: LabelEnforcement = LabelEnforcement.OFF
+
+    @pydantic.field_validator('key')
+    @classmethod
+    def validate_key(cls, key: str) -> str:
+        return validation.validate_workflow_label_key(key)
+
+    @pydantic.field_validator('allow_list')
+    @classmethod
+    def validate_allow_list(cls, allow_list: List[str]) -> List[str]:
+        return [validation.validate_workflow_label_value(value) for value in allow_list]
+
+
+class LabelsConfig(ExtraArgBaseModel):
+    """Curated workflow label policy; empty by default, so no policy
+    applies until configured."""
+    policy: List[LabelPolicy] = []
+
+    @pydantic.field_validator('policy')
+    @classmethod
+    def validate_policy(cls, policy: List[LabelPolicy]) -> List[LabelPolicy]:
+        # Deliberately reuses the per-workflow label cap: curating more keys
+        # than one workflow can carry would make the policy unsatisfiable.
+        if len(policy) > validation.MAX_WORKFLOW_LABELS:
+            raise ValueError(
+                f'Configure at most {validation.MAX_WORKFLOW_LABELS} label policies.')
+        keys = [label_policy.key for label_policy in policy]
+        if len(keys) != len(set(keys)):
+            raise ValueError('Duplicate label policy key.')
+        return policy
+
+
 class WorkflowConfig(DynamicConfig):
     """ Stores any workflow configs External Admins control """
     workflow_data: DataConfig = DataConfig()
@@ -2946,6 +3001,8 @@ class WorkflowConfig(DynamicConfig):
     user_workflow_limits: UserWorkflowLimitConfig = UserWorkflowLimitConfig()
 
     plugins_config: PluginsConfig = PluginsConfig()
+
+    labels_config: LabelsConfig = LabelsConfig()
 
     max_num_tasks: int = 20
     max_num_ports_per_task: int = 30  # Isaac Sim Streaming Client needs 27 ports

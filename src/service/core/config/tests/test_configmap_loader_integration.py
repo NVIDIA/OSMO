@@ -90,11 +90,25 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
                 'max_num_tasks': 999,
                 'max_exec_timeout': '30d',
                 'default_exec_timeout': '7d',
+                'labels_config': {
+                    'policy': [{
+                        'key': 'project',
+                        'allow_list': ['audio'],
+                        'enforcement': 'warn',
+                    }],
+                },
             },
         })
 
         workflow_config = postgres.get_workflow_configs()
         self.assertEqual(workflow_config.max_num_tasks, 999)
+        label_policy = workflow_config.labels_config.policy[0]
+        self.assertEqual(label_policy.key, 'project')
+        self.assertEqual(label_policy.allow_list, ['audio'])
+        self.assertEqual(
+            label_policy.enforcement,
+            connectors.LabelEnforcement.WARN,
+        )
 
     # -------------------------------------------------------------------
     # Named configs served from snapshot

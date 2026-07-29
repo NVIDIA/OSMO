@@ -400,6 +400,11 @@ class TestValidateLocalPath(unittest.TestCase):
             result = rsync.validate_local_path(target, must_exist=True)
             self.assertEqual(result, os.path.realpath(target))
 
+    def test_existing_directory_preserves_trailing_slash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = rsync.validate_local_path(f'{tmp}{os.sep}', must_exist=True)
+            self.assertEqual(result, f'{os.path.realpath(tmp)}{os.sep}')
+
     def test_must_exist_false_returns_path_for_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             missing = os.path.join(tmp, 'subdir', 'foo')
@@ -1238,6 +1243,11 @@ def _make_rsync_client(
 class TestRsyncClientUploadHappyPath(unittest.IsolatedAsyncioTestCase):
     """Covers upload subprocess flow — lines 597-660."""
 
+    def setUp(self):
+        source_exists_patch = mock.patch.object(os.path, 'exists', return_value=True)
+        source_exists_patch.start()
+        self.addCleanup(source_exists_patch.stop)
+
     async def test_upload_runs_subprocess_and_invokes_callback(self):
         callback_called = []
         with mock.patch.object(
@@ -1253,14 +1263,19 @@ class TestRsyncClientUploadHappyPath(unittest.IsolatedAsyncioTestCase):
         client._sock = sock
         client._tcp_ready.set()
         fake_process = _FakeAsyncProcess(returncode=0)
+        create_process = mock.AsyncMock(return_value=fake_process)
         try:
             with mock.patch.object(
-                asyncio, 'create_subprocess_exec',
-                new=mock.AsyncMock(return_value=fake_process),
+                asyncio, 'create_subprocess_exec', new=create_process
             ):
                 await client.upload()
             self.assertEqual(callback_called, [True])
             self.assertFalse(await client._upload_counter.needs_upload())
+            process_call = create_process.await_args
+            if process_call is None:
+                self.fail('rsync subprocess was not started')
+            process_args = process_call.args
+            self.assertIn('--gokr.dont_restrict', process_args)
         finally:
             sock.close()
 
@@ -1278,6 +1293,44 @@ class TestRsyncClientUploadHappyPath(unittest.IsolatedAsyncioTestCase):
             ):
                 with self.assertRaises(osmo_errors.OSMOError):
                     await client.upload()
+        finally:
+            sock.close()
+
+    async def test_upload_rejects_source_removed_after_request_validation(self):
+        client = _make_rsync_client(request=_make_upload_request(local_path='/missing'))
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('127.0.0.1', 0))
+        client._sock = sock
+        client._tcp_ready.set()
+        create_process = mock.AsyncMock()
+        try:
+            with mock.patch.object(
+                asyncio, 'create_subprocess_exec', new=create_process
+            ):
+                with mock.patch.object(os.path, 'exists', return_value=False):
+                    with self.assertRaises(osmo_errors.OSMOUserError):
+                        await client.upload()
+            create_process.assert_not_awaited()
+        finally:
+            sock.close()
+
+    async def test_upload_rechecks_source_after_waiting_for_connection(self):
+        client = _make_rsync_client()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('127.0.0.1', 0))
+        client._sock = sock
+        create_process = mock.AsyncMock(return_value=_FakeAsyncProcess(returncode=0))
+        try:
+            with mock.patch.object(
+                asyncio, 'create_subprocess_exec', new=create_process
+            ):
+                upload_task = asyncio.create_task(client.upload())
+                await asyncio.sleep(0)
+                with mock.patch.object(os.path, 'exists', return_value=False):
+                    client._tcp_ready.set()
+                    with self.assertRaises(osmo_errors.OSMOUserError):
+                        await upload_task
+            create_process.assert_not_awaited()
         finally:
             sock.close()
 
@@ -1360,12 +1413,16 @@ class TestRsyncClientDownloadHappyPath(unittest.IsolatedAsyncioTestCase):
             with open(os.path.join(local_path, 'file'), 'w', encoding='utf-8') as f:
                 f.write('done')
             fake_process = _FakeAsyncProcess(returncode=0)
+            create_process = mock.AsyncMock(return_value=fake_process)
             try:
                 with mock.patch.object(
-                    asyncio, 'create_subprocess_exec',
-                    new=mock.AsyncMock(return_value=fake_process),
+                    asyncio, 'create_subprocess_exec', new=create_process
                 ):
                     await client.download()
+                process_call = create_process.await_args
+                if process_call is None:
+                    self.fail('rsync subprocess was not started')
+                self.assertNotIn('--gokr.dont_restrict', process_call.args)
             finally:
                 sock.close()
 

@@ -72,7 +72,7 @@ class GroupTemplateRenderTest(unittest.TestCase):
         """Variables in template fields are substituted with provided values."""
         group_uuid = 'abc-123'
         templates = [self._compute_domain_template()]
-        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {})
+        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {}, {})
 
         self.assertEqual(result[0]['metadata']['name'], f'compute-domain-{group_uuid}')
         self.assertEqual(
@@ -87,14 +87,14 @@ class GroupTemplateRenderTest(unittest.TestCase):
             'kind': 'ConfigMap',
             'metadata': {'name': 'my-cm', 'namespace': 'user-namespace'},
         }]
-        result = task.render_group_templates(templates, {}, {})
+        result = task.render_group_templates(templates, {}, {}, {})
         self.assertNotIn('namespace', result[0]['metadata'])
 
     def test_osmo_labels_injected(self):
         """OSMO labels are added into metadata.labels of the rendered resource."""
         templates = [{'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {'name': 'my-cm'}}]
         labels = {'osmo.group_uuid': 'grp-1', 'osmo.workflow_uuid': 'wf-1'}
-        result = task.render_group_templates(templates, {}, labels)
+        result = task.render_group_templates(templates, {}, {}, labels)
 
         self.assertEqual(result[0]['metadata']['labels']['osmo.group_uuid'], 'grp-1')
         self.assertEqual(result[0]['metadata']['labels']['osmo.workflow_uuid'], 'wf-1')
@@ -107,7 +107,7 @@ class GroupTemplateRenderTest(unittest.TestCase):
             'metadata': {'name': 'my-cm', 'labels': {'custom-key': 'custom-value'}},
         }]
         labels = {'osmo.group_uuid': 'grp-1'}
-        result = task.render_group_templates(templates, {}, labels)
+        result = task.render_group_templates(templates, {}, {}, labels)
 
         self.assertEqual(result[0]['metadata']['labels']['custom-key'], 'custom-value')
         self.assertEqual(result[0]['metadata']['labels']['osmo.group_uuid'], 'grp-1')
@@ -116,7 +116,8 @@ class GroupTemplateRenderTest(unittest.TestCase):
         """The original templates list and its contents are unchanged after rendering."""
         templates = [self._compute_domain_template()]
         original = copy.deepcopy(templates)
-        task.render_group_templates(templates, {'WF_GROUP_UUID': 'xyz'}, {'osmo.group_uuid': 'g'})
+        task.render_group_templates(
+            templates, {'WF_GROUP_UUID': 'xyz'}, {}, {'osmo.group_uuid': 'g'})
         self.assertEqual(templates, original)
 
     def test_multiple_templates_all_rendered(self):
@@ -130,7 +131,7 @@ class GroupTemplateRenderTest(unittest.TestCase):
                 'metadata': {'name': 'secret-{{WF_GROUP_UUID}}'},
             },
         ]
-        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {})
+        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {}, {})
 
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]['metadata']['name'], f'compute-domain-{group_uuid}')
@@ -138,7 +139,7 @@ class GroupTemplateRenderTest(unittest.TestCase):
 
     def test_empty_templates_returns_empty_list(self):
         """An empty template list returns an empty list without error."""
-        result = task.render_group_templates([], {'WF_GROUP_UUID': 'grp-1'}, {})
+        result = task.render_group_templates([], {'WF_GROUP_UUID': 'grp-1'}, {}, {})
         self.assertEqual(result, [])
 
 
@@ -410,7 +411,10 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         )
         self.task_group = self.create_task_group(self.database)
 
-    def _run_get_kb_specs(self, pool_name: str, task_group: task.TaskGroup):
+    def _run_get_kb_specs(
+        self, pool_name: str, task_group: task.TaskGroup,
+        workflow_labels: Dict[str, str] | None = None
+    ):
         """Invoke get_kb_specs with standard test arguments."""
         workflow_config = self.database.get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
@@ -425,6 +429,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
             progress_iter_freq=datetime.timedelta(minutes=1),
             workflow_plugins=task_common.WorkflowPlugins(),
             priority=wf_priority.WorkflowPriority.NORMAL,
+            workflow_labels=workflow_labels if workflow_labels is not None else {},
         )
 
     def test_group_template_resources_prepended(self):
@@ -456,6 +461,23 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self.assertIn('osmo.group_uuid', rendered_labels)
         self.assertIn('osmo.workflow_uuid', rendered_labels)
         self.assertTrue(rendered_labels['osmo.group_uuid'])
+
+    def test_workflow_labels_propagate_below_system_labels(self):
+        """Workflow labels reach group resources and Pods without replacing system labels."""
+        self._setup_for_kb_specs()
+        # The osmo.group_uuid entry deliberately collides with a system
+        # key to prove the system layer wins at stamping time.
+        kb_resources, pod_specs = self._run_get_kb_specs(
+            'nvlink-pool',
+            self.task_group,
+            {'project': 'project-a', 'osmo.group_uuid': 'user-value'},
+        )
+
+        rendered_labels = kb_resources[0]['metadata']['labels']
+        pod_labels = pod_specs['test_task']['metadata']['labels']
+        for labels in (rendered_labels, pod_labels):
+            self.assertEqual(labels['project'], 'project-a')
+            self.assertEqual(labels['osmo.group_uuid'], self.task_group.group_uuid)
 
     def test_group_template_resource_types_recorded_on_task_group(self):
         """After get_kb_specs, group_template_resource_types on the TaskGroup is populated."""

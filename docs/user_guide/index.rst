@@ -223,6 +223,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store artifacts 
 
   getting_started/system_requirements
   getting_started/install/index
+  .. auto-include:: getting_started/index.in.rst
   getting_started/profile
   getting_started/credentials
   getting_started/next_steps

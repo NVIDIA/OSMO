@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS pools (
 
 CREATE TABLE IF NOT EXISTS workflows (
     workflow_id TEXT PRIMARY KEY,
-    pool TEXT NOT NULL DEFAULT ''
+    pool TEXT NOT NULL DEFAULT '',
+    labels JSONB
 );
+
+CREATE INDEX IF NOT EXISTS workflow_labels_gin_idx
+    ON workflows USING gin (labels jsonb_ops);
 

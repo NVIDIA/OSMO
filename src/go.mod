@@ -7,7 +7,7 @@ require (
 	github.com/conduitio/bwlimit v0.1.0
 	github.com/creack/pty v1.1.24
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
-	github.com/gokrazy/rsync v0.3.1
+	github.com/gokrazy/rsync v0.3.4
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
