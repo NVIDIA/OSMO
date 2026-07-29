@@ -335,7 +335,10 @@ jobs:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+      AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
     permissions:
       id-token: write
       contents: read
@@ -364,10 +367,6 @@ jobs:
           sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
 
       - name: environment snapshot
-        env:
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
           echo "::group::az identity"; az account show -o table || true; echo "::endgroup::"
           echo "::group::tool versions"; terraform version; az version 2>&1 | head -5; echo "::endgroup::"
@@ -395,20 +394,14 @@ jobs:
       #                                        Azure daemons + OSMO sidecars.
       #   - node_group_min_size=3              headroom for scenario tests.
       #   - redis_high_availability_enabled=false
-      #                                        HA doubles the allocation; an
-      #                                        ephemeral stack doesn't need it.
+      #                                        ephemeral stack; see variables.tf.
       #   - redis_sku_name=MemoryOptimized_M10
       #     redis_location=westus3             westus2 stopped allocating
-      #                                        Managed Redis (2026-07). Redis
-      #                                        is reached over a public
-      #                                        endpoint, so it can sit in
-      #                                        another region; the apply step
-      #                                        retries with X3/eastus2.
+      #                                        Managed Redis (2026-07); the
+      #                                        apply step retries with
+      #                                        X3/eastus2.
       - name: build TF var file
         env:
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           PG_PASS: ${{ steps.gen_pg.outputs.value }}
         run: |
           cat > "$RUNNER_TEMP/azure.tfvars" <<TFVARS
@@ -432,8 +425,6 @@ jobs:
       # level), so workflow-side `az group create` doesn't work; moving
       # to a different region is a manual op.
       - name: TEMP — verify resource group is in $AZURE_REGION
-        env:
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
         run: |
           set -euo pipefail
           existing=$(az group show --name "$AZURE_RESOURCE_GROUP" --query location -o tsv 2>/dev/null || true)
@@ -500,9 +491,6 @@ jobs:
 
       - name: TEMP — terraform apply (provision AKS + Postgres + Redis)
         working-directory: deployments/terraform/azure/example
-        env:
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
           set -euo pipefail
           echo "::notice::terraform apply starting — expected ~10–15 min (AKS dominates)"
@@ -517,7 +505,7 @@ jobs:
           terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" || apply_failed=1
           echo "::endgroup::"
           if [ -n "$apply_failed" ]; then
-            fallback_args=()
+            echo "::warning::terraform apply attempt 1 failed — retrying once"
             if ! terraform state list 2>/dev/null | grep -qx 'azurerm_managed_redis.main'; then
               # A failed Managed Redis create leaves the cluster in Azure but
               # NOT in TF state (the provider only records finished creates),
@@ -530,12 +518,16 @@ jobs:
                 echo "::warning::deleting orphaned Managed Redis left by the failed create: ${id##*/}"
                 az resource delete --ids "$id" || true
               done
-              fallback_args=(-var "redis_sku_name=ComputeOptimized_X3" -var "redis_location=eastus2")
+              # Rewrite the tfvars rather than passing -var, so the artifact
+              # tf-destroy and deploy-osmo replay still describes the stack
+              # that was actually built.
+              sed -i -e 's|^redis_sku_name .*|redis_sku_name               = "ComputeOptimized_X3"|' \
+                     -e 's|^redis_location .*|redis_location               = "eastus2"|' \
+                     "$RUNNER_TEMP/azure.tfvars"
               echo "::warning::Redis did not create — retrying with fallback combo X3/eastus2"
             fi
-            echo "::warning::terraform apply attempt 1 failed — retrying once"
             echo "::group::terraform apply (retry)"
-            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" "${fallback_args[@]}"
+            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars"
             echo "::endgroup::"
           fi
           echo "::group::resources provisioned (terraform state list)"
@@ -1003,6 +995,8 @@ jobs:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
       RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
     permissions:
       id-token: write
@@ -1038,10 +1032,8 @@ jobs:
           tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
           sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
 
-      # The stash step's marker file makes this artifact exist whenever
-      # tf-apply ran, so a download failure here is a genuine transient and
-      # correctly fails teardown loudly. A marker-only artifact falls
-      # through to a no-op destroy plus a leftover-count report.
+      # The STASH_RAN marker guarantees this artifact exists, so a download
+      # failure here is transient and should fail teardown loudly.
       - name: download tf-state artifact
         uses: actions/download-artifact@v4
         with:
@@ -1062,9 +1054,6 @@ jobs:
       - name: dump cluster + OSMO diagnostics (always)
         if: always()
         timeout-minutes: 5
-        env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
           set +e
           DIAG="$RUN_DIR/diagnostics"
@@ -1154,8 +1143,6 @@ jobs:
       - name: TEMP — terraform destroy
         if: always()
         working-directory: deployments/terraform/azure/example
-        env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
           set -euo pipefail
           echo "::notice::terraform destroy starting — expected ~10–15 min"

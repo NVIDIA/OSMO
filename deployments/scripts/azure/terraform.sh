@@ -487,6 +487,10 @@ postgres_extensions                    = ["hstore", "uuid-ossp", "pg_stat_statem
 # Override TF_REDIS_SKU_NAME for different tiers.
 redis_sku_name  = "${TF_REDIS_SKU_NAME:-ComputeOptimized_X3}"
 redis_version   = "7"
+# Escape hatches for regions with no Redis Enterprise capacity: drop HA
+# (halves the allocation) and/or place Redis in a nearby region.
+redis_high_availability_enabled = ${TF_REDIS_HIGH_AVAILABILITY_ENABLED:-true}
+redis_location                  = "${TF_REDIS_LOCATION:-}"
 
 # Log Analytics Configuration
 log_analytics_sku            = "PerGB2018"

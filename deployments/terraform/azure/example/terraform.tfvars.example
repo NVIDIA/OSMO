@@ -18,10 +18,8 @@ database_subnets = ["10.0.201.0/24", "10.0.202.0/24"]
 availability_zones = ["1", "2"]
 
 # AKS Configuration
-# Pin `<major>.<minor>` only — AKS then selects the latest supported patch.
-# Azure prunes patches continuously and eventually moves a whole minor to
-# Long-Term Support, at which point apply fails with K8sVersionNotSupported;
-# `az aks get-versions -l <region> -o table` lists the minors still GA.
+# Pin `<major>.<minor>` only; AKS picks the latest supported patch — a patch
+# pin eventually fails with K8sVersionNotSupported. See variables.tf.
 kubernetes_version              = "1.35"
 node_instance_type             = "Standard_D2s_v3"  # Use Standard_D4s_v3 or higher for production
 node_group_min_size            = 1
@@ -59,9 +57,10 @@ redis_sku_name = "ComputeOptimized_X3"
 # the capacity ask — see variables.tf).
 redis_high_availability_enabled = true
 
-# Empty co-locates Redis with the resource group. Set a region only to work
-# around Redis Enterprise capacity gaps — see variables.tf.
-# redis_location = ""
+# Stopgap, not a supported topology: co-locate Redis with the resource group
+# (the default) unless that region has no Redis Enterprise capacity. A split
+# stack pays cross-region latency and egress on every Redis call.
+redis_location = ""
 
 # Log Analytics Configuration
 log_analytics_sku            = "PerGB2018"  # Standard pricing tier

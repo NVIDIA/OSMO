@@ -405,12 +405,10 @@ resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
 
 resource "azurerm_managed_redis" "main" {
   name                = "${local.name}-redis"
-  location            = var.redis_location != "" ? var.redis_location : data.azurerm_resource_group.main.location
+  location            = coalesce(var.redis_location, data.azurerm_resource_group.main.location)
   resource_group_name = data.azurerm_resource_group.main.name
   sku_name            = var.redis_sku_name
-  # HA doubles the allocation, and capacity-tight regions fail HA creates
-  # with a bare OperationFailed while non-HA creates of the same SKU
-  # succeed. Changing this forces replacement.
+  # Changing this forces replacement.
   high_availability_enabled = var.redis_high_availability_enabled
 
   default_database {
