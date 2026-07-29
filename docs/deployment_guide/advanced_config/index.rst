@@ -70,3 +70,8 @@ This section provides additional advanced configurations to customize and optimi
 
           Grant shared cloud bucket access to every workflow in a pool, so team members don't supply credentials per workflow.
 
+      .. grid-item-card:: :octicon:`plug` MCP
+          :link: ./mcp
+          :link-type: doc
+
+          Enable the optional MCP feature and connect it to the existing OSMO Gateway.

@@ -225,6 +225,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store artifacts 
   getting_started/install/index
   getting_started/profile
   getting_started/credentials
+  getting_started/mcp
   getting_started/next_steps
 
 .. toctree::
