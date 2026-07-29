@@ -296,6 +296,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store artifacts 
   :caption: Appendix
 
   appendix/cli/index
+  appendix/mcp/index
 
 ..
   Optional appendix section can be included
