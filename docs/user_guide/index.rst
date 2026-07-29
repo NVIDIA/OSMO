@@ -226,6 +226,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store artifacts 
   .. auto-include:: getting_started/index.in.rst
   getting_started/profile
   getting_started/credentials
+  getting_started/mcp
   getting_started/next_steps
 
 .. toctree::
@@ -296,6 +297,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store artifacts 
   :caption: Appendix
 
   appendix/cli/index
+  appendix/mcp/index
 
 ..
   Optional appendix section can be included

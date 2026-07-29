@@ -26,6 +26,8 @@ You have successfully completed:
 
 ✓ **Client Installed** - CLI installed and authenticated with OSMO
 
+✓ **MCP Connected (Optional)** - MCP client authenticated using your existing OSMO access
+
 ✓ **Profile Configured** - Notifications, default pool, and bucket set
 
 ✓ **Credentials Added** - Registry and data access configured
