@@ -83,9 +83,9 @@ variable "availability_zones" {
 
 # AKS Variables
 variable "kubernetes_version" {
-  description = "Kubernetes version. Azure rolls AKS-supported versions forward and prunes older ones; if apply fails with 'version not found' check `az aks get-versions -l <region>` for the current GA list."
+  description = "Kubernetes version, as `<major>.<minor>` so AKS picks the latest supported patch. Azure prunes patch releases continuously and drops whole minors to Long-Term Support (which a cluster must opt into), so pinning a patch guarantees eventual `K8sVersionNotSupported`. Check `az aks get-versions -l <region> -o table` for minors still marked KubernetesOfficial."
   type        = string
-  default     = "1.33.11"
+  default     = "1.35"
 }
 
 variable "node_instance_type" {
@@ -234,6 +234,18 @@ variable "redis_sku_name" {
     condition     = can(regex("^(Balanced_B|ComputeOptimized_X|MemoryOptimized_M|FlashOptimized_A)[0-9]+$", var.redis_sku_name))
     error_message = "redis_sku_name must be a Managed Redis SKU (Balanced_B*, ComputeOptimized_X*, MemoryOptimized_M*, or FlashOptimized_A*)."
   }
+}
+
+variable "redis_location" {
+  description = "Azure region for the Managed Redis instance; empty uses the resource group's region. Managed Redis is reachable cross-region (public endpoint), so it can live in a nearby region when the RG's region lacks Redis Enterprise capacity. Keep empty for production latency."
+  type        = string
+  default     = ""
+}
+
+variable "redis_high_availability_enabled" {
+  description = "Enable high availability (replica + zone-redundant placement) for Azure Managed Redis. HA doubles the node allocation, so in capacity-constrained regions HA creates can fail with a generic OperationFailed while non-HA creates succeed. Disable for ephemeral/test deployments."
+  type        = bool
+  default     = true
 }
 
 variable "redis_version" {

@@ -326,13 +326,16 @@ jobs:
     needs: build-images
     if: ${{ needs.build-images.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # ~15 min clean apply + one retry (a failed attempt can poll 20+ min
+    # before Azure errors) + pre-apply cleanup of a dirty RG.
+    timeout-minutes: 75
     environment: internal-ci
     env:
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
     permissions:
       id-token: write
       contents: read
@@ -363,7 +366,6 @@ jobs:
       - name: environment snapshot
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
@@ -392,10 +394,19 @@ jobs:
       #   - node_instance_type=Standard_D8s_v3 D4s_v3 left K8_CPU=0 after
       #                                        Azure daemons + OSMO sidecars.
       #   - node_group_min_size=3              headroom for scenario tests.
+      #   - redis_high_availability_enabled=false
+      #                                        HA doubles the allocation; an
+      #                                        ephemeral stack doesn't need it.
+      #   - redis_sku_name=MemoryOptimized_M10
+      #     redis_location=westus3             westus2 stopped allocating
+      #                                        Managed Redis (2026-07). Redis
+      #                                        is reached over a public
+      #                                        endpoint, so it can sit in
+      #                                        another region; the apply step
+      #                                        retries with X3/eastus2.
       - name: build TF var file
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
           PG_PASS: ${{ steps.gen_pg.outputs.value }}
@@ -409,6 +420,9 @@ jobs:
           aks_private_cluster_enabled  = false
           node_instance_type           = "Standard_D8s_v3"
           node_group_min_size          = 3
+          redis_high_availability_enabled = false
+          redis_sku_name               = "MemoryOptimized_M10"
+          redis_location               = "westus3"
           TFVARS
           grep -v postgres_password "$RUNNER_TEMP/azure.tfvars"
 
@@ -419,7 +433,6 @@ jobs:
       # to a different region is a manual op.
       - name: TEMP — verify resource group is in $AZURE_REGION
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
         run: |
           set -euo pipefail
@@ -437,8 +450,6 @@ jobs:
       # RG without matching TF state — `terraform apply` would then fail
       # with "Resource already exists, import into state". Wipe leftovers.
       - name: TEMP — pre-apply cleanup (delete leftover resources in RG)
-        env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
           set -euo pipefail
           echo "▶ $(date -u +%H:%M:%S) checking for leftover resources in $AZURE_RESOURCE_GROUP"
@@ -490,7 +501,6 @@ jobs:
       - name: TEMP — terraform apply (provision AKS + Postgres + Redis)
         working-directory: deployments/terraform/azure/example
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
@@ -499,25 +509,61 @@ jobs:
           echo "::group::terraform init"
           terraform init -input=false -no-color
           echo "::endgroup::"
-          echo "::group::terraform apply (streaming)"
-          terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars"
+          # Retry once to absorb one-off ARM 5xx blips. The second apply is
+          # incremental against persisted state; persistent errors (quota,
+          # capacity) still fail the job.
+          echo "::group::terraform apply"
+          apply_failed=""
+          terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" || apply_failed=1
           echo "::endgroup::"
+          if [ -n "$apply_failed" ]; then
+            fallback_args=()
+            if ! terraform state list 2>/dev/null | grep -qx 'azurerm_managed_redis.main'; then
+              # A failed Managed Redis create leaves the cluster in Azure but
+              # NOT in TF state (the provider only records finished creates),
+              # so the retry would fail with "already exists — needs import".
+              # Delete the orphan, waiting for the name to be released since
+              # the retry reuses it, then retry in another region+SKU — the
+              # likely cause is regional Redis Enterprise capacity.
+              for id in $(az resource list --resource-group "$AZURE_RESOURCE_GROUP" \
+                            --resource-type Microsoft.Cache/redisEnterprise --query '[].id' -o tsv || true); do
+                echo "::warning::deleting orphaned Managed Redis left by the failed create: ${id##*/}"
+                az resource delete --ids "$id" || true
+              done
+              fallback_args=(-var "redis_sku_name=ComputeOptimized_X3" -var "redis_location=eastus2")
+              echo "::warning::Redis did not create — retrying with fallback combo X3/eastus2"
+            fi
+            echo "::warning::terraform apply attempt 1 failed — retrying once"
+            echo "::group::terraform apply (retry)"
+            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" "${fallback_args[@]}"
+            echo "::endgroup::"
+          fi
           echo "::group::resources provisioned (terraform state list)"
           terraform state list || true
           echo "::endgroup::"
-          # Stash state file inside the workspace so upload-artifact can find it.
-          mkdir -p "$GITHUB_WORKSPACE/tf-state"
-          cp terraform.tfstate "$GITHUB_WORKSPACE/tf-state/" 2>/dev/null || true
-          cp .terraform.lock.hcl "$GITHUB_WORKSPACE/tf-state/" 2>/dev/null || true
-          cp "$RUNNER_TEMP/azure.tfvars" "$GITHUB_WORKSPACE/tf-state/" 2>/dev/null || true
           {
             echo "### TEMP terraform apply ✅"
             echo ""
             echo "- AKS: \`${AZURE_CLUSTER_NAME}\` in \`${AZURE_RESOURCE_GROUP}\` (${AZURE_REGION})"
             echo "- Postgres flex: \`${AZURE_CLUSTER_NAME}-postgres\`"
-            echo "- Redis: \`${AZURE_CLUSTER_NAME}-redis\`"
+            echo "- Redis: \`$(terraform output -raw redis_cache_name 2>/dev/null || echo 'n/a')\`"
             echo "- finished at: $(date -u +%H:%M:%SZ)"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Own always() step — stashing inside the apply step would be skipped
+      # when it fails or the job times out mid-apply. The STASH_RAN marker
+      # makes the artifact exist even with no state file, so tf-destroy can
+      # download unconditionally and treat a download failure as transient.
+      - name: stash tfstate + tfvars for upload
+        if: always()
+        run: |
+          tf_dir=deployments/terraform/azure/example
+          mkdir -p tf-state
+          cp "$tf_dir/terraform.tfstate" tf-state/ 2>/dev/null || true
+          cp "$tf_dir/.terraform.lock.hcl" tf-state/ 2>/dev/null || true
+          cp "$RUNNER_TEMP/azure.tfvars" tf-state/ 2>/dev/null || true
+          touch tf-state/STASH_RAN
+          ls -la tf-state/
 
       # Upload terraform state (and the tfvars file) so the tf-destroy job
       # can download and replay the same plan. `if: always()` so a partial
@@ -941,13 +987,14 @@ jobs:
           if-no-files-found: warn
 
   # ── Stage 4: terraform destroy + cluster diagnostics ─────────────────────
-  # Always runs as long as tf-apply succeeded — we don't want to leak AKS
-  # + Postgres + Redis after a verification run. Downloads the tfstate
-  # artifact tf-apply uploaded, captures a final cluster snapshot before
-  # destroy, then tears everything down.
+  # Downloads the tfstate artifact tf-apply uploaded, captures a final
+  # cluster snapshot before destroy, then tears everything down.
   tf-destroy:
     needs: [build-images, tf-apply, deploy-osmo, oetf]
-    if: ${{ always() && needs.tf-apply.result == 'success' }}
+    # Run whenever tf-apply ran (any result) — a failed apply usually
+    # leaves partial resources to tear down. Skip only if tf-apply never
+    # ran.
+    if: ${{ always() && needs.tf-apply.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: internal-ci
@@ -991,6 +1038,11 @@ jobs:
           tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
           sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
 
+      # tf-apply's stash step is if:always() and writes a marker file, so
+      # the artifact exists whenever tf-apply ran — a download failure here
+      # is genuinely transient and correctly fails the teardown loudly.
+      # A state-less artifact (marker only) falls through to a no-op
+      # destroy + leftover-count report.
       - name: download tf-state artifact
         uses: actions/download-artifact@v4
         with:
@@ -1169,8 +1221,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Best-effort decoration (author/subject/links) — must never block
+      # the notification; the post step has fallbacks for every output.
       - name: Gather context (commit metadata + commits since previous green run)
         id: ctx
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -1189,7 +1244,10 @@ jobs:
                               -H 'Accept: application/vnd.github+json' \
                               "https://api.github.com/repos/${REPO}/commits/${SHA}")
           author=$(jq -r '.commit.author.name // "unknown"' <<<"$commit_resp")
-          subject=$(jq -r '.commit.message // ""' <<<"$commit_resp" | head -1)
+          # First line extracted inside jq — piping jq to `head -1` can
+          # SIGPIPE jq on large squash-merge messages and kill the step
+          # under pipefail.
+          subject=$(jq -r '.commit.message // "" | split("\n")[0]' <<<"$commit_resp")
           # Trim subject to ≤ 120 chars so the Slack block doesn't sprawl.
           if [[ ${#subject} -gt 120 ]]; then subject="${subject:0:117}..."; fi
 
@@ -1204,7 +1262,7 @@ jobs:
                           -H 'Accept: application/vnd.github+json' \
                           "https://api.github.com/repos/${REPO}/actions/workflows/deployment-test.yaml/runs?event=schedule&status=success&per_page=2")
           prev_sha=$(jq -r --arg this "$RUN_ID" \
-            '[.workflow_runs[] | select((.id | tostring) != $this)] | .[0].head_sha // empty' \
+            '[(.workflow_runs // [])[] | select((.id | tostring) != $this)] | .[0].head_sha // empty' \
             <<<"$wf_runs")
           if [[ -n "$prev_sha" && "$prev_sha" != "$SHA" ]]; then
             compare_url="${SERVER_URL}/${REPO}/compare/${prev_sha}...${SHA}"
@@ -1233,8 +1291,10 @@ jobs:
           artifacts_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
                                  -H 'Accept: application/vnd.github+json' \
                                  "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?per_page=10")
-          artifact_id=$(jq -r '[.artifacts[] | select(.expired==false)] | .[0].id // empty' <<<"$artifacts_resp")
-          artifact_name=$(jq -r '[.artifacts[] | select(.expired==false)] | .[0].name // empty' <<<"$artifacts_resp")
+          # `.artifacts // []` — an API error response has no .artifacts, and
+          # iterating null aborts jq (and the step) with exit 5.
+          artifact_id=$(jq -r '[(.artifacts // [])[] | select(.expired==false)] | .[0].id // empty' <<<"$artifacts_resp")
+          artifact_name=$(jq -r '[(.artifacts // [])[] | select(.expired==false)] | .[0].name // empty' <<<"$artifacts_resp")
           if [[ -n "$artifact_id" ]]; then
             artifact_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}/artifacts/${artifact_id}"
             artifact_label="Download ${artifact_name}"
@@ -1298,11 +1358,15 @@ jobs:
           fi
           commit_url="${SERVER_URL}/${REPO}/commit/${FULL_SHA}"
           workflow_url="${SERVER_URL}/${REPO}/blob/${REF_NAME}/.github/workflows/deployment-test.yaml"
-          # artifact_url comes from the "Gather context" step which already
-          # resolved the per-run artifact ID via the GH API. Falls back to
-          # the run page when no artifact exists (job died before upload).
-          artifact_url="${ARTIFACT_URL}"
-          artifact_label="${ARTIFACT_LABEL}"
+          # Gather-context is continue-on-error, so any of its outputs may
+          # be empty here.
+          AUTHOR="${AUTHOR:-unknown}"
+          SUBJECT="${SUBJECT:-(commit metadata unavailable)}"
+          SHORT_SHA="${SHORT_SHA:-${FULL_SHA:0:7}}"
+          COMPARE_URL="${COMPARE_URL:-${SERVER_URL}/${REPO}/commits/${REF_NAME}}"
+          COMPARE_LABEL="${COMPARE_LABEL:-Recent commits}"
+          artifact_url="${ARTIFACT_URL:-$run_url}"
+          artifact_label="${ARTIFACT_LABEL:-Open run page}"
           header_text=":x: OSMO Azure deployment-test FAILED"
           trigger_label="Daily schedule (00:00 UTC = 5pm PDT)"
 
@@ -1376,7 +1440,8 @@ jobs:
             }')
 
           echo "::group::Slack payload (preview)"
-          echo "$payload" | jq -C . | head -80
+          # head may close the pipe early — don't let SIGPIPE fail the step.
+          { echo "$payload" | jq -C . | head -80; } || true
           echo "::endgroup::"
 
           # Same `chat.postMessage` call pattern that

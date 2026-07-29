@@ -18,10 +18,11 @@ database_subnets = ["10.0.201.0/24", "10.0.202.0/24"]
 availability_zones = ["1", "2"]
 
 # AKS Configuration
-# Azure rolls AKS-supported Kubernetes versions forward and prunes older
-# ones — if `terraform apply` errors with "version not found", check
-# `az aks get-versions -l <region> -o table` for the current GA list.
-kubernetes_version              = "1.33.11"
+# Pin `<major>.<minor>` only — AKS then selects the latest supported patch.
+# Azure prunes patches continuously and eventually moves a whole minor to
+# Long-Term Support, at which point apply fails with K8sVersionNotSupported;
+# `az aks get-versions -l <region> -o table` lists the minors still GA.
+kubernetes_version              = "1.35"
 node_instance_type             = "Standard_D2s_v3"  # Use Standard_D4s_v3 or higher for production
 node_group_min_size            = 1
 node_group_max_size            = 5
@@ -53,6 +54,14 @@ postgres_extensions                   = ["hstore", "uuid-ossp", "pg_stat_stateme
 # variables.tf for the empirical-allocation rationale; Balanced_B0/B1/B3
 # have hit AllocationFailed in capacity-constrained regions.
 redis_sku_name = "ComputeOptimized_X3"
+
+# Keep true for production; set false for ephemeral/test stacks (halves
+# the capacity ask — see variables.tf).
+redis_high_availability_enabled = true
+
+# Empty co-locates Redis with the resource group. Set a region only to work
+# around Redis Enterprise capacity gaps — see variables.tf.
+# redis_location = ""
 
 # Log Analytics Configuration
 log_analytics_sku            = "PerGB2018"  # Standard pricing tier
