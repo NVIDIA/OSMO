@@ -32,11 +32,13 @@ def _label_policy(
         key: str,
         enforcement: connectors.LabelEnforcement,
         allow_list: list[str] | None = None,
+        assert_message: str = '',
 ) -> connectors.LabelPolicy:
     return connectors.LabelPolicy(
         key=key,
         enforcement=enforcement,
         allow_list=allow_list if allow_list is not None else [],
+        assert_message=assert_message,
     )
 
 
@@ -294,6 +296,30 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
             "Workflow is missing label 'project'; add it now to avoid rejected "
             "submissions once it is required.",
             '\n'.join(captured.output),
+        )
+
+    def test_policy_assert_message_is_appended_to_warn_and_enforce_messages(self):
+        assert_message = 'Look up valid values in the registry.'
+        warn_info = _submit_info([
+            _label_policy(
+                'project', connectors.LabelEnforcement.WARN, assert_message=assert_message),
+        ])
+        warnings = warn_info.validate_workflow_label_policy(_rendered_spec({}))
+        self.assertEqual(
+            warnings,
+            ["Workflow is missing label 'project'; add it now to avoid rejected "
+             f'submissions once it is required. {assert_message}'],
+        )
+
+        enforce_info = _submit_info([
+            _label_policy(
+                'project', connectors.LabelEnforcement.ENFORCE, assert_message=assert_message),
+        ])
+        with self.assertRaises(osmo_errors.OSMOUsageError) as raised:
+            enforce_info.validate_workflow_label_policy(_rendered_spec({}))
+        self.assertEqual(
+            raised.exception.message,
+            f"Workflow is missing required label 'project'. {assert_message}",
         )
 
     def test_warn_is_not_persisted_when_later_validation_fails(self):

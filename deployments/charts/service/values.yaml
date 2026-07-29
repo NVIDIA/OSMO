@@ -478,6 +478,7 @@ services:
       ##   - key: cost-center
       ##     allow_list: [team-a, team-b]   # empty allows any well-formed value
       ##     enforcement: warn              # "off" | warn | enforce
+      ##     assert_message: "See the cost-center registry."  # appended to messages
       ## Quote "off" — unquoted YAML off parses as boolean false.
       ##
       labels_config:

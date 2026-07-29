@@ -499,8 +499,13 @@ def evaluate_workflow_label_policies(
             outcome = 'missing'
         elif label_policy.allow_list and value not in label_policy.allow_list:
             outcome = 'invalid'
-        message = '' if outcome == 'ok' else _LABEL_POLICY_MESSAGES[
-            outcome, label_policy.enforcement].format(key=label_policy.key)
+        if outcome == 'ok':
+            message = ''
+        else:
+            message = _LABEL_POLICY_MESSAGES[
+                outcome, label_policy.enforcement].format(key=label_policy.key)
+            if label_policy.assert_message:
+                message = f'{message} {label_policy.assert_message}'
         outcomes.append(WorkflowLabelPolicyOutcome(
             label_policy, outcome, message))
     return outcomes
