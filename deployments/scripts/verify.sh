@@ -49,6 +49,8 @@ OSMO_REACHABILITY_TIMEOUT_SECONDS="${OSMO_REACHABILITY_TIMEOUT_SECONDS:-5}"
 HELLO_POLL_TIMEOUT="${HELLO_POLL_TIMEOUT:-600}"
 GPU_POLL_TIMEOUT="${GPU_POLL_TIMEOUT:-1500}"
 POLL_INTERVAL="${POLL_INTERVAL:-10}"
+# How long to wait for the backend to report its nodes into $POOL.
+POOL_RESOURCE_TIMEOUT="${POOL_RESOURCE_TIMEOUT:-300}"
 
 check_command osmo
 check_command jq
@@ -71,6 +73,23 @@ if ! curl -fsS -o /dev/null --max-time "$OSMO_REACHABILITY_TIMEOUT_SECONDS" "$re
 fi
 
 osmo login "$OSMO_URL" --method="$OSMO_LOGIN_METHOD" --username="$OSMO_USERNAME"
+
+# Pods being Ready doesn't mean the backend has finished reporting its nodes to
+# the control plane, and a submit before then fails outright with "There are no
+# resources in platform ... and pool ..." rather than queueing. This enforces
+# the "pool is registered and ONLINE" precondition in the header above.
+log_info "Waiting for pool $POOL to report resources (timeout ${POOL_RESOURCE_TIMEOUT}s)"
+pool_resource_deadline=$(( $(date +%s) + POOL_RESOURCE_TIMEOUT ))
+until osmo resource list --pool "$POOL" -t json 2>/dev/null \
+        | sed -n '/^{/,/^}/p' | jq -e '(.resources // []) | length > 0' >/dev/null 2>&1; do
+    if [[ "$(date +%s)" -ge "$pool_resource_deadline" ]]; then
+        log_error "Pool $POOL still reports no resources after ${POOL_RESOURCE_TIMEOUT}s"
+        osmo resource list --pool "$POOL" >&2 || true
+        exit 1
+    fi
+    sleep "$POLL_INTERVAL"
+done
+log_success "Pool $POOL has resources"
 
 # Submit a workflow, poll until terminal state, dump logs on failure.
 # Polls every $POLL_INTERVAL seconds up to $timeout seconds. Terminal states
