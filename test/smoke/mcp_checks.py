@@ -61,6 +61,10 @@ _TOKEN_FIELDS = (
     "name",
     "expires_at",
 )
+_CREDENTIAL_FIELDS = (
+    "cred_name",
+    "cred_type",
+)
 
 
 def _validation_workflow_spec():
@@ -132,7 +136,7 @@ class McpChecks(SmokeFixture):
             self.fail(f"MCP tool {name} returned an unsuccessful result.")
         return structured_content
 
-    def test_catalog_and_profile_round_trip(self):
+    def test_catalog_profile_and_credential_parity(self):
         base_url = self.config.url.rstrip("/")
         unauthenticated_response = requests.post(
             f"{base_url}/mcp",
@@ -166,48 +170,115 @@ class McpChecks(SmokeFixture):
         ):
             self.fail("MCP tool catalog does not match the expected contract.")
 
-        direct_profile = self.service_client.request(
-            method=RequestMethod.GET,
-            endpoint="api/profile/settings",
-        )
-        if not isinstance(direct_profile, dict):
-            self.fail("Core returned an invalid profile response.")
-        direct_profile_settings = direct_profile.get("profile")
+        cli_profile = self.cli(
+            ["osmo", "profile", "list", "--format-type", "json"]
+        ).expect_json()
+        if not isinstance(cli_profile, dict):
+            self.fail("OSMO CLI returned an invalid profile response.")
+        cli_profile_settings = cli_profile.get("profile")
         if (
-            not isinstance(direct_profile_settings, dict)
-            or not isinstance(direct_profile.get("roles"), list)
-            or not isinstance(direct_profile.get("pools"), list)
+            not isinstance(cli_profile_settings, dict)
+            or not isinstance(cli_profile.get("roles"), list)
+            or not isinstance(cli_profile.get("pools"), list)
         ):
-            self.fail("Core returned an invalid profile response.")
+            self.fail("OSMO CLI returned an invalid profile response.")
 
-        direct_token = direct_profile.get("token")
+        username = cli_profile_settings.get("username")
+        if not isinstance(username, str) or not username.strip():
+            self.fail("OSMO CLI profile must contain a nonempty username.")
+        default_pool = cli_profile_settings.get("pool")
+        accessible_pools = cli_profile["pools"]
+        if (
+            not accessible_pools
+            or not all(
+                isinstance(pool_name, str) and pool_name
+                for pool_name in accessible_pools
+            )
+        ):
+            self.fail("OSMO CLI profile must contain accessible pools.")
+        if default_pool is not None and (
+            not isinstance(default_pool, str)
+            or not default_pool
+            or default_pool not in accessible_pools
+        ):
+            self.fail("OSMO CLI profile contains an invalid default pool.")
+        if not self.config.pool or self.config.pool not in accessible_pools:
+            self.fail(
+                "OETF_POOL must select a pool accessible to the authenticated user."
+            )
+
+        cli_token = cli_profile.get("token")
         expected_token = None
-        if direct_token is not None:
-            if not isinstance(direct_token, dict):
-                self.fail("Core returned invalid token metadata.")
+        if cli_token is not None:
+            if not isinstance(cli_token, dict):
+                self.fail("OSMO CLI returned invalid token metadata.")
             expected_token = {
-                field: direct_token.get(field)
+                field: cli_token.get(field)
                 for field in _TOKEN_FIELDS
             }
         expected_profile = {
             "profile": {
-                field: direct_profile_settings.get(field)
+                field: cli_profile_settings.get(field)
                 for field in _PROFILE_FIELDS
             },
-            "roles": direct_profile["roles"],
-            "pools": direct_profile["pools"],
+            "roles": cli_profile["roles"],
+            "pools": cli_profile["pools"],
             "token": expected_token,
         }
 
         profile = self._call_tool(2, "osmo_get_profile", {})
         if profile != expected_profile:
             self.fail(
-                "MCP profile projection does not match the direct Core profile."
+                "MCP profile projection does not match the OSMO CLI profile."
             )
 
         health = self._call_tool(3, "osmo_health", {})
         if health != {"status": "healthy"}:
             self.fail("MCP health tool returned an invalid response.")
+
+        cli_credentials = self.cli(
+            ["osmo", "credential", "--format-type", "json", "list"]
+        ).expect_json()
+        if (
+            not isinstance(cli_credentials, dict)
+            or not isinstance(cli_credentials.get("credentials"), list)
+        ):
+            self.fail("OSMO CLI returned an invalid credential list.")
+        cli_credential_metadata = []
+        for credential in cli_credentials["credentials"]:
+            if not isinstance(credential, dict) or not all(
+                isinstance(credential.get(field), str)
+                for field in _CREDENTIAL_FIELDS
+            ):
+                self.fail("OSMO CLI returned invalid credential metadata.")
+            cli_credential_metadata.append({
+                field: credential[field]
+                for field in _CREDENTIAL_FIELDS
+            })
+
+        mcp_credentials = self._call_tool(
+            4,
+            "osmo_list_credentials",
+            {},
+        )
+        if not isinstance(mcp_credentials.get("credentials"), list):
+            self.fail("MCP returned an invalid credential list.")
+        mcp_credential_metadata = mcp_credentials["credentials"]
+        if not all(
+            isinstance(credential, dict)
+            and set(credential) == set(_CREDENTIAL_FIELDS)
+            and all(
+                isinstance(credential.get(field), str)
+                for field in _CREDENTIAL_FIELDS
+            )
+            for credential in mcp_credential_metadata
+        ):
+            self.fail("MCP returned credential fields outside the approved metadata.")
+        self.assertCountEqual(
+            mcp_credential_metadata,
+            cli_credential_metadata,
+            "MCP credential metadata does not match the OSMO CLI.",
+        )
 
     def test_workflow_validation_round_trip(self):
         pool = self.config.pool

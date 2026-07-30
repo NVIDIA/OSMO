@@ -81,6 +81,20 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_cli_parity",
+    srcs = ["test_cli_parity.py"],
+    deps = [
+        "//src/cli:cli_lib",
+        "//src/lib/utils:resource_quantities",
+        "//src/lib/utils:workflow",
+        "//src/service/mcp:credential_action_tools",
+        "//src/service/mcp:resource_tools",
+        "//src/service/mcp:tool_registry",
+        "//src/service/mcp:workflow_submission",
+    ],
+)
+
+osmo_py_test(
     name = "test_credentials",
     srcs = ["test_credentials.py"],
     deps = [
