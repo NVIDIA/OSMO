@@ -20,6 +20,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 import os
 import secrets
 import time
+import unittest
 from typing import Any, Dict, List, Optional
 
 from src.lib.utils.client import RequestMethod
@@ -313,3 +314,7 @@ class WorkflowLabels(RunnerFixture):
             f"workflow {workflow_id} stayed {final_status} past "
             f"{timeout_seconds}s")
         return workflow
+
+
+if __name__ == "__main__":
+    unittest.main()
