@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 import math
 import re
 from typing import Any, Final
@@ -102,6 +102,48 @@ def round_used_capacity(used: float, capacity: float) -> tuple[int, int]:
     rounded_capacity = max(0, math.floor(capacity))
     rounded_used = max(0, min(math.ceil(used), rounded_capacity))
     return rounded_used, rounded_capacity
+
+
+def normalize_resource_capacities(
+    resource: Mapping[str, Any],
+    pool: str,
+    platform: str,
+    resource_names: Collection[str] | None = None,
+) -> dict[str, dict[str, int | str]]:
+    """Project selected capacities while preserving valid zero count fields.
+
+    The CLI resource-detail view reports capacity without usage. Kubernetes
+    commonly omits the GPU allocatable key on CPU-only nodes even though
+    Core's exposed resource fields correctly describe it as zero.
+    """
+    capacity_fields = _selected_capacity_fields(resource, pool, platform)
+    selected_names = (
+        frozenset(resource_names)
+        if resource_names is not None
+        else frozenset(RESOURCE_UNITS)
+    )
+    capacities: dict[str, dict[str, int | str]] = {}
+    for name, unit in RESOURCE_UNITS.items():
+        if name not in selected_names:
+            continue
+        if name in capacity_fields:
+            raw_capacity = capacity_fields[name]
+        elif name in ('cpu', 'gpu'):
+            raw_capacity = 0
+        else:
+            continue
+        try:
+            capacity = convert_quantity_value(name, raw_capacity)
+        except (ValueError, TypeError, OverflowError):
+            continue
+
+        quantity: dict[str, int | str] = {
+            'capacity': max(0, math.floor(capacity)),
+        }
+        if unit is not None:
+            quantity['unit'] = unit
+        capacities[name] = quantity
+    return capacities
 
 
 def normalize_resource_quantities(

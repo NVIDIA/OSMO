@@ -23,6 +23,7 @@ from urllib import parse
 
 from mcp.server.fastmcp import Context
 
+from src.lib.api import credential_payload as credential_payload_contract
 from src.lib.api import storage as storage_contract
 from src.service.mcp import tool_errors, tool_requests, tool_validation
 from src.service.mcp.credential_action_models import (
@@ -177,9 +178,6 @@ def _credential_request_payload(
             )
         ):
             raise _invalid_payload()
-        request_payload: dict[str, object] = {
-            'registry_credential': validated_payload,
-        }
     elif credential_type == 'DATA':
         if (
             not _DATA_REQUIRED_FIELDS.issubset(payload_fields)
@@ -204,18 +202,13 @@ def _credential_request_payload(
             )
         ):
             raise _invalid_payload()
-        validated_payload['endpoint'] = (
-            validated_payload['endpoint'].rstrip('/')
+
+    request_payload = (
+        credential_payload_contract.build_credential_request_envelope(
+            credential_type,
+            validated_payload,
         )
-        request_payload = {
-            'data_credential': validated_payload,
-        }
-    else:
-        request_payload = {
-            'generic_credential': {
-                'credential': validated_payload,
-            },
-        }
+    )
 
     try:
         encoded_payload = json.dumps(

@@ -349,7 +349,7 @@ class TestRunSetCommand(unittest.TestCase):
             payload=[
                 'access_key_id=ak',
                 'access_key=sk',
-                'endpoint=s3://bucket',
+                'endpoint=s3://bucket/',
             ],
         )
 

@@ -26,6 +26,7 @@ import yaml
 
 import shtab
 
+from src.lib.api import credential_payload
 from src.lib.utils import client, client_configs, credentials, common, osmo_errors
 
 CRED_TYPES = ['REGISTRY', 'DATA', 'GENERIC']
@@ -103,20 +104,23 @@ def _run_set_command(service_client: client.ServiceClient, args: argparse.Namesp
                 print(f'File {value} cannot be found.')
                 sys.exit(1)
 
+    validated_data_credential = None
     if args.type == 'DATA':
         # Validate that the data credential is valid
         try:
-            credentials.StaticDataCredential(**cred_payload)
+            validated_data_credential = credentials.StaticDataCredential(
+                **cred_payload
+            )
         except Exception as err:  # pylint: disable=broad-except
             raise osmo_errors.OSMOUserError(f'Invalid DATA credential: {str(err)}')
-
-    elif args.type == 'GENERIC':
-        cred_payload = {'credential': cred_payload}
 
     result = service_client.request(
         client.RequestMethod.POST,
         f'api/credentials/{args.name}',
-        payload={args.type.lower() + '_credential': cred_payload},
+        payload=credential_payload.build_credential_request_envelope(
+            args.type,
+            cred_payload,
+        ),
     )
 
     if args.format_type == 'json':
@@ -126,7 +130,8 @@ def _run_set_command(service_client: client.ServiceClient, args: argparse.Namesp
 
     if args.type == 'DATA':
         # Save the data credential to the client config
-        _save_config(credentials.StaticDataCredential(**cred_payload))
+        assert validated_data_credential is not None
+        _save_config(validated_data_credential)
 
 
 def _run_list_command(service_client: client.ServiceClient, args: argparse.Namespace):

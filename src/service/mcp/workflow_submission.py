@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 from mcp.server.fastmcp import Context
 
+from src.lib.utils import workflow as workflow_utils
 from src.service.mcp import (
     access_scope,
     tool_errors,
@@ -37,7 +38,6 @@ from src.service.mcp.workflow_models import (
 _MAX_SUBMISSION_SPEC_BYTES = 128 * 1024
 _MAX_JSON_RESPONSE_BYTES = 64 * 1024
 _MAX_OVERRIDE_BYTES = 2048
-_TEMPLATE_MARKERS = ('{%', '{{', '{#', 'default-values')
 
 
 def validate_pool_name(pool: str | None) -> str | None:
@@ -136,7 +136,7 @@ def build_submission_payload(
         set_string_variables=set_string_variables,
         uploaded_templated_spec=(
             validated_spec
-            if _is_templated_workflow(validated_spec)
+            if workflow_utils.is_templated_workflow(validated_spec)
             else None
         ),
     )
@@ -191,8 +191,3 @@ async def request_submission(
         response,
         operation=operation,
     )
-
-
-def _is_templated_workflow(workflow_spec: str) -> bool:
-    """Detect standard Jinja and OSMO workflow template markers."""
-    return any(marker in workflow_spec for marker in _TEMPLATE_MARKERS)

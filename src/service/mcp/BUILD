@@ -271,6 +271,7 @@ osmo_py_library(
         ":tool_validation",
         ":workflow_action_models",
         ":workflow_models",
+        "//src/lib/utils:workflow",
     ],
     visibility = ["//visibility:public"],
 )
@@ -359,6 +360,7 @@ osmo_py_library(
         ":tool_errors",
         ":tool_requests",
         ":tool_validation",
+        "//src/lib/api:credential_payload",
         "//src/lib/api:storage",
     ],
     visibility = ["//visibility:public"],
