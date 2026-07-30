@@ -32,6 +32,8 @@ object storage. The tests exercise:
   ``OperationError`` for both ``ExecutorError`` and generic exceptions
 """
 
+# pylint: disable=protected-access
+
 import contextlib
 import os
 import tempfile
@@ -525,9 +527,9 @@ class TestUploadObjects(unittest.TestCase):
 
     @staticmethod
     def _make_completed_job_context() -> executor.JobContext:
-        job_context: executor.JobContext = executor.JobContext()
-        job_context.__enter__()
-        job_context.__exit__(None, None, None)
+        job_context: executor.JobContext
+        with executor.JobContext() as job_context:
+            pass
         return job_context
 
     def test_upload_objects_upload_paths_variant_returns_summary(self):
