@@ -209,16 +209,6 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'Profiles and credential payloads are never returned.',
     ),
     (
-        credential_actions.osmo_set_credential,
-        'osmo_set_credential',
-        'Set OSMO credential',
-        'Set one credential. REGISTRY requires auth and optionally '
-        'registry/username; DATA requires access_key_id, access_key, and '
-        'endpoint and optionally region/override_url/addressing_style; '
-        'GENERIC accepts string key/value pairs. MCP does not return or log '
-        'payload values; the calling client may retain its arguments.',
-    ),
-    (
         credential_actions.osmo_delete_credential,
         'osmo_delete_credential',
         'Delete OSMO credential',
@@ -252,7 +242,6 @@ _EXPECTED_REQUIRED_FIELDS = {
     'osmo_rename_app': ['original_name', 'new_name'],
     'osmo_submit_app': ['name'],
     'osmo_list_credentials': [],
-    'osmo_set_credential': ['name', 'cred_type', 'payload'],
     'osmo_delete_credential': ['name'],
 }
 
@@ -325,7 +314,6 @@ _WRITE_TOOL_NAMES = frozenset({
     'osmo_delete_credential',
     'osmo_rename_app',
     'osmo_restart_workflow',
-    'osmo_set_credential',
     'osmo_set_profile',
     'osmo_submit_workflow',
     'osmo_submit_app',
@@ -338,17 +326,13 @@ _DESTRUCTIVE_TOOL_NAMES = frozenset({
     'osmo_delete_credential',
     'osmo_rename_app',
     'osmo_restart_workflow',
-    'osmo_set_credential',
     'osmo_set_profile',
 })
 _IDEMPOTENT_WRITE_TOOL_NAMES = frozenset({
     'osmo_delete_credential',
-    'osmo_set_credential',
     'osmo_set_profile',
 })
-_OPEN_WORLD_TOOL_NAMES = frozenset({
-    'osmo_set_credential',
-})
+_OPEN_WORLD_TOOL_NAMES: frozenset[str] = frozenset()
 
 
 class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):

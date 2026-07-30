@@ -360,8 +360,6 @@ osmo_py_library(
         ":tool_errors",
         ":tool_requests",
         ":tool_validation",
-        "//src/lib/api:credential_payload",
-        "//src/lib/api:storage",
     ],
     visibility = ["//visibility:public"],
 )

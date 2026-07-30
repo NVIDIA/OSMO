@@ -87,7 +87,6 @@ osmo_py_test(
         "//src/cli:cli_lib",
         "//src/lib/utils:resource_quantities",
         "//src/lib/utils:workflow",
-        "//src/service/mcp:credential_action_tools",
         "//src/service/mcp:resource_tools",
         "//src/service/mcp:tool_registry",
         "//src/service/mcp:workflow_submission",

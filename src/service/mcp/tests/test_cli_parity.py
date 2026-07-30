@@ -20,20 +20,14 @@ SPDX-License-Identifier: Apache-2.0
 # helpers without making network requests.
 # pylint: disable=protected-access
 
-import argparse
 import dataclasses
-import hashlib
-import json
 import unittest
-from unittest import mock
-from typing import Any, cast
+from typing import Any
 
-from src.cli import credential as cli_credential
 from src.cli import resources as cli_resources
 from src.cli import workflow as cli_workflow
 from src.lib.utils import resource_quantities, workflow as workflow_utils
 from src.service.mcp import (
-    credential_actions,
     resources as mcp_resources,
     tool_registry,
     workflow_submission,
@@ -175,14 +169,6 @@ _PARITY_CONTRACTS = {
         _SEMANTIC_PROJECTION,
         'osmo credential --format-type json list',
     ),
-    'osmo_set_credential': _ParityContract(
-        _SHARED_REQUEST,
-        'osmo credential set <name> --type <type> --payload <key=value>',
-        evidence=(
-            'CredentialEnvelopeParityTest.'
-            'test_core_envelopes_match_for_all_credential_types'
-        ),
-    ),
     'osmo_delete_credential': _ParityContract(
         _SEMANTIC_PROJECTION,
         'osmo credential delete <name>',
@@ -224,24 +210,13 @@ def _assert_complete_parity_contract(
             )
 
 
-def _payload_fingerprint(payload: dict[str, object]) -> str:
-    """Compare synthetic credential payloads without printing their values."""
-    serialized = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(',', ':'),
-    ).encode('utf-8')
-    return hashlib.sha256(serialized).hexdigest()
-
-
 class ToolParityManifestTest(unittest.TestCase):
     """Require an explicit CLI relationship for every external MCP tool."""
 
     def test_manifest_exactly_covers_the_tool_catalog(self) -> None:
         catalog_names = {spec.name for spec in tool_registry.TOOL_SPECS}
 
-        self.assertEqual(len(catalog_names), 26)
+        self.assertEqual(len(catalog_names), 25)
         _assert_complete_parity_contract(
             catalog_names,
             _PARITY_CONTRACTS,
@@ -264,8 +239,8 @@ class ToolParityManifestTest(unittest.TestCase):
     def test_shared_request_without_evidence_is_rejected(self) -> None:
         catalog_names = {spec.name for spec in tool_registry.TOOL_SPECS}
         unsupported_contracts = dict(_PARITY_CONTRACTS)
-        unsupported_contracts['osmo_set_credential'] = dataclasses.replace(
-            unsupported_contracts['osmo_set_credential'],
+        unsupported_contracts['osmo_restart_workflow'] = dataclasses.replace(
+            unsupported_contracts['osmo_restart_workflow'],
             evidence=None,
         )
 
@@ -277,113 +252,6 @@ class ToolParityManifestTest(unittest.TestCase):
                 catalog_names,
                 unsupported_contracts,
             )
-
-
-class CredentialEnvelopeParityTest(unittest.TestCase):
-    """Keep the CLI and MCP Core credential request envelopes identical."""
-
-    def _cli_payload(
-        self,
-        credential_type: str,
-        values: dict[str, str],
-    ) -> dict[str, object]:
-        service_client = mock.Mock()
-        service_client.request.return_value = {}
-        args = argparse.Namespace(
-            name='parity-credential',
-            type=credential_type,
-            payload=[
-                f'{key}={value}'
-                for key, value in values.items()
-            ],
-            payload_file=None,
-            format_type='text',
-        )
-        with mock.patch('builtins.print'), mock.patch.object(
-            cli_credential,
-            '_save_config',
-        ):
-            cli_credential._run_set_command(service_client, args)
-        return service_client.request.call_args.kwargs['payload']
-
-    def test_core_envelopes_match_for_all_credential_types(self) -> None:
-        cases = (
-            (
-                'REGISTRY',
-                {
-                    'auth': 'synthetic-registry-auth',
-                    'registry': 'nvcr.io/example',
-                    'username': 'synthetic-user',
-                },
-                'registry_credential',
-            ),
-            (
-                'DATA',
-                {
-                    'access_key_id': 'synthetic-access-id',
-                    'access_key': 'synthetic-access-key',
-                    'endpoint': 's3://parity-bucket/',
-                    'region': 'us-west-2',
-                },
-                'data_credential',
-            ),
-            (
-                'GENERIC',
-                {'synthetic-key': 'synthetic-value'},
-                'generic_credential',
-            ),
-        )
-
-        for credential_type, values, envelope_key in cases:
-            with self.subTest(credential_type=credential_type):
-                cli_payload = self._cli_payload(credential_type, values)
-                validated_type = (
-                    credential_actions._validate_credential_type(
-                        credential_type
-                    )
-                )
-                mcp_payload = credential_actions._credential_request_payload(
-                    validated_type,
-                    values,
-                )
-
-                self.assertEqual(set(cli_payload), {envelope_key})
-                self.assertEqual(set(mcp_payload), {envelope_key})
-                self.assertEqual(
-                    _payload_fingerprint(cli_payload),
-                    _payload_fingerprint(mcp_payload),
-                    'CLI and MCP credential envelopes differ.',
-                )
-
-    def test_data_endpoint_is_normalized_before_both_requests(self) -> None:
-        values = {
-            'access_key_id': 'synthetic-access-id',
-            'access_key': 'synthetic-access-key',
-            'endpoint': 's3://parity-bucket/',
-        }
-
-        cli_payload = self._cli_payload('DATA', values)
-        mcp_payload = credential_actions._credential_request_payload(
-            'DATA',
-            values,
-        )
-        cli_data_payload = cast(
-            dict[str, object],
-            cli_payload['data_credential'],
-        )
-        mcp_data_payload = cast(
-            dict[str, object],
-            mcp_payload['data_credential'],
-        )
-
-        self.assertEqual(
-            cli_data_payload.get('endpoint'),
-            's3://parity-bucket',
-        )
-        self.assertEqual(
-            mcp_data_payload.get('endpoint'),
-            's3://parity-bucket',
-        )
 
 
 class ResourceQuantityParityTest(unittest.TestCase):

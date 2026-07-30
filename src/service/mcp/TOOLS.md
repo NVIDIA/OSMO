@@ -120,7 +120,7 @@ consume compute or mutate existing workflow state.
 
 ## Phase 3: user-owned mutations (implemented; deployment verification pending)
 
-`osmo_set_profile`, `osmo_set_credential`, `osmo_delete_credential`,
+`osmo_set_profile`, `osmo_delete_credential`,
 `osmo_create_app`, `osmo_update_app`, `osmo_delete_app`, and
 `osmo_rename_app` and `osmo_submit_app` are implemented. Profile updates
 change exactly one external CLI-supported setting per call: the default pool,
@@ -129,18 +129,8 @@ outside this tool's public contract. Core returns JSON `null` after accepting
 the write, so MCP returns a compact confirmation rather than implying it read
 back authoritative state.
 
-Credential writes accept the canonical documented REGISTRY, DATA, and GENERIC
-payload shapes used by the CLI and Core. Values are bounded strings and are
-sent only in the fixed Core request body; they are never returned or logged by
-MCP. Registry and data profile fields reject URL userinfo, query, and fragment
-components. Delete results project only the matching credential name and type,
-omitting Core's legacy profile field. The MCP cannot control whether the
-calling client retains the original secret-bearing tool arguments, so callers
-must use an appropriate client.
-Core currently maps the CLI's credential set POST route to
-`credentials:Create` and conflicts records by profile. A same-name update with
-a different or null profile can therefore be rejected instead of replaced;
-MCP preserves that existing API/RBAC behavior.
+Credential deletion projects only the matching credential name and type,
+omitting Core's legacy profile field.
 
 App create synchronously creates version 1 and schedules its upload. Update
 always creates and schedules a new version from the submitted inline YAML; it

@@ -100,10 +100,10 @@ authorization value.
 
 ## Available tools
 
-The external catalog contains 26 tools: 14 read-only tools for caller-bound
+The external catalog contains 25 tools: 14 read-only tools for caller-bound
 health, profile, pool, resource, workflow, application, and
 credential-metadata inspection, plus four workflow actions, one
-profile-setting action, two credential actions, four app lifecycle actions,
+profile-setting action, one credential action, four app lifecycle actions,
 and app submission. Each tool maps to a fixed external API, returns a
 structured allowlisted result, and applies a domain-specific response limit.
 Credential inspection returns names and types only. Profile inspection
@@ -116,22 +116,8 @@ are outside this tool's public contract. Core returns no updated profile
 object, so the tool reports only the validated setting that was accepted.
 Profile writes are one-shot and are not automatically retried.
 
-`osmo_set_credential` accepts the canonical documented REGISTRY, DATA, and
-GENERIC payload shapes used by the CLI and Core, with bounded string-only
-values. The MCP sends the validated payload to Core but never returns or logs
-it. Registry and data profile fields reject URL userinfo, query, and fragment
-components before the write, and `osmo_delete_credential` omits Core's legacy
-profile value from its result.
-Credential mutations are destructive, one-shot operations. The calling MCP
-client still owns the tool arguments it submitted and may retain them in its
-own transcript or logs; callers must use a client appropriate for secret
-entry.
-
-Core currently authorizes credential POST requests as `credentials:Create`
-even though it is the CLI's set route. Core also conflicts records by profile,
-so a same-name update with a different or null profile can be rejected instead
-of replaced. The external MCP preserves those API/RBAC semantics and reports
-the Core failure rather than emulating a replacement.
+`osmo_delete_credential` omits Core's legacy profile value from its result.
+Credential deletion is a destructive, one-shot operation.
 
 App create and update accept bounded inline workflow YAML. Callers should
 reference OSMO credentials rather than inline secrets; MCP does not return or

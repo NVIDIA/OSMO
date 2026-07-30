@@ -101,8 +101,8 @@ The self-hosted MCP groups tools into the following areas:
      - List applications; inspect metadata, versions, and specifications; create,
        update, delete, and rename applications.
    * - Credentials
-     - List credential names and types, set a credential, or delete a
-       credential. Secret payloads are never returned by MCP.
+     - List credential names and types or delete a credential. Secret payloads
+       are never returned by MCP.
 
 The server advertises the exact current tool names, input definitions, and
 annotations to the MCP client.
