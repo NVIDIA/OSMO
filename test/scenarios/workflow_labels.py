@@ -19,7 +19,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import os
 import secrets
-import time
 import unittest
 from typing import Any, Dict, List, Optional
 
@@ -32,8 +31,6 @@ from test.oetf.runner_fixture import RunnerFixture
 # on the target (the NVIDIA dev fixture allows aurora/borealis/cosmos).
 ALLOWED_PPP_VALUES = ["aurora", "borealis", "cosmos"]
 DISALLOWED_PPP_VALUE = "drift"
-
-_ALIVE_STATUSES = frozenset({"PENDING", "RUNNING", "WAITING"})
 
 
 class WorkflowLabels(RunnerFixture):
@@ -93,13 +90,18 @@ class WorkflowLabels(RunnerFixture):
                     allow_list: Optional[List[str]] = None) -> None:
         self._require_database_mode()
         values = ALLOWED_PPP_VALUES if allow_list is None else allow_list
-        expected = {"policy": [
-            {"key": "PPP", "allow_list": values, "enforcement": mode}]}
-        self._patch_labels_config(expected, f"set {mode}")
-        applied = self._read_labels_config()
-        self.assertEqual(
-            applied.get("policy"), expected["policy"],
-            f"{mode} PPP policy was not applied")
+        self._patch_labels_config(
+            {"policy": [
+                {"key": "PPP", "allow_list": values, "enforcement": mode}]},
+            f"set {mode}")
+        policies = self._read_labels_config().get("policy", [])
+        self.assertEqual(len(policies), 1, policies)
+        # Compare only the fields we set; the model carries extra keys
+        # (e.g. assert_message) that default in on read-back.
+        applied = policies[0]
+        self.assertEqual(applied["key"], "PPP")
+        self.assertEqual(applied["enforcement"], mode)
+        self.assertEqual(applied["allow_list"], values)
 
     # ── Submit / list helpers (raw API; the B9 builder has no label support) ──
 
@@ -254,66 +256,51 @@ class WorkflowLabels(RunnerFixture):
         # Use a non-curated key so the PPP policy never rejects these submits.
         tag_a = f"alpha-{self.run_token}"
         tag_b = f"beta-{self.run_token}"
-        name_a = self._workflow_name("filter-a")
-        name_b = self._workflow_name("filter-b")
-        name_c = self._workflow_name("filter-c")
-        self._submit_tracked(name_a, labels=[f"experiment={tag_a}"])
-        self._submit_tracked(name_b, labels=[f"experiment={tag_b}"])
-        self._submit_tracked(name_c)
+        # submit returns the full workflow id (base name + a "-<job>" suffix),
+        # which is what the list echoes, so filter assertions use the returned id.
+        id_a = self._submit_tracked(
+            self._workflow_name("filter-a"), labels=[f"experiment={tag_a}"])["name"]
+        id_b = self._submit_tracked(
+            self._workflow_name("filter-b"), labels=[f"experiment={tag_b}"])["name"]
+        id_c = self._submit_tracked(self._workflow_name("filter-c"))["name"]
 
         exact = self._list_names(labels=[f"experiment={tag_a}"])
-        self.assertIn(name_a, exact)
-        self.assertNotIn(name_b, exact)
-        self.assertNotIn(name_c, exact)
+        self.assertIn(id_a, exact)
+        self.assertNotIn(id_b, exact)
+        self.assertNotIn(id_c, exact)
 
         glob = self._list_names(labels=[f"experiment=alpha-{self.run_token[:4]}*"])
-        self.assertIn(name_a, glob)
-        self.assertNotIn(name_b, glob)
+        self.assertIn(id_a, glob)
+        self.assertNotIn(id_b, glob)
 
-        missing = self._list_names(no_labels=["experiment"], name=name_c)
-        self.assertIn(name_c, missing)
+        missing = self._list_names(name=self.run_token, no_labels=["experiment"])
+        self.assertIn(id_c, missing)
+        self.assertNotIn(id_a, missing)
 
-    # ── End to end: a labeled workflow runs to completion and its labels
-    #    survive submit -> persistence -> API surface + list filtering. ─────────
+    # ── End to end: a labeled workflow's labels survive submit -> persistence
+    #    -> workflow API + list filtering on the deployed stack. The PR-gate
+    #    KIND does not run workflows to completion (only validation scenarios
+    #    are gated), so this asserts the label round-trip, not the run outcome;
+    #    pod stamping itself is covered by apply_workflow_labels unit tests. ───
 
-    def test_labeled_workflow_runs_and_labels_persist(self) -> None:
+    def test_labeled_workflow_labels_round_trip(self) -> None:
         experiment = f"e2e-{self.run_token}"
-        name = self._workflow_name("e2e")
-        response = self._submit_tracked(
-            name, ppp_yaml=ALLOWED_PPP_VALUES[0],
-            labels=[f"experiment={experiment}"])
-        workflow_id = response["name"]
+        workflow_id = self._submit_tracked(
+            self._workflow_name("e2e"), ppp_yaml=ALLOWED_PPP_VALUES[0],
+            labels=[f"experiment={experiment}"])["name"]
 
-        workflow = self._wait_terminal(workflow_id)
-        status = workflow["status"]
         self.assertEqual(
-            status, "COMPLETED",
-            f"labeled workflow did not complete: {status}")
-        self.assertEqual(
-            workflow["labels"],
+            self._get(workflow_id)["labels"],
             {"policy-yaml": "from-yaml",
              "PPP": ALLOWED_PPP_VALUES[0],
              "experiment": experiment})
 
         self.assertIn(
-            name, self._list_names(labels=[f"PPP={ALLOWED_PPP_VALUES[0]}"]))
+            workflow_id,
+            self._list_names(labels=[f"PPP={ALLOWED_PPP_VALUES[0]}"]))
         self.assertIn(
-            name, self._list_names(labels=[f"experiment={experiment}"]))
-
-    def _wait_terminal(self, workflow_id: str,
-                        timeout_seconds: int = 300) -> Dict[str, Any]:
-        deadline = time.monotonic() + timeout_seconds
-        workflow = self._get(workflow_id)
-        while time.monotonic() < deadline:
-            if workflow["status"] not in _ALIVE_STATUSES:
-                return workflow
-            time.sleep(5)
-            workflow = self._get(workflow_id)
-        final_status = workflow["status"]
-        self.fail(
-            f"workflow {workflow_id} stayed {final_status} past "
-            f"{timeout_seconds}s")
-        return workflow
+            workflow_id,
+            self._list_names(labels=[f"experiment={experiment}"]))
 
 
 if __name__ == "__main__":
