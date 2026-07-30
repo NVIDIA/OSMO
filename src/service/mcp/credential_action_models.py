@@ -23,13 +23,8 @@ import pydantic
 from src.service.mcp.tool_models import ClosedToolModel, ExtensibleUpstreamModel
 
 
-CREDENTIAL_NAME_PATTERN = (
-    r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'
-)
+CREDENTIAL_NAME_PATTERN = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'
 MAX_CREDENTIAL_NAME_LENGTH = 512
-MAX_CREDENTIAL_PAYLOAD_ENTRIES = 64
-MAX_CREDENTIAL_PAYLOAD_KEY_LENGTH = 256
-MAX_CREDENTIAL_PAYLOAD_VALUE_LENGTH = 64 * 1024
 
 CredentialType = Literal['REGISTRY', 'DATA', 'GENERIC']
 CredentialName = Annotated[
@@ -49,42 +44,6 @@ CredentialNameInput = Annotated[
         'pattern': CREDENTIAL_NAME_PATTERN,
     }),
 ]
-CredentialTypeInput = Annotated[
-    Any,
-    pydantic.WithJsonSchema({
-        'type': 'string',
-        'enum': ['REGISTRY', 'DATA', 'GENERIC'],
-    }),
-]
-CredentialPayloadInput = Annotated[
-    Any,
-    pydantic.WithJsonSchema({
-        'type': 'object',
-        'minProperties': 1,
-        'maxProperties': MAX_CREDENTIAL_PAYLOAD_ENTRIES,
-        'propertyNames': {
-            'type': 'string',
-            'minLength': 1,
-            'maxLength': MAX_CREDENTIAL_PAYLOAD_KEY_LENGTH,
-        },
-        'additionalProperties': {
-            'type': 'string',
-            'minLength': 1,
-            'maxLength': MAX_CREDENTIAL_PAYLOAD_VALUE_LENGTH,
-            'writeOnly': True,
-        },
-    }),
-]
-
-
-class SetCredentialResult(ClosedToolModel):
-    """Compact confirmation that Core accepted a credential write."""
-
-    cred_name: CredentialName
-    cred_type: CredentialType
-    saved: Literal[True]
-
-
 class UpstreamDeletedCredential(ExtensibleUpstreamModel):
     """Allowlisted metadata for one credential returned by Core."""
 

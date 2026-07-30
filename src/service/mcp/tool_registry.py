@@ -304,23 +304,6 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         ),
     ),
     ToolSpec(
-        function=credential_actions.osmo_set_credential,
-        name='osmo_set_credential',
-        title='Set OSMO credential',
-        description=(
-            'Set one credential. REGISTRY requires auth and optionally '
-            'registry/username; DATA requires access_key_id, access_key, and '
-            'endpoint and optionally region/override_url/addressing_style; '
-            'GENERIC accepts string key/value pairs. MCP does not return or '
-            'log payload values; the calling client may retain its arguments.'
-        ),
-        annotations=_write_annotations(
-            destructive=True,
-            idempotent=True,
-            open_world=True,
-        ),
-    ),
-    ToolSpec(
         function=credential_actions.osmo_delete_credential,
         name='osmo_delete_credential',
         title='Delete OSMO credential',
