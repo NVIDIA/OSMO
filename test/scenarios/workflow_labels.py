@@ -174,23 +174,25 @@ class WorkflowLabels(RunnerFixture):
         except OSMOError:
             pass
 
-    def _capture(self, call: Any) -> Optional[OSMOError]:
+    def _expect_rejected(self, call: Any, *, status: int = 400,
+                         fragment: str = "") -> None:
         try:
             call()
         except OSMOError as error:
-            return error
-        return None
+            self.assertEqual(error.status_code, status)
+            if fragment:
+                self.assertIn(fragment, error.message)
+            return
+        self.fail("expected the request to be rejected")
 
     # ── Policy gate: validation-only, so nothing schedules and no row is left ──
 
     def test_off_policy_accepts_missing_and_unlisted_values(self) -> None:
         self._set_policy("off")
-        for case, kwargs in (
-                ("missing", {}),
-                ("unlisted", {"ppp_yaml": DISALLOWED_PPP_VALUE}),
-        ):
+        for case, ppp_yaml in (("missing", ""), ("unlisted", DISALLOWED_PPP_VALUE)):
             name = self._workflow_name(f"off-{case}")
-            response = self._submit(name, validation_only=True, **kwargs)
+            response = self._submit(
+                name, ppp_yaml=ppp_yaml, validation_only=True)
             self.assertEqual(response["logs"], "Workflow validation succeeded.")
             self.assertEqual(response.get("warnings", []), [])
             self.assertEqual(self._list_names(name=name), [])
@@ -218,18 +220,15 @@ class WorkflowLabels(RunnerFixture):
 
     def test_enforce_policy_rejects_without_creating_a_row(self) -> None:
         self._set_policy("enforce")
-        for case, kwargs, fragment in (
-                ("missing", {}, "missing required label 'PPP'"),
-                ("invalid", {"ppp_yaml": DISALLOWED_PPP_VALUE},
-                 "not allowed"),
+        for case, ppp_yaml, fragment in (
+                ("missing", "", "missing required label 'PPP'"),
+                ("invalid", DISALLOWED_PPP_VALUE, "not allowed"),
         ):
             name = self._workflow_name(f"enforce-{case}")
-            error = self._capture(
-                lambda n=name, k=kwargs: self._submit(
-                    n, validation_only=True, **k))
-            self.assertIsNotNone(error, f"{case} should have been rejected")
-            self.assertEqual(error.status_code, 400)
-            self.assertIn(fragment, error.message)
+            self._expect_rejected(
+                lambda n=name, p=ppp_yaml: self._submit(
+                    n, ppp_yaml=p, validation_only=True),
+                fragment=fragment)
             self.assertEqual(self._list_names(name=name), [])
 
         accepted = self._submit(
@@ -239,26 +238,14 @@ class WorkflowLabels(RunnerFixture):
 
     def test_malformed_labels_are_rejected(self) -> None:
         # Label-syntax validation is independent of policy and runs in any mode.
-        nested = self._capture(
-            lambda: self._submit(
-                self._workflow_name("nested"), nested_ppp=True,
-                validation_only=True))
-        self.assertIsNotNone(nested)
-        self.assertEqual(nested.status_code, 400)
-
-        bad_key = self._capture(
-            lambda: self._submit(
-                self._workflow_name("badkey"),
-                labels=["bad/key/nested=value"], validation_only=True))
-        self.assertIsNotNone(bad_key)
-        self.assertEqual(bad_key.status_code, 400)
-
-        empty_value = self._capture(
-            lambda: self._submit(
-                self._workflow_name("emptyval"),
-                labels=["PPP="], validation_only=True))
-        self.assertIsNotNone(empty_value)
-        self.assertEqual(empty_value.status_code, 400)
+        self._expect_rejected(lambda: self._submit(
+            self._workflow_name("nested"), nested_ppp=True, validation_only=True))
+        self._expect_rejected(lambda: self._submit(
+            self._workflow_name("badkey"), labels=["bad/key/nested=value"],
+            validation_only=True))
+        self._expect_rejected(lambda: self._submit(
+            self._workflow_name("emptyval"), labels=["PPP="],
+            validation_only=True))
 
     # ── List filters: real rows, no scheduling needed; cancelled in tearDown ──
 
