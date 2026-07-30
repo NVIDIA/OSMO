@@ -53,6 +53,8 @@ scope before projecting any result. A future Core contract should perform the
 intersection on the resource request itself. Large accessible-pool sets can
 also reach the shared 16-KiB query ceiling for list requests even when MCP
 output is small; this is bounded output, not end-to-end pagination.
+Compact MCP quantities omit resource kinds without positive allocatable
+capacity; the CLI detail view may render those kinds as an explicit zero.
 
 Returning token name/expiry from `osmo_get_profile` is intentional. The tool
 never returns bearer values.
@@ -61,6 +63,29 @@ Credential profiles are intentionally omitted even though the CLI may display
 them. Legacy profile values can contain secret-bearing userinfo, queries, or
 fragments; the external projection therefore returns only `cred_name` and
 `cred_type`.
+
+## CLI semantic parity
+
+MCP results are compared with the CLI by meaning, not by serialized output.
+The MCP deliberately returns compact, closed, bounded, and redacted DTOs, so
+byte-for-byte equality with the CLI's presentation or raw API JSON is not a
+valid compatibility contract. Overlapping fields and Core request semantics
+must still agree.
+
+The inventory distinguishes shared Core mutation requests with executable
+evidence, semantic projections of the same state, documented intentional
+differences, and tools with no CLI equivalent. A shared request does not imply
+identical auxiliary reads or presentation.
+
+The CLI and MCP share dependency-light helpers for resource quantity
+normalization, credential request envelopes, and workflow template detection.
+`//src/service/mcp/tests:test_cli_parity` requires every registered tool to
+declare its CLI relationship in a parity inventory and locks selected shared
+behaviors with frozen fixtures. `//test/smoke:mcp-checks` additionally compares
+stable profile and credential metadata through a deployed CLI and MCP using
+the same caller. Mutable capacity counters and state-changing workflow, app,
+and credential operations remain covered by deterministic route/payload tests
+or explicit manual checks rather than sequential live comparisons.
 
 ## Phase 2: workflow actions (implemented; deployment verification pending)
 

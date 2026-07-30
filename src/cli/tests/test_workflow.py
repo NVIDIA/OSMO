@@ -16,7 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import argparse
 import unittest
+from unittest import mock
 
 from src.cli import workflow
 
@@ -43,6 +45,42 @@ workflow:
         self.assertEqual(result.file, workflow_contents)
         self.assertEqual(result.set_variables, [])
         self.assertEqual(result.set_string_variables, [])
+
+
+class WorkflowRestartTest(unittest.TestCase):
+    """Test CLI workflow restart request mapping."""
+
+    def test_uses_source_workflow_pool_when_pool_is_omitted(self) -> None:
+        service_client = mock.Mock()
+        service_client.request.side_effect = (
+            {'pool': 'source-pool'},
+            {'name': 'restarted-workflow'},
+        )
+        args = argparse.Namespace(
+            workflow_id='source-workflow',
+            pool=None,
+            format_type='json',
+        )
+
+        with mock.patch('builtins.print'):
+            workflow._restart_workflow(service_client, args)
+
+        self.assertEqual(
+            service_client.request.call_args_list,
+            [
+                mock.call(
+                    workflow.client.RequestMethod.GET,
+                    'api/workflow/source-workflow',
+                ),
+                mock.call(
+                    workflow.client.RequestMethod.POST,
+                    (
+                        'api/pool/source-pool/workflow/'
+                        'source-workflow/restart'
+                    ),
+                ),
+            ],
+        )
 
 
 if __name__ == '__main__':
