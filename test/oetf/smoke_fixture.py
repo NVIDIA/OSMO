@@ -21,14 +21,14 @@ import json
 import shlex
 import subprocess
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 from urllib.parse import urlparse
 
 from src.lib.utils.client import RequestMethod
 from src.lib.utils.osmo_errors import OSMOError
 from test.oetf import reporter
 from test.oetf.fixture_base import OetfFixture
-from test.oetf.osmo_cli import login_cli_to
+from test.oetf.osmo_cli import login_cli_to, resolve_osmo_cli
 
 
 # --- HttpProbe ---
@@ -150,12 +150,25 @@ class HttpProbe:
 # --- CliProbe ---
 
 
+CliCommand = str | Sequence[str]
+
+
+def _command_argv(command: CliCommand) -> list[str]:
+    argv = shlex.split(command) if isinstance(command, str) else list(command)
+    if not argv:
+        raise ValueError("CLI command must not be empty.")
+    if not all(isinstance(argument, str) for argument in argv):
+        raise TypeError("CLI command arguments must be strings.")
+    return argv
+
+
 class CliProbe:
     """Chainable builder for shell-command probes (osmo CLI or any binary)."""
 
-    def __init__(self, fixture: SmokeFixture, command: str) -> None:
+    def __init__(self, fixture: SmokeFixture, command: CliCommand) -> None:
         self._fixture = fixture
-        self._command = command
+        self._argv = _command_argv(command)
+        self._command = shlex.join(self._argv)
         self._timeout_seconds = 30
 
     def timeout(self, seconds: int) -> "CliProbe":
@@ -164,7 +177,7 @@ class CliProbe:
 
     def run(self) -> subprocess.CompletedProcess:
         return subprocess.run(
-            shlex.split(self._command),
+            self._argv,
             capture_output=True,
             text=True,
             timeout=self._timeout_seconds,
@@ -220,6 +233,18 @@ class CliProbe:
         result = self.expect_exit(0)
         self._fixture.assertIn(text, result.stdout)
         return result
+
+    def expect_json(self) -> Any:
+        result = self.expect_exit(0)
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as error:
+            detail = str(error)[:500]
+            self._fixture.fail(
+                f"`{self._command}` returned invalid JSON: {detail}. "
+                f"stdout length: {len(result.stdout)} characters."
+            )
+            raise  # pragma: no cover
 
 
 # --- WsProbe ---
@@ -306,14 +331,17 @@ class SmokeFixture(OetfFixture):
     def http(self, method: str, endpoint: str) -> HttpProbe:
         return HttpProbe(self, method, endpoint)
 
-    def cli(self, command: str) -> CliProbe:
+    def cli(self, command: CliCommand) -> CliProbe:
         # Fresh sandboxes (e.g. Jenkins) have no cached login, so the first
         # `osmo <subcommand>` errors with "Must login first". Auto-login once.
         global _CLI_LOGGED_IN
-        if not _CLI_LOGGED_IN and (command == "osmo" or command.startswith("osmo ")):
-            login_cli_to(self.config)
-            _CLI_LOGGED_IN = True
-        return CliProbe(self, command)
+        argv = _command_argv(command)
+        if argv[0] == "osmo":
+            if not _CLI_LOGGED_IN:
+                login_cli_to(self.config)
+                _CLI_LOGGED_IN = True
+            argv[0] = resolve_osmo_cli(self.config)
+        return CliProbe(self, argv)
 
     def ws(self, endpoint: str) -> WsProbe:
         return WsProbe(self, endpoint)

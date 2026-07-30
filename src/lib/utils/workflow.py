@@ -24,6 +24,14 @@ import yaml
 from . import osmo_errors
 
 
+WORKFLOW_TEMPLATE_MARKERS = ('{%', '{{', '{#', 'default-values')
+
+
+def is_templated_workflow(workflow_spec: str) -> bool:
+    """Detect standard Jinja and OSMO workflow template markers."""
+    return any(marker in workflow_spec for marker in WORKFLOW_TEMPLATE_MARKERS)
+
+
 def fetch_default_values(workflow_spec: str) -> str | None:
     """ Fetch the default values from the workflow spec. """
     default_values_pattern = re.compile(r'(^\s*default-values:\s*)(.*?)(?=^(?![#\s])\S|\Z)',

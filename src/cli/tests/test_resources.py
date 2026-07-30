@@ -291,6 +291,39 @@ class TestClusterResources(unittest.TestCase):
         # used mode renders "used/total" format — cpu has usage=4 alloc=8
         self.assertIn('4/8', output)
 
+    def test_used_mode_normalizes_real_units_with_null_platform_maps(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        args = self._make_args(mode='used')
+        resource = _make_resource()
+        resource['allocatable_fields'] = {
+            'storage': 107374182400,
+            'cpu': '8.9',
+            'memory': '33554432Ki',
+            'gpu': '4.9',
+        }
+        resource['usage_fields'] = {
+            'storage': '20481Mi',
+            'cpu': '2.1',
+            'memory': 8589934592,
+            'gpu': '1.2',
+        }
+        resource['platform_allocatable_fields'] = None
+        resource['platform_available_fields'] = None
+
+        with mock.patch(
+            'src.cli.resources.pool.list_pools',
+            return_value={'pools': {'pool-1': {}}},
+        ), mock.patch(
+            'src.cli.resources.fetch_resources',
+            return_value={'resources': [resource]},
+        ), mock.patch('builtins.print') as mock_print:
+            resources._cluster_resources(service_client, args)
+
+        output = _capture(mock_print)
+        for quantity in ('21/100', '3/8', '8/32', '2/4'):
+            with self.subTest(quantity=quantity):
+                self.assertIn(quantity, output)
+
     def test_free_mode_renders_available_only(self):
         service_client = mock.Mock(spec=client.ServiceClient)
         args = self._make_args(mode='free')
@@ -425,6 +458,49 @@ class TestInfoResource(unittest.TestCase):
         self.assertIn('cpu: 8', output)
         self.assertIn('Default Mounts', output)
         self.assertIn('/data', output)
+
+    def test_info_normalizes_real_units_with_null_platform_maps(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        resource = _make_resource()
+        resource['allocatable_fields'] = {
+            'storage': 107374182400,
+            'cpu': '8.9',
+            'memory': '33554432Ki',
+            'gpu': '4.9',
+        }
+        resource['usage_fields'] = {
+            'storage': '20481Mi',
+            'cpu': '2.1',
+            'memory': 8589934592,
+            'gpu': '1.2',
+        }
+        resource['platform_allocatable_fields'] = None
+        resource['platform_available_fields'] = None
+        service_client.request.return_value = {'resources': [resource]}
+        args = self._make_args(pool='pool-1', platform='platform-1')
+
+        with mock.patch('builtins.print') as mock_print:
+            resources._info_resource(service_client, args)
+
+        output = _capture(mock_print)
+        for quantity in ('storage: 100Gi', 'cpu: 8', 'memory: 32Gi', 'gpu: 4'):
+            with self.subTest(quantity=quantity):
+                self.assertIn(quantity, output)
+
+    def test_info_preserves_zero_gpu_capacity_for_cpu_only_node(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        resource = _make_resource()
+        resource['allocatable_fields'].pop('gpu')
+        resource['usage_fields'].pop('gpu')
+        resource['platform_allocatable_fields'] = None
+        service_client.request.return_value = {'resources': [resource]}
+        args = self._make_args(pool='pool-1', platform='platform-1')
+
+        with mock.patch('builtins.print') as mock_print:
+            resources._info_resource(service_client, args)
+
+        output = _capture(mock_print)
+        self.assertIn('gpu: 0', output)
 
     def test_specified_pool_platform_selects_matching_duplicate_resource(self):
         service_client = mock.Mock(spec=client.ServiceClient)

@@ -20,6 +20,15 @@ load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_library(
+    name = "credential_payload",
+    srcs = [
+        "__init__.py",
+        "credential_payload.py",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "profile",
     srcs = [
         "__init__.py",

@@ -19,12 +19,11 @@ SPDX-License-Identifier: Apache-2.0
 import argparse
 import json
 import logging
-import math
 
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.cli import pool
-from src.lib.utils import client, common, osmo_errors
+from src.lib.utils import client, common, osmo_errors, resource_quantities
 
 
 def setup_parser(parser: argparse._SubParsersAction):
@@ -95,14 +94,23 @@ def round_resources(total_request: float, allocatable: float) -> Tuple[int, int]
 
     Return the rounded total_request and allocatable values.
     """
-    rounded_total_request = math.ceil(total_request)
-    rounded_allocatable = math.floor(allocatable)
-    # Since we are rounding up total request and rounding down allocatables,
-    # make sure the column value below will not have a numerator bigger than
-    # a denominator.
-    final_total_request = min(rounded_total_request, rounded_allocatable)
+    return resource_quantities.round_used_capacity(
+        total_request,
+        allocatable,
+    )
 
-    return final_total_request, rounded_allocatable
+
+def _normalized_quantities(
+    resource: Dict[str, Any],
+    pool_name: str,
+    platform_name: str,
+) -> Dict[str, Dict[str, int | str]]:
+    """Return the shared CLI/MCP resource quantity projection."""
+    return resource_quantities.normalize_resource_quantities(
+        resource,
+        pool_name,
+        platform_name,
+    )
 
 
 def fetch_resources(service_client: client.ServiceClient, pools: List[str],
@@ -169,23 +177,22 @@ def _cluster_resources(service_client: client.ServiceClient, args: argparse.Name
         for pool_idx, pool_name in enumerate(pool_platform_map.keys()):
             for plat_idx, platform in enumerate(pool_platform_map[pool_name]):
                 row = []
+                quantities = _normalized_quantities(
+                    resource,
+                    pool_name,
+                    platform,
+                )
                 for key in keys:
                     # If printing usage for a kubernetes allocatable
                     value = '0'
                     if key in allocatable_labels_lookup:
                         resource_key = allocatable_labels_lookup[key]
-                        allocatable, total_request = \
-                            common.convert_allocatable_request_fields(
-                                resource_key,
-                                resource,
-                                pool_name,
-                                platform)
-                        value = '0'
-                        if allocatable > 0:
-                            final_total_request, rounded_allocatable = \
-                                round_resources(total_request, allocatable)
+                        quantity = quantities.get(resource_key)
+                        if quantity is not None:
+                            final_total_request = int(quantity['used'])
+                            rounded_allocatable = int(quantity['capacity'])
                             if availability_mode:
-                                available = rounded_allocatable - final_total_request
+                                available = int(quantity['free'])
                                 value = f'{available}'
                                 if pool_idx == 0 and plat_idx == 0:
                                     available_aggregated_request[resource_key] = \
@@ -256,16 +263,21 @@ def _info_resource(service_client: client.ServiceClient, args: argparse.Namespac
         if not args.pool:
             selected_pool = list(resource['pool_platform_labels'].keys())[0]
             selected_platform = resource['pool_platform_labels'][selected_pool][0]
+        capacities = resource_quantities.normalize_resource_capacities(
+            resource,
+            selected_pool,
+            selected_platform,
+            resource_names=keys,
+        )
         for key in keys:
             # If printing usage for a kubernetes allocatable
             if key in allocatable_labels_lookup:
-                allocatable, _ = common.convert_allocatable_request_fields(
-                    key, resource, selected_pool, selected_platform)
-                rounded_allocatable = math.floor(allocatable)
-                capacity = max(0, rounded_allocatable)
+                quantity = capacities.get(key)
+                if quantity is None:
+                    continue
+                capacity = quantity['capacity']
                 allocatable_name = allocatable_labels_lookup[key][0]
-                unit = allocatable_labels_lookup[key][1] \
-                    if allocatable_labels_lookup[key][1] else ''
+                unit = quantity.get('unit', '')
                 allocatables[allocatable_name] = f'{capacity}{unit}'
         print(f'\nResource Name: {args.node_name}')
 

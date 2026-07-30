@@ -587,8 +587,7 @@ Stop a specific daemon::
 def parse_file_for_template(workflow_contents: str, set_variables: List[str],
                             set_string_variables: List[str]) -> TemplateData:
     # Check to see if the workflow is templated
-    is_templated = (workflow_contents.find('{%') != -1) or (workflow_contents.find('{{') != -1) \
-        or (workflow_contents.find('{#') != -1) or (workflow_contents.find('default-values') != -1)
+    is_templated = workflow_utils.is_templated_workflow(workflow_contents)
 
     return TemplateData(
         file=workflow_contents,
@@ -810,7 +809,7 @@ def _restart_workflow(service_client: client.ServiceClient, args: argparse.Names
         workflow_result = service_client.request(
             client.RequestMethod.GET,
             f'api/workflow/{args.workflow_id}')
-        pool_name = workflow_result.get(pool_name, None)
+        pool_name = workflow_result.get('pool')
 
     if not pool_name:
         pool_name = pool.fetch_default_pool(service_client)
