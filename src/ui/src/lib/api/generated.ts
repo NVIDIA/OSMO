@@ -698,6 +698,7 @@ export interface LabelPolicy {
   key: string;
   allow_list?: string[];
   enforcement?: LabelEnforcement;
+  assert_message?: string;
 }
 
 /**

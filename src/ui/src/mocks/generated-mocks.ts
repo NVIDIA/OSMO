@@ -678,6 +678,7 @@ export interface LabelPolicy {
   key: string;
   allow_list?: string[];
   enforcement?: LabelEnforcement;
+  assert_message?: string;
 }
 
 /**
@@ -8359,6 +8360,7 @@ export const getReadWorkflowConfigsApiConfigsWorkflowGetResponseMock = (
         faker.string.alpha({ length: { min: 10, max: 20 } }),
       ),
       enforcement: faker.helpers.arrayElement(Object.values(LabelEnforcement)),
+      assert_message: faker.string.alpha({ length: { min: 10, max: 20 } }),
     })),
   },
   max_num_tasks: faker.number.int(),

@@ -8745,6 +8745,11 @@
           "enforcement": {
             "$ref": "#/components/schemas/LabelEnforcement",
             "default": "off"
+          },
+          "assert_message": {
+            "type": "string",
+            "title": "Assert Message",
+            "default": ""
           }
         },
         "additionalProperties": false,
