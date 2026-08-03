@@ -34,6 +34,7 @@ import {
   Loader2,
   RotateCw,
   FileCode,
+  TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
@@ -45,6 +46,7 @@ import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
+import { sortedWorkflowLabelEntries } from "@/lib/workflow-labels";
 import type { GroupWithLayout, TaskQueryResponse } from "@/features/workflows/detail/lib/workflow-types";
 import { formatDuration } from "@/features/workflows/detail/lib/workflow-types";
 import { getStatusIcon } from "@/features/workflows/detail/lib/status";
@@ -186,8 +188,36 @@ const StatusDisplay = memo(function StatusDisplay({
   );
 });
 
+/** Warnings the API returns for this workflow (currently warn-mode label-policy violations, recomputed from the stored labels and active policy). */
+const WorkflowWarnings = memo(function WorkflowWarnings({ warnings }: { warnings: string[] | undefined }) {
+  if (!warnings || warnings.length === 0) return null;
+
+  return (
+    <section aria-label="Workflow warnings">
+      <h3 className={STYLES.sectionHeader}>Warnings</h3>
+      <div
+        className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200"
+        role="status"
+      >
+        <TriangleAlert
+          className="mt-0.5 size-4 shrink-0"
+          aria-hidden="true"
+        />
+        <div className="min-w-0">
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
+            {warnings.map((warning, index) => (
+              <li key={`${warning}-${index}`}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+});
+
 /** Details section */
 const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryResponse }) {
+  const labelEntries = sortedWorkflowLabelEntries(workflow.labels);
   return (
     <section>
       <h3 className={STYLES.sectionHeader}>Details</h3>
@@ -243,6 +273,25 @@ const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryRes
                   >
                     {tag}
                   </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {labelEntries.length > 0 && (
+            <div className="p-3">
+              <div className={STYLES.subHeader}>
+                <Tag className="size-3" />
+                Labels
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {labelEntries.map(([key, value]) => (
+                  <Link
+                    key={key}
+                    href={`/workflows?f=label:${encodeURIComponent(`${key}=${value}`)}&all=true`}
+                    className={`${STYLES.tagPill} focus-visible:ring-ring font-mono hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none`}
+                  >
+                    {key}={value}
+                  </Link>
                 ))}
               </div>
             </div>
@@ -304,6 +353,8 @@ const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel, o
 
   return (
     <div className="flex flex-col gap-6">
+      <WorkflowWarnings warnings={workflow.warnings} />
+
       {/* Timeline section */}
       <section>
         <h3 className={STYLES.sectionHeader}>Timeline</h3>

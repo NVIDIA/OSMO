@@ -72,10 +72,7 @@ function createWorkflowDetailResponse(
     tags: [],
     submit_time: oneHourAgo.toISOString(),
     start_time: oneHourAgo.toISOString(),
-    end_time:
-      overrides.status === WorkflowStatus.COMPLETED
-        ? now.toISOString()
-        : null,
+    end_time: overrides.status === WorkflowStatus.COMPLETED ? now.toISOString() : null,
     exec_timeout: null,
     queue_timeout: null,
     duration: 3600,
@@ -87,9 +84,7 @@ function createWorkflowDetailResponse(
         {
           name: "train",
           status: "RUNNING",
-          tasks: [
-            { name: "train-task", retry_id: 0, status: "RUNNING" },
-          ],
+          tasks: [{ name: "train-task", retry_id: 0, status: "RUNNING" }],
         },
       ]
     ).map((g) => ({
@@ -139,9 +134,7 @@ function createWorkflowDetailResponse(
 async function setupWorkflowDetail(
   page: Parameters<typeof setupDefaultMocks>[0],
   name: string,
-  data:
-    | ReturnType<typeof createWorkflowDetailResponse>
-    | { status: number; detail: string },
+  data: ReturnType<typeof createWorkflowDetailResponse> | { status: number; detail: string },
 ) {
   const response =
     "detail" in data
@@ -156,9 +149,7 @@ async function setupWorkflowDetail(
           body: JSON.stringify(data),
         };
 
-  await page.route(`**/api/workflow/${name}*`, (route) =>
-    route.fulfill(response),
-  );
+  await page.route(`**/api/workflow/${name}*`, (route) => route.fulfill(response));
 }
 
 test.describe("Workflow Detail Actions", () => {
@@ -168,9 +159,7 @@ test.describe("Workflow Detail Actions", () => {
     await setupProfile(page);
   });
 
-  test("shows Cancel Workflow button for RUNNING workflow", async ({
-    page,
-  }) => {
+  test("shows Cancel Workflow button for RUNNING workflow", async ({ page }) => {
     // ARRANGE
     const wfName = "running-wf-action";
     await setupWorkflowDetail(
@@ -186,14 +175,10 @@ test.describe("Workflow Detail Actions", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — Cancel Workflow button visible in actions
-    await expect(
-      page.getByRole("button", { name: /cancel workflow/i }).first(),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /cancel workflow/i }).first()).toBeVisible();
   });
 
-  test("Cancel Workflow button is disabled for COMPLETED workflow", async ({
-    page,
-  }) => {
+  test("Cancel Workflow button is disabled for COMPLETED workflow", async ({ page }) => {
     // ARRANGE
     const wfName = "completed-wf-action";
     await setupWorkflowDetail(
@@ -205,9 +190,7 @@ test.describe("Workflow Detail Actions", () => {
           {
             name: "train",
             status: "COMPLETED",
-            tasks: [
-              { name: "train-task", retry_id: 0, status: "COMPLETED" },
-            ],
+            tasks: [{ name: "train-task", retry_id: 0, status: "COMPLETED" }],
           },
         ],
       }),
@@ -218,16 +201,12 @@ test.describe("Workflow Detail Actions", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — Cancel Workflow button is visible but disabled
-    const cancelButton = page
-      .getByRole("button", { name: /cancel workflow/i })
-      .first();
+    const cancelButton = page.getByRole("button", { name: /cancel workflow/i }).first();
     await expect(cancelButton).toBeVisible();
     await expect(cancelButton).toBeDisabled();
   });
 
-  test("clicking Cancel Workflow opens confirmation dialog", async ({
-    page,
-  }) => {
+  test("clicking Cancel Workflow opens confirmation dialog", async ({ page }) => {
     // ARRANGE
     const wfName = "cancel-dialog-wf";
     await setupWorkflowDetail(
@@ -251,17 +230,11 @@ test.describe("Workflow Detail Actions", () => {
     // ASSERT — dialog opens with workflow name and action buttons
     await expect(page.getByText("Cancel Workflow").first()).toBeVisible();
     await expect(page.getByText(wfName).first()).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /keep running/i }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /confirm/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /keep running/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /confirm/i })).toBeVisible();
   });
 
-  test("cancel dialog has reason input and force checkbox", async ({
-    page,
-  }) => {
+  test("cancel dialog has reason input and force checkbox", async ({ page }) => {
     // ARRANGE
     const wfName = "cancel-form-wf";
     await setupWorkflowDetail(
@@ -285,9 +258,7 @@ test.describe("Workflow Detail Actions", () => {
     await expect(page.getByRole("checkbox", { name: /force cancel/i })).toBeVisible();
   });
 
-  test("Keep Running button dismisses the cancel dialog", async ({
-    page,
-  }) => {
+  test("Keep Running button dismisses the cancel dialog", async ({ page }) => {
     // ARRANGE
     const wfName = "keep-running-wf";
     await setupWorkflowDetail(
@@ -307,17 +278,13 @@ test.describe("Workflow Detail Actions", () => {
       .click();
 
     // Wait for dialog to appear
-    await expect(
-      page.getByRole("button", { name: /keep running/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /keep running/i })).toBeVisible();
 
     // Click Keep Running
     await page.getByRole("button", { name: /keep running/i }).click();
 
     // ASSERT — dialog is dismissed
-    await expect(
-      page.getByRole("button", { name: /keep running/i }),
-    ).not.toBeVisible();
+    await expect(page.getByRole("button", { name: /keep running/i })).not.toBeVisible();
   });
 });
 
@@ -328,16 +295,10 @@ test.describe("Workflow Detail Tabs", () => {
     await setupProfile(page);
   });
 
-  test("shows all panel tabs: Overview, Tasks, Logs, Events, Spec", async ({
-    page,
-  }) => {
+  test("shows all panel tabs: Overview, Tasks, Logs, Events, Spec", async ({ page }) => {
     // ARRANGE
     const wfName = "tabs-wf";
-    await setupWorkflowDetail(
-      page,
-      wfName,
-      createWorkflowDetailResponse(wfName),
-    );
+    await setupWorkflowDetail(page, wfName, createWorkflowDetailResponse(wfName));
 
     // ACT
     await page.goto(`/workflows/${wfName}`);
@@ -363,9 +324,7 @@ test.describe("Workflow Detail Tabs", () => {
           {
             name: "train",
             status: "COMPLETED",
-            tasks: [
-              { name: "train-task", retry_id: 0, status: "COMPLETED" },
-            ],
+            tasks: [{ name: "train-task", retry_id: 0, status: "COMPLETED" }],
           },
         ],
       }),
@@ -376,9 +335,7 @@ test.describe("Workflow Detail Tabs", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — Resubmit button visible
-    await expect(
-      page.getByRole("button", { name: /resubmit workflow/i }).first(),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /resubmit workflow/i }).first()).toBeVisible();
   });
 
   test("workflow detail shows pool and backend info", async ({ page }) => {
@@ -397,8 +354,6 @@ test.describe("Workflow Detail Tabs", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — pool name visible in details
-    await expect(
-      page.getByText("production-pool").first(),
-    ).toBeVisible();
+    await expect(page.getByText("production-pool").first()).toBeVisible();
   });
 });

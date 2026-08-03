@@ -104,3 +104,13 @@ osmo_py_test(
     ],
     tags = ["requires-network"],
 )
+
+py_test(
+    name = "test_workflow_metrics",
+    srcs = ["test_workflow_metrics.py"],
+    deps = [
+        "//src/service/core/workflow",
+        "//src/utils/connectors",
+        "//src/utils/metrics",
+    ],
+)

@@ -77,7 +77,7 @@ function getFirstChipValue(chips: SearchChip[], field: string): string | undefin
 /**
  * Build API parameters from search chips and options.
  */
-function buildApiParams(
+export function buildWorkflowApiParams(
   chips: SearchChip[],
   showAllUsers: boolean,
   offset: number,
@@ -90,6 +90,8 @@ function buildApiParams(
   const userChips = getChipValues(chips, "user");
   const priorityChips = getChipValues(chips, "priority");
   const tagChips = getChipValues(chips, "tag");
+  const labelChips = getChipValues(chips, "label");
+  const missingLabelChips = getChipValues(chips, "no_label");
 
   // Resolve submitted date range: chip takes precedence over prop
   let resolvedAfter = submittedAfter;
@@ -114,6 +116,8 @@ function buildApiParams(
     app: getFirstChipValue(chips, "app"),
     priority: priorityChips.length > 0 ? (priorityChips as WorkflowPriority[]) : undefined,
     tags: tagChips.length > 0 ? tagChips : undefined,
+    label: labelChips.length > 0 ? labelChips : undefined,
+    no_label: missingLabelChips.length > 0 ? missingLabelChips : undefined,
     all_users: userChips.length === 0 && showAllUsers ? true : undefined,
     all_pools: poolChips.length === 0,
     submitted_after: resolvedAfter,
@@ -138,7 +142,7 @@ export async function fetchPaginatedWorkflows(
   const { offset = 0, limit, searchChips, showAllUsers = false, sortDirection = "DESC", submittedAfter } = params;
 
   // Build API params from chips
-  const apiParams = buildApiParams(
+  const apiParams = buildWorkflowApiParams(
     searchChips,
     showAllUsers,
     offset,
@@ -191,6 +195,8 @@ export function buildWorkflowsQueryKey(
   const pools = getChipValues(searchChips, "pool").sort();
   const priority = getChipValues(searchChips, "priority").sort();
   const tags = getChipValues(searchChips, "tag").sort();
+  const labels = getChipValues(searchChips, "label").sort();
+  const missingLabels = getChipValues(searchChips, "no_label").sort();
   const submitted = getFirstChipValue(searchChips, "submitted");
 
   // Build query key - only include filters that have values
@@ -202,6 +208,8 @@ export function buildWorkflowsQueryKey(
   if (pools.length > 0) filters.pools = pools;
   if (priority.length > 0) filters.priority = priority;
   if (tags.length > 0) filters.tags = tags;
+  if (labels.length > 0) filters.labels = labels;
+  if (missingLabels.length > 0) filters.missingLabels = missingLabels;
   if (submitted) filters.submitted = submitted;
 
   return [

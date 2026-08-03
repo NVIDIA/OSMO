@@ -15,18 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createWorkflowsResponse,
-  createPoolResponse,
-  WorkflowStatus,
-  PoolStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupWorkflows,
-  setupPools,
-} from "@/e2e/utils/mock-setup";
+import { createWorkflowsResponse, createPoolResponse, WorkflowStatus, PoolStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupProfile, setupWorkflows, setupPools } from "@/e2e/utils/mock-setup";
 
 /**
  * Workflow Status Display Tests
@@ -52,9 +42,7 @@ test.describe("Workflow Status Display", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "training-job-1", status: WorkflowStatus.RUNNING, user: "alice" },
-      ]),
+      createWorkflowsResponse([{ name: "training-job-1", status: WorkflowStatus.RUNNING, user: "alice" }]),
     );
 
     // ACT
@@ -70,9 +58,7 @@ test.describe("Workflow Status Display", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "training-done", status: WorkflowStatus.COMPLETED, user: "bob" },
-      ]),
+      createWorkflowsResponse([{ name: "training-done", status: WorkflowStatus.COMPLETED, user: "bob" }]),
     );
 
     // ACT
@@ -88,9 +74,7 @@ test.describe("Workflow Status Display", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "broken-job", status: WorkflowStatus.FAILED, user: "charlie" },
-      ]),
+      createWorkflowsResponse([{ name: "broken-job", status: WorkflowStatus.FAILED, user: "charlie" }]),
     );
 
     // ACT
@@ -106,9 +90,7 @@ test.describe("Workflow Status Display", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "queued-job", status: WorkflowStatus.PENDING, user: "dave" },
-      ]),
+      createWorkflowsResponse([{ name: "queued-job", status: WorkflowStatus.PENDING, user: "dave" }]),
     );
 
     // ACT
@@ -124,9 +106,7 @@ test.describe("Workflow Status Display", () => {
     // ARRANGE
     await setupWorkflows(
       page,
-      createWorkflowsResponse([
-        { name: "stopping-job", status: WorkflowStatus.FAILED_CANCELED, user: "eve" },
-      ]),
+      createWorkflowsResponse([{ name: "stopping-job", status: WorkflowStatus.FAILED_CANCELED, user: "eve" }]),
     );
 
     // ACT

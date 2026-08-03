@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupOccupancy,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile, setupOccupancy } from "@/e2e/utils/mock-setup";
 
 /**
  * Occupancy Truncation Warning Tests
@@ -53,8 +49,24 @@ function createLargeOccupancySummaries(count: number) {
 function createSmallOccupancySummaries() {
   return {
     summaries: [
-      { user: "alice", pool: "prod", gpu: 8, cpu: 64, memory: 64 * 1024 * 1024 * 1024, storage: 100 * 1024 * 1024 * 1024, priority: "NORMAL" },
-      { user: "bob", pool: "staging", gpu: 4, cpu: 32, memory: 32 * 1024 * 1024 * 1024, storage: 50 * 1024 * 1024 * 1024, priority: "NORMAL" },
+      {
+        user: "alice",
+        pool: "prod",
+        gpu: 8,
+        cpu: 64,
+        memory: 64 * 1024 * 1024 * 1024,
+        storage: 100 * 1024 * 1024 * 1024,
+        priority: "NORMAL",
+      },
+      {
+        user: "bob",
+        pool: "staging",
+        gpu: 4,
+        cpu: 32,
+        memory: 32 * 1024 * 1024 * 1024,
+        storage: 50 * 1024 * 1024 * 1024,
+        priority: "NORMAL",
+      },
     ],
   };
 }
@@ -74,12 +86,8 @@ test.describe("Occupancy Truncation Warning", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — truncation banner is visible
-    await expect(
-      page.getByText(/results may be incomplete/i).first(),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/10,000 row fetch limit/i).first(),
-    ).toBeVisible();
+    await expect(page.getByText(/results may be incomplete/i).first()).toBeVisible();
+    await expect(page.getByText(/10,000 row fetch limit/i).first()).toBeVisible();
   });
 
   test("does not show truncation warning for small datasets", async ({ page }) => {
@@ -91,9 +99,7 @@ test.describe("Occupancy Truncation Warning", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — no truncation warning visible
-    await expect(
-      page.getByText(/results may be incomplete/i),
-    ).not.toBeVisible();
+    await expect(page.getByText(/results may be incomplete/i)).not.toBeVisible();
   });
 
   test("truncation warning does not block table rendering", async ({ page }) => {

@@ -246,4 +246,33 @@ test.describe("Workflow URL Filter State", () => {
     await expect(page.locator("body")).not.toBeEmpty();
     await expect(page).toHaveURL(/f=pool(%3A|:)production/);
   });
+
+  test("forwards wildcard and inline-alternative workflow label selectors unchanged", async ({ page }) => {
+    const response = createWorkflowsResponse([
+      { name: "label-wf", status: WorkflowStatus.RUNNING, user: "test-user", labels: { project: "robotics_team" } },
+    ]);
+    const observedLabelSelectors: string[][] = [];
+    await page.route("**/api/workflow?*", (route) => {
+      observedLabelSelectors.push(new URL(route.request().url()).searchParams.getAll("label"));
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(response),
+      });
+    });
+
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    const selectors = ["project=(team_*|osmo_*)", "project=team_(a|b)"];
+    const filterInput = page.getByRole("combobox", { name: /search and filter/i });
+    for (const selector of selectors) {
+      await filterInput.fill(`label:${selector}`);
+      await filterInput.press("Enter");
+    }
+
+    await expect
+      .poll(() => observedLabelSelectors.some((observed) => selectors.every((selector) => observed.includes(selector))))
+      .toBe(true);
+  });
 });

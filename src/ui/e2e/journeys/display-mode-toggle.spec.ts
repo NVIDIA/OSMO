@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createResourcesResponse,
-  BackendResourceType,
-} from "@/mocks/factories";
+import { createResourcesResponse, BackendResourceType } from "@/mocks/factories";
 import { setupDefaultMocks, setupResources, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**

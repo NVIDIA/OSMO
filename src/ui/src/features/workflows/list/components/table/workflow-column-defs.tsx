@@ -32,6 +32,7 @@ import { PRIORITY_DISPLAY } from "@/lib/workflows/priority-display";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { formatDuration } from "@/lib/format-date";
 import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
+import { formatWorkflowLabels } from "@/lib/workflow-labels";
 
 export interface WorkflowSelectionOptions {
   selectedWorkflowNames: ReadonlySet<string>;
@@ -242,6 +243,26 @@ export function createWorkflowColumns(selection?: WorkflowSelectionOptions): Col
       cell: ({ row }) => (
         <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.app_name || "—"}</span>
       ),
+    },
+    {
+      id: "labels",
+      accessorKey: "labels",
+      header: COLUMN_LABELS.labels,
+      minSize: getMinSize("labels"),
+      enableSorting: false,
+      cell: ({ row }) => {
+        const labels = row.original.labels;
+        const hasLabels = Object.keys(labels ?? {}).length > 0;
+        const formatted = formatWorkflowLabels(labels);
+        return (
+          <span
+            className="truncate font-mono text-xs text-zinc-600 dark:text-zinc-400"
+            title={hasLabels ? formatted : undefined}
+          >
+            {formatted}
+          </span>
+        );
+      },
     },
   ];
 }

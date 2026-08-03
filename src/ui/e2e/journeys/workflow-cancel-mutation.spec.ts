@@ -131,7 +131,10 @@ test.describe("Workflow Cancel Mutation Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Open cancel dialog
-    await page.getByRole("button", { name: /cancel workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /cancel workflow/i })
+      .first()
+      .click();
     await expect(page.getByLabel(/reason/i)).toBeVisible();
 
     // Type a reason
@@ -147,7 +150,10 @@ test.describe("Workflow Cancel Mutation Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Open cancel dialog
-    await page.getByRole("button", { name: /cancel workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /cancel workflow/i })
+      .first()
+      .click();
 
     const forceCheckbox = page.getByRole("checkbox", { name: /force cancel/i });
     await expect(forceCheckbox).toBeVisible();
@@ -175,7 +181,10 @@ test.describe("Workflow Cancel Mutation Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Open cancel dialog and click confirm
-    await page.getByRole("button", { name: /cancel workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /cancel workflow/i })
+      .first()
+      .click();
     await page.getByRole("button", { name: /confirm/i }).click();
 
     // ASSERT — button shows "Cancelling..." loading state
@@ -188,7 +197,10 @@ test.describe("Workflow Cancel Mutation Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Open cancel dialog
-    await page.getByRole("button", { name: /cancel workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /cancel workflow/i })
+      .first()
+      .click();
 
     // Hover over the info icon next to force cancel
     const infoButton = page.getByRole("button", { name: /what is force cancel/i });

@@ -85,10 +85,7 @@ test.describe("Not Found Page Content", () => {
     await expect(dashboardAction).toBeVisible();
 
     // Click and wait for navigation
-    await Promise.all([
-      page.waitForURL(/\/$/),
-      dashboardAction.click(),
-    ]);
+    await Promise.all([page.waitForURL(/\/$/), dashboardAction.click()]);
 
     // ASSERT — navigated to home
     await expect(page).toHaveURL(/\/$/);

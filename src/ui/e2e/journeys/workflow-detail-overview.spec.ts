@@ -49,6 +49,8 @@ function createWorkflowDetailResponse(
     outputs?: string;
     priority?: string;
     tags?: string[];
+    labels?: Record<string, string>;
+    warnings?: string[];
     groups?: Array<{
       name: string;
       status?: string;
@@ -75,9 +77,7 @@ function createWorkflowDetailResponse(
     WorkflowStatus.FAILED,
     WorkflowStatus.FAILED_CANCELED,
   ];
-  const isTerminal = terminalWorkflowStatuses.includes(
-    (overrides.status as WorkflowStatus) ?? WorkflowStatus.RUNNING,
-  );
+  const isTerminal = terminalWorkflowStatuses.includes((overrides.status as WorkflowStatus) ?? WorkflowStatus.RUNNING);
 
   return {
     name,
@@ -94,6 +94,8 @@ function createWorkflowDetailResponse(
     dashboard_url: overrides.dashboard_url !== undefined ? overrides.dashboard_url : null,
     grafana_url: overrides.grafana_url !== undefined ? overrides.grafana_url : null,
     tags: overrides.tags ?? [],
+    labels: overrides.labels ?? {},
+    warnings: overrides.warnings ?? [],
     submit_time: twoHoursAgo.toISOString(),
     start_time: twoHoursAgo.toISOString(),
     end_time: isTerminal ? oneHourAgo.toISOString() : null,
@@ -289,9 +291,7 @@ test.describe("Workflow Detail Overview — Failed Workflow", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — Cancel Workflow button is disabled
-    await expect(
-      page.getByRole("button", { name: /cancel workflow/i }).first(),
-    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: /cancel workflow/i }).first()).toBeDisabled();
   });
 });
 
@@ -331,11 +331,7 @@ test.describe("Workflow Detail Overview — Details Section", () => {
 
   test("shows UUID with copy button", async ({ page }) => {
     const wfName = "uuid-wf";
-    await setupWorkflowDetail(
-      page,
-      wfName,
-      createWorkflowDetailResponse(wfName),
-    );
+    await setupWorkflowDetail(page, wfName, createWorkflowDetailResponse(wfName));
 
     // ACT
     await page.goto(`/workflows/${wfName}`);
@@ -346,13 +342,57 @@ test.describe("Workflow Detail Overview — Details Section", () => {
     await expect(page.getByText(`uuid-${wfName}`).first()).toBeVisible();
   });
 
-  test("user name links to workflows filtered by user", async ({ page }) => {
-    const wfName = "user-link-wf";
+  test("shows immutable workflow labels separately from tags", async ({ page }) => {
+    // Extended: this journey renders the full detail/submit surface with
+    // several mocked round trips.
+    test.setTimeout(30_000);
+    const wfName = "labels-wf";
     await setupWorkflowDetail(
       page,
       wfName,
-      createWorkflowDetailResponse(wfName),
+      createWorkflowDetailResponse(wfName, {
+        labels: { team: "robotics", experiment: "run42" },
+        tags: ["mutable-tag"],
+      }),
     );
+
+    await page.goto(`/workflows/${wfName}`);
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByText("Labels", { exact: true })).toBeVisible();
+    const teamLabelLink = page.getByRole("link", { name: "team=robotics", exact: true });
+    const experimentLabelLink = page.getByRole("link", { name: "experiment=run42", exact: true });
+    await expect(teamLabelLink).toHaveAttribute("href", "/workflows?f=label:team%3Drobotics&all=true");
+    await expect(experimentLabelLink).toHaveAttribute("href", "/workflows?f=label:experiment%3Drun42&all=true");
+    await expect(page.getByText("Tags", { exact: true })).toBeVisible();
+  });
+
+  test("shows current workflow warnings on completed workflows", async ({ page }) => {
+    // The backend recomputes warnings from the current policy for every
+    // status, including COMPLETED, so users see violations on finished runs.
+    const wfName = "warnings-wf";
+    const warning =
+      "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
+    await setupWorkflowDetail(
+      page,
+      wfName,
+      createWorkflowDetailResponse(wfName, {
+        status: WorkflowStatus.COMPLETED,
+        warnings: [warning],
+      }),
+    );
+
+    await page.goto(`/workflows/${wfName}`);
+    await page.waitForLoadState("networkidle");
+
+    const warningRegion = page.getByRole("region", { name: "Workflow warnings" });
+    await expect(warningRegion).toBeVisible();
+    await expect(warningRegion.getByText(warning)).toBeVisible();
+  });
+
+  test("user name links to workflows filtered by user", async ({ page }) => {
+    const wfName = "user-link-wf";
+    await setupWorkflowDetail(page, wfName, createWorkflowDetailResponse(wfName));
 
     // ACT
     await page.goto(`/workflows/${wfName}`);
@@ -366,11 +406,7 @@ test.describe("Workflow Detail Overview — Details Section", () => {
 
   test("pool name links to workflows filtered by pool", async ({ page }) => {
     const wfName = "pool-link-wf";
-    await setupWorkflowDetail(
-      page,
-      wfName,
-      createWorkflowDetailResponse(wfName, { pool: "production-pool" }),
-    );
+    await setupWorkflowDetail(page, wfName, createWorkflowDetailResponse(wfName, { pool: "production-pool" }));
 
     // ACT
     await page.goto(`/workflows/${wfName}`);

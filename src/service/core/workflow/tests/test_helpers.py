@@ -595,6 +595,18 @@ class TestGetRouterCookieSuccess(unittest.TestCase):
 
 class TestGetRecentTasks(unittest.TestCase):
 
+    def test_get_recent_tasks_selects_labels_and_count(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        helpers.get_recent_tasks(database, minutes_ago=5)
+
+        query = database.execute_fetch_command.call_args.args[0]
+        self.assertIn('w.labels AS labels', query)
+        self.assertIn('COUNT(*) AS count', query)
+        group_by_clause = query[query.index('GROUP BY'):]
+        self.assertIn('w.labels', group_by_clause)
+
     def test_get_recent_tasks_passes_cutoff_time_to_database(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []

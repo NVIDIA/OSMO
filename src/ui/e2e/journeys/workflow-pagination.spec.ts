@@ -15,15 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createWorkflowsResponse,
-  WorkflowStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupWorkflows,
-} from "@/e2e/utils/mock-setup";
+import { createWorkflowsResponse, WorkflowStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupProfile, setupWorkflows } from "@/e2e/utils/mock-setup";
 
 /**
  * Workflow Pagination / Infinite Scroll Tests
@@ -71,9 +64,7 @@ test.describe("Workflow Pagination", () => {
     await setupWorkflows(
       page,
       createWorkflowsResponse(
-        [
-          { name: "wf-single", status: WorkflowStatus.COMPLETED, user: "alice" },
-        ],
+        [{ name: "wf-single", status: WorkflowStatus.COMPLETED, user: "alice" }],
         false, // moreEntries = false
       ),
     );

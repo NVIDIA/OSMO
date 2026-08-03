@@ -2641,7 +2641,7 @@
                 {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/src__lib__utils__config_history__ConfigHistoryType"
+                    "$ref": "#/components/schemas/ConfigHistoryType"
                   }
                 },
                 {
@@ -3007,7 +3007,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/src__lib__utils__config_history__ConfigHistoryType"
+              "$ref": "#/components/schemas/ConfigHistoryType"
             }
           },
           {
@@ -5138,6 +5138,50 @@
             "explode": true
           },
           {
+            "name": "label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workflow label selector: key=value with optional * wildcards and (a|b) alternatives, for example key=(team_*|osmo_*) or key=team_(a|b). Repeat for AND semantics.",
+              "title": "Label"
+            },
+            "description": "Workflow label selector: key=value with optional * wildcards and (a|b) alternatives, for example key=(team_*|osmo_*) or key=team_(a|b). Repeat for AND semantics.",
+            "explode": true
+          },
+          {
+            "name": "no_label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Label key that must be absent from the workflow; workflows without any labels match. Repeat for AND semantics.",
+              "title": "No Label"
+            },
+            "description": "Label key that must be absent from the workflow; workflows without any labels match. Repeat for AND semantics.",
+            "explode": true
+          },
+          {
             "name": "x-osmo-user",
             "in": "header",
             "required": false,
@@ -6899,6 +6943,20 @@
             "explode": true
           },
           {
+            "name": "label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [],
+              "title": "Label"
+            },
+            "explode": true
+          },
+          {
             "name": "x-osmo-user",
             "in": "header",
             "required": false,
@@ -7976,7 +8034,7 @@
       "ConfigHistory": {
         "properties": {
           "config_type": {
-            "$ref": "#/components/schemas/src__lib__utils__config_history__ConfigHistoryType"
+            "$ref": "#/components/schemas/ConfigHistoryType"
           },
           "name": {
             "type": "string",
@@ -8028,6 +8086,23 @@
         ],
         "title": "ConfigHistory",
         "description": "Object storing config history."
+      },
+      "ConfigHistoryType": {
+        "type": "string",
+        "enum": [
+          "DATASET",
+          "SERVICE",
+          "WORKFLOW",
+          "BACKEND",
+          "POOL",
+          "POD_TEMPLATE",
+          "GROUP_TEMPLATE",
+          "RESOURCE_VALIDATION",
+          "BACKEND_TEST",
+          "ROLE"
+        ],
+        "title": "ConfigHistoryType",
+        "description": "Type of configs supported by config history "
       },
       "ConfigsRequest": {
         "properties": {
@@ -8643,6 +8718,80 @@
         "title": "JwtTokenResponse",
         "description": "Response for JWT token creation endpoints."
       },
+      "LabelEnforcement": {
+        "type": "string",
+        "enum": [
+          "off",
+          "warn",
+          "enforce"
+        ],
+        "title": "LabelEnforcement",
+        "description": "Per-key policy strictness: 'off' skips checking, 'warn' surfaces\nmissing or unlisted values as submission warnings, and 'enforce'\nrejects them."
+      },
+      "LabelPolicy": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "allow_list": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allow List",
+            "default": []
+          },
+          "enforcement": {
+            "$ref": "#/components/schemas/LabelEnforcement",
+            "default": "off"
+          },
+          "assert_message": {
+            "type": "string",
+            "title": "Assert Message",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "LabelPolicy",
+        "description": "Configuration for one admin-designated workflow label key.\n\nAn empty allow_list accepts any well-formed value; enforcement then\napplies only to the key being present."
+      },
+      "LabelsConfig-Input": {
+        "properties": {
+          "policy": {
+            "items": {
+              "$ref": "#/components/schemas/LabelPolicy"
+            },
+            "type": "array",
+            "title": "Policy",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LabelsConfig",
+        "description": "Curated workflow label policy; empty by default, so no policy\napplies until configured."
+      },
+      "LabelsConfig-Output": {
+        "properties": {
+          "policy": {
+            "items": {
+              "$ref": "#/components/schemas/LabelPolicy"
+            },
+            "type": "array",
+            "title": "Policy",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LabelsConfig",
+        "description": "Curated workflow label policy; empty by default, so no policy\napplies until configured."
+      },
       "ListBackendsResponse": {
         "properties": {
           "backends": {
@@ -9122,6 +9271,22 @@
         },
         "type": "object",
         "title": "NotificationConfig"
+      },
+      "OperableConfigHistoryType": {
+        "type": "string",
+        "enum": [
+          "SERVICE",
+          "WORKFLOW",
+          "BACKEND",
+          "POOL",
+          "POD_TEMPLATE",
+          "GROUP_TEMPLATE",
+          "RESOURCE_VALIDATION",
+          "BACKEND_TEST",
+          "ROLE"
+        ],
+        "title": "OperableConfigHistoryType",
+        "description": "Type of configs supported by config history mutations."
       },
       "OperatorType": {
         "type": "string",
@@ -11679,7 +11844,7 @@
             "title": "Tags"
           },
           "config_type": {
-            "$ref": "#/components/schemas/src__lib__utils__config_history__ConfigHistoryType"
+            "$ref": "#/components/schemas/OperableConfigHistoryType"
           },
           "revision": {
             "type": "integer",
@@ -12010,6 +12175,13 @@
               }
             ],
             "title": "Dashboard Url"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
           }
         },
         "additionalProperties": false,
@@ -12954,6 +13126,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
@@ -13086,6 +13265,12 @@
                 "read_bandwidth_limit": 2621440,
                 "write_bandwidth_limit": 2621440
               }
+            }
+          },
+          "labels_config": {
+            "$ref": "#/components/schemas/LabelsConfig-Input",
+            "default": {
+              "policy": []
             }
           },
           "max_num_tasks": {
@@ -13247,6 +13432,12 @@
                 "read_bandwidth_limit": 2621440,
                 "write_bandwidth_limit": 2621440
               }
+            }
+          },
+          "labels_config": {
+            "$ref": "#/components/schemas/LabelsConfig-Output",
+            "default": {
+              "policy": []
             }
           },
           "max_num_tasks": {
@@ -13612,6 +13803,20 @@
           "priority": {
             "type": "string",
             "title": "Priority"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Labels"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
           }
         },
         "additionalProperties": false,
@@ -13657,22 +13862,6 @@
         ],
         "title": "WorkflowStatus",
         "description": "Represents the status of a workflow. "
-      },
-      "src__lib__utils__config_history__ConfigHistoryType": {
-        "type": "string",
-        "enum": [
-          "SERVICE",
-          "WORKFLOW",
-          "BACKEND",
-          "POOL",
-          "POD_TEMPLATE",
-          "GROUP_TEMPLATE",
-          "RESOURCE_VALIDATION",
-          "BACKEND_TEST",
-          "ROLE"
-        ],
-        "title": "ConfigHistoryType",
-        "description": "Type of configs supported by config history "
       },
       "src__service__core__app__objects__ListEntry": {
         "properties": {
@@ -13884,6 +14073,13 @@
           "priority": {
             "type": "string",
             "title": "Priority"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Labels"
           }
         },
         "additionalProperties": false,
