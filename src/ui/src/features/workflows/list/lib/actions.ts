@@ -41,7 +41,7 @@
 
 import { revalidatePath, updateTag, refresh } from "next/cache";
 import { customFetch } from "@/lib/api/fetcher";
-import type { SubmitResponse, SubmitWorkflowApiPoolPoolNameWorkflowPostParams } from "@/lib/api/adapter/types";
+import type { SubmitResponse, SubmitWorkflowParams } from "@/lib/api/adapter/types";
 import { getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl } from "@/lib/api/generated";
 import type { ActionResult } from "@/lib/server-actions";
 
@@ -275,7 +275,7 @@ export interface ResubmitParams {
   /** Target pool for execution */
   poolName: string;
   /** Execution priority */
-  priority: SubmitWorkflowApiPoolPoolNameWorkflowPostParams["priority"];
+  priority: SubmitWorkflowParams["priority"];
   /**
    * Optional custom spec (if user edited and changed it)
    * - undefined: Backend fetches original spec via workflow_id (efficient)
@@ -311,7 +311,7 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
   // Backend constraint: EITHER template_spec OR workflow_id, never both.
   // The generated URL builder explodes repeated `label` params and skips
   // undefined values.
-  const queryParams: SubmitWorkflowApiPoolPoolNameWorkflowPostParams = {
+  const queryParams: SubmitWorkflowParams = {
     priority,
     label: labels.length > 0 ? labels : undefined,
     workflow_id: spec ? undefined : workflowId,

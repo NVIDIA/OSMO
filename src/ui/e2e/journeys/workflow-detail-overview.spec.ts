@@ -367,7 +367,7 @@ test.describe("Workflow Detail Overview — Details Section", () => {
     await expect(page.getByText("Tags", { exact: true })).toBeVisible();
   });
 
-  test("shows current workflow policy warnings on completed workflows", async ({ page }) => {
+  test("shows current workflow warnings on completed workflows", async ({ page }) => {
     // The backend recomputes warnings from the current policy for every
     // status, including COMPLETED, so users see violations on finished runs.
     const wfName = "warnings-wf";
@@ -385,9 +385,8 @@ test.describe("Workflow Detail Overview — Details Section", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    const warningRegion = page.getByRole("region", { name: "Workflow policy warnings" });
+    const warningRegion = page.getByRole("region", { name: "Workflow warnings" });
     await expect(warningRegion).toBeVisible();
-    await expect(warningRegion.getByText("Workflow label policy")).toBeVisible();
     await expect(warningRegion.getByText(warning)).toBeVisible();
   });
 

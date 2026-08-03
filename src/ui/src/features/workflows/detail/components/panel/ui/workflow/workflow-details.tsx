@@ -188,12 +188,12 @@ const StatusDisplay = memo(function StatusDisplay({
   );
 });
 
-/** Current warn-mode violations recomputed by the API from stored labels and active policy. */
+/** Warnings the API returns for this workflow (currently warn-mode label-policy violations, recomputed from the stored labels and active policy). */
 const WorkflowWarnings = memo(function WorkflowWarnings({ warnings }: { warnings: string[] | undefined }) {
   if (!warnings || warnings.length === 0) return null;
 
   return (
-    <section aria-label="Workflow policy warnings">
+    <section aria-label="Workflow warnings">
       <h3 className={STYLES.sectionHeader}>Warnings</h3>
       <div
         className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200"
@@ -204,7 +204,6 @@ const WorkflowWarnings = memo(function WorkflowWarnings({ warnings }: { warnings
           aria-hidden="true"
         />
         <div className="min-w-0">
-          <p className="text-sm font-medium">Workflow label policy</p>
           <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
             {warnings.map((warning, index) => (
               <li key={`${warning}-${index}`}>{warning}</li>

@@ -274,7 +274,7 @@ test.describe("Submit Workflow Form Validation", () => {
     await expect(page.getByText("Workflow submitted as yaml-labels")).toBeVisible();
   });
 
-  test("shows workflow policy warnings returned by validation", async ({ page }) => {
+  test("shows workflow warnings returned by validation", async ({ page }) => {
     const warning =
       "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
     let submittedLabels: string[] | null = null;
