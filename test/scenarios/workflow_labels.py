@@ -103,6 +103,12 @@ class WorkflowLabels(RunnerFixture):
         self.assertEqual(applied["enforcement"], mode)
         self.assertEqual(applied["allow_list"], values)
 
+    def _set_pod_label_prefix(self, prefix: str) -> None:
+        self._require_database_mode()
+        self._patch_labels_config({"pod_label_prefix": prefix}, "set prefix")
+        self.assertEqual(
+            self._read_labels_config().get("pod_label_prefix"), prefix)
+
     # ── Submit / list helpers (raw API; the B9 builder has no label support) ──
 
     def _spec(self) -> str:
@@ -301,6 +307,42 @@ class WorkflowLabels(RunnerFixture):
         self.assertIn(
             workflow_id,
             self._list_names(labels=[f"experiment={experiment}"]))
+
+    # ── Pod-label prefix: an operator-configured prefix namespaces labels on
+    #    pods at stamping time only. It is validated against the merged key at
+    #    submission, and never leaks into the workflow API / list, which keep
+    #    the bare keys the user submitted (pod stamping itself is unit-covered
+    #    by apply_pod_label_prefix, not observable from a sandboxed OETF). ─────
+
+    def test_pod_label_prefix_gates_merge_and_keeps_api_keys_bare(self) -> None:
+        prefix = "osmo.nvidia.com/"
+        self._set_pod_label_prefix(prefix)
+
+        # A bare key forms a valid Kubernetes key once the prefix is prepended.
+        accepted = self._submit(
+            self._workflow_name("prefix-bare"),
+            labels=[f"experiment=alpha-{self.run_token}"], validation_only=True)
+        self.assertEqual(accepted["logs"], "Workflow validation succeeded.")
+
+        # A key that already carries its own prefix forms an invalid merged key
+        # (two slashes) once the prefix is prepended, and is rejected naming it.
+        self._expect_rejected(
+            lambda: self._submit(
+                self._workflow_name("prefix-slash"),
+                labels=["team.example.com/role=lead"], validation_only=True),
+            fragment=f"{prefix}team.example.com/role")
+
+        # The prefix is a pod-stamping detail: the workflow API and list filters
+        # still return the bare keys, so a filter on the bare key matches.
+        experiment = f"prefixed-{self.run_token}"
+        workflow_id = self._submit_tracked(
+            self._workflow_name("prefix-roundtrip"),
+            labels=[f"experiment={experiment}"])["name"]
+        self.assertEqual(
+            self._get(workflow_id)["labels"],
+            {"policy-yaml": "from-yaml", "experiment": experiment})
+        self.assertIn(
+            workflow_id, self._list_names(labels=[f"experiment={experiment}"]))
 
 
 if __name__ == "__main__":
