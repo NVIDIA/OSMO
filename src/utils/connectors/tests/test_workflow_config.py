@@ -27,6 +27,24 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
 
     def test_defaults_are_inert(self):
         self.assertEqual(connectors.WorkflowConfig().labels_config.policy, [])
+        self.assertEqual(connectors.WorkflowConfig().labels_config.pod_label_prefix, '')
+
+    def test_accepts_pod_label_prefix(self):
+        config = connectors.WorkflowConfig(labels_config={
+            'pod_label_prefix': 'osmo.nvidia.com/',
+        })
+        self.assertEqual(
+            config.labels_config.pod_label_prefix, 'osmo.nvidia.com/')
+
+    def test_rejects_pod_label_prefix_with_whitespace_or_overlong(self):
+        with self.assertRaisesRegex(pydantic.ValidationError, 'whitespace'):
+            connectors.WorkflowConfig(labels_config={
+                'pod_label_prefix': 'osmo nvidia/',
+            })
+        with self.assertRaisesRegex(pydantic.ValidationError, 'at most 253'):
+            connectors.WorkflowConfig(labels_config={
+                'pod_label_prefix': 'x' * 254,
+            })
 
     def test_accepts_independent_enforcement_modes(self):
         config = connectors.WorkflowConfig(labels_config={

@@ -37,7 +37,7 @@ import pydantic
 import yaml
 
 from src.lib.data import storage
-from src.lib.utils import common, osmo_errors, priority as wf_priority
+from src.lib.utils import common, osmo_errors, priority as wf_priority, validation
 from src.lib.utils.redact import redact_pod_spec_env
 from src.utils import connectors
 from src.utils.job import app, backend_job_defs, common as task_common, kb_objects, task, workflow
@@ -512,7 +512,8 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                 progress_iter_freq,
                 workflow_obj.plugins,
                 workflow_obj.priority,
-                workflow_labels=workflow_obj.labels,
+                workflow_labels=validation.apply_pod_label_prefix(
+                    workflow_obj.labels, workflow_config.labels_config.pod_label_prefix),
             )
             self.k8s_resources = resources
             group_obj.update_group_template_resource_types()
@@ -1212,7 +1213,8 @@ class UpdateGroup(WorkflowJob):
             workflow_config,
             backend_config,
             workflow_obj.priority,
-            workflow_labels=workflow_obj.labels,
+            workflow_labels=validation.apply_pod_label_prefix(
+                workflow_obj.labels, workflow_config.labels_config.pod_label_prefix),
             skip_refresh_token=True,
         )
         k8s_factory.update_pod_k8s_resource(pod, group.group_uuid, pool, workflow_obj.priority)

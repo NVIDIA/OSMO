@@ -105,6 +105,41 @@ def validate_workflow_labels(labels: Mapping[str, str]) -> dict[str, str]:
     return dict(labels)
 
 
+def apply_pod_label_prefix(
+        labels: Mapping[str, str], pod_label_prefix: str) -> dict[str, str]:
+    """Prepend the configured pod-label prefix to every workflow label key.
+
+    Returns a copy with keys unchanged when the prefix is empty. The prefix is
+    an opaque string prepended verbatim; callers validate the resulting keys
+    with validate_prefixed_workflow_label_keys before stamping them onto pods.
+    """
+    if not pod_label_prefix:
+        return dict(labels)
+    return {f'{pod_label_prefix}{key}': value for key, value in labels.items()}
+
+
+def validate_prefixed_workflow_label_keys(
+        labels: Mapping[str, str], pod_label_prefix: str) -> None:
+    """Validate every label key once the pod-label prefix is prepended.
+
+    The prefix is not assumed to be a DNS prefix: the key and prefix are merged
+    first, then the result is validated as a Kubernetes label key. Raises
+    ValueError naming the key, the prefix, and the resulting key on the first
+    invalid merge.
+    """
+    if not pod_label_prefix:
+        return
+    for key in labels:
+        prefixed_key = f'{pod_label_prefix}{key}'
+        try:
+            validate_workflow_label_key(prefixed_key)
+        except ValueError as error:
+            raise ValueError(
+                f'Label key "{key}" with the configured pod label prefix '
+                f'"{pod_label_prefix}" forms an invalid Kubernetes label key '
+                f'"{prefixed_key}": {error}') from error
+
+
 def parse_workflow_label_assignment(assignment: str) -> tuple[str, str]:
     """Parse and validate a workflow label assignment in key=value form."""
     if '=' not in assignment:

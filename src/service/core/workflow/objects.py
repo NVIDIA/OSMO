@@ -1063,7 +1063,14 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         messages, and raises OSMOUsageError on the first enforce-mode
         violation.
         """
-        policies = self.context.database.get_workflow_configs().labels_config.policy
+        labels_config = self.context.database.get_workflow_configs().labels_config
+        try:
+            validation.validate_prefixed_workflow_label_keys(
+                rendered_spec.labels, labels_config.pod_label_prefix)
+        except ValueError as error:
+            raise osmo_errors.OSMOUsageError(
+                str(error), workflow_id=self.name) from error
+        policies = labels_config.policy
         warnings: List[str] = []
         rejection: WorkflowLabelPolicyOutcome | None = None
 

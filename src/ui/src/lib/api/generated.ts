@@ -707,6 +707,7 @@ export interface LabelPolicy {
  */
 export interface LabelsConfigInput {
   policy?: LabelPolicy[];
+  pod_label_prefix?: string;
 }
 
 /**
@@ -715,6 +716,7 @@ export interface LabelsConfigInput {
  */
 export interface LabelsConfigOutput {
   policy?: LabelPolicy[];
+  pod_label_prefix?: string;
 }
 
 /**
