@@ -687,6 +687,7 @@ export interface LabelPolicy {
  */
 export interface LabelsConfigInput {
   policy?: LabelPolicy[];
+  pod_label_prefix?: string;
 }
 
 /**
@@ -695,6 +696,7 @@ export interface LabelsConfigInput {
  */
 export interface LabelsConfigOutput {
   policy?: LabelPolicy[];
+  pod_label_prefix?: string;
 }
 
 /**
@@ -8362,6 +8364,7 @@ export const getReadWorkflowConfigsApiConfigsWorkflowGetResponseMock = (
       enforcement: faker.helpers.arrayElement(Object.values(LabelEnforcement)),
       assert_message: faker.string.alpha({ length: { min: 10, max: 20 } }),
     })),
+    pod_label_prefix: faker.string.alpha({ length: { min: 10, max: 20 } }),
   },
   max_num_tasks: faker.number.int(),
   max_num_ports_per_task: faker.number.int(),

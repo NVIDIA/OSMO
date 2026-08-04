@@ -42,10 +42,13 @@ def _label_policy(
     )
 
 
-def _submit_info(policy: list[connectors.LabelPolicy]) -> objects.WorkflowSubmitInfo:
+def _submit_info(
+        policy: list[connectors.LabelPolicy],
+        pod_label_prefix: str = '') -> objects.WorkflowSubmitInfo:
     database = mock.Mock()
     database.get_workflow_configs.return_value = types.SimpleNamespace(
-        labels_config=types.SimpleNamespace(policy=policy),
+        labels_config=types.SimpleNamespace(
+            policy=policy, pod_label_prefix=pod_label_prefix),
     )
     context = cast(
         objects.WorkflowServiceContext,
@@ -494,6 +497,34 @@ class TestWorkflowLabelPolicy(unittest.TestCase):
             metric_creator.send_counter.call_args_list,
             expected_calls,
         )
+
+
+class TestPodLabelPrefixGate(unittest.TestCase):
+    """Covers the pod-label-prefix merge check in the submission gate."""
+
+    def test_no_prefix_accepts_any_valid_label_key(self):
+        submit_info = _submit_info([])
+        self.assertEqual(
+            submit_info.validate_workflow_label_policy(
+                _rendered_spec({'team.example.com/role': 'lead'})),
+            [],
+        )
+
+    def test_prefix_accepts_bare_keys(self):
+        submit_info = _submit_info([], pod_label_prefix='osmo.nvidia.com/')
+        self.assertEqual(
+            submit_info.validate_workflow_label_policy(
+                _rendered_spec({'PPP': 'aurora'})),
+            [],
+        )
+
+    def test_prefix_rejects_key_that_forms_an_invalid_merged_key(self):
+        submit_info = _submit_info([], pod_label_prefix='osmo.nvidia.com/')
+        with self.assertRaises(osmo_errors.OSMOUsageError) as raised:
+            submit_info.validate_workflow_label_policy(
+                _rendered_spec({'team.example.com/role': 'lead'}))
+        self.assertIn(
+            'osmo.nvidia.com/team.example.com/role', raised.exception.message)
 
 
 class TestWorkflowLabelResponses(unittest.TestCase):

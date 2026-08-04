@@ -8769,6 +8769,11 @@
             "type": "array",
             "title": "Policy",
             "default": []
+          },
+          "pod_label_prefix": {
+            "type": "string",
+            "title": "Pod Label Prefix",
+            "default": ""
           }
         },
         "additionalProperties": false,
@@ -8785,6 +8790,11 @@
             "type": "array",
             "title": "Policy",
             "default": []
+          },
+          "pod_label_prefix": {
+            "type": "string",
+            "title": "Pod Label Prefix",
+            "default": ""
           }
         },
         "additionalProperties": false,
@@ -13270,7 +13280,8 @@
           "labels_config": {
             "$ref": "#/components/schemas/LabelsConfig-Input",
             "default": {
-              "policy": []
+              "policy": [],
+              "pod_label_prefix": ""
             }
           },
           "max_num_tasks": {
@@ -13437,7 +13448,8 @@
           "labels_config": {
             "$ref": "#/components/schemas/LabelsConfig-Output",
             "default": {
-              "policy": []
+              "policy": [],
+              "pod_label_prefix": ""
             }
           },
           "max_num_tasks": {
