@@ -1370,7 +1370,9 @@ class CreateGroupPrepareExecuteTest(unittest.TestCase):
         wf.labels = {'project': 'project-a'}
 
         ctx = mock.Mock()
-        ctx.postgres.get_workflow_configs.return_value = mock.Mock()
+        wf_config = mock.Mock()
+        wf_config.labels_config.pod_label_prefix = ''
+        ctx.postgres.get_workflow_configs.return_value = wf_config
 
         with mock.patch.object(task.TaskGroup, 'fetch_from_db', return_value=group), \
              mock.patch.object(connectors, 'BackendConfigCache',
@@ -1380,7 +1382,7 @@ class CreateGroupPrepareExecuteTest(unittest.TestCase):
                                side_effect=lambda x: x), \
              mock.patch.object(jobs.UploadWorkflowFiles, 'send_job_to_queue') \
                  as mock_send:
-            ready, error = cg.prepare_execute(mock.Mock(), mock.Mock())
+            ready, error = cg.prepare_execute(ctx, mock.Mock())
         self.assertTrue(ready)
         self.assertEqual(error, '')
         mock_send.assert_called_once()
