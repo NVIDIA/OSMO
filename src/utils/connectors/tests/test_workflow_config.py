@@ -31,15 +31,15 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
 
     def test_accepts_pod_label_prefix(self):
         config = connectors.WorkflowConfig(labels_config={
-            'pod_label_prefix': 'osmo.nvidia.com/',
+            'pod_label_prefix': 'example.com/',
         })
         self.assertEqual(
-            config.labels_config.pod_label_prefix, 'osmo.nvidia.com/')
+            config.labels_config.pod_label_prefix, 'example.com/')
 
     def test_rejects_pod_label_prefix_with_whitespace_or_overlong(self):
         with self.assertRaisesRegex(pydantic.ValidationError, 'whitespace'):
             connectors.WorkflowConfig(labels_config={
-                'pod_label_prefix': 'osmo nvidia/',
+                'pod_label_prefix': 'has space/',
             })
         with self.assertRaisesRegex(pydantic.ValidationError, 'at most 253'):
             connectors.WorkflowConfig(labels_config={

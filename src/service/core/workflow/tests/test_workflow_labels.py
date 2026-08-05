@@ -511,7 +511,7 @@ class TestPodLabelPrefixGate(unittest.TestCase):
         )
 
     def test_prefix_accepts_bare_keys(self):
-        submit_info = _submit_info([], pod_label_prefix='osmo.nvidia.com/')
+        submit_info = _submit_info([], pod_label_prefix='example.com/')
         self.assertEqual(
             submit_info.validate_workflow_label_policy(
                 _rendered_spec({'PPP': 'aurora'})),
@@ -519,12 +519,12 @@ class TestPodLabelPrefixGate(unittest.TestCase):
         )
 
     def test_prefix_rejects_key_that_forms_an_invalid_merged_key(self):
-        submit_info = _submit_info([], pod_label_prefix='osmo.nvidia.com/')
+        submit_info = _submit_info([], pod_label_prefix='example.com/')
         with self.assertRaises(osmo_errors.OSMOUsageError) as raised:
             submit_info.validate_workflow_label_policy(
                 _rendered_spec({'team.example.com/role': 'lead'}))
         self.assertIn(
-            'osmo.nvidia.com/team.example.com/role', raised.exception.message)
+            'example.com/team.example.com/role', raised.exception.message)
 
 
 class TestWorkflowLabelResponses(unittest.TestCase):
