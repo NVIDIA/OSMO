@@ -46,8 +46,9 @@ h11==0.16.0
 pyjwt==2.13.0
 
 # Requests
-requests==2.32.4
+requests==2.33.1
 urllib3==2.7.0
+idna==3.16
 
 # Jinja
 jinja2==3.1.6
@@ -62,7 +63,10 @@ mypy-boto3-sts==1.38.*
 cryptography==48.0.1
 
 # JWE, JWK
-jwcrypto==1.5.6
+jwcrypto==1.5.7
+
+# Build dependency security floor (CVE-2026-59890).
+setuptools==83.0.0
 
 # Pyinstaller
 pyinstaller==6.19.0

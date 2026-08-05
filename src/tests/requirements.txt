@@ -23,3 +23,4 @@ bcrypt==4.2.1
 httpx==0.28.1
 testcontainers==4.13.2
 urllib3==2.7.0
+idna==3.16 # Security floor for CVE-2026-45409

@@ -32,6 +32,7 @@ sphinx-markdown-builder==0.6.8
 sphinx-new-tab-link==0.8.0
 sphinx-simplepdf==1.6.0
 Pillow>=11.0.0
+idna==3.16 # Security floor for CVE-2026-45409
 sphinx-substitution-extensions==2024.2.25
 sphinxcontrib-mermaid==1.0.0
 sphinxcontrib-spelling==8.0.2
