@@ -447,8 +447,8 @@ class TestPodLabelPrefix(unittest.TestCase):
     def test_prefix_is_prepended_to_every_key(self):
         self.assertEqual(
             validation.apply_pod_label_prefix(
-                {'PPP': 'aurora', 'team': 'alpha'}, 'osmo.nvidia.com/'),
-            {'osmo.nvidia.com/PPP': 'aurora', 'osmo.nvidia.com/team': 'alpha'},
+                {'PPP': 'aurora', 'team': 'alpha'}, 'example.com/'),
+            {'example.com/PPP': 'aurora', 'example.com/team': 'alpha'},
         )
 
     def test_non_dns_prefix_is_prepended_verbatim(self):
@@ -464,23 +464,23 @@ class TestPodLabelPrefix(unittest.TestCase):
 
     def test_valid_merged_keys_pass_validation(self):
         validation.validate_prefixed_workflow_label_keys(
-            {'PPP': 'aurora', 'team': 'alpha'}, 'osmo.nvidia.com/')
+            {'PPP': 'aurora', 'team': 'alpha'}, 'example.com/')
 
     def test_merged_key_with_two_slashes_is_rejected(self):
         # A user key that already carries its own prefix would form a
         # double-slash key once the pod-label prefix is prepended.
         with self.assertRaisesRegex(
-                ValueError, r'osmo\.nvidia\.com/team\.example\.com/role'):
+                ValueError, r'example\.com/team\.example\.com/role'):
             validation.validate_prefixed_workflow_label_keys(
-                {'team.example.com/role': 'lead'}, 'osmo.nvidia.com/')
+                {'team.example.com/role': 'lead'}, 'example.com/')
 
     def test_error_names_the_key_and_prefix(self):
         with self.assertRaises(ValueError) as raised:
             validation.validate_prefixed_workflow_label_keys(
-                {'team.example.com/role': 'lead'}, 'osmo.nvidia.com/')
+                {'team.example.com/role': 'lead'}, 'example.com/')
         message = str(raised.exception)
         self.assertIn('team.example.com/role', message)
-        self.assertIn('osmo.nvidia.com/', message)
+        self.assertIn('example.com/', message)
 
 
 if __name__ == '__main__':
