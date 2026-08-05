@@ -87,7 +87,8 @@ Quick navigation
 - **Setting up roles and policies?** → :doc:`roles_policies`
 - **Creating users and assigning roles?** → :doc:`managing_users`
 - **IdP role mapping and sync modes?** → :doc:`idp_role_mapping`
-- **Service accounts (access tokens, backend operators)?** → :doc:`service_accounts`
+- **Service accounts and access tokens for automation?** → :doc:`service_accounts`
+- **Backend operator bootstrap?** → :doc:`../../install_backend/deploy_backend`
 - **Using an IdP (e.g., Microsoft Entra ID, Google)?** → :doc:`identity_provider_setup`
 - **Using OSMO without an IdP (default admin)?** → :ref:`default_admin_setup` (below) and :doc:`../../getting_started/deploy_service`
 

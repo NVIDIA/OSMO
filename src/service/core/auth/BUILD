@@ -23,6 +23,7 @@ osmo_py_library(
     name = "auth",
     srcs = [
         "auth_service.py",
+        "backend_secret_auth.py",
         "objects.py",
     ],
     deps = [

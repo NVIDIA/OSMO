@@ -58,7 +58,7 @@ OSMO_HELM_REPO_URL="${OSMO_HELM_REPO_URL:-https://helm.ngc.nvidia.com/nvidia/osm
 # `--devel`-tagged version) to match the prerelease image tag.
 OSMO_CHART_VERSION="${OSMO_CHART_VERSION:-}"
 OSMO_IMAGE_TAG="${OSMO_IMAGE_TAG:-latest}"
-BACKEND_TOKEN_EXPIRY="${BACKEND_TOKEN_EXPIRY:-2027-01-01}"
+BACKEND_TOKEN_SECRET_NAME="${BACKEND_TOKEN_SECRET_NAME:-osmo-operator-token}"
 NGC_API_KEY="${NGC_API_KEY:-}"
 # NGC pull-secret name. Empty by default → no NGC plumbing anywhere (volume
 # mount, --set global.imagePullSecret, secretRefs entry, backend_images
@@ -74,7 +74,6 @@ NGC_API_KEY="${NGC_API_KEY:-}"
 # probe" model which silently re-introduced FailedMount when the implied
 # secret didn't exist.
 NGC_SECRET_NAME="${NGC_SECRET_NAME:-}"
-BACKEND_OPERATOR_USER="${BACKEND_OPERATOR_USER:-backend-operator}"
 
 # DB-init pod used to issue `CREATE DATABASE` against an existing managed
 # PostgreSQL. Locked-down clusters that can't pull from Docker Hub override
@@ -408,6 +407,130 @@ spec:
 # Secrets Functions
 ###############################################################################
 
+get_backend_token_data() {
+    local namespace="$1"
+    if [[ "${PROVIDER:-}" == "azure" && "$IS_PRIVATE_CLUSTER" == "true" ]]; then
+        local invoke_logs
+        if ! invoke_logs=$(az aks command invoke \
+                --resource-group "$RESOURCE_GROUP_NAME" \
+                --name "$AKS_CLUSTER_NAME" \
+                --command "backend_token=\$(kubectl get secret $BACKEND_TOKEN_SECRET_NAME -n $namespace --ignore-not-found=true -o jsonpath='{.data.token}'); backend_status=\$?; if [ \$backend_status -ne 0 ]; then echo OSMO_BACKEND_TOKEN_ERROR; elif [ -n \"\$backend_token\" ]; then echo OSMO_BACKEND_TOKEN_FOUND:\$backend_token; else echo OSMO_BACKEND_TOKEN_MISSING; fi" \
+                --query logs \
+                --output tsv \
+                2>/dev/null); then
+            return 2
+        fi
+        local lookup_result
+        lookup_result=$(printf '%s\n' "$invoke_logs" \
+            | awk '/^OSMO_BACKEND_TOKEN_(FOUND:.*|MISSING|ERROR)$/ { result=$0 } END { print result }')
+        case "$lookup_result" in
+            OSMO_BACKEND_TOKEN_FOUND:*)
+                printf '%s' "${lookup_result#OSMO_BACKEND_TOKEN_FOUND:}"
+                return 0
+                ;;
+            OSMO_BACKEND_TOKEN_MISSING)
+                return 1
+                ;;
+            *)
+                return 2
+                ;;
+        esac
+    fi
+
+    local token_data
+    if ! token_data=$($RUN_KUBECTL \
+            "get secret $BACKEND_TOKEN_SECRET_NAME -n $namespace --ignore-not-found=true -o jsonpath={.data.token}" \
+            2>/dev/null); then
+        return 2
+    fi
+    if [[ -z "$token_data" ]]; then
+        return 1
+    fi
+    printf '%s' "$token_data"
+}
+
+create_backend_token_secrets() {
+    local control_token_data=""
+    local operator_token_data=""
+    local control_token_state=""
+    local operator_token_state=""
+
+    if control_token_data=$(get_backend_token_data "$OSMO_NAMESPACE"); then
+        control_token_state="found"
+    elif [[ $? -eq 1 ]]; then
+        control_token_state="missing"
+    else
+        log_error "Unable to read backend token Secret in namespace $OSMO_NAMESPACE"
+        return 1
+    fi
+    if operator_token_data=$(get_backend_token_data "$OSMO_OPERATOR_NAMESPACE"); then
+        operator_token_state="found"
+    elif [[ $? -eq 1 ]]; then
+        operator_token_state="missing"
+    else
+        log_error "Unable to read backend token Secret in namespace $OSMO_OPERATOR_NAMESPACE"
+        return 1
+    fi
+
+    if [[ -n "$control_token_data" && -n "$operator_token_data" && \
+          "$control_token_data" != "$operator_token_data" ]]; then
+        log_error "Backend token Secrets differ between control and operator namespaces"
+        log_error "Rotate or replace $BACKEND_TOKEN_SECRET_NAME so both namespaces contain the same token"
+        return 1
+    fi
+
+    local existing_token_data="${control_token_data:-$operator_token_data}"
+    if [[ "$control_token_state" == "missing" && \
+          "$operator_token_state" == "missing" ]]; then
+        log_info "Generating backend bootstrap credential in Kubernetes Secrets"
+        local backend_token_file
+        backend_token_file=$(mktemp)
+        chmod 600 "$backend_token_file"
+        trap 'rm -f "$backend_token_file"' RETURN
+        openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$backend_token_file"
+
+        local control_secret_yaml
+        local operator_secret_yaml
+        control_secret_yaml=$(kubectl create secret generic "$BACKEND_TOKEN_SECRET_NAME" \
+            --from-file=token="$backend_token_file" \
+            --namespace "$OSMO_NAMESPACE" \
+            --dry-run=client -o yaml)
+        operator_secret_yaml=$(kubectl create secret generic "$BACKEND_TOKEN_SECRET_NAME" \
+            --from-file=token="$backend_token_file" \
+            --namespace "$OSMO_OPERATOR_NAMESPACE" \
+            --dry-run=client -o yaml)
+        $RUN_KUBECTL_APPLY_STDIN "$control_secret_yaml"
+        $RUN_KUBECTL_APPLY_STDIN "$operator_secret_yaml"
+        log_info "  Created $BACKEND_TOKEN_SECRET_NAME in $OSMO_NAMESPACE and $OSMO_OPERATOR_NAMESPACE"
+        rm -f "$backend_token_file"
+        trap - RETURN
+        return
+    fi
+
+    local namespace
+    local namespace_token_state
+    for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE"; do
+        if [[ "$namespace" == "$OSMO_NAMESPACE" ]]; then
+            namespace_token_state="$control_token_state"
+        else
+            namespace_token_state="$operator_token_state"
+        fi
+        if [[ "$namespace_token_state" == "missing" ]]; then
+            local secret_manifest="apiVersion: v1
+kind: Secret
+metadata:
+  name: $BACKEND_TOKEN_SECRET_NAME
+  namespace: $namespace
+type: Opaque
+data:
+  token: $existing_token_data"
+            $RUN_KUBECTL_APPLY_STDIN "$secret_manifest"
+            log_info "  Copied $BACKEND_TOKEN_SECRET_NAME to $namespace"
+        fi
+    done
+    log_info "Backend bootstrap credential already exists — preserving"
+}
+
 create_secrets() {
     log_info "Creating Kubernetes secrets..."
 
@@ -423,6 +546,8 @@ create_secrets() {
     # Create redis secret
     $RUN_KUBECTL "delete secret redis-secret --namespace $OSMO_NAMESPACE --ignore-not-found=true"
     $RUN_KUBECTL "create secret generic redis-secret --from-literal=redis-password=$REDIS_PASSWORD --namespace $OSMO_NAMESPACE"
+
+    create_backend_token_secrets
 
     # Default admin secret — referenced by services.defaultAdmin.passwordSecretName
     # in values/service.yaml. The chart renders this into the bootstrap admin
@@ -677,6 +802,9 @@ service_set_flags() {
 
     sets+=" --set services.redis.serviceName=${REDIS_HOST}"
     sets+=" --set services.redis.port=${REDIS_PORT}"
+    sets+=" --set services.backendApiTokens.enabled=true"
+    sets+=" --set services.backendApiTokens.credentials[0].name=default"
+    sets+=" --set services.backendApiTokens.credentials[0].secretName=${BACKEND_TOKEN_SECRET_NAME}"
 
     # AWS without aws-load-balancer-controller: the in-tree cloud provider
     # creates a Classic ELB for type=LoadBalancer Services, but it requires
@@ -751,6 +879,7 @@ backend_operator_set_flags() {
     sets+=" --set global.serviceUrl=http://osmo-gateway.${OSMO_NAMESPACE}.svc.cluster.local"
     sets+=" --set global.agentNamespace=${OSMO_OPERATOR_NAMESPACE}"
     sets+=" --set global.backendNamespace=${OSMO_WORKFLOWS_NAMESPACE}"
+    sets+=" --set global.accountTokenSecret=${BACKEND_TOKEN_SECRET_NAME}"
 
     echo "$sets"
 }
@@ -946,24 +1075,6 @@ setup_backend_operator() {
         return
     fi
 
-    # Phase 1: ensure the osmo-operator-token secret exists with a real value.
-    # Token mint is the only step that actually requires the osmo CLI; the
-    # subsequent helm install runs unconditionally so re-runs of this function
-    # always reconcile the backend-operator deployment with the chart.
-    if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
-        log_warning "Private cluster - token generation requires manual steps; assuming token is pre-provisioned"
-    else
-        local existing_token
-        existing_token=$($RUN_KUBECTL "get secret osmo-operator-token -n $OSMO_OPERATOR_NAMESPACE -o jsonpath={.data.token}" 2>/dev/null \
-            | base64 -d 2>/dev/null || echo "")
-        if [[ -n "$existing_token" && "$existing_token" != "placeholder" ]]; then
-            log_info "Backend operator token already present in $OSMO_OPERATOR_NAMESPACE — reusing"
-        else
-            mint_backend_operator_token || return 1
-        fi
-    fi
-
-    # Phase 2: install/upgrade backend-operator chart unconditionally.
     log_info "Deploying Backend Operator..."
     # backend-operator.yaml first, generated per-cluster overrides next, then
     # user overrides last so an explicit caller value always wins.
@@ -971,96 +1082,6 @@ setup_backend_operator() {
         "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout ${HELM_TIMEOUT_OPERATOR:-10m}$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)$(helm_user_values_flags backend-operator)$(helm_user_set_flags backend-operator)"
 
     log_success "Backend Operator deployed"
-}
-
-mint_backend_operator_token() {
-    # Make sure the osmo CLI is available before we depend on it
-    if ! command -v osmo &>/dev/null; then
-        if [[ -f "$SCRIPT_DIR/common.sh" ]]; then source "$SCRIPT_DIR/common.sh"; fi
-        if declare -F install_osmo_cli_if_missing &>/dev/null; then
-            install_osmo_cli_if_missing
-        fi
-    fi
-    if ! command -v osmo &>/dev/null; then
-        log_error "osmo CLI required for backend-operator token mint, not found on PATH"
-        return 1
-    fi
-
-    local api_svc
-    api_svc=$(resolve_osmo_api_service "$OSMO_NAMESPACE")
-    log_info "Starting port-forward to $api_svc (gateway-aware target)..."
-    bash "$SCRIPT_DIR/port-forward.sh" --watchdog "$api_svc" 9000 "$OSMO_NAMESPACE" \
-        || { log_error "Failed to establish port-forward for token mint"; return 1; }
-
-    log_info "Logging into OSMO..."
-    osmo login http://localhost:9000 --method=dev --username=admin || {
-        log_error "osmo login failed — cannot mint backend-operator token"
-        return 1
-    }
-
-    # 6.3 CLI: `--service` flag is gone; mint a token *for* a dedicated
-    # service-account user via `--user`. Create the user idempotently first.
-    # Default `backend-operator` matches the docs minimal-deploy reference.
-    local sa_user="$BACKEND_OPERATOR_USER"
-    if ! osmo user get "$sa_user" -t json &>/dev/null; then
-        log_info "Creating service-account user '$sa_user' with role osmo-backend..."
-        if ! osmo user create "$sa_user" --roles osmo-backend &>/tmp/osmo-user-create.log; then
-            log_error "Failed to create service-account user '$sa_user'"
-            cat /tmp/osmo-user-create.log >&2 || true
-            return 1
-        fi
-    else
-        log_info "Service-account user '$sa_user' already exists"
-    fi
-
-    # `osmo token set` is create-only — if a `backend-token` already exists
-    # for this user (from a previous deploy run, partial failure, or PVC
-    # carryover on in-cluster postgres), the next `set` call returns 400
-    # "Token name already exists" and the deploy stalls. Delete first so
-    # re-runs always reconcile to a fresh secret.
-    #
-    # Use the JSON output + the same pre-JSON banner strip we apply on
-    # `osmo token set` below — text-format parsing was brittle (row indexing
-    # changes when the CLI prints a "New client X.Y.Z available" banner on
-    # version skew, and the preamble line count depends on whether --user
-    # is passed). The JSON `token_name` field name is stable.
-    local token_name="backend-token"
-    if osmo token list --user "$sa_user" -t json 2>/dev/null \
-        | sed -n '/^\[/,/^\]/p' \
-        | jq -e --arg n "$token_name" 'any(.[]; .token_name == $n)' >/dev/null; then
-        log_info "  $token_name already exists for $sa_user — deleting before re-mint"
-        osmo token delete "$token_name" --user "$sa_user" >/dev/null 2>&1 || true
-    fi
-
-    log_info "Generating backend operator token for $sa_user..."
-    local backend_token
-    # Strip pre-JSON banner lines before piping to jq. OSMO CLI versions
-    # older than the server emit `WARNING: New client X.Y.Z available` to
-    # stdout above the JSON body; without the sed filter, `jq -r '.token'`
-    # errors with "parse error: Invalid numeric literal" and the script
-    # treats the mint as failed.
-    backend_token=$(osmo token set "$token_name" \
-        --expires-at "$BACKEND_TOKEN_EXPIRY" \
-        --description "Backend Operator Token" \
-        --user "$sa_user" \
-        --roles osmo-backend \
-        -t json 2>/tmp/osmo-token-set.log | sed -n '/^{/,/^}/p' \
-        | jq -r '.token' || echo "")
-
-    if [[ -z "$backend_token" || "$backend_token" == "null" ]]; then
-        log_error "Failed to mint backend-operator token (osmo CLI returned empty)"
-        cat /tmp/osmo-token-set.log >&2 || true
-        return 1
-    fi
-
-    local token_secret_yaml
-    token_secret_yaml=$(kubectl create secret generic osmo-operator-token \
-        --from-literal=token="$backend_token" \
-        --namespace "$OSMO_OPERATOR_NAMESPACE" \
-        --dry-run=client -o yaml)
-    $RUN_KUBECTL_APPLY_STDIN "$token_secret_yaml"
-
-    log_success "Backend token minted and stored in $OSMO_OPERATOR_NAMESPACE/osmo-operator-token"
 }
 
 ###############################################################################

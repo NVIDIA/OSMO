@@ -361,7 +361,9 @@ Add `https://<your-hostname>/oauth2/callback` to Valid Redirect URIs in Clients 
 
 The 6.2 RBAC migration deletes old `SERVICE` type access tokens and changes the `access_token` primary key to a composite `(user_name, token_name)`. After upgrading the main OSMO deployment, you must recreate service account tokens used by backend operators before upgrading the backend deployment charts.
 
-Follow [Step 1: Create Service Account for Backend Operator](https://nvidia.github.io/OSMO/main/deployment_guide/install_backend/deploy_backend.html#step-1-create-service-account-for-backend-operator) from the deployment guide:
+Use the legacy 6.2 token procedure below. Current releases use Kubernetes
+Secret-backed bootstrap instead, but that mechanism is not available during a
+6.0-to-6.2 upgrade:
 
 1. Authenticate to OSMO:
 

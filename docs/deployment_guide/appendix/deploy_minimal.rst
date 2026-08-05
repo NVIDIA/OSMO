@@ -402,39 +402,35 @@ Step 8: Install Backend Operator
            enabled: false
 
 
-2. Login to OSMO:
+2. Provision the backend bootstrap Secret:
 
-   Port forward the gateway and login to OSMO:
-
-   .. code-block:: bash
-
-      $ kubectl port-forward service/osmo-gateway 9000:80 -n osmo-minimal
-
-      $ osmo login http://localhost:9000 --method=dev --username=testuser
-
-
-3. Create the service account and token:
-
-   Create a service account user and generate a token for the backend operator with OSMO CLI:
+   Generate the credential independently of the OSMO API and create matching
+   Secrets in the control-plane and backend-operator namespaces:
 
    .. code-block:: bash
 
-      # Create the service account user
-      $ osmo user create backend-operator --roles osmo-backend
+      $ TOKEN_FILE=$(mktemp)
+      $ chmod 600 "$TOKEN_FILE"
+      $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
+      $ kubectl create secret generic osmo-operator-token \
+          --from-file=token="$TOKEN_FILE" --namespace osmo-minimal
+      $ kubectl create secret generic osmo-operator-token \
+          --from-file=token="$TOKEN_FILE" --namespace osmo-operator
+      $ rm -f "$TOKEN_FILE"
 
-      # Generate a token for the service account with the osmo-backend role
-      $ export BACKEND_TOKEN=$(osmo token set backend-token \
-          --user backend-operator \
-          --expires-at <insert-date> \
-          --description "Backend Operator Token" \
-          --roles osmo-backend \
-          -t json | jq -r '.token')
+   Configure the service values to consume the control-plane copy:
 
-      # Create the Kubernetes secret
-      $ kubectl create secret generic osmo-operator-token --from-literal=token=$BACKEND_TOKEN --namespace osmo-operator
+   .. code-block:: yaml
+
+      services:
+        backendApiTokens:
+          enabled: true
+          credentials:
+          - name: default
+            secretName: osmo-operator-token
 
 
-4. Deploy the backend operator:
+3. Deploy the backend operator:
 
    .. code-block:: bash
 

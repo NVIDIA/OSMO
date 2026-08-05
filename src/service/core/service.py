@@ -37,7 +37,9 @@ import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
-from src.service.core.auth import auth_service, objects as auth_objects
+from src.service.core.auth import (
+    auth_service, backend_secret_auth, objects as auth_objects,
+)
 from src.service.core.config import (
     config_service, configmap_loader,
     helpers as config_helpers, objects as config_objects,
@@ -454,6 +456,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     api_service_metrics = metrics.MetricCreator(config=config).get_meter_instance()
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
+    backend_secret_auth.configure(config.backend_token_directory)
 
     if not config.config_file:
         service_configs_dict = postgres.get_service_configs()

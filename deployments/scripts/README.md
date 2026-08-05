@@ -122,7 +122,7 @@ When invoked, the entry-point runs these phases in order. Each is idempotent and
    - Creates namespaces, MEK ConfigMap, NGC pull secret
    - `helm upgrade --install` with chart + storage-values fragment + `--set global.osmoImageTag=$OSMO_IMAGE_TAG` + `--version $OSMO_CHART_VERSION` (when set)
    - Optional user values files and simple `--set` overrides are layered last
-   - Idempotent backend-operator token mint (re-uses existing if valid)
+   - Idempotent Secret-backed backend credential provisioning
    - Waits for pods Running 1/1
 5. **Smoke test** (`verify.sh`) — submits `verify-hello.yaml`, polls until COMPLETED, dumps logs on failure. With GPU nodes, also runs `verify-gpu.yaml`.
 6. **Watchdog port-forwards** (optional, default on for non-CI invocations) — `port-forward.sh --watchdog` for `osmo-service` (:9000) and `osmo-ui` (:3000).
@@ -190,7 +190,9 @@ Then pass it to both OSMO charts:
 
 ### `deploy-k8s.sh`
 
-Called by the main script. Handles the OSMO helm install, MEK ConfigMap, NGC pull secret, and idempotent backend-operator token mint. Can also run standalone:
+Called by the main script. Handles the OSMO Helm install, MEK ConfigMap, NGC
+pull Secret, and Secret-backed backend credential provisioning without calling
+the OSMO token API. Can also run standalone:
 
 ```bash
 ./deploy-k8s.sh --provider azure --outputs-file .azure_outputs.env --postgres-password 'YourPassword'
@@ -321,7 +323,7 @@ Pre-create the IAM role with the OSMO service-account trust, then:
 | `OSMO_CHART_VERSION` | Pin OSMO Helm chart version. **Required** for prerelease channels (chart RCs aren't tagged `latest`). | _(latest in repo)_ |
 | `OSMO_HELM_REPO_URL` | OSMO Helm chart repo URL. Override to `https://helm.ngc.nvidia.com/nvstaging/osmo` for prerelease testing. | `https://helm.ngc.nvidia.com/nvidia/osmo` |
 | `OSMO_HELM_REPO_NAME` | Local helm repo alias | `osmo` |
-| `BACKEND_TOKEN_EXPIRY` | Backend operator token expiry | `2027-01-01` |
+| `BACKEND_TOKEN_SECRET_NAME` | Shared backend bootstrap Secret name | `osmo-operator-token` |
 | `OSMO_REACHABILITY_PATH` | Lightweight unauthenticated path used by `verify.sh` for the pre-login reachability probe | `/api/version` |
 | `OSMO_REACHABILITY_TIMEOUT_SECONDS` | Curl timeout for the `verify.sh` reachability probe | `5` |
 | `NGC_API_KEY` | NGC API key for `nvcr.io` images and chart pulls | — |

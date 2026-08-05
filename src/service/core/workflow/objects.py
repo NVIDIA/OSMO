@@ -92,6 +92,14 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'progress_iter_frequency',
             'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
         })
+    backend_token_directory: str | None = pydantic.Field(
+        default=None,
+        description='Directory containing Kubernetes Secret projections used to authenticate '
+                    'backend operators.',
+        json_schema_extra={
+            'command_line': 'backend_token_directory',
+            'env': 'OSMO_BACKEND_TOKEN_DIRECTORY'
+        })
     default_admin_username: str | None = pydantic.Field(
         default=None,
         description='The username for the default admin user to create on startup. '
