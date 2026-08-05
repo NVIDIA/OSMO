@@ -27,7 +27,7 @@ class ErrorHandlingWorkflows(RunnerFixture):
     # image which isn't shipped publicly.
 
     def test_resource_as_byte(self):
-        """Positive: byte-spec resource values (e.g. cpu: 1024Mi) parse + run."""
+        """Positive: sub-Gi byte-spec memory and storage values parse and run."""
         self.workflow("test/workflow/resource_type.yaml") \
             .timeout("1m") \
             .expect_completed()

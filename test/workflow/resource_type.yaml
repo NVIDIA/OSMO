@@ -13,8 +13,8 @@ workflow:
   resources:
     default:
       cpu: 1
-      storage: 5368709120 # 5Gi
-      memory: 1073741824 # 1Gi
+      storage: 104857600 # 100Mi
+      memory: 536870912 # 512Mi
   tasks:
   - name: task1
     resource: default

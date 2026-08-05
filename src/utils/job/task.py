@@ -33,6 +33,7 @@ from urllib.parse import urlencode
 import pydantic
 import urllib3  # type: ignore
 import yaml
+from kubernetes.utils.quantity import parse_quantity
 
 from src.lib.data import storage
 from src.lib.data.storage import constants
@@ -1462,6 +1463,38 @@ def substitute_pod_template_tokens(pod_template: Dict, tokens: Dict[str, Any]):
 
 def apply_pod_template(pod: Dict, pod_override: Dict):
     return common.recursive_dict_update(pod, pod_override, common.merge_lists_on_name)
+
+
+def ensure_ctrl_resource_limits(pod: Dict) -> Dict:
+    """Ensure osmo-ctrl memory and storage limits cover their requests."""
+    containers = pod.get('spec', {}).get('containers', [])
+    if not isinstance(containers, list):
+        return pod
+    for container in containers:
+        if not isinstance(container, dict):
+            continue
+        if container.get('name') != 'osmo-ctrl':
+            continue
+        resources = container.get('resources', {})
+        if not isinstance(resources, dict):
+            continue
+        requests = resources.get('requests', {})
+        limits = resources.get('limits', {})
+        if not isinstance(requests, dict) or not isinstance(limits, dict):
+            continue
+        for resource_name in ('memory', 'ephemeral-storage'):
+            request = requests.get(resource_name)
+            limit = limits.get(resource_name)
+            if request is None or limit is None:
+                continue
+            try:
+                request_value = parse_quantity(request)
+                limit_value = parse_quantity(limit)
+            except (TypeError, ValueError):
+                continue
+            if request_value > limit_value:
+                limits[resource_name] = request
+    return pod
 
 
 def apply_workflow_labels(
@@ -2911,6 +2944,7 @@ class TaskGroup(pydantic.BaseModel):
         override_pod_template = copy.deepcopy(task_platform.parsed_pod_template)
         substitute_pod_template_tokens(override_pod_template, jinja_variables)
         pod = apply_pod_template(pod, override_pod_template)
+        pod = ensure_ctrl_resource_limits(pod)
         # Re-assert system labels so pod-template overrides cannot replace them.
         pod = apply_system_labels(pod, labels)
 
