@@ -823,6 +823,10 @@ def _render_pod_template_for_accounting(
     rendered = copy.deepcopy(pod_template)
     if not default_variables:
         return rendered
+    accounting_variables = copy.deepcopy(default_variables)
+    derived_tokens = connectors.ResourceSpec().get_allocatable_tokens(default_variables)
+    accounting_variables['USER_MEMORY_Gi'] = derived_tokens['USER_MEMORY_Gi']
+    accounting_variables['USER_STORAGE_Gi'] = derived_tokens['USER_STORAGE_Gi']
     containers = rendered.get('spec', {}).get('containers', [])
     for container in containers:
         if container.get('name') != 'osmo-ctrl':
@@ -839,7 +843,7 @@ def _render_pod_template_for_accounting(
                     continue
                 try:
                     fields[key] = jinja_sandbox.sandboxed_jinja_substitute(
-                        value, default_variables)
+                        value, accounting_variables)
                 except osmo_errors.OSMOUsageError as exc:
                     # Leave the original template in place; accounting
                     # falls back to convert_cpu_unit's zero-on-parse

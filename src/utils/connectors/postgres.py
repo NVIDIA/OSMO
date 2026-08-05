@@ -1852,13 +1852,15 @@ class ResourceSpec(pydantic.BaseModel):
         # Set num and units after default variable calculation is done
         storage_num, storage_unit = split_num_units(
             str(mapping['USER_STORAGE']) if mapping.get('USER_STORAGE', None) else None)
-        store_num_units(storage_num, storage_unit, mapping, 'USER_STORAGE')
+        final_storage_num, final_storage_unit = split_num_units(
+            str(final_tokens['USER_STORAGE']) if final_tokens.get('USER_STORAGE', None) else None)
+        store_num_units(final_storage_num, final_storage_unit, final_tokens, 'USER_STORAGE')
         defined_storage_num = storage_num if storage_num else '0'
         defined_storage_unit = storage_unit if storage_unit else 'MiB'
 
         memory_num, memory_unit = split_num_units(
-            str(mapping['USER_MEMORY']) if mapping.get('USER_MEMORY', None) else None)
-        store_num_units(memory_num, memory_unit, mapping, 'USER_MEMORY')
+            str(final_tokens['USER_MEMORY']) if final_tokens.get('USER_MEMORY', None) else None)
+        store_num_units(memory_num, memory_unit, final_tokens, 'USER_MEMORY')
 
         cache_amount = None
         # If user did not specify cache size, use the default variable

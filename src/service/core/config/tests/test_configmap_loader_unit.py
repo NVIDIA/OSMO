@@ -35,7 +35,7 @@ import yaml
 
 from src.lib.utils import osmo_errors
 from src.service.core.config import (
-    configmap_events, configmap_guard, configmap_loader, helpers,
+    configmap_events, configmap_guard, configmap_loader, helpers, objects,
 )
 from src.utils import auth, configmap_state
 
@@ -2266,6 +2266,33 @@ class TestResolvePoolComputedFields(unittest.TestCase):
                     ['spec']['containers'][0])
         self.assertEqual(
             ctrl_big['resources']['requests']['cpu'], '2')
+
+    def test_renders_default_ctrl_resource_floors_for_accounting(self):
+        cases = [
+            ('512Mi', '100Mi', '1Gi', '1Gi'),
+            ('1Gi', '1Gi', '1.0Gi', '1.0Gi'),
+            ('64Gi', '64Gi', '64.0Gi', '64.0Gi'),
+        ]
+
+        for memory, storage, expected_memory, expected_storage in cases:
+            with self.subTest(memory=memory, storage=storage):
+                pod_template = copy.deepcopy(objects.DEFAULT_POD_TEMPLATES['default_ctrl'])
+                limits = pod_template['spec']['containers'][0]['resources']['limits']
+                limits['cache'] = '{{USER_CACHE}}'
+                rendered = configmap_loader._render_pod_template_for_accounting(
+                    pod_template, {
+                        'USER_CPU': 1,
+                        'USER_MEMORY': memory,
+                        'USER_STORAGE': storage,
+                        'USER_CACHE': '4Gi',
+                    })
+                resources = rendered['spec']['containers'][0]['resources']
+                self.assertEqual(resources['limits']['memory'], expected_memory)
+                self.assertEqual(
+                    resources['limits']['ephemeral-storage'], expected_storage)
+                self.assertEqual(resources['limits']['cache'], '4Gi')
+                self.assertEqual(resources['requests']['memory'], '1Gi')
+                self.assertEqual(resources['requests']['ephemeral-storage'], '1Gi')
 
     def test_load_and_apply_resolves_pool_fields(self):
         """End-to-end: _load_and_apply resolves pool computed fields."""
