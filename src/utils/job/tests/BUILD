@@ -121,7 +121,6 @@ osmo_py_test(
     srcs = ["test_task_pure.py"],
     deps = [
         "//src/lib/utils:credentials",
-        "//src/service/core/config:config",
         "//src/utils/job",
         requirement("pydantic"),
     ],

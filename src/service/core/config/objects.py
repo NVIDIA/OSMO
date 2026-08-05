@@ -36,14 +36,11 @@ DEFAULT_POD_TEMPLATES : dict[str, dict] = {
                         'limits': {
                             'cpu': '{{USER_CPU}}',
                             'memory': (
-                                '{% if USER_MEMORY is defined and USER_MEMORY is not none '
-                                'and USER_MEMORY_Gi is defined and USER_MEMORY_Gi is not none '
-                                'and USER_MEMORY_Gi > 1 %}{{USER_MEMORY}}{% else %}1Gi{% endif %}'),
+                                '{% if USER_MEMORY_Gi is none %}{{USER_MEMORY}}{% else %}'
+                                '{{ [USER_MEMORY_Gi, 1] | max }}Gi{% endif %}'),
                             'ephemeral-storage': (
-                                '{% if USER_STORAGE is defined and USER_STORAGE is not none '
-                                'and USER_STORAGE_Gi is defined and USER_STORAGE_Gi is not none '
-                                'and USER_STORAGE_Gi > 1 %}{{USER_STORAGE}}'
-                                '{% else %}1Gi{% endif %}')
+                                '{% if USER_STORAGE_Gi is none %}{{USER_STORAGE}}{% else %}'
+                                '{{ [USER_STORAGE_Gi, 1] | max }}Gi{% endif %}')
                         },
                         'requests': {
                             'cpu': '1',

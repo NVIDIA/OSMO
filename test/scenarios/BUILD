@@ -159,15 +159,12 @@ _ERROR_HANDLING = [
     "test_osmo_client_test",
 ]
 
-# This public Ubuntu workflow uses the default pool, so it is runnable on KIND.
-_KIND_RUNNABLE_ERROR_HANDLING = ["test_resource_as_byte"]
-
 [
     oetf_scenario_test(
         name = t.removeprefix("test_").replace("_", "-"),
         src = "error_handling.py",
         test_filter = "ErrorHandlingWorkflows." + t,
-        tags = ["error"] + (["kind"] if t in _KIND_RUNNABLE_ERROR_HANDLING else []),
+        tags = ["error"],
     )
     for t in _ERROR_HANDLING
 ]

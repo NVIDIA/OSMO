@@ -219,11 +219,11 @@ Add base templates for architecture, control container, and user container under
             containers:
               - name: osmo-ctrl
                 resources:
-                  # Keep ctrl limits at least as large as its fixed requests
+                  # Use user specified resources as limits
                   limits:
                     cpu: '{{USER_CPU}}'
-                    memory: '{% if USER_MEMORY is defined and USER_MEMORY is not none and USER_MEMORY_Gi is defined and USER_MEMORY_Gi is not none and USER_MEMORY_Gi > 1 %}{{USER_MEMORY}}{% else %}1Gi{% endif %}'
-                    ephemeral-storage: '{% if USER_STORAGE is defined and USER_STORAGE is not none and USER_STORAGE_Gi is defined and USER_STORAGE_Gi is not none and USER_STORAGE_Gi > 4 %}{{USER_STORAGE}}{% else %}4Gi{% endif %}'
+                    memory: '{{USER_MEMORY}}'
+                    ephemeral-storage: '{{USER_STORAGE}}'
                   # Cap ctrl container at 2 CPUs if user requests more
                   requests:
                     cpu: '{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}'

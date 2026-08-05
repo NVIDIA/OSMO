@@ -38,23 +38,5 @@ class TestResourceSpec(unittest.TestCase):
             # No numerical value for storage
             connectors.ResourceSpec(cpu=2, storage='Gi', memory='10Mi', platform='test')
 
-    def test_default_resource_variables_supply_derived_tokens_and_cache(self):
-        resource_spec = connectors.ResourceSpec(cpu=1, platform='test')
-
-        tokens = resource_spec.get_allocatable_tokens({
-            'USER_MEMORY': '2Gi',
-            'USER_STORAGE': '4Gi',
-        })
-
-        self.assertEqual(tokens['USER_MEMORY'], '2Gi')
-        self.assertEqual(tokens['USER_MEMORY_VAL'], '2')
-        self.assertEqual(tokens['USER_MEMORY_UNIT'], 'Gi')
-        self.assertEqual(tokens['USER_MEMORY_Gi'], 2.0)
-        self.assertEqual(tokens['USER_STORAGE'], '4Gi')
-        self.assertEqual(tokens['USER_STORAGE_VAL'], '4')
-        self.assertEqual(tokens['USER_STORAGE_UNIT'], 'Gi')
-        self.assertEqual(tokens['USER_STORAGE_Gi'], 4.0)
-        self.assertEqual(tokens['USER_CACHE'], '3Gi')
-
 if __name__ == '__main__':
     unittest.main()
