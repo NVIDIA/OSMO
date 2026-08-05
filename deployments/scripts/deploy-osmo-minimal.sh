@@ -225,7 +225,8 @@ Environment Variables:
                          Both stable and prerelease chart versions are
                          published here; pass --devel to `helm search`
                          (or use --list-chart-versions) to surface RCs.
-  BACKEND_TOKEN_EXPIRY   Backend token expiry date (default: 2027-01-01)
+  BACKEND_TOKEN_SECRET_NAME
+                         Backend bootstrap Secret name (default: osmo-operator-token)
   NGC_API_KEY            NGC API key (alternative to --ngc-api-key flag)
   NGC_SECRET_NAME        K8s docker-registry secret name (alternative to
                          --ngc-secret-name flag). Empty = no pull-secret

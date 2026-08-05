@@ -25,7 +25,7 @@ import fastapi
 
 from src.lib.utils import common, osmo_errors
 from src.utils.job import task as task_lib
-from src.service.core.auth import objects
+from src.service.core.auth import backend_secret_auth, objects
 from src.utils import auth, connectors
 
 
@@ -160,6 +160,26 @@ def _create_jwt_from_access_token(access_token: str):
             f'Access token has invalid length {len(access_token)}')
 
     postgres = connectors.PostgresConnector.get_instance()
+    try:
+        backend_identity = backend_secret_auth.authenticate(access_token)
+    except backend_secret_auth.BackendTokenConfigurationError:
+        # Configuration is validated during service startup. If a projected
+        # Secret is briefly unavailable during rotation, preserve ordinary
+        # database-backed access-token authentication while failing the
+        # backend credential closed.
+        backend_identity = None
+    if backend_identity is not None:
+        service_config = postgres.get_service_configs()
+        end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
+        jwt_token = service_config.service_auth.create_idtoken_jwt(
+            end_timeout,
+            backend_identity.username,
+            roles=list(backend_identity.roles),
+            token_name=backend_identity.token_name)
+        return {'token': jwt_token,
+                'expires_at': end_timeout,
+                'error': None}
+
     token = objects.AccessToken.validate_access_token(postgres, access_token)
     if not token:
         raise osmo_errors.OSMOUserError('Access Token is invalid')

@@ -53,7 +53,7 @@ OSMO includes the following roles by default. No configuration is required — t
        * Create and modify pools
        * Modify other configuration like workflow and service settings
        * Create, modify and delete roles and policies.
-       * Create service account tokens for backend registration
+       * Create service account tokens for automation
 
    * - ``osmo-user``
      - OSMO users who are AI developers that use OSMO platform to run workflows and do not need management access to OSMO. They are able to:

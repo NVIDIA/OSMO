@@ -201,9 +201,9 @@ Authentication
 
 - All API requests require **authentication** (specific paths can be excluded from authentication during service deployment)
 - **Role-based access** allows you group users by roles and determine pool access
-- Backend operators authenticate to the service using **service accounts**
+- Backend operators authenticate with a fixed-role bootstrap credential
+  provisioned through matching **Kubernetes Secrets**
 
 .. seealso::
 
     To learn more, refer to :doc:`../appendix/authentication/index`
-

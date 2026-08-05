@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Local-development values preserved from the former quick-start install path.
-# Install after the service chart has created the backend-operator admin user.
+# Install after the service chart is configured with backend-operator-token.
 
 global:
   osmoImageLocation: nvcr.io/nvidia/osmo
@@ -26,10 +26,9 @@ global:
   backendNamespace: default
   backendTestNamespace: osmo-test
   backendName: default
-  accountUsername: backend-operator
-  accountPasswordSecret: backend-operator-password
-  accountPasswordSecretKey: password
-  loginMethod: password
+  accountTokenSecret: backend-operator-token
+  accountTokenSecretKey: token
+  loginMethod: token
   nodeSelector:
     node_group: service
 

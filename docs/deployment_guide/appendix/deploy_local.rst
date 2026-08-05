@@ -283,11 +283,20 @@ the charts independently managed.
 
    kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
    kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
-   BACKEND_OPERATOR_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
-   kubectl create secret generic backend-operator-password \
+   LOCAL_ADMIN_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
+   kubectl create secret generic local-admin-password \
      --namespace osmo \
-     --from-literal=password="$BACKEND_OPERATOR_PASSWORD" \
+     --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
      --dry-run=client -o yaml | kubectl apply -f -
+
+   BACKEND_TOKEN_FILE=$(mktemp)
+   chmod 600 "$BACKEND_TOKEN_FILE"
+   dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | tr '/+' '_-' > "$BACKEND_TOKEN_FILE"
+   kubectl create secret generic backend-operator-token \
+     --namespace osmo \
+     --from-file=token="$BACKEND_TOKEN_FILE" \
+     --dry-run=client -o yaml | kubectl apply -f -
+   rm -f "$BACKEND_TOKEN_FILE"
 
    if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
      MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')

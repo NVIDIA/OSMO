@@ -21,7 +21,8 @@
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
 For a local deployment that previously used quick-start values, create the
-namespaces, `backend-operator-password` Secret, and `mek-config` ConfigMap from
+namespaces, `local-admin-password` and backend token Secrets, and the
+`mek-config` ConfigMap from
 [../README.md](../README.md), then install this chart first with
 `quick-start-values.yaml`. Install the `backend-operator` chart with its
 matching values file after the service release is available:
@@ -121,6 +122,19 @@ Run the enabled and disabled rendering checks locally with:
 ```bash
 bash deployments/charts/service/ci/validate-mcp-chart.sh
 ```
+### Backend API Token Settings
+
+The backend bootstrap credential is created outside the OSMO API and materialized
+as the same Kubernetes Secret in the control-plane and compute-plane clusters.
+The service fixes the resulting identity to the `osmo-backend` role; roles cannot
+be selected through Helm values. Each referenced Secret requires a `token` key
+and may contain `previous-token` during an overlap rotation.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.backendApiTokens.enabled` | Enable Secret-backed backend bootstrap authentication | `false` |
+| `services.backendApiTokens.credentials` | List of `{name, secretName}` references, one per compute plane | `[]` |
+| `services.backendApiTokens.rolloutNonce` | Non-secret value that can force an API rollout after externally managed Secret changes | `""` |
 
 ### Database Migration Settings (pgroll)
 

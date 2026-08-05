@@ -18,8 +18,6 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
-import datetime
-import json
 import logging
 import os
 
@@ -27,7 +25,7 @@ from bazel_tools.tools.python.runfiles import runfiles  # type: ignore
 
 from run.check_tools import check_required_tools
 from run.print_next_steps import print_next_steps
-from run.run_command import login_osmo, logout_osmo, run_command_with_logging
+from run.run_command import run_command_with_logging
 
 from run.kind_utils import (
     check_cluster_exists,
@@ -42,59 +40,15 @@ RUNFILES = runfiles.Create()
 
 
 def _check_backend_token_exists() -> bool:
-    """Check if backend operator token already exists."""
+    """Check if the backend credential Secret is provisioned."""
     process = run_command_with_logging([
-        'bazel', 'run', '@osmo_workspace//src/cli', '--', 'token', 'list',
-        '-s', '--format-type', 'json'
-    ], 'Checking existing tokens')
-
+        'kubectl', 'get', 'secret', 'agent-token', '-n', 'osmo',
+        '-o', 'jsonpath={.data.token}'
+    ], 'Checking backend token Secret')
     if process.has_failed():
-        logger.error('❌ Error: Failed to list existing tokens')
-        logger.error('   Check stderr: %s', process.stderr_file)
-        logger.error('   Make sure you\'re logged into OSMO CLI')
-        raise RuntimeError('Failed to list existing tokens')
-
-    try:
-        with open(process.stdout_file, 'r', encoding='utf-8') as f:
-            content = f.read().strip()
-
-        if content == 'No tokens found':
-            return False
-
-        tokens = json.loads(content)
-        return any(token.get('token_name') == 'backend-operator-token' for token in tokens)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error('❌ Error: Failed to parse token list: %s', e)
-        raise RuntimeError(f'Failed to parse token list: {e}') from e
-
-
-def _create_backend_token() -> str:
-    """Create backend operator token and return the token value."""
-    expires_at = (datetime.datetime.now() + datetime.timedelta(days=365)).strftime('%Y-%m-%d')
-
-    process = run_command_with_logging([
-        'bazel', 'run', '@osmo_workspace//src/cli', '--', 'token', 'set', 'backend-operator-token',
-        '--expires-at', expires_at,
-        '--description', 'Access token for default backend',
-        '--service', '--roles', 'osmo-backend', '-t', 'json'
-    ], 'Generating backend operator token')
-
-    if process.has_failed():
-        logger.error('❌ Error: Failed to generate backend operator token')
-        logger.error('   Check stderr: %s', process.stderr_file)
-        raise RuntimeError('Failed to generate backend operator token')
-
-    try:
-        with open(process.stdout_file, 'r', encoding='utf-8') as f:
-            token_data = json.load(f)
-            backend_token = token_data.get('token')
-            if not backend_token:
-                logger.error('❌ Error: Could not extract token from osmo CLI output')
-                raise RuntimeError('Could not extract token from osmo CLI output')
-            return backend_token
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error('❌ Error: Failed to parse token output: %s', e)
-        raise RuntimeError(f'Failed to parse token output: {e}') from e
+        return False
+    with open(process.stdout_file, 'r', encoding='utf-8') as output_file:
+        return bool(output_file.read().strip())
 
 
 def _setup_backend_operators(image_location: str, image_tag: str, detected_platform: str) -> None:
@@ -109,38 +63,15 @@ def _setup_backend_operators(image_location: str, image_tag: str, detected_platf
                 '⚠️  Warning: Failed to create test namespace (may already exist)')
             logger.debug('   Check stderr: %s', process.stderr_file)
 
-        logger.info('   Checking for existing backend operator token...')
+        logger.info('   Checking for backend operator Secret...')
 
         token_exists = _check_backend_token_exists()
 
-        if token_exists:
-            logger.info(
-                '   ✅ Backend operator token already exists, '
-                'skipping token and secret creation')
-        else:
-            logger.info('   Generating backend operator token...')
-
-            backend_token = _create_backend_token()
-
-            secret_yaml = f"""
-apiVersion: v1
-kind: Secret
-metadata:
-  name: agent-token
-  namespace: osmo
-type: Opaque
-stringData:
-  token: {backend_token}
-"""
-            process = run_command_with_logging(
-                ['kubectl', 'apply', '-f', '-'],
-                process_input=secret_yaml
-            )
-            if process.has_failed():
-                logger.warning(
-                    '⚠️  Warning: Failed to create agent token secret '
-                    '(may already exist)')
-                logger.debug('   Check stderr: %s', process.stderr_file)
+        if not token_exists:
+            raise RuntimeError(
+                'Backend token Secret osmo/agent-token is missing. Copy it from the '
+                'control-plane cluster before installing the backend operator.')
+        logger.info('   ✅ Backend operator Secret is present')
 
         logger.info('   Installing backend operator...')
 
@@ -205,11 +136,7 @@ def start_backend_kind(args: argparse.Namespace) -> None:
 
         setup_kai_scheduler()
 
-        login_osmo('kind')
-        try:
-            _setup_backend_operators(args.image_location, args.image_tag, detected_platform)
-        finally:
-            logout_osmo()
+        _setup_backend_operators(args.image_location, args.image_tag, detected_platform)
 
         logger.info('\n🎉 OSMO backend setup complete!')
         print_next_steps(mode='kind', show_start_backend=False, show_update_configs=True)
