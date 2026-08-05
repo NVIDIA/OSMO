@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "v1",
+  "agentRuntime": {
+    "parent": "ubuntu:22.04@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8",
+    "publishReference": "nvcr.io/nvstaging/osmo/agent-runtime:poc-human-control-v1-d876de19c",
+    "image": "nvcr.io/nvstaging/osmo/agent-runtime@sha256:098afe976ab1dcc746a06835ad0b7e806eeeb7b410fddd84ad6132a3a8d9c20f",
+    "platform": "linux/amd64",
+    "registryCredential": "ngc_cred",
+    "osmoCli": {
+      "source": "existing OSMO task runtime",
+      "requiredCommands": ["pool list", "resource list", "workflow submit", "workflow validate", "workflow query", "workflow logs", "workflow events", "workflow cancel", "data check", "data download"]
+    },
+    "agenticWorkflowSubmit": {
+      "name": "agentic_workflow_submit",
+      "type": "GENERIC",
+      "runtimeKey": "OSMO_AGENTIC_WORKFLOW_TOKEN",
+      "serviceUrl": "https://us-west-2-aws.osmo.nvidia.com"
+    },
+    "osmoUserSkill": {
+      "repository": "https://github.com/NVIDIA/OSMO.git",
+      "ref": "3603b853f62dd38dfe1dc0a76cf68dfa3f07461a",
+      "path": "skills/osmo-user"
+    },
+    "node": {
+      "version": "24.15.0",
+      "archive": "node-v24.15.0-linux-x64.tar.xz",
+      "archiveSha256": "472655581fb851559730c48763e0c9d3bc25975c59d518003fc0849d3e4ba0f6"
+    },
+    "pythonVersion": "3.10"
+  },
+  "codex": {
+    "package": "@openai/codex",
+    "version": "0.144.6",
+    "npmIntegrity": "sha512-wk+2CWiBNXiJLBoN2D08N9RceWkSBnlgk5g2K1a4CXrP/C0gdlHyRUG7RFzm9y41DCK/7tvCct233JVxyFmznw==",
+    "provider": "nvidia_inference",
+    "model": "openai/openai/gpt-5.6-terra",
+    "reasoningEffort": "xhigh"
+  },
+  "credentials": {
+    "registry": {"name": "ngc_cred", "type": "REGISTRY", "registry": "nvcr.io"},
+    "inference": {"name": "nvidia_inference", "type": "GENERIC", "runtimeKey": "INFERENCE_API_KEY"},
+    "workflowSubmit": {"name": "agentic_workflow_submit", "type": "GENERIC", "runtimeKey": "OSMO_AGENTIC_WORKFLOW_TOKEN"}
+  }
+}

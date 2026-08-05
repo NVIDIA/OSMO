@@ -25,9 +25,9 @@ router: load only the reference files needed for the current task.
 Before the first OSMO command in a conversation:
 
 0. For cancel/delete/force/destructive requests, ask for explicit confirmation
-   before running any `osmo` command, including `osmo --version` or query
+   before running any `osmo` command, including `osmo version` or query
    commands. After confirmation, continue with the checks below.
-1. Confirm the CLI is available: `osmo --version`. If it fails, tell the user
+1. Confirm the CLI is available: `osmo version`. If it fails, tell the user
    the OSMO CLI is unavailable and stop.
 2. If any command returns an authentication error, ask the user to run
    `osmo login` and stop until they confirm.

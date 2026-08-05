@@ -1,0 +1,88 @@
+version: 2
+
+default-values:
+  workflow_name: agentic-workflow
+  agent_runtime_image: "nvcr.io/nvstaging/osmo/agent-runtime@sha256:REPLACE_WITH_64_HEX"
+  goal_prompt: "Describe the overarching goal for the lead agent."
+  static_repository_url: "https://github.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPOSITORY.git"
+  static_repository_ref: "REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA"
+  static_repository_subdir: "."
+  osmo_service_url: "https://us-west-2-aws.osmo.nvidia.com"
+  run_id: replace-with-dns-safe-run-id
+  platform: REPLACE_WITH_VISIBLE_PLATFORM
+  result_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/agentic-workflows/replace-with-run-id/agent/lead/"
+  control_url: "swift://pdx.s8k.io/AUTH_team-osmo/dev/fernandol/agents_poc/agentic-workflows/replace-with-run-id/agent/lead/control/"
+
+workflow:
+  name: "{{workflow_name}}"
+  timeout:
+    queue_timeout: 30m
+    exec_timeout: 24h
+  resources:
+    lead:
+      cpu: 2
+      memory: 4Gi
+      storage: 10Gi
+      platform: "{{platform}}"
+  tasks:
+  - name: lead
+    image: "{{agent_runtime_image}}"
+    resource: lead
+    credentials:
+      nvidia_inference:
+        INFERENCE_API_KEY: INFERENCE_API_KEY
+      agentic_workflow_submit:
+        OSMO_AGENTIC_WORKFLOW_TOKEN: OSMO_AGENTIC_WORKFLOW_TOKEN
+    environment:
+      RUN_ID: "{{run_id}}"
+      OSMO_SERVICE_URL: "{{osmo_service_url}}"
+      STATIC_REPOSITORY_URL: "{{static_repository_url}}"
+      STATIC_REPOSITORY_REF: "{{static_repository_ref}}"
+      STATIC_REPOSITORY_SUBDIR: "{{static_repository_subdir}}"
+      AGENT_RETRY_DELAY_SECONDS: "60"
+      AGENT_CONTROL_POLL_SECONDS: "60"
+    command: ["/opt/agent-runtime/run-agent.sh"]
+    args:
+    - "--result-root"
+    - "{{output}}"
+    - "--control-url"
+    - "{{control_url}}"
+    files:
+    - path: /run/agent/AGENTS.md
+      contents: |
+        # Lead agent
+
+        Own the overarching user goal below for the lifetime of this workflow.
+        Translate it into a small, explicit plan; delegate each meaningful
+        bounded subgoal; and reconcile every delegated result. Do not perform
+        a delegated subgoal's domain work directly or predefine its worker
+        graph.
+
+        Before delegating, reconcile workflow and durable artifact evidence for
+        this Run ID. Reuse every existing child whose typed result satisfies its
+        contract. Submit the same logical child only when none exists, or when
+        a prior non-successful child is terminal and a replacement is warranted;
+        a previous lead attempt being terminal is not itself a reason to repeat
+        successful descendant work.
+
+        Do not mutate OSMO pools, profiles, quotas, credentials, or service
+        configuration. Request human direction only for ambiguity that cannot
+        be resolved safely from this task's instructions, evidence, and OSMO
+        state.
+
+        Run ID: {{run_id}}
+
+        ## User goal
+
+        {{ goal_prompt | indent(8) }}
+    checkpoint:
+    - path: "{{output}}/*"
+      url: "{{result_url}}"
+      frequency: 60s
+      regex: '^agent-result\.json$'
+    - path: /tmp/agent-control/*
+      url: "{{control_url}}"
+      frequency: 60s
+      regex: '^human-request-[0-9a-f]{64}\.json$'
+    outputs:
+    - url: "{{result_url}}"
