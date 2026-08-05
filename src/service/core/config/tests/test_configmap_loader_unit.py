@@ -976,7 +976,14 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_cold_load_allows_missing_service_auth(self):
+    def test_cold_load_hydrates_service_auth_from_postgres(self):
+        persisted_auth = _service_auth_config()
+        persisted_service_config = mock.MagicMock()
+        persisted_service_config.plaintext_dict.return_value = {
+            'service_auth': persisted_auth,
+        }
+        postgres = mock.MagicMock()
+        postgres.get_service_configs.return_value = persisted_service_config
         config: Dict[str, Any] = {
             'service': {
                 'max_pod_restart_limit': '30m',
@@ -984,16 +991,26 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         }
         path = self._write_config_file(config)
         try:
-            watcher = configmap_loader.ConfigMapWatcher(path)
+            watcher = configmap_loader.ConfigMapWatcher(path, postgres)
             result = watcher._load_and_apply()
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
-            self.assertNotIn('service_auth', snapshot['service'])
+            self.assertEqual(
+                snapshot['service']['service_auth'], persisted_auth)
+            self.assertEqual(
+                snapshot['service']['max_pod_restart_limit'], '30m')
+            first_service_config = configmap_loader.connectors.ServiceConfig(
+                **snapshot['service'])
+            second_service_config = configmap_loader.connectors.ServiceConfig(
+                **snapshot['service'])
+            self.assertEqual(
+                first_service_config.service_auth.active_key,
+                second_service_config.service_auth.active_key)
         finally:
             os.unlink(path)
 
-    def test_reload_does_not_carry_forward_service_auth(self):
+    def test_reload_carries_forward_service_auth(self):
         previous_auth = _service_auth_config()
         configmap_state.set_parsed_configs({
             'service': {'service_auth': previous_auth},
@@ -1012,9 +1029,49 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
             service_config = snapshot['service']
-            self.assertNotIn('service_auth', service_config)
+            self.assertEqual(service_config['service_auth'], previous_auth)
             self.assertEqual(
                 service_config['max_pod_restart_limit'], '45m')
+        finally:
+            os.unlink(path)
+
+    def test_explicit_service_auth_takes_precedence(self):
+        explicit_auth = _service_auth_config()
+        persisted_service_config = mock.MagicMock()
+        persisted_service_config.plaintext_dict.return_value = {
+            'service_auth': {'unexpected': 'persisted-auth'},
+        }
+        postgres = mock.MagicMock()
+        postgres.get_service_configs.return_value = persisted_service_config
+        path = self._write_config_file({
+            'service': {
+                'service_auth': explicit_auth,
+                'max_pod_restart_limit': '30m',
+            },
+        })
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(path, postgres)
+            result = watcher._load_and_apply()
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+            snapshot = configmap_state.get_snapshot()
+            assert snapshot is not None
+            self.assertEqual(
+                snapshot['service']['service_auth'], explicit_auth)
+        finally:
+            os.unlink(path)
+
+    def test_missing_service_auth_without_runtime_source_fails(self):
+        path = self._write_config_file({
+            'service': {
+                'max_pod_restart_limit': '30m',
+            },
+        })
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(path)
+            result = watcher._load_and_apply()
+            self.assertEqual(
+                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
+            self.assertIsNone(configmap_state.get_snapshot())
         finally:
             os.unlink(path)
 
@@ -1272,7 +1329,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         new_config = copy.deepcopy(old_snapshot)
         new_config['backends']['backend-a']['scheduler_settings'][
             'scheduler_timeout'] = 60
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
                 path, enable_reconciliation=True)
@@ -1349,7 +1406,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         new_config['pools']['pool-a']['platforms']['gpu'] = {
             'default_variables': {'A': 2},
         }
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
                 path, enable_reconciliation=True)
@@ -1572,7 +1629,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         new_config['pod_templates']['tmpl-a'] = {
             'spec': {'containers': [{'name': 'main'}]},
         }
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
                 path, enable_reconciliation=True)
@@ -1650,7 +1707,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         new_config['pod_templates']['tmpl-a'] = {
             'spec': {'containers': [{'name': 'main'}]},
         }
-        path = self._write_config_file(new_config)
+        path = self._write_config_file(_with_service_auth(new_config))
         try:
             watcher = configmap_loader.ConfigMapWatcher(
                 path, enable_reconciliation=True)
@@ -2296,7 +2353,7 @@ class TestResolvePoolComputedFields(unittest.TestCase):
         }
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp:
-            yaml.dump(config, temp)
+            yaml.dump(_with_service_auth(config), temp)
             path = temp.name
 
         try:
@@ -2374,11 +2431,8 @@ class TestStartConfigWatcher(unittest.TestCase):
         self.assertIsNone(watcher)
         self.assertFalse(configmap_state.is_configmap_mode())
 
-    def test_non_api_service_skips_event_recorder_and_db_config_load(self):
-        """Worker/agent/logger must NOT emit K8s reload events (replicas
-        would race on the same Event object) and must not hydrate config
-        from Postgres when ConfigMap mode is active.
-        """
+    def test_non_api_service_with_explicit_auth_skips_event_recorder_and_db(self):
+        """Explicit auth avoids DB hydration and non-API event duplication."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = os.path.join(tmp_dir, 'config.yaml')
             with open(config_path, 'w', encoding='utf-8') as f:
