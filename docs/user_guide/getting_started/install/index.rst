@@ -65,6 +65,10 @@ To login to the client, can use the following command:
 
   $ osmo login https://<Your OSMO URL>/
 
+By default, this opens your system browser and uses the OAuth 2.0 authorization code flow with
+PKCE. If browser callbacks are unavailable in your environment, use ``--method code`` to select
+device authorization explicitly.
+
 After successful authentication, you are logged in. Welcome to OSMO.
 
 .. code-block:: bash

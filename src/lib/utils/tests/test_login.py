@@ -20,6 +20,7 @@ import json
 import time
 import unittest
 from unittest import mock
+from urllib.parse import parse_qs, urlparse
 
 from src.lib.utils import login, osmo_errors
 
@@ -139,6 +140,47 @@ class JwtTests(unittest.TestCase):
         jwt = login.Jwt(token)
 
         self.assertTrue(jwt.expired)
+
+
+class PkceUtilityTests(unittest.TestCase):
+    """Tests for PKCE and authorization-request helpers."""
+
+    def test_code_challenge_matches_rfc_7636_example(self):
+        code_verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
+
+        challenge = login.create_pkce_code_challenge(code_verifier)
+
+        self.assertEqual(challenge, 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
+
+    def test_generated_code_verifier_has_valid_length_and_characters(self):
+        code_verifier = login.generate_pkce_code_verifier()
+
+        self.assertGreaterEqual(len(code_verifier), 43)
+        self.assertLessEqual(len(code_verifier), 128)
+        self.assertTrue(set(code_verifier) <= set(
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'))
+
+    def test_authorization_url_contains_security_parameters_and_scope(self):
+        authorization_url = login.construct_pkce_authorization_url(
+            browser_endpoint='https://idp.example.com/authorize?prompt=select_account',
+            client_id='cli-client',
+            redirect_uri='http://localhost:49152',
+            state='expected-state',
+            nonce='expected-nonce',
+            code_challenge='challenge',
+        )
+
+        query = parse_qs(urlparse(authorization_url).query)
+        self.assertEqual(query['client_id'], ['cli-client'])
+        self.assertEqual(query['redirect_uri'], ['http://localhost:49152'])
+        self.assertEqual(query['response_type'], ['code'])
+        self.assertEqual(query['response_mode'], ['query'])
+        self.assertEqual(query['scope'], ['openid offline_access profile'])
+        self.assertEqual(query['state'], ['expected-state'])
+        self.assertEqual(query['nonce'], ['expected-nonce'])
+        self.assertEqual(query['code_challenge'], ['challenge'])
+        self.assertEqual(query['code_challenge_method'], ['S256'])
+        self.assertEqual(query['prompt'], ['select_account'])
 
 
 class TokenLoginStorageTests(unittest.TestCase):
@@ -356,6 +398,65 @@ class OwnerPasswordLoginTests(unittest.TestCase):
                 )
 
         self.assertIn('invalid credentials', str(ctx.exception))
+
+
+class AuthorizationCodeLoginTests(unittest.TestCase):
+    """Tests for authorization-code exchange with PKCE."""
+
+    def test_success_validates_nonce_and_stores_tokens(self):
+        id_token = _make_jwt({'sub': 'user1', 'nonce': 'expected-nonce'})
+        token_response = _FakeResponse(status_code=200, json_body={
+            'id_token': id_token,
+            'refresh_token': 'refresh-token',
+        })
+        with mock.patch('src.lib.utils.login.requests.post',
+                        return_value=token_response) as mock_post:
+            storage = login.authorization_code_login(
+                url='https://osmo.example.com',
+                token_endpoint='https://idp.example.com/token',
+                client_id='cli-client',
+                authorization_code='authorization-code',
+                code_verifier='code-verifier',
+                redirect_uri='http://localhost:49152',
+                expected_nonce='expected-nonce',
+                user_agent='osmo-cli/1.2.3',
+            )
+
+        token_storage = storage.token_login
+        self.assertIsNotNone(token_storage)
+        assert token_storage is not None
+        self.assertEqual(token_storage.id_token, id_token)
+        self.assertEqual(token_storage.refresh_token, 'refresh-token')
+        request_data = mock_post.call_args.kwargs['data']
+        self.assertEqual(request_data['grant_type'], 'authorization_code')
+        self.assertEqual(request_data['client_id'], 'cli-client')
+        self.assertEqual(request_data['code'], 'authorization-code')
+        self.assertEqual(request_data['code_verifier'], 'code-verifier')
+        self.assertEqual(request_data['redirect_uri'], 'http://localhost:49152')
+        self.assertEqual(request_data['scope'], 'openid offline_access profile')
+        self.assertNotIn('client_secret', request_data)
+
+    def test_rejects_id_token_with_wrong_nonce(self):
+        id_token = _make_jwt({'sub': 'user1', 'nonce': 'wrong-nonce'})
+        token_response = _FakeResponse(status_code=200, json_body={
+            'id_token': id_token,
+            'access_token': 'api-access-token',
+        })
+        with mock.patch('src.lib.utils.login.requests.post',
+                        return_value=token_response):
+            with self.assertRaises(osmo_errors.OSMOServerError) as context:
+                login.authorization_code_login(
+                    url='https://osmo.example.com',
+                    token_endpoint='https://idp.example.com/token',
+                    client_id='cli-client',
+                    authorization_code='authorization-code',
+                    code_verifier='code-verifier',
+                    redirect_uri='http://localhost:49152',
+                    expected_nonce='expected-nonce',
+                    user_agent=None,
+                )
+
+        self.assertIn('nonce', str(context.exception).lower())
 
 
 class ConstructTokenRefreshUrlTests(unittest.TestCase):

@@ -17,16 +17,19 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import base64
+import dataclasses
 import enum
+import http.server
 import json
 import logging
 import os
 import ssl
 import sys
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 from typing_extensions import assert_never
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
+import webbrowser
 
 import certifi
 import requests
@@ -39,6 +42,99 @@ from . import client_configs, login, osmo_errors, version
 
 CLIENT_USER_AGENT_PREFIX = 'osmo-cli'
 LIB_USER_AGENT_PREFIX = 'osmo-lib'
+PKCE_CALLBACK_TIMEOUT_SECONDS = 300
+
+
+@dataclasses.dataclass
+class BrowserAuthorizationCallback:
+    """Authorization response delivered to the CLI loopback listener."""
+    code: str | None = None
+    error: str | None = None
+    error_description: str | None = None
+
+
+class _BrowserAuthorizationCallbackServer(http.server.HTTPServer):
+    """Single-use loopback server for an OAuth authorization response."""
+
+    def __init__(self, callback_port: int, expected_state: str,
+                 timeout_seconds: float = PKCE_CALLBACK_TIMEOUT_SECONDS):
+        super().__init__(('127.0.0.1', callback_port),
+                         _BrowserAuthorizationCallbackHandler)
+        self.callback: BrowserAuthorizationCallback | None = None
+        self.expected_state = expected_state
+        self.timeout_seconds = timeout_seconds
+
+    @property
+    def redirect_uri(self) -> str:
+        return f'http://localhost:{self.server_port}'
+
+    def wait_for_callback(self) -> BrowserAuthorizationCallback:
+        deadline = time.monotonic() + self.timeout_seconds
+        while self.callback is None:
+            remaining_seconds = deadline - time.monotonic()
+            if remaining_seconds <= 0:
+                raise osmo_errors.OSMOUserError(
+                    'Timed out waiting for browser authentication to complete')
+            self.timeout = remaining_seconds
+            self.handle_request()
+        return self.callback
+
+
+class _BrowserAuthorizationCallbackHandler(http.server.BaseHTTPRequestHandler):
+    """Capture the authorization response without logging request details."""
+
+    def do_GET(self):  # pylint: disable=invalid-name
+        parsed_request = urlparse(self.path)
+        if parsed_request.path != '/':
+            self.send_error(404)
+            return
+
+        callback_server = cast(_BrowserAuthorizationCallbackServer, self.server)
+        query = parse_qs(parsed_request.query, keep_blank_values=True)
+        returned_state = query.get('state', [None])[0]
+        error = query.get('error', [None])[0]
+        error_description = query.get('error_description', [None])[0]
+        code = query.get('code', [None])[0]
+
+        if returned_state != callback_server.expected_state:
+            self._send_browser_response(
+                400, b'Authentication response rejected. Return to the OSMO CLI.')
+            return
+        if error:
+            callback_server.callback = BrowserAuthorizationCallback(
+                error=error,
+                error_description=error_description,
+            )
+        elif code:
+            callback_server.callback = BrowserAuthorizationCallback(code=code)
+        else:
+            callback_server.callback = BrowserAuthorizationCallback(
+                error='invalid_response',
+                error_description='The authorization response did not contain a code.',
+            )
+
+        callback = callback_server.callback
+        success = callback.code is not None
+        response = (
+            b'Authentication complete. You can close this window.'
+            if success else
+            b'Authentication failed. Return to the OSMO CLI for details.'
+        )
+        self._send_browser_response(200 if success else 400, response)
+
+    def _send_browser_response(self, status_code: int, response: bytes):
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Content-Length', str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
+
+    def log_message(self, format, *args):  # pylint: disable=redefined-builtin
+        del format, args
+
 
 class RequestMethod(enum.Enum):
     """ Represents a method for making http requests """
@@ -164,7 +260,7 @@ class LoginManager():
 
         response = requests.post(device_endpoint, data={
             'client_id': client_id,
-            'scope': 'openid offline_access profile'
+            'scope': login.DEFAULT_OAUTH_SCOPE
         }, timeout=login.TIMEOUT, headers={'User-Agent': self.user_agent})
 
         result = handle_response(response)
@@ -220,6 +316,74 @@ class LoginManager():
         )
         self._save_login_info(self._login_storage, welcome=True)
 
+    def pkce_login(self, url: str, browser_endpoint: str | None,
+                   callback_port: int = 0):
+        """Log in using OAuth authorization code flow with S256 PKCE."""
+        if callback_port < 0 or callback_port > 65535:
+            raise osmo_errors.OSMOUserError(
+                'PKCE callback port must be between 0 and 65535')
+
+        login_info = login.fetch_login_info(url)
+        browser_endpoint = browser_endpoint or login_info.get('browser_endpoint')
+        client_id = self._login_config.client_id or login_info.get('browser_client_id')
+        token_endpoint = self._login_config.token_endpoint or login_info.get('token_endpoint')
+        if not browser_endpoint:
+            raise osmo_errors.OSMOUserError(
+                'The OSMO service does not provide a browser endpoint for PKCE login')
+        if not client_id:
+            raise osmo_errors.OSMOUserError(
+                'The OSMO service does not provide a browser client ID for PKCE login')
+        if not token_endpoint:
+            raise osmo_errors.OSMOUserError(
+                'The OSMO service does not provide a token endpoint for PKCE login')
+
+        code_verifier = login.generate_pkce_code_verifier()
+        code_challenge = login.create_pkce_code_challenge(code_verifier)
+        state = login.generate_oauth_state()
+        nonce = login.generate_oidc_nonce()
+        try:
+            callback_server = _BrowserAuthorizationCallbackServer(callback_port, state)
+        except OSError as error:
+            raise osmo_errors.OSMOUserError(
+                f'Unable to listen for the PKCE callback on port {callback_port}: {error}') \
+                from error
+
+        with callback_server:
+            authorization_url = login.construct_pkce_authorization_url(
+                browser_endpoint=browser_endpoint,
+                client_id=client_id,
+                redirect_uri=callback_server.redirect_uri,
+                state=state,
+                nonce=nonce,
+                code_challenge=code_challenge,
+            )
+            print('Complete authentication in your browser. If it does not open, visit:')
+            print(authorization_url, flush=True)
+            webbrowser.open(authorization_url)
+            callback = callback_server.wait_for_callback()
+
+        if callback.error:
+            error_message = callback.error
+            if callback.error_description:
+                error_message += f': {callback.error_description}'
+            raise osmo_errors.OSMOUserError(
+                f'Browser authentication failed ({error_message})')
+        if callback.code is None:
+            raise osmo_errors.OSMOUserError(
+                'Browser authentication did not return an authorization code')
+
+        self._login_storage = login.authorization_code_login(
+            url=url,
+            token_endpoint=token_endpoint,
+            client_id=client_id,
+            authorization_code=callback.code,
+            code_verifier=code_verifier,
+            redirect_uri=callback_server.redirect_uri,
+            expected_nonce=nonce,
+            user_agent=self.user_agent,
+        )
+        self._save_login_info(self._login_storage, welcome=True)
+
     def owner_password_login(self, url: str, username: str, password: str):
         """ Log in using OAUTH2 resource owner password flow """
         self._login_storage = login.owner_password_login(self._login_config,
@@ -247,7 +411,14 @@ class LoginManager():
     def _save_login_info(self, login_storage: login.LoginStorage, welcome: bool = False):
         login_dir = client_configs.get_client_config_dir()
         login_file = login_dir  + '/login.yaml'
-        with open(os.path.expanduser(login_file), 'w', encoding='utf-8') as file:
+        expanded_login_file = os.path.expanduser(login_file)
+        file_descriptor = os.open(
+            expanded_login_file,
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            0o600,
+        )
+        os.chmod(expanded_login_file, 0o600)
+        with os.fdopen(file_descriptor, 'w', encoding='utf-8') as file:
             login_dict = login_storage.model_dump()
             login_dict['name'] = login_storage.name
             yaml.dump(login_dict, file)

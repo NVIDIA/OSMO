@@ -29,6 +29,16 @@ py_test(
 )
 
 py_test(
+    name = "test_login",
+    srcs = [
+        "test_login.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
+
+py_test(
     name = "test_workflow",
     srcs = [
         "test_workflow.py"

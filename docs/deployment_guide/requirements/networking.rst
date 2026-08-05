@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ Requirements
 
           If using an external IdP for browser SSO (e.g. Microsoft Entra ID, Google), ensure the OSMO service hostname has a dedicated FQDN and certificate. The IdP redirect URI will point to this host.
 
-          **Example**: ``https://<your-domain>/api/auth/getAToken``
+          **Example**: ``https://<your-domain>/oauth2/callback``
 
       .. grid-item-card:: :octicon:`plug` Port Forwarding (Optional)
           :class-card: optional-card
@@ -101,7 +101,5 @@ Requirements
         - `Cloud DNS <https://docs.cloud.google.com/dns/docs/overview>`_
         - `Certificate Manager <https://docs.cloud.google.com/certificate-manager/docs/overview>`_
         - `Load Balancer SSL <https://cloud.google.com/load-balancing/docs/ssl-certificates>`_
-
-
 
 

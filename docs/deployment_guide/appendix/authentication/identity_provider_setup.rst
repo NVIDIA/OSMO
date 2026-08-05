@@ -37,7 +37,9 @@ If you are evaluating OSMO or running in an environment without an IdP, use the 
 How it works
 ====================
 
-1. You register OSMO as an application (OAuth2 / OIDC client) in your IdP and get a client ID and client secret.
+1. You register OSMO as an application (OAuth2 / OIDC client) in your IdP and get a client ID. The
+   confidential web client also needs a client secret; the public CLI client uses PKCE and must not
+   use one.
 2. When a user visits the OSMO UI or API without a session, Envoy redirects them to the IdP to log in. After login, the IdP returns a JWT. Envoy validates the JWT and forwards the request to the OSMO service with ``x-osmo-user`` and ``x-osmo-roles`` set.
 3. OSMO roles can be assigned from two sources: directly via the OSMO user/role APIs, or from an IdP. When using an IdP, external claims (e.g., LDAP groups, OIDC roles) are mapped to OSMO roles through the :ref:`idp_role_mapping`.
 
@@ -73,10 +75,24 @@ Identity Provider Configuration Reference
 Microsoft Entra ID (Azure AD)
 --------------------------------
 
-1. **Register an application** in Azure Portal → Microsoft Entra ID → App registrations → New registration. Set redirect URI (Web) to ``https://<your-domain>/api/auth/getAToken``.
-2. **Create a client secret** under Certificates & secrets and copy the value.
-3. **Configure API permissions** (e.g. OpenID, profile, email, User.Read).
-4. **Optional:** Under Token configuration, add a “Groups” claim so group IDs (or names) are in the token for role mapping.
+You can use one existing app registration for the OSMO web client and CLI. Configure both client
+types explicitly:
+
+1. Under **Authentication**, add a **Web** redirect URI of
+   ``https://<your-domain>/oauth2/callback`` for OAuth2 Proxy.
+2. Under **Authentication**, add ``http://localhost`` to **Mobile and desktop applications** for the
+   CLI loopback callback, and enable **Allow public client flows**.
+3. Create a client secret under **Certificates & secrets** for OAuth2 Proxy. Do not distribute that
+   secret to the CLI; the CLI is a public client and uses an ``S256`` PKCE challenge instead.
+4. The CLI requests only the OpenID Connect ``openid``, ``profile``, and ``offline_access`` scopes.
+   It does not need Microsoft Graph ``User.Read`` or a delegated OSMO API permission for the current
+   ID-token gateway contract. Add a delegated permission only when the client requests and uses that
+   protected API's scope.
+5. **Implicit grant and hybrid flows** settings are independent of authorization code with PKCE.
+   PKCE does not require the implicit ID-token setting and does not replace delegated permissions.
+   Do not disable an existing implicit or hybrid-flow setting as part of enabling PKCE.
+6. **Optional:** Under Token configuration, add a “Groups” claim so group IDs (or names) are in the
+   token for role mapping.
 
 **Endpoints:**
 
@@ -125,7 +141,7 @@ Microsoft Entra ID (Azure AD)
 Google OAuth2
 --------------------------------
 
-1. In Google Cloud Console, create OAuth 2.0 credentials (Web application). Set authorized redirect URI to ``https://<your-domain>/api/auth/getAToken``.
+1. In Google Cloud Console, create OAuth 2.0 credentials (Web application). Set authorized redirect URI to ``https://<your-domain>/oauth2/callback``.
 2. Configure the OAuth consent screen and add scopes such as ``openid``, ``email``, ``profile``.
 
 **Endpoints:**
@@ -151,7 +167,7 @@ AWS IAM Identity Center (AWS SSO)
 -----------------------------------
 
 1. Enable AWS IAM Identity Center and note the instance ID and region.
-2. Create a “Customer managed” OAuth 2.0 application with redirect URI ``https://<your-domain>/api/auth/getAToken`` and scopes ``openid``, ``email``, ``profile``. Record client ID and client secret.
+2. Create a “Customer managed” OAuth 2.0 application with redirect URI ``https://<your-domain>/oauth2/callback`` and scopes ``openid``, ``email``, ``profile``. Record client ID and client secret.
 3. Assign users/groups to the application as needed.
 
 **Endpoints:**

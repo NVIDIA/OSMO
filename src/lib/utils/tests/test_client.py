@@ -16,10 +16,13 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import base64
+import concurrent.futures
+import http.client
 import io
 import json
 import os
 import shutil
+import stat
 import sys
 import tempfile
 import unittest
@@ -86,6 +89,36 @@ class HandleResponseSuccessTests(unittest.TestCase):
         result = client.handle_response(response, mode=client.ResponseMode.STREAMING)
 
         self.assertIs(result, response)
+
+
+class BrowserAuthorizationCallbackServerTests(unittest.TestCase):
+    """Tests for the single-use PKCE loopback callback listener."""
+
+    def test_rejects_wrong_state_then_accepts_expected_callback(self):
+        # pylint: disable=protected-access
+        with client._BrowserAuthorizationCallbackServer(
+                callback_port=0,
+                expected_state='expected-state',
+                timeout_seconds=2) as callback_server, \
+             concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            callback_future = executor.submit(callback_server.wait_for_callback)
+            connection = http.client.HTTPConnection(
+                '127.0.0.1', callback_server.server_port, timeout=1)
+            connection.request('GET', '/?code=attacker-code&state=wrong-state')
+            self.assertEqual(connection.getresponse().status, 400)
+            connection.close()
+
+            connection = http.client.HTTPConnection(
+                '127.0.0.1', callback_server.server_port, timeout=1)
+            connection.request('GET', '/?code=valid-code&state=expected-state')
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader('Cache-Control'), 'no-store')
+            connection.close()
+            callback = callback_future.result(timeout=1)
+
+        self.assertEqual(callback.code, 'valid-code')
+        self.assertIsNone(callback.error)
 
 
 class HandleResponseWarningHeaderTests(unittest.TestCase):
@@ -335,6 +368,7 @@ class LoginManagerLoginAndLogoutTests(unittest.TestCase):
         self.assertEqual(saved['url'], 'https://example.com')
         self.assertEqual(saved['dev_login']['username'], 'alice')
         self.assertEqual(saved['name'], 'alice')
+        self.assertEqual(stat.S_IMODE(os.stat(self.login_path).st_mode), 0o600)
 
     def test_dev_login_prints_welcome_message(self):
         manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
@@ -407,6 +441,76 @@ class LoginManagerLoginAndLogoutTests(unittest.TestCase):
         manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
 
         self.assertEqual(manager.get_access_token(), 'refresh-abc')
+
+
+class LoginManagerPkceTests(unittest.TestCase):
+    """Tests for browser authorization-code login orchestration."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        environment_patch = mock.patch.dict(
+            os.environ, {common.OSMO_CONFIG_OVERRIDE: self.tmpdir})
+        environment_patch.start()
+        self.addCleanup(environment_patch.stop)
+        self.addCleanup(lambda: shutil.rmtree(self.tmpdir, ignore_errors=True))
+
+    def test_uses_discovered_pkce_configuration(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        callback_server = mock.MagicMock()
+        callback_server.redirect_uri = 'http://localhost:49152'
+        callback_server.wait_for_callback.return_value = \
+            client.BrowserAuthorizationCallback(code='authorization-code')
+        id_token = _make_jwt({
+            'exp': 9_999_999_999,
+            'name': 'Alice',
+        })
+        login_storage = login.LoginStorage(
+            url='https://osmo.example.com',
+            token_login=login.TokenLoginStorage(
+                id_token=id_token,
+            ),
+        )
+        discovered_login_info = {
+            'browser_endpoint': 'https://idp.example.com/authorize',
+            'browser_client_id': 'cli-client',
+            'token_endpoint': 'https://idp.example.com/token',
+        }
+
+        with mock.patch('src.lib.utils.client.login.fetch_login_info',
+                        return_value=discovered_login_info), \
+             mock.patch('src.lib.utils.client.login.generate_pkce_code_verifier',
+                        return_value='code-verifier'), \
+             mock.patch('src.lib.utils.client.login.create_pkce_code_challenge',
+                        return_value='code-challenge'), \
+             mock.patch('src.lib.utils.client.login.generate_oauth_state',
+                        return_value='state'), \
+             mock.patch('src.lib.utils.client.login.generate_oidc_nonce',
+                        return_value='nonce'), \
+             mock.patch('src.lib.utils.client._BrowserAuthorizationCallbackServer',
+                        return_value=callback_server) as callback_server_class, \
+             mock.patch('src.lib.utils.client.webbrowser.open') as browser_open, \
+             mock.patch('src.lib.utils.client.login.authorization_code_login',
+                        return_value=login_storage) as authorization_code_login, \
+             mock.patch('builtins.print'):
+            manager.pkce_login(
+                url='https://osmo.example.com',
+                browser_endpoint=None,
+            )
+
+        callback_server_class.assert_called_once_with(0, 'state')
+        browser_open.assert_called_once()
+        authorization_url = browser_open.call_args.args[0]
+        self.assertIn('code_challenge_method=S256', authorization_url)
+        authorization_code_login.assert_called_once_with(
+            url='https://osmo.example.com',
+            token_endpoint='https://idp.example.com/token',
+            client_id='cli-client',
+            authorization_code='authorization-code',
+            code_verifier='code-verifier',
+            redirect_uri='http://localhost:49152',
+            expected_nonce='nonce',
+            user_agent=manager.user_agent,
+        )
 
 
 class LoginManagerRefreshTests(unittest.TestCase):

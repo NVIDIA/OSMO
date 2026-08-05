@@ -59,7 +59,7 @@ The current Envoy OAuth2 filter implementation has several limitations:
 | Browser authentication | User authenticates via any supported IDP (Microsoft, Google, OIDC, etc.). OAuth2 Proxy handles the full OAuth2 flow including proper token refresh with `scope=openid` |
 | Token refresh without re-login | User's session is refreshed seamlessly without requiring re-authentication |
 | Service API authentication | API requests with JWT tokens are validated by Envoy's JWT filter (unchanged) |
-| CLI/Device flow authentication | Device flow continues to work through OSMO service (unchanged) |
+| CLI authentication | Authorization code with PKCE is the default; device flow remains available with `--method code` |
 | Logout | User initiates logout, OAuth2 Proxy clears session and redirects to IDP logout |
 
 ## Requirements
@@ -71,7 +71,7 @@ The current Envoy OAuth2 filter implementation has several limitations:
 | Multi-IDP support | OAuth2 Proxy shall support Microsoft Entra ID, Google, Keycloak, and any OIDC-compliant identity provider | Functional |
 | Session management | OAuth2 Proxy shall manage user sessions via secure cookies | Functional |
 | Header propagation | OAuth2 Proxy shall propagate user identity to Envoy via response headers (`X-Auth-Request-User`, `X-Auth-Request-Email`, `Authorization`) | Functional |
-| Backward compatibility | Existing CLI, device flow, and API authentication shall continue to work unchanged | Functional |
+| Backward compatibility | PKCE login, explicit device flow, and API authentication shall all bypass OAuth2 Proxy after token acquisition | Functional |
 | Authentication latency | OAuth2 Proxy shall add <10ms latency to authenticated requests (session validation subrequest) | KPI |
 | Secure cookie handling | Session cookies shall use Secure, HttpOnly, and SameSite attributes | Security |
 | No secrets in environment | OAuth2 client secrets shall be loaded from Kubernetes secrets or files | Security |
@@ -324,7 +324,7 @@ User must re-authenticate — this is expected behavior for expired sessions
 osmo workflow list
     │
     ▼
-CLI sends request with header: x-osmo-auth: <JWT from device flow>
+CLI sends request with header: x-osmo-auth: <JWT from PKCE or device flow>
     │
     ▼
 Envoy receives request
@@ -875,7 +875,7 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
 | Component | Impact |
 |-----------|--------|
 | Browser authentication | Users re-login once after migration (new session cookie format) |
-| CLI authentication | Unchanged — device flow goes through OSMO service |
+| CLI authentication | PKCE is the default; device flow remains available with `--method code`; both go through the OSMO service |
 | API authentication with JWT | Unchanged — JWT filter still validates tokens |
 | Service-to-service auth | Unchanged — internal OSMO tokens still work |
 
@@ -943,7 +943,8 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
 
 | Test | What the user does | Expected |
 |------|--------------------|----------|
-| Device flow login | `osmo login` | Opens browser for device code auth, completes, CLI receives JWT. Unchanged. |
+| PKCE login | `osmo login` | Opens the system browser, completes the loopback callback with PKCE, and receives an ID token. |
+| Device flow login | `osmo login --method code` | Opens the device authorization URL, completes, and receives an ID token. |
 | API calls with JWT | `osmo workflow list`, `osmo pool list`, etc. | Requests carry `x-osmo-auth` JWT. OAuth2 Proxy is skipped entirely. Unchanged. |
 | CLI token refresh | `osmo auth refresh-token` | Refreshes JWT via `/api/auth/jwt/refresh_token` (skip-auth path). Unchanged. |
 | Client download | `osmo` auto-update via `/client/*` | Downloads work. Unchanged. |
@@ -1057,5 +1058,4 @@ Note: `--upstream=static://200` means OAuth2 Proxy validates sessions and return
 with auth headers. It never proxies actual traffic — Envoy handles all routing.
 `--config` points to a file with `client_secret = "..."` and `cookie_secret = "..."` inline
 (NOT `_file` references, which don't exist in any OAuth2 Proxy version).
-
 

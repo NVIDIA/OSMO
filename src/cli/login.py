@@ -36,22 +36,30 @@ def setup_parser(parser: argparse._SubParsersAction):
     Args:
         parser: The parser to be configured.
     '''
-    login_parser = parser.add_parser('login',
-                                     help='Log in with device flow or client credentials flow.')
+    login_parser = parser.add_parser(
+        'login', help='Log in with PKCE, device flow, or non-interactive credentials.')
     login_parser.set_defaults(func=_login)
     login_parser.add_argument('url', nargs='?', default=None,
                               help='The url of the osmo server to connect to. '
                                    'If not provided, uses the last used url.')
     login_parser.add_argument('--device-endpoint',
-                              help='The url to use to completed device flow authentication. ' +
+                              help='The url to use to complete device flow authentication. ' +
                                    'If not provided, it will be fetched from the service.')
-    login_parser.add_argument('--method', default='code', type=str,
-                              choices=('code', 'password', 'token', 'dev'),
-                              help='code: Get a device code and url to log in securely ' +
+    login_parser.add_argument('--browser-endpoint',
+                              help='The authorization endpoint for PKCE login. If not provided, '
+                                   'it will be fetched from the service.')
+    login_parser.add_argument('--callback-port', default=0, type=int,
+                              help='Local callback port for PKCE login. The default chooses an '
+                                   'available ephemeral port.')
+    login_parser.add_argument('--method', default='pkce', type=str,
+                              choices=('pkce', 'code', 'password', 'token', 'dev'),
+                              help='pkce: Log in through the system browser using authorization ' +
+                                   'code flow with PKCE (default). ' +
+                                   'code: Get a device code and url to log in securely ' +
                                    'through browser. ' +
                                    'password: Provide username and password directly ' +
                                    'through CLI. ' +
-                                   'token: Read an idToken directly from a file.')
+                                   'token: Exchange an OSMO access token for a login token.')
     login_parser.add_argument('--username',
                               help='Username if logging in with credentials. This should ' +
                                    'only be used for service accounts that cannot ' +
@@ -63,9 +71,9 @@ def setup_parser(parser: argparse._SubParsersAction):
                                      'logging in with credentials.').complete = shtab.FILE
 
     token_group = login_parser.add_mutually_exclusive_group()
-    token_group.add_argument('--token', help='Token if logging in with credentials.')
+    token_group.add_argument('--token', help='OSMO access token if logging in with a token.')
     token_group.add_argument('--token-file',
-                             help='File containing the refresh token.').complete = shtab.FILE
+                             help='File containing an OSMO access token.').complete = shtab.FILE
 
     logout_parser = parser.add_parser('logout',
         help='Remove stored access tokens.')
@@ -101,6 +109,14 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
     # Login through device code flow
     if args.method == 'code':
         service_client.login_manager.device_code_login(url, args.device_endpoint)
+
+    # Login through authorization code flow with PKCE
+    elif args.method == 'pkce':
+        service_client.login_manager.pkce_login(
+            url=url,
+            browser_endpoint=args.browser_endpoint,
+            callback_port=args.callback_port,
+        )
 
     # Login through resource owner password flow
     elif args.method == 'password':

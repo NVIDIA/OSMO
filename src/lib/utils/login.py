@@ -17,10 +17,13 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import base64
+import hashlib
 import json
 import os
+import secrets
 import time
 from typing import List, Literal
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import pydantic
 import requests  # type: ignore
@@ -40,6 +43,9 @@ OSMO_ALLOWED_POOLS = 'x-osmo-allowed-pools'
 EXPIRE_WINDOW = 3
 TIMEOUT = 60
 DEFAULT_TOKEN_AUTH_PATH = 'realms/osmo/protocol/openid-connect/token'
+DEFAULT_OAUTH_SCOPE = 'openid offline_access profile'
+PKCE_CODE_CHALLENGE_METHOD = 'S256'
+PKCE_CODE_VERIFIER_BYTES = 64
 
 
 def fetch_login_info(url: str):
@@ -49,6 +55,47 @@ def fetch_login_info(url: str):
         raise osmo_errors.OSMOUserError(f'Unexpected status code ({result.status_code}) when ' \
                                         f'fetching login info from {login_url}: {result.text}')
     return result.json()
+
+
+def generate_pkce_code_verifier() -> str:
+    """Generate an RFC 7636 code verifier using URL-safe characters."""
+    return secrets.token_urlsafe(PKCE_CODE_VERIFIER_BYTES)
+
+
+def create_pkce_code_challenge(code_verifier: str) -> str:
+    """Derive an S256 PKCE challenge from a code verifier."""
+    digest = hashlib.sha256(code_verifier.encode('ascii')).digest()
+    return base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')
+
+
+def generate_oauth_state() -> str:
+    """Generate state used to bind the authorization response to the request."""
+    return secrets.token_urlsafe(32)
+
+
+def generate_oidc_nonce() -> str:
+    """Generate a nonce used to bind an ID token to an authorization request."""
+    return secrets.token_urlsafe(32)
+
+
+def construct_pkce_authorization_url(browser_endpoint: str, client_id: str,
+                                     redirect_uri: str, state: str,
+                                     nonce: str, code_challenge: str) -> str:
+    """Construct an OAuth authorization URL for an S256 PKCE flow."""
+    parsed_endpoint = urlparse(browser_endpoint)
+    query = parse_qsl(parsed_endpoint.query, keep_blank_values=True)
+    query.extend([
+        ('client_id', client_id),
+        ('response_type', 'code'),
+        ('redirect_uri', redirect_uri),
+        ('response_mode', 'query'),
+        ('scope', DEFAULT_OAUTH_SCOPE),
+        ('state', state),
+        ('nonce', nonce),
+        ('code_challenge', code_challenge),
+        ('code_challenge_method', PKCE_CODE_CHALLENGE_METHOD),
+    ])
+    return urlunparse(parsed_endpoint._replace(query=urlencode(query)))
 
 
 class LoginConfig(pydantic.BaseModel):
@@ -124,6 +171,10 @@ class TokenLoginStorage(pydantic.BaseModel):
             self._id_token_jwt = Jwt(self.id_token)
         return self._id_token_jwt
 
+    def update_id_token(self, id_token: str) -> None:
+        self.id_token = id_token
+        self._id_token_jwt = None
+
 
 class DevLoginStorage(pydantic.BaseModel):
     """Stores info trying to provide username directly as developer"""
@@ -192,7 +243,7 @@ def owner_password_login(config: LoginConfig,
         'username': username,
         'password': password,
         'grant_type': 'password',
-        'scope': 'openid offline_access profile'
+        'scope': DEFAULT_OAUTH_SCOPE
     }, timeout=TIMEOUT, headers=headers)
     if result.status_code != 200:
         raise osmo_errors.OSMOServerError(f'Failed to log in: {result.text}')
@@ -205,6 +256,45 @@ def owner_password_login(config: LoginConfig,
             id_token=result_json['id_token'],
             refresh_token=result_json['refresh_token'],
             refresh_url=token_endpoint
+        )
+    )
+
+
+def authorization_code_login(url: str, token_endpoint: str, client_id: str,
+                             authorization_code: str, code_verifier: str,
+                             redirect_uri: str, expected_nonce: str,
+                             user_agent: str | None) -> LoginStorage:
+    """Exchange an OAuth authorization code using an RFC 7636 verifier."""
+    headers = {}
+    if user_agent:
+        headers['User-Agent'] = user_agent
+    result = requests.post(token_endpoint, data={
+        'grant_type': 'authorization_code',
+        'client_id': client_id,
+        'code': authorization_code,
+        'code_verifier': code_verifier,
+        'redirect_uri': redirect_uri,
+        'scope': DEFAULT_OAUTH_SCOPE,
+    }, timeout=TIMEOUT, headers=headers)
+    if result.status_code != 200:
+        raise osmo_errors.OSMOServerError(
+            f'Failed to exchange authorization code: {result.text}')
+    result_json = result.json()
+    id_token = result_json.get('id_token')
+    if not id_token:
+        raise osmo_errors.OSMOServerError(
+            'The identity provider did not return an ID token')
+    if Jwt(id_token).claims.get('nonce') != expected_nonce:
+        raise osmo_errors.OSMOServerError(
+            'The identity provider returned an ID token with an invalid nonce')
+
+    return LoginStorage(
+        url=url,
+        token_login=TokenLoginStorage(
+            id_token=id_token,
+            refresh_token=result_json.get('refresh_token'),
+            refresh_url=token_endpoint,
+            client_id=client_id,
         )
     )
 
@@ -278,10 +368,12 @@ def refresh_id_token(config: LoginConfig, user_agent: str | None,
             f'Please re-login with "osmo login"')
     result_json = result.json()
     if not osmo_token:
-        token_login_storage.refresh_token = result_json['refresh_token']
-        token_login_storage.id_token = result_json['id_token']
+        token_login_storage.refresh_token = result_json.get(
+            'refresh_token', token_login_storage.refresh_token)
+        token_login_storage.update_id_token(result_json.get(
+            'id_token', token_login_storage.id_token))
     else:
-        token_login_storage.id_token = result_json['token']
+        token_login_storage.update_id_token(result_json['token'])
     return token_login_storage
 
 

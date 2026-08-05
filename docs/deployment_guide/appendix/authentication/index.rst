@@ -148,7 +148,9 @@ Then in your Helm values:
        passwordSecretName: default-admin-secret
        passwordSecretKey: password
 
-After deployment, use the default admin username and that password as the access token (e.g. with ``osmo login`` or ``Authorization: Bearer <password>``) to access the API and create more users and access tokens.
+After deployment, use that password as the access token. For the CLI, run
+``osmo login https://<your-domain> --method token --token '<password>'``. For direct API requests,
+send it as ``Authorization: Bearer <password>``. You can then create more users and access tokens.
 
 .. seealso::
 

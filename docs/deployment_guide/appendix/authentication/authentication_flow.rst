@@ -54,7 +54,9 @@ You enable a **default admin** user via Helm (see :ref:`default_admin_setup`). O
 - Assigns that user the ``osmo-admin`` role.
 - Creates an access token for that user whose secret is the password you stored in a Kubernetes secret.
 
-So the "password" you set for the default admin is effectively the access token value. You use it with the CLI (e.g. ``osmo login``) or with the API as ``Authorization: Bearer <that-password>``.
+So the "password" you set for the default admin is effectively the access token value. Use it with
+the CLI via ``osmo login <url> --method token --token '<that-password>'``, or with the API as
+``Authorization: Bearer <that-password>``.
 
 Access tokens
 -------------
@@ -93,20 +95,41 @@ Browser login
 -------------
 
 1. The user opens the OSMO UI or an API URL that requires authentication.
-2. Envoy's OAuth2 filter sees that the user is not authenticated (no valid session cookie or ``x-osmo-auth`` header).
-3. Envoy redirects the browser to the IdP's authorization endpoint. The user signs in at the IdP (e.g. Microsoft, Google).
-4. The IdP redirects back to Envoy with an authorization code (e.g. to ``/api/auth/getAToken``).
-5. Envoy exchanges the code for tokens (access token, ID token, optionally refresh token) at the IdP's token endpoint.
-6. Envoy sets session cookies (e.g. ``OAuthHMAC``, ``IdToken``, ``BearerToken``) and forwards the user to the original URL.
-7. On subsequent requests, Envoy reads the ``IdToken`` (JWT) from the cookie, validates it (signature, expiry, issuer, audience), and sets ``x-osmo-user`` and ``x-osmo-roles`` from the JWT claims (and/or from OSMO's database after syncing the user).
-8. The OSMO service receives the request with those headers and authorizes using its role/policy database.
+2. Envoy asks OAuth2 Proxy to validate the browser's session cookie. With no valid session, OAuth2
+   Proxy redirects the browser to the IdP's authorization endpoint.
+3. The user signs in at the IdP (e.g. Microsoft or Google).
+4. The IdP redirects back with an authorization code to ``https://<your-domain>/oauth2/callback``.
+5. OAuth2 Proxy exchanges the code for tokens at the IdP's token endpoint and establishes its
+   session cookie.
+6. On subsequent requests, Envoy asks OAuth2 Proxy to validate the cookie. OAuth2 Proxy returns the
+   ID token in the ``Authorization`` header.
+7. Envoy validates the ID token (signature, expiry, issuer, and audience) and sets ``x-osmo-user``
+   and ``x-osmo-roles`` from its claims.
+8. The OSMO service receives the request with those headers and authorizes it using its role and
+   policy database.
 
 So the IdP is the source of "who is this?"; OSMO is the source of "what can they do?" (roles and policies), possibly combined with role information from the IdP (e.g. groups mapped to OSMO roles).
 
-CLI / device flow
------------------
+CLI login
+---------
 
-For the CLI, use ``osmo login`` to authenticate with an IdP. The CLI initiates a device-authorization flow, opens a browser for the user to sign in at the IdP, and receives tokens upon completion. Once authenticated, the CLI uses the token for subsequent requests. Envoy validates the token and sets ``x-osmo-user`` and ``x-osmo-roles`` as for browser requests.
+For the CLI, use ``osmo login`` to authenticate with an IdP. Authorization code flow with PKCE is
+the default. Use ``osmo login --method code`` to use device authorization instead. The PKCE flow
+opens the system browser and receives the authorization response on a temporary loopback listener.
+It uses an ``S256`` code challenge plus ``state`` and OpenID Connect ``nonce`` validation, and does
+not use a client secret.
+
+For Microsoft Entra ID, add ``http://localhost`` under the app registration's **Mobile and desktop
+applications** platform and enable public client flows. Existing web and implicit-flow settings are
+independent and do not need to be changed. In particular, enabling ID tokens under **Implicit grant
+and hybrid flows** is not a replacement for delegated permissions and is not used by the CLI's PKCE
+token exchange. Do not disable an existing implicit or hybrid-flow setting as part of enabling PKCE.
+
+The CLI requests the standard OpenID Connect ``openid``, ``profile``, and ``offline_access`` scopes,
+then uses the returned ID token for OSMO API requests to preserve the same gateway contract as
+device authorization. The current flow does not request Microsoft Graph or an OSMO API scope, so do
+not add a delegated API permission solely for CLI sign-in. Add delegated permissions only when the
+client actually calls the protected API represented by that scope.
 
 Role resolution with an IdP
 ---------------------------
