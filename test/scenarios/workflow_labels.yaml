@@ -10,8 +10,8 @@
 
 # Portable workflow-labels spec. Platform is omitted by default so the pool's
 # server-side default applies (works on the KIND quick-start pool); set
-# OETF_DEFAULT_PLATFORM to pin one on dev/Orin. A quick echo task keeps the
-# end-to-end run fast.
+# OETF_DEFAULT_PLATFORM to pin one where the pool requires it. A quick echo
+# task keeps the end-to-end run fast.
 
 version: 2
 workflow:

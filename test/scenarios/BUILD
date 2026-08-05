@@ -79,7 +79,7 @@ oetf_scenario_test(
 # end-to-end labeled run). Serial + exclusive because the policy tests mutate
 # the shared labels_config; each restores the baseline in tearDown. `kind` =
 # runs in the `oetf:deploy_and_run --env kind` CI gate. The heavier lifecycle
-# and ConfigMap-fixture matrix runs on dev/Orin, not here.
+# and ConfigMap-fixture matrix runs elsewhere, not here.
 oetf_scenario_test(
     name = "workflow-labels",
     src = "workflow_labels.py",

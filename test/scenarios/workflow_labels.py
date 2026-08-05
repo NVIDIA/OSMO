@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 # in-cluster kubeconfig). It covers the per-key policy gate (off / warn /
 # enforce), label-syntax validation, list filtering, and one real end-to-end
 # labeled workflow run. Literal pod-object label assertions are covered by the
-# `apply_workflow_labels` unit tests and dev/Orin runs, not here.
+# `apply_workflow_labels` unit tests, not here.
 
 import os
 import secrets
@@ -27,8 +27,8 @@ from src.lib.utils.osmo_errors import OSMOError
 from test.oetf.runner_fixture import RunnerFixture
 
 # A stable value set for the curated `PPP` key. `aurora` doubles as a value the
-# end-to-end run submits, so it must be accepted by any pre-existing allow-list
-# on the target (the NVIDIA dev fixture allows aurora/borealis/cosmos).
+# end-to-end run submits, so it must be accepted by whatever allow-list the
+# target deployment configures for `PPP`.
 ALLOWED_PPP_VALUES = ["aurora", "borealis", "cosmos"]
 DISALLOWED_PPP_VALUE = "drift"
 
@@ -315,7 +315,7 @@ class WorkflowLabels(RunnerFixture):
     #    by apply_pod_label_prefix, not observable from a sandboxed OETF). ─────
 
     def test_pod_label_prefix_gates_merge_and_keeps_api_keys_bare(self) -> None:
-        prefix = "osmo.nvidia.com/"
+        prefix = "example.com/"
         self._set_pod_label_prefix(prefix)
 
         # A bare key forms a valid Kubernetes key once the prefix is prepended.
