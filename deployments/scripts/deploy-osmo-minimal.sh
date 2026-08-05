@@ -136,11 +136,15 @@ General Options:
                          pods pull anonymously, works for public images only.
                          Set explicitly to reference a pre-created secret
                          (e.g. AKS-managed "imagepullsecret").
-  --storage-backend X    Storage backend: auto|minio|s3|azure-blob|byo|none (default: auto)
+  --storage-backend X    Storage backend: auto|minio|rustfs|s3|azure-blob|byo|none (default: auto)
+                         rustfs installs the in-cluster RustFS S3 store
+                         (rustfs.com) instead of MinIO; the two are mutually
+                         exclusive (selecting rustfs skips MinIO, including the
+                         MicroK8s minio addon).
   --auth-method X        Storage auth: static|workload-identity (default: static)
                          workload-identity REQUIRES caller-provisioned cloud
                          identity (UAMI for Azure, IAM role for AWS) + RBAC.
-                         Not valid for --storage-backend minio.
+                         Not valid for --storage-backend minio or rustfs.
   --workload-identity-client-id ID
                          Azure UAMI client ID (required for azure-blob + WI)
   --workload-identity-role-arn ARN
@@ -674,6 +678,9 @@ bootstrap_microk8s() {
         log_info "Bootstrapping MicroK8s..."
         local args=()
         [[ "$ENABLE_MICROK8S_GPU" == "true" ]] && args+=(--gpu)
+        # Pass the storage backend so the minio addon is only enabled for the
+        # minio/auto backends — rustfs (or any other) must not bring up MinIO.
+        args+=(--storage-backend "$STORAGE_BACKEND")
         sudo "$SCRIPT_DIR/microk8s/install.sh" "${args[@]}"
     fi
     # Stub the `nvidia` RuntimeClass when running CPU-only. Older chart versions
@@ -707,8 +714,11 @@ install_cluster_dependencies() {
     NO_GPU="$NO_GPU" bash "$SCRIPT_DIR/install-kai-scheduler.sh"
     NO_GPU="$NO_GPU" bash "$SCRIPT_DIR/install-gpu-operator.sh"
 
-    # MinIO is only installed if the user actually selected it as the backend.
-    if [[ "$STORAGE_BACKEND" == "minio" ]] || [[ "$STORAGE_BACKEND" == "auto" && "$PROVIDER" == "microk8s" ]]; then
+    # In-cluster object stores are only installed when explicitly selected.
+    # MinIO and RustFS are mutually exclusive — never install both.
+    if [[ "$STORAGE_BACKEND" == "rustfs" ]]; then
+        bash "$SCRIPT_DIR/install-rustfs.sh"
+    elif [[ "$STORAGE_BACKEND" == "minio" ]] || [[ "$STORAGE_BACKEND" == "auto" && "$PROVIDER" == "microk8s" ]]; then
         bash "$SCRIPT_DIR/install-minio.sh"
     fi
 
