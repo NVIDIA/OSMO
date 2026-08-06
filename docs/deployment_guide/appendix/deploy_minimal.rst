@@ -427,7 +427,8 @@ Step 8: Install Backend Operator
           enabled: true
           credentials:
           - name: default
-            secretName: osmo-operator-token
+            existingSecret:
+              name: osmo-operator-token
 
 
 3. Deploy the backend operator:

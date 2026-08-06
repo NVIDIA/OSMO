@@ -289,15 +289,6 @@ the charts independently managed.
      --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
      --dry-run=client -o yaml | kubectl apply -f -
 
-   BACKEND_TOKEN_FILE=$(mktemp)
-   chmod 600 "$BACKEND_TOKEN_FILE"
-   dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | tr '/+' '_-' > "$BACKEND_TOKEN_FILE"
-   kubectl create secret generic backend-operator-token \
-     --namespace osmo \
-     --from-file=token="$BACKEND_TOKEN_FILE" \
-     --dry-run=client -o yaml | kubectl apply -f -
-   rm -f "$BACKEND_TOKEN_FILE"
-
    if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
      MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
      MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
@@ -323,6 +314,10 @@ the charts independently managed.
      -f osmo-values/backend-operator.yaml \
      --wait \
      --timeout 10m
+
+The service quick-start values generate ``backend-operator-token`` during the
+first Helm install. The backend operator consumes it directly from the same
+namespace.
 
 .. tip::
    Installation takes about 5 minutes. Monitor progress with:

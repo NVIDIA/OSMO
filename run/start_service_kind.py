@@ -112,48 +112,6 @@ data:
         raise RuntimeError(f'Unexpected error generating MEK: {e}') from e
 
 
-def _ensure_backend_token_secret() -> None:
-    """Create the Secret-backed backend credential before the service starts."""
-    process = run_command_with_logging([
-        'kubectl', 'get', 'secret', 'agent-token', '-n', 'osmo',
-        '--ignore-not-found=true', '-o', 'jsonpath={.data.token}'
-    ], 'Checking for backend token Secret')
-    if process.has_failed():
-        raise RuntimeError('Unable to check backend token Secret')
-    with open(process.stdout_file, 'r', encoding='utf-8') as output_file:
-        token_data = output_file.read().strip()
-    if token_data:
-        logger.info('✅ Backend token Secret already exists, preserving it')
-        return
-
-    token = secrets.token_urlsafe(32)
-    secret_yaml = f"""apiVersion: v1
-kind: Secret
-metadata:
-  name: agent-token
-  namespace: osmo
-type: Opaque
-stringData:
-  token: {token}
-"""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-        temp_file.write(secret_yaml)
-        temp_file_path = temp_file.name
-
-    try:
-        os.chmod(temp_file_path, 0o600)
-        process = run_command_with_logging(
-            ['kubectl', 'apply', '-f', temp_file_path],
-            'Creating backend token Secret')
-        if process.has_failed():
-            raise RuntimeError('Error creating backend token Secret')
-    finally:
-        try:
-            os.unlink(temp_file_path)
-        except OSError:
-            pass
-
-
 def _install_osmo_service(
     service_name: str,
     chart_path: str,
@@ -257,7 +215,6 @@ def start_service_kind(args: argparse.Namespace) -> None:
             args.container_registry_username,
             args.container_registry_password)
         _generate_mek()
-        _ensure_backend_token_secret()
         _install_osmo_services(args.image_location, args.image_tag, detected_platform)
 
         total_time = time.time() - start_time

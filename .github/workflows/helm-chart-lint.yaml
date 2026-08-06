@@ -126,3 +126,10 @@ jobs:
       - name: Validate MCP-enabled service chart
         if: matrix.chart == 'service'
         run: bash deployments/charts/service/ci/validate-mcp-chart.sh
+
+      - name: Chart-specific render tests
+        run: |
+          TEST_SCRIPT="deployments/charts/${{ matrix.chart }}/tests/render-tests.sh"
+          if [ -f "$TEST_SCRIPT" ]; then
+            bash "$TEST_SCRIPT"
+          fi

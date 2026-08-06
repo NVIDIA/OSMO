@@ -18,6 +18,7 @@
 {{ fail "services.backendApiTokens.credentials must not be empty when backend API tokens are enabled" }}
 {{ end }}
 {{ $credentialNames := dict }}
+{{ $secretNames := dict }}
 {{ range .Values.services.backendApiTokens.credentials }}
 {{ $credentialName := required "backend API token credential name is required" .name }}
 {{ if or (gt (len $credentialName) 49) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) }}
@@ -27,7 +28,11 @@
 {{ fail (printf "duplicate backend API token credential name %q" $credentialName) }}
 {{ end }}
 {{ $_ := set $credentialNames $credentialName true }}
-{{ $_ := required "backend API token secretName is required" .secretName }}
+{{ $secretName := include "osmo.backend-api-token-secret-name" . }}
+{{ if hasKey $secretNames $secretName }}
+{{ fail (printf "duplicate backend API token Secret name %q" $secretName) }}
+{{ end }}
+{{ $_ := set $secretNames $secretName true }}
 {{ end }}
 {{ end }}
 apiVersion: apps/v1
@@ -278,7 +283,7 @@ spec:
         {{- range .Values.services.backendApiTokens.credentials }}
         - name: backend-token-{{ required "backend API token credential name is required" .name }}
           secret:
-            secretName: {{ required "backend API token secretName is required" .secretName | quote }}
+            secretName: {{ include "osmo.backend-api-token-secret-name" . | quote }}
         {{- end }}
         {{- end }}
 ---

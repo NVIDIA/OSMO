@@ -59,12 +59,38 @@ Configure the control-plane service chart to consume the Secret:
        enabled: true
        credentials:
        - name: default
-         secretName: osmo-backend-token-default
+         existingSecret:
+           name: osmo-backend-token-default
 
 .. note::
 
   For production, materialize the Secret through your approved external-secret
   integration instead of generating it on an administrator workstation.
+
+For single-cluster development, the service chart can generate the Secret on
+the initial install:
+
+.. code-block:: yaml
+
+   services:
+     backendApiTokens:
+       enabled: true
+       credentials:
+       - name: default
+         managedSecret:
+           name: osmo-backend-token-default
+
+The backend operator can consume that Secret directly when it runs in the same
+namespace. A pre-install hook generates the credential inside Kubernetes; the
+token is not included in Helm output or release state. A pre-upgrade hook
+preserves and validates it, and fails rather than replacing a missing Secret.
+The Secret persists independently of Helm uninstall and rollback. This mode
+does not synchronize the token to another cluster, so use ``existingSecret``
+with an external secret manager for production and multi-cluster deployments.
+Managed credentials must be configured during the initial install. Add later
+credentials by provisioning them explicitly and using ``existingSecret``.
+Chart-bootstrap Secrets persist after Helm uninstall; delete them explicitly
+when they are no longer needed.
 
 .. tip::
 

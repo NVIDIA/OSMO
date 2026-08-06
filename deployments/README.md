@@ -131,15 +131,6 @@ kubectl create secret generic local-admin-password \
   --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-BACKEND_TOKEN_FILE=$(mktemp)
-chmod 600 "$BACKEND_TOKEN_FILE"
-dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | tr '/+' '_-' > "$BACKEND_TOKEN_FILE"
-kubectl create secret generic backend-operator-token \
-  --namespace osmo \
-  --from-file=token="$BACKEND_TOKEN_FILE" \
-  --dry-run=client -o yaml | kubectl apply -f -
-rm -f "$BACKEND_TOKEN_FILE"
-
 if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
   MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
   MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
@@ -165,6 +156,10 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
   -f charts/backend-operator/quick-start-values.yaml \
   --wait
 ```
+
+The service quick-start values generate `backend-operator-token` during the
+first Helm install. Because the backend operator is installed in the same
+namespace, it consumes that Secret directly.
 
 After installing the CLI and logging in, set the demo pool and LocalStack data credential:
 

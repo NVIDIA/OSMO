@@ -26,7 +26,8 @@ services:
     enabled: true
     credentials:
     - name: default
-      secretName: agent-token
+      managedSecret:
+        name: agent-token
 
   configFile:
     enabled: true
