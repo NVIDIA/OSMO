@@ -105,6 +105,15 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
 | `service/mcp/` | Serves the stateless Streamable HTTP MCP endpoint for external OSMO clients. |
 
+### Deployment Charts (`deployments/charts/`)
+
+| Chart | Purpose |
+|-------|---------|
+| `osmo/` | Unified umbrella chart. The initial split-plane control profile composes the service chart without compute-plane workloads. |
+| `osmo-deps/` | Non-production PostgreSQL, Valkey, and RustFS dependencies for reproducible local and kind testing. |
+| `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
+| `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
+
 ### Python Libraries (`lib/`)
 
 | Library | Key Classes | Purpose |

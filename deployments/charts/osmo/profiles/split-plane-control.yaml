@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: false
+
+controlPlane:
+  services:
+    configFile:
+      enabled: true
+      secretName: osmo-control-secrets
+      secretKey: mek.yaml
+    postgres:
+      enabled: false
+      passwordSecretName: osmo-control-secrets
+      passwordSecretKey: db-password
+    redis:
+      enabled: false
+      passwordSecretName: osmo-control-secrets
+      passwordSecretKey: redis-password
+    localstackS3:
+      enabled: false
+    migration:
+      enabled: false
+    configs:
+      enabled: true
+      secretRefs:
+        - secretName: osmo-control-secrets
+    defaultAdmin:
+      enabled: false
+    ui:
+      enabled: true
+
+  podMonitor:
+    enabled: false
+
+  gateway:
+    envoy:
+      enabled: true
+    oauth2Proxy:
+      enabled: false
+    authz:
+      enabled: false
+    rateLimit:
+      enabled: false

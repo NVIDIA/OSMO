@@ -222,3 +222,28 @@ origin used for bearer relay is derived from this single source of truth.
 {{- end -}}
 {{- $resourceUrl -}}
 {{- end -}}
+
+{{/*
+MEK configuration volume. New installations can mount the MEK from an
+operator-managed Kubernetes Secret. An empty secretName preserves the legacy
+mek-config ConfigMap contract.
+*/}}
+{{- define "osmo.mek-volume" -}}
+{{- if .Values.services.configFile.enabled }}
+- name: mek-volume
+  {{- if .Values.services.configFile.secretName }}
+  secret:
+    secretName: {{ .Values.services.configFile.secretName }}
+    items:
+    - key: {{ .Values.services.configFile.secretKey }}
+      path: mek.yaml
+  {{- else }}
+  configMap:
+    defaultMode: 420
+    items:
+    - key: mek.yaml
+      path: mek.yaml
+    name: mek-config
+  {{- end }}
+{{- end }}
+{{- end -}}

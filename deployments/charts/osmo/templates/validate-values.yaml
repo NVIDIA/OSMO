@@ -1,0 +1,8 @@
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.planes.compute.enabled -}}
+{{- fail "planes.compute.enabled: compute plane is not implemented in this chart version" -}}
+{{- end -}}
+{{- if not .Values.planes.control.enabled -}}
+{{- fail "planes.control.enabled: this chart version requires the control plane" -}}
+{{- end -}}
