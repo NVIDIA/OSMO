@@ -27,6 +27,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+from urllib.parse import urlparse
 
 import yaml
 
@@ -102,14 +103,20 @@ class BrowserAuthorizationCallbackServerTests(unittest.TestCase):
                 timeout_seconds=2) as callback_server, \
              concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             callback_future = executor.submit(callback_server.wait_for_callback)
+            callback_url = urlparse(callback_server.redirect_uri)
+            self.assertEqual(callback_url.hostname, 'localhost')
+            if callback_url.hostname is None or callback_url.port is None:
+                self.fail('Callback redirect URI must include a hostname and port')
+            callback_hostname = callback_url.hostname
+            callback_port = callback_url.port
             connection = http.client.HTTPConnection(
-                '127.0.0.1', callback_server.server_port, timeout=1)
+                callback_hostname, callback_port, timeout=1)
             connection.request('GET', '/?code=attacker-code&state=wrong-state')
             self.assertEqual(connection.getresponse().status, 400)
             connection.close()
 
             connection = http.client.HTTPConnection(
-                '127.0.0.1', callback_server.server_port, timeout=1)
+                callback_hostname, callback_port, timeout=1)
             connection.request('GET', '/?code=valid-code&state=expected-state')
             response = connection.getresponse()
             self.assertEqual(response.status, 200)
@@ -119,6 +126,17 @@ class BrowserAuthorizationCallbackServerTests(unittest.TestCase):
 
         self.assertEqual(callback.code, 'valid-code')
         self.assertIsNone(callback.error)
+
+    def test_timeout_recommends_device_authorization(self):
+        # pylint: disable=protected-access
+        with client._BrowserAuthorizationCallbackServer(
+                callback_port=0,
+                expected_state='expected-state',
+                timeout_seconds=0) as callback_server:
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                callback_server.wait_for_callback()
+
+        self.assertIn('--method code', str(context.exception))
 
 
 class HandleResponseWarningHeaderTests(unittest.TestCase):
@@ -370,6 +388,17 @@ class LoginManagerLoginAndLogoutTests(unittest.TestCase):
         self.assertEqual(saved['name'], 'alice')
         self.assertEqual(stat.S_IMODE(os.stat(self.login_path).st_mode), 0o600)
 
+    def test_dev_login_restricts_preexisting_login_file_permissions(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        with open(self.login_path, 'w', encoding='utf-8') as file:
+            file.write('preexisting')
+        os.chmod(self.login_path, 0o644)
+
+        with mock.patch('builtins.print'):
+            manager.dev_login('https://example.com', 'alice')
+
+        self.assertEqual(stat.S_IMODE(os.stat(self.login_path).st_mode), 0o600)
+
     def test_dev_login_prints_welcome_message(self):
         manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
 
@@ -511,6 +540,105 @@ class LoginManagerPkceTests(unittest.TestCase):
             expected_nonce='nonce',
             user_agent=manager.user_agent,
         )
+
+    def test_missing_browser_endpoint_raises(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        login_info = {
+            'browser_client_id': 'cli-client',
+            'token_endpoint': 'https://idp.example.com/token',
+        }
+
+        with mock.patch('src.lib.utils.client.login.fetch_login_info',
+                        return_value=login_info):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                manager.pkce_login('https://osmo.example.com', None)
+
+        self.assertIn('browser endpoint', str(context.exception))
+
+    def test_missing_browser_client_id_raises(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        login_info = {
+            'browser_endpoint': 'https://idp.example.com/authorize',
+            'token_endpoint': 'https://idp.example.com/token',
+        }
+
+        with mock.patch('src.lib.utils.client.login.fetch_login_info',
+                        return_value=login_info):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                manager.pkce_login('https://osmo.example.com', None)
+
+        self.assertIn('browser client ID', str(context.exception))
+
+    def test_missing_token_endpoint_raises(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        login_info = {
+            'browser_endpoint': 'https://idp.example.com/authorize',
+            'browser_client_id': 'cli-client',
+        }
+
+        with mock.patch('src.lib.utils.client.login.fetch_login_info',
+                        return_value=login_info):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                manager.pkce_login('https://osmo.example.com', None)
+
+        self.assertIn('token endpoint', str(context.exception))
+
+    def test_rejects_insecure_authorization_endpoint(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        login_info = {
+            'browser_endpoint': 'http://idp.example.com/authorize',
+            'browser_client_id': 'cli-client',
+            'token_endpoint': 'https://idp.example.com/token',
+        }
+
+        with mock.patch('src.lib.utils.client.login.fetch_login_info',
+                        return_value=login_info):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                manager.pkce_login('https://osmo.example.com', None)
+
+        self.assertIn('authorization endpoint must use HTTPS', str(context.exception))
+
+    def test_rejects_insecure_token_endpoint(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        login_info = {
+            'browser_endpoint': 'https://idp.example.com/authorize',
+            'browser_client_id': 'cli-client',
+            'token_endpoint': 'http://idp.example.com/token',
+        }
+
+        with mock.patch('src.lib.utils.client.login.fetch_login_info',
+                        return_value=login_info):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                manager.pkce_login('https://osmo.example.com', None)
+
+        self.assertIn('token endpoint must use HTTPS', str(context.exception))
+
+    def test_provider_error_raises(self):
+        manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
+        callback_server = mock.MagicMock()
+        callback_server.redirect_uri = 'http://localhost:49152'
+        callback_server.wait_for_callback.return_value = \
+            client.BrowserAuthorizationCallback(
+                error='access_denied',
+                error_description='The user cancelled sign-in',
+            )
+        login_info = {
+            'browser_endpoint': 'https://idp.example.com/authorize',
+            'browser_client_id': 'cli-client',
+            'token_endpoint': 'https://idp.example.com/token',
+        }
+
+        with mock.patch('src.lib.utils.client.login.fetch_login_info',
+                        return_value=login_info), \
+             mock.patch('src.lib.utils.client._BrowserAuthorizationCallbackServer',
+                        return_value=callback_server), \
+             mock.patch('src.lib.utils.client.webbrowser.open'), \
+             mock.patch('builtins.print'):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                manager.pkce_login('https://osmo.example.com', None)
+
+        self.assertIn('access_denied', str(context.exception))
+        self.assertIn('cancelled', str(context.exception))
 
 
 class LoginManagerRefreshTests(unittest.TestCase):

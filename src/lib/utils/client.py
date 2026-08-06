@@ -74,7 +74,9 @@ class _BrowserAuthorizationCallbackServer(http.server.HTTPServer):
             remaining_seconds = deadline - time.monotonic()
             if remaining_seconds <= 0:
                 raise osmo_errors.OSMOUserError(
-                    'Timed out waiting for browser authentication to complete')
+                    'Timed out waiting for browser authentication to complete. '
+                    'If this environment cannot receive localhost callbacks, '
+                    'retry with "--method code".')
             self.timeout = remaining_seconds
             self.handle_request()
         return self.callback
@@ -336,6 +338,8 @@ class LoginManager():
         if not token_endpoint:
             raise osmo_errors.OSMOUserError(
                 'The OSMO service does not provide a token endpoint for PKCE login')
+        login.validate_oauth_endpoint(browser_endpoint, 'authorization endpoint')
+        login.validate_oauth_endpoint(token_endpoint, 'token endpoint')
 
         code_verifier = login.generate_pkce_code_verifier()
         code_challenge = login.create_pkce_code_challenge(code_verifier)
@@ -417,7 +421,11 @@ class LoginManager():
             os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
             0o600,
         )
-        os.chmod(expanded_login_file, 0o600)
+        try:
+            os.fchmod(file_descriptor, 0o600)
+        except OSError:
+            os.close(file_descriptor)
+            raise
         with os.fdopen(file_descriptor, 'w', encoding='utf-8') as file:
             login_dict = login_storage.model_dump()
             login_dict['name'] = login_storage.name

@@ -458,6 +458,61 @@ class AuthorizationCodeLoginTests(unittest.TestCase):
 
         self.assertIn('nonce', str(context.exception).lower())
 
+    def test_rejects_insecure_token_endpoint_without_posting(self):
+        with mock.patch('src.lib.utils.login.requests.post') as mock_post:
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                login.authorization_code_login(
+                    url='https://osmo.example.com',
+                    token_endpoint='http://idp.example.com/token',
+                    client_id='cli-client',
+                    authorization_code='authorization-code',
+                    code_verifier='code-verifier',
+                    redirect_uri='http://localhost:49152',
+                    expected_nonce='expected-nonce',
+                    user_agent=None,
+                )
+
+        self.assertIn('token endpoint must use HTTPS', str(context.exception))
+        mock_post.assert_not_called()
+
+    def test_non_200_token_response_raises(self):
+        token_response = _FakeResponse(status_code=400, text='invalid_grant')
+        with mock.patch('src.lib.utils.login.requests.post',
+                        return_value=token_response):
+            with self.assertRaises(osmo_errors.OSMOServerError) as context:
+                login.authorization_code_login(
+                    url='https://osmo.example.com',
+                    token_endpoint='https://idp.example.com/token',
+                    client_id='cli-client',
+                    authorization_code='authorization-code',
+                    code_verifier='code-verifier',
+                    redirect_uri='http://localhost:49152',
+                    expected_nonce='expected-nonce',
+                    user_agent=None,
+                )
+
+        self.assertIn('invalid_grant', str(context.exception))
+
+    def test_missing_id_token_raises(self):
+        token_response = _FakeResponse(status_code=200, json_body={
+            'access_token': 'api-access-token',
+        })
+        with mock.patch('src.lib.utils.login.requests.post',
+                        return_value=token_response):
+            with self.assertRaises(osmo_errors.OSMOServerError) as context:
+                login.authorization_code_login(
+                    url='https://osmo.example.com',
+                    token_endpoint='https://idp.example.com/token',
+                    client_id='cli-client',
+                    authorization_code='authorization-code',
+                    code_verifier='code-verifier',
+                    redirect_uri='http://localhost:49152',
+                    expected_nonce='expected-nonce',
+                    user_agent=None,
+                )
+
+        self.assertIn('did not return an ID token', str(context.exception))
+
 
 class ConstructTokenRefreshUrlTests(unittest.TestCase):
     """Tests for construct_token_refresh_url."""
@@ -641,6 +696,34 @@ class RefreshIdTokenTests(unittest.TestCase):
 
         self.assertEqual(mock_post.call_args.kwargs['data']['client_id'],
                          'config-client')
+
+    def test_oauth_flow_rejects_refresh_without_id_token(self):
+        expired_token = _make_jwt({'exp': int(time.time()) - 60})
+        storage = login.TokenLoginStorage(
+            id_token=expired_token,
+            refresh_token='old-refresh',
+            refresh_url='https://idp/token',
+            client_id='storage-client',
+        )
+        refresh_response = _FakeResponse(status_code=200, json_body={
+            'access_token': 'new-access-token',
+            'refresh_token': 'new-refresh',
+        })
+
+        with mock.patch('src.lib.utils.login.requests.post',
+                        return_value=refresh_response):
+            with self.assertRaises(osmo_errors.OSMOServerError) as context:
+                login.refresh_id_token(
+                    config=login.LoginConfig(),
+                    user_agent=None,
+                    token_login_storage=storage,
+                    osmo_token=False,
+                )
+
+        self.assertIn('did not return an ID token', str(context.exception))
+        self.assertIn('re-login', str(context.exception))
+        self.assertEqual(storage.id_token, expired_token)
+        self.assertEqual(storage.refresh_token, 'old-refresh')
 
     def test_osmo_token_flow_posts_token_json(self):
         expired_token = _make_jwt({'exp': int(time.time()) - 60})

@@ -98,6 +98,17 @@ def construct_pkce_authorization_url(browser_endpoint: str, client_id: str,
     return urlunparse(parsed_endpoint._replace(query=urlencode(query)))
 
 
+def validate_oauth_endpoint(endpoint: str, endpoint_name: str) -> None:
+    """Require OAuth authorization and token endpoints to use HTTPS."""
+    if not isinstance(endpoint, str):
+        raise osmo_errors.OSMOUserError(
+            f'The OAuth {endpoint_name} must use HTTPS')
+    parsed_endpoint = urlparse(endpoint)
+    if parsed_endpoint.scheme.lower() != 'https' or not parsed_endpoint.netloc:
+        raise osmo_errors.OSMOUserError(
+            f'The OAuth {endpoint_name} must use HTTPS')
+
+
 class LoginConfig(pydantic.BaseModel):
     """ Manages configuration specific to the login """
     username: str | None = pydantic.Field(
@@ -265,6 +276,7 @@ def authorization_code_login(url: str, token_endpoint: str, client_id: str,
                              redirect_uri: str, expected_nonce: str,
                              user_agent: str | None) -> LoginStorage:
     """Exchange an OAuth authorization code using an RFC 7636 verifier."""
+    validate_oauth_endpoint(token_endpoint, 'token endpoint')
     headers = {}
     if user_agent:
         headers['User-Agent'] = user_agent
@@ -368,10 +380,14 @@ def refresh_id_token(config: LoginConfig, user_agent: str | None,
             f'Please re-login with "osmo login"')
     result_json = result.json()
     if not osmo_token:
+        refreshed_id_token = result_json.get('id_token')
+        if not refreshed_id_token:
+            raise osmo_errors.OSMOServerError(
+                'The identity provider did not return an ID token while refreshing login.\n'
+                'Please re-login with "osmo login"')
         token_login_storage.refresh_token = result_json.get(
             'refresh_token', token_login_storage.refresh_token)
-        token_login_storage.update_id_token(result_json.get(
-            'id_token', token_login_storage.id_token))
+        token_login_storage.update_id_token(refreshed_id_token)
     else:
         token_login_storage.update_id_token(result_json['token'])
     return token_login_storage
@@ -385,5 +401,4 @@ def parse_allowed_pools(allowed_pools_header: str | None) -> List[str]:
     if not allowed_pools_header:
         return []
     return [pool.strip() for pool in allowed_pools_header.split(',') if pool.strip()]
-
 
