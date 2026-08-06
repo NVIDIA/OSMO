@@ -140,12 +140,7 @@ test.describe("Occupancy Group By Toggle URL State", () => {
 
   test("clicking By User updates URL with groupBy=user", async ({ page }) => {
     // ARRANGE
-    await setupOccupancy(
-      page,
-      createOccupancySummaries([
-        { user: "alice", pool: "prod", gpu: 4 },
-      ]),
-    );
+    await setupOccupancy(page, createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 4 }]));
 
     // ACT
     await page.goto("/occupancy");
@@ -160,12 +155,7 @@ test.describe("Occupancy Group By Toggle URL State", () => {
 
   test("clicking By Pool after By User removes groupBy from URL", async ({ page }) => {
     // ARRANGE
-    await setupOccupancy(
-      page,
-      createOccupancySummaries([
-        { user: "alice", pool: "prod", gpu: 4 },
-      ]),
-    );
+    await setupOccupancy(page, createOccupancySummaries([{ user: "alice", pool: "prod", gpu: 4 }]));
 
     // ACT
     await page.goto("/occupancy?groupBy=user");

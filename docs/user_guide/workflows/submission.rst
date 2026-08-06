@@ -179,6 +179,63 @@ Override workflow values at submission time:
        --set-string model_name="bert-base" \
        --set-env WANDB_PROJECT=my-experiment
 
+Set Workflow Labels
+~~~~~~~~~~~~~~~~~~~
+
+Add or override immutable workflow labels with repeatable ``--label key=value``
+flags. A command-line value wins over the same key in the workflow YAML.
+
+.. code-block:: bash
+
+   $ osmo workflow submit training.yaml \
+       --label team=robotics \
+       --label experiment=run42
+
+The same flag works for app submission and resubmission by workflow ID
+(``osmo workflow submit <workflow-id>``). Restart does not accept label
+overrides because it reuses the stored specification; resubmit the workflow
+when a stored label must change.
+
+Validate labels and any administrator policy without creating a workflow:
+
+.. code-block:: bash
+
+   $ osmo workflow validate training.yaml --label team=robotics
+
+If a label policy is in warn mode, the submission succeeds but prints a
+``WARNING:`` line explaining what to change before the policy is enforced,
+for example::
+
+   WARNING: Workflow is missing label 'team'; add it now to avoid rejected
+   submissions once it is required.
+
+In enforce mode the submission is rejected and the error identifies the
+missing key or disallowed value.
+
+Find workflows with an exact label, a glob selector, an alternative selector,
+or a missing key:
+
+.. code-block:: bash
+
+   $ osmo workflow list --label team=robotics --label experiment=run42
+   $ osmo workflow list --label 'project=robotics_*'
+   $ osmo workflow list --label 'project=(sim_*|hil_*)'
+   $ osmo workflow list --label 'team=robotics_(a|b)'
+   $ osmo workflow list --no-label team
+
+Label selectors are case-sensitive. In a glob selector, ``*`` matches zero or
+more characters; every other character, including ``_``, is literal. A
+parenthesized ``|`` group can appear within a selector and matches any one of
+its alternatives. Alternatives can contain ``*`` wildcards. Groups are flat
+(not nested), each group must contain at least two non-empty alternatives,
+and the alternatives in a selector may multiply out to at most 32
+combinations. Quote pattern selectors so the shell does not interpret them.
+
+Repeated ``--label`` filters are combined with AND, so every supplied
+selector must match. Alternatives within one selector are combined with OR. Pattern syntax
+applies only to workflow list filters; submission and validation labels must
+still contain exact Kubernetes label values.
+
 Dry Run Validation
 ~~~~~~~~~~~~~~~~~~
 

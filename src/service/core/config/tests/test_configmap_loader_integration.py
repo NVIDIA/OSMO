@@ -327,7 +327,8 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
                 mode='w', suffix='.yaml', delete=False) as temp_file:
             yaml.dump(_with_service_auth(config), temp_file)
         try:
-            watcher = configmap_loader.ConfigMapWatcher(temp_file.name)
+            watcher = configmap_loader.ConfigMapWatcher(
+                temp_file.name, self._get_postgres())
             result = watcher._load_and_apply()
             self.assertTrue(result)
 
@@ -381,7 +382,8 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
                 mode='w', suffix='.yaml', delete=False) as temp_file:
             yaml.dump(_with_service_auth(config), temp_file)
         try:
-            watcher = configmap_loader.ConfigMapWatcher(temp_file.name)
+            watcher = configmap_loader.ConfigMapWatcher(
+                temp_file.name, self._get_postgres())
             result = watcher._load_and_apply()
             self.assertTrue(result)
 

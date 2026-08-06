@@ -22,13 +22,14 @@ import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
 import { PlatformPills } from "@/components/platform-pills";
 import { PoolSelect } from "@/components/workflow/pool-select";
+import { normalizePhysicalCapacity } from "@/lib/pool-capacity";
 
 const META_ROW = "grid grid-cols-[5.625rem_1fr] items-baseline gap-6";
 const META_LABEL = "text-muted-foreground text-xs font-medium uppercase";
 
 const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
   const quotaFree = pool.quota.limit - pool.quota.used;
-  const capacityFree = pool.quota.totalCapacity - pool.quota.totalUsage;
+  const physicalCapacity = normalizePhysicalCapacity(pool.quota);
 
   return (
     <div
@@ -55,13 +56,13 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
           <div className={META_LABEL}>GPU Capacity</div>
           <div className="flex flex-wrap items-baseline gap-y-1 tabular-nums">
             <span className="text-sm font-medium">
-              {pool.quota.totalUsage}
+              {physicalCapacity.used}
               <span className="text-muted-foreground/50"> / </span>
-              {pool.quota.totalCapacity}
+              {physicalCapacity.total}
             </span>
             <span className="text-muted-foreground pl-[0.3rem] text-xs font-medium">used</span>
             <span className="text-muted-foreground px-2">•</span>
-            <span className="text-xs font-medium">{capacityFree} free</span>
+            <span className="text-xs font-medium">{physicalCapacity.free} free</span>
           </div>
         </div>
 

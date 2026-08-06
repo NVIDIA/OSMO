@@ -147,6 +147,13 @@ def setup_parser(parser: argparse._SubParsersAction):
                                     'LOW. LOW workflows may be preempted to allow a '
                                     'higher priority workflow to run.',
                                choices=[p.value for p in wf_priority.WorkflowPriority])
+    submit_parser.add_argument('--label',
+                               action='append',
+                               dest='labels',
+                               default=[],
+                               metavar='KEY=VALUE',
+                               help='Set a workflow label. Repeat to set multiple labels. '
+                                    'Values override labels declared in the workflow file.')
     submit_parser.set_defaults(func=_submit_workflow)
 
     # Handle 'restart' command
@@ -193,6 +200,14 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  help='The target pool to run the workflow with. If no pool is '
                                       'specified, the default pool assigned in the profile will '
                                       'be used.')
+    validate_parser.add_argument('--label',
+                                 action='append',
+                                 dest='labels',
+                                 default=[],
+                                 metavar='KEY=VALUE',
+                                 help='Set a workflow label for validation. Repeat to set '
+                                      'multiple labels. Values override labels declared in '
+                                      'the workflow file.')
     validate_parser.set_defaults(func=_validate_workflow)
 
     # Handle 'logs' command
@@ -324,6 +339,22 @@ def setup_parser(parser: argparse._SubParsersAction):
                              nargs='+',
                              choices=[p.value for p in wf_priority.WorkflowPriority],
                              help='Filter workflows by priority levels.')
+    list_parser.add_argument('--label',
+                             action='append',
+                             dest='labels',
+                             default=[],
+                             metavar='KEY=SELECTOR',
+                             help='Filter for workflows whose label matches KEY=SELECTOR: '
+                                  'an exact value, * wildcards, or (VALUE|VALUE) '
+                                  'alternatives, such as project=(sim_*|hil_*) or '
+                                  'team=robotics_(a|b). Repeat to require all selectors.')
+    list_parser.add_argument('--no-label',
+                             action='append',
+                             dest='no_labels',
+                             default=[],
+                             metavar='KEY',
+                             help='Filter for workflows without this label key. Repeat to '
+                                  'require every listed key to be absent.')
     group = list_parser.add_mutually_exclusive_group()
     group.add_argument('--user', '-u',
                        nargs='+',
@@ -678,6 +709,8 @@ def print_submission_results(result, args: argparse.Namespace, parent_workflow_i
         dashboard_url = result.get('dashboard_url')
         if dashboard_url is not None:
             print(f'Workflow Dashboard - {result['dashboard_url']}')
+        for warning in result.get('warnings', []):
+            print(f'WARNING: {warning}')
         priority = wf_priority.WorkflowPriority(args.priority) \
             if hasattr(args, 'priority') and args.priority else wf_priority.WorkflowPriority.NORMAL
         if priority.preemptible:
@@ -692,6 +725,8 @@ def _submit_workflow(service_client: client.ServiceClient, args: argparse.Namesp
     params = {}
     if args.priority:
         params['priority'] = args.priority
+    if args.labels:
+        params['label'] = args.labels
     try:
         workflow_path = os.path.abspath(args.workflow_file)
         template_dict = _load_wf_file(workflow_path, args.set, args.set_string)
@@ -842,6 +877,8 @@ def _validate_workflow(service_client: client.ServiceClient, args: argparse.Name
 
     template_dict = template_data.to_dict()
     params = {'validation_only': True}
+    if args.labels:
+        params['label'] = args.labels
     if template_data.is_templated:
         params['dry_run'] = True
         result = service_client.request(
@@ -863,6 +900,8 @@ def _validate_workflow(service_client: client.ServiceClient, args: argparse.Name
         payload=template_dict,
         params=params)
     print(f'{result['logs']}')
+    for warning in result.get('warnings', []):
+        print(f'WARNING: {warning}')
 
 
 def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -965,6 +1004,13 @@ def _get_tasks_from_workflow(workflow: Any) -> list:
     return tasks_result
 
 
+def _format_labels(labels: Dict[str, str] | None) -> str:
+    """Format a workflow labels map as sorted key=value pairs, or '-' if empty."""
+    return ', '.join(
+        f'{label_key}={label_value}'
+        for label_key, label_value in sorted((labels or {}).items())) or '-'
+
+
 def _workflow_table_generator(workflow: Any, table: texttable.Texttable | None = None)\
                               -> texttable.Texttable:
     """Generates a table row for a given workflow.
@@ -978,6 +1024,7 @@ def _workflow_table_generator(workflow: Any, table: texttable.Texttable | None =
                   'Submit Time': 'submit_time',
                   'Status': 'status',
                   'Priority': 'priority',
+                  'Labels': 'labels',
                   'Overview': 'overview'}
     keys = list(key_mapping.keys())
     if not table:
@@ -990,6 +1037,8 @@ def _workflow_table_generator(workflow: Any, table: texttable.Texttable | None =
             value = common.convert_utc_datetime_to_user_zone(value)
         elif key == 'Overview':
             value = f'{value}' if value else '-'
+        elif key == 'Labels':
+            value = _format_labels(workflow.get('labels'))
         row.append(value)
     table.add_row(row)
     return table
@@ -1009,11 +1058,13 @@ def _query_workflow(service_client: client.ServiceClient, args: argparse.Namespa
                                                                                     '-'))
         status, user = workflow_result['status'], workflow_result['submitted_by']
         overview = workflow_result['overview']
+        labels = _format_labels(workflow_result.get('labels'))
         print('--------------------------------------------------------------------\n'
               f'\nWorkflow ID : {args.workflow_id}'
               f'\nStatus      : {status}'
               f'\nUser        : {user}'
               f'\nSubmit Time : {submit_time}'
+              f'\nLabels      : {labels}'
               f'\nOverview    : {overview}\n')
         keys = ['Task Name', 'Start Time', 'Status']
         if args.verbose:
@@ -1055,6 +1106,10 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
         params['app'] = args.app
     if args.priority:
         params['priority'] = args.priority
+    if args.labels:
+        params['label'] = args.labels
+    if args.no_labels:
+        params['no_label'] = args.no_labels
 
     if args.submitted_after:
         params['submitted_after'] = common.convert_timezone(f'{args.submitted_after}T00:00:00')

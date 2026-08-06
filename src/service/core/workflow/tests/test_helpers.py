@@ -595,6 +595,18 @@ class TestGetRouterCookieSuccess(unittest.TestCase):
 
 class TestGetRecentTasks(unittest.TestCase):
 
+    def test_get_recent_tasks_selects_labels_and_count(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        helpers.get_recent_tasks(database, minutes_ago=5)
+
+        query = database.execute_fetch_command.call_args.args[0]
+        self.assertIn('w.labels AS labels', query)
+        self.assertIn('COUNT(*) AS count', query)
+        group_by_clause = query[query.index('GROUP BY'):]
+        self.assertIn('w.labels', group_by_clause)
+
     def test_get_recent_tasks_passes_cutoff_time_to_database(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
@@ -782,6 +794,172 @@ class TestGetWorkflows(unittest.TestCase):
         cmd, params, _ = database.execute_fetch_command.call_args[0]
         self.assertIn('priority IN %s', cmd)
         self.assertIn(('HIGH',), params)
+
+    def test_get_workflows_with_labels_uses_exact_jsonb_filters_with_and_semantics(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, label_filters=['team=alpha', 'run=42'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        self.assertEqual(
+            cmd.count(
+                "workflows.labels @> jsonb_build_object(%s, %s)"),
+            2,
+        )
+        self.assertIn('alpha', params)
+        self.assertIn('42', params)
+        self.assertIn('team', params)
+        self.assertIn('run', params)
+        self.assertIn(' AND ', cmd)
+
+    def test_get_workflows_with_glob_label_filter_escapes_literal_underscore(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, label_filters=['project=robotics_*'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
+        self.assertEqual(cmd.count(expression), 1)
+        self.assertIn('robotics#_%', params)
+        self.assertIn('project', params)
+        self.assertNotIn('robotics_*', cmd)
+
+    def test_get_workflows_with_alternation_uses_containment_predicates(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, label_filters=['project=(team_a|team_b)'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        expression = 'workflows.labels @> jsonb_build_object(%s, %s)'
+        self.assertEqual(cmd.count(expression), 2)
+        self.assertIn(' OR ', cmd)
+        self.assertIn('team_a', params)
+        self.assertIn('team_b', params)
+        self.assertIn('project', params)
+        self.assertNotIn('team_a', cmd)
+        self.assertNotIn('team_b', cmd)
+
+    def test_get_workflows_with_wildcard_alternation_uses_like_predicates(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, label_filters=['project=(team_*|osmo_*)'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
+        self.assertEqual(cmd.count(expression), 2)
+        self.assertIn('team#_%', params)
+        self.assertIn('osmo#_%', params)
+        self.assertIn('project', params)
+        self.assertNotIn('team_*', cmd)
+        self.assertNotIn('osmo_*', cmd)
+
+    def test_get_workflows_with_mixed_alternatives_uses_exact_and_like(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, label_filters=['project=team_(a|b*)'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        exact_expression = 'workflows.labels @> jsonb_build_object(%s, %s)'
+        like_expression = "workflows.labels ->> %s LIKE %s ESCAPE '#'"
+        self.assertEqual(cmd.count(exact_expression), 1)
+        self.assertEqual(cmd.count(like_expression), 1)
+        self.assertIn('team_a', params)
+        self.assertIn('team#_b%', params)
+        self.assertIn('project', params)
+        self.assertIn(' OR ', cmd)
+        self.assertNotIn('team_a', cmd)
+        self.assertNotIn('team_b*', cmd)
+
+    def test_get_workflows_with_match_all_label_filter_uses_key_existence(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, label_filters=['project=*'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        self.assertIn("workflows.labels ? %s", cmd)
+        self.assertNotIn('LIKE', cmd)
+        self.assertIn('project', params)
+        self.assertNotIn('%', params)
+
+    def test_get_workflows_with_match_all_alternative_collapses_to_existence(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, label_filters=['project=(*|team_a)'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        self.assertEqual(cmd.count("workflows.labels ? %s"), 1)
+        self.assertNotIn(' OR ', cmd)
+        self.assertNotIn('team_a', params)
+
+    def test_get_workflows_with_missing_labels_treats_null_as_missing(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(database, missing_label_filters=['team', 'project'])
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        self.assertEqual(
+            cmd.count(
+                '(workflows.labels IS NULL OR NOT (workflows.labels ? %s))'),
+            2,
+        )
+        self.assertIn('team', params)
+        self.assertIn('project', params)
+
+    def test_get_workflows_binds_qualified_label_keys_as_parameters(self):
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+
+        self._run(
+            database,
+            label_filters=['cost.example.com/team=alpha'],
+            missing_label_filters=['owner.example.com/project'],
+        )
+
+        cmd, params, _ = database.execute_fetch_command.call_args[0]
+        self.assertIn('jsonb_build_object(%s, %s)', cmd)
+        self.assertIn('cost.example.com/team', params)
+        self.assertIn('owner.example.com/project', params)
+        self.assertNotIn('cost.example.com/team', cmd)
+        self.assertNotIn('owner.example.com/project', cmd)
+
+    def test_get_workflows_rejects_malformed_label_filter_before_query(self):
+        database = mock.Mock()
+
+        with self.assertRaises(osmo_errors.OSMOUsageError):
+            self._run(database, label_filters=['missing-separator'])
+
+        database.execute_fetch_command.assert_not_called()
+
+    def test_get_workflows_rejects_nested_or_injection_syntax_before_query(self):
+        for label_filter in (
+            'project=(team_a|(team_b|team_c))',
+            'project=robotics_*) OR TRUE --',
+        ):
+            with self.subTest(label_filter=label_filter):
+                database = mock.Mock()
+                with self.assertRaises(osmo_errors.OSMOUsageError):
+                    self._run(database, label_filters=[label_filter])
+
+                database.execute_fetch_command.assert_not_called()
+
+    def test_get_workflows_rejects_injection_syntax_in_missing_label_key(self):
+        database = mock.Mock()
+
+        with self.assertRaises(osmo_errors.OSMOUsageError):
+            self._run(
+                database,
+                missing_label_filters=["project') OR TRUE --"],
+            )
+
+        database.execute_fetch_command.assert_not_called()
 
     def test_get_workflows_desc_order_uses_desc_in_sql(self):
         database = mock.Mock()

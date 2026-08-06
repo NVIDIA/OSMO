@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,10 +16,11 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from collections.abc import Mapping
 import logging
 import os
 import time
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 # Import with type: ignore to avoid import errors in linting
 import opentelemetry.metrics as otelmetrics  # type: ignore
@@ -34,6 +35,17 @@ from src.utils import connectors
 _metric_cache: List[otelmetrics.Observation] = []
 _last_refresh_time: float = 0
 _CACHE_TTL_SECONDS: int = 30  # Refresh cache every 30 seconds
+# Angle brackets are not valid label characters, so these sentinels can
+# never collide with real label values.
+_MISSING_WORKFLOW_LABEL_VALUE = '<missing>'
+_OTHER_WORKFLOW_LABEL_VALUE = '<other>'
+_WORKFLOW_LABEL_ATTRIBUTE_PREFIX = 'workflow_label_'
+_WORKFLOW_LABEL_ATTRIBUTE_ESCAPES = {
+    '_': '__',
+    '-': '_dash_',
+    '.': '_dot_',
+    '/': '_slash_',
+}
 
 
 def _is_task_metrics_disabled() -> bool:
@@ -41,6 +53,42 @@ def _is_task_metrics_disabled() -> bool:
     return os.getenv('OSMO_DISABLE_TASK_METRICS', '').lower() in (
         'true', '1', 'yes'
     )
+
+
+def _parse_workflow_labels(raw_labels: Any) -> Dict[str, str]:
+    """Return string workflow labels from a decoded JSONB row value."""
+    if not isinstance(raw_labels, Mapping):
+        return {}
+    return {
+        key: value
+        for key, value in raw_labels.items()
+        if isinstance(value, str)
+    }
+
+
+def _workflow_label_attribute_name(label_key: str) -> str:
+    """Build a readable, collision-free Prometheus-safe attribute name."""
+    encoded_key = ''.join(
+        _WORKFLOW_LABEL_ATTRIBUTE_ESCAPES.get(character, character)
+        for character in label_key
+    )
+    return f'{_WORKFLOW_LABEL_ATTRIBUTE_PREFIX}{encoded_key}'
+
+
+def _workflow_label_metric_value(
+        workflow_labels: Dict[str, str],
+        label_policy: connectors.LabelPolicy) -> str:
+    """Clamp a policy label to its bounded metric vocabulary.
+
+    With an empty allow-list every present value clamps to the other
+    sentinel, so series stay bounded in every enforcement mode.
+    """
+    value = workflow_labels.get(label_policy.key)
+    if value is None:
+        return _MISSING_WORKFLOW_LABEL_VALUE
+    if not label_policy.allow_list or value not in label_policy.allow_list:
+        return _OTHER_WORKFLOW_LABEL_VALUE
+    return value
 
 
 def get_task_metrics(
@@ -94,8 +142,11 @@ def get_task_metrics(
         prev_age
     )
 
+    label_policies: List[connectors.LabelPolicy] = []
     try:
         database = connectors.PostgresConnector.get_instance()
+        workflow_config = database.get_workflow_configs()
+        label_policies = workflow_config.labels_config.policy
         rows = helpers.get_recent_tasks(database, minutes_ago)
     except osmo_errors.OSMODatabaseError as err:
         logging.debug(
@@ -104,17 +155,27 @@ def get_task_metrics(
         )
         rows = []
 
-    # Count tasks by unique label combinations
+    policy_attributes = [
+        (_workflow_label_attribute_name(label_policy.key), label_policy)
+        for label_policy in label_policies
+    ]
+    # SQL groups by the raw labels JSONB; clamping to the bounded policy
+    # vocabulary can collapse distinct rows onto the same attribute set, so
+    # counts are summed per projected key.
     task_counts: Dict[Tuple[Tuple[str, str], ...], int] = {}
     for row in rows:
+        workflow_labels = _parse_workflow_labels(row['labels'])
         labels = {
             'pool': row['pool'] or 'unknown',
             'user': row['user'],
             'workflow_uuid': row['workflow_uuid'],
             'status': row['status']
         }
+        for attribute_name, label_policy in policy_attributes:
+            labels[attribute_name] = _workflow_label_metric_value(
+                workflow_labels, label_policy)
         key = tuple(sorted(labels.items()))
-        task_counts[key] = task_counts.get(key, 0) + 1
+        task_counts[key] = task_counts.get(key, 0) + int(row['count'])
 
     # Generate observations
     _metric_cache.clear()
@@ -140,7 +201,10 @@ def register_task_metrics():
         metric_creator.send_observable_gauge(
             name='osmo_tasks_count',
             callbacks=get_task_metrics,
-            description='Count of OSMO tasks by status, pool, workflow',
+            description=(
+                'Count of OSMO tasks by status, pool, workflow, '
+                'and prefixed curated workflow labels'
+            ),
             unit='count'
         )
     except (ValueError, AttributeError, TypeError) as err:

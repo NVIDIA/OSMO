@@ -284,6 +284,8 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
         workflow_obj.plugins = mock.Mock()
         workflow_obj.priority = wf_priority.WorkflowPriority.NORMAL
         workflow_obj.labels = {'project': 'project-a'}
+        workflow_config = mock.Mock(max_error_log_lines=1000)
+        workflow_config.labels_config.pod_label_prefix = ''
         update_job = jobs.UpdateGroup(
             workflow_id='workflow-1',
             workflow_uuid=workflow_uuid,
@@ -303,7 +305,7 @@ class RetryTaskK8sResourcesTest(unittest.TestCase):
                 task_obj,
                 group,
                 'default',
-                mock.Mock(max_error_log_lines=1000),
+                workflow_config,
                 mock.Mock(),
                 context,
                 progress_writer,

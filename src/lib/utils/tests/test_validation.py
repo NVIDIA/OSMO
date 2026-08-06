@@ -437,5 +437,51 @@ class TestWorkflowLabelValidation(unittest.TestCase):
             validation.parse_workflow_label_selector('PPP=' + 'x' * 63 + '*')
 
 
+class TestPodLabelPrefix(unittest.TestCase):
+    """Tests for the pod-label prefix merge and its validation."""
+
+    def test_empty_prefix_returns_keys_unchanged(self):
+        labels = {'PPP': 'aurora', 'team': 'alpha'}
+        self.assertEqual(validation.apply_pod_label_prefix(labels, ''), labels)
+
+    def test_prefix_is_prepended_to_every_key(self):
+        self.assertEqual(
+            validation.apply_pod_label_prefix(
+                {'PPP': 'aurora', 'team': 'alpha'}, 'example.com/'),
+            {'example.com/PPP': 'aurora', 'example.com/team': 'alpha'},
+        )
+
+    def test_non_dns_prefix_is_prepended_verbatim(self):
+        # The prefix is opaque; a bare (non-slash) prefix is merged as-is.
+        self.assertEqual(
+            validation.apply_pod_label_prefix({'PPP': 'aurora'}, 'osmo_'),
+            {'osmo_PPP': 'aurora'},
+        )
+
+    def test_empty_prefix_validation_is_a_no_op(self):
+        validation.validate_prefixed_workflow_label_keys(
+            {'anything/goes': 'value'}, '')
+
+    def test_valid_merged_keys_pass_validation(self):
+        validation.validate_prefixed_workflow_label_keys(
+            {'PPP': 'aurora', 'team': 'alpha'}, 'example.com/')
+
+    def test_merged_key_with_two_slashes_is_rejected(self):
+        # A user key that already carries its own prefix would form a
+        # double-slash key once the pod-label prefix is prepended.
+        with self.assertRaisesRegex(
+                ValueError, r'example\.com/team\.example\.com/role'):
+            validation.validate_prefixed_workflow_label_keys(
+                {'team.example.com/role': 'lead'}, 'example.com/')
+
+    def test_error_names_the_key_and_prefix(self):
+        with self.assertRaises(ValueError) as raised:
+            validation.validate_prefixed_workflow_label_keys(
+                {'team.example.com/role': 'lead'}, 'example.com/')
+        message = str(raised.exception)
+        self.assertIn('team.example.com/role', message)
+        self.assertIn('example.com/', message)
+
+
 if __name__ == '__main__':
     unittest.main()

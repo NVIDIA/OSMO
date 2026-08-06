@@ -15,15 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createPoolResponse,
-  PoolStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupPools,
-  setupProfile,
-} from "@/e2e/utils/mock-setup";
+import { createPoolResponse, PoolStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**
  * Compact Mode Toggle Tests
@@ -68,9 +61,7 @@ test.describe("Compact Mode Toggle — Pools Page", () => {
     await page.waitForLoadState("networkidle");
 
     // ASSERT — default is comfortable (not compact)
-    await expect(
-      page.getByRole("button", { name: /currently in comfortable view/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /currently in comfortable view/i })).toBeVisible();
   });
 
   test("clicking toggle switches to compact view", async ({ page }) => {
@@ -83,9 +74,7 @@ test.describe("Compact Mode Toggle — Pools Page", () => {
     await toggleButton.click();
 
     // ASSERT — now in compact mode
-    await expect(
-      page.getByRole("button", { name: /currently in compact view/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /currently in compact view/i })).toBeVisible();
   });
 
   test("clicking toggle twice returns to comfortable view", async ({ page }) => {
@@ -96,16 +85,12 @@ test.describe("Compact Mode Toggle — Pools Page", () => {
     // Toggle to compact
     const toggleButton = page.getByRole("button", { name: /currently in comfortable view/i });
     await toggleButton.click();
-    await expect(
-      page.getByRole("button", { name: /currently in compact view/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /currently in compact view/i })).toBeVisible();
 
     // Toggle back to comfortable
     await page.getByRole("button", { name: /currently in compact view/i }).click();
 
     // ASSERT — back to comfortable
-    await expect(
-      page.getByRole("button", { name: /currently in comfortable view/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /currently in comfortable view/i })).toBeVisible();
   });
 });

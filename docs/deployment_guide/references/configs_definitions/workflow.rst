@@ -70,6 +70,10 @@ Top-Level Configuration
      - `Plugins`_
      - Configuration for workflow plugins.
      - See Plugins section
+   * - ``labels_config``
+     - `Workflow Labels`_
+     - Workflow-label policies, accepted values, and staged enforcement.
+     - ``policy: []``
    * - ``max_num_tasks``
      - Integer
      - Maximum number of tasks allowed in a workflow.
@@ -239,6 +243,92 @@ Workflow Information
      - Integer
      - Maximum allowed length for workflow names.
      - ``64``
+
+Workflow Labels
+===============
+
+Workflow labels are optional and format-checked even when no label is required.
+The default configuration applies no label policies:
+
+.. code-block:: yaml
+
+   labels_config:
+     policy: []
+
+Each entry in ``policy`` controls one key independently. Use ``off`` or omit a
+key from ``policy`` to disable both warnings and enforcement for that key:
+
+.. code-block:: yaml
+
+   labels_config:
+     policy:
+     - key: team
+       allow_list:
+       - robotics
+       - simulation
+       enforcement: warn
+     - key: cost-center
+       allow_list: []
+       enforcement: enforce
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 12 43 20
+
+   * - **Field**
+     - **Type**
+     - **Description**
+     - **Default Values**
+   * - ``key``
+     - String
+     - Kubernetes label key to check. Duplicate policy keys are rejected,
+       and at most 16 keys can be configured.
+     - Required
+   * - ``allow_list``
+     - List of Strings
+     - Exact accepted values. An empty list accepts any well-formed value.
+     - ``[]``
+   * - ``enforcement``
+     - String (``"off"``, ``warn``, ``enforce``)
+     - ``off`` accepts without policy warnings. ``warn`` accepts but warns
+       when the key is missing or its value is outside a non-empty allow-list.
+       ``enforce`` rejects those violations.
+     - ``"off"``
+
+The same policy applies to new submissions, resubmission by ID, restart, and
+validation-only requests. An ``enforcement: enforce`` rejection creates
+neither a workflow row nor a stored specification. Submit responses carry
+warnings from that admission check. Warnings are not stored with the
+workflow: detail responses recompute warn-mode violations from the stored
+labels and the current configuration, so displayed warnings track policy
+changes even for completed workflows.
+
+To roll back enforcement immediately, use ``enforcement: warn``. To disable both
+warnings and enforcement, use ``enforcement: "off"`` (quoted: unquoted YAML
+``off`` parses as boolean false) or remove the policy entry.
+Existing and in-flight workflows are not modified, although their detail-page
+warnings always reflect the current warn policy. In ConfigMap mode, an invalid
+edit is rejected and the previous valid snapshot remains active.
+
+Only configured policy keys become workflow-label dimensions on
+``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
+and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
+``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
+``project`` is exported as ``workflow_label_project``. Values in the configured
+allow-list are exported verbatim; a present value outside that list is clamped
+to ``<other>``, and a missing key is reported as ``<missing>``. Angle
+brackets are not valid in label values, so the sentinels never collide with
+real values. An empty allow-list exports every present value as ``<other>``.
+This keeps the number of series bounded to the allow-list plus two sentinels
+per key.
+
+Admission also emits
+``osmo_label_validation_total{key, outcome}``, where ``outcome`` is ``ok``,
+``missing``, ``invalid``, or ``rejected``. The counter covers rejected
+submissions that do not create a workflow row. Keep the policy list small to
+control metric cardinality. Exporting a Pod label through ``kube_pod_labels`` is a
+separate kube-state-metrics allow-list decision; see
+:ref:`adding_observability`.
 
 Backend Images
 ==============

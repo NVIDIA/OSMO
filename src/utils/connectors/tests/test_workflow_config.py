@@ -27,6 +27,24 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
 
     def test_defaults_are_inert(self):
         self.assertEqual(connectors.WorkflowConfig().labels_config.policy, [])
+        self.assertEqual(connectors.WorkflowConfig().labels_config.pod_label_prefix, '')
+
+    def test_accepts_pod_label_prefix(self):
+        config = connectors.WorkflowConfig(labels_config={
+            'pod_label_prefix': 'example.com/',
+        })
+        self.assertEqual(
+            config.labels_config.pod_label_prefix, 'example.com/')
+
+    def test_rejects_pod_label_prefix_with_whitespace_or_overlong(self):
+        with self.assertRaisesRegex(pydantic.ValidationError, 'whitespace'):
+            connectors.WorkflowConfig(labels_config={
+                'pod_label_prefix': 'has space/',
+            })
+        with self.assertRaisesRegex(pydantic.ValidationError, 'at most 253'):
+            connectors.WorkflowConfig(labels_config={
+                'pod_label_prefix': 'x' * 254,
+            })
 
     def test_accepts_independent_enforcement_modes(self):
         config = connectors.WorkflowConfig(labels_config={
@@ -52,6 +70,20 @@ class TestWorkflowLabelsConfig(unittest.TestCase):
         )
         with self.assertRaises(pydantic.ValidationError):
             connectors.LabelPolicy(key='project', enforcement='block')
+
+    def test_assert_message_defaults_empty_and_strips(self):
+        self.assertEqual(connectors.LabelPolicy(key='project').assert_message, '')
+        self.assertEqual(
+            connectors.LabelPolicy(
+                key='project', assert_message='  See the registry.  ').assert_message,
+            'See the registry.',
+        )
+
+    def test_assert_message_rejects_multiline_and_overlong(self):
+        with self.assertRaisesRegex(pydantic.ValidationError, 'single line'):
+            connectors.LabelPolicy(key='project', assert_message='line one\nline two')
+        with self.assertRaisesRegex(pydantic.ValidationError, 'at most 256'):
+            connectors.LabelPolicy(key='project', assert_message='x' * 257)
 
     def test_rejects_duplicate_policy_keys(self):
         with self.assertRaisesRegex(pydantic.ValidationError, 'Duplicate label policy key'):

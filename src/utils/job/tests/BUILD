@@ -127,6 +127,16 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_app_pure",
+    srcs = ["test_app_pure.py"],
+    deps = [
+        "//src/lib/utils:common",
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/job",
+    ],
+)
+
+osmo_py_test(
     name = "test_jobs_pure",
     srcs = ["test_jobs_pure.py"],
     deps = [

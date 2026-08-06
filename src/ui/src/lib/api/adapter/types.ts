@@ -36,6 +36,8 @@ export type {
   WorkflowQueryResponse,
   GroupQueryResponse,
   TaskQueryResponse,
+  SubmitResponse,
+  SubmitWorkflowApiPoolPoolNameWorkflowPostParams as SubmitWorkflowParams,
   SrcServiceCoreWorkflowObjectsListEntry as WorkflowListEntry,
 } from "@/lib/api/generated";
 
@@ -50,8 +52,11 @@ export interface Quota {
   used: number;
   free: number;
   limit: number;
+  /** Running workflow usage assigned to this pool. */
   totalUsage: number;
+  /** Physical capacity of the node set backing this pool. */
   totalCapacity: number;
+  /** Physical capacity available across the node set backing this pool. */
   totalFree: number;
 }
 

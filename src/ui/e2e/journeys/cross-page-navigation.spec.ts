@@ -15,15 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  createPoolResponse,
-  PoolStatus,
-} from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupPools,
-} from "@/e2e/utils/mock-setup";
+import { createPoolResponse, PoolStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupProfile, setupPools } from "@/e2e/utils/mock-setup";
 
 /**
  * Pool Quick Links Navigation Tests
@@ -51,9 +44,7 @@ test.describe("Pool Quick Links Navigation", () => {
     );
   });
 
-  test("resources quick link navigates to resources filtered by pool", async ({
-    page,
-  }) => {
+  test("resources quick link navigates to resources filtered by pool", async ({ page }) => {
     // ACT
     await page.goto("/pools?all=true&view=prod-gpu");
     await page.waitForLoadState("networkidle");
@@ -73,9 +64,7 @@ test.describe("Pool Quick Links Navigation", () => {
     await expect(page).toHaveURL(/prod-gpu/);
   });
 
-  test("workflows quick link navigates to workflows filtered by pool", async ({
-    page,
-  }) => {
+  test("workflows quick link navigates to workflows filtered by pool", async ({ page }) => {
     // ACT
     await page.goto("/pools?all=true&view=prod-gpu");
     await page.waitForLoadState("networkidle");
@@ -92,9 +81,7 @@ test.describe("Pool Quick Links Navigation", () => {
     await expect(page).toHaveURL(/prod-gpu/);
   });
 
-  test("occupancy quick link navigates to occupancy filtered by pool", async ({
-    page,
-  }) => {
+  test("occupancy quick link navigates to occupancy filtered by pool", async ({ page }) => {
     // ACT
     await page.goto("/pools?all=true&view=prod-gpu");
     await page.waitForLoadState("networkidle");
@@ -111,9 +98,7 @@ test.describe("Pool Quick Links Navigation", () => {
     await expect(page).toHaveURL(/prod-gpu/);
   });
 
-  test("quick links show correct href attributes before clicking", async ({
-    page,
-  }) => {
+  test("quick links show correct href attributes before clicking", async ({ page }) => {
     // ACT
     await page.goto("/pools?all=true&view=prod-gpu");
     await page.waitForLoadState("networkidle");

@@ -47,6 +47,8 @@ describe("WORKFLOW_STATIC_FIELDS structure", () => {
     expect(fieldIds).toContain("priority");
     expect(fieldIds).toContain("app");
     expect(fieldIds).toContain("tag");
+    expect(fieldIds).toContain("label");
+    expect(fieldIds).toContain("no_label");
   });
 
   it("all fields have required properties", () => {
@@ -74,6 +76,8 @@ describe("WORKFLOW_STATIC_FIELDS structure", () => {
     expect(getField("priority").prefix).toBe("priority:");
     expect(getField("app").prefix).toBe("app:");
     expect(getField("tag").prefix).toBe("tag:");
+    expect(getField("label").prefix).toBe("label:");
+    expect(getField("no_label").prefix).toBe("no-label:");
   });
 });
 
@@ -174,6 +178,27 @@ describe("tag field", () => {
 
   it("has freeFormHint for user input", () => {
     expect(tagField.freeFormHint).toBeDefined();
+  });
+});
+
+describe("workflow label fields", () => {
+  it("accepts exact, glob, and alternative key=value filters as free-form input", () => {
+    const labelField = getField("label");
+
+    expect(getFieldValues(labelField, [])).toEqual([]);
+    expect(labelField.freeFormHint).toContain("key=value");
+    expect(labelField.freeFormHint).toContain("key=(team_*|osmo_*)");
+    expect(labelField.freeFormHint).toContain("key=team_(a|b)");
+    expect(labelField.prefix).toBe("label:");
+    expect(labelField.singular).toBeUndefined();
+  });
+
+  it("accepts missing-key filters as free-form input", () => {
+    const noLabelField = getField("no_label");
+
+    expect(getFieldValues(noLabelField, [])).toEqual([]);
+    expect(noLabelField.freeFormHint).toContain("key");
+    expect(noLabelField.singular).toBeUndefined();
   });
 });
 

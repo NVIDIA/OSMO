@@ -206,6 +206,7 @@ const SubmitWorkflowFormView = memo(function SubmitWorkflowFormView({ initialSpe
           isValidatePending={form.isValidatePending}
           validationOk={form.validationOk}
           validationError={form.validationError}
+          validationWarnings={form.validationWarnings}
           canValidate={form.canValidate}
           onValidate={form.handleValidate}
         />

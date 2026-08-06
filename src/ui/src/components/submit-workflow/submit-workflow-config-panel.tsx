@@ -85,6 +85,7 @@ export interface SubmitWorkflowConfigPanelProps {
   isValidatePending: boolean;
   validationOk: boolean | null;
   validationError: string | null;
+  validationWarnings: string[];
   canValidate: boolean;
   onValidate: () => void;
 }
@@ -107,6 +108,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
   isValidatePending,
   validationOk,
   validationError,
+  validationWarnings,
   canValidate,
   onValidate,
 }: SubmitWorkflowConfigPanelProps) {
@@ -192,6 +194,16 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               aria-hidden="true"
             />
             Workflow spec is valid
+          </div>
+        )}
+        {validationWarnings.length > 0 && (
+          <div
+            className="space-y-1 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300"
+            role="status"
+          >
+            {validationWarnings.map((warning, index) => (
+              <p key={`${warning}-${index}`}>{warning}</p>
+            ))}
           </div>
         )}
         {validationError && (

@@ -233,6 +233,82 @@ test.describe("Submit Workflow Form Validation", () => {
     // ASSERT — High is now checked
     await expect(overlay.getByRole("radio", { name: "High priority" })).toBeChecked();
   });
+
+  test("submits YAML labels in the body without a separate label query override", async ({ page }) => {
+    // Extended: this journey renders the full detail/submit surface with
+    // several mocked round trips.
+    test.setTimeout(30_000);
+    let submittedLabels: string[] | null = null;
+    let submittedBody: string | null = null;
+    await page.route("**/api/pool/test-pool/workflow*", (route) => {
+      const url = new URL(route.request().url());
+      if (!url.searchParams.has("validation_only") && !url.searchParams.has("dry_run")) {
+        submittedLabels = url.searchParams.getAll("label");
+        submittedBody = route.request().postData();
+        return route.fulfill({
+          status: 200,
+          contentType: CT_JSON,
+          body: JSON.stringify({
+            name: "yaml-labels",
+            logs: "/api/workflow/yaml-labels/logs",
+            warnings: [],
+          }),
+        });
+      }
+      return route.fulfill({ status: 404, contentType: CT_JSON, body: '{"detail":"Not mocked"}' });
+    });
+
+    const overlay = await openFormView(page);
+    await waitForPoolSelected(overlay, "test-pool");
+    const editor = overlay.getByRole("textbox", { name: "YAML workflow specification editor" });
+    await editor.click();
+    await page.keyboard.insertText("workflow:\n  labels:\n    project: robotics\n  tasks:\n  - name: hello");
+
+    await expect(overlay.getByText("Workflow Labels", { exact: true })).toHaveCount(0);
+    await expect(overlay.getByRole("button", { name: "Add workflow label" })).toHaveCount(0);
+    await overlay.getByRole("button", { name: "Submit workflow", exact: true }).click();
+
+    await expect.poll(() => submittedLabels).toEqual([]);
+    await expect.poll(() => submittedBody).toContain("labels:");
+    await expect.poll(() => submittedBody).toContain("project: robotics");
+    await expect(page.getByText("Workflow submitted as yaml-labels")).toBeVisible();
+  });
+
+  test("shows workflow warnings returned by validation", async ({ page }) => {
+    const warning =
+      "Workflow is missing label 'project'; add it now to avoid rejected submissions once it is required.";
+    let submittedLabels: string[] | null = null;
+    await page.route("**/api/pool/test-pool/workflow*", (route) => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("validation_only") === "true") {
+        submittedLabels = url.searchParams.getAll("label");
+        return route.fulfill({
+          status: 200,
+          contentType: CT_JSON,
+          body: JSON.stringify({
+            name: "hello-osmo",
+            logs: "Workflow spec is valid.",
+            warnings: [warning],
+          }),
+        });
+      }
+      return route.fulfill({ status: 404, contentType: CT_JSON, body: '{"detail":"Not mocked"}' });
+    });
+
+    const overlay = await openFormView(page);
+    await waitForPoolSelected(overlay, "test-pool");
+    const editor = overlay.getByRole("textbox", { name: "YAML workflow specification editor" });
+    await editor.click();
+    await page.keyboard.insertText("workflow:\n  tasks:\n  - name: hello");
+
+    await overlay.getByRole("button", { name: "More workflow options" }).click();
+    const validateItem = page.getByRole("menuitem", { name: /validate/i });
+    await expect(validateItem).toBeVisible();
+    await validateItem.click();
+
+    await expect.poll(() => submittedLabels).toEqual([]);
+    await expect(overlay.getByText(warning)).toBeVisible();
+  });
 });
 
 test.describe("Submit Workflow Localpath Warnings", () => {

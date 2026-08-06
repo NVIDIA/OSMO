@@ -41,6 +41,8 @@
 
 import { revalidatePath, updateTag, refresh } from "next/cache";
 import { customFetch } from "@/lib/api/fetcher";
+import type { SubmitResponse, SubmitWorkflowParams } from "@/lib/api/adapter/types";
+import { getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl } from "@/lib/api/generated";
 import type { ActionResult } from "@/lib/server-actions";
 
 // =============================================================================
@@ -263,6 +265,8 @@ export async function cancelTaskGroup(workflowName: string, groupName: string): 
 export interface ResubmitResult extends ActionResult {
   /** New workflow name returned by the backend on success */
   newWorkflowName?: string;
+  /** Admission warnings returned for accepted submissions */
+  warnings?: string[];
 }
 
 export interface ResubmitParams {
@@ -271,7 +275,7 @@ export interface ResubmitParams {
   /** Target pool for execution */
   poolName: string;
   /** Execution priority */
-  priority: string;
+  priority: SubmitWorkflowParams["priority"];
   /**
    * Optional custom spec (if user edited and changed it)
    * - undefined: Backend fetches original spec via workflow_id (efficient)
@@ -280,6 +284,8 @@ export interface ResubmitParams {
    * Backend constraint: EITHER template_spec OR workflow_id, never both.
    */
   spec?: string;
+  /** Per-run key=value label overrides */
+  labels?: string[];
 }
 
 // =============================================================================
@@ -296,22 +302,22 @@ export interface ResubmitParams {
  * - If spec is provided: sends template_spec in body (custom workflow)
  * - If spec is NOT provided: sends workflow_id query param (reuses original spec)
  *
- * @param params - Resubmit configuration (workflowId, poolName, priority, optional spec)
+ * @param params - Resubmit configuration (workflowId, poolName, priority, labels, optional spec)
  * @returns Result with the new workflow name on success, or error message
  */
 export async function resubmitWorkflow(params: ResubmitParams): Promise<ResubmitResult> {
-  const { workflowId, poolName, priority, spec } = params;
+  const { workflowId, poolName, priority, spec, labels = [] } = params;
 
-  const queryParams = new URLSearchParams();
-  queryParams.set("priority", priority);
+  // Backend constraint: EITHER template_spec OR workflow_id, never both.
+  // The generated URL builder explodes repeated `label` params and skips
+  // undefined values.
+  const queryParams: SubmitWorkflowParams = {
+    priority,
+    label: labels.length > 0 ? labels : undefined,
+    workflow_id: spec ? undefined : workflowId,
+  };
 
-  // Backend constraint: EITHER template_spec OR workflow_id, never both
-  if (!spec) {
-    // No custom spec: send workflow_id to reuse original spec
-    queryParams.set("workflow_id", workflowId);
-  }
-
-  const endpoint = `/api/pool/${encodeURIComponent(poolName)}/workflow?${queryParams.toString()}`;
+  const endpoint = getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl(encodeURIComponent(poolName), queryParams);
 
   try {
     const init: RequestInit = { method: "POST" };
@@ -321,16 +327,16 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
       init.body = JSON.stringify({ file: spec, set_variables: [] });
     }
 
-    const response = await customFetch<{ data: { name?: string }; status: number }>(endpoint, init);
+    const response = await customFetch<SubmitResponse>(endpoint, init);
 
-    const newName = response?.data?.name;
+    const newName = response.name;
 
     // No cache revalidation needed - creating a new workflow doesn't affect:
     // - Current workflow page (unchanged)
     // - New workflow page (will fetch fresh when user navigates to it)
     // - Workflows list (will fetch fresh when user navigates to it)
 
-    return { success: true, newWorkflowName: newName };
+    return { success: true, newWorkflowName: newName, warnings: response.warnings ?? [] };
   } catch (error) {
     return {
       success: false,

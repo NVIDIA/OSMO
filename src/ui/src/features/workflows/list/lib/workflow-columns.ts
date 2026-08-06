@@ -33,7 +33,8 @@ export type WorkflowColumnId =
   | "queued_time"
   | "pool"
   | "priority"
-  | "app_name";
+  | "app_name"
+  | "labels";
 
 // =============================================================================
 // Column Configuration (via factory)
@@ -53,6 +54,7 @@ const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
     "pool",
     "priority",
     "app_name",
+    "labels",
   ] as const,
   labels: {
     _select: "",
@@ -67,9 +69,10 @@ const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
     pool: "Pool",
     priority: "Priority",
     app_name: "App",
+    labels: "Labels",
   },
   mandatory: ["_select", "name"],
-  defaultVisible: ["_select", "name", "status", "user", "submit_time", "duration", "pool", "priority"],
+  defaultVisible: ["_select", "name", "status", "user", "submit_time", "duration", "pool", "priority", "labels"],
   defaultOrder: [
     "_select",
     "name",
@@ -83,6 +86,7 @@ const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
     "pool",
     "priority",
     "app_name",
+    "labels",
   ],
   sizeConfig: [
     {
@@ -144,6 +148,11 @@ const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
       id: "app_name",
       minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+    },
+    {
+      id: "labels",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE * 1.5,
     },
   ],
   defaultSort: { column: "submit_time", direction: "desc" },

@@ -37,7 +37,7 @@ Understanding Resources
 
 Resources in OSMO are specified using standard Kubernetes resource notation:
 
-- CPU: Cores (e.g., ``1``, ``2``, ``0.5``)
+- CPU: Whole CPU cores (integers only; e.g., ``1``, ``2``)
 - Memory: Bytes with units (e.g., ``1Gi``, ``512Mi``, ``2Gi``)
 - Storage: Bytes with units (e.g., ``10Gi``, ``100Mi``)
 - GPU: Count (e.g., ``1``, ``2``, ``4``)

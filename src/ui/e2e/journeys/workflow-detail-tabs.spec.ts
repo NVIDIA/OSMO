@@ -73,8 +73,7 @@ function createWorkflowDetailResponse(
     tags: overrides.tags ?? ["training", "v2"],
     submit_time: oneHourAgo.toISOString(),
     start_time: oneHourAgo.toISOString(),
-    end_time:
-      overrides.status === WorkflowStatus.COMPLETED ? now.toISOString() : null,
+    end_time: overrides.status === WorkflowStatus.COMPLETED ? now.toISOString() : null,
     exec_timeout: null,
     queue_timeout: null,
     duration: 3600,
@@ -110,9 +109,7 @@ function createWorkflowDetailResponse(
       remaining_upstream_groups: [],
       downstream_groups: g.downstream_groups ?? [],
       failure_message: null,
-      tasks: (
-        g.tasks ?? [{ name: `${g.name}-task`, retry_id: 0, status: g.status ?? "RUNNING" }]
-      ).map((t) => ({
+      tasks: (g.tasks ?? [{ name: `${g.name}-task`, retry_id: 0, status: g.status ?? "RUNNING" }]).map((t) => ({
         name: t.name,
         retry_id: t.retry_id ?? 0,
         status: t.status ?? "RUNNING",
@@ -157,11 +154,7 @@ test.describe("Workflow Detail Tab Content", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
-    await setupWorkflowDetail(
-      page,
-      wfName,
-      createWorkflowDetailResponse(wfName),
-    );
+    await setupWorkflowDetail(page, wfName, createWorkflowDetailResponse(wfName));
   });
 
   test("Overview tab shows timeline and details sections", async ({ page }) => {
@@ -235,12 +228,8 @@ test.describe("Workflow Detail Tab Content", () => {
     const toolbar = page.getByRole("toolbar", { name: "Spec viewer controls" });
     await expect(toolbar).toBeVisible({ timeout: 10_000 });
 
-    await expect(
-      page.getByRole("radio", { name: /yaml/i }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("radio", { name: /template/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("radio", { name: /yaml/i })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /template/i })).toBeVisible();
   });
 
   test("Events tab renders event viewer component", async ({ page }) => {

@@ -21,8 +21,8 @@ import { useServices } from "@/contexts/service-context";
 import { resubmitWorkflow, type ResubmitParams } from "@/features/workflows/list/lib/actions";
 
 export interface UseResubmitMutationOptions {
-  /** Called on successful resubmission with the new workflow name */
-  onSuccess?: (newWorkflowName: string | undefined) => void;
+  /** Called on successful resubmission with the new workflow name and any admission warnings */
+  onSuccess?: (newWorkflowName: string | undefined, warnings: string[]) => void;
 }
 
 export interface UseResubmitMutationReturn {
@@ -48,7 +48,7 @@ export function useResubmitMutation(options: UseResubmitMutationOptions = {}): U
 
         if (actionResult.success) {
           announcer.announce("Workflow submitted successfully", "polite");
-          onSuccess?.(actionResult.newWorkflowName);
+          onSuccess?.(actionResult.newWorkflowName, actionResult.warnings ?? []);
         } else {
           const errorMsg = actionResult.error ?? "Unknown error";
           setError(errorMsg);

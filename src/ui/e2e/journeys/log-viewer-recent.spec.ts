@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import {
-  setupDefaultMocks,
-  setupProfile,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**
  * Log Viewer Recent Workflows Tests
@@ -81,10 +78,7 @@ test.describe("Log Viewer Recent Workflows", () => {
     // ARRANGE
     await page.goto("/log-viewer");
     await page.evaluate(() => {
-      localStorage.setItem(
-        "osmo:recent-workflows",
-        JSON.stringify(["wf-1", "wf-2"]),
-      );
+      localStorage.setItem("osmo:recent-workflows", JSON.stringify(["wf-1", "wf-2"]));
     });
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -103,10 +97,7 @@ test.describe("Log Viewer Recent Workflows", () => {
     // ARRANGE
     await page.goto("/log-viewer");
     await page.evaluate(() => {
-      localStorage.setItem(
-        "osmo:recent-workflows",
-        JSON.stringify(["my-recent-workflow"]),
-      );
+      localStorage.setItem("osmo:recent-workflows", JSON.stringify(["my-recent-workflow"]));
     });
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -122,10 +113,7 @@ test.describe("Log Viewer Recent Workflows", () => {
     // ARRANGE
     await page.goto("/log-viewer");
     await page.evaluate(() => {
-      localStorage.setItem(
-        "osmo:recent-workflows",
-        JSON.stringify(["keep-this", "remove-this"]),
-      );
+      localStorage.setItem("osmo:recent-workflows", JSON.stringify(["keep-this", "remove-this"]));
     });
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -137,9 +125,7 @@ test.describe("Log Viewer Recent Workflows", () => {
     // ACT — hover over "remove-this" to make remove button visible, then click it
     const removeThisEntry = page.getByText("remove-this").first();
     await removeThisEntry.hover();
-    await page
-      .getByRole("button", { name: /remove remove-this from recent workflows/i })
-      .click();
+    await page.getByRole("button", { name: /remove remove-this from recent workflows/i }).click();
 
     // ASSERT — "remove-this" is gone, "keep-this" remains
     await expect(page.getByText("remove-this")).not.toBeVisible();

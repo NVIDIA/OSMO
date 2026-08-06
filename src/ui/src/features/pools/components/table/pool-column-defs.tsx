@@ -24,6 +24,7 @@ import { InlineProgress } from "@/components/inline-progress";
 import { PlatformPills } from "@/components/platform-pills";
 import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "@/features/pools/lib/pool-columns";
 import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
+import { normalizePhysicalCapacity } from "@/lib/pool-capacity";
 
 const STATUS_ICONS: Record<StatusCategory, typeof CheckCircle2> = {
   online: CheckCircle2,
@@ -157,27 +158,30 @@ export function createPoolColumns({
     },
     {
       id: "capacity",
-      accessorFn: (row) => row.quota.totalUsage,
+      accessorFn: (row) => normalizePhysicalCapacity(row.quota).used,
       header: COLUMN_LABELS.capacity,
       minSize: getMinSize("capacity"),
       enableSorting: true,
-      cell: ({ row }) => (
-        <InlineProgress
-          used={row.original.quota.totalUsage}
-          total={row.original.quota.totalCapacity}
-          compact={compact}
-        />
-      ),
+      cell: ({ row }) => {
+        const physicalCapacity = normalizePhysicalCapacity(row.original.quota);
+        return (
+          <InlineProgress
+            used={physicalCapacity.used}
+            total={physicalCapacity.total}
+            compact={compact}
+          />
+        );
+      },
     },
     {
       id: "capacityFree",
-      accessorFn: (row) => row.quota.totalFree,
+      accessorFn: (row) => normalizePhysicalCapacity(row.quota).free,
       header: COLUMN_LABELS.capacityFree,
       minSize: getMinSize("capacityFree"),
       enableSorting: true,
       cell: ({ row }) => (
         <span className="text-xs text-emerald-600 tabular-nums dark:text-emerald-400">
-          {Math.max(0, row.original.quota.totalFree)}
+          {normalizePhysicalCapacity(row.original.quota).free}
         </span>
       ),
     },

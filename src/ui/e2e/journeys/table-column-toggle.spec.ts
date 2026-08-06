@@ -23,13 +23,7 @@ import {
   WorkflowStatus,
   BackendResourceType,
 } from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupPools,
-  setupWorkflows,
-  setupResources,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile, setupPools, setupWorkflows, setupResources } from "@/e2e/utils/mock-setup";
 
 /**
  * Table Column Visibility Tests
@@ -76,9 +70,7 @@ test.describe("Pools Table Column Toggle", () => {
     );
   });
 
-  test("toggle columns button opens column visibility menu", async ({
-    page,
-  }) => {
+  test("toggle columns button opens column visibility menu", async ({ page }) => {
     // ACT
     await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
@@ -87,14 +79,10 @@ test.describe("Pools Table Column Toggle", () => {
     await page.getByRole("button", { name: /toggle columns/i }).click();
 
     // ASSERT — dropdown menu with column options visible
-    await expect(
-      page.getByRole("menuitemcheckbox").first(),
-    ).toBeVisible();
+    await expect(page.getByRole("menuitemcheckbox").first()).toBeVisible();
   });
 
-  test("pool table shows Status and Backend columns by default", async ({
-    page,
-  }) => {
+  test("pool table shows Status and Backend columns by default", async ({ page }) => {
     // ACT
     await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
@@ -142,9 +130,7 @@ test.describe("Workflows Table Column Toggle", () => {
     );
   });
 
-  test("workflow table toggle columns shows column options", async ({
-    page,
-  }) => {
+  test("workflow table toggle columns shows column options", async ({ page }) => {
     // ACT
     await page.goto("/workflows?all=true");
     await page.waitForLoadState("networkidle");
@@ -153,14 +139,10 @@ test.describe("Workflows Table Column Toggle", () => {
     await page.getByRole("button", { name: /toggle columns/i }).click();
 
     // ASSERT — at least one column checkbox is visible
-    await expect(
-      page.getByRole("menuitemcheckbox").first(),
-    ).toBeVisible();
+    await expect(page.getByRole("menuitemcheckbox").first()).toBeVisible();
   });
 
-  test("workflows table shows workflow names and status", async ({
-    page,
-  }) => {
+  test("workflows table shows workflow names and status", async ({ page }) => {
     // ACT
     await page.goto("/workflows?all=true");
     await page.waitForLoadState("networkidle");
@@ -174,12 +156,7 @@ test.describe("Workflows Table Column Toggle", () => {
 test.describe("Resources Table Column Toggle", () => {
   test.beforeEach(async ({ page }) => {
     await setupDefaultMocks(page);
-    await setupPools(
-      page,
-      createPoolResponse([
-        { name: "gpu-pool", status: PoolStatus.ONLINE },
-      ]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "gpu-pool", status: PoolStatus.ONLINE }]));
     await setupResources(
       page,
       createResourcesResponse([
@@ -209,9 +186,7 @@ test.describe("Resources Table Column Toggle", () => {
     );
   });
 
-  test("resources table toggle columns shows column options", async ({
-    page,
-  }) => {
+  test("resources table toggle columns shows column options", async ({ page }) => {
     // ACT
     await page.goto("/resources?all=true");
     await page.waitForLoadState("networkidle");
@@ -220,9 +195,7 @@ test.describe("Resources Table Column Toggle", () => {
     await page.getByRole("button", { name: /toggle columns/i }).click();
 
     // ASSERT — at least one column checkbox is visible
-    await expect(
-      page.getByRole("menuitemcheckbox").first(),
-    ).toBeVisible();
+    await expect(page.getByRole("menuitemcheckbox").first()).toBeVisible();
   });
 
   test("resources table shows node names", async ({ page }) => {
@@ -235,9 +208,7 @@ test.describe("Resources Table Column Toggle", () => {
     await expect(page.getByText("node-b").first()).toBeVisible();
   });
 
-  test("resources table distinguishes shared and reserved types", async ({
-    page,
-  }) => {
+  test("resources table distinguishes shared and reserved types", async ({ page }) => {
     // ACT
     await page.goto("/resources?all=true");
     await page.waitForLoadState("networkidle");

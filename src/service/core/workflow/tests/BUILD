@@ -79,3 +79,38 @@ py_test(
     ],
 )
 
+py_test(
+    name = "test_workflow_labels",
+    srcs = ["test_workflow_labels.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/workflow",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+)
+
+osmo_py_test(
+    name = "test_workflow_label_filters_db",
+    size = "large",
+    srcs = ["test_workflow_label_filters_db.py"],
+    deps = [
+        "//src/lib/utils:common",
+        "//src/lib/utils:priority",
+        "//src/service/core/workflow",
+        "//src/tests/common",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+    tags = ["requires-network"],
+)
+
+py_test(
+    name = "test_workflow_metrics",
+    srcs = ["test_workflow_metrics.py"],
+    deps = [
+        "//src/service/core/workflow",
+        "//src/utils/connectors",
+        "//src/utils/metrics",
+    ],
+)

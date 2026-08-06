@@ -22,13 +22,7 @@ import {
   WorkflowStatus,
   PoolStatus,
 } from "@/mocks/factories";
-import {
-  setupDefaultMocks,
-  setupProfile,
-  setupWorkflows,
-  setupPools,
-  setupResources,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile, setupWorkflows, setupPools, setupResources } from "@/e2e/utils/mock-setup";
 
 /**
  * Empty State Tests

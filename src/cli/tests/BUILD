@@ -29,6 +29,16 @@ py_test(
 )
 
 py_test(
+    name = "test_workflow",
+    srcs = [
+        "test_workflow.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
+
+py_test(
     name = "test_config_update",
     srcs = [
         "test_config_update.py"
@@ -82,16 +92,6 @@ py_test(
     name = "test_resources",
     srcs = [
         "test_resources.py"
-    ],
-    deps = [
-        "//src/cli:cli_lib",
-    ]
-)
-
-py_test(
-    name = "test_workflow",
-    srcs = [
-        "test_workflow.py"
     ],
     deps = [
         "//src/cli:cli_lib",

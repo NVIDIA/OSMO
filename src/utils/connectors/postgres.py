@@ -2950,6 +2950,10 @@ class LabelPolicy(ExtraArgBaseModel):
     key: str
     allow_list: List[str] = []
     enforcement: LabelEnforcement = LabelEnforcement.OFF
+    # Optional single line appended to this key's warn/enforce messages, e.g.
+    # where to look up valid values. Empty by default so the OSS default and
+    # messages stay deployment-neutral.
+    assert_message: str = ''
 
     @pydantic.field_validator('key')
     @classmethod
@@ -2961,11 +2965,27 @@ class LabelPolicy(ExtraArgBaseModel):
     def validate_allow_list(cls, allow_list: List[str]) -> List[str]:
         return [validation.validate_workflow_label_value(value) for value in allow_list]
 
+    @pydantic.field_validator('assert_message')
+    @classmethod
+    def validate_assert_message(cls, assert_message: str) -> str:
+        assert_message = assert_message.strip()
+        if len(assert_message) > 256:
+            raise ValueError('Label policy assert_message must be at most 256 characters.')
+        if any(character in assert_message for character in '\r\n'):
+            raise ValueError('Label policy assert_message must be a single line.')
+        return assert_message
+
 
 class LabelsConfig(ExtraArgBaseModel):
     """Curated workflow label policy; empty by default, so no policy
     applies until configured."""
     policy: List[LabelPolicy] = []
+    # Prepended to every workflow label key before it is stamped onto pod
+    # labels, so operators can namespace user labels (e.g. 'example.com/')
+    # without users typing the prefix on every spec or query. Empty by default
+    # to keep the OSS default deployment-neutral. Not assumed to be a DNS
+    # prefix: the merged key is validated at submission, not this field.
+    pod_label_prefix: str = ''
 
     @pydantic.field_validator('policy')
     @classmethod
@@ -2979,6 +2999,18 @@ class LabelsConfig(ExtraArgBaseModel):
         if len(keys) != len(set(keys)):
             raise ValueError('Duplicate label policy key.')
         return policy
+
+    @pydantic.field_validator('pod_label_prefix')
+    @classmethod
+    def validate_pod_label_prefix(cls, pod_label_prefix: str) -> str:
+        # Structure-agnostic sanity only; a whitespace-bearing or oversized
+        # prefix would make every label key invalid. Full validity is checked
+        # per-key at submission once the prefix is merged with the user's key.
+        if any(character in pod_label_prefix for character in ' \t\r\n'):
+            raise ValueError('Label pod_label_prefix must not contain whitespace.')
+        if len(pod_label_prefix) > 253:
+            raise ValueError('Label pod_label_prefix must be at most 253 characters.')
+        return pod_label_prefix
 
 
 class WorkflowConfig(DynamicConfig):

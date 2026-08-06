@@ -36,11 +36,14 @@ test.describe("Pools List", () => {
   });
 
   test("renders all pools", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      { name: "production", status: PoolStatus.ONLINE },
-      { name: "staging", status: PoolStatus.ONLINE },
-      { name: "maintenance", status: PoolStatus.OFFLINE },
-    ]));
+    await setupPools(
+      page,
+      createPoolResponse([
+        { name: "production", status: PoolStatus.ONLINE },
+        { name: "staging", status: PoolStatus.ONLINE },
+        { name: "maintenance", status: PoolStatus.OFFLINE },
+      ]),
+    );
 
     await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
@@ -78,10 +81,13 @@ test.describe("Pools List", () => {
   });
 
   test("search creates a filter chip for the typed pool name", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      { name: "production", status: PoolStatus.ONLINE },
-      { name: "development", status: PoolStatus.ONLINE },
-    ]));
+    await setupPools(
+      page,
+      createPoolResponse([
+        { name: "production", status: PoolStatus.ONLINE },
+        { name: "development", status: PoolStatus.ONLINE },
+      ]),
+    );
 
     await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
@@ -117,20 +123,23 @@ test.describe("Pool Panel", () => {
   });
 
   test("shows GPU quota and capacity sections", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      {
-        name: "gpu-cluster",
-        status: PoolStatus.ONLINE,
-        resource_usage: {
-          quota_used: "50",
-          quota_free: "50",
-          quota_limit: "100",
-          total_usage: "64",
-          total_capacity: "128",
-          total_free: "64",
+    await setupPools(
+      page,
+      createPoolResponse([
+        {
+          name: "gpu-cluster",
+          status: PoolStatus.ONLINE,
+          resource_usage: {
+            quota_used: "50",
+            quota_free: "50",
+            quota_limit: "100",
+            total_usage: "64",
+            total_capacity: "128",
+            total_free: "64",
+          },
         },
-      },
-    ]));
+      ]),
+    );
 
     await page.goto("/pools?all=true&view=gpu-cluster");
     await page.waitForLoadState("networkidle");
@@ -164,9 +173,16 @@ test.describe("Pool Panel", () => {
   });
 
   test("shows pool description when provided", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      { name: "described-pool", status: PoolStatus.ONLINE, description: "High-performance GPU cluster for AI training" },
-    ]));
+    await setupPools(
+      page,
+      createPoolResponse([
+        {
+          name: "described-pool",
+          status: PoolStatus.ONLINE,
+          description: "High-performance GPU cluster for AI training",
+        },
+      ]),
+    );
 
     await page.goto("/pools?all=true&view=described-pool");
     await page.waitForLoadState("networkidle");
@@ -176,16 +192,19 @@ test.describe("Pool Panel", () => {
   });
 
   test("shows platform configuration section for pools with platforms", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      {
-        name: "platform-pool",
-        status: PoolStatus.ONLINE,
-        platforms: {
-          dgx: { description: "DGX H100 nodes" },
-          cpu: { description: "CPU-only nodes" },
+    await setupPools(
+      page,
+      createPoolResponse([
+        {
+          name: "platform-pool",
+          status: PoolStatus.ONLINE,
+          platforms: {
+            dgx: { description: "DGX H100 nodes" },
+            cpu: { description: "CPU-only nodes" },
+          },
         },
-      },
-    ]));
+      ]),
+    );
 
     await page.goto("/pools?all=true&view=platform-pool");
     await page.waitForLoadState("networkidle");
@@ -217,9 +236,10 @@ test.describe("Pool Edge Cases", () => {
   });
 
   test("offline pool is visible in the list", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      { name: "offline-pool", status: PoolStatus.OFFLINE, description: "Down for maintenance" },
-    ]));
+    await setupPools(
+      page,
+      createPoolResponse([{ name: "offline-pool", status: PoolStatus.OFFLINE, description: "Down for maintenance" }]),
+    );
 
     await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
@@ -246,9 +266,7 @@ test.describe("Pool Toolbar", () => {
   });
 
   test("has toolbar with search and column controls", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      { name: "toolbar-pool", status: PoolStatus.ONLINE },
-    ]));
+    await setupPools(page, createPoolResponse([{ name: "toolbar-pool", status: PoolStatus.ONLINE }]));
 
     await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
@@ -259,10 +277,13 @@ test.describe("Pool Toolbar", () => {
   });
 
   test("shows results count", async ({ page }) => {
-    await setupPools(page, createPoolResponse([
-      { name: "pool-1", status: PoolStatus.ONLINE },
-      { name: "pool-2", status: PoolStatus.OFFLINE },
-    ]));
+    await setupPools(
+      page,
+      createPoolResponse([
+        { name: "pool-1", status: PoolStatus.ONLINE },
+        { name: "pool-2", status: PoolStatus.OFFLINE },
+      ]),
+    );
 
     await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");

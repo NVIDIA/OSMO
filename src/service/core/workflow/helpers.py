@@ -26,10 +26,63 @@ import fastapi
 import requests  # type: ignore
 
 from src.lib.data import storage
-from src.lib.utils import common, osmo_errors, priority as wf_priority
+from src.lib.utils import common, osmo_errors, priority as wf_priority, validation
 from src.utils.job import workflow, task
 from src.service.core.workflow import objects
 from src.utils import connectors
+
+
+_WORKFLOW_LABEL_GLOB_ESCAPE = '#'
+
+
+def _workflow_label_glob_to_sql_like_pattern(glob_pattern: str) -> str:
+    """Translate a validated label glob to a SQL LIKE pattern.
+
+    Callers bind the result as a parameter and attach an ESCAPE clause
+    using _WORKFLOW_LABEL_GLOB_ESCAPE.
+    """
+    return (glob_pattern
+            .replace(_WORKFLOW_LABEL_GLOB_ESCAPE, _WORKFLOW_LABEL_GLOB_ESCAPE * 2)
+            .replace('%', f'{_WORKFLOW_LABEL_GLOB_ESCAPE}%')
+            .replace('_', f'{_WORKFLOW_LABEL_GLOB_ESCAPE}_')
+            .replace('*', '%'))
+
+
+def _append_workflow_label_selector(
+        selector: validation.WorkflowLabelSelector,
+        commands: List[str],
+        fetch_input: List[Any]) -> None:
+    """Append a fixed SQL predicate and bound values for a label selector.
+
+    Keys and values are bound parameters like every other filter; psycopg2
+    interpolates them client-side, so the planner still sees literals and the
+    GIN index on ``workflows.labels`` serves the containment branches while
+    glob patterns fall back to LIKE.
+    """
+    if '*' in selector.values:
+        commands.append('workflows.labels ? %s')
+        fetch_input.append(selector.key)
+        return
+
+    predicates: List[str] = []
+    for pattern in selector.values:
+        if '*' in pattern:
+            predicates.append(
+                'workflows.labels ->> %s LIKE %s '
+                f"ESCAPE '{_WORKFLOW_LABEL_GLOB_ESCAPE}'")
+            fetch_input.append(selector.key)
+            fetch_input.append(
+                _workflow_label_glob_to_sql_like_pattern(pattern))
+        else:
+            predicates.append(
+                'workflows.labels @> jsonb_build_object(%s, %s)')
+            fetch_input.append(selector.key)
+            fetch_input.append(pattern)
+
+    if len(predicates) == 1:
+        commands.append(predicates[0])
+    else:
+        commands.append(f"({' OR '.join(predicates)})")
 
 
 def get_workflows(users: List[str] | None = None,
@@ -44,6 +97,8 @@ def get_workflows(users: List[str] | None = None,
                   tags: List[str] | None = None,
                   app_info: common.AppStructure | None = None,
                   priority: List[wf_priority.WorkflowPriority] | None = None,
+                  label_filters: List[str] | None = None,
+                  missing_label_filters: List[str] | None = None,
                   return_raw: bool = False)\
                       -> Any:
     """ Fetch workflows with given parameters. """
@@ -58,6 +113,17 @@ def get_workflows(users: List[str] | None = None,
         '''
     fetch_input: List = []
     commands: List = []
+    try:
+        label_selectors = [
+            validation.parse_workflow_label_selector(label_filter)
+            for label_filter in label_filters or []
+        ]
+        missing_label_keys = [
+            validation.validate_workflow_label_key(label_key)
+            for label_key in missing_label_filters or []
+        ]
+    except ValueError as error:
+        raise osmo_errors.OSMOUsageError(str(error)) from error
     if tags:
         tags_cmd = '''
             JOIN workflow_tags ON workflows.workflow_uuid = workflow_tags.workflow_uuid
@@ -98,6 +164,12 @@ def get_workflows(users: List[str] | None = None,
     if priority:
         commands.append('priority IN %s')
         fetch_input.append(tuple(p.value for p in priority))
+    for label_selector in label_selectors:
+        _append_workflow_label_selector(label_selector, commands, fetch_input)
+    for label_key in missing_label_keys:
+        commands.append(
+            '(workflows.labels IS NULL OR NOT (workflows.labels ? %s))')
+        fetch_input.append(label_key)
     if commands:
         conditions = ' AND '.join(commands)
         fetch_cmd = f'{fetch_cmd} WHERE {conditions}'
@@ -459,7 +531,8 @@ def get_recent_tasks(database: connectors.PostgresConnector,
         minutes_ago: How many minutes back to look for completed tasks
 
     Returns:
-        List of task records with task and workflow information
+        Aggregated task-count rows grouped by pool, user, workflow, task
+        status, and the workflow's labels
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     cutoff_time = now - datetime.timedelta(minutes=minutes_ago)
@@ -470,7 +543,9 @@ def get_recent_tasks(database: connectors.PostgresConnector,
         w.pool AS pool,
         w.submitted_by AS user,
         w.workflow_uuid AS workflow_uuid,
-        t.status AS status
+        t.status AS status,
+        w.labels AS labels,
+        COUNT(*) AS count
     FROM
         tasks t
     JOIN
@@ -479,7 +554,7 @@ def get_recent_tasks(database: connectors.PostgresConnector,
         (t.end_time is NULL
             AND w.status IN ('WAITING', 'PENDING', 'RUNNING'))
         OR t.end_time > %s
-    GROUP BY w.pool, w.submitted_by, t.status, w.workflow_uuid
+    GROUP BY w.pool, w.submitted_by, w.workflow_uuid, t.status, w.labels
     """
 
     return database.execute_fetch_command(query, (cutoff_time,), True)

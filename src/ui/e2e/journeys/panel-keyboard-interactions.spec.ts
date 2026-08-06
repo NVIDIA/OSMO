@@ -213,10 +213,7 @@ test.describe("Pool Panel Quick Links Navigation", () => {
 
   test("Resources link navigates to resources with pool filter", async ({ page }) => {
     // ARRANGE
-    await setupPools(
-      page,
-      createPoolResponse([{ name: "nav-pool", status: PoolStatus.ONLINE }]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "nav-pool", status: PoolStatus.ONLINE }]));
 
     // ACT
     await page.goto("/pools?all=true&view=nav-pool");
@@ -237,10 +234,7 @@ test.describe("Pool Panel Quick Links Navigation", () => {
 
   test("Workflows link navigates to workflows with pool filter", async ({ page }) => {
     // ARRANGE
-    await setupPools(
-      page,
-      createPoolResponse([{ name: "wf-pool", status: PoolStatus.ONLINE }]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "wf-pool", status: PoolStatus.ONLINE }]));
 
     // ACT
     await page.goto("/pools?all=true&view=wf-pool");

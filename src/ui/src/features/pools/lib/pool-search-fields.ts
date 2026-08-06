@@ -18,6 +18,7 @@ import type { SearchField } from "@/components/filter-bar/lib/types";
 import type { Pool } from "@/lib/api/adapter/types";
 import { createNumericSearchFieldPair } from "@/lib/filter-utils";
 import { getStatusDisplay, POOL_STATUS_FILTER_VALUES } from "@/lib/pool-status";
+import { normalizePhysicalCapacity } from "@/lib/pool-capacity";
 
 // ============================================================================
 // Base Search Fields
@@ -94,10 +95,10 @@ const [capacityFree, capacityUsed] = createNumericSearchFieldPair<Pool>({
   category: "capacity",
   label: "Capacity",
   hintFree: "total GPUs available",
-  hintUsed: "pool consumption",
-  getFree: (p) => p.quota.totalFree,
-  getUsed: (p) => p.quota.totalUsage,
-  getMax: (p) => p.quota.totalCapacity,
+  hintUsed: "physical GPU consumption",
+  getFree: (p) => normalizePhysicalCapacity(p.quota).free,
+  getUsed: (p) => normalizePhysicalCapacity(p.quota).used,
+  getMax: (p) => normalizePhysicalCapacity(p.quota).total,
 });
 
 const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [quotaFree, quotaUsed, capacityFree, capacityUsed];

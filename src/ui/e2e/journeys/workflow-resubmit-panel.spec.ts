@@ -110,6 +110,7 @@ function createCompletedWorkflow(name: string) {
     app_name: null,
     app_version: null,
     plugins: { rsync: false },
+    labels: { project: "robotics" },
   };
 }
 
@@ -133,10 +134,7 @@ test.describe("Workflow Resubmit Panel", () => {
     );
 
     // Setup pools for pool picker
-    await setupPools(
-      page,
-      createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]),
-    );
+    await setupPools(page, createPoolResponse([{ name: "test-pool", status: PoolStatus.ONLINE }]));
   });
 
   test("resubmit button opens panel with workflow name in header", async ({ page }) => {
@@ -145,7 +143,10 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.waitForLoadState("networkidle");
 
     // Click the Resubmit Workflow button
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     // ASSERT — panel opens with correct aria-label and header content
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
@@ -159,7 +160,10 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
     await expect(panel).toBeVisible();
@@ -173,7 +177,10 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
     await expect(panel).toBeVisible();
@@ -187,7 +194,10 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
     await expect(panel).toBeVisible();
@@ -204,13 +214,16 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
     await expect(panel).toBeVisible();
 
     // ASSERT — Workflow Specification section visible
-    await expect(panel.getByText("Workflow Specification")).toBeVisible();
+    await expect(panel.getByText("Workflow Specification", { exact: true })).toBeVisible();
   });
 
   test("submit button has correct aria-label with workflow name", async ({ page }) => {
@@ -218,15 +231,43 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
     await expect(panel).toBeVisible();
 
     // ASSERT — Submit button exists with proper aria-label
-    await expect(
-      panel.getByRole("button", { name: `Submit workflow ${wfName}` }),
-    ).toBeVisible();
+    await expect(panel.getByRole("button", { name: `Submit workflow ${wfName}` })).toBeVisible();
+  });
+
+  test("resubmit preserves existing label keys while allowing value overrides", async ({ page }) => {
+    // Extended: this journey renders the full detail/submit surface with
+    // several mocked round trips.
+    test.setTimeout(30_000);
+    await page.goto(`/workflows/${wfName}`);
+    await page.waitForLoadState("networkidle");
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
+
+    const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
+    await expect(panel.getByRole("textbox", { name: "Workflow label key 1" })).toHaveValue("project");
+    await expect(panel.getByRole("textbox", { name: "Workflow label key 1" })).toBeDisabled();
+    await expect(panel.getByRole("button", { name: "Remove workflow label 1" })).toBeDisabled();
+    await panel.getByRole("textbox", { name: "Workflow label value 1" }).fill("simulation");
+
+    await panel.getByRole("button", { name: "Add workflow label" }).click();
+    await panel.getByRole("textbox", { name: "Workflow label key 2" }).fill("team");
+    await panel.getByRole("textbox", { name: "Workflow label value 2" }).fill("robotics");
+
+    await expect(panel.getByRole("textbox", { name: "Workflow label value 1" })).toHaveValue("simulation");
+    await expect(panel.getByRole("textbox", { name: "Workflow label key 2" })).toHaveValue("team");
+    await expect(panel.getByRole("textbox", { name: "Workflow label value 2" })).toHaveValue("robotics");
+    await expect(panel.getByRole("button", { name: `Submit workflow ${wfName}` })).toBeEnabled();
   });
 
   test("submit shows 'Submitting...' while pending", async ({ page }) => {
@@ -239,7 +280,10 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
     await expect(panel).toBeVisible();
@@ -259,7 +303,10 @@ test.describe("Workflow Resubmit Panel", () => {
     await page.goto(`/workflows/${wfName}`);
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: /resubmit workflow/i }).first().click();
+    await page
+      .getByRole("button", { name: /resubmit workflow/i })
+      .first()
+      .click();
 
     const panel = page.locator(`[aria-label="Resubmit workflow: ${wfName}"]`);
     await expect(panel).toBeVisible();

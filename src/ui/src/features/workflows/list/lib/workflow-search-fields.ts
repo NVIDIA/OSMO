@@ -75,6 +75,24 @@ export const WORKFLOW_FIELD: Readonly<Record<string, SearchField<WorkflowListEnt
     freeFormHint: "Type any tag, press Enter",
     getValues: () => [],
   },
+  label: {
+    id: "label",
+    label: "Label",
+    hint: "workflow label selector (exact, glob, or alternatives)",
+    prefix: "label:",
+    freeFormHint: "Type key=value, key=(team_*|osmo_*), or key=team_(a|b), press Enter",
+    getValues: () => [],
+  },
+  no_label: {
+    // The id matches the backend query parameter; the typed prefix stays
+    // kebab-case like the other chips.
+    id: "no_label",
+    label: "Missing Label",
+    hint: "workflow missing a label key",
+    prefix: "no-label:",
+    freeFormHint: "Type a label key, press Enter",
+    getValues: () => [],
+  },
 });
 
 export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] = Object.freeze(

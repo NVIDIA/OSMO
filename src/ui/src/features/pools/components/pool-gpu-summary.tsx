@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatCompact } from "@/lib/utils";
 import type { Quota } from "@/lib/api/adapter/types";
+import { normalizePhysicalCapacity } from "@/lib/pool-capacity";
 
 interface PoolGpuSummaryProps {
   summary: Quota;
@@ -106,6 +107,8 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
 });
 
 export const PoolGpuSummary = memo(function PoolGpuSummary({ summary, isLoading = false }: PoolGpuSummaryProps) {
+  const physicalCapacity = normalizePhysicalCapacity(summary);
+
   return (
     <div className="contain-layout-style @container">
       <div className="grid grid-cols-2 gap-2 @[500px]:gap-3">
@@ -128,9 +131,9 @@ export const PoolGpuSummary = memo(function PoolGpuSummary({ summary, isLoading 
               label="GPU Capacity"
               tooltip="Total physical GPUs. Capacity may be shared across pools."
               icon={Server}
-              used={summary.totalUsage}
-              free={summary.totalFree}
-              total={summary.totalCapacity}
+              used={physicalCapacity.used}
+              free={physicalCapacity.free}
+              total={physicalCapacity.total}
             />
           </>
         )}

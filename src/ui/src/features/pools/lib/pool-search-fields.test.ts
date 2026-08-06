@@ -16,6 +16,59 @@
 
 import { describe, it, expect } from "vitest";
 import { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/lib/filter-utils";
+import { createPoolSearchFields } from "@/features/pools/lib/pool-search-fields";
+import { createMockPool } from "@/testing/factories";
+
+describe("capacity used filter", () => {
+  it("matches physical usage across shared pools rather than pool-local usage", () => {
+    const pool = createMockPool({
+      quota: {
+        used: 1,
+        free: 7,
+        limit: 8,
+        totalUsage: 1,
+        totalCapacity: 8,
+        totalFree: 6,
+      },
+    });
+    const capacityUsed = createPoolSearchFields([]).find((field) => field.id === "capacity-used");
+
+    expect(capacityUsed?.match?.(pool, "=2")).toBe(true);
+    expect(capacityUsed?.match?.(pool, "=25%")).toBe(true);
+    expect(capacityUsed?.match?.(pool, "=1")).toBe(false);
+  });
+
+  it("normalizes used and free filters consistently for transient invalid values", () => {
+    const negativeFree = createMockPool({
+      quota: {
+        used: 1,
+        free: 7,
+        limit: 8,
+        totalUsage: 1,
+        totalCapacity: 8,
+        totalFree: -1,
+      },
+    });
+    const excessiveFree = createMockPool({
+      quota: {
+        used: 1,
+        free: 7,
+        limit: 8,
+        totalUsage: 1,
+        totalCapacity: 8,
+        totalFree: 10,
+      },
+    });
+    const fields = createPoolSearchFields([]);
+    const capacityUsed = fields.find((field) => field.id === "capacity-used");
+    const capacityFree = fields.find((field) => field.id === "capacity-free");
+
+    expect(capacityUsed?.match?.(negativeFree, "=8")).toBe(true);
+    expect(capacityFree?.match?.(negativeFree, "=0")).toBe(true);
+    expect(capacityUsed?.match?.(excessiveFree, "=0")).toBe(true);
+    expect(capacityFree?.match?.(excessiveFree, "=8")).toBe(true);
+  });
+});
 
 // =============================================================================
 // parseNumericFilter Tests

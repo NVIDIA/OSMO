@@ -188,10 +188,13 @@ class TestSubmitWorkflow(unittest.TestCase):
                 template_spec=template_spec,
                 dry_run=True,
                 env_vars=[],
+                label_overrides=['team=alpha'],
                 roles_header=None)
 
         self.assertEqual(response.name, 'wf-name')
         self.assertIn('workflow', response.spec or '')
+        submit_info.construct_workflow_dict.assert_called_once_with(
+            template_spec, label_overrides=['team=alpha'], canonical_labels=None)
 
     def test_submit_workflow_malformed_env_var_raises(self):
         template_spec = mock.Mock(name='TemplateSpec')
@@ -314,6 +317,10 @@ class TestSubmitWorkflow(unittest.TestCase):
         workflow_config.max_num_tasks = 100
         context = mock.Mock()
         context.database.get_workflow_configs.return_value = workflow_config
+        submit_info.validate_workflow_spec.return_value = [
+            "Workflow is missing label 'project'; add it now to avoid rejected "
+            "submissions once it is required.",
+        ]
 
         with mock.patch.object(workflow_service.objects, 'WorkflowSubmitInfo',
                                return_value=submit_info), \
@@ -332,6 +339,13 @@ class TestSubmitWorkflow(unittest.TestCase):
 
         self.assertEqual(response.name, 'wf-name')
         self.assertIn('validation succeeded', response.logs or '')
+        self.assertEqual(
+            response.warnings,
+            [
+                "Workflow is missing label 'project'; add it now to avoid "
+                "rejected submissions once it is required.",
+            ],
+        )
         submit_info.send_submit_workflow_to_queue.assert_not_called()
 
     def test_submit_workflow_exceeds_max_workflows_per_user(self):
@@ -465,6 +479,7 @@ class TestSubmitWorkflow(unittest.TestCase):
         submit_info.name = 'wf-name'
         submit_info.construct_workflow_dict.return_value = {'workflow': {'name': 'wf-name'}}
         context = mock.Mock()
+        source_workflow = mock.Mock(labels={'team': 'database'})
 
         with mock.patch.object(workflow_service.objects, 'WorkflowSubmitInfo',
                                return_value=submit_info), \
@@ -474,6 +489,8 @@ class TestSubmitWorkflow(unittest.TestCase):
                                return_value='user-1'), \
              mock.patch.object(workflow_service.common, 'generate_unique_id',
                                return_value='abc'), \
+             mock.patch.object(workflow_service.workflow.Workflow, 'fetch_from_db',
+                               return_value=source_workflow) as fetch_workflow, \
              mock.patch.object(workflow_service, 'download_workflow_spec',
                                return_value=iter(['w:', 'orkflow'])) as dl, \
              mock.patch.object(workflow_service.helpers,
@@ -486,11 +503,18 @@ class TestSubmitWorkflow(unittest.TestCase):
                 workflow_id='parent-wf',
                 dry_run=True,
                 env_vars=[],
+                label_overrides=['team=alpha'],
                 roles_header=None)
 
         dl.assert_called_once_with('parent-wf')
+        fetch_workflow.assert_called_once_with(
+            context.database, 'parent-wf', fetch_groups=False)
         gather.assert_called_once()
         ts_cls.assert_called_once()
+        submit_info.construct_workflow_dict.assert_called_once_with(
+            ts_cls.return_value,
+            label_overrides=['team=alpha'],
+            canonical_labels={'team': 'database'})
 
 
 class TestRestartWorkflow(unittest.TestCase):
@@ -523,6 +547,7 @@ class TestRestartWorkflow(unittest.TestCase):
         workflow_obj.workflow_id = 'parent-wf'
         workflow_obj.status.failed.return_value = True
         workflow_obj.priority = 'NORMAL'
+        workflow_obj.labels = {'team': 'database'}
         # First group succeeded, second failed
         g1_task = SimpleNamespace(name='g1-t1')
         g1 = SimpleNamespace(
@@ -565,6 +590,10 @@ class TestRestartWorkflow(unittest.TestCase):
         submit_info.construct_workflow_spec_from_dict.return_value = workflow_spec
         rendered_spec = mock.Mock()
         workflow_spec.parse.return_value = rendered_spec
+        submit_info.validate_workflow_spec.return_value = [
+            "Workflow is missing label 'project'; add it now to avoid rejected "
+            "submissions once it is required.",
+        ]
         submit_info.send_submit_workflow_to_queue.return_value = objects.SubmitResponse(
             name='restart-wf', logs='ok')
 
@@ -595,6 +624,21 @@ class TestRestartWorkflow(unittest.TestCase):
         self.assertEqual(sibling_input.task, 'g2-t1')
         # prev_workflow_input (already has workflow prefix) -> unchanged
         self.assertEqual(prev_workflow_input.task, 'old-wf:some-task')
+        self.assertEqual(
+            submit_info.send_submit_workflow_to_queue.call_args.kwargs['warnings'],
+            [
+                "Workflow is missing label 'project'; add it now to avoid "
+                "rejected submissions once it is required.",
+            ],
+        )
+        self.assertNotIn(
+            'label_overrides',
+            submit_info.construct_workflow_dict.call_args.kwargs,
+        )
+        self.assertEqual(
+            submit_info.construct_workflow_dict.call_args.kwargs['canonical_labels'],
+            {'team': 'database'},
+        )
 
     def test_restart_workflow_rewrites_top_level_tasks(self):
         # workflow_spec.tasks path (top-level tasks, no groups)
@@ -736,6 +780,8 @@ class TestListWorkflow(unittest.TestCase):
             'tags': None,
             'app': None,
             'priority': None,
+            'label_filters': None,
+            'missing_label_filters': None,
             'user_header': None,
         }
         base.update(overrides)
@@ -825,6 +871,29 @@ class TestListWorkflow(unittest.TestCase):
         # rows arg limited to 20 (since 21 > 20 -> more entries True)
         self.assertEqual(len(args[0]), 20)
         self.assertTrue(kwargs['more_entries'])
+
+    def test_list_workflow_forwards_label_filters(self):
+        context = mock.Mock()
+        context.database.get_workflow_service_url.return_value = 'http://svc'
+
+        with mock.patch.object(workflow_service.objects.WorkflowServiceContext,
+                               'get', return_value=context), \
+             mock.patch.object(workflow_service.helpers, 'get_workflows',
+                               return_value=[]) as get_workflows, \
+             mock.patch.object(workflow_service.objects.ListResponse,
+                               'from_db_rows', return_value=mock.Mock()):
+            workflow_service.list_workflow(**self._kwargs(
+                all_users=True,
+                all_pools=True,
+                label_filters=['team=alpha'],
+                missing_label_filters=['project'],
+            ))
+
+        self.assertEqual(get_workflows.call_args.kwargs['label_filters'], ['team=alpha'])
+        self.assertEqual(
+            get_workflows.call_args.kwargs['missing_label_filters'],
+            ['project'],
+        )
 
 
 class TestListTask(unittest.TestCase):

@@ -30,6 +30,12 @@ import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowPriority } from "@/lib/api/generated";
 import { usePoolSelection } from "@/components/workflow/use-pool-selection";
 import { useResubmitMutation } from "@/features/workflows/detail/components/resubmit/use-resubmit-mutation";
+import {
+  getChangedWorkflowLabelAssignments,
+  sortedWorkflowLabelEntries,
+  validateWorkflowLabelDrafts,
+  type WorkflowLabelDraft,
+} from "@/lib/workflow-labels";
 
 export interface UseResubmitFormOptions {
   workflow: WorkflowQueryResponse;
@@ -41,6 +47,11 @@ export interface UseResubmitFormReturn {
   setPool: (pool: string) => void;
   priority: WorkflowPriority;
   setPriority: (priority: WorkflowPriority) => void;
+  labels: WorkflowLabelDraft[];
+  setLabels: (labels: WorkflowLabelDraft[]) => void;
+  labelError: string | null;
+  /** Count of leading drafts seeded from the workflow's own labels; their keys are locked. */
+  lockedLabelCount: number;
   /**
    * Custom spec (if edited AND changed, otherwise undefined = use original via workflow_id).
    * - undefined: User hasn't edited OR content is identical to original
@@ -68,13 +79,25 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
   const { pool, setPool } = usePoolSelection(workflow.pool ?? "");
   const [priority, setPriority] = useState<WorkflowPriority>(() => deriveInitialPriority(workflow));
   const [spec, setSpec] = useState<string | undefined>(undefined);
+  const [labels, setLabels] = useState<WorkflowLabelDraft[]>(() =>
+    sortedWorkflowLabelEntries(workflow.labels).map(([key, value]) => ({ key, value })),
+  );
+  const lockedLabelCount = Object.keys(workflow.labels ?? {}).length;
+  const labelError = useMemo(() => validateWorkflowLabelDrafts(labels), [labels]);
+  const labelAssignments = useMemo(
+    () => getChangedWorkflowLabelAssignments(labels, workflow.labels ?? {}),
+    [labels, workflow.labels],
+  );
 
   const { execute, isPending, error } = useResubmitMutation({
-    onSuccess: (newWorkflowName) => {
+    onSuccess: (newWorkflowName, warnings) => {
       const message = newWorkflowName
         ? `Workflow resubmitted as ${newWorkflowName}`
         : "Workflow resubmitted successfully";
 
+      for (const warning of warnings) {
+        toast.warning(warning);
+      }
       toast.success(message, {
         action: newWorkflowName
           ? {
@@ -88,7 +111,7 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
     },
   });
 
-  const canSubmit = pool.length > 0 && !isPending;
+  const canSubmit = pool.length > 0 && !isPending && !labelError;
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) return;
@@ -98,8 +121,9 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       poolName: pool,
       priority,
       spec,
+      labels: labelAssignments,
     });
-  }, [canSubmit, execute, workflow.name, pool, priority, spec]);
+  }, [canSubmit, execute, workflow.name, pool, priority, spec, labelAssignments]);
 
   return useMemo(
     () => ({
@@ -107,6 +131,10 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       setPool,
       priority,
       setPriority,
+      labels,
+      setLabels,
+      labelError,
+      lockedLabelCount,
       spec,
       setSpec,
       canSubmit,
@@ -114,6 +142,6 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       isPending,
       error,
     }),
-    [pool, setPool, priority, spec, canSubmit, handleSubmit, isPending, error],
+    [pool, setPool, priority, labels, labelError, lockedLabelCount, spec, canSubmit, handleSubmit, isPending, error],
   );
 }
