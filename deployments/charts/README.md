@@ -32,8 +32,9 @@ The former quick-start values are preserved as chart-specific values files:
 - `service/quick-start-values.yaml`
 - `backend-operator/quick-start-values.yaml`
 
-Create the namespaces, the local admin password Secret, the shared backend
-bootstrap Secret, and the MEK ConfigMap used by the service pods:
+Create the namespaces, the local admin password Secret, and the MEK ConfigMap
+used by the service pods. The service quick-start values create the shared
+backend bootstrap Secret through the chart-managed development mode:
 
 ```bash
 kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
@@ -43,15 +44,6 @@ kubectl create secret generic local-admin-password \
   --namespace osmo \
   --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
-
-BACKEND_TOKEN_FILE=$(mktemp)
-chmod 600 "$BACKEND_TOKEN_FILE"
-dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | tr '/+' '_-' > "$BACKEND_TOKEN_FILE"
-kubectl create secret generic backend-operator-token \
-  --namespace osmo \
-  --from-file=token="$BACKEND_TOKEN_FILE" \
-  --dry-run=client -o yaml | kubectl apply -f -
-rm -f "$BACKEND_TOKEN_FILE"
 
 if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
   MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
@@ -132,5 +124,7 @@ For production, use your environment-specific values instead of the local quick-
 - Configure `backend-operator.global.serviceUrl` to the service gateway URL reachable from the backend cluster.
 - Provision one backend bootstrap Secret per compute plane in both the control
   and compute clusters. Configure the service chart's
-  `services.backendApiTokens.credentials`
+  `services.backendApiTokens.credentials[].existingSecret.name`
   and `backend-operator.global.accountTokenSecret` to consume the matching Secret.
+  The service chart's `managedSecret` mode is intended only for single-cluster
+  development where the backend operator can consume the namespace-local Secret.

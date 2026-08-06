@@ -804,7 +804,7 @@ service_set_flags() {
     sets+=" --set services.redis.port=${REDIS_PORT}"
     sets+=" --set services.backendApiTokens.enabled=true"
     sets+=" --set services.backendApiTokens.credentials[0].name=default"
-    sets+=" --set services.backendApiTokens.credentials[0].secretName=${BACKEND_TOKEN_SECRET_NAME}"
+    sets+=" --set services.backendApiTokens.credentials[0].existingSecret.name=${BACKEND_TOKEN_SECRET_NAME}"
 
     # AWS without aws-load-balancer-controller: the in-tree cloud provider
     # creates a Classic ELB for type=LoadBalancer Services, but it requires

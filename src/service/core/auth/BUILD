@@ -24,10 +24,12 @@ osmo_py_library(
     srcs = [
         "auth_service.py",
         "backend_secret_auth.py",
+        "backend_token_bootstrap.py",
         "objects.py",
     ],
     deps = [
         requirement("fastapi"),
+        requirement("kubernetes"),
         requirement("pydantic"),
         "//src/lib/utils:common",
         "//src/lib/utils:login",
