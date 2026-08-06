@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
+import { LinkifiedText } from "@/components/linkified-text";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { CopyButton } from "@/components/copyable-value";
 import { ActionsSection, type ActionItem } from "@/components/panel/actions-section";
@@ -206,7 +207,9 @@ const WorkflowWarnings = memo(function WorkflowWarnings({ warnings }: { warnings
         <div className="min-w-0">
           <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
             {warnings.map((warning, index) => (
-              <li key={`${warning}-${index}`}>{warning}</li>
+              <li key={`${warning}-${index}`}>
+                <LinkifiedText text={warning} />
+              </li>
             ))}
           </ul>
         </div>

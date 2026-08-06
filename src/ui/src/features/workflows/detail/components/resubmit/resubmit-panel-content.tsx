@@ -28,6 +28,7 @@ import { Loader2 } from "lucide-react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowPriority } from "@/lib/api/generated";
 import { Button } from "@/components/shadcn/button";
+import { LinkifiedText } from "@/components/linkified-text";
 import { usePanelFocus } from "@/components/panel/hooks/use-panel-focus";
 import { CollapsibleSection } from "@/components/workflow/collapsible-section";
 import { PoolPicker } from "@/components/workflow/pool-picker";
@@ -149,7 +150,7 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
           className="mx-6 mb-2 rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300"
           role="alert"
         >
-          {form.error}
+          <LinkifiedText text={form.error} />
         </div>
       )}
 

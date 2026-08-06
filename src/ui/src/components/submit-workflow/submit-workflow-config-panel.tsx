@@ -21,6 +21,7 @@ import { Loader2, TriangleAlert, CircleCheck, CircleX, ChevronDown } from "lucid
 import { WorkflowPriority } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
+import { LinkifiedText } from "@/components/linkified-text";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -182,7 +183,9 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               className="mt-px size-3.5 shrink-0"
               aria-hidden="true"
             />
-            <span className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap">{dryRunError}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap">
+              <LinkifiedText text={dryRunError} />
+            </span>
           </div>
         )}
 
@@ -202,7 +205,9 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             role="status"
           >
             {validationWarnings.map((warning, index) => (
-              <p key={`${warning}-${index}`}>{warning}</p>
+              <p key={`${warning}-${index}`}>
+                <LinkifiedText text={warning} />
+              </p>
             ))}
           </div>
         )}
@@ -212,7 +217,9 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               className="mt-px size-3.5 shrink-0"
               aria-hidden="true"
             />
-            <span className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap">{validationError}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap">
+              <LinkifiedText text={validationError} />
+            </span>
           </div>
         )}
 
@@ -222,7 +229,9 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             className="rounded bg-red-50 px-3 py-1.5 font-mono text-[11px] text-red-700 dark:bg-red-900/30 dark:text-red-300"
             role="alert"
           >
-            <span className="[overflow-wrap:anywhere] whitespace-pre-wrap">{error}</span>
+            <span className="[overflow-wrap:anywhere] whitespace-pre-wrap">
+              <LinkifiedText text={error} />
+            </span>
           </div>
         )}
 

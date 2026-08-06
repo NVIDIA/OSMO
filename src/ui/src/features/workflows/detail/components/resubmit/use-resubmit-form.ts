@@ -23,11 +23,12 @@
 
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { createElement, useState, useCallback, useMemo } from "react";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { toast } from "sonner";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowPriority } from "@/lib/api/generated";
+import { LinkifiedText } from "@/components/linkified-text";
 import { usePoolSelection } from "@/components/workflow/use-pool-selection";
 import { useResubmitMutation } from "@/features/workflows/detail/components/resubmit/use-resubmit-mutation";
 import {
@@ -96,7 +97,7 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
         : "Workflow resubmitted successfully";
 
       for (const warning of warnings) {
-        toast.warning(warning);
+        toast.warning(createElement(LinkifiedText, { text: warning }));
       }
       toast.success(message, {
         action: newWorkflowName
