@@ -117,13 +117,13 @@ spec:
         - name: OSMO_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: db-secret
-              key: db-password
+              name: {{ .Values.services.postgres.passwordSecretName }}
+              key: {{ .Values.services.postgres.passwordSecretKey }}
         - name: OSMO_REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: redis-secret
-              key: redis-password
+              name: {{ .Values.services.redis.passwordSecretName }}
+              key: {{ .Values.services.redis.passwordSecretKey }}
         {{- end }}
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
@@ -160,15 +160,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.delayedJobMonitor | nindent 8 }}
-        {{- if .Values.services.configFile.enabled}}
-        - configMap:
-            defaultMode: 420
-            items:
-            - key: mek.yaml
-              path: mek.yaml
-            name: mek-config
-          name: mek-volume
-        {{- end}}
+        {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- if .Values.services.delayedJobMonitor.volumes }}
         {{- toYaml .Values.services.delayedJobMonitor.volumes | nindent 8 }}
         {{- end }}

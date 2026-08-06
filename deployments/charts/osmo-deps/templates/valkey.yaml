@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- $name := printf "%s-valkey" (include "osmo-deps.fullname" .) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "osmo-deps.componentLabels" (dict "root" . "component" "valkey") | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: valkey
+  ports:
+    - name: valkey
+      port: {{ .Values.valkey.port }}
+      targetPort: valkey
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "osmo-deps.componentLabels" (dict "root" . "component" "valkey") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: valkey
+    spec:
+      containers:
+        - name: valkey
+          image: {{ .Values.valkey.image | quote }}
+          imagePullPolicy: {{ .Values.valkey.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - exec valkey-server --appendonly no --requirepass "$VALKEY_PASSWORD"
+          env:
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "osmo-deps.credentialsSecretName" . }}
+                  key: redis-password
+          ports:
+            - name: valkey
+              containerPort: {{ .Values.valkey.port }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - valkey-cli -a "$VALKEY_PASSWORD" ping | grep -q PONG
+            periodSeconds: 3
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - valkey-cli -a "$VALKEY_PASSWORD" ping | grep -q PONG
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.valkey.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}

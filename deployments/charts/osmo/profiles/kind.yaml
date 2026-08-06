@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+controlPlane:
+  services:
+    configFile:
+      secretName: osmo-deps-credentials
+    postgres:
+      serviceName: osmo-deps-postgresql
+      port: 5432
+      db: osmo
+      user: postgres
+      passwordSecretName: osmo-deps-credentials
+    redis:
+      serviceName: osmo-deps-valkey
+      port: 6379
+      tlsEnabled: false
+      passwordSecretName: osmo-deps-credentials
+    configs:
+      secretRefs:
+        - secretName: osmo-deps-credentials
+      service:
+        service_base_url: http://osmo-gateway
+      workflow:
+        # The public 6.3.1 service image predates workflow label policies.
+        labels_config: null
+        workflow_data:
+          credential:
+            secretName: osmo-deps-credentials
+            secretKey: object-storage.yaml
+            endpoint: s3://osmo-workflows/workflows
+            override_url: http://osmo-deps-rustfs:9000
+            region: us-east-1
+        workflow_log:
+          credential:
+            secretName: osmo-deps-credentials
+            secretKey: object-storage.yaml
+            endpoint: s3://osmo-logs/logs
+            override_url: http://osmo-deps-rustfs:9000
+            region: us-east-1
+        workflow_app:
+          credential:
+            secretName: osmo-deps-credentials
+            secretKey: object-storage.yaml
+            endpoint: s3://osmo-apps/apps
+            override_url: http://osmo-deps-rustfs:9000
+            region: us-east-1
+        backend_images:
+          init: nvcr.io/nvidia/osmo/init-container:6.3.1
+          client: nvcr.io/nvidia/osmo/client:6.3.1
+        credential_config:
+          disable_data_validation:
+            - s3
+    defaultAdmin:
+      enabled: true
+      username: admin
+      passwordSecretName: osmo-deps-credentials
+      passwordSecretKey: admin-password
+    service:
+      imagePullPolicy: IfNotPresent
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+      extraEnv: &rustfsEnvironment
+        - name: AWS_ENDPOINT_URL_S3
+          value: http://osmo-deps-rustfs:9000
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+    worker:
+      imagePullPolicy: IfNotPresent
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+      extraEnv: *rustfsEnvironment
+    logger:
+      imagePullPolicy: IfNotPresent
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+      extraEnv: *rustfsEnvironment
+    agent:
+      imagePullPolicy: IfNotPresent
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+      extraEnv: *rustfsEnvironment
+    router:
+      imagePullPolicy: IfNotPresent
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+    delayedJobMonitor:
+      imagePullPolicy: IfNotPresent
+    ui:
+      imagePullPolicy: IfNotPresent
+      apiHostname: osmo-service.osmo.svc.cluster.local:80
+      nextjsSslEnabled: false
+
+  gateway:
+    name: osmo-gateway
+    envoy:
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+      service:
+        type: ClusterIP
+      defaultIdentity:
+        user: admin
+        roles: osmo-admin
+        allowedPools: default

@@ -18,10 +18,23 @@ SPDX-License-Identifier: Apache-2.0
 
 # NVIDIA OSMO Helm Charts
 
-OSMO is deployed with two public charts:
+OSMO deployment charts are:
 
-1. `service` deploys the core OSMO control plane, gateway, UI, router, worker, logger, agent, and optional local PostgreSQL, Redis, and LocalStack S3 dependencies.
-2. `backend-operator` connects a Kubernetes backend to the OSMO service and manages workflow workloads.
+1. `osmo` is the unified umbrella entry point. Its initial
+   `split-plane-control` profile installs the control plane only.
+2. `osmo-deps` is a non-production PostgreSQL, Valkey, and RustFS chart used to
+   verify the umbrella on local kind clusters.
+3. `service` deploys the core OSMO control plane, gateway, UI, router, worker,
+   logger, agent, and optional legacy development dependencies.
+4. `backend-operator` connects a Kubernetes backend to the OSMO service and
+   manages workflow workloads. It is not part of the initial umbrella profile.
+
+For OSMO-6592 local verification, use the umbrella flow in
+[`osmo/README.md`](osmo/README.md). It layers
+`osmo/profiles/split-plane-control.yaml` and `osmo/profiles/kind.yaml`, consumes
+the Kubernetes Secret created by `osmo-deps`, and uses public OSMO 6.3.1
+images. The older direct two-chart example below remains available for users
+who need the existing service/backend installation flow.
 
 Install the service chart first, wait for it to become healthy, then install the backend operator with a service URL and credentials that point back to the service release.
 

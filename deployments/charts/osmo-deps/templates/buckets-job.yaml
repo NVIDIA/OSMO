@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "osmo-deps.fullname" . }}-buckets
+  labels:
+    {{- include "osmo-deps.componentLabels" (dict "root" . "component" "buckets") | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: buckets
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-buckets
+          image: {{ .Values.buckets.image | quote }}
+          imagePullPolicy: {{ .Values.buckets.pullPolicy }}
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "osmo-deps.credentialsSecretName" . }}
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "osmo-deps.credentialsSecretName" . }}
+                  key: access_key
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.rustfs.region | quote }}
+            - name: AWS_ENDPOINT_URL
+              value: http://{{ include "osmo-deps.fullname" . }}-rustfs:{{ .Values.rustfs.port }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until aws s3api list-buckets >/dev/null 2>&1; do
+                echo "Waiting for RustFS..."
+                sleep 2
+              done
+              {{- range .Values.buckets.names }}
+              aws s3api head-bucket --bucket {{ . | quote }} >/dev/null 2>&1 || \
+                aws s3api create-bucket --bucket {{ . | quote }} >/dev/null
+              {{- end }}
