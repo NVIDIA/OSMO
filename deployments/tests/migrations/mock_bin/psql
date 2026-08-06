@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+set -uo pipefail
+
+query="${*: -1}"
+printf '%s\n' "$query" >> "${MOCK_STATE_DIR}/psql_queries"
+case "$query" in
+    *information_schema.schemata*)
+        echo "f"
+        ;;
+    *"INSERT INTO pgroll.migrations"*)
+        ;;
+    *"SELECT EXISTS (SELECT 1 FROM pgroll.migrations"*)
+        migration_name=$(printf '%s\n' "$query" | sed -n "s/.*name = '\([^']*\)'.*/\1/p")
+        case ",$MOCK_COMPLETED_MIGRATIONS," in
+            *",${migration_name},"*) echo "t" ;;
+            *) echo "f" ;;
+        esac
+        ;;
+    *"CREATE SCHEMA"*|*"CREATE OR REPLACE VIEW"*)
+        ;;
+    *)
+        echo "Unexpected psql query: $query" >&2
+        exit 1
+        ;;
+esac

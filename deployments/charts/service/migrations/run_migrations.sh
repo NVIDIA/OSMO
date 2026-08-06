@@ -25,11 +25,20 @@
 #
 # The script is idempotent: safe to run multiple times against any database state.
 # If the target versioned schema already exists, the script exits immediately (no-op).
-# Migrations that have already been applied or aren't applicable are skipped.
+# Migrations that have already been applied are skipped.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MIGRATION_FILES=("$SCRIPT_DIR"/0*.json)
+
+if [ ! -e "${MIGRATION_FILES[0]}" ]; then
+    echo "ERROR: No migration files found in ${SCRIPT_DIR}."
+    exit 1
+fi
+
+LATEST_MIGRATION_INDEX=$((${#MIGRATION_FILES[@]} - 1))
+LATEST_MIGRATION_NAME="$(basename "${MIGRATION_FILES[$LATEST_MIGRATION_INDEX]}" .json)"
 
 urlencode() {
     local string="$1" encoded="" i c
@@ -68,6 +77,20 @@ run_psql() {
     PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "$1" 2>&1
 }
 
+json_string_field() {
+    local json="$1" field="$2"
+    printf '%s\n' "$json" |
+        sed -n "s/^[[:space:]]*\"${field}\":[[:space:]]*\"\([^\"]*\)\".*/\1/p" |
+        head -1
+}
+
+summarize_output() {
+    printf '%s\n' "$1" |
+        sed $'s/\033\\[[0-9;]*[[:alpha:]]//g' |
+        sed '/^[[:space:]]*$/d' |
+        tail -1
+}
+
 echo "pgroll migration runner"
 echo "Target DB: ${DB_HOST}:${DB_PORT}/${DB_NAME}"
 echo "Target schema: ${TARGET_SCHEMA}"
@@ -87,22 +110,43 @@ fi
 # --- Step 2: Initialize pgroll ---
 echo ""
 echo "Step 2: Initializing pgroll..."
-pgroll init --postgres-url "$PGROLL_URL" 2>&1 || true
+if OUTPUT=$(pgroll init --postgres-url "$PGROLL_URL" 2>&1); then
+    echo "  Initialized"
+else
+    echo "  Initialization unchanged; checking existing metadata"
+fi
 
 # --- Step 3: Create baseline if needed ---
 echo ""
 echo "Step 3: Checking migration history..."
-STATUS=$(pgroll status --postgres-url "$PGROLL_URL" 2>&1)
+if ! STATUS=$(pgroll status --postgres-url "$PGROLL_URL" 2>&1); then
+    echo "ERROR: Unable to read pgroll migration status: $(summarize_output "$STATUS")"
+    exit 1
+fi
+
+CURRENT_VERSION=$(json_string_field "$STATUS" "version")
+CURRENT_STATE=$(json_string_field "$STATUS" "status")
+if [ "$TARGET_SCHEMA" = "public" ] && \
+    [ "$CURRENT_VERSION" = "$LATEST_MIGRATION_NAME" ] && \
+    [ "$CURRENT_STATE" = "Complete" ]; then
+    echo "  All migrations are already applied (${LATEST_MIGRATION_NAME})."
+    echo ""
+    echo "Done."
+    exit 0
+fi
+
 if echo "$STATUS" | grep -q '"status": "No migrations"'; then
     echo "  Creating baseline..."
-    run_psql "INSERT INTO pgroll.migrations (schema, name, migration, resulting_schema, done, parent) VALUES ('public', '000_baseline', '{}', '\"public_000_baseline\"', true, NULL) ON CONFLICT DO NOTHING;"
+    if ! OUTPUT=$(run_psql "INSERT INTO pgroll.migrations (schema, name, migration, resulting_schema, done, parent) VALUES ('public', '000_baseline', '{}', '\"public_000_baseline\"', true, NULL) ON CONFLICT DO NOTHING;"); then
+        echo "ERROR: Unable to create pgroll baseline: $(summarize_output "$OUTPUT")"
+        exit 1
+    fi
 fi
 
 # --- Step 4: Complete any in-progress migration ---
 echo ""
 echo "Step 4: Completing any in-progress migration..."
-OUTPUT=$(pgroll complete --postgres-url "$PGROLL_URL" 2>&1)
-if [ $? -eq 0 ]; then
+if OUTPUT=$(pgroll complete --postgres-url "$PGROLL_URL" 2>&1); then
     echo "  Completed"
 else
     echo "  Nothing to complete"
@@ -111,28 +155,57 @@ fi
 # --- Step 5: Apply all migrations ---
 echo ""
 echo "Step 5: Applying migrations..."
-for migration_file in "$SCRIPT_DIR"/0*.json; do
+for migration_file in "${MIGRATION_FILES[@]}"; do
     name="$(basename "$migration_file")"
+    migration_name="${name%.json}"
     echo "  [$name]"
-    OUTPUT=$(pgroll start "$migration_file" --postgres-url "$PGROLL_URL" --complete 2>&1)
-    if [ $? -eq 0 ]; then
+
+    if ! MIGRATION_COMPLETE=$(run_psql "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public' AND name = '${migration_name}' AND done = true);"); then
+        echo "ERROR: Unable to check migration ${migration_name}: $(summarize_output "$MIGRATION_COMPLETE")"
+        exit 1
+    fi
+    if [ "$MIGRATION_COMPLETE" = "t" ]; then
+        echo "    Already applied"
+        continue
+    fi
+
+    if OUTPUT=$(pgroll start "$migration_file" --postgres-url "$PGROLL_URL" --complete 2>&1); then
         echo "    Applied"
     else
-        echo "    Skipped: $(echo "$OUTPUT" | head -1)"
+        echo "    Could not apply: $(summarize_output "$OUTPUT")"
     fi
 done
+
+echo ""
+echo "Final status:"
+if ! FINAL_STATUS=$(pgroll status --postgres-url "$PGROLL_URL" 2>&1); then
+    echo "ERROR: Unable to read final pgroll migration status: $(summarize_output "$FINAL_STATUS")"
+    exit 1
+fi
+echo "$FINAL_STATUS"
+
+FINAL_VERSION=$(json_string_field "$FINAL_STATUS" "version")
+FINAL_STATE=$(json_string_field "$FINAL_STATUS" "status")
+if [ "$FINAL_VERSION" != "$LATEST_MIGRATION_NAME" ] || [ "$FINAL_STATE" != "Complete" ]; then
+    echo ""
+    echo "ERROR: Expected migration ${LATEST_MIGRATION_NAME} to be Complete; got version='${FINAL_VERSION}' status='${FINAL_STATE}'."
+    exit 1
+fi
 
 # --- Step 6: Create versioned schema with views ---
 if [ "$TARGET_SCHEMA" != "public" ]; then
     echo ""
     echo "Step 6: Creating versioned schema ${TARGET_SCHEMA}..."
-    run_psql "CREATE SCHEMA IF NOT EXISTS ${TARGET_SCHEMA};"
-    run_psql "DO \$\$ DECLARE tbl RECORD; BEGIN FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP EXECUTE format('CREATE OR REPLACE VIEW ${TARGET_SCHEMA}.%I AS SELECT * FROM public.%I', tbl.tablename, tbl.tablename); END LOOP; END \$\$;"
+    if ! OUTPUT=$(run_psql "CREATE SCHEMA IF NOT EXISTS ${TARGET_SCHEMA};"); then
+        echo "ERROR: Unable to create schema ${TARGET_SCHEMA}: $(summarize_output "$OUTPUT")"
+        exit 1
+    fi
+    if ! OUTPUT=$(run_psql "DO \$\$ DECLARE tbl RECORD; BEGIN FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP EXECUTE format('CREATE OR REPLACE VIEW ${TARGET_SCHEMA}.%I AS SELECT * FROM public.%I', tbl.tablename, tbl.tablename); END LOOP; END \$\$;"); then
+        echo "ERROR: Unable to create views in ${TARGET_SCHEMA}: $(summarize_output "$OUTPUT")"
+        exit 1
+    fi
     echo "  Created"
 fi
 
-echo ""
-echo "Final status:"
-pgroll status --postgres-url "$PGROLL_URL"
 echo ""
 echo "Done."

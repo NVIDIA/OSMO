@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+set -uo pipefail
+
+command="$1"
+case "$command" in
+    init)
+        exit 0
+        ;;
+    status)
+        status_count_file="${MOCK_STATE_DIR}/status_count"
+        status_count=0
+        if [ -f "$status_count_file" ]; then
+            status_count=$(<"$status_count_file")
+        fi
+        printf '%s\n' "$((status_count + 1))" > "$status_count_file"
+
+        if [ "$status_count" -eq 0 ]; then
+            version="$MOCK_INITIAL_VERSION"
+            state="$MOCK_INITIAL_STATE"
+        else
+            version="$MOCK_FINAL_VERSION"
+            state="$MOCK_FINAL_STATE"
+        fi
+        printf '{\n  "schema": "public",\n  "version": "%s",\n  "status": "%s"\n}\n' "$version" "$state"
+        ;;
+    complete)
+        exit 1
+        ;;
+    start)
+        basename "$2" >> "${MOCK_STATE_DIR}/started_migrations"
+        if [ "$MOCK_START_RESULT" = "success" ]; then
+            exit 0
+        fi
+        printf '\033[30;101m ERROR \033[0m Failed to start migration\n' >&2
+        exit 1
+        ;;
+    *)
+        echo "Unexpected pgroll command: $command" >&2
+        exit 1
+        ;;
+esac

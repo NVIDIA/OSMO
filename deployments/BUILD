@@ -15,3 +15,13 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+
+sh_test(
+    name = "run_migrations_test",
+    srcs = ["tests/migrations/run_migrations_test.sh"],
+    data = [
+        "//deployments/charts:service",
+        "tests/migrations/mock_bin/pgroll",
+        "tests/migrations/mock_bin/psql",
+    ],
+)
