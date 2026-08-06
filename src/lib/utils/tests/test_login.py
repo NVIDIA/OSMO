@@ -493,6 +493,25 @@ class AuthorizationCodeLoginTests(unittest.TestCase):
 
         self.assertIn('invalid_grant', str(context.exception))
 
+    def test_rejects_token_endpoint_redirect(self):
+        token_response = _FakeResponse(status_code=307,
+                                       text='redirected to http://collector.invalid')
+        with mock.patch('src.lib.utils.login.requests.post',
+                        return_value=token_response) as mock_post:
+            with self.assertRaises(osmo_errors.OSMOServerError):
+                login.authorization_code_login(
+                    url='https://osmo.example.com',
+                    token_endpoint='https://idp.example.com/token',
+                    client_id='cli-client',
+                    authorization_code='authorization-code',
+                    code_verifier='code-verifier',
+                    redirect_uri='http://localhost:49152',
+                    expected_nonce='expected-nonce',
+                    user_agent=None,
+                )
+
+        self.assertFalse(mock_post.call_args.kwargs['allow_redirects'])
+
     def test_missing_id_token_raises(self):
         token_response = _FakeResponse(status_code=200, json_body={
             'access_token': 'api-access-token',
@@ -724,6 +743,52 @@ class RefreshIdTokenTests(unittest.TestCase):
         self.assertIn('re-login', str(context.exception))
         self.assertEqual(storage.id_token, expired_token)
         self.assertEqual(storage.refresh_token, 'old-refresh')
+
+    def test_oauth_flow_rejects_insecure_refresh_url_without_posting(self):
+        expired_token = _make_jwt({'exp': int(time.time()) - 60})
+        storage = login.TokenLoginStorage(
+            id_token=expired_token,
+            refresh_token='old-refresh',
+            refresh_url='http://idp.example.com/token',
+            client_id='storage-client',
+        )
+
+        with mock.patch('src.lib.utils.login.requests.post') as mock_post:
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                login.refresh_id_token(
+                    config=login.LoginConfig(),
+                    user_agent=None,
+                    token_login_storage=storage,
+                    osmo_token=False,
+                )
+
+        self.assertIn('token endpoint must use HTTPS', str(context.exception))
+        mock_post.assert_not_called()
+
+    def test_oauth_flow_rejects_refresh_redirect(self):
+        expired_token = _make_jwt({'exp': int(time.time()) - 60})
+        storage = login.TokenLoginStorage(
+            id_token=expired_token,
+            refresh_token='old-refresh',
+            refresh_url='https://idp.example.com/token',
+            client_id='storage-client',
+        )
+        refresh_response = _FakeResponse(
+            status_code=308,
+            text='redirected to http://collector.invalid',
+        )
+
+        with mock.patch('src.lib.utils.login.requests.post',
+                        return_value=refresh_response) as mock_post:
+            with self.assertRaises(osmo_errors.OSMOServerError):
+                login.refresh_id_token(
+                    config=login.LoginConfig(),
+                    user_agent=None,
+                    token_login_storage=storage,
+                    osmo_token=False,
+                )
+
+        self.assertFalse(mock_post.call_args.kwargs['allow_redirects'])
 
     def test_osmo_token_flow_posts_token_json(self):
         expired_token = _make_jwt({'exp': int(time.time()) - 60})

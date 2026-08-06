@@ -287,7 +287,7 @@ def authorization_code_login(url: str, token_endpoint: str, client_id: str,
         'code_verifier': code_verifier,
         'redirect_uri': redirect_uri,
         'scope': DEFAULT_OAUTH_SCOPE,
-    }, timeout=TIMEOUT, headers=headers)
+    }, timeout=TIMEOUT, headers=headers, allow_redirects=False)
     if result.status_code != 200:
         raise osmo_errors.OSMOServerError(
             f'Failed to exchange authorization code: {result.text}')
@@ -368,11 +368,12 @@ def refresh_id_token(config: LoginConfig, user_agent: str | None,
                                json={'token': token_login_storage.refresh_token},
                                timeout=TIMEOUT, headers=headers)
     else:
+        validate_oauth_endpoint(token_endpoint, 'token endpoint')
         result = requests.post(token_endpoint, data={
             'grant_type': 'refresh_token',
             'refresh_token': token_login_storage.refresh_token,
             'client_id': token_login_storage.client_id or config.client_id,
-        }, timeout=TIMEOUT, headers=headers)
+        }, timeout=TIMEOUT, headers=headers, allow_redirects=False)
 
     if result.status_code >= 300:
         raise osmo_errors.OSMOServerError('Unable to refresh login token (status code ' \
@@ -401,4 +402,3 @@ def parse_allowed_pools(allowed_pools_header: str | None) -> List[str]:
     if not allowed_pools_header:
         return []
     return [pool.strip() for pool in allowed_pools_header.split(',') if pool.strip()]
-
