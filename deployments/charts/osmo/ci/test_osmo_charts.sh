@@ -18,7 +18,7 @@ fail() {
     exit 1
 }
 
-for required_command in awk grep helm rg tar; do
+for required_command in awk grep helm tar; do
     command -v "$required_command" >/dev/null || \
         fail "required command not found: $required_command"
 done
@@ -47,16 +47,16 @@ require_occurrences() {
         fail "expected '$expected' $count times in $file, found $actual"
 }
 
-require_no_rg_matches() {
+require_no_grep_matches() {
     local output_file=$1
     local failure_message=$2
     shift 2
-    if rg "$@" >"$output_file"; then
+    if grep -ERn -- "$@" >"$output_file"; then
         cat "$output_file" >&2
         fail "$failure_message"
     else
         local status=$?
-        [[ "$status" -eq 1 ]] || fail "rg failed with status $status"
+        [[ "$status" -eq 1 ]] || fail "grep failed with status $status"
     fi
 }
 
@@ -99,15 +99,15 @@ require_no_deployment() {
 }
 
 require_clean_osmo_sources() {
-    require_no_rg_matches "$TEST_DIRECTORY/legacy-template-values.out" \
-        "osmo templates still reference legacy values" -n \
+    require_no_grep_matches "$TEST_DIRECTORY/legacy-template-values.out" \
+        "osmo templates still reference legacy values" \
         '\.Values\.(global|controlPlane|components|services\.(configFile|configs|defaultAdmin|localstackS3|postgres|redis))' \
         "$CHARTS_ROOT/osmo/templates"
-    require_no_rg_matches "$TEST_DIRECTORY/legacy-external-values.out" \
-        "osmo templates still reference the legacy external values block" -n \
-        '\.Values\.external\b' "$CHARTS_ROOT/osmo/templates"
-    require_no_rg_matches "$TEST_DIRECTORY/legacy-default-values.out" \
-        "osmo defaults still expose legacy values" -n \
+    require_no_grep_matches "$TEST_DIRECTORY/legacy-external-values.out" \
+        "osmo templates still reference the legacy external values block" \
+        '\.Values\.external([^[:alnum:]_]|$)' "$CHARTS_ROOT/osmo/templates"
+    require_no_grep_matches "$TEST_DIRECTORY/legacy-default-values.out" \
+        "osmo defaults still expose legacy values" \
         '^(global|controlPlane|components):|^    (imageName|imageTag|imagePullPolicy|serviceAccountName):' \
         "$CHARTS_ROOT/osmo/values.yaml"
     require_not_contains "$CHARTS_ROOT/osmo/Chart.yaml" "dependencies:"
