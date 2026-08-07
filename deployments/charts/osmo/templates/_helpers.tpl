@@ -211,12 +211,12 @@ data:
 {{- end -}}
 
 {{- define "osmo.v1.external-ca-volume-mounts" -}}
-{{- if .Values.external.postgresql.tls.enabled }}
+{{- if .Values.externalDependencies.postgresql.tls.enabled }}
 - name: postgresql-ca
   mountPath: /etc/osmo/ca/postgresql
   readOnly: true
 {{- end }}
-{{- if .Values.external.valkey.tls.enabled }}
+{{- if .Values.externalDependencies.valkey.tls.enabled }}
 - name: valkey-ca
   mountPath: /etc/osmo/ca/valkey
   readOnly: true
@@ -224,20 +224,20 @@ data:
 {{- end -}}
 
 {{- define "osmo.v1.external-ca-volumes" -}}
-{{- if .Values.external.postgresql.tls.enabled }}
+{{- if .Values.externalDependencies.postgresql.tls.enabled }}
 - name: postgresql-ca
   secret:
-    secretName: {{ .Values.external.postgresql.tls.caExistingSecret }}
+    secretName: {{ .Values.externalDependencies.postgresql.tls.caExistingSecret }}
     items:
-    - key: {{ .Values.external.postgresql.tls.caKey }}
+    - key: {{ .Values.externalDependencies.postgresql.tls.caKey }}
       path: ca.crt
 {{- end }}
-{{- if .Values.external.valkey.tls.enabled }}
+{{- if .Values.externalDependencies.valkey.tls.enabled }}
 - name: valkey-ca
   secret:
-    secretName: {{ .Values.external.valkey.tls.caExistingSecret }}
+    secretName: {{ .Values.externalDependencies.valkey.tls.caExistingSecret }}
     items:
-    - key: {{ .Values.external.valkey.tls.caKey }}
+    - key: {{ .Values.externalDependencies.valkey.tls.caKey }}
       path: ca.crt
 {{- end }}
 {{- end -}}
@@ -257,11 +257,11 @@ data:
       name: {{ . }}
       key: {{ $.Values.secrets.valkey.keys.password }}
 {{- end }}
-{{- if .Values.external.postgresql.tls.enabled }}
+{{- if .Values.externalDependencies.postgresql.tls.enabled }}
 - name: PGSSLROOTCERT
   value: /etc/osmo/ca/postgresql/ca.crt
 {{- end }}
-{{- if .Values.external.valkey.tls.enabled }}
+{{- if .Values.externalDependencies.valkey.tls.enabled }}
 - name: SSL_CERT_FILE
   value: /etc/osmo/ca/valkey/ca.crt
 {{- end }}

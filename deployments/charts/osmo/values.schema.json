@@ -58,7 +58,7 @@
       },
       "required": ["mode"]
     },
-    "external": {
+    "externalDependencies": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -107,7 +107,7 @@
       }
     }
   },
-  "required": ["planes", "embeddedDependencies", "image", "exposure", "external", "secrets", "services", "gateway"],
+  "required": ["planes", "embeddedDependencies", "externalDependencies", "image", "exposure", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",

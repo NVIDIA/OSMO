@@ -68,12 +68,12 @@ spec:
         - name: POSTGRES_PASSWORD
           value: {{ .Values.secrets.postgresql.existingSecret }}
         - name: POSTGRES_DB
-          value: {{ .Values.external.postgresql.database}}
+          value: {{ .Values.externalDependencies.postgresql.database}}
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
         ports:
         - name: postgres
-          containerPort: {{ .Values.external.postgresql.port }}
+          containerPort: {{ .Values.externalDependencies.postgresql.port }}
           protocol: TCP
         volumeMounts:
         - mountPath: /var/lib/postgresql/data
@@ -95,7 +95,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.external.postgresql.host }}
+  name: {{ .Values.externalDependencies.postgresql.host }}
   labels:
     app: postgres
   annotations:
@@ -105,7 +105,7 @@ spec:
   type: NodePort
   {{ end }}
   ports:
-  - port: {{ .Values.external.postgresql.port }}
+  - port: {{ .Values.externalDependencies.postgresql.port }}
     {{ if .Values.embeddedDependencies.postgresql.enableNodePort }}
     nodePort: {{ .Values.embeddedDependencies.postgresql.nodePort }}
     {{ end }}

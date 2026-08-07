@@ -19,10 +19,10 @@ Gateway API exposure, and Ingress exposure are rejected until implemented.
 
 - `planes` selects the OSMO plane.
 - `embeddedDependencies` selects chart-owned supporting systems.
+- `externalDependencies` contains typed connection information.
 - `services` configures OSMO application services.
 - `gateway` configures Envoy and gateway-adjacent services.
 - `exposure` describes the public URL and edge ownership.
-- `external` contains typed connection information.
 - `secrets` contains typed references to operator-owned Kubernetes Secrets.
 - `configuration` contains shared OSMO domain configuration.
 - `image`, `imagePullSecrets`, `commonLabels`, `commonAnnotations`, and
@@ -42,7 +42,7 @@ exposure:
   mode: external
   baseUrl: https://osmo.example.com
 
-external:
+externalDependencies:
   postgresql:
     host: postgresql.example.com
     port: 5432
@@ -97,7 +97,7 @@ may reference a separate Secret. The defaults expect these keys:
 
 The chart only reads operator-owned Secrets. It does not create, mutate, or
 delete them. When PostgreSQL or Valkey uses a private CA, enable TLS in the
-matching `external` block and reference the CA Secret there.
+matching `externalDependencies` block and reference the CA Secret there.
 
 ## Exposure
 

@@ -303,7 +303,7 @@ spec:
           - --set-xauthrequest=true
           - --set-authorization-header=true
           - --pass-access-token={{ $gw.oauth2Proxy.passAccessToken }}
-          {{- $redisHost := $.Values.external.valkey.host }}
+          {{- $redisHost := $.Values.externalDependencies.valkey.host }}
           {{- if $gw.oauth2Proxy.redisSessionStore }}
           - --session-store-type=redis
           - --redis-connection-url={{ if $gw.oauth2Proxy.redis.tlsEnabled }}rediss{{ else }}redis{{ end }}://{{ $redisHost }}:{{ $gw.oauth2Proxy.redis.port | default 6379 }}/{{ $gw.oauth2Proxy.redis.dbNumber | default 0 }}
@@ -454,10 +454,10 @@ spec:
           {{- if .Values.configuration.enabled }}
           - "--roles-file=/etc/osmo/configs/config.yaml"
           {{- else }}
-          - "--postgres-host={{ .Values.external.postgresql.host }}"
-          - "--postgres-port={{ .Values.external.postgresql.port }}"
-          - "--postgres-database={{ .Values.external.postgresql.database }}"
-          - "--postgres-user={{ .Values.external.postgresql.username }}"
+          - "--postgres-host={{ .Values.externalDependencies.postgresql.host }}"
+          - "--postgres-port={{ .Values.externalDependencies.postgresql.port }}"
+          - "--postgres-database={{ .Values.externalDependencies.postgresql.database }}"
+          - "--postgres-user={{ .Values.externalDependencies.postgresql.username }}"
           - "--postgres-ssl-mode={{ $gw.authz.postgres.sslMode }}"
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
@@ -471,7 +471,7 @@ spec:
         env:
           {{- include "osmo.v1.extra-env" $gw.authz | nindent 10 }}
           {{- include "osmo.v1.connection-secret-env" . | nindent 10 }}
-        {{- if or .Values.configuration.enabled $gw.authz.volumeMounts .Values.external.postgresql.tls.enabled .Values.external.valkey.tls.enabled }}
+        {{- if or .Values.configuration.enabled $gw.authz.volumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
           {{- if .Values.configuration.enabled }}
           - name: configs
@@ -621,7 +621,7 @@ spec:
         - name: REDIS_SOCKET_TYPE
           value: tcp
         - name: REDIS_URL
-          value: {{ .Values.external.valkey.host }}:{{ .Values.external.valkey.port }}
+          value: {{ .Values.externalDependencies.valkey.host }}:{{ .Values.externalDependencies.valkey.port }}
         - name: REDIS_TLS
           value: {{ $gw.rateLimit.redis.tlsEnabled | default true | quote }}
         - name: USE_STATSD
