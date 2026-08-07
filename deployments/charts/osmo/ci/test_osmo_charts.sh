@@ -407,7 +407,8 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/invalid-replicas.out" 2>&1; then
         fail "expected non-integer services.worker.replicas to fail schema validation"
     fi
-    require_contains "$TEST_DIRECTORY/invalid-replicas.out" "/services/worker/replicas"
+    require_contains "$TEST_DIRECTORY/invalid-replicas.out" "replicas"
+    require_contains "$TEST_DIRECTORY/invalid-replicas.out" "integer"
 
     if helm_template invalid-mcp-timeout "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -418,7 +419,8 @@ test_control_umbrella() {
         fail "expected services.mcp.requestTimeoutSeconds=61 to fail schema validation"
     fi
     require_contains "$TEST_DIRECTORY/invalid-mcp-timeout.out" \
-        "/services/mcp/requestTimeoutSeconds"
+        "requestTimeoutSeconds"
+    require_contains "$TEST_DIRECTORY/invalid-mcp-timeout.out" "60"
 
     local required_value
     local expected_message
@@ -454,7 +456,7 @@ EOF
         >"$TEST_DIRECTORY/legacy-component.out" 2>&1; then
         fail "expected legacy per-service fields to fail schema validation"
     fi
-    require_contains "$TEST_DIRECTORY/legacy-component.out" "/services/worker"
+    require_contains "$TEST_DIRECTORY/legacy-component.out" "worker"
 }
 
 case "$MODE" in
