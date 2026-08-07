@@ -10,62 +10,42 @@ storage plus an existing Kubernetes Secret. It does not render the service
 chart's embedded PostgreSQL, Redis, or LocalStack resources and does not use
 Vault-agent annotations.
 
-## Local kind installation
+## Control-plane installation
 
-Install the test-only dependencies first, then layer the control and kind
-profiles in normal Helm precedence order:
+The control profile requires operator-managed PostgreSQL, Redis or Valkey, and
+S3-compatible object storage. Supply environment-specific endpoints and Secret
+references in a separate values file, then layer it after the profile:
 
 ```bash
 helm dependency build deployments/charts/osmo
 
-helm upgrade --install osmo-deps deployments/charts/osmo-deps \
-  --namespace osmo \
-  --create-namespace \
-  --wait \
-  --wait-for-jobs
-
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
+  --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
-  -f deployments/charts/osmo/profiles/kind.yaml \
+  -f <environment-values.yaml> \
   --wait \
   --timeout 25m
 ```
 
-The kind profile uses the public
-`nvcr.io/nvidia/osmo/<component>:6.3.1` images. It disables OAuth2 Proxy and
-authorization and asks Envoy to inject a development administrator identity.
-Use it only on an isolated local cluster.
-
-Verify the gateway through a port-forward:
-
-```bash
-kubectl --context kind-<cluster> -n osmo port-forward \
-  service/osmo-gateway 9000:80
-
-curl -fsS http://127.0.0.1:9000/api/version
-curl -fsS \
-  -H 'x-osmo-user: admin' \
-  -H 'x-osmo-roles: osmo-admin' \
-  -H 'x-osmo-allowed-pools: default' \
-  'http://127.0.0.1:9000/api/workflow?limit=10&all_pools=true'
-```
-
-Replace `<cluster>` with the local kind cluster name only after confirming it
-with `kind get clusters`. Never use these commands against a non-kind context.
+At minimum, the environment values configure
+`controlPlane.services.postgres.serviceName`,
+`controlPlane.services.redis.serviceName`, and the workflow data, log, and app
+storage entries beneath `controlPlane.services.configs.workflow`. Override the
+Secret name consistently if the installation does not use
+`osmo-control-secrets`.
 
 ## Existing Secret contract
 
-The generic split-control profile expects `osmo-control-secrets`; the kind
-overlay changes this to `osmo-deps-credentials`. The Secret supplies:
+The split-control profile expects an operator-owned Secret named
+`osmo-control-secrets`. It supplies:
 
 | Key | Consumer |
 | --- | --- |
 | `db-password` | PostgreSQL clients |
 | `redis-password` | Valkey clients |
 | `mek.yaml` | OSMO encryption-key configuration |
-| `admin-password` | Local development administrator |
-| `object-storage.yaml` | S3 access key fields loaded by the config watcher |
+| Environment-defined key | Object-storage credentials loaded by the config watcher |
 
 External installations override the host names and Secret references beneath
 `controlPlane.services`. The referenced Secret remains operator-owned; the

@@ -29,6 +29,11 @@ controlPlane:
       enabled: true
       secretRefs:
         - secretName: osmo-control-secrets
+      service:
+        service_base_url: http://osmo-gateway
+      workflow:
+        # The public 6.3.1 service image predates workflow label policies.
+        labels_config: null
     defaultAdmin:
       enabled: false
     ui:

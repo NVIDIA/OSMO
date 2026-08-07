@@ -33,18 +33,12 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-filegroup(
-    name = "osmo-deps",
-    srcs = glob(["osmo-deps/**"]),
-    visibility = ["//visibility:public"],
-)
-
 sh_test(
     name = "test_osmo_charts",
     srcs = ["tests/test_osmo_charts.sh"],
     data = [
         ":osmo",
-        ":osmo-deps",
         ":service",
+        "tests/control-external-values.yaml",
     ],
 )

@@ -82,23 +82,6 @@ test_service_secret_references() {
     require_not_contains "$rendered" "name: redis-secret"
 }
 
-test_dependency_chart() {
-    local rendered="$TEST_DIRECTORY/osmo-deps.yaml"
-    helm template osmo-deps "$CHARTS_ROOT/osmo-deps" >"$rendered"
-
-    require_deployment "$rendered" "osmo-deps-postgresql"
-    require_deployment "$rendered" "osmo-deps-valkey"
-    require_deployment "$rendered" "osmo-deps-rustfs"
-    require_contains "$rendered" "name: osmo-deps-credentials"
-    require_contains "$rendered" "db-password:"
-    require_contains "$rendered" "redis-password:"
-    require_contains "$rendered" "access_key_id:"
-    require_contains "$rendered" "access_key:"
-    require_contains "$rendered" 'admin-password: "0123456789012345678901234567890123456789012"'
-    require_contains "$rendered" "mek.yaml:"
-    require_contains "$rendered" "name: osmo-deps-buckets"
-}
-
 test_control_umbrella() {
     local charts_copy="$TEST_DIRECTORY/charts"
     local rendered="$TEST_DIRECTORY/osmo.yaml"
@@ -109,7 +92,7 @@ test_control_umbrella() {
 
     helm template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$charts_copy/osmo/profiles/kind.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
         >"$rendered"
 
     require_deployment "$rendered" "osmo-service"
@@ -125,11 +108,12 @@ test_control_umbrella() {
     require_no_deployment "$rendered" "localstack-s3"
     require_no_deployment "$rendered" "osmo-backend-listener"
     require_no_deployment "$rendered" "osmo-backend-worker"
-    require_contains "$rendered" "osmo-deps-postgresql"
-    require_contains "$rendered" "osmo-deps-valkey"
-    require_contains "$rendered" "secretName: osmo-deps-credentials"
-    require_contains "$rendered" "http://osmo-deps-rustfs:9000"
+    require_contains "$rendered" "external-postgresql"
+    require_contains "$rendered" "external-valkey"
+    require_contains "$rendered" "secretName: external-control-secrets"
+    require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
+    require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
     require_not_contains "$rendered" "vault.hashicorp.com"
     require_not_contains "$rendered" "labels_config:"
@@ -147,15 +131,11 @@ case "$MODE" in
     service)
         test_service_secret_references
         ;;
-    deps)
-        test_dependency_chart
-        ;;
     osmo)
         test_control_umbrella
         ;;
     all)
         test_service_secret_references
-        test_dependency_chart
         test_control_umbrella
         ;;
     *)
