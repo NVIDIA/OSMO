@@ -7,6 +7,7 @@ import datetime
 import os
 from pathlib import Path
 import secrets
+import shutil
 import tempfile
 import types
 import unittest
@@ -20,12 +21,11 @@ class BackendSecretAuthenticatorTest(unittest.TestCase):
     """Tests projected Secret loading, validation, and rotation."""
 
     def setUp(self) -> None:
-        self.temporary_directory = tempfile.TemporaryDirectory()
-        self.token_directory = Path(self.temporary_directory.name)
+        self.token_directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.token_directory)
 
     def tearDown(self) -> None:
         backend_secret_auth.configure(None)
-        self.temporary_directory.cleanup()
 
     @staticmethod
     def _new_token() -> str:
