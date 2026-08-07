@@ -235,7 +235,17 @@ jobs:
           fi
 
           TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
+          # Splice TESTBOT_RULES.md in rather than letting the prompt point at
+          # it. TESTBOT_PROMPT.md used to say "Read TESTBOT_RULES.md for test
+          # quality rules ... and verification steps", and on run/30499270675
+          # the generator never opened it: 23 Read calls, none for that file.
+          # It therefore missed both "test PUBLIC behavior only" and the lint
+          # step, and PR #1253 landed with 9 pylint errors. An instruction
+          # nothing verifies is followed only sometimes — the targets below
+          # are inlined for the same reason.
           PROMPT="$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
+
+          $(cat src/scripts/testbot/TESTBOT_RULES.md)
 
           Coverage targets:
           $TARGETS"

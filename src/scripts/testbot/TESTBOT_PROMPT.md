@@ -1,10 +1,14 @@
 # Testbot Generate Instructions
 
 You are generating tests for the OSMO codebase to improve code coverage.
-Read `AGENTS.md` at the repo root for project coding standards (import rules,
-naming conventions, type annotations, assertion style).
-Read `src/scripts/testbot/TESTBOT_RULES.md` for test quality rules, language
-conventions, and verification steps.
+
+The contents of `src/scripts/testbot/TESTBOT_RULES.md` — test quality rules,
+language conventions, and the verification steps you must run before
+finishing — are appended to this prompt by the workflow. They are not
+optional background reading; they are part of your instructions. Project
+coding standards (import rules, naming, type annotations, assertion style)
+come from `AGENTS.md`, which the repo's root `CLAUDE.md` already imports into
+your context.
 
 ## Primary Objective
 

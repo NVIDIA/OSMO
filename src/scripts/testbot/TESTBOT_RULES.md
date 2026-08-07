@@ -76,15 +76,31 @@ When a test fails:
 > wasted turns on run/26536045087. `Read` accepts absolute paths under
 > `bazel-out/` and `bazel-testlogs/`.
 
-1. **Run the test**:
-   - Python/Go: `bazel test <target>` (derive the Bazel target from the BUILD file).
-     If `bazel test` reports `ERROR: No test targets were found, yet testing
+1. **Run the test with the package pattern, not the single target**:
+   - Python/Go: `bazel test //<package>:all` (derive the package from the
+     directory containing the BUILD file).
+
+     Use `:all`, **not** `bazel test //<package>:<target>`. `osmo_py_test`
+     generates a sibling `<target>-pylint` test alongside every test target
+     (see `bzl/py.bzl`), and PR CI runs it. Naming the single target runs the
+     test but *not* the lint check, so it passes while CI fails — that is
+     exactly how PR #1253 shipped with 9 pylint errors. `:all` runs both.
+
+     If bazel reports `ERROR: No test targets were found, yet testing
      was requested`, the test file isn't wired into BUILD — see "BUILD wiring"
      below before retrying.
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
-2. If the test fails, read the error and fix. Retry up to 3 times.
-3. **Verify code style** (same checks as PR CI). Fix and re-verify until clean:
-   - Python: `bazel test <target>-pylint` (append `-pylint` to the test target name)
+2. If a test *or* a `-pylint` target fails, read the error and fix. Retry up
+   to 3 times. Two pylint failures are common in generated tests:
+   - `W0212 protected-access` — you called an underscore-prefixed member,
+     which the "Test PUBLIC behavior only" rule above already forbids. Test
+     through the public entry point instead. If a private function genuinely
+     needs direct coverage, add `# pylint: disable=protected-access` to the
+     test class, matching the existing test modules that do this.
+   - `C2801 unnecessary-dunder-call` — use `with <cm>:` rather than calling
+     `__enter__()` directly.
+3. **Remaining style checks** (same as PR CI). Fix and re-verify until clean:
+   - Python: already covered by step 1 — no separate command needed.
    - TypeScript: `pnpm --dir src/ui validate` (runs type-check, lint,
      format:check, tests, and build). If formatting fails, run
      `pnpm --dir src/ui format` to auto-fix.
