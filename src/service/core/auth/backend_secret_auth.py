@@ -55,9 +55,10 @@ class BackendSecretAuthenticator:
 
     def __init__(self, token_directory: str):
         self._token_directory = Path(token_directory)
-        self._cached_projection_state: \
-            tuple[tuple[str, str, str, int, int], ...] | None = None
-        self._cached_candidates: tuple[_BackendTokenCandidate, ...] = ()
+        self._cache: tuple[
+            tuple[tuple[str, str, str, int, int], ...] | None,
+            tuple[_BackendTokenCandidate, ...],
+        ] = (None, ())
 
     def validate(self) -> None:
         """Validate the currently projected credential generation."""
@@ -78,12 +79,12 @@ class BackendSecretAuthenticator:
     def _load_candidates(self) -> list[_BackendTokenCandidate]:
         """Return parsed credentials, reloading after a projection change."""
         projection_state, credential_generations = self._read_projection_state()
-        if projection_state == self._cached_projection_state:
-            return list(self._cached_candidates)
+        cached_projection_state, cached_candidates = self._cache
+        if projection_state == cached_projection_state:
+            return list(cached_candidates)
 
         candidates = self._parse_candidates(credential_generations)
-        self._cached_projection_state = projection_state
-        self._cached_candidates = tuple(candidates)
+        self._cache = (projection_state, tuple(candidates))
         return candidates
 
     def _read_projection_state(
