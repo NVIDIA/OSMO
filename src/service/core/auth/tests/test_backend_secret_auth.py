@@ -75,43 +75,95 @@ class BackendSecretAuthenticatorTest(unittest.TestCase):
 
         self.assertIsNone(authenticator.authenticate(non_ascii_token))
 
-    def test_rejects_missing_current_token(self) -> None:
+    def test_ignores_missing_token_without_disabling_valid_credential(self) -> None:
+        valid_token = self._new_token()
+        self._write_credential('valid', valid_token)
         (self.token_directory / 'default').mkdir()
         authenticator = backend_secret_auth.BackendSecretAuthenticator(
             str(self.token_directory))
 
-        with self.assertRaisesRegex(
-                backend_secret_auth.BackendTokenConfigurationError, 'missing key token'):
+        with self.assertLogs(backend_secret_auth.logger, level='WARNING') as logs:
             authenticator.validate()
 
-    def test_rejects_invalid_token_length(self) -> None:
+        self.assertIsNotNone(authenticator.authenticate(valid_token))
+        self.assertIn('missing key token', '\n'.join(logs.output))
+
+    def test_ignores_invalid_token_length(self) -> None:
         self._write_credential('default', 'too-short')
         authenticator = backend_secret_auth.BackendSecretAuthenticator(
             str(self.token_directory))
 
-        with self.assertRaisesRegex(
-                backend_secret_auth.BackendTokenConfigurationError, 'invalid length'):
+        with self.assertLogs(backend_secret_auth.logger, level='WARNING') as logs:
             authenticator.validate()
 
-    def test_rejects_duplicate_values(self) -> None:
+        self.assertIsNone(authenticator.authenticate(self._new_token()))
+        self.assertIn('invalid length', '\n'.join(logs.output))
+
+    def test_ignores_credential_with_duplicate_values(self) -> None:
         token = self._new_token()
         self._write_credential('default', token, token)
         authenticator = backend_secret_auth.BackendSecretAuthenticator(
             str(self.token_directory))
 
-        with self.assertRaisesRegex(
-                backend_secret_auth.BackendTokenConfigurationError, 'Duplicate backend token'):
+        with self.assertLogs(backend_secret_auth.logger, level='WARNING') as logs:
             authenticator.validate()
 
-    def test_rejects_invalid_credential_name(self) -> None:
+        self.assertIsNone(authenticator.authenticate(token))
+        self.assertIn('Duplicate backend token', '\n'.join(logs.output))
+
+    def test_ignores_invalid_credential_name(self) -> None:
         self._write_credential('INVALID_NAME', self._new_token())
         authenticator = backend_secret_auth.BackendSecretAuthenticator(
             str(self.token_directory))
 
-        with self.assertRaisesRegex(
-                backend_secret_auth.BackendTokenConfigurationError,
-                'Invalid backend credential name'):
+        with self.assertLogs(backend_secret_auth.logger, level='WARNING') as logs:
             authenticator.validate()
+
+        self.assertIn('Invalid backend credential name', '\n'.join(logs.output))
+
+    def test_ignores_broken_projection_without_disabling_valid_credential(self) -> None:
+        valid_token = self._new_token()
+        self._write_credential('valid', valid_token)
+        broken_directory = self.token_directory / 'broken'
+        broken_directory.mkdir()
+        os.symlink('missing-generation', broken_directory / '..data')
+        authenticator = backend_secret_auth.BackendSecretAuthenticator(
+            str(self.token_directory))
+
+        with self.assertLogs(backend_secret_auth.logger, level='WARNING') as logs:
+            authenticator.validate()
+
+        self.assertIsNotNone(authenticator.authenticate(valid_token))
+        self.assertIn('invalid projection', '\n'.join(logs.output))
+
+    def test_omits_all_credentials_sharing_a_token(self) -> None:
+        duplicate_token = self._new_token()
+        unique_token = self._new_token()
+        self._write_credential('one', duplicate_token)
+        self._write_credential('two', duplicate_token)
+        self._write_credential('three', unique_token)
+        authenticator = backend_secret_auth.BackendSecretAuthenticator(
+            str(self.token_directory))
+
+        with self.assertLogs(backend_secret_auth.logger, level='WARNING'):
+            authenticator.validate()
+
+        self.assertIsNone(authenticator.authenticate(duplicate_token))
+        self.assertIsNotNone(authenticator.authenticate(unique_token))
+
+    def test_caches_candidates_until_projection_changes(self) -> None:
+        token = self._new_token()
+        self._write_credential('default', token)
+        authenticator = backend_secret_auth.BackendSecretAuthenticator(
+            str(self.token_directory))
+
+        with mock.patch.object(
+                authenticator, '_parse_candidates',
+                wraps=authenticator._parse_candidates) as parse_candidates:  # pylint: disable=protected-access
+            self.assertIsNotNone(authenticator.authenticate(token))
+            self.assertIsNotNone(authenticator.authenticate(token))
+
+        parse_candidates.assert_called_once()
 
     def test_observes_atomic_projected_secret_rotation(self) -> None:
         old_token = self._new_token()
@@ -173,7 +225,8 @@ class BackendSecretAuthServiceTest(unittest.TestCase):
                  auth_service.backend_secret_auth, 'authenticate', return_value=identity), \
              mock.patch.object(
                  auth_service.objects.AccessToken, 'validate_access_token') as validate_token:
-            result = auth_service._create_jwt_from_access_token(token)  # pylint: disable=protected-access
+            result = auth_service._create_jwt_from_access_token(  # pylint: disable=protected-access
+                token)
 
         self.assertEqual(result['token'], 'jwt')
         validate_token.assert_not_called()
@@ -208,9 +261,12 @@ class BackendSecretAuthServiceTest(unittest.TestCase):
              mock.patch.object(
                  auth_service.objects.AccessToken, 'get_roles_for_token',
                  return_value=['osmo-default']):
-            result = auth_service._create_jwt_from_access_token(token)  # pylint: disable=protected-access
+            with self.assertLogs(auth_service.logger, level='WARNING') as logs:
+                result = auth_service._create_jwt_from_access_token(  # pylint: disable=protected-access
+                    token)
 
         self.assertEqual(result['token'], 'jwt')
+        self.assertIn('projection unavailable', '\n'.join(logs.output))
         validate_token.assert_called_once_with(postgres, token)
         service_auth.create_idtoken_jwt.assert_called_once()
 

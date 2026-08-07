@@ -108,6 +108,10 @@ You can limit the token to specific roles using the ``--roles`` (or ``-r``) opti
    For service accounts, it's recommended to explicitly specify roles to follow the
    principle of least privilege.
 
+   Adding a role to a user does not expand an existing scoped token. Removed
+   roles are removed from existing tokens automatically. Rotate a scoped token
+   only when it must gain a newly assigned role.
+
 .. important::
 
    Save the token securely—it is only displayed once at creation time.
@@ -182,7 +186,8 @@ To rotate a token:
 
       $ osmo token set new-automation-token \
           --user svc-automation \
-          --expires-at 2028-01-01
+          --expires-at 2028-01-01 \
+          --roles osmo-user
 
 2. Update your systems to use the new token
 
@@ -285,7 +290,8 @@ Token Expired
 
    $ osmo token set new-token \
        --user svc-automation \
-       --expires-at 2028-01-01
+       --expires-at 2028-01-01 \
+       --roles osmo-user
 
 Permission Denied
 -----------------

@@ -563,6 +563,11 @@ services:
   ##
   backendApiTokens:
     enabled: false
+    ## Image used only by the managed-credential bootstrap hook. Override the
+    ## tag when a kubectl version closer to the target cluster is required.
+    bootstrap:
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
     ## Non-secret value used to trigger an API deployment rollout after an
     ## externally managed Secret changes.
     rolloutNonce: ""

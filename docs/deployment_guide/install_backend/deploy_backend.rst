@@ -81,7 +81,7 @@ the initial install:
            name: osmo-backend-token-default
 
 The backend operator can consume that Secret directly when it runs in the same
-namespace. A pre-install hook generates the credential inside Kubernetes; the
+namespace. A pre-install kubectl hook generates the credential inside Kubernetes; the
 token is not included in Helm output or release state. A pre-upgrade hook
 preserves and validates it, and fails rather than replacing a missing Secret.
 The Secret persists independently of Helm uninstall and rollback. This mode
