@@ -112,8 +112,8 @@ Create Kubernetes namespaces and secrets necessary for the backend deployment.
   :substitutions:
 
     # Create namespaces for osmo operator and osmo workflows
-    $ kubectl create namespace osmo-operator
-    $ kubectl create namespace osmo-workflows
+    $ kubectl --context <compute-context> create namespace osmo-operator
+    $ kubectl --context <compute-context> create namespace osmo-workflows
 
     # Stream the bootstrap Secret to the compute cluster without printing it.
     $ kubectl --context <control-context> get secret osmo-backend-token-default \
@@ -178,7 +178,8 @@ Deploy the backend operator:
    $ helm upgrade --install osmo-operator osmo/backend-operator \
      -f ./backend_operator_values.yaml \
      --version <insert-chart-version> \
-     --namespace osmo-operator
+     --namespace osmo-operator \
+     --kube-context <compute-context>
 
 Step 4: Validate Deployment
 ----------------------------

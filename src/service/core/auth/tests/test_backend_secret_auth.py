@@ -66,6 +66,15 @@ class BackendSecretAuthenticatorTest(unittest.TestCase):
 
         self.assertIsNotNone(authenticator.authenticate(token))
 
+    def test_non_ascii_request_token_does_not_raise(self) -> None:
+        token = self._new_token()
+        self._write_credential('default', token)
+        authenticator = backend_secret_auth.BackendSecretAuthenticator(
+            str(self.token_directory))
+        non_ascii_token = f'\N{LATIN SMALL LETTER E WITH ACUTE}{token[1:]}'
+
+        self.assertIsNone(authenticator.authenticate(non_ascii_token))
+
     def test_rejects_missing_current_token(self) -> None:
         (self.token_directory / 'default').mkdir()
         authenticator = backend_secret_auth.BackendSecretAuthenticator(

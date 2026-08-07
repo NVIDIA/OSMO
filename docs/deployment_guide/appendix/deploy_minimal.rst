@@ -37,7 +37,7 @@ The minimal OSMO deployment includes:
 * External PostgreSQL database (configurable)
 * External Redis cache (configurable)
 * Default admin authentication (no identity provider required)
-* Single namespace deployment
+* Dedicated service and backend-operator namespaces
 * Single replica per service
 * Minimal resource requirements
 
@@ -50,14 +50,16 @@ Prerequisites
 
 Refer to :ref:`prerequisites` for the setup of the Kubernetes cluster, PostgreSQL database, and Redis instance.
 
-Step 1: Create Namespace
-========================
+Step 1: Create Namespaces
+=========================
 
-Create a dedicated namespace to deploy OSMO service:
+Create dedicated namespaces for the OSMO service, backend operator, and workflows:
 
 .. code-block:: bash
 
    $ kubectl create namespace osmo-minimal
+   $ kubectl create namespace osmo-operator
+   $ kubectl create namespace osmo-workflows
 
 Step 2: Add Helm Repository
 ==================================
@@ -79,6 +81,20 @@ Create secret for database and redis passwords:
 
    $ kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo-minimal
    $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo-minimal
+
+Generate the backend bootstrap credential independently of the OSMO API and
+create matching Secrets for the service and backend operator:
+
+.. code-block:: bash
+
+   $ TOKEN_FILE=$(mktemp)
+   $ chmod 600 "$TOKEN_FILE"
+   $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
+   $ kubectl create secret generic osmo-operator-token \
+       --from-file=token="$TOKEN_FILE" --namespace osmo-minimal
+   $ kubectl create secret generic osmo-operator-token \
+       --from-file=token="$TOKEN_FILE" --namespace osmo-operator
+   $ rm -f "$TOKEN_FILE"
 
 Create the master encryption key (MEK) for database encryption:
 
@@ -223,6 +239,13 @@ Create the following values files for the minimal deployment:
     services:
       configFile:
         enabled: true
+
+      backendApiTokens:
+        enabled: true
+        credentials:
+        - name: default
+          existingSecret:
+            name: osmo-operator-token
 
       postgres:
         # Set to true if you want Postgres to be deployed as
@@ -402,36 +425,7 @@ Step 8: Install Backend Operator
            enabled: false
 
 
-2. Provision the backend bootstrap Secret:
-
-   Generate the credential independently of the OSMO API and create matching
-   Secrets in the control-plane and backend-operator namespaces:
-
-   .. code-block:: bash
-
-      $ TOKEN_FILE=$(mktemp)
-      $ chmod 600 "$TOKEN_FILE"
-      $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
-      $ kubectl create secret generic osmo-operator-token \
-          --from-file=token="$TOKEN_FILE" --namespace osmo-minimal
-      $ kubectl create secret generic osmo-operator-token \
-          --from-file=token="$TOKEN_FILE" --namespace osmo-operator
-      $ rm -f "$TOKEN_FILE"
-
-   Configure the service values to consume the control-plane copy:
-
-   .. code-block:: yaml
-
-      services:
-        backendApiTokens:
-          enabled: true
-          credentials:
-          - name: default
-            existingSecret:
-              name: osmo-operator-token
-
-
-3. Deploy the backend operator:
+2. Deploy the backend operator:
 
    .. code-block:: bash
 
