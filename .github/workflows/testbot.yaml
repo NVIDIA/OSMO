@@ -235,10 +235,7 @@ jobs:
           fi
 
           TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
-          # Splice the rules in rather than pointing at them: on
-          # run/30499270675 the generator never opened TESTBOT_RULES.md
-          # (23 Read calls, none for it) and shipped PR #1253 with 9
-          # pylint errors.
+          # Include the rules inline rather than pointing at them.
           PROMPT="$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
 
           $(cat src/scripts/testbot/TESTBOT_RULES.md)

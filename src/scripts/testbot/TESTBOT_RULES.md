@@ -77,22 +77,14 @@ When a test fails:
 > `bazel-out/` and `bazel-testlogs/`.
 
 1. **Run the test**:
-   - Python/Go: `bazel test //<package>:all` — the package pattern, not the
-     single target. `osmo_py_test` generates a sibling `<target>-pylint` test
-     that PR CI runs; naming one target skips it, so the test goes green while
-     CI fails. `:all` runs both.
-     If bazel reports `ERROR: No test targets were found, yet testing
+   - Python/Go: `bazel test <target>` (derive the Bazel target from the BUILD file).
+     If `bazel test` reports `ERROR: No test targets were found, yet testing
      was requested`, the test file isn't wired into BUILD — see "BUILD wiring"
      below before retrying.
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
-2. If a test or `-pylint` target fails, read the error and fix. Retry up to 3
-   times. Common pylint failures in generated tests:
-   - `W0212 protected-access` — testing an underscore-prefixed member, which
-     the "Test PUBLIC behavior only" rule already forbids. Go through the
-     public entry point, or add `# pylint: disable=protected-access`.
-   - `C2801 unnecessary-dunder-call` — use `with <cm>:`, not `__enter__()`.
-3. **Remaining style checks** (same as PR CI). Fix and re-verify until clean:
-   - Python: covered by step 1.
+2. If the test fails, read the error and fix. Retry up to 3 times.
+3. **Verify code style** (same checks as PR CI). Fix and re-verify until clean:
+   - Python: `bazel test <target>-pylint` (append `-pylint` to the test target name)
    - TypeScript: `pnpm --dir src/ui validate` (runs type-check, lint,
      format:check, tests, and build). If formatting fails, run
      `pnpm --dir src/ui format` to auto-fix.
