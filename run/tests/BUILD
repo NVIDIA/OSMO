@@ -29,3 +29,12 @@ osmo_py_test(
     size = "medium",
     visibility = ["//visibility:public"],
 )
+
+osmo_py_test(
+    name = "test_start_backend_kind",
+    srcs = ["test_start_backend_kind.py"],
+    deps = [
+        "//run:start_backend_kind_lib",
+    ],
+    visibility = ["//visibility:public"],
+)

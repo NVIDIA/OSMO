@@ -407,36 +407,140 @@ spec:
 # Secrets Functions
 ###############################################################################
 
-get_backend_token_data() {
-    local namespace="$1"
-    if [[ "${PROVIDER:-}" == "azure" && "$IS_PRIVATE_CLUSTER" == "true" ]]; then
-        local invoke_logs
-        if ! invoke_logs=$(az aks command invoke \
-                --resource-group "$RESOURCE_GROUP_NAME" \
-                --name "$AKS_CLUSTER_NAME" \
-                --command "backend_token=\$(kubectl get secret $BACKEND_TOKEN_SECRET_NAME -n $namespace --ignore-not-found=true -o jsonpath='{.data.token}'); backend_status=\$?; if [ \$backend_status -ne 0 ]; then echo OSMO_BACKEND_TOKEN_ERROR; elif [ -n \"\$backend_token\" ]; then echo OSMO_BACKEND_TOKEN_FOUND:\$backend_token; else echo OSMO_BACKEND_TOKEN_MISSING; fi" \
-                --query logs \
-                --output tsv \
-                2>/dev/null); then
-            return 2
-        fi
-        local lookup_result
-        lookup_result=$(printf '%s\n' "$invoke_logs" \
-            | awk '/^OSMO_BACKEND_TOKEN_(FOUND:.*|MISSING|ERROR)$/ { result=$0 } END { print result }')
-        case "$lookup_result" in
-            OSMO_BACKEND_TOKEN_FOUND:*)
-                printf '%s' "${lookup_result#OSMO_BACKEND_TOKEN_FOUND:}"
-                return 0
-                ;;
-            OSMO_BACKEND_TOKEN_MISSING)
-                return 1
-                ;;
-            *)
-                return 2
-                ;;
-        esac
+create_private_azure_backend_token_secrets() {
+    local secret_name_pattern='^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$'
+    local namespace_pattern='^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+    if [[ ! "$BACKEND_TOKEN_SECRET_NAME" =~ $secret_name_pattern || \
+          ${#BACKEND_TOKEN_SECRET_NAME} -gt 253 || \
+          ! "$OSMO_NAMESPACE" =~ $namespace_pattern || \
+          ${#OSMO_NAMESPACE} -gt 63 || \
+          ! "$OSMO_OPERATOR_NAMESPACE" =~ $namespace_pattern || \
+          ${#OSMO_OPERATOR_NAMESPACE} -gt 63 ]]; then
+        log_error "Backend token Secret and namespace names must be valid Kubernetes names"
+        return 1
     fi
 
+    local temporary_directory
+    temporary_directory=$(mktemp -d)
+    local remote_script_file="$temporary_directory/backend-token-bootstrap.sh"
+    cat > "$remote_script_file" <<'REMOTE_SCRIPT'
+#!/bin/bash
+set -uo pipefail
+
+secret_name="$1"
+control_namespace="$2"
+operator_namespace="$3"
+
+if ! control_token_data=$(kubectl get secret "$secret_name" \
+        --namespace "$control_namespace" --ignore-not-found=true \
+        -o jsonpath='{.data.token}' 2>/dev/null); then
+    echo OSMO_BACKEND_TOKEN_ERROR
+    exit 0
+fi
+if ! operator_token_data=$(kubectl get secret "$secret_name" \
+        --namespace "$operator_namespace" --ignore-not-found=true \
+        -o jsonpath='{.data.token}' 2>/dev/null); then
+    echo OSMO_BACKEND_TOKEN_ERROR
+    exit 0
+fi
+
+if [[ -n "$control_token_data" && -n "$operator_token_data" && \
+      "$control_token_data" != "$operator_token_data" ]]; then
+    echo OSMO_BACKEND_TOKEN_MISMATCH
+    exit 0
+fi
+
+if [[ -z "$control_token_data" && -z "$operator_token_data" ]]; then
+    token_file=$(mktemp)
+    chmod 600 "$token_file"
+    trap 'rm -f "$token_file"' EXIT
+    if ! head -c 32 /dev/urandom | base64 | tr -d '\n=' | tr '/+' '_-' > "$token_file"; then
+        echo OSMO_BACKEND_TOKEN_ERROR
+        exit 0
+    fi
+    if ! kubectl create secret generic "$secret_name" \
+            --from-file=token="$token_file" --namespace "$control_namespace" \
+            --dry-run=client -o yaml 2>/dev/null \
+            | kubectl apply -f - >/dev/null 2>&1; then
+        echo OSMO_BACKEND_TOKEN_ERROR
+        exit 0
+    fi
+    if ! kubectl create secret generic "$secret_name" \
+            --from-file=token="$token_file" --namespace "$operator_namespace" \
+            --dry-run=client -o yaml 2>/dev/null \
+            | kubectl apply -f - >/dev/null 2>&1; then
+        echo OSMO_BACKEND_TOKEN_ERROR
+        exit 0
+    fi
+    echo OSMO_BACKEND_TOKEN_READY
+    exit 0
+fi
+
+existing_token_data="${control_token_data:-$operator_token_data}"
+for namespace in "$control_namespace" "$operator_namespace"; do
+    if [[ "$namespace" == "$control_namespace" ]]; then
+        namespace_token_data="$control_token_data"
+    else
+        namespace_token_data="$operator_token_data"
+    fi
+    if [[ -z "$namespace_token_data" ]]; then
+        if ! printf '%s\n' \
+                'apiVersion: v1' \
+                'kind: Secret' \
+                'metadata:' \
+                "  name: $secret_name" \
+                "  namespace: $namespace" \
+                'type: Opaque' \
+                'data:' \
+                "  token: $existing_token_data" \
+                | kubectl apply -f - >/dev/null 2>&1; then
+            echo OSMO_BACKEND_TOKEN_ERROR
+            exit 0
+        fi
+    fi
+done
+
+echo OSMO_BACKEND_TOKEN_READY
+REMOTE_SCRIPT
+    chmod 700 "$remote_script_file"
+
+    local remote_command="bash backend-token-bootstrap.sh '$BACKEND_TOKEN_SECRET_NAME' '$OSMO_NAMESPACE' '$OSMO_OPERATOR_NAMESPACE'"
+    local invoke_logs
+    if ! invoke_logs=$(az aks command invoke \
+            --resource-group "$RESOURCE_GROUP_NAME" \
+            --name "$AKS_CLUSTER_NAME" \
+            --command "$remote_command" \
+            --file "$remote_script_file" \
+            --query logs \
+            --output tsv \
+            2>/dev/null); then
+        rm -rf "$temporary_directory"
+        return 1
+    fi
+    rm -rf "$temporary_directory"
+
+    local result
+    result=$(printf '%s\n' "$invoke_logs" \
+        | awk '/^OSMO_BACKEND_TOKEN_(READY|MISMATCH|ERROR)$/ { value=$0 } END { print value }')
+    case "$result" in
+        OSMO_BACKEND_TOKEN_READY)
+            log_info "  Backend bootstrap credential is ready in both namespaces"
+            return 0
+            ;;
+        OSMO_BACKEND_TOKEN_MISMATCH)
+            log_error "Backend token Secrets differ between control and operator namespaces"
+            log_error "Rotate or replace $BACKEND_TOKEN_SECRET_NAME so both namespaces contain the same token"
+            return 1
+            ;;
+        *)
+            log_error "Unable to reconcile backend token Secrets in the private AKS cluster"
+            return 1
+            ;;
+    esac
+}
+
+get_backend_token_data() {
+    local namespace="$1"
     local token_data
     if ! token_data=$($RUN_KUBECTL \
             "get secret $BACKEND_TOKEN_SECRET_NAME -n $namespace --ignore-not-found=true -o jsonpath={.data.token}" \
@@ -450,6 +554,11 @@ get_backend_token_data() {
 }
 
 create_backend_token_secrets() {
+    if [[ "${PROVIDER:-}" == "azure" && "$IS_PRIVATE_CLUSTER" == "true" ]]; then
+        create_private_azure_backend_token_secrets
+        return
+    fi
+
     local control_token_data=""
     local operator_token_data=""
     local control_token_state=""
