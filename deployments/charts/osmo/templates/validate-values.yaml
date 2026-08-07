@@ -33,14 +33,14 @@
 {{- if hasKey .Values "components" -}}
 {{- fail "components is not a supported value; configure services and gateway" -}}
 {{- end -}}
-{{- if not .Values.external.postgresql.host -}}
-{{- fail "external.postgresql.host is required for the control plane" -}}
+{{- if not .Values.externalDependencies.postgresql.host -}}
+{{- fail "externalDependencies.postgresql.host is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.external.valkey.host -}}
-{{- fail "external.valkey.host is required for the control plane" -}}
+{{- if not .Values.externalDependencies.valkey.host -}}
+{{- fail "externalDependencies.valkey.host is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.external.objectStorage.endpoint -}}
-{{- fail "external.objectStorage.endpoint is required for the control plane" -}}
+{{- if not .Values.externalDependencies.objectStorage.endpoint -}}
+{{- fail "externalDependencies.objectStorage.endpoint is required for the control plane" -}}
 {{- end -}}
 {{- if not .Values.secrets.postgresql.existingSecret -}}
 {{- fail "secrets.postgresql.existingSecret is required for the control plane" -}}
@@ -54,9 +54,9 @@
 {{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
 {{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if and .Values.external.postgresql.tls.enabled (not .Values.external.postgresql.tls.caExistingSecret) -}}
-{{- fail "external.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- if and .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
+{{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
 {{- end -}}
-{{- if and .Values.external.valkey.tls.enabled (not .Values.external.valkey.tls.caExistingSecret) -}}
-{{- fail "external.valkey.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- if and .Values.externalDependencies.valkey.tls.enabled (not .Values.externalDependencies.valkey.tls.caExistingSecret) -}}
+{{- fail "externalDependencies.valkey.tls.caExistingSecret is required when TLS is enabled" -}}
 {{- end -}}

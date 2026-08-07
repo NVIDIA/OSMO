@@ -86,6 +86,11 @@ require_clean_osmo_sources() {
         cat "$TEST_DIRECTORY/legacy-template-values.out" >&2
         fail "osmo templates still reference legacy values"
     fi
+    if rg -n '\.Values\.external\b' \
+        "$CHARTS_ROOT/osmo/templates" >"$TEST_DIRECTORY/legacy-external-values.out"; then
+        cat "$TEST_DIRECTORY/legacy-external-values.out" >&2
+        fail "osmo templates still reference the legacy external values block"
+    fi
     if rg -n '^(global|controlPlane|components):|^    (imageName|imageTag|imagePullPolicy|serviceAccountName):' \
         "$CHARTS_ROOT/osmo/values.yaml" >"$TEST_DIRECTORY/legacy-default-values.out"; then
         cat "$TEST_DIRECTORY/legacy-default-values.out" >&2
@@ -141,10 +146,10 @@ test_control_umbrella() {
     helm template osmo-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
-        --set external.postgresql.tls.enabled=true \
-        --set external.postgresql.tls.caExistingSecret=postgresql-ca \
-        --set external.valkey.tls.enabled=true \
-        --set external.valkey.tls.caExistingSecret=valkey-ca \
+        --set externalDependencies.postgresql.tls.enabled=true \
+        --set externalDependencies.postgresql.tls.caExistingSecret=postgresql-ca \
+        --set externalDependencies.valkey.tls.enabled=true \
+        --set externalDependencies.valkey.tls.caExistingSecret=valkey-ca \
         --set gateway.authz.enabled=true \
         >"$TEST_DIRECTORY/osmo-tls.yaml"
     require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "secretName: postgresql-ca"
@@ -244,6 +249,15 @@ test_control_umbrella() {
     fi
     require_contains "$TEST_DIRECTORY/unsupported-legacy-values.out" \
         "controlPlane"
+
+    if helm template unsupported-legacy-external "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set external.postgresql.host=legacy-postgresql \
+        >"$TEST_DIRECTORY/unsupported-legacy-external.out" 2>&1; then
+        fail "expected legacy external values to fail schema validation"
+    fi
+    require_contains "$TEST_DIRECTORY/unsupported-legacy-external.out" "external"
 
     if helm template invalid-replicas "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

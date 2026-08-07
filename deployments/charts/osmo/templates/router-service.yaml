@@ -77,14 +77,14 @@ spec:
         - {{ $routerHostname }}
         {{- end }}
         - --postgres_host
-        - {{ .Values.external.postgresql.host }}
+        - {{ .Values.externalDependencies.postgresql.host }}
         - --postgres_port
-        - {{ .Values.external.postgresql.port | quote }}
+        - {{ .Values.externalDependencies.postgresql.port | quote }}
         - --postgres_database_name
-        - {{ .Values.external.postgresql.database}}
-        {{- if .Values.external.postgresql.username }}
+        - {{ .Values.externalDependencies.postgresql.database}}
+        {{- if .Values.externalDependencies.postgresql.username }}
         - --postgres_user
-        - {{ .Values.external.postgresql.username }}
+        - {{ .Values.externalDependencies.postgresql.username }}
         {{- end }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
         - --mek_file

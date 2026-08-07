@@ -15,7 +15,7 @@ planes:
 # Select supporting systems managed by this Helm release.
 # TODO: Allow these switches as their dependency charts are added.
 # They must remain false for now; supply operator-managed services through
-# `external` instead.
+# `externalDependencies` instead.
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -27,6 +27,39 @@ embeddedDependencies:
     enabled: false
   kaiScheduler:
     enabled: false
+
+# Connection details for dependencies owned outside this release. These
+# endpoints are required by the control plane because embedded dependencies
+# are not implemented yet.
+externalDependencies:
+  # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
+  # server certificate is signed by a private CA.
+  postgresql:
+    host: ''
+    port: 5432
+    database: osmo
+    username: postgres
+    tls:
+      enabled: false
+      caExistingSecret: ''
+      caKey: ca.crt
+  # Valkey provides queues, caches, events, and distributed coordination.
+  valkey:
+    host: ''
+    port: 6379
+    database: 0
+    tls:
+      enabled: false
+      caExistingSecret: ''
+      caKey: ca.crt
+  # S3-compatible storage for workflow data, logs, and application bundles.
+  objectStorage:
+    endpoint: ''
+    region: us-east-1
+    buckets:
+      workflows: ''
+      logs: ''
+      apps: ''
 
 # Override the names Helm derives from the chart and release. Leave empty for
 # conventional names such as `osmo-service` and `osmo-gateway`.
@@ -85,45 +118,12 @@ exposure:
   # scheme, for example `https://osmo.example.com`.
   baseUrl: ''
 
-# Connection details for dependencies owned outside this release. These
-# endpoints are required by the control plane because embedded dependencies
-# are not implemented yet.
-external:
-  # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
-  # server certificate is signed by a private CA.
-  postgresql:
-    host: ''
-    port: 5432
-    database: osmo
-    username: postgres
-    tls:
-      enabled: false
-      caExistingSecret: ''
-      caKey: ca.crt
-  # Valkey provides queues, caches, events, and distributed coordination.
-  valkey:
-    host: ''
-    port: 6379
-    database: 0
-    tls:
-      enabled: false
-      caExistingSecret: ''
-      caKey: ca.crt
-  # S3-compatible storage for workflow data, logs, and application bundles.
-  objectStorage:
-    endpoint: ''
-    region: us-east-1
-    buckets:
-      workflows: ''
-      logs: ''
-      apps: ''
-
 # References to operator-owned Kubernetes Secrets. Inline credentials are not
 # accepted.
 # TODO: Implement retained chart-generated credentials for `generate: true`;
 # all `generate` switches must remain false for now.
 secrets:
-  # Password used with `external.postgresql.username`.
+  # Password used with `externalDependencies.postgresql.username`.
   postgresql:
     generate: false
     existingSecret: ''

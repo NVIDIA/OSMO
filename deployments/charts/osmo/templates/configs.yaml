@@ -38,7 +38,7 @@ data:
     {{- if $cfg.workflow }}
     workflow:
       {{- $workflow := deepCopy $cfg.workflow }}
-      {{- $storage := .Values.external.objectStorage }}
+      {{- $storage := .Values.externalDependencies.objectStorage }}
       {{- $secret := .Values.secrets.objectStorage }}
       {{- $_ := set $workflow "workflow_data" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/workflows" $storage.buckets.workflows) "override_url" $storage.endpoint "region" $storage.region)) }}
       {{- $_ := set $workflow "workflow_log" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/logs" $storage.buckets.logs) "override_url" $storage.endpoint "region" $storage.region)) }}

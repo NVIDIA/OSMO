@@ -93,7 +93,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.external.valkey.host }}
+  name: {{ .Values.externalDependencies.valkey.host }}
   labels:
     app: redis
   annotations:
@@ -103,7 +103,7 @@ spec:
   type: NodePort
   {{ end }}
   ports:
-  - port: {{ .Values.external.valkey.port }}
+  - port: {{ .Values.externalDependencies.valkey.port }}
     {{ if .Values.embeddedDependencies.valkey.enableNodePort }}
     nodePort: {{ .Values.embeddedDependencies.valkey.nodePort }}
     {{ end }}
