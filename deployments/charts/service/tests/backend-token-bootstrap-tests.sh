@@ -80,7 +80,7 @@ export FAKE_STATE_DIRECTORY
 export PATH="$FAKE_BIN:$PATH"
 
 run_bootstrap() {
-    sh "$BOOTSTRAP_SCRIPT" \
+    bash "$BOOTSTRAP_SCRIPT" \
         --namespace osmo \
         --release-name test-release \
         "$@"

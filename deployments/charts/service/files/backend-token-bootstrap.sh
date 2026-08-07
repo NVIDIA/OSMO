@@ -1,10 +1,9 @@
-#!/bin/sh
+#!/bin/ash
+# shellcheck shell=sh disable=SC2187,SC3040
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 set -eu
-# The hook image uses BusyBox ash, which supports pipefail.
-# shellcheck disable=SC3040
 set -o pipefail
 
 fail_if_missing=false
