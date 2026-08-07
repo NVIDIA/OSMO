@@ -8,7 +8,7 @@ exposure:
   mode: external
   baseUrl: http://osmo-gateway
 
-external:
+externalDependencies:
   postgresql:
     host: osmo-deps-postgresql
     port: 5432
