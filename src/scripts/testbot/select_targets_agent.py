@@ -354,7 +354,7 @@ def main() -> None:
     parser.add_argument("--model",
                         default=os.environ.get(
                             "ANTHROPIC_MODEL",
-                            "aws/anthropic/bedrock-claude-opus-4-7",
+                            "aws/anthropic/bedrock-claude-opus-5",
                         ))
     parser.add_argument("--output", default="-",
                         help="Output path; '-' (default) writes to stdout")

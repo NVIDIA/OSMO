@@ -311,7 +311,7 @@ def build_prompt(threads: list[dict], pr_number: int) -> str:
 
 def run_claude(
     prompt: str,
-    model: str = "aws/anthropic/bedrock-claude-opus-4-7",
+    model: str = "aws/anthropic/bedrock-claude-opus-5",
     max_turns: int = 50,
     timeout: int = 720,
 ) -> dict:
@@ -488,8 +488,8 @@ def main() -> None:
                         help="Max Claude Code agent turns (default: 50)")
     parser.add_argument("--timeout", type=int, default=720,
                         help="Claude Code CLI timeout in seconds (default: 720)")
-    parser.add_argument("--model", default="aws/anthropic/bedrock-claude-opus-4-7",
-                        help="LLM model name (default: aws/anthropic/bedrock-claude-opus-4-7)")
+    parser.add_argument("--model", default="aws/anthropic/bedrock-claude-opus-5",
+                        help="LLM model name (default: aws/anthropic/bedrock-claude-opus-5)")
     args = parser.parse_args()
 
     github_repository = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO")
