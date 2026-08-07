@@ -23,8 +23,9 @@
 
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { createElement, useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { LinkifiedText } from "@/components/linkified-text";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useServices } from "@/contexts/service-context";
 import { WorkflowPriority, useSubmitWorkflowApiPoolPoolNameWorkflowPost } from "@/lib/api/generated";
@@ -128,7 +129,7 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
       onSuccess: (response) => {
         const newName = response.name;
         for (const warning of response.warnings ?? []) {
-          toast.warning(warning);
+          toast.warning(createElement(LinkifiedText, { text: warning }));
         }
         toast.success(`Workflow submitted as ${newName}`, {
           action: {

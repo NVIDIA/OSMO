@@ -109,8 +109,7 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 
 | Chart | Purpose |
 |-------|---------|
-| `osmo/` | Unified umbrella chart. The initial split-plane control profile composes the service chart without compute-plane workloads. |
-| `osmo-deps/` | Non-production PostgreSQL, Valkey, and RustFS dependencies for reproducible local and kind testing. |
+| `osmo/` | Unified chart with directly owned control-plane services and gateway templates; the initial profile excludes compute-plane workloads. |
 | `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
 | `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
 

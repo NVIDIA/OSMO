@@ -7,9 +7,3 @@ type: application
 version: 0.1.0
 appVersion: "6.3.1"
 kubeVersion: ">=1.30.0-0"
-dependencies:
-  - name: service
-    alias: controlPlane
-    version: 1.4.0
-    repository: file://../service
-    condition: planes.control.enabled

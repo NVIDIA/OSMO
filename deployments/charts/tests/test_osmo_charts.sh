@@ -32,6 +32,16 @@ require_not_contains() {
     fi
 }
 
+require_occurrences() {
+    local file=$1
+    local expected=$2
+    local count=$3
+    local actual
+    actual=$(grep -Fc -- "$expected" "$file" || true)
+    [[ "$actual" -eq "$count" ]] || \
+        fail "expected '$expected' $count times in $file, found $actual"
+}
+
 deployment_names() {
     awk '
         /^kind: Deployment$/ { deployment = 1; metadata = 0; next }
@@ -44,6 +54,16 @@ deployment_names() {
         }
         /^---$/ { deployment = 0; metadata = 0 }
     ' "$1"
+}
+
+resource_document() {
+    local file=$1
+    local kind=$2
+    local name=$3
+    awk -v kind="$kind" -v name="$name" '
+        BEGIN { RS = "---" }
+        $0 ~ ("\nkind: " kind "\n") && $0 ~ ("\n  name: " name "\n") { print }
+    ' "$file"
 }
 
 require_deployment() {
@@ -60,56 +80,33 @@ require_no_deployment() {
     fi
 }
 
-test_service_secret_references() {
-    local rendered="$TEST_DIRECTORY/service.yaml"
-    helm template service-secret-test "$CHARTS_ROOT/service" \
-        --set services.configFile.enabled=true \
-        --set services.configFile.secretName=custom-mek-secret \
-        --set services.configFile.secretKey=custom-mek.yaml \
-        --set services.postgres.passwordSecretName=custom-postgresql-secret \
-        --set services.postgres.passwordSecretKey=custom-postgresql-password \
-        --set services.redis.passwordSecretName=custom-valkey-secret \
-        --set services.redis.passwordSecretKey=custom-valkey-password \
-        >"$rendered"
-
-    require_contains "$rendered" "name: custom-postgresql-secret"
-    require_contains "$rendered" "key: custom-postgresql-password"
-    require_contains "$rendered" "name: custom-valkey-secret"
-    require_contains "$rendered" "key: custom-valkey-password"
-    require_contains "$rendered" "secretName: custom-mek-secret"
-    require_contains "$rendered" "key: custom-mek.yaml"
-    require_not_contains "$rendered" "name: db-secret"
-    require_not_contains "$rendered" "name: redis-secret"
-}
-
-test_dependency_chart() {
-    local rendered="$TEST_DIRECTORY/osmo-deps.yaml"
-    helm template osmo-deps "$CHARTS_ROOT/osmo-deps" >"$rendered"
-
-    require_deployment "$rendered" "osmo-deps-postgresql"
-    require_deployment "$rendered" "osmo-deps-valkey"
-    require_deployment "$rendered" "osmo-deps-rustfs"
-    require_contains "$rendered" "name: osmo-deps-credentials"
-    require_contains "$rendered" "db-password:"
-    require_contains "$rendered" "redis-password:"
-    require_contains "$rendered" "access_key_id:"
-    require_contains "$rendered" "access_key:"
-    require_contains "$rendered" 'admin-password: "0123456789012345678901234567890123456789012"'
-    require_contains "$rendered" "mek.yaml:"
-    require_contains "$rendered" "name: osmo-deps-buckets"
+require_clean_osmo_sources() {
+    if rg -n '\.Values\.(global|controlPlane|components|services\.(configFile|configs|defaultAdmin|localstackS3|postgres|redis))' \
+        "$CHARTS_ROOT/osmo/templates" >"$TEST_DIRECTORY/legacy-template-values.out"; then
+        cat "$TEST_DIRECTORY/legacy-template-values.out" >&2
+        fail "osmo templates still reference legacy values"
+    fi
+    if rg -n '^(global|controlPlane|components):|^    (imageName|imageTag|imagePullPolicy|serviceAccountName):' \
+        "$CHARTS_ROOT/osmo/values.yaml" >"$TEST_DIRECTORY/legacy-default-values.out"; then
+        cat "$TEST_DIRECTORY/legacy-default-values.out" >&2
+        fail "osmo defaults still expose legacy values"
+    fi
+    require_not_contains "$CHARTS_ROOT/osmo/Chart.yaml" "dependencies:"
+    [[ ! -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must not have a dependency lock"
+    [[ ! -d "$CHARTS_ROOT/osmo/charts" ]] || fail "osmo must not contain packaged dependencies"
 }
 
 test_control_umbrella() {
     local charts_copy="$TEST_DIRECTORY/charts"
     local rendered="$TEST_DIRECTORY/osmo.yaml"
     mkdir -p "$charts_copy"
-    cp -R "$CHARTS_ROOT/service" "$charts_copy/service"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
-    helm dependency build "$charts_copy/osmo" >/dev/null
+    rm -rf "$charts_copy/osmo/charts"
+    rm -f "$charts_copy/osmo/Chart.lock"
 
     helm template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$charts_copy/osmo/profiles/kind.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
         >"$rendered"
 
     require_deployment "$rendered" "osmo-service"
@@ -125,14 +122,73 @@ test_control_umbrella() {
     require_no_deployment "$rendered" "localstack-s3"
     require_no_deployment "$rendered" "osmo-backend-listener"
     require_no_deployment "$rendered" "osmo-backend-worker"
-    require_contains "$rendered" "osmo-deps-postgresql"
-    require_contains "$rendered" "osmo-deps-valkey"
-    require_contains "$rendered" "secretName: osmo-deps-credentials"
-    require_contains "$rendered" "http://osmo-deps-rustfs:9000"
+    require_contains "$rendered" "external-postgresql"
+    require_contains "$rendered" "external-valkey"
+    require_contains "$rendered" "secretName: external-control-secrets"
+    require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
+    require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
     require_not_contains "$rendered" "vault.hashicorp.com"
     require_not_contains "$rendered" "labels_config:"
+
+    helm template osmo-tls "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set external.postgresql.tls.enabled=true \
+        --set external.postgresql.tls.caExistingSecret=postgresql-ca \
+        --set external.valkey.tls.enabled=true \
+        --set external.valkey.tls.caExistingSecret=valkey-ca \
+        --set gateway.authz.enabled=true \
+        >"$TEST_DIRECTORY/osmo-tls.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "secretName: postgresql-ca"
+    require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "secretName: valkey-ca"
+    require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "name: PGSSLROOTCERT"
+    require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "/etc/osmo/ca/postgresql/ca.crt"
+    require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "name: SSL_CERT_FILE"
+    require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "/etc/osmo/ca/valkey/ca.crt"
+    resource_document "$TEST_DIRECTORY/osmo-tls.yaml" Deployment \
+        osmo-tls-gateway-authz >"$TEST_DIRECTORY/osmo-authz-tls.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "secretName: postgresql-ca"
+    require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "/etc/osmo/ca/postgresql"
+
+    helm template osmo-migration "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set services.migration.enabled=true \
+        >"$TEST_DIRECTORY/osmo-migration.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-migration.yaml" "001_v6_0_0_data_prep.json"
+
+    helm template osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/tests/control-mcp-values.yaml" \
+        --set services.migration.enabled=true \
+        --set commonLabels.team=platform \
+        --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=linux' \
+        >"$TEST_DIRECTORY/osmo-mcp.yaml"
+    require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-mcp"
+    require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-gateway-authz"
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "path: /mcp"
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
+        '\"resource\":\"https://osmo.example.com/mcp\"'
+    require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
+        "kubernetes.io/os: linux" 11
+
+    helm template osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set commonLabels.team=platform \
+        --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=linux' \
+        --set services.worker.image.name=custom-worker \
+        --set services.worker.image.tag=test-tag \
+        --set services.logger.enabled=false \
+        >"$TEST_DIRECTORY/osmo-overrides.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-overrides.yaml" \
+        "nvcr.io/nvidia/osmo/custom-worker:test-tag"
+    require_contains "$TEST_DIRECTORY/osmo-overrides.yaml" "team: platform"
+    require_contains "$TEST_DIRECTORY/osmo-overrides.yaml" "kubernetes.io/os: linux"
+    require_no_deployment "$TEST_DIRECTORY/osmo-overrides.yaml" "osmo-logger"
 
     if helm template unsupported-compute "$charts_copy/osmo" \
         --set planes.compute.enabled=true \
@@ -141,21 +197,82 @@ test_control_umbrella() {
     fi
     require_contains "$TEST_DIRECTORY/unsupported-compute.out" \
         "compute plane is not implemented"
+
+    if helm template unsupported-embedded "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set embeddedDependencies.postgresql.enabled=true \
+        >"$TEST_DIRECTORY/unsupported-embedded.out" 2>&1; then
+        fail "expected embeddedDependencies.postgresql.enabled=true to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsupported-embedded.out" \
+        "embedded PostgreSQL is not implemented"
+
+    if helm template unsupported-exposure "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set exposure.mode=gateway \
+        >"$TEST_DIRECTORY/unsupported-exposure.out" 2>&1; then
+        fail "expected exposure.mode=gateway to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsupported-exposure.out" \
+        "only external exposure is implemented"
+
+    if helm template unsupported-generated-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set secrets.postgresql.generate=true \
+        >"$TEST_DIRECTORY/unsupported-generated-secret.out" 2>&1; then
+        fail "expected secrets.postgresql.generate=true to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsupported-generated-secret.out" \
+        "generated Secrets are not implemented"
+
+    if helm template unsupported-legacy-values "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set controlPlane.enabled=true \
+        >"$TEST_DIRECTORY/unsupported-legacy-values.out" 2>&1; then
+        fail "expected legacy controlPlane values to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsupported-legacy-values.out" \
+        "controlPlane"
+
+    if helm template invalid-replicas "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set-string services.worker.replicas=invalid \
+        >"$TEST_DIRECTORY/invalid-replicas.out" 2>&1; then
+        fail "expected non-integer services.worker.replicas to fail schema validation"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-replicas.out" "/services/worker/replicas"
+
+    if helm template unknown-root "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set unsupportedRoot.enabled=true \
+        >"$TEST_DIRECTORY/unknown-root.out" 2>&1; then
+        fail "expected an unknown top-level value to fail schema validation"
+    fi
+    require_contains "$TEST_DIRECTORY/unknown-root.out" "unsupportedRoot"
+
+    if helm template legacy-component "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
+        --set services.worker.imageName=legacy-worker \
+        >"$TEST_DIRECTORY/legacy-component.out" 2>&1; then
+        fail "expected legacy per-service fields to fail schema validation"
+    fi
+    require_contains "$TEST_DIRECTORY/legacy-component.out" "/services/worker"
 }
 
 case "$MODE" in
-    service)
-        test_service_secret_references
-        ;;
-    deps)
-        test_dependency_chart
-        ;;
     osmo)
+        require_clean_osmo_sources
         test_control_umbrella
         ;;
     all)
-        test_service_secret_references
-        test_dependency_chart
+        require_clean_osmo_sources
         test_control_umbrella
         ;;
     *)

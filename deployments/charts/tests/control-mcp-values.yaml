@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  mcp:
+    enabled: true
+    resourceUrl: https://osmo.example.com/mcp
+    authorizationServers:
+      - https://issuer.example.com
+    scopes:
+      - mcp:Access
+
+gateway:
+  authz:
+    enabled: true
+  envoy:
+    idp:
+      host: issuer.example.com
+    jwt:
+      providers:
+        - issuer: https://issuer.example.com
+          audience: osmo-mcp
+          jwks_uri: https://issuer.example.com/.well-known/jwks.json
+          cluster: idp
+          user_claim: preferred_username
