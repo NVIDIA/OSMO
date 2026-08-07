@@ -29,6 +29,13 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $gw := .Values.gateway }}
 {{- $envoy := $gw.envoy }}
 {{- $mcp := .Values.services.mcp }}
+{{- $serviceHost := $gw.upstreams.service.host | default (include "osmo.v1.apiName" .) }}
+{{- $routerName := include "osmo.v1.componentName" (dict "root" . "suffix" "router") }}
+{{- $routerHost := $gw.upstreams.router.host | default (printf "%s-headless" $routerName) }}
+{{- $uiHost := $gw.upstreams.ui.host | default (include "osmo.v1.componentName" (dict "root" . "suffix" "ui")) }}
+{{- $agentHost := $gw.upstreams.agent.host | default (include "osmo.v1.componentName" (dict "root" . "suffix" "agent")) }}
+{{- $loggerName := include "osmo.v1.componentName" (dict "root" . "suffix" "logger") }}
+{{- $loggerHost := $gw.upstreams.logger.host | default (printf "%s-headless" $loggerName) }}
 {{- $mcpEnabled := $mcp.enabled | default false }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
@@ -866,14 +873,14 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $gw.upstreams.service.host }}
+                  address: {{ $serviceHost }}
                   port_value: {{ $gw.upstreams.service.port }}
       {{- if $gw.tls.enabled }}
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          sni: {{ $gw.upstreams.service.host }}
+          sni: {{ $serviceHost }}
           common_tls_context:
             # Envoy upstream TLS defaults can be narrower than uvicorn's
             # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
@@ -909,14 +916,14 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $gw.upstreams.router.host }}
+                  address: {{ $routerHost }}
                   port_value: {{ $gw.upstreams.router.port }}
       {{- if $gw.tls.enabled }}
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          sni: {{ $gw.upstreams.router.host }}
+          sni: {{ $routerHost }}
           common_tls_context:
             # Envoy upstream TLS defaults can be narrower than uvicorn's
             # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
@@ -951,7 +958,7 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $gw.upstreams.ui.host }}
+                  address: {{ $uiHost }}
                   port_value: {{ $gw.upstreams.ui.port }}
       # UI traffic stays HTTP. Next.js does not natively serve HTTPS and the
       # UI sits behind NetworkPolicy. Confidentiality of the UI HTML relies on
@@ -973,14 +980,14 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $gw.upstreams.agent.host }}
+                  address: {{ $agentHost }}
                   port_value: {{ $gw.upstreams.agent.port }}
       {{- if $gw.tls.enabled }}
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          sni: {{ $gw.upstreams.agent.host }}
+          sni: {{ $agentHost }}
           common_tls_context:
             # Envoy upstream TLS defaults can be narrower than uvicorn's
             # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
@@ -1015,14 +1022,14 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $gw.upstreams.logger.host }}
+                  address: {{ $loggerHost }}
                   port_value: {{ $gw.upstreams.logger.port }}
       {{- if $gw.tls.enabled }}
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          sni: {{ $gw.upstreams.logger.host }}
+          sni: {{ $loggerHost }}
           common_tls_context:
             # Envoy upstream TLS defaults can be narrower than uvicorn's
             # SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if the
@@ -1174,7 +1181,7 @@ data:
     {{- end }}
 
     {{- if $envoy.internalJwks.enabled }}
-    {{- $jwksHost := $envoy.internalJwks.host | default $gw.upstreams.service.host }}
+    {{- $jwksHost := $envoy.internalJwks.host | default $serviceHost }}
     - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
       name: {{ $envoy.internalJwks.cluster }}
       connect_timeout: 3s

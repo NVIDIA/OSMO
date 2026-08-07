@@ -44,6 +44,9 @@ externalDependencies:
       caExistingSecret: ''
       caKey: ca.crt
   # Valkey provides queues, caches, events, and distributed coordination.
+  # When TLS is enabled, caKey must contain a complete trust bundle (including
+  # public/system roots needed by other HTTPS clients), because Python Redis
+  # consumes it through SSL_CERT_FILE.
   valkey:
     host: ''
     port: 6379
@@ -51,7 +54,7 @@ externalDependencies:
     tls:
       enabled: false
       caExistingSecret: ''
-      caKey: ca.crt
+      caKey: ca-bundle.crt
   # S3-compatible storage for workflow data, logs, and application bundles.
   objectStorage:
     endpoint: ''
@@ -100,7 +103,7 @@ podDefaults:
 # Shared Python service logging settings.
 logging:
   enabled: true
-  logLevel: DEBUG
+  logLevel: INFO
   k8sLogLevel: WARNING
   logFormat: text
 
@@ -414,7 +417,8 @@ services:
       name: web-ui
       tag: ''
       pullPolicy: Always
-    apiHostname: osmo-gateway:80
+    # Leave empty to use this release's gateway Service and port 80.
+    apiHostname: ''
     portForwardEnabled: false
     nextjsSslEnabled: false
     containerPort: 8000
@@ -609,6 +613,15 @@ services:
       periodSeconds: 5
       timeoutSeconds: 3
       initialDelaySeconds: 5
+    # Keep readiness authorization-neutral: this endpoint only confirms that
+    # the API process is ready to receive traffic.
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /health
+      failureThreshold: 3
+      periodSeconds: 45
+      timeoutSeconds: 20
     resources: {}
     extraArgs: []
     serviceAccount:
@@ -759,6 +772,13 @@ services:
       periodSeconds: 5
       timeoutSeconds: 15
       initialDelaySeconds: 10
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /health
+      periodSeconds: 45
+      failureThreshold: 3
+      timeoutSeconds: 20
     resources:
       requests:
         cpu: 500m
@@ -903,28 +923,28 @@ gateway:
       labels: {}
       annotations: {}
 
-  # Fixed internal destinations used by Envoy routes. Change these only when
-  # deliberately routing to services outside this release.
+  # Internal destinations used by Envoy routes. Empty hosts resolve to this
+  # release's Services; set a host only to route outside the release.
   upstreams:
     service:
       enabled: true
-      host: osmo-service
+      host: ''
       port: 80
     router:
       enabled: true
-      host: osmo-router-headless
+      host: ''
       port: 8000
     ui:
       enabled: true
-      host: osmo-ui
+      host: ''
       port: 80
     agent:
       enabled: true
-      host: osmo-agent
+      host: ''
       port: 80
     logger:
       enabled: true
-      host: osmo-logger-headless
+      host: ''
       port: 8000
 
   # Optional OIDC login/session proxy. The split-plane control profile keeps
@@ -1006,7 +1026,6 @@ gateway:
       pullPolicy: Always
     grpcPort: 50052
     postgres:
-      sslMode: prefer
       maxConns: 10
       minConns: 2
       maxConnLifetimeMin: 5
@@ -1097,18 +1116,17 @@ gateway:
   # Optional ingress policies limiting gateway traffic to known upstream pods.
   networkPolicies:
     enabled: false
+    # Release-relative component suffixes prevent policies from selecting pods
+    # owned by another OSMO release in the same namespace.
     upstreams:
-    - name: osmo-service
-      podSelector:
-        app: osmo-service
+    - name: service
+      component: service
       port: 8000
-    - name: osmo-router
-      podSelector:
-        app: osmo-router
+    - name: router
+      component: router
       port: 8000
-    - name: osmo-ui
-      podSelector:
-        app: osmo-ui
+    - name: ui
+      component: ui
       port: 8000
 
   # TLS for traffic from Envoy to OSMO upstream services. Existing Secret

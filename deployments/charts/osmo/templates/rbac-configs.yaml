@@ -51,5 +51,5 @@ roleRef:
   name: {{ $apiName }}-configmap-events
 subjects:
 - kind: ServiceAccount
-  name: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.api "root" .) }}
+  name: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.api "root" . "suffix" "service") }}
 {{- end }}

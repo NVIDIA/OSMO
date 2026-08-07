@@ -18,7 +18,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: otel-monitor
+  name: {{ include "osmo.v1.componentName" (dict "root" $root "suffix" "otel-monitor") }}
 spec:
   podMetricsEndpoints:
   - interval: 15s
@@ -40,7 +40,7 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: gateway-envoy-monitor
+  name: {{ include "osmo.v1.componentName" (dict "root" . "suffix" "gateway-envoy-monitor") }}
 spec:
   podMetricsEndpoints:
   - interval: 15s
@@ -57,7 +57,7 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: gateway-oauth2-proxy-monitor
+  name: {{ include "osmo.v1.componentName" (dict "root" . "suffix" "gateway-oauth2-proxy-monitor") }}
 spec:
   podMetricsEndpoints:
   - interval: 15s

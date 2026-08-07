@@ -85,7 +85,13 @@ imagePullSecrets:
 {{- end -}}
 
 {{- define "osmo.v1.service-account-name" -}}
-{{- .component.serviceAccount.name | default (include "osmo.v1.fullname" .root) -}}
+{{- if .component.serviceAccount.name -}}
+{{- .component.serviceAccount.name -}}
+{{- else if .component.serviceAccount.create -}}
+{{- include "osmo.v1.componentName" (dict "root" .root "suffix" .suffix) -}}
+{{- else -}}
+default
+{{- end -}}
 {{- end -}}
 
 {{- define "osmo.v1.extra-annotations" -}}
@@ -238,7 +244,7 @@ data:
     secretName: {{ .Values.externalDependencies.valkey.tls.caExistingSecret }}
     items:
     - key: {{ .Values.externalDependencies.valkey.tls.caKey }}
-      path: ca.crt
+      path: ca-bundle.crt
 {{- end }}
 {{- end -}}
 
@@ -263,6 +269,6 @@ data:
 {{- end }}
 {{- if .Values.externalDependencies.valkey.tls.enabled }}
 - name: SSL_CERT_FILE
-  value: /etc/osmo/ca/valkey/ca.crt
+  value: /etc/osmo/ca/valkey/ca-bundle.crt
 {{- end }}
 {{- end -}}

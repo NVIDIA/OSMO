@@ -24,6 +24,9 @@
 {{- if ne .Values.exposure.mode "external" -}}
 {{- fail "exposure.mode: only external exposure is implemented" -}}
 {{- end -}}
+{{- if not .Values.exposure.baseUrl -}}
+{{- fail "exposure.baseUrl is required for the control plane" -}}
+{{- end -}}
 {{- if or .Values.secrets.postgresql.generate .Values.secrets.valkey.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
@@ -41,6 +44,15 @@
 {{- end -}}
 {{- if not .Values.externalDependencies.objectStorage.endpoint -}}
 {{- fail "externalDependencies.objectStorage.endpoint is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.objectStorage.buckets.workflows -}}
+{{- fail "externalDependencies.objectStorage.buckets.workflows is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.objectStorage.buckets.logs -}}
+{{- fail "externalDependencies.objectStorage.buckets.logs is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.objectStorage.buckets.apps -}}
+{{- fail "externalDependencies.objectStorage.buckets.apps is required for the control plane" -}}
 {{- end -}}
 {{- if not .Values.secrets.postgresql.existingSecret -}}
 {{- fail "secrets.postgresql.existingSecret is required for the control plane" -}}

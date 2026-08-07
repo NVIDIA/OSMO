@@ -60,7 +60,7 @@ spec:
       initContainers:
         {{- toYaml .Values.services.ui.pod.initContainers | nindent 6 }}
       {{- end }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.ui "root" .) }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.ui "root" . "suffix" "ui") }}
       containers:
       - name: {{ $name }}
         image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.ui) }}
@@ -78,15 +78,15 @@ spec:
         - name: NODE_OPTIONS
           value: '--max-http-header-size={{ mul .Values.services.ui.maxHttpHeaderSizeKb 1024 }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
-          value: {{ .Values.services.ui.apiHostname }}
+          value: {{ .Values.services.ui.apiHostname | default (printf "%s:80" (include "osmo.v1.gateway-name" .)) | quote }}
         - name: NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED
           value: {{ .Values.services.ui.portForwardEnabled | quote }}
         - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
           value: {{ .Values.services.ui.nextjsSslEnabled | quote }}
         - name: DOCS_BASE_URL
-          value: {{ .Values.services.ui.docsBaseUrl }}
+          value: {{ .Values.services.ui.docsBaseUrl | quote }}
         - name: CLI_INSTALL_SCRIPT_URL
-          value: {{ .Values.services.ui.cliInstallScriptUrl }}
+          value: {{ .Values.services.ui.cliInstallScriptUrl | quote }}
         {{- with .Values.services.ui.env }}
         {{- range $env := . }}
         - name: {{ $env.name }}

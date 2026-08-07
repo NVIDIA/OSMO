@@ -90,7 +90,7 @@
         "logger": { "$ref": "#/definitions/serviceComponent" },
         "agent": { "$ref": "#/definitions/serviceComponent" },
         "delayedJobMonitor": { "$ref": "#/definitions/serviceComponent" },
-        "mcp": { "$ref": "#/definitions/serviceComponent" }
+        "mcp": { "$ref": "#/definitions/mcpComponent" }
       }
     },
     "gateway": {
@@ -193,6 +193,20 @@
     },
     "gatewayComponent": {
       "allOf": [{ "$ref": "#/definitions/serviceComponent" }]
+    },
+    "mcpComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/serviceComponent" },
+        {
+          "properties": {
+            "requestTimeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            }
+          }
+        }
+      ]
     },
     "tlsConnection": {
       "type": "object",

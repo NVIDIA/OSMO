@@ -15,7 +15,6 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.worker.enabled }}
 {{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "worker") }}
-{{- $apiName := include "osmo.v1.apiName" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,7 +34,7 @@ spec:
         {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
     spec:
       topologySpreadConstraints:
-      {{- range .Values.services.api.pod.topologySpreadConstraints }}
+      {{- range .Values.services.worker.pod.topologySpreadConstraints }}
       - topologyKey: {{.topologyKey }}
         {{- range $key, $value := . }}
         {{- if ne $key "topologyKey" }}
@@ -44,7 +43,7 @@ spec:
         {{- end }}
         labelSelector:
           matchLabels:
-            app: {{ $apiName }}
+            app: {{ $name }}
       {{- end }}
       {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.worker)) }}
       nodeSelector:
@@ -53,7 +52,7 @@ spec:
       tolerations:
         {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
       {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.worker "root" .) }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.worker "root" . "suffix" "worker") }}
       {{- with .Values.services.worker.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
@@ -118,7 +117,7 @@ spec:
         {{- include "osmo.v1.configmap-env" . | nindent 8 }}
         {{- include "osmo.v1.extra-env" .Values.services.worker | nindent 8 }}
         {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.worker.volumeMounts }}
+        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.worker.volumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
         {{- end }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}

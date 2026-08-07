@@ -59,7 +59,7 @@ spec:
       tolerations:
         {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.agent) | nindent 8 }}
       {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.agent "root" .) }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.agent "root" . "suffix" "agent") }}
       {{- with .Values.services.agent.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
@@ -83,11 +83,11 @@ spec:
         - {{ .Values.externalDependencies.valkey.host }}
         - --redis_port
         - {{ .Values.externalDependencies.valkey.port | quote }}
+        - --redis_db_number
+        - {{ .Values.externalDependencies.valkey.database | quote }}
         {{- if .Values.externalDependencies.valkey.tls.enabled }}
         - --redis_tls_enable
         - "true"
-        - --redis_db_number
-        - {{ .Values.externalDependencies.valkey.database | quote }}
         {{- end}}
         {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.v1.hostname" .) }}
         {{- if $serviceHostname }}
@@ -126,8 +126,7 @@ spec:
         {{- include "osmo.v1.extra-env" .Values.services.agent | nindent 8 }}
         {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
         imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.agent) }}
-        ports:
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.agent.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) }}
+        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.agent.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
         {{- end }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
@@ -161,15 +160,7 @@ spec:
         {{- end }}
 
         readinessProbe:
-          httpGet:
-            port: 8000
-            path: /health
-            {{- if .Values.gateway.tls.enabled }}
-            scheme: HTTPS
-            {{- end }}
-          periodSeconds: 45
-          failureThreshold: 3
-          timeoutSeconds: 20
+          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.agent.readinessProbe "context" .) | nindent 10 }}
 
       {{- include "osmo.v1.extra-sidecars" .Values.services.agent | nindent 6 }}
       volumes:

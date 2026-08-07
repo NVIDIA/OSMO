@@ -35,10 +35,12 @@ filegroup(
 
 sh_test(
     name = "test_osmo_charts",
-    srcs = ["tests/test_osmo_charts.sh"],
+    srcs = ["osmo/ci/test_osmo_charts.sh"],
     data = [
         ":osmo",
-        "tests/control-external-values.yaml",
-        "tests/control-mcp-values.yaml",
+        "osmo/ci/control-external-values.yaml",
+        "osmo/ci/control-mcp-values.yaml",
+        "osmo/ci/control-review-values.yaml",
     ],
+    local = True,
 )

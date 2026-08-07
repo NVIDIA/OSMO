@@ -60,7 +60,7 @@ spec:
       tolerations:
         {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.router) | nindent 8 }}
       {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.router "root" .) }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.router "root" . "suffix" "router") }}
       {{- with .Values.services.router.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
@@ -112,7 +112,7 @@ spec:
         {{- with .Values.services.router.env }}
         {{- range . }}
         - name: {{ .name }}
-          {{- if .value }}
+          {{- if hasKey . "value" }}
           value: {{ .value | quote }}
           {{- else if .valueFrom }}
           valueFrom:
@@ -138,7 +138,7 @@ spec:
           protocol: {{ .protocol | default "TCP" }}
         {{- end }}
         {{- end }}
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.services.router.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.router) }}
+        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.services.router.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.router) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}

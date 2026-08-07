@@ -29,7 +29,7 @@ data:
     {{- $cfg := .Values.configuration }}
     {{- if or $cfg.service .Values.exposure.baseUrl }}
     service:
-      {{- $service := deepCopy $cfg.service }}
+      {{- $service := deepCopy ($cfg.service | default dict) }}
       {{- if .Values.exposure.baseUrl }}
       {{- $_ := set $service "service_base_url" .Values.exposure.baseUrl }}
       {{- end }}

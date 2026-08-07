@@ -41,6 +41,10 @@ services:
 gateway:
   envoy:
     enabled: true
+    service:
+      # Keep the unauthenticated in-cluster gateway behind an operator-managed,
+      # authenticating edge rather than provisioning a public load balancer.
+      type: ClusterIP
   oauth2Proxy:
     enabled: false
   authz:

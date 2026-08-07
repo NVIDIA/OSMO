@@ -20,9 +20,6 @@
 {{- $mcpResourceUrl := include "osmo.v1.mcp-resource-url" . }}
 {{- $gatewayUrl := trimSuffix "/mcp" $mcpResourceUrl }}
 {{- $requestTimeoutSeconds := toString $mcp.requestTimeoutSeconds }}
-{{- if not (regexMatch "^([1-9]|[1-5][0-9]|60)$" $requestTimeoutSeconds) }}
-{{- fail "services.mcp.requestTimeoutSeconds must be between 1 and 60" }}
-{{- end }}
 {{- $reservedEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_GATEWAY_URL" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" }}
 {{- range $env := $mcp.env }}
 {{- if has (toString (default "" $env.name)) $reservedEnvNames }}
@@ -58,7 +55,7 @@ spec:
       tolerations:
         {{- include "osmo.v1.tolerations" (dict "root" . "component" $mcp) | nindent 8 }}
       {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" $mcp "root" .) }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" $mcp "root" . "suffix" "mcp") }}
       containers:
       - name: {{ $name }}
         image: {{ include "osmo.v1.image" (dict "root" . "component" $mcp) }}

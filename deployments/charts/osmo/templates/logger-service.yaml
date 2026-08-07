@@ -59,7 +59,7 @@ spec:
       tolerations:
         {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.logger) | nindent 8 }}
       {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.logger "root" .) }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.logger "root" . "suffix" "logger") }}
       {{- with .Values.services.logger.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
@@ -83,11 +83,11 @@ spec:
         - {{ .Values.externalDependencies.valkey.host }}
         - --redis_port
         - {{ .Values.externalDependencies.valkey.port | quote }}
+        - --redis_db_number
+        - {{ .Values.externalDependencies.valkey.database | quote }}
         {{- if .Values.externalDependencies.valkey.tls.enabled }}
         - --redis_tls_enable
         - "true"
-        - --redis_db_number
-        - {{ .Values.externalDependencies.valkey.database | quote }}
         {{- end}}
         - --postgres_host
         - {{ .Values.externalDependencies.postgresql.host }}
@@ -121,8 +121,7 @@ spec:
         {{- include "osmo.v1.extra-env" .Values.services.logger | nindent 8 }}
         {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
         imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.logger) }}
-        ports:
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.logger.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.logger) }}
+        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.logger.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.logger) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
         {{- end }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}

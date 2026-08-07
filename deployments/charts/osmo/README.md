@@ -97,13 +97,18 @@ may reference a separate Secret. The defaults expect these keys:
 
 The chart only reads operator-owned Secrets. It does not create, mutate, or
 delete them. When PostgreSQL or Valkey uses a private CA, enable TLS in the
-matching `externalDependencies` block and reference the CA Secret there.
+matching `externalDependencies` block and reference the CA Secret there. The
+Valkey `caKey` must hold a complete PEM trust bundle, including the public or
+system roots used by other HTTPS endpoints; OSMO's Python services consume that
+bundle through `SSL_CERT_FILE`. The default Valkey key is `ca-bundle.crt`.
 
 ## Exposure
 
 `exposure.mode: external` renders the internal OSMO gateway and no public edge
-resource. An operator-managed proxy is responsible for forwarding HTTP and
-WebSocket traffic to the `osmo-gateway` Service. For local verification:
+resource. The control profile keeps that Service at `ClusterIP`; an
+operator-managed, authenticating proxy is responsible for forwarding HTTP and
+WebSocket traffic to it. Do not expose the profile's gateway directly without
+adding the intended authentication layer. For local verification:
 
 ```bash
 kubectl --namespace osmo port-forward service/osmo-gateway 8080:80

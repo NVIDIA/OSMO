@@ -56,7 +56,7 @@ spec:
       tolerations:
         {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
       {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.api "root" .) }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.api "root" . "suffix" "service") }}
       {{- with .Values.services.api.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
@@ -162,7 +162,7 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.api.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) }}
+        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.api.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
         {{- end }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
@@ -187,20 +187,9 @@ spec:
         startupProbe:
           {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.api.startupProbe "context" .) | nindent 10 }}
 
-        # Do a basic database read operation to ensure the service is able to serve traffic
+        # Readiness must not require privileged request headers.
         readinessProbe:
-          httpGet:
-            port: 8000
-            path: /api/workflow?limit=0&all_pools=true
-            {{- if .Values.gateway.tls.enabled }}
-            scheme: HTTPS
-            {{- end }}
-            httpHeaders:
-            - name: x-osmo-roles
-              value: osmo-admin
-          periodSeconds: 45
-          failureThreshold: 3
-          timeoutSeconds: 20
+          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.api.readinessProbe "context" .) | nindent 10 }}
 
       {{- include "osmo.v1.extra-sidecars" .Values.services.api | nindent 6 }}
       volumes:
