@@ -596,7 +596,11 @@ create_backend_token_secrets() {
         backend_token_file=$(mktemp)
         chmod 600 "$backend_token_file"
         trap 'rm -f "$backend_token_file"' RETURN
-        openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$backend_token_file"
+        if ! openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' \
+                > "$backend_token_file" || [[ ! -s "$backend_token_file" ]]; then
+            log_error "Failed to generate the backend bootstrap credential"
+            return 1
+        fi
 
         local control_secret_yaml
         local operator_secret_yaml

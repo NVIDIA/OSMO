@@ -43,10 +43,14 @@ def check_backend_token_exists() -> bool:
     """Check if the backend credential Secret is provisioned."""
     process = run_command_with_logging([
         'kubectl', 'get', 'secret', 'agent-token', '-n', 'osmo',
+        '--ignore-not-found=true',
         '-o', 'go-template={{if index .data "token"}}present{{end}}'
     ], 'Checking backend token Secret')
     if process.has_failed():
-        return False
+        with open(process.stderr_file, 'r', encoding='utf-8') as error_file:
+            error_message = error_file.read().strip()
+        raise RuntimeError(
+            f'Failed to check backend token Secret osmo/agent-token: {error_message}')
     with open(process.stdout_file, 'r', encoding='utf-8') as output_file:
         return output_file.read().strip() == 'present'
 
@@ -69,8 +73,8 @@ def _setup_backend_operators(image_location: str, image_tag: str, detected_platf
 
         if not token_exists:
             raise RuntimeError(
-                'Backend token Secret osmo/agent-token is missing. Copy it from the '
-                'control-plane cluster before installing the backend operator.')
+                'Backend token Secret osmo/agent-token is missing. Install the OSMO '
+                'service first so its managed backend credential is provisioned.')
         logger.info('   ✅ Backend operator Secret is present')
 
         logger.info('   Installing backend operator...')

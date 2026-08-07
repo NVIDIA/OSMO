@@ -50,6 +50,9 @@ Creating a Service Account
 Follow these steps to create a service account for CI/CD pipelines or other
 automation needs.
 
+The examples use the preconfigured ``osmo-user`` role for standard workflow
+automation. Use a narrower custom role when the automation needs fewer permissions.
+
 Prerequisites
 -------------
 
@@ -63,13 +66,13 @@ Create a user with an identifier that clearly indicates it's a service account:
 
 .. code-block:: bash
 
-   $ osmo user create svc-automation --roles osmo-default
+   $ osmo user create svc-automation --roles osmo-user
 
 **Example output:**
 
 .. code-block:: text
 
-   User created: svc-automation   Roles assigned: osmo-default
+   User created: svc-automation   Roles assigned: osmo-user
 
 .. tip::
 
@@ -88,7 +91,7 @@ You can limit the token to specific roles using the ``--roles`` (or ``-r``) opti
        --user svc-automation \
        --expires-at 2027-01-01 \
        --description "Automation Token" \
-       --roles osmo-default
+       --roles osmo-user
 
 **Example output:**
 
@@ -97,7 +100,7 @@ You can limit the token to specific roles using the ``--roles`` (or ``-r``) opti
    Note: Save the token in a secure location as it will not be shown again
    Access token: osmo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    Created for user: svc-automation
-   Roles: osmo-default
+   Roles: osmo-user
 
 .. tip::
 
@@ -116,15 +119,11 @@ Managing Service Accounts
 List Service Account Users
 --------------------------
 
-List users with a specific prefix or role:
+List users with the service-account naming prefix:
 
 .. code-block:: bash
 
-   # List by naming prefix
    $ osmo user list --id-prefix svc-
-
-   # List by role
-   $ osmo user list --roles osmo-default
 
 View Service Account Details
 ----------------------------
@@ -143,7 +142,7 @@ View details including assigned roles:
    Created By: admin@example.com
 
    Roles:
-     - osmo-default (assigned by admin@example.com on 2026-01-15)
+     - osmo-user (assigned by admin@example.com on 2026-01-15)
 
 List Service Account Tokens
 ---------------------------
@@ -222,12 +221,12 @@ For monitoring systems or automation scripts:
 
 .. code-block:: bash
 
-   # Create the service account with read-only roles
-   $ osmo user create monitoring --roles osmo-user
+   # Create the service account with the standard operational role
+   $ osmo user create svc-monitoring --roles osmo-user
 
    # Create a token with specific roles
    $ osmo token set monitoring-token \
-       --user monitoring \
+       --user svc-monitoring \
        --expires-at 2027-01-01 \
        --description "Monitoring System" \
        --roles osmo-user
@@ -303,7 +302,7 @@ Add necessary roles if missing:
 
 .. code-block:: bash
 
-   $ osmo user update svc-automation --add-roles osmo-default
+   $ osmo user update svc-automation --add-roles osmo-user
 
 User Not Found
 --------------
@@ -314,4 +313,4 @@ User Not Found
 
 .. code-block:: bash
 
-   $ osmo user create svc-automation --roles osmo-default
+   $ osmo user create svc-automation --roles osmo-user

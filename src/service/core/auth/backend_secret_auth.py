@@ -50,9 +50,11 @@ class BackendSecretAuthenticator:
     def authenticate(self, access_token: str) -> BackendTokenIdentity | None:
         """Return the fixed backend identity when a projected token matches."""
         candidates = self._load_candidates()
+        encoded_access_token = access_token.encode('utf-8')
         matched_identity = None
         for candidate in candidates:
-            matches = hmac.compare_digest(access_token, candidate.token)
+            matches = hmac.compare_digest(
+                encoded_access_token, candidate.token.encode('utf-8'))
             if matches:
                 matched_identity = candidate.identity
         return matched_identity
