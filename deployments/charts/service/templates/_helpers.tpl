@@ -229,6 +229,7 @@ OSMO_CONFIGMAP_NAME deliberately references services.service.serviceName
 {{- end }}
 {{- end }}
 {{- end -}}
+
 {{/*
 Validate and return the canonical public MCP resource URL. The Gateway
 origin used for bearer relay is derived from this single source of truth.
