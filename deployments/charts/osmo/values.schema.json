@@ -90,7 +90,6 @@
         "logger": { "$ref": "#/definitions/serviceComponent" },
         "agent": { "$ref": "#/definitions/serviceComponent" },
         "delayedJobMonitor": { "$ref": "#/definitions/serviceComponent" },
-        "migration": { "$ref": "#/definitions/serviceComponent" },
         "mcp": { "$ref": "#/definitions/serviceComponent" }
       }
     },

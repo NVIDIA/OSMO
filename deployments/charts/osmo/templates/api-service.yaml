@@ -143,10 +143,6 @@ spec:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.api.disableTaskMetrics | quote }}
         {{- include "osmo.v1.configmap-env" . | nindent 8 }}
-        {{- if .Values.services.migration.enabled }}
-        - name: OSMO_SCHEMA_VERSION
-          value: {{ .Values.services.migration.targetSchema }}
-        {{- end }}
         {{- include "osmo.v1.extra-env" .Values.services.api | nindent 8 }}
         {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
         {{- if .Values.secrets.defaultAdmin.existingSecret }}

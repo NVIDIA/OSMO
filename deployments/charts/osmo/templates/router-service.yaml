@@ -108,8 +108,6 @@ spec:
         {{- end }}
         {{- include "osmo.v1.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         env:
-        - name: OSMO_SCHEMA_VERSION
-          value: {{ .Values.services.migration.targetSchema | default "public" }}
         {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
         {{- with .Values.services.router.env }}
         {{- range . }}

@@ -1,11 +1,20 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# Select which OSMO planes this release owns.
 planes:
+  # Deploy the API, UI, router, workers, logging services, and gateway. This
+  # must remain true while the chart supports only control-plane releases.
   control:
     enabled: true
+  # Reserved for backend-operator workloads. Enabling it is rejected in this
+  # chart version because the compute plane has not been added yet.
   compute:
     enabled: false
+
+# Select supporting systems managed by this Helm release. These switches are
+# reserved for future chart dependencies and must remain false for now. Supply
+# operator-managed services through `external` instead.
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -17,14 +26,25 @@ embeddedDependencies:
     enabled: false
   kaiScheduler:
     enabled: false
+
+# Override the names Helm derives from the chart and release. Leave empty for
+# conventional names such as `osmo-service` and `osmo-gateway`.
 nameOverride: ''
 fullnameOverride: ''
+
+# Shared defaults for OSMO-owned images. A service can override these values in
+# its own `image` block; an empty service tag inherits `image.tag`, which in
+# turn defaults to Chart.appVersion.
 image:
   registry: nvcr.io
   repositoryPrefix: nvidia/osmo
   tag: ''
   pullPolicy: IfNotPresent
 imagePullSecrets: []
+
+# Metadata and scheduling defaults shared by OSMO-owned workloads. Labels,
+# annotations, and node selectors merge with service-specific pod values;
+# service-specific tolerations replace this list.
 commonLabels: {}
 commonAnnotations: {}
 podDefaults:
@@ -32,6 +52,7 @@ podDefaults:
   annotations: {}
   nodeSelector: {}
   tolerations: []
+  # Reserved for shared pod-policy support in a future chart update.
   affinity: {}
   podSecurityContext: {}
   containerSecurityContext:
@@ -41,15 +62,33 @@ podDefaults:
       - ALL
     runAsNonRoot: true
     runAsUser: 1001
+
+# Shared Python service logging settings.
 logging:
   enabled: true
   logLevel: DEBUG
   k8sLogLevel: WARNING
   logFormat: text
+
+# Describe how clients reach the release.
+#
+# Supported mode values are `external`, `gateway`, and `ingress`. Only
+# `external` is implemented today: the chart creates the internal
+# `osmo-gateway` Service but expects an operator-managed proxy, load balancer,
+# or port-forward to expose it. The other modes fail validation until their
+# Kubernetes edge resources are implemented.
 exposure:
   mode: external
+  # Public OSMO URL used in generated service configuration. Include the
+  # scheme, for example `https://osmo.example.com`.
   baseUrl: ''
+
+# Connection details for dependencies owned outside this release. These
+# endpoints are required by the control plane because embedded dependencies
+# are not implemented yet.
 external:
+  # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
+  # server certificate is signed by a private CA.
   postgresql:
     host: ''
     port: 5432
@@ -59,6 +98,7 @@ external:
       enabled: false
       caExistingSecret: ''
       caKey: ca.crt
+  # Valkey provides queues, caches, events, and distributed coordination.
   valkey:
     host: ''
     port: 6379
@@ -67,6 +107,7 @@ external:
       enabled: false
       caExistingSecret: ''
       caKey: ca.crt
+  # S3-compatible storage for workflow data, logs, and application bundles.
   objectStorage:
     endpoint: ''
     region: us-east-1
@@ -74,35 +115,50 @@ external:
       workflows: ''
       logs: ''
       apps: ''
+
+# References to operator-owned Kubernetes Secrets. Inline credentials are not
+# accepted. `generate` is reserved for future chart-generated credentials and
+# must remain false in this chart version.
 secrets:
+  # Password used with `external.postgresql.username`.
   postgresql:
     generate: false
     existingSecret: ''
     keys:
       password: db-password
+  # Password used for the external Valkey connection.
   valkey:
     generate: false
     existingSecret: ''
     keys:
       password: redis-password
+  # Storage SDK configuration file mounted for all three object-storage uses.
   objectStorage:
     generate: false
     existingSecret: ''
     keys:
       credentials: object-storage.yaml
+  # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
     generate: false
     existingSecret: ''
     mountPath: /opt/osmo/config.yaml
     keys:
       config: mek.yaml
+  # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false
     existingSecret: ''
     username: admin
     keys:
       password: password
+
+# OSMO domain configuration rendered into the service ConfigMap. Enable this
+# in a profile to manage workflows, pod templates, validation rules, roles,
+# backends, and pools with the release.
 configuration:
+  # When false, the chart does not render or mount the OSMO configuration
+  # ConfigMap. The split-plane control profile enables it.
   enabled: false
   extraConfigMaps: []
   extraAnnotations: {}
@@ -280,7 +336,13 @@ configuration:
         default: {}
   backendTests: {}
   groupTemplates: {}
+
+# Control-plane application services. Each service owns its image, scaling,
+# probes, resources, environment overrides, and pod-level settings. Internal
+# commands, ports, Service names, and required connection arguments remain
+# chart-managed implementation details.
 services:
+  # Optional Model Context Protocol endpoint exposed through the gateway.
   mcp:
     enabled: false
     replicas: 1
@@ -340,6 +402,8 @@ services:
           - ALL
         runAsNonRoot: true
         runAsUser: 1001
+
+  # Browser-based OSMO user interface.
   ui:
     enabled: true
     replicas: 1
@@ -414,25 +478,8 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
-  migration:
-    enabled: false
-    targetSchema: public
-    image:
-      repository: postgres:15-alpine
-      pullPolicy: IfNotPresent
-    pgrollVersion: v0.16.1
-    serviceAccount:
-      name: ''
-      create: false
-      annotations: {}
-    resources: {}
-    extraAnnotations: {}
-    env: []
-    pod:
-      annotations: {}
-      nodeSelector: {}
-      initContainers: []
-      labels: {}
+
+  # Promotes scheduled Redis jobs when their delay expires.
   delayedJobMonitor:
     enabled: true
     replicas: 1
@@ -468,6 +515,8 @@ services:
       volumes:
       - name: progress-files
         emptyDir: {}
+
+  # Executes asynchronous control-plane jobs from the Valkey queue.
   worker:
     enabled: true
     autoscaling:
@@ -510,6 +559,8 @@ services:
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+
+  # Main OSMO REST API and control-plane service.
   api:
     enabled: true
     monitoring:
@@ -573,6 +624,8 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+
+  # Routes sticky HTTP and WebSocket sessions to connected backends.
   router:
     enabled: true
     autoscaling:
@@ -628,6 +681,8 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+
+  # Receives workflow logs and task metrics from runtime containers.
   logger:
     enabled: true
     autoscaling:
@@ -675,6 +730,8 @@ services:
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+
+  # Receives backend-cluster events and heartbeat streams.
   agent:
     enabled: true
     autoscaling:
@@ -722,7 +779,12 @@ services:
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+
+# Internal API gateway and optional gateway-adjacent services. This block is
+# independent of `exposure.mode`: `gateway.envoy` routes traffic inside the
+# release even when an external edge owns the public URL.
 gateway:
+  # Envoy proxy that provides the single in-cluster OSMO entry point.
   envoy:
     enabled: true
     autoscaling:
@@ -837,6 +899,9 @@ gateway:
       volumes: []
       labels: {}
       annotations: {}
+
+  # Fixed internal destinations used by Envoy routes. Change these only when
+  # deliberately routing to services outside this release.
   upstreams:
     service:
       enabled: true
@@ -858,6 +923,9 @@ gateway:
       enabled: true
       host: osmo-logger-headless
       port: 8000
+
+  # Optional OIDC login/session proxy. The split-plane control profile keeps
+  # it disabled unless an identity provider and existing Secret are supplied.
   oauth2Proxy:
     enabled: true
     autoscaling:
@@ -919,6 +987,8 @@ gateway:
         runAsUser: 1001
       volumes: []
       labels: {}
+
+  # Optional external-authorization service backed by OSMO role policies.
   authz:
     enabled: true
     autoscaling:
@@ -980,6 +1050,8 @@ gateway:
         runAsUser: 10001
       volumes: []
       labels: {}
+
+  # Optional Envoy-compatible global rate-limit service backed by Valkey.
   rateLimit:
     enabled: false
     replicas: 1
@@ -1018,6 +1090,8 @@ gateway:
         runAsUser: 1001
       volumes: []
       labels: {}
+
+  # Optional ingress policies limiting gateway traffic to known upstream pods.
   networkPolicies:
     enabled: false
     upstreams:
@@ -1033,6 +1107,10 @@ gateway:
       podSelector:
         app: osmo-ui
       port: 8000
+
+  # TLS for traffic from Envoy to OSMO upstream services. Existing Secret
+  # names provide fixed certificates; empty entries use each service's
+  # chart-managed self-signed mode. This does not configure public edge TLS.
   tls:
     enabled: true
     upstreamCerts:
