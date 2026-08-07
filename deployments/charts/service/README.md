@@ -122,6 +122,7 @@ Run the enabled and disabled rendering checks locally with:
 ```bash
 bash deployments/charts/service/ci/validate-mcp-chart.sh
 ```
+
 ### Backend API Token Settings
 
 The backend bootstrap credential is created outside the OSMO API. Each
