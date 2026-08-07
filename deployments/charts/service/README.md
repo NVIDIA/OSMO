@@ -157,14 +157,16 @@ services:
         name: osmo-backend-token-default
 ```
 
-Managed mode runs a pre-install hook Job that generates the token inside
-Kubernetes and creates the Secret through a short-lived ServiceAccount. The
-token is never included in Helm values, rendered manifests, or release state,
-and the bootstrap command does not print it. A pre-upgrade hook validates and
-preserves the Secret; if it was deleted, the upgrade fails instead of silently
-rotating the credential. The Secret is not owned by the Helm release, persists
-after uninstall, and is unaffected by Helm rollback. Switching the same name
-from `managedSecret` to `existingSecret` is therefore safe.
+Managed mode runs a pre-install hook Job using the configurable
+`services.backendApiTokens.bootstrap.image` kubectl image. It generates the
+token inside Kubernetes and creates the Secret through a short-lived
+ServiceAccount. The token is never included in Helm values, rendered manifests,
+or release state, and the bootstrap command does not print it. A pre-upgrade
+hook validates and preserves the Secret; if it was deleted, the upgrade fails
+instead of silently rotating the credential. The Secret is not owned by the
+Helm release, persists after uninstall, and is unaffected by Helm rollback.
+Switching the same name from `managedSecret` to `existingSecret` is therefore
+safe.
 
 The backend operator must run in the same namespace or receive a synchronized
 copy of the Secret. Use an external secret manager for multi-cluster production

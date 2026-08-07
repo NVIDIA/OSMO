@@ -71,20 +71,12 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/core/service_binary.runfiles",
 )
 
-osmo_python_wrapper(
-    name = "backend_token_bootstrap_wrapper",
-    bin_name = "backend_token_bootstrap",
-    main = "/src/service/core/auth/backend_token_bootstrap.py",
-    runfiles_dir = "/src/service/core/service_binary.runfiles",
-)
-
 filegroup(
     name = "service_image_layers",
     srcs = [
         ":service_layer_default",
         ":service_layer_interpreter",
         ":service_layer_packages",
-        ":backend_token_bootstrap_wrapper",
         ":service_wrapper",
     ],
 )

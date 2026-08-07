@@ -18,6 +18,23 @@ export OSMO_OPERATOR_NAMESPACE="test-operator"
 known_token="c2Vuc2l0aXZlLWJhY2tlbmQtdG9rZW4"
 az_result="ready"
 
+assert() {
+    local description="$1"
+    shift
+    if ! "$@"; then
+        echo "assertion failed: $description" >&2
+        return 1
+    fi
+}
+
+does_not_contain() {
+    [[ "$1" != *"$2"* ]]
+}
+
+file_does_not_contain() {
+    ! grep -q "$2" "$1"
+}
+
 az() {
     local remote_command=""
     local remote_script_file=""
@@ -37,13 +54,14 @@ az() {
         esac
     done
 
-    [[ -n "$remote_command" ]]
-    [[ -f "$remote_script_file" ]]
-    [[ "$remote_command" != *"$known_token"* ]]
-    [[ "$remote_command" != *"jsonpath"* ]]
-    if grep -q 'OSMO_BACKEND_TOKEN_FOUND' "$remote_script_file"; then
-        return 1
-    fi
+    assert 'remote command is present' test -n "$remote_command" || return 1
+    assert 'remote script file exists' test -f "$remote_script_file" || return 1
+    assert 'remote command does not contain token material' \
+        does_not_contain "$remote_command" "$known_token" || return 1
+    assert 'remote command does not read token data' \
+        does_not_contain "$remote_command" jsonpath || return 1
+    assert 'remote script does not emit a token-found marker' \
+        file_does_not_contain "$remote_script_file" OSMO_BACKEND_TOKEN_FOUND || return 1
 
     printf 'untrusted Azure log containing %s\n' "$known_token"
     if [[ "$az_result" == "ready" ]]; then
@@ -52,13 +70,17 @@ az() {
 }
 
 output=$(create_backend_token_secrets 2>&1)
-[[ "$output" != *"$known_token"* ]]
-[[ "$output" == *"Backend bootstrap credential is ready"* ]]
+assert 'deployment output does not contain token material' \
+    does_not_contain "$output" "$known_token"
+assert 'deployment reports the credential is ready' \
+    grep -q 'Backend bootstrap credential is ready' <<<"$output"
 
 az_result="missing-marker"
 if output=$(create_backend_token_secrets 2>&1); then
     echo "Expected missing Azure status marker to fail" >&2
     exit 1
 fi
-[[ "$output" != *"$known_token"* ]]
-[[ "$output" == *"Unable to reconcile backend token Secrets"* ]]
+assert 'failed deployment output does not contain token material' \
+    does_not_contain "$output" "$known_token"
+assert 'missing Azure marker reports reconciliation failure' \
+    grep -q 'Unable to reconcile backend token Secrets' <<<"$output"

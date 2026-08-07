@@ -622,6 +622,7 @@ create_backend_token_secrets() {
 
     local namespace
     local namespace_token_state
+    local copied_secret="false"
     for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE"; do
         if [[ "$namespace" == "$OSMO_NAMESPACE" ]]; then
             namespace_token_state="$control_token_state"
@@ -639,9 +640,12 @@ data:
   token: $existing_token_data"
             $RUN_KUBECTL_APPLY_STDIN "$secret_manifest"
             log_info "  Copied $BACKEND_TOKEN_SECRET_NAME to $namespace"
+            copied_secret="true"
         fi
     done
-    log_info "Backend bootstrap credential already exists — preserving"
+    if [[ "$copied_secret" == "false" ]]; then
+        log_info "Backend bootstrap credential already exists — preserving"
+    fi
 }
 
 create_secrets() {

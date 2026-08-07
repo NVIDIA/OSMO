@@ -100,7 +100,8 @@ For users who already have Kubernetes infrastructure and want to deploy OSMO dir
 > - Kubernetes namespaces (`osmo-minimal`, `osmo-operator`, `osmo-workflows`)
 > - Database secrets (`db-secret` with PostgreSQL password)
 > - Redis secrets (`redis-secret` with Redis password)
-> - A backend bootstrap token Secret copied to the control and compute clusters
+> - For production or multi-cluster installs, a backend bootstrap token Secret
+>   copied to the control and compute clusters
 > - MEK ConfigMap (Master Encryption Key)
 > - The PostgreSQL database itself
 >
@@ -157,9 +158,10 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
   --wait
 ```
 
-The service quick-start values generate `backend-operator-token` during the
-first Helm install. Because the backend operator is installed in the same
-namespace, it consumes that Secret directly.
+For the local quick-start only, the service values generate
+`backend-operator-token` during the first Helm install. Because the backend
+operator is installed in the same namespace, it consumes that Secret directly;
+no pre-created backend Secret is required.
 
 After installing the CLI and logging in, set the demo pool and LocalStack data credential:
 

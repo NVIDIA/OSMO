@@ -80,7 +80,7 @@ metadata:
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-10"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 0
   template:
@@ -105,28 +105,39 @@ spec:
         {{- toYaml .Values.services.service.tolerations | nindent 8 }}
       containers:
       - name: backend-token-bootstrap
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.service.imageName }}:{{ .Values.global.osmoImageTag }}
-        imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
+        image: {{ .Values.services.backendApiTokens.bootstrap.image | quote }}
+        imagePullPolicy: {{ .Values.services.backendApiTokens.bootstrap.imagePullPolicy }}
         command:
-        - backend_token_bootstrap
+        - /bin/sh
         args:
+        - -c
+        - |
+{{ .Files.Get "files/backend-token-bootstrap.sh" | nindent 10 }}
+        - backend-token-bootstrap
         - --namespace
         - {{ .Release.Namespace | quote }}
-        - --release_name
+        - --release-name
         - {{ .Release.Name | quote }}
+        {{- if .Release.IsUpgrade }}
+        - --fail-if-missing
+        {{- end }}
         {{- range $managedCredentials }}
-        - --secret_name
+        - --secret-name
         - {{ include "osmo.backend-api-token-secret-name" . | quote }}
         {{- end }}
-        {{- if .Release.IsUpgrade }}
-        - --fail_if_missing
-        {{- end }}
+        env:
+        - name: HOME
+          value: /tmp
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
+          readOnlyRootFilesystem: true
           runAsNonRoot: true
           runAsUser: 1001
+        volumeMounts:
+        - name: bootstrap-tmp
+          mountPath: /tmp
         resources:
           requests:
             cpu: 10m
@@ -134,5 +145,8 @@ spec:
           limits:
             cpu: 100m
             memory: 128Mi
+      volumes:
+      - name: bootstrap-tmp
+        emptyDir: {}
 {{- end }}
 {{- end }}

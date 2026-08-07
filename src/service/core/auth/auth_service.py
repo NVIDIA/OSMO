@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import datetime
+import logging
 import re
 import secrets
 import time
@@ -32,6 +33,7 @@ from src.utils import auth, connectors
 router = fastapi.APIRouter(
     tags = ['Auth API']
 )
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -162,11 +164,12 @@ def _create_jwt_from_access_token(access_token: str):
     postgres = connectors.PostgresConnector.get_instance()
     try:
         backend_identity = backend_secret_auth.authenticate(access_token)
-    except backend_secret_auth.BackendTokenConfigurationError:
+    except backend_secret_auth.BackendTokenConfigurationError as error:
         # Configuration is validated during service startup. If a projected
         # Secret is briefly unavailable during rotation, preserve ordinary
         # database-backed access-token authentication while failing the
         # backend credential closed.
+        logger.warning('Backend token projection unavailable: %s', error)
         backend_identity = None
     if backend_identity is not None:
         service_config = postgres.get_service_configs()

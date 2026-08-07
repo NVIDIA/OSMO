@@ -28,7 +28,7 @@ class BackendTokenSecretTest(unittest.TestCase):
         self.assertTrue(start_backend_kind.check_backend_token_exists())
 
         command = run_command.call_args.args[0]
-        self.assertNotIn('jsonpath={.data.token}', command)
+        self.assertFalse([argument for argument in command if 'jsonpath' in argument])
         self.assertIn('--ignore-not-found=true', command)
         self.assertIn(
             'go-template={{if index .data "token"}}present{{end}}', command)
