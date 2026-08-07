@@ -32,6 +32,11 @@ if [ "$1" = get ]; then
         *previous-token*)
             if [ -f "$FAKE_STATE_DIRECTORY/$secret_name.previous-token" ]; then
                 base64 < "$FAKE_STATE_DIRECTORY/$secret_name.previous-token" | tr -d '\n'
+            else
+                case "$output_arguments" in
+                    *'{{with index '*) ;;
+                    *) printf '<no value>' ;;
+                esac
             fi
             ;;
         *token*) base64 < "$FAKE_STATE_DIRECTORY/$secret_name.token" | tr -d '\n' ;;
@@ -97,14 +102,21 @@ if [[ "$output" == *"$generated_token"* ]]; then
     exit 1
 fi
 
-previous_token=$(printf 'p%.0s' {1..43})
-printf '%s' "$previous_token" > \
-    "$FAKE_STATE_DIRECTORY/generated-token.previous-token"
 output=$(run_bootstrap --secret-name generated-token)
 if [[ "$output" != *'already exists; preserving it'* ]]; then
     echo 'Existing backend token was not preserved' >&2
     exit 1
 fi
+if ! grep -q '{{with index .data "previous-token"}}{{.}}{{end}}' \
+        "$FAKE_STATE_DIRECTORY/commands"; then
+    echo 'Optional token lookup does not suppress the kubectl <no value> marker' >&2
+    exit 1
+fi
+
+previous_token=$(printf 'p%.0s' {1..43})
+printf '%s' "$previous_token" > \
+    "$FAKE_STATE_DIRECTORY/generated-token.previous-token"
+run_bootstrap --secret-name generated-token >/dev/null
 
 printf '%s' "$generated_token" > \
     "$FAKE_STATE_DIRECTORY/generated-token.previous-token"

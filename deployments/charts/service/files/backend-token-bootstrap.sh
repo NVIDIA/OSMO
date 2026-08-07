@@ -29,7 +29,7 @@ decode_token() {
 
     encoded_token=$(kubectl get secret "$secret_name" \
         --namespace "$namespace" \
-        -o "go-template={{index .data \"$token_key\"}}") || {
+        -o "go-template={{with index .data \"$token_key\"}}{{.}}{{end}}") || {
         log_error "Unable to read backend token Secret $secret_name"
         return 1
     }
