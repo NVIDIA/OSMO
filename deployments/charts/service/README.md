@@ -68,8 +68,6 @@ OSMO services write logs to standard streams for collection by the platform log 
 |-----------|-------------|---------|
 | `services.configFile.enabled` | Enable external configuration file loading | `false` |
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
-| `services.configFile.secretName` | Existing Kubernetes Secret containing the MEK file; empty preserves the legacy `mek-config` ConfigMap | `""` |
-| `services.configFile.secretKey` | Key in `secretName` mounted as `mek.yaml` | `mek.yaml` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
 
@@ -155,8 +153,8 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.postgres.port` | PostgreSQL port | `5432` |
 | `services.postgres.db` | Database name | `osmo` |
 | `services.postgres.user` | PostgreSQL username | `postgres` |
-| `services.postgres.passwordSecretName` | Name of the Kubernetes secret containing the PostgreSQL password | `db-secret` |
-| `services.postgres.passwordSecretKey` | Key name in the secret that contains the PostgreSQL password | `db-password` |
+| `services.postgres.passwordSecretName` | Name of the Kubernetes secret containing the PostgreSQL password | `postgres-secret` |
+| `services.postgres.passwordSecretKey` | Key name in the secret that contains the PostgreSQL password | `password` |
 | `services.postgres.storageSize` | Storage size | `20Gi` |
 | `services.postgres.storageClassName` | Storage class name | `""` |
 | `services.postgres.enableNodePort` | Enable NodePort service | `true` |
@@ -176,8 +174,6 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.redis.storageSize` | Storage size | `20Gi` |
 | `services.redis.storageClassName` | Storage class name | `""` |
 | `services.redis.tlsEnabled` | Enable TLS | `true` |
-| `services.redis.passwordSecretName` | Name of the Kubernetes Secret containing the Redis or Valkey password | `redis-secret` |
-| `services.redis.passwordSecretKey` | Key containing the Redis or Valkey password | `redis-password` |
 | `services.redis.enableNodePort` | Enable NodePort service | `true` |
 | `services.redis.nodePort` | NodePort value | `30034` |
 | `services.redis.nodeSelector` | Node selector constraints | `{}` |

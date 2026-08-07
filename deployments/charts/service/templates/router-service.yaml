@@ -127,8 +127,8 @@ spec:
         - name: OSMO_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ .Values.services.postgres.passwordSecretName }}
-              key: {{ .Values.services.postgres.passwordSecretKey }}
+              name: db-secret
+              key: db-password
         {{- end }}
         {{- with .Values.services.router.extraEnvs }}
         {{- range . }}
@@ -193,7 +193,15 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
-        {{- include "osmo.mek-volume" . | nindent 8 }}
+        {{- if .Values.services.configFile.enabled}}
+        - configMap:
+            defaultMode: 420
+            items:
+            - key: mek.yaml
+              path: mek.yaml
+            name: mek-config
+          name: mek-volume
+        {{- end}}
         {{- with .Values.services.router.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

@@ -1,0 +1,116 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.embeddedDependencies.valkey.enabled }}
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+    helm.sh/weight: "-30"
+  name: redis-volume
+spec:
+  storageClassName: {{ .Values.embeddedDependencies.valkey.storageClassName | toYaml }}
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: {{ .Values.embeddedDependencies.valkey.storageSize }}
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    app: redis
+  annotations:
+    helm.sh/weight: "-30"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      tolerations: {{ toYaml .Values.embeddedDependencies.valkey.tolerations | nindent 8 }}
+      nodeSelector:
+        {{- range $k, $v := .Values.podDefaults.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+        {{- range $k, $v := .Values.embeddedDependencies.valkey.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+      containers:
+      - name: redis
+        image: {{ .Values.embeddedDependencies.valkey.image }}
+        args:
+        - "--appendonly"
+        - "yes"
+        - "--appendfsync"
+        - "always"
+        - "--loglevel"
+        - "debug"
+        imagePullPolicy: {{ .Values.embeddedDependencies.valkey.imagePullPolicy }}
+        ports:
+        - name: redis
+          containerPort: 6379
+          protocol: TCP
+        volumeMounts:
+        - mountPath: "/data"
+          name: pv-storage
+        resources:
+          requests:
+            cpu: "125m"
+            memory: "1Gi"
+          limits:
+            cpu: "250m"
+      volumes:
+      - name: pv-storage
+        persistentVolumeClaim:
+          claimName: redis-volume
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.external.valkey.host }}
+  labels:
+    app: redis
+  annotations:
+    helm.sh/weight: "-30"
+spec:
+  {{ if .Values.embeddedDependencies.valkey.enableNodePort }}
+  type: NodePort
+  {{ end }}
+  ports:
+  - port: {{ .Values.external.valkey.port }}
+    {{ if .Values.embeddedDependencies.valkey.enableNodePort }}
+    nodePort: {{ .Values.embeddedDependencies.valkey.nodePort }}
+    {{ end }}
+    targetPort: redis
+    protocol: TCP
+    name: http
+  selector:
+    app: redis
+
+{{- end }}

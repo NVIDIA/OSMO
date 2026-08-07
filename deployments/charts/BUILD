@@ -38,7 +38,7 @@ sh_test(
     srcs = ["tests/test_osmo_charts.sh"],
     data = [
         ":osmo",
-        ":service",
         "tests/control-external-values.yaml",
+        "tests/control-mcp-values.yaml",
     ],
 )

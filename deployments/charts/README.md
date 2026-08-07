@@ -20,8 +20,9 @@ SPDX-License-Identifier: Apache-2.0
 
 OSMO deployment charts are:
 
-1. `osmo` is the unified umbrella entry point. Its initial
-   `split-plane-control` profile installs the control plane only.
+1. `osmo` is the unified entry point. It directly owns the control-plane
+   service and gateway templates; its initial `split-plane-control` profile
+   installs the control plane only.
 2. `service` deploys the core OSMO control plane, gateway, UI, router, worker,
    logger, agent, and optional legacy development dependencies.
 3. `backend-operator` connects a Kubernetes backend to the OSMO service and

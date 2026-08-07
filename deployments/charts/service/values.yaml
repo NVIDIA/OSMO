@@ -111,15 +111,6 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
-    ## Existing Kubernetes Secret containing the MEK configuration file.
-    ## Leave empty to preserve the legacy mek-config ConfigMap behavior.
-    ##
-    secretName: ""
-
-    ## Key in secretName to mount at path.
-    ##
-    secretKey: mek.yaml
-
   ## External self-hosted MCP service configuration
   ##
   mcp:
@@ -854,14 +845,6 @@ services:
     ## Enable TLS encryption for Redis connections
     ##
     tlsEnabled: true
-
-    ## Name of the Kubernetes Secret containing the Redis or Valkey password.
-    ##
-    passwordSecretName: redis-secret
-
-    ## Key in passwordSecretName containing the Redis or Valkey password.
-    ##
-    passwordSecretKey: redis-password
 
   ## Localstack S3 Object storage service configuration (local development + testing only)
   ## Set enabled to false if using an external Object storage deployment

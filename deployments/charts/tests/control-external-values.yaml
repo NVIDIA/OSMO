@@ -1,38 +1,41 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-controlPlane:
-  services:
-    configFile:
-      secretName: external-control-secrets
-    postgres:
-      serviceName: external-postgresql
-      passwordSecretName: external-control-secrets
-    redis:
-      serviceName: external-valkey
-      passwordSecretName: external-control-secrets
-    configs:
-      secretRefs:
-        - secretName: external-control-secrets
-      workflow:
-        workflow_data:
-          credential:
-            secretName: external-control-secrets
-            secretKey: object-storage.yaml
-            endpoint: s3://osmo-workflows/workflows
-            override_url: https://s3.external.example.com
-            region: us-east-1
-        workflow_log:
-          credential:
-            secretName: external-control-secrets
-            secretKey: object-storage.yaml
-            endpoint: s3://osmo-logs/logs
-            override_url: https://s3.external.example.com
-            region: us-east-1
-        workflow_app:
-          credential:
-            secretName: external-control-secrets
-            secretKey: object-storage.yaml
-            endpoint: s3://osmo-apps/apps
-            override_url: https://s3.external.example.com
-            region: us-east-1
+exposure:
+  mode: external
+  baseUrl: http://osmo-gateway
+
+external:
+  postgresql:
+    host: external-postgresql
+    port: 5432
+    database: osmo
+    username: postgres
+  valkey:
+    host: external-valkey
+    port: 6379
+    database: 0
+  objectStorage:
+    endpoint: https://s3.external.example.com
+    region: us-east-1
+    buckets:
+      workflows: osmo-workflows
+      logs: osmo-logs
+      apps: osmo-apps
+
+secrets:
+  postgresql:
+    existingSecret: external-control-secrets
+  valkey:
+    existingSecret: external-control-secrets
+  objectStorage:
+    existingSecret: external-control-secrets
+  masterEncryptionKey:
+    existingSecret: external-control-secrets
+
+services:
+  api:
+    image:
+      name: service
+  mcp:
+    enabled: false

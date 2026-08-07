@@ -1,24 +1,79 @@
-# OSMO Umbrella Chart
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
 
-The `osmo` chart is the unified entry point for OSMO deployment profiles. This
-initial version implements the split-plane control profile by composing the
-existing `service` chart. Compute-plane installation is intentionally rejected
-until the backend chart is integrated.
+# OSMO Helm Chart
 
-The control profile consumes external PostgreSQL, Valkey, and S3-compatible
-storage plus an existing Kubernetes Secret. It does not render the service
-chart's embedded PostgreSQL, Redis, or LocalStack resources and does not use
-Vault-agent annotations.
+The `osmo` chart is the unified OSMO deployment entry point. This initial
+version directly owns the control-plane service and gateway templates. It does
+not depend on the legacy `service` chart.
+
+The supported `split-plane-control` profile installs the API, UI, router,
+worker, logger, agent, delayed-job monitor, and standalone OSMO gateway. It
+uses operator-managed PostgreSQL, Valkey, object storage, and Kubernetes
+Secrets. Compute-plane workloads, embedded dependencies, generated Secrets,
+Gateway API exposure, and Ingress exposure are rejected until implemented.
+
+## Values layout
+
+- `planes` selects the OSMO plane.
+- `embeddedDependencies` selects chart-owned supporting systems.
+- `services` configures OSMO application services.
+- `gateway` configures Envoy and gateway-adjacent services.
+- `exposure` describes the public URL and edge ownership.
+- `external` contains typed connection information.
+- `secrets` contains typed references to operator-owned Kubernetes Secrets.
+- `configuration` contains shared OSMO domain configuration.
+- `image`, `imagePullSecrets`, `commonLabels`, `commonAnnotations`, and
+  `podDefaults` provide shared workload defaults.
+
+Service images inherit the top-level registry, repository prefix, tag, and
+pull policy. A component can override these beneath its own `image` block.
+Maps merge with shared defaults and component lists replace inherited lists.
 
 ## Control-plane installation
 
-The control profile requires operator-managed PostgreSQL, Redis or Valkey, and
-S3-compatible object storage. Supply environment-specific endpoints and Secret
-references in a separate values file, then layer it after the profile:
+Create an environment values file containing the external endpoints and
+Secret references:
+
+```yaml
+exposure:
+  mode: external
+  baseUrl: https://osmo.example.com
+
+external:
+  postgresql:
+    host: postgresql.example.com
+    port: 5432
+    database: osmo
+    username: osmo
+  valkey:
+    host: valkey.example.com
+    port: 6379
+    database: 0
+  objectStorage:
+    endpoint: https://s3.example.com
+    region: us-east-1
+    buckets:
+      workflows: osmo-workflows
+      logs: osmo-logs
+      apps: osmo-apps
+
+secrets:
+  postgresql:
+    existingSecret: osmo-control-secrets
+  valkey:
+    existingSecret: osmo-control-secrets
+  objectStorage:
+    existingSecret: osmo-control-secrets
+  masterEncryptionKey:
+    existingSecret: osmo-control-secrets
+```
+
+Install the chart by layering the environment values after the profile:
 
 ```bash
-helm dependency build deployments/charts/osmo
-
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -28,25 +83,29 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 25m
 ```
 
-At minimum, the environment values configure
-`controlPlane.services.postgres.serviceName`,
-`controlPlane.services.redis.serviceName`, and the workflow data, log, and app
-storage entries beneath `controlPlane.services.configs.workflow`. Override the
-Secret name consistently if the installation does not use
-`osmo-control-secrets`.
-
 ## Existing Secret contract
 
-The split-control profile expects an operator-owned Secret named
-`osmo-control-secrets`. It supplies:
+The same Kubernetes Secret may satisfy several logical blocks, or each block
+may reference a separate Secret. The defaults expect these keys:
 
-| Key | Consumer |
-| --- | --- |
-| `db-password` | PostgreSQL clients |
-| `redis-password` | Valkey clients |
-| `mek.yaml` | OSMO encryption-key configuration |
-| Environment-defined key | Object-storage credentials loaded by the config watcher |
+| Values block | Default key | Consumer |
+| --- | --- | --- |
+| `secrets.postgresql` | `db-password` | PostgreSQL clients |
+| `secrets.valkey` | `redis-password` | Valkey clients |
+| `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
+| `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 
-External installations override the host names and Secret references beneath
-`controlPlane.services`. The referenced Secret remains operator-owned; the
-umbrella does not overwrite or regenerate it.
+The chart only reads operator-owned Secrets. It does not create, mutate, or
+delete them. When PostgreSQL or Valkey uses a private CA, enable TLS in the
+matching `external` block and reference the CA Secret there.
+
+## Exposure
+
+`exposure.mode: external` renders the internal OSMO gateway and no public edge
+resource. An operator-managed proxy is responsible for forwarding HTTP and
+WebSocket traffic to the `osmo-gateway` Service. For local verification:
+
+```bash
+kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
+curl http://127.0.0.1:8080/api/version
+```
