@@ -7,14 +7,15 @@ planes:
   # must remain true while the chart supports only control-plane releases.
   control:
     enabled: true
-  # Reserved for backend-operator workloads. Enabling it is rejected in this
-  # chart version because the compute plane has not been added yet.
+  # TODO: Allow this switch after compute-plane templates are added.
+  # Reserved for backend-operator workloads. Enabling it is currently rejected.
   compute:
     enabled: false
 
-# Select supporting systems managed by this Helm release. These switches are
-# reserved for future chart dependencies and must remain false for now. Supply
-# operator-managed services through `external` instead.
+# Select supporting systems managed by this Helm release.
+# TODO: Allow these switches as their dependency charts are added.
+# They must remain false for now; supply operator-managed services through
+# `external` instead.
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -52,7 +53,7 @@ podDefaults:
   annotations: {}
   nodeSelector: {}
   tolerations: []
-  # Reserved for shared pod-policy support in a future chart update.
+  # TODO: Apply these shared pod-policy fields to every OSMO workload.
   affinity: {}
   podSecurityContext: {}
   containerSecurityContext:
@@ -75,8 +76,9 @@ logging:
 # Supported mode values are `external`, `gateway`, and `ingress`. Only
 # `external` is implemented today: the chart creates the internal
 # `osmo-gateway` Service but expects an operator-managed proxy, load balancer,
-# or port-forward to expose it. The other modes fail validation until their
-# Kubernetes edge resources are implemented.
+# or port-forward to expose it.
+# TODO: Implement Kubernetes edge resources for `gateway` and `ingress` modes;
+# those modes currently fail validation.
 exposure:
   mode: external
   # Public OSMO URL used in generated service configuration. Include the
@@ -117,8 +119,9 @@ external:
       apps: ''
 
 # References to operator-owned Kubernetes Secrets. Inline credentials are not
-# accepted. `generate` is reserved for future chart-generated credentials and
-# must remain false in this chart version.
+# accepted.
+# TODO: Implement retained chart-generated credentials for `generate: true`;
+# all `generate` switches must remain false for now.
 secrets:
   # Password used with `external.postgresql.username`.
   postgresql:
