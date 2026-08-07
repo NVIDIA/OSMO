@@ -39,16 +39,16 @@ logger = logging.getLogger()
 RUNFILES = runfiles.Create()
 
 
-def _check_backend_token_exists() -> bool:
+def check_backend_token_exists() -> bool:
     """Check if the backend credential Secret is provisioned."""
     process = run_command_with_logging([
         'kubectl', 'get', 'secret', 'agent-token', '-n', 'osmo',
-        '-o', 'jsonpath={.data.token}'
+        '-o', 'go-template={{if index .data "token"}}present{{end}}'
     ], 'Checking backend token Secret')
     if process.has_failed():
         return False
     with open(process.stdout_file, 'r', encoding='utf-8') as output_file:
-        return bool(output_file.read().strip())
+        return output_file.read().strip() == 'present'
 
 
 def _setup_backend_operators(image_location: str, image_tag: str, detected_platform: str) -> None:
@@ -65,7 +65,7 @@ def _setup_backend_operators(image_location: str, image_tag: str, detected_platf
 
         logger.info('   Checking for backend operator Secret...')
 
-        token_exists = _check_backend_token_exists()
+        token_exists = check_backend_token_exists()
 
         if not token_exists:
             raise RuntimeError(

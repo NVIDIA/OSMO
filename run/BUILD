@@ -69,7 +69,6 @@ osmo_py_binary(
     main = "start_backend.py",
     srcs = [
         "start_backend.py",
-        "start_backend_kind.py",
         "start_backend_bazel.py",
     ],
     data = [
@@ -78,8 +77,19 @@ osmo_py_binary(
         "//run/minimal:minimal",
     ],
     deps = [
+        ":start_backend_kind_lib",
         ":utils",
         "@osmo_workspace//src/lib/utils:logging",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "start_backend_kind_lib",
+    srcs = ["start_backend_kind.py"],
+    deps = [
+        ":utils",
+        "@bazel_tools//tools/python/runfiles",
     ],
     visibility = ["//visibility:public"],
 )
