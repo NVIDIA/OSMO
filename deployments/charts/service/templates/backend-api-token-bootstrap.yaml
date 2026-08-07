@@ -108,7 +108,7 @@ spec:
         image: {{ .Values.services.backendApiTokens.bootstrap.image | quote }}
         imagePullPolicy: {{ .Values.services.backendApiTokens.bootstrap.imagePullPolicy }}
         command:
-        - /bin/sh
+        - /bin/ash
         args:
         - -c
         - |

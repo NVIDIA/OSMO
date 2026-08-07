@@ -74,5 +74,5 @@ if grep -A8 '^kind: Job$' <<<"$upgrade_render" | grep -q 'hook-failed'; then
     exit 1
 fi
 
-sh -n "$CHART_DIR/files/backend-token-bootstrap.sh"
+bash -n "$CHART_DIR/files/backend-token-bootstrap.sh"
 bash "$CHART_DIR/tests/backend-token-bootstrap-tests.sh"
