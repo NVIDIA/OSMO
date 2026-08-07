@@ -493,8 +493,8 @@ spec:
           - name: OSMO_POSTGRES_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ .Values.services.postgres.passwordSecretName }}
-                key: {{ .Values.services.postgres.passwordSecretKey }}
+                name: db-secret
+                key: db-password
           {{- end }}
         {{- if or .Values.services.configs.enabled $gw.authz.extraVolumeMounts }}
         volumeMounts:
