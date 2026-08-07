@@ -414,25 +414,6 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
-  migration:
-    enabled: false
-    targetSchema: public
-    image:
-      repository: postgres:15-alpine
-      pullPolicy: IfNotPresent
-    pgrollVersion: v0.16.1
-    serviceAccount:
-      name: ''
-      create: false
-      annotations: {}
-    resources: {}
-    extraAnnotations: {}
-    env: []
-    pod:
-      annotations: {}
-      nodeSelector: {}
-      initContainers: []
-      labels: {}
   delayedJobMonitor:
     enabled: true
     replicas: 1

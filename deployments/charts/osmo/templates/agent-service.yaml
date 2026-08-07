@@ -122,10 +122,6 @@ spec:
         {{- end }}
         {{- include "osmo.v1.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         env:
-        {{- if .Values.services.migration.enabled }}
-        - name: OSMO_SCHEMA_VERSION
-          value: {{ .Values.services.migration.targetSchema }}
-        {{- end }}
         {{- include "osmo.v1.configmap-env" . | nindent 8 }}
         {{- include "osmo.v1.extra-env" .Values.services.agent | nindent 8 }}
         {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}

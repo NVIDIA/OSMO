@@ -104,6 +104,11 @@ test_control_umbrella() {
     rm -rf "$charts_copy/osmo/charts"
     rm -f "$charts_copy/osmo/Chart.lock"
 
+    helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
+    tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
+    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
+    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "/migration-job.yaml"
+
     helm template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
@@ -131,6 +136,7 @@ test_control_umbrella() {
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
     require_not_contains "$rendered" "vault.hashicorp.com"
     require_not_contains "$rendered" "labels_config:"
+    require_not_contains "$rendered" "OSMO_SCHEMA_VERSION"
 
     helm template osmo-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -152,18 +158,19 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "secretName: postgresql-ca"
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "/etc/osmo/ca/postgresql"
 
-    helm template osmo-migration "$charts_copy/osmo" \
+    if helm template unsupported-migration "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
         --set services.migration.enabled=true \
-        >"$TEST_DIRECTORY/osmo-migration.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-migration.yaml" "001_v6_0_0_data_prep.json"
+        >"$TEST_DIRECTORY/unsupported-migration.out" 2>&1; then
+        fail "expected services.migration to fail schema validation"
+    fi
+    require_contains "$TEST_DIRECTORY/unsupported-migration.out" "migration"
 
     helm template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/tests/control-mcp-values.yaml" \
-        --set services.migration.enabled=true \
         --set commonLabels.team=platform \
         --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=linux' \
         >"$TEST_DIRECTORY/osmo-mcp.yaml"
@@ -173,7 +180,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         '\"resource\":\"https://osmo.example.com/mcp\"'
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "kubernetes.io/os: linux" 11
+        "kubernetes.io/os: linux" 10
 
     helm template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

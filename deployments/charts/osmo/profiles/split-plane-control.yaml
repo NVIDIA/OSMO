@@ -29,8 +29,6 @@ configuration:
     labels_config: null
 
 services:
-  migration:
-    enabled: false
   mcp:
     enabled: false
   ui:

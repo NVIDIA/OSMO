@@ -469,10 +469,6 @@ spec:
           - "--log-format={{ . }}"
           {{- end }}
         env:
-          {{- if .Values.services.migration.enabled }}
-          - name: OSMO_SCHEMA_VERSION
-            value: {{ .Values.services.migration.targetSchema }}
-          {{- end }}
           {{- include "osmo.v1.extra-env" $gw.authz | nindent 10 }}
           {{- include "osmo.v1.connection-secret-env" . | nindent 10 }}
         {{- if or .Values.configuration.enabled $gw.authz.volumeMounts .Values.external.postgresql.tls.enabled .Values.external.valkey.tls.enabled }}
