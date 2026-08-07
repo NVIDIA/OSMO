@@ -76,31 +76,23 @@ When a test fails:
 > wasted turns on run/26536045087. `Read` accepts absolute paths under
 > `bazel-out/` and `bazel-testlogs/`.
 
-1. **Run the test with the package pattern, not the single target**:
-   - Python/Go: `bazel test //<package>:all` (derive the package from the
-     directory containing the BUILD file).
-
-     Use `:all`, **not** `bazel test //<package>:<target>`. `osmo_py_test`
-     generates a sibling `<target>-pylint` test alongside every test target
-     (see `bzl/py.bzl`), and PR CI runs it. Naming the single target runs the
-     test but *not* the lint check, so it passes while CI fails — that is
-     exactly how PR #1253 shipped with 9 pylint errors. `:all` runs both.
-
+1. **Run the test**:
+   - Python/Go: `bazel test //<package>:all` — the package pattern, not the
+     single target. `osmo_py_test` generates a sibling `<target>-pylint` test
+     that PR CI runs; naming one target skips it, so the test goes green while
+     CI fails. `:all` runs both.
      If bazel reports `ERROR: No test targets were found, yet testing
      was requested`, the test file isn't wired into BUILD — see "BUILD wiring"
      below before retrying.
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
-2. If a test *or* a `-pylint` target fails, read the error and fix. Retry up
-   to 3 times. Two pylint failures are common in generated tests:
-   - `W0212 protected-access` — you called an underscore-prefixed member,
-     which the "Test PUBLIC behavior only" rule above already forbids. Test
-     through the public entry point instead. If a private function genuinely
-     needs direct coverage, add `# pylint: disable=protected-access` to the
-     test class, matching the existing test modules that do this.
-   - `C2801 unnecessary-dunder-call` — use `with <cm>:` rather than calling
-     `__enter__()` directly.
+2. If a test or `-pylint` target fails, read the error and fix. Retry up to 3
+   times. Common pylint failures in generated tests:
+   - `W0212 protected-access` — testing an underscore-prefixed member, which
+     the "Test PUBLIC behavior only" rule already forbids. Go through the
+     public entry point, or add `# pylint: disable=protected-access`.
+   - `C2801 unnecessary-dunder-call` — use `with <cm>:`, not `__enter__()`.
 3. **Remaining style checks** (same as PR CI). Fix and re-verify until clean:
-   - Python: already covered by step 1 — no separate command needed.
+   - Python: covered by step 1.
    - TypeScript: `pnpm --dir src/ui validate` (runs type-check, lint,
      format:check, tests, and build). If formatting fails, run
      `pnpm --dir src/ui format` to auto-fix.
