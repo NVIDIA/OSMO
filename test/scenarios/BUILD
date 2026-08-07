@@ -74,6 +74,19 @@ oetf_scenario_test(
     tags = ["template", "negative", "kind"],
 )
 
+# Workflow labels: the KIND-safe subset (policy gate off/warn/enforce via
+# validation-only submits, label-syntax rejection, list filters, and one real
+# end-to-end labeled run). Serial + exclusive because the policy tests mutate
+# the shared labels_config; each restores the baseline in tearDown. `kind` =
+# runs in the `oetf:deploy_and_run --env kind` CI gate. The heavier lifecycle
+# and ConfigMap-fixture matrix runs elsewhere, not here.
+oetf_scenario_test(
+    name = "workflow-labels",
+    src = "workflow_labels.py",
+    data = ["workflow_labels.yaml"],
+    tags = ["labels", "policy", "serial", "exclusive", "kind", "positive"],
+)
+
 # --- Split slow files: one Bazel target per test method.
 # Each target runs exactly one unittest method (via args=[<Class.test_*>])
 # so `bazel test` can parallelize them. Target name = sluggified test name.
