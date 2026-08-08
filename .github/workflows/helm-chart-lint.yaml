@@ -110,13 +110,28 @@ jobs:
       - name: Helm Lint
         run: |
           echo "Linting chart: ${{ matrix.chart }}"
-          helm lint deployments/charts/${{ matrix.chart }}
+          if [ "${{ matrix.chart }}" = "osmo" ]; then
+            helm lint deployments/charts/osmo \
+              --kube-version 1.30.0 \
+              -f deployments/charts/osmo/profiles/split-plane-control.yaml \
+              -f deployments/charts/osmo/ci/control-external-values.yaml
+          else
+            helm lint deployments/charts/${{ matrix.chart }}
+          fi
 
       - name: Helm Template (validate rendering)
         run: |
           echo "Validating template rendering for: ${{ matrix.chart }}"
           # Capture output, only show on failure
-          if ! OUTPUT=$(helm template test-release deployments/charts/${{ matrix.chart }} 2>&1); then
+          HELM_ARGS=()
+          if [ "${{ matrix.chart }}" = "osmo" ]; then
+            HELM_ARGS+=(
+              --kube-version 1.30.0
+              -f deployments/charts/osmo/profiles/split-plane-control.yaml
+              -f deployments/charts/osmo/ci/control-external-values.yaml
+            )
+          fi
+          if ! OUTPUT=$(helm template test-release deployments/charts/${{ matrix.chart }} "${HELM_ARGS[@]}" 2>&1); then
             echo "❌ Template rendering failed:"
             echo "$OUTPUT"
             exit 1
@@ -126,3 +141,7 @@ jobs:
       - name: Validate MCP-enabled service chart
         if: matrix.chart == 'service'
         run: bash deployments/charts/service/ci/validate-mcp-chart.sh
+
+      - name: Validate unified OSMO chart
+        if: matrix.chart == 'osmo'
+        run: bash deployments/charts/osmo/ci/test_osmo_charts.sh osmo

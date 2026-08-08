@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.configuration.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "osmo.v1.apiName" . }}-configs
+  labels:
+    app: {{ include "osmo.v1.apiName" . }}
+  {{- with .Values.configuration.extraAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  config.yaml: |
+    {{- $cfg := .Values.configuration }}
+    {{- if or $cfg.service .Values.exposure.baseUrl }}
+    service:
+      {{- $service := deepCopy ($cfg.service | default dict) }}
+      {{- if .Values.exposure.baseUrl }}
+      {{- $_ := set $service "service_base_url" .Values.exposure.baseUrl }}
+      {{- end }}
+      {{- toYaml $service | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.workflow }}
+    workflow:
+      {{- $workflow := deepCopy $cfg.workflow }}
+      {{- $storage := .Values.externalDependencies.objectStorage }}
+      {{- $secret := .Values.secrets.objectStorage }}
+      {{- $_ := set $workflow "workflow_data" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/workflows" $storage.buckets.workflows) "override_url" $storage.endpoint "region" $storage.region)) }}
+      {{- $_ := set $workflow "workflow_log" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/logs" $storage.buckets.logs) "override_url" $storage.endpoint "region" $storage.region)) }}
+      {{- $_ := set $workflow "workflow_app" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/apps" $storage.buckets.apps) "override_url" $storage.endpoint "region" $storage.region)) }}
+      {{- toYaml $workflow | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.pools }}
+    pools:
+      {{- toYaml $cfg.pools | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.podTemplates }}
+    pod_templates:
+      {{- toYaml $cfg.podTemplates | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.resourceValidations }}
+    resource_validations:
+      {{- toYaml $cfg.resourceValidations | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.backends }}
+    backends:
+      {{- $backends := deepCopy $cfg.backends }}
+      {{- range $name, $backend := $backends }}
+      {{- if and (kindIs "map" $backend) (not (index $backend "k8s_namespace")) }}
+      {{- $_ := set $backend "k8s_namespace" $.Release.Namespace }}
+      {{- end }}
+      {{- end }}
+      {{- toYaml $backends | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.backendTests }}
+    backend_tests:
+      {{- toYaml $cfg.backendTests | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.groupTemplates }}
+    group_templates:
+      {{- toYaml $cfg.groupTemplates | nindent 6 }}
+    {{- end }}
+    {{- if $cfg.roles }}
+    roles:
+      {{- toYaml $cfg.roles | nindent 6 }}
+    {{- end }}
+{{- end }}
