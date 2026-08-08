@@ -29,47 +29,78 @@ Deploying the backend operator will register your compute backend with OSMO, mak
   - Install :ref:`OSMO CLI <cli_install>` before you begin
   - Replace ``osmo.example.com`` with your domain name in the commands below
 
-.. _create_osmo_token:
+.. _provision_backend_secret:
 
-Step 1: Create Service Account for Backend Operator
-----------------------------------------------------
+Step 1: Provision Backend Bootstrap Secret
+-------------------------------------------
 
-Create a service account and access token using OSMO CLI for backend operator authentication.
+Provision the backend bootstrap credential as a Kubernetes Secret. This flow
+does not log in to OSMO or call the user or access-token APIs.
 
-First, log in to OSMO:
-
-.. code-block:: bash
-
-   $ osmo login https://osmo.example.com
-
-Create a service account user for the backend operator:
+Generate a 43-character credential into a protected temporary file and create
+the control-plane Secret:
 
 .. code-block:: bash
 
-   $ osmo user create backend-operator --roles osmo-backend
+   $ TOKEN_FILE=$(mktemp)
+   $ chmod 600 "$TOKEN_FILE"
+   $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
+   $ kubectl --context <control-context> create secret generic osmo-backend-token-default \
+       --namespace <control-namespace> \
+       --from-file=token="$TOKEN_FILE"
+   $ rm -f "$TOKEN_FILE"
 
-Create a Access Token for the service account with the ``osmo-backend`` role:
+Configure the control-plane service chart to consume the Secret:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-   $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
-       --user backend-operator \
-       --expires-at <insert-date> \
-       --description "Backend Operator Token" \
-       --roles osmo-backend \
-       -t json | jq -r '.token')
+   services:
+     backendApiTokens:
+       enabled: true
+       credentials:
+       - name: default
+         existingSecret:
+           name: osmo-backend-token-default
 
 .. note::
 
-  Replace ``<insert-date>`` with an expiration date in UTC format (YYYY-MM-DD). Save the token securely as it will not be shown again.
+  For production, materialize the Secret through your approved external-secret
+  integration instead of generating it on an administrator workstation.
+
+For single-cluster development, the service chart can generate the Secret on
+the initial install:
+
+.. code-block:: yaml
+
+   services:
+     backendApiTokens:
+       enabled: true
+       credentials:
+       - name: default
+         managedSecret:
+           name: osmo-backend-token-default
+
+The backend operator can consume that Secret directly when it runs in the same
+namespace. A pre-install kubectl hook generates the credential inside Kubernetes; the
+token is not included in Helm output or release state. A pre-upgrade hook
+preserves and validates it, and fails rather than replacing a missing Secret.
+The Secret persists independently of Helm uninstall and rollback. This mode
+does not synchronize the token to another cluster, so use ``existingSecret``
+with an external secret manager for production and multi-cluster deployments.
+Managed credentials must be configured during the initial install. Add later
+credentials by provisioning them explicitly and using ``existingSecret``.
+Chart-bootstrap Secrets persist after Helm uninstall; delete them explicitly
+when they are no longer needed.
 
 .. tip::
 
-  The ``--roles osmo-backend`` option limits the token to only the ``osmo-backend`` role. If omitted, the token inherits all roles from the user.
+  The service always maps this credential to the ``osmo-backend`` role. The
+  role cannot be changed through Helm values or Secret data.
 
 .. seealso::
 
-  See :ref:`service_accounts` for more details on creating and managing service accounts.
+  Personal access tokens and other service-account tokens continue to use the
+  OSMO token APIs. This Secret contract is specific to backend bootstrap.
 
 
 Step 2: Create K8s Namespaces and Secrets
@@ -81,12 +112,14 @@ Create Kubernetes namespaces and secrets necessary for the backend deployment.
   :substitutions:
 
     # Create namespaces for osmo operator and osmo workflows
-    $ kubectl create namespace osmo-operator
-    $ kubectl create namespace osmo-workflows
+    $ kubectl --context <compute-context> create namespace osmo-operator
+    $ kubectl --context <compute-context> create namespace osmo-workflows
 
-    # Create the secret used to authenticate with osmo
-    $ kubectl create secret generic osmo-operator-token -n osmo-operator \
-        --from-literal=token=$OSMO_SERVICE_TOKEN
+    # Stream the bootstrap Secret to the compute cluster without printing it.
+    $ kubectl --context <control-context> get secret osmo-backend-token-default \
+        --namespace <control-namespace> -o json \
+      | jq '.metadata = {"name":"osmo-backend-token-default","namespace":"osmo-operator"}' \
+      | kubectl --context <compute-context> apply --server-side -f -
 
 
 Step 3: Deploy Backend Operator
@@ -109,7 +142,7 @@ Prepare the ``backend_operator_values.yaml`` file:
       agentNamespace: osmo-operator
       backendNamespace: osmo-workflows
       backendName: default  # REQUIRED: Update with your backend name
-      accountTokenSecret: osmo-operator-token
+      accountTokenSecret: osmo-backend-token-default
       loginMethod: token
 
       services:
@@ -145,7 +178,8 @@ Deploy the backend operator:
    $ helm upgrade --install osmo-operator osmo/backend-operator \
      -f ./backend_operator_values.yaml \
      --version <insert-chart-version> \
-     --namespace osmo-operator
+     --namespace osmo-operator \
+     --kube-context <compute-context>
 
 Step 4: Validate Deployment
 ----------------------------
@@ -232,28 +266,40 @@ If you chose a different backend name, update the default pool in ``osmo_values.
 Re-apply with ``helm upgrade``. To add additional pools or platforms, see :ref:`advanced_pool_configuration`.
 
 
+Rotate the Backend Bootstrap Secret
+-----------------------------------
+
+Use an overlap window so every API replica and backend operator can move to the
+new credential without losing registration:
+
+1. Update the control-plane Secret so ``token`` contains the new value and
+   ``previous-token`` contains the old value.
+2. Wait for every API replica to accept both credentials.
+3. Replace ``token`` in the compute-plane Secret with the new value.
+4. Restart both the backend-listener and backend-worker Deployments and verify
+   that they reconnect.
+5. Remove ``previous-token`` from the control-plane Secret.
+6. Verify the old credential is rejected by every API replica.
+
+Kubernetes updates projected Secret directories automatically. Explicitly
+restart the backend Deployments because an established WebSocket may otherwise
+continue running without rereading the credential file.
+
 Troubleshooting
 ---------------
 
-Token Expiration Error
-~~~~~~~~~~~~~~~~~~~~~~
+Backend Authentication Error
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-.. code-block:: bash
-
-  Connection failed with error: {OSMOUserError: Token is expired, but no refresh token is present}
-
-Check if the token is expired by listing the service account's tokens:
+Verify that the control- and compute-plane Secrets have identical ``token``
+data without printing the decoded credential:
 
 .. code-block:: bash
 
-   $ osmo token list --user backend-operator
+   $ kubectl --context <control-context> get secret osmo-backend-token-default \
+       -n <control-namespace> -o jsonpath='{.data.token}' | sha256sum
+   $ kubectl --context <compute-context> get secret osmo-backend-token-default \
+       -n osmo-operator -o jsonpath='{.data.token}' | sha256sum
 
-If the token is expired, create a new one following :ref:`create_osmo_token`. Remember to update
-the Kubernetes secret with the new token:
-
-.. code-block:: bash
-
-   $ kubectl delete secret osmo-operator-token -n osmo-operator
-   $ kubectl create secret generic osmo-operator-token -n osmo-operator \
-       --from-literal=token=$OSMO_SERVICE_TOKEN
+If the hashes differ, repeat the Secret-transfer step and restart the backend
+listener and worker.

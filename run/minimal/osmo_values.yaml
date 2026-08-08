@@ -22,6 +22,13 @@ global:
     node_group: service
 
 services:
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: default
+      managedSecret:
+        name: agent-token
+
   configFile:
     enabled: true
     path: /home/osmo/config/mek.yaml

@@ -152,6 +152,32 @@ data:
 {{- end }}
 
 {{/*
+Resolve the Secret name for one backend API token credential. Each credential
+must select exactly one source so chart-managed generation is always explicit.
+*/}}
+{{- define "osmo.backend-api-token-secret-name" -}}
+{{- $hasExistingSecret := hasKey . "existingSecret" -}}
+{{- $hasManagedSecret := hasKey . "managedSecret" -}}
+{{- $hasLegacySecretName := hasKey . "secretName" -}}
+{{- $sourceCount := add (ternary 1 0 $hasExistingSecret) (ternary 1 0 $hasManagedSecret) (ternary 1 0 $hasLegacySecretName) -}}
+{{- if ne $sourceCount 1 -}}
+{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret, managedSecret, or deprecated secretName" (.name | default "")) -}}
+{{- end -}}
+{{- if $hasExistingSecret -}}
+{{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
+{{- else if $hasManagedSecret -}}
+{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
+{{- else -}}
+{{- required "backend API token secretName is required" .secretName -}}
+{{- end -}}
+{{- end }}
+
+{{/* Name shared by the ephemeral managed-token bootstrap hook resources. */}}
+{{- define "osmo.backend-api-token-bootstrap-name" -}}
+{{- printf "%s-backend-token-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/*
 ConfigMap-mode mounts (shared by api-service, worker, agent, logger).
 All four services need the same configs ConfigMap and its referenced
 secrets so they can read the in-memory snapshot via ConfigMapWatcher

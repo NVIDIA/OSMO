@@ -548,6 +548,40 @@ services:
     ##
     passwordSecretKey: password
 
+  ## Backend operator bootstrap authentication.
+  ##
+  ## Each credential selects exactly one Secret source. Use `existingSecret` for
+  ## production or `managedSecret` for single-cluster development. A managed
+  ## Secret is generated inside Kubernetes by a pre-install hook. The token is
+  ## never rendered into Helm output or stored in Helm release state. Upgrades
+  ## validate and preserve the existing Secret instead of regenerating it.
+  ##
+  ## Every Secret must contain a 43- or 64-character value under the `token`
+  ## key. During rotation it may also contain the old value under
+  ## `previous-token`.
+  ## Roles are fixed to osmo-backend by the service and cannot be configured here.
+  ##
+  backendApiTokens:
+    enabled: false
+    ## Image used only by the managed-credential bootstrap hook. Override the
+    ## tag when a kubectl version closer to the target cluster is required.
+    bootstrap:
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
+    ## Non-secret value used to trigger an API deployment rollout after an
+    ## externally managed Secret changes.
+    rolloutNonce: ""
+    credentials: []
+    # - name: default
+    #   existingSecret:
+    #     name: osmo-backend-token-default
+    # - name: local
+    #   managedSecret:
+    #     name: osmo-backend-token-local
+    # Deprecated compatibility form (equivalent to existingSecret.name):
+    # - name: legacy
+    #   secretName: osmo-backend-token-legacy
+
   ## Dynamic configuration loaded from ConfigMap.
   ## When enabled, all configs are served from in-memory (parsed from the mounted
   ## ConfigMap file). CLI/API writes return 409. The authz_sidecar reads roles

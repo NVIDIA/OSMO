@@ -85,7 +85,7 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 
 | Submodule | Purpose |
 |-----------|---------|
-| `auth/` | JWT token lifecycle, access token CRUD, user management, role assignment |
+| `auth/` | JWT token lifecycle, access token CRUD, user management, role assignment, and Kubernetes Secret-backed backend bootstrap authentication |
 | `workflow/` | Workflow submit/list/cancel, resource quota, pool allocation, task coordination, credential management |
 | `config/` | Service/workflow configuration CRUD with versioning and history. Pod templates, resource validation rules, pool/backend config. |
 | `data/` | Workflow data and storage operations built on multi-backend storage. |
@@ -93,6 +93,17 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `profile/` | User profile/preferences, token identity, role/pool visibility |
 
 **Error types**: Defined in `lib/utils/` — see the `OSMOError` hierarchy for the full list.
+
+Backend bootstrap authentication is implemented by
+`auth/backend_secret_auth.py`, which maps mounted Kubernetes Secret tokens to
+the fixed `osmo-backend` identity. The service Helm chart creates managed
+development credentials with a short-lived kubectl hook without rendering token
+material in Helm output. Changes to this authentication path must run:
+
+```bash
+bazel test //src/service/core/auth/tests:test_backend_secret_auth
+bash deployments/charts/service/tests/render-tests.sh
+```
 
 ### Supporting Services
 

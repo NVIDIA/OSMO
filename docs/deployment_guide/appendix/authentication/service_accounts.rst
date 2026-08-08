@@ -21,9 +21,13 @@
 Service Accounts
 ================
 
-Service accounts provide programmatic access to OSMO for automation, CI/CD pipelines, and
-backend operators. In OSMO, service accounts are regular users with access tokens
-for API authentication.
+Service accounts provide programmatic access to OSMO for automation and CI/CD
+pipelines. In OSMO, service accounts are regular users with access tokens for
+API authentication.
+
+Backend operators use a separate Kubernetes Secret-backed bootstrap credential
+that does not require an OSMO user or access-token API call. See
+:ref:`deploy_backend` for that flow.
 
 Overview
 ========
@@ -43,8 +47,11 @@ This approach provides several benefits:
 Creating a Service Account
 ==========================
 
-Follow these steps to create a service account for backend operators, CI/CD pipelines,
-or other automation needs.
+Follow these steps to create a service account for CI/CD pipelines or other
+automation needs.
+
+The examples use the preconfigured ``osmo-user`` role for standard workflow
+automation. Use a narrower custom role when the automation needs fewer permissions.
 
 Prerequisites
 -------------
@@ -59,13 +66,13 @@ Create a user with an identifier that clearly indicates it's a service account:
 
 .. code-block:: bash
 
-   $ osmo user create backend-operator --roles osmo-backend
+   $ osmo user create svc-automation --roles osmo-user
 
 **Example output:**
 
 .. code-block:: text
 
-   User created: backend-operator   Roles assigned: osmo-backend
+   User created: svc-automation   Roles assigned: osmo-user
 
 .. tip::
 
@@ -80,11 +87,11 @@ You can limit the token to specific roles using the ``--roles`` (or ``-r``) opti
 
 .. code-block:: bash
 
-   $ osmo token set backend-token \
-       --user backend-operator \
+   $ osmo token set automation-token \
+       --user svc-automation \
        --expires-at 2027-01-01 \
-       --description "Backend Operator Token" \
-       --roles osmo-backend
+       --description "Automation Token" \
+       --roles osmo-user
 
 **Example output:**
 
@@ -92,14 +99,18 @@ You can limit the token to specific roles using the ``--roles`` (or ``-r``) opti
 
    Note: Save the token in a secure location as it will not be shown again
    Access token: osmo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   Created for user: backend-operator
-   Roles: osmo-backend
+   Created for user: svc-automation
+   Roles: osmo-user
 
 .. tip::
 
    If ``--roles`` is not specified, the token inherits all of the user's roles.
    For service accounts, it's recommended to explicitly specify roles to follow the
    principle of least privilege.
+
+   Adding a role to a user does not expand an existing scoped token. Removed
+   roles are removed from existing tokens automatically. Rotate a scoped token
+   only when it must gain a newly assigned role.
 
 .. important::
 
@@ -112,15 +123,11 @@ Managing Service Accounts
 List Service Account Users
 --------------------------
 
-List users with a specific prefix or role:
+List users with the service-account naming prefix:
 
 .. code-block:: bash
 
-   # List by naming prefix
-   $ osmo user list --id-prefix backend-
-
-   # List by role
-   $ osmo user list --roles osmo-backend
+   $ osmo user list --id-prefix svc-
 
 View Service Account Details
 ----------------------------
@@ -129,17 +136,17 @@ View details including assigned roles:
 
 .. code-block:: bash
 
-   $ osmo user get backend-operator
+   $ osmo user get svc-automation
 
 **Example output:**
 
 .. code-block:: text
 
-   User ID: backend-operator   Created At: 2026-01-15
+   User ID: svc-automation   Created At: 2026-01-15
    Created By: admin@example.com
 
    Roles:
-     - osmo-backend (assigned by admin@example.com on 2026-01-15)
+     - osmo-user (assigned by admin@example.com on 2026-01-15)
 
 List Service Account Tokens
 ---------------------------
@@ -148,7 +155,7 @@ View all tokens for a service account:
 
 .. code-block:: bash
 
-   $ osmo token list --user backend-operator
+   $ osmo token list --user svc-automation
 
 Update Service Account Roles
 ----------------------------
@@ -158,10 +165,10 @@ Add or remove roles from a service account:
 .. code-block:: bash
 
    # Add a role
-   $ osmo user update backend-operator --add-roles osmo-ml-team
+   $ osmo user update svc-automation --add-roles osmo-ml-team
 
    # Remove a role
-   $ osmo user update backend-operator --remove-roles osmo-ml-team
+   $ osmo user update svc-automation --remove-roles osmo-ml-team
 
 .. note::
 
@@ -177,9 +184,10 @@ To rotate a token:
 
    .. code-block:: bash
 
-      $ osmo token set new-backend-token \
-          --user backend-operator \
-          --expires-at 2028-01-01
+      $ osmo token set new-automation-token \
+          --user svc-automation \
+          --expires-at 2028-01-01 \
+          --roles osmo-user
 
 2. Update your systems to use the new token
 
@@ -187,7 +195,7 @@ To rotate a token:
 
    .. code-block:: bash
 
-      $ osmo token delete backend-token --user backend-operator
+      $ osmo token delete automation-token --user svc-automation
 
 Delete a Service Account
 ------------------------
@@ -196,7 +204,7 @@ Delete the service account user (this also deletes all associated tokens):
 
 .. code-block:: bash
 
-   $ osmo user delete backend-operator
+   $ osmo user delete svc-automation
 
 .. seealso::
 
@@ -208,26 +216,8 @@ Common Service Account Patterns
 Backend Operator
 ----------------
 
-For OSMO backend operators that manage compute resources:
-
-.. code-block:: bash
-
-   # Create the service account
-   $ osmo user create backend-operator --roles osmo-backend
-
-   # Create a token with appropriate expiration and specific roles
-   $ osmo token set backend-token \
-       --user backend-operator \
-       --expires-at 2027-01-01 \
-       --description "Backend Operator - Production Cluster" \
-       --roles osmo-backend
-
-   # Store in Kubernetes
-   $ kubectl create secret generic osmo-operator-token \
-       --from-literal=token=osmo_xxxxxxxxxx \
-       --namespace osmo-operator
-
-See :ref:`deploy_backend` for complete backend operator deployment instructions.
+Backend operators do not use this service-account pattern. Provision the shared
+control/compute Kubernetes Secret described in :ref:`deploy_backend`.
 
 Monitoring and Automation
 -------------------------
@@ -236,12 +226,12 @@ For monitoring systems or automation scripts:
 
 .. code-block:: bash
 
-   # Create the service account with read-only roles
-   $ osmo user create monitoring --roles osmo-user
+   # Create the service account with the standard operational role
+   $ osmo user create svc-monitoring --roles osmo-user
 
    # Create a token with specific roles
    $ osmo token set monitoring-token \
-       --user monitoring \
+       --user svc-monitoring \
        --expires-at 2027-01-01 \
        --description "Monitoring System" \
        --roles osmo-user
@@ -299,8 +289,9 @@ Token Expired
 .. code-block:: bash
 
    $ osmo token set new-token \
-       --user backend-operator \
-       --expires-at 2028-01-01
+       --user svc-automation \
+       --expires-at 2028-01-01 \
+       --roles osmo-user
 
 Permission Denied
 -----------------
@@ -311,13 +302,13 @@ Permission Denied
 
 .. code-block:: bash
 
-   $ osmo user get backend-operator
+   $ osmo user get svc-automation
 
 Add necessary roles if missing:
 
 .. code-block:: bash
 
-   $ osmo user update backend-operator --add-roles osmo-backend
+   $ osmo user update svc-automation --add-roles osmo-user
 
 User Not Found
 --------------
@@ -328,4 +319,4 @@ User Not Found
 
 .. code-block:: bash
 
-   $ osmo user create backend-operator --roles osmo-backend
+   $ osmo user create svc-automation --roles osmo-user

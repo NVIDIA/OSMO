@@ -28,6 +28,14 @@ from src.operator.utils import objects
 
 OPERATOR_USER_AGENT_PREFIX = 'osmo-operator'
 
+
+def _read_login_file(path: str, credential_name: str) -> str:
+    if not os.path.exists(path):
+        raise osmo_errors.OSMOUserError(f'The {credential_name} file {path} does not exist!')
+    with open(path, 'r', encoding='utf-8') as credential_file:
+        return credential_file.read().rstrip('\r\n')
+
+
 def get_login_info(
         config: objects.BackendBaseConfig
     ) -> login.LoginStorage:
@@ -42,11 +50,7 @@ def get_login_info(
             if config.username is None:
                 raise osmo_errors.OSMOUserError('Must provide username')
             if config.password_file is not None:
-                if not os.path.exists(config.password_file):
-                    raise osmo_errors.OSMOUserError(
-                        f'The file {config.password_file} does not exist!')
-                with open(config.password_file, 'r', encoding='utf-8') as f:
-                    password = f.read().strip('\n')
+                password = _read_login_file(config.password_file, 'password')
             elif config.password is not None:
                 password = config.password
             else:
@@ -55,11 +59,7 @@ def get_login_info(
                 config, config.service_url, config.username, password, user_agent=user_agent)
         elif config.login_method == 'token':
             if config.token_file is not None:
-                if not os.path.exists(config.token_file):
-                    raise osmo_errors.OSMOUserError(
-                        f'The file {config.token_file} does not exist!')
-                with open(config.token_file, 'r', encoding='utf-8') as f:
-                    token = f.read().strip('\n')
+                token = _read_login_file(config.token_file, 'token')
             elif config.token is not None:
                 token = config.token
             else:
@@ -78,10 +78,22 @@ def refresh_id_token(
         config: objects.BackendBaseConfig,
         login_info: login.LoginStorage
     ) -> login.LoginStorage:
+    if config.login_method == 'token' and config.token_file is not None:
+        projected_token = _read_login_file(config.token_file, 'token')
+        current_token = login_info.token_login.refresh_token \
+            if login_info.token_login is not None else None
+        if projected_token != current_token:
+            return login.token_login(
+                config.service_url,
+                login.construct_token_refresh_url(config.service_url),
+                projected_token,
+                user_agent=f'{OPERATOR_USER_AGENT_PREFIX}/{version.VERSION}',
+            )
     new_login = login.refresh_id_token(
         config,
         user_agent=f'{OPERATOR_USER_AGENT_PREFIX}/{version.VERSION}',
-        token_login_storage=login_info.token_login
+        token_login_storage=login_info.token_login,
+        osmo_token=login_info.osmo_token,
     )
     if new_login:
         login_info.token_login = new_login

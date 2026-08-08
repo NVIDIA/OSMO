@@ -138,8 +138,7 @@ spec:
           readOnly: true
         {{- else if eq .Values.global.loginMethod "token" }}
         - name: osmo-secret
-          mountPath: /opt/osmo/secrets/token.txt
-          subPath: token.txt
+          mountPath: /opt/osmo/secrets
           readOnly: true
         {{- end }}
         {{- if .Values.services.backendListener.volumeMounts }}

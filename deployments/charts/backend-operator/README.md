@@ -57,6 +57,12 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
 | `global.enableClusterRoles` | Enable cluster roles | `true` |
 | `global.enableNonClusterRoles` | Enable non-cluster roles | `true` |
 
+For Secret-backed bootstrap, set `global.loginMethod: token` and reference the
+copy of the credential that is also mounted by the control-plane service chart.
+The token volume is mounted as a directory so Kubernetes Secret projection
+updates are visible. During rotation, restart both backend deployments before
+the control plane stops accepting the previous token.
+
 ### Global NetworkPolicy Settings
 
 When enabled, a `NetworkPolicy` is applied to the workflow namespace (`global.backendNamespace`) that allows unrestricted external internet egress while blocking cross-namespace cluster traffic except to explicitly allowlisted namespaces.

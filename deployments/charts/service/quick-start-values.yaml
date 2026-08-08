@@ -58,9 +58,16 @@ services:
 
   defaultAdmin:
     enabled: true
-    username: backend-operator
-    passwordSecretName: backend-operator-password
+    username: admin
+    passwordSecretName: local-admin-password
     passwordSecretKey: password
+
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: default
+      managedSecret:
+        name: backend-operator-token
 
   configs:
     enabled: true

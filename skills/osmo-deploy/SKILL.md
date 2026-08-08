@@ -51,8 +51,8 @@ The script orchestrates these phases:
 1. **Cluster bootstrap** (provider-specific): Terraform for Azure/AWS, snap install + addons for MicroK8s, no-op for BYO
 2. **Cluster-agnostic dependencies**: KAI Scheduler + NVIDIA GPU Operator + (optional) MinIO — each idempotent (auto-skips when already present)
 3. **Storage configuration**: K8s Secrets + Helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`
-4. **OSMO Helm install**: single `service` release (the 6.3 chart bundles router + UI) + `backend-operator` release. Static base values come from [values/service.yaml](../../deployments/values/service.yaml) and [values/backend-operator.yaml](../../deployments/values/backend-operator.yaml); per-cluster overrides ride on `--set`; auto-detected fragments (`pod-monitor-on.yaml` when prometheus-operator CRDs exist, `gpu-pool.yaml` when GPU nodes exist) and the storage fragment are layered with additional `-f` flags.
-5. **Idempotent backend-operator token mint** (replaces the old placeholder fallback)
+4. **Idempotent backend bootstrap Secret provisioning** without an OSMO API login
+5. **OSMO Helm install**: single `service` release (the 6.3 chart bundles router + UI) + `backend-operator` release. Static base values come from [values/service.yaml](../../deployments/values/service.yaml) and [values/backend-operator.yaml](../../deployments/values/backend-operator.yaml); per-cluster overrides ride on `--set`; auto-detected fragments (`pod-monitor-on.yaml` when prometheus-operator CRDs exist, `gpu-pool.yaml` when GPU nodes exist) and the storage fragment are layered with additional `-f` flags.
 6. **Smoke tests**: `verify-hello.yaml` (CPU) + `verify-gpu.yaml` (GPU; skipped under `--no-gpu`)
 7. **Persistent port-forward watchdogs**: `osmo-gateway:9000` (gateway-aware target — falls back to `osmo-service` when the gateway is disabled) and `osmo-ui:3000`
 
@@ -243,7 +243,9 @@ export POSTGRES_HOST=... REDIS_HOST=...   # (full list above)
 
 ## Idempotency contract
 
-Every cluster-agnostic install is safe to no-op when its target is already present (CRD checks for KAI, multi-signal detection for GPU Operator, addon/release detection for MinIO). This makes the script safe to layer on top of clusters that already have these components installed (e.g. when an upstream skill provisioned the cluster + KAI + GPU Operator first). Re-runs are also safe — backend-operator tokens are reused if a non-placeholder value already exists in `osmo-operator-token`.
+Every cluster-agnostic install is safe to no-op when its target is already present (CRD checks for KAI, multi-signal detection for GPU Operator, addon/release detection for MinIO). This makes the script safe to layer on top of clusters that already have these components installed (e.g. when an upstream skill provisioned the cluster + KAI + GPU Operator first). Re-runs are also safe — matching backend bootstrap Secrets are preserved in the control-plane and backend-operator namespaces.
+If those namespaces contain different backend tokens, the deployment logs an
+error and stops. Reconcile both Secret copies to the same token before retrying.
 
 ## Troubleshooting
 
