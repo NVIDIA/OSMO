@@ -38,6 +38,17 @@ upgrade the operator. The default PostgreSQL 16 image is obtained from the
 CloudNativePG project on GHCR. Confirm that the operator and database images
 are mirrored or pullable in restricted environments.
 
+The embedded-mode preflight checks the discovered CNPG API. For offline render
+validation, supply that capability explicitly (this Helm version does not
+provide the equivalent flag on `helm lint`):
+
+```bash
+helm template osmo deployments/charts/osmo \
+  --api-versions postgresql.cnpg.io/v1 \
+  -f deployments/charts/osmo/profiles/split-plane-control.yaml \
+  -f <embedded-environment-values.yaml>
+```
+
 ## Installation with embedded PostgreSQL
 
 Enable the dependency in the same environment values file used for OSMO:
