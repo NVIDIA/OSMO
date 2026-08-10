@@ -1186,6 +1186,20 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-scaled.yaml" \
         "embedded-scaled-postgresql-rw"
 
+    helm_template embedded-named "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.fullnameOverride=custom-embedded-database \
+        >"$TEST_DIRECTORY/osmo-embedded-named.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-named.yaml" \
+        "name: custom-embedded-database"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-named.yaml" \
+        "custom-embedded-database-rw"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-named.yaml" \
+        "name: custom-embedded-database-app"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-named.yaml" \
+        "secretName: custom-embedded-database-ca"
+
     helm_template embedded-dev "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
