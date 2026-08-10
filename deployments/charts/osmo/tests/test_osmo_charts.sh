@@ -135,13 +135,13 @@ test_control_umbrella() {
 
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
-    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/ci/"
+    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "/migration-job.yaml"
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$rendered"
 
     require_deployment "$rendered" "osmo-service"
@@ -159,7 +159,10 @@ test_control_umbrella() {
     require_no_deployment "$rendered" "osmo-backend-worker"
     require_contains "$rendered" "external-postgresql"
     require_contains "$rendered" "external-valkey"
-    require_contains "$rendered" "secretName: external-control-secrets"
+    require_contains "$rendered" "name: external-postgresql-secret"
+    require_contains "$rendered" "name: external-valkey-secret"
+    require_contains "$rendered" "secretName: external-object-storage-secret"
+    require_contains "$rendered" "secretName: external-master-encryption-key-secret"
     require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"
@@ -181,8 +184,8 @@ test_control_umbrella() {
 
     helm_template review-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-review-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-review-values.yaml" \
         >"$TEST_DIRECTORY/osmo-review.yaml"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" 'value: "*docs"'
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" 'value: "&install"'
@@ -257,7 +260,7 @@ test_control_umbrella() {
         'value: "false"'
     helm_template authz-database "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set configuration.enabled=false \
         --set gateway.authz.enabled=true \
         >"$TEST_DIRECTORY/osmo-authz-database.yaml"
@@ -278,7 +281,7 @@ test_control_umbrella() {
 
     helm_template osmo-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set externalDependencies.postgresql.tls.enabled=true \
         --set externalDependencies.postgresql.tls.caExistingSecret=postgresql-ca \
         --set externalDependencies.valkey.tls.enabled=true \
@@ -302,7 +305,7 @@ test_control_umbrella() {
 
     if helm_template unsupported-migration "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set services.migration.enabled=true \
         >"$TEST_DIRECTORY/unsupported-migration.out" 2>&1; then
         fail "expected services.migration to fail schema validation"
@@ -311,8 +314,8 @@ test_control_umbrella() {
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-mcp-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
         --set commonLabels.team=platform \
         --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=linux' \
         >"$TEST_DIRECTORY/osmo-mcp.yaml"
@@ -330,7 +333,7 @@ test_control_umbrella() {
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set commonLabels.team=platform \
         --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=linux' \
         --set services.worker.image.name=custom-worker \
@@ -353,7 +356,7 @@ test_control_umbrella() {
 
     if helm_template unsupported-embedded "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set embeddedDependencies.postgresql.enabled=true \
         >"$TEST_DIRECTORY/unsupported-embedded.out" 2>&1; then
         fail "expected embeddedDependencies.postgresql.enabled=true to fail"
@@ -363,7 +366,7 @@ test_control_umbrella() {
 
     if helm_template unsupported-exposure "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set exposure.mode=gateway \
         >"$TEST_DIRECTORY/unsupported-exposure.out" 2>&1; then
         fail "expected exposure.mode=gateway to fail"
@@ -373,7 +376,7 @@ test_control_umbrella() {
 
     if helm_template unsupported-generated-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set secrets.postgresql.generate=true \
         >"$TEST_DIRECTORY/unsupported-generated-secret.out" 2>&1; then
         fail "expected secrets.postgresql.generate=true to fail"
@@ -383,7 +386,7 @@ test_control_umbrella() {
 
     if helm_template unsupported-legacy-values "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set controlPlane.enabled=true \
         >"$TEST_DIRECTORY/unsupported-legacy-values.out" 2>&1; then
         fail "expected legacy controlPlane values to fail"
@@ -393,7 +396,7 @@ test_control_umbrella() {
 
     if helm_template unsupported-legacy-external "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set external.postgresql.host=legacy-postgresql \
         >"$TEST_DIRECTORY/unsupported-legacy-external.out" 2>&1; then
         fail "expected legacy external values to fail schema validation"
@@ -402,7 +405,7 @@ test_control_umbrella() {
 
     if helm_template invalid-replicas "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string services.worker.replicas=invalid \
         >"$TEST_DIRECTORY/invalid-replicas.out" 2>&1; then
         fail "expected non-integer services.worker.replicas to fail schema validation"
@@ -412,8 +415,8 @@ test_control_umbrella() {
 
     if helm_template invalid-mcp-timeout "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-mcp-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
         --set services.mcp.requestTimeoutSeconds=61 \
         >"$TEST_DIRECTORY/invalid-mcp-timeout.out" 2>&1; then
         fail "expected services.mcp.requestTimeoutSeconds=61 to fail schema validation"
@@ -427,7 +430,7 @@ test_control_umbrella() {
     while IFS='|' read -r required_value expected_message; do
         if helm_template missing-required "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
             --set-string "$required_value=" \
             >"$TEST_DIRECTORY/missing-required.out" 2>&1; then
             fail "expected empty $required_value to fail"
@@ -442,7 +445,7 @@ EOF
 
     if helm_template unknown-root "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set unsupportedRoot.enabled=true \
         >"$TEST_DIRECTORY/unknown-root.out" 2>&1; then
         fail "expected an unknown top-level value to fail schema validation"
@@ -451,7 +454,7 @@ EOF
 
     if helm_template legacy-component "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/ci/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set services.worker.imageName=legacy-worker \
         >"$TEST_DIRECTORY/legacy-component.out" 2>&1; then
         fail "expected legacy per-service fields to fail schema validation"

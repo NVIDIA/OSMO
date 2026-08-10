@@ -62,13 +62,13 @@ externalDependencies:
 
 secrets:
   postgresql:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-postgresql
   valkey:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-valkey
   objectStorage:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-object-storage
   masterEncryptionKey:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-master-encryption-key
 ```
 
 Install the chart by layering the environment values after the profile:

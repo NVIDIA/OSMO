@@ -25,13 +25,13 @@ externalDependencies:
 
 secrets:
   postgresql:
-    existingSecret: external-control-secrets
+    existingSecret: external-postgresql-secret
   valkey:
-    existingSecret: external-control-secrets
+    existingSecret: external-valkey-secret
   objectStorage:
-    existingSecret: external-control-secrets
+    existingSecret: external-object-storage-secret
   masterEncryptionKey:
-    existingSecret: external-control-secrets
+    existingSecret: external-master-encryption-key-secret
 
 services:
   api:

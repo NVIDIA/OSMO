@@ -52,6 +52,7 @@ gateway:
         enabled: true
         groupName: osmo
         groupOrder: "10"
+        # Synthetic test-only ARN used to verify ALB annotation rendering.
         sslCertArn: arn:aws:acm:us-east-1:123456789012:certificate/test
   oauth2Proxy:
     enabled: true

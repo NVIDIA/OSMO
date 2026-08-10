@@ -54,10 +54,10 @@ gateway:
 
 secrets:
   postgresql:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-postgresql
   valkey:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-valkey
   objectStorage:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-object-storage
   masterEncryptionKey:
-    existingSecret: osmo-control-secrets
+    existingSecret: osmo-master-encryption-key

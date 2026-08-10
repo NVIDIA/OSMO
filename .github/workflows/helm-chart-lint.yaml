@@ -114,7 +114,7 @@ jobs:
             helm lint deployments/charts/osmo \
               --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/split-plane-control.yaml \
-              -f deployments/charts/osmo/ci/control-external-values.yaml
+              -f deployments/charts/osmo/tests/control-external-values.yaml
           else
             helm lint deployments/charts/${{ matrix.chart }}
           fi
@@ -128,7 +128,7 @@ jobs:
             HELM_ARGS+=(
               --kube-version 1.30.0
               -f deployments/charts/osmo/profiles/split-plane-control.yaml
-              -f deployments/charts/osmo/ci/control-external-values.yaml
+              -f deployments/charts/osmo/tests/control-external-values.yaml
             )
           fi
           if ! OUTPUT=$(helm template test-release deployments/charts/${{ matrix.chart }} "${HELM_ARGS[@]}" 2>&1); then
@@ -144,4 +144,4 @@ jobs:
 
       - name: Validate unified OSMO chart
         if: matrix.chart == 'osmo'
-        run: bash deployments/charts/osmo/ci/test_osmo_charts.sh osmo
+        run: bash deployments/charts/osmo/tests/test_osmo_charts.sh osmo
