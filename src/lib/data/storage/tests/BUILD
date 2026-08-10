@@ -64,3 +64,12 @@ osmo_py_test(
         "//src/lib/utils:osmo_errors",
     ],
 )
+
+osmo_py_test(
+    name = "test_streaming",
+    srcs = ["test_streaming.py"],
+    deps = [
+        "//src/lib/data/storage",
+        "//src/lib/data/storage/core",
+    ],
+)
