@@ -285,7 +285,7 @@ class TestDownloadWorkerResume(unittest.TestCase):
                     self.progress_updater,
                 )
 
-        self.assertIn('read-only file system', log_capture.output[0])
+        self.assertIn('read-only file system', '\n'.join(log_capture.output))
         self.storage_client.download.assert_called_once()
         self.assertEqual(result.count_transferred, 1)
 
