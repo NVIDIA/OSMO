@@ -66,6 +66,16 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_downloading",
+    srcs = ["test_downloading.py"],
+    deps = [
+        "//src/lib/data/storage",
+        "//src/lib/data/storage/core",
+        "//src/lib/utils:osmo_errors",
+    ],
+)
+
+osmo_py_test(
     name = "test_streaming",
     srcs = ["test_streaming.py"],
     deps = [
