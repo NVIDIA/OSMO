@@ -163,7 +163,7 @@ jobs:
         ports:
           - 2375:2375
     steps:
-      - name: Install Node.js, Docker CLI, and dependencies
+      - name: Install Node.js, Docker CLI, kubectl, and dependencies
         run: |
           apt-get update
           apt-get install -y ca-certificates curl gnupg git-lfs
@@ -183,6 +183,15 @@ jobs:
           # Install Docker CLI (client only, connects to DinD service)
           apt-get install -y docker-ce-cli
 
+          # Install kubectl for deployment-script tests that render Secrets.
+          KUBECTL_VERSION=v1.31.0
+          curl -fsSLo /tmp/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
+          install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+          rm -f /tmp/kubectl
+
           # Remove Debian's nodejs package if present and install from NodeSource
           apt-get remove -y nodejs || true
           apt-get install -y nodejs=20.*
@@ -191,6 +200,7 @@ jobs:
           echo "Node.js version: $(node --version)"
           echo "npm version: $(npm --version)"
           echo "Docker version: $(docker --version)"
+          kubectl version --client --output=yaml
           echo "Git LFS version: $(git-lfs --version)"
 
       - name: Clean up stale LFS hooks
