@@ -74,6 +74,36 @@ oetf_scenario_test(
     tags = ["template", "negative", "kind"],
 )
 
+# Workflow labels: two targets from one file, split by test class.
+#
+#   :workflow-labels (WorkflowLabels) — the KIND-safe subset: policy gate
+#   off/warn/enforce via validation-only submits, label-syntax rejection, list
+#   filters, and a submit-time labeled round-trip. `exclusive` (runs alone)
+#   because the policy tests mutate the shared labels_config, each restoring
+#   the baseline in tearDown. `kind` = runs in the `oetf:deploy_and_run --env
+#   kind` CI gate.
+#
+#   :workflow-labels-lifecycle (WorkflowLabelsLifecycle) — the heavy subset:
+#   runs labeled workflows to a terminal status (COMPLETED and FAILED) and
+#   asserts the labels survive the full run. Deliberately NOT tagged `kind` and
+#   NOT listed in oetf-kind.yaml — the PR gate runs only validation scenarios,
+#   not workflows to completion — so it runs against a real deployment.
+oetf_scenario_test(
+    name = "workflow-labels",
+    src = "workflow_labels.py",
+    data = ["workflow_labels.yaml"],
+    test_filter = "WorkflowLabels",
+    tags = ["labels", "policy", "exclusive", "kind", "positive"],
+)
+
+oetf_scenario_test(
+    name = "workflow-labels-lifecycle",
+    src = "workflow_labels.py",
+    data = ["workflow_labels.yaml"],
+    test_filter = "WorkflowLabelsLifecycle",
+    tags = ["labels", "lifecycle", "positive"],
+)
+
 # --- Split slow files: one Bazel target per test method.
 # Each target runs exactly one unittest method (via args=[<Class.test_*>])
 # so `bazel test` can parallelize them. Target name = sluggified test name.

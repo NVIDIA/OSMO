@@ -167,7 +167,9 @@ jobs:
           # websocket-checks, ~5s) covers service+router+logger HTTP/WS;
           # templates + mount-validation (~6s) submit workflows so
           # backend-listener / backend-worker / osmo_ctrl runtime get
-          # touched.
+          # touched. workflow-labels exercises the label policy gate
+          # (off/warn/enforce), label-syntax validation, list filters, and a
+          # labeled round-trip through the API.
           #
           # --jobs=1 serializes: chart's single-replica ingress-nginx 504s
           # under parallel scenario submits.
@@ -191,7 +193,7 @@ jobs:
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
               --target-pattern //test/smoke/... \
-              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation \
+              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation,//test/scenarios:workflow-labels \
               --jobs 1 \
               --build-local --use-local-registry \
               --keep --keep-on-failure \

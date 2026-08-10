@@ -1,0 +1,54 @@
+#####################################################################################
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+#####################################################################################
+
+# Portable workflow-labels spec. Platform is omitted by default so the pool's
+# server-side default applies (works on the KIND quick-start pool); set
+# OETF_DEFAULT_PLATFORM to pin one where the pool requires it. A quick echo
+# task keeps the end-to-end run fast.
+
+version: 2
+workflow:
+  name: "{{workflow_name}}"
+  labels:
+    policy-yaml: from-yaml
+    {% if nested_team %}
+    team:
+      nested: value
+    {% elif team_yaml %}
+    team: "{{team_yaml}}"
+    {% endif %}
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 30m
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      {% if platform %}
+      platform: "{{platform}}"
+      {% endif %}
+      storage: 2Gi
+  tasks:
+  - name: labels
+    image: "{{image}}"
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      echo "workflow-labels scenario task"
+      exit {{exit_code}}
+    resource: default
+
+default-values:
+  image: ubuntu:22.04
+  platform: ""
+  workflow_name: oetf-workflow-labels
+  team_yaml: ""
+  nested_team: false
+  exit_code: 0
