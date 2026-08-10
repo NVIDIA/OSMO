@@ -125,12 +125,15 @@ instances again:
 ```bash
 primary=$(kubectl --namespace osmo get cluster osmo-postgresql \
   -o jsonpath='{.status.currentPrimary}')
-kubectl --namespace osmo delete pod "$primary"
-kubectl --namespace osmo wait pod \
-  --for=condition=Ready \
-  --selector=cnpg.io/cluster=osmo-postgresql \
+kubectl --namespace osmo delete pod "$primary" \
+  --grace-period=0 --force --wait=false
+kubectl --namespace osmo wait cluster/osmo-postgresql \
+  --for=jsonpath='{.status.phase}'='Cluster in healthy state' \
   --timeout=10m
 ```
+
+The forced deletion deliberately simulates abrupt instance failure and should
+never be used as a routine restart procedure.
 
 Scale by changing `postgresql.cluster.instances` and running `helm upgrade`.
 Add nodes/topology domains before scaling up so anti-affinity can place the new
