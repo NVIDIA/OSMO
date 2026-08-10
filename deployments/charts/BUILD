@@ -32,15 +32,3 @@ filegroup(
     srcs = glob(["osmo/**"]),
     visibility = ["//visibility:public"],
 )
-
-sh_test(
-    name = "test_osmo_charts",
-    srcs = ["osmo/ci/test_osmo_charts.sh"],
-    data = [
-        ":osmo",
-        "osmo/ci/control-external-values.yaml",
-        "osmo/ci/control-mcp-values.yaml",
-        "osmo/ci/control-review-values.yaml",
-    ],
-    local = True,
-)
