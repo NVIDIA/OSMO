@@ -17,12 +17,16 @@
       "properties": {
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
         "valkey": { "$ref": "#/definitions/enabledBlock" },
-        "objectStorage": { "$ref": "#/definitions/enabledBlock" },
+        "objectStorage": { "$ref": "#/definitions/embeddedObjectStorage" },
         "kaiScheduler": { "$ref": "#/definitions/enabledBlock" }
       }
     },
     "valkey": { "type": "object" },
     "postgresql": { "type": "object" },
+    "seaweedfs": {
+      "type": "object",
+      "description": "Values passed through to the pinned SeaweedFS dependency."
+    },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
@@ -104,6 +108,21 @@
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
+    },
+    "embeddedObjectStorage": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "bootstrap": {
+          "type": "object",
+          "properties": {
+            "image": { "$ref": "#/definitions/componentImage" },
+            "resources": { "type": "object" }
+          },
+          "required": ["image"]
+        }
+      },
+      "required": ["enabled", "bootstrap"]
     },
     "stringMap": {
       "type": "object",

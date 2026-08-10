@@ -15,6 +15,9 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
 filegroup(
     name = "service",
     srcs = glob(["service/**"]),
@@ -31,4 +34,10 @@ filegroup(
     name = "osmo",
     srcs = glob(["osmo/**"]),
     visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "test_osmo_charts",
+    srcs = ["osmo/tests/test_osmo_charts.sh"],
+    data = [":osmo"],
 )

@@ -252,7 +252,7 @@ data:
 - name: configs
   mountPath: /etc/osmo/configs
   readOnly: true
-{{- with .Values.secrets.objectStorage.existingSecret }}
+{{- with (include "osmo.objectStorage.secretName" .) }}
 - name: object-storage-credentials
   mountPath: /etc/osmo/secrets/{{ . }}
   readOnly: true
@@ -265,7 +265,7 @@ data:
 - name: configs
   configMap:
     name: {{ include "osmo.api.fullname" . }}-config
-{{- with .Values.secrets.objectStorage.existingSecret }}
+{{- with (include "osmo.objectStorage.secretName" .) }}
 - name: object-storage-credentials
   secret:
     secretName: {{ . }}
@@ -482,4 +482,57 @@ disable
 - name: SSL_CERT_FILE
   value: /etc/osmo/ca/valkey/ca-bundle.crt
 {{- end }}
+{{- end -}}
+
+{{- define "osmo.seaweedfs.fullname" -}}
+{{- if .Values.seaweedfs.fullnameOverride -}}
+{{- .Values.seaweedfs.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "seaweedfs" .Values.seaweedfs.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.seaweedfs.s3SecretName" -}}
+{{- printf "%s-s3-secret" (include "osmo.seaweedfs.fullname" .) -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.generatedSecretName" -}}
+{{- printf "%s-object-storage-credentials" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.secretName" -}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled .Values.secrets.objectStorage.generate -}}
+{{- include "osmo.objectStorage.generatedSecretName" . -}}
+{{- else -}}
+{{- .Values.secrets.objectStorage.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.endpoint" -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- if .Values.seaweedfs.allInOne.enabled -}}
+{{- printf "http://%s-all-in-one:%v" (include "osmo.seaweedfs.fullname" .) (.Values.seaweedfs.allInOne.s3.port | default .Values.seaweedfs.s3.port) -}}
+{{- else -}}
+{{- printf "http://%s-s3:%v" (include "osmo.seaweedfs.fullname" .) .Values.seaweedfs.s3.port -}}
+{{- end -}}
+{{- else -}}
+{{- .Values.externalDependencies.objectStorage.endpoint -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.bucket" -}}
+{{- if .root.Values.embeddedDependencies.objectStorage.enabled -}}
+{{- $buckets := .root.Values.seaweedfs.s3.createBuckets -}}
+{{- if .root.Values.seaweedfs.allInOne.enabled -}}
+{{- $buckets = .root.Values.seaweedfs.allInOne.s3.createBuckets -}}
+{{- end -}}
+{{- (index $buckets .index).name -}}
+{{- else -}}
+{{- index .root.Values.externalDependencies.objectStorage.buckets .purpose -}}
+{{- end -}}
 {{- end -}}

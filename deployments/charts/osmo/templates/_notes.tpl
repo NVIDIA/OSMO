@@ -12,6 +12,18 @@ Configured public URL:
 
   {{ .Values.externalUrl }}
 
+{{- if .Values.embeddedDependencies.objectStorage.enabled }}
+
+Embedded SeaweedFS object storage is enabled at:
+
+  {{ include "osmo.objectStorage.endpoint" . }}
+
+The default all-in-one topology is persistent but not highly available. Its
+PVC and native SeaweedFS credential Secret are retained after uninstall; OSMO's
+derived credential Secret can be synchronized from that source. Follow the
+README backup and recovery guidance before changing topology or deleting them.
+{{- end }}
+
 {{ if .Values.httproute.enabled }}
 An HTTPRoute attaches to an existing Gateway named in httproute.parentRefs;
 this chart does not create a Gateway or GatewayClass.

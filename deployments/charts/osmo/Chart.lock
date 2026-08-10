@@ -5,5 +5,8 @@ dependencies:
 - name: cluster
   repository: https://cloudnative-pg.github.io/charts
   version: 0.8.0
-digest: sha256:833a704e62d5ef4e34f9a33c45932d84ba53f1a370f504bd45daf112ef71282f
-generated: "2026-08-14T15:30:28.185960161-04:00"
+- name: seaweedfs
+  repository: https://seaweedfs.github.io/seaweedfs/helm
+  version: 4.41.0
+digest: sha256:bf3c861fc06a9d526bf020323156589c564bb2d93d948b86ccb7c746c92182c2
+generated: "2026-08-17T15:46:22.370124677-04:00"

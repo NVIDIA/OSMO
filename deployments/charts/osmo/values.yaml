@@ -14,7 +14,7 @@ planes:
 
 # Select supporting systems managed by this Helm release. Embedded PostgreSQL
 # requires a compatible CloudNativePG operator to be installed first. Embedded
-# Valkey is managed directly by this release.
+# Valkey and S3-compatible object storage are managed directly by this release.
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -22,8 +22,98 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
+    bootstrap:
+      image:
+        registry: ''
+        repository: alpine/kubectl
+        tag: 1.33.4
+        digest: ''
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
   kaiScheduler:
     enabled: false
+
+# Pinned SeaweedFS dependency defaults. These values intentionally select a
+# persistent, single-pod topology that also works on one-node clusters. It is
+# not highly available; use embedded-seaweedfs-ha-values.yaml as the starting
+# point for a failure-domain-aware production deployment.
+seaweedfs:
+  global:
+    seaweedfs:
+      createClusterRole: false
+      serviceAccountName: osmo-seaweedfs
+      automountServiceAccountToken: false
+      securityConfig:
+        jwtSigning:
+          volumeWrite: false
+          volumeRead: false
+          filerWrite: false
+          filerRead: false
+  master:
+    enabled: false
+  volume:
+    enabled: false
+  filer:
+    enabled: false
+  s3:
+    enabled: false
+    # The dependency's retained hook owns generated S3 credentials. OSMO's
+    # bootstrap bridge derives object-storage.yaml from its admin identity.
+    enableAuth: true
+  allInOne:
+    enabled: true
+    affinity: ''
+    data:
+      type: persistentVolumeClaim
+      size: 10Gi
+      storageClass: null
+      accessModes:
+      - ReadWriteOnce
+      annotations:
+        helm.sh/resource-policy: keep
+    s3:
+      enabled: true
+      enableAuth: true
+      createBuckets:
+      - name: osmo-workflows
+      - name: osmo-logs
+      - name: osmo-apps
+      createBucketsHook:
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+    podSecurityContext:
+      enabled: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
 
 # Connection details for dependencies owned outside this release. Each
 # endpoint is required only when its embedded dependency is disabled.
@@ -162,8 +252,8 @@ monitoring:
 # References to Kubernetes Secrets. Inline credentials are not accepted.
 # Embedded PostgreSQL credentials are owned by
 # postgresql.cluster.initdb.secret.name. These Secret settings are external-only
-# for PostgreSQL. Generated credentials are supported by embedded Valkey; other
-# `generate` switches must remain false.
+# for PostgreSQL. Generated credentials are supported by embedded Valkey and
+# embedded object storage; other `generate` switches must remain false.
 secrets:
   # Credentials for external PostgreSQL. Embedded PostgreSQL credentials are
   # created by CloudNativePG or configured with
@@ -183,7 +273,7 @@ secrets:
       password: redis-password
   # Storage SDK configuration file mounted for all three object-storage uses.
   objectStorage:
-    generate: false
+    generate: true
     existingSecret: ''
     keys:
       credentials: object-storage.yaml

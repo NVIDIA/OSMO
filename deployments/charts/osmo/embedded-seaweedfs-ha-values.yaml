@@ -1,0 +1,152 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Production-oriented distributed example. Replace storage classes, capacities,
+# service-account name, PostgreSQL endpoint/Secret, and S3 Secret name for the
+# target cluster before installing. See README.md for the operational contract.
+embeddedDependencies:
+  objectStorage:
+    enabled: true
+
+secrets:
+  objectStorage:
+    generate: false
+    existingSecret: osmo-seaweedfs-s3
+
+seaweedfs:
+  global:
+    seaweedfs:
+      createClusterRole: false
+      serviceAccountName: osmo-seaweedfs-ha
+      automountServiceAccountToken: false
+      enableReplication: true
+      replicationPlacement: "001"
+  allInOne:
+    enabled: false
+  master:
+    enabled: true
+    replicas: 3
+    defaultReplication: "001"
+    data:
+      type: persistentVolumeClaim
+      size: 10Gi
+      storageClass: standard
+    logs:
+      type: emptyDir
+    podSecurityContext:
+      enabled: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+  volume:
+    enabled: true
+    replicas: 3
+    dataDirs:
+    - name: data
+      type: persistentVolumeClaim
+      size: 100Gi
+      storageClass: standard
+      maxVolumes: 0
+    logs:
+      type: emptyDir
+    resizeHook:
+      enabled: false
+    podSecurityContext:
+      enabled: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+  filer:
+    enabled: true
+    replicas: 2
+    defaultReplicaPlacement: "001"
+    # Multiple filers need one shared metadata store; local LevelDB must be off.
+    data:
+      type: emptyDir
+    logs:
+      type: emptyDir
+    extraEnvironmentVars:
+      WEED_LEVELDB2_ENABLED: "false"
+      WEED_POSTGRES_ENABLED: "true"
+      WEED_POSTGRES_HOSTNAME: seaweedfs-postgresql
+      WEED_POSTGRES_PORT: "5432"
+      WEED_POSTGRES_DATABASE: seaweedfs
+      WEED_POSTGRES_SSLMODE: require
+    secretExtraEnvironmentVars:
+      WEED_POSTGRES_USERNAME:
+        secretKeyRef:
+          name: seaweedfs-postgresql
+          key: username
+      WEED_POSTGRES_PASSWORD:
+        secretKeyRef:
+          name: seaweedfs-postgresql
+          key: password
+    podSecurityContext:
+      enabled: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+  s3:
+    enabled: true
+    replicas: 2
+    enableAuth: true
+    existingConfigSecret: osmo-seaweedfs-s3
+    createBuckets:
+    - name: osmo-workflows
+    - name: osmo-logs
+    - name: osmo-apps
+    logs:
+      type: emptyDir
+    podSecurityContext:
+      enabled: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000

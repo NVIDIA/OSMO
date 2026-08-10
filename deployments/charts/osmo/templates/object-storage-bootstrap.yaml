@@ -1,0 +1,137 @@
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled .Values.secrets.objectStorage.generate }}
+{{- $bootstrapName := include "osmo.component.fullname" (dict "root" . "suffix" "object-storage-bootstrap") }}
+{{- $secretName := include "osmo.objectStorage.secretName" . }}
+{{- $sourceSecretName := include "osmo.seaweedfs.s3SecretName" . }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict
+          "helm.sh/hook" "pre-install,pre-upgrade"
+          "helm.sh/hook-weight" "-20"
+          "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed")) | nindent 4 }}
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict
+          "helm.sh/hook" "pre-install,pre-upgrade"
+          "helm.sh/hook-weight" "-20"
+          "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed")) | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames:
+  - {{ $sourceSecretName | quote }}
+  - {{ $secretName | quote }}
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames:
+  - {{ $secretName | quote }}
+  verbs: ["patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict
+          "helm.sh/hook" "pre-install,pre-upgrade"
+          "helm.sh/hook-weight" "-20"
+          "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed")) | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $bootstrapName }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict
+          "helm.sh/hook" "pre-install,pre-upgrade"
+          "helm.sh/hook-weight" "10"
+          "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $bootstrapName }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      containers:
+      - name: object-storage-bootstrap
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.embeddedDependencies.objectStorage.bootstrap) | quote }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.embeddedDependencies.objectStorage.bootstrap) }}
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - |
+{{ .Files.Get "files/object-storage-bootstrap.sh" | nindent 10 }}
+        - object-storage-bootstrap
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --release-name
+        - {{ .Release.Name | quote }}
+        - --source-secret-name
+        - {{ $sourceSecretName | quote }}
+        - --secret-name
+        - {{ $secretName | quote }}
+        env:
+        - name: HOME
+          value: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+        resources:
+          {{- toYaml .Values.embeddedDependencies.objectStorage.bootstrap.resources | nindent 10 }}
+        volumeMounts:
+        - name: bootstrap-tmp
+          mountPath: /tmp
+      volumes:
+      - name: bootstrap-tmp
+        emptyDir: {}
+{{- end }}

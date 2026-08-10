@@ -358,12 +358,53 @@ EOF
 
 test_control_umbrella() {
     local charts_copy="$TEST_DIRECTORY/charts"
+    local helm_state="$TEST_DIRECTORY/helm"
     local rendered="$TEST_DIRECTORY/osmo.yaml"
+    export HELM_CACHE_HOME="$helm_state/cache"
+    export HELM_CONFIG_HOME="$helm_state/config"
+    export HELM_DATA_HOME="$helm_state/data"
     mkdir -p "$charts_copy"
+    helm repo add cnpg https://cloudnative-pg.github.io/charts \
+        >"$TEST_DIRECTORY/cnpg-repo-add.out"
+    helm repo add seaweedfs https://seaweedfs.github.io/seaweedfs/helm \
+        >"$TEST_DIRECTORY/seaweedfs-repo-add.out"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
-    if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
-        ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null; then
-        helm dependency build "$charts_copy/osmo" >/dev/null
+    if ! helm dependency build "$charts_copy/osmo" \
+        >"$TEST_DIRECTORY/osmo-dependency-build.out" 2>&1; then
+        cat "$TEST_DIRECTORY/osmo-dependency-build.out" >&2
+        fail "expected OSMO chart dependencies to build"
+    fi
+    helm dependency list "$charts_copy/osmo" \
+        >"$TEST_DIRECTORY/osmo-dependency-list.out"
+    if ! awk '
+        $1 == "valkey" &&
+        $2 == "0.11.0" &&
+        $3 == "oci://ghcr.io/valkey-io/valkey-helm" &&
+        $4 == "ok" { found = 1 }
+        END { exit !found }
+    ' "$TEST_DIRECTORY/osmo-dependency-list.out"; then
+        cat "$TEST_DIRECTORY/osmo-dependency-list.out" >&2
+        fail "expected official Valkey 0.11.0 dependency"
+    fi
+    if ! awk '
+        $1 == "cluster" &&
+        $2 == "0.8.0" &&
+        $3 == "https://cloudnative-pg.github.io/charts" &&
+        $4 == "ok" { found = 1 }
+        END { exit !found }
+    ' "$TEST_DIRECTORY/osmo-dependency-list.out"; then
+        cat "$TEST_DIRECTORY/osmo-dependency-list.out" >&2
+        fail "expected official CloudNativePG cluster 0.8.0 dependency"
+    fi
+    if ! awk '
+        $1 == "seaweedfs" &&
+        $2 == "4.41.0" &&
+        $3 == "https://seaweedfs.github.io/seaweedfs/helm" &&
+        $4 == "ok" { found = 1 }
+        END { exit !found }
+    ' "$TEST_DIRECTORY/osmo-dependency-list.out"; then
+        cat "$TEST_DIRECTORY/osmo-dependency-list.out" >&2
+        fail "expected official SeaweedFS 4.41.0 dependency"
     fi
 
     if ! helm lint "$charts_copy/osmo" >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
@@ -384,6 +425,12 @@ test_control_umbrella() {
         ! grep -Fq "osmo/charts/cluster-0.8.0.tgz" \
         "$TEST_DIRECTORY/osmo-package.txt"; then
         fail "packaged OSMO chart does not contain CloudNativePG cluster 0.8.0"
+    fi
+    if ! grep -Fq "osmo/charts/seaweedfs/Chart.yaml" \
+        "$TEST_DIRECTORY/osmo-package.txt" && \
+        ! grep -Fq "osmo/charts/seaweedfs-4.41.0.tgz" \
+        "$TEST_DIRECTORY/osmo-package.txt"; then
+        fail "packaged OSMO chart does not contain SeaweedFS 4.41.0"
     fi
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
@@ -462,6 +509,7 @@ test_control_umbrella() {
     require_no_resource "$rendered" Secret "osmo-valkey-credentials"
     require_no_resource "$rendered" PersistentVolumeClaim "osmo-valkey"
     require_no_deployment "$rendered" "localstack-s3"
+    require_not_contains "$rendered" "app.kubernetes.io/name: seaweedfs"
     require_no_deployment "$rendered" "osmo-backend-listener"
     require_no_deployment "$rendered" "osmo-backend-worker"
     require_contains "$rendered" "external-postgresql"
@@ -1139,6 +1187,277 @@ EOF
         >"$TEST_DIRECTORY/osmo-replicated-valkey-init.yaml"
     require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-init.yaml" \
         "min-replicas-to-write 1"
+    helm_template embedded "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set-string externalDependencies.objectStorage.endpoint= \
+        --set-string externalDependencies.objectStorage.buckets.workflows= \
+        --set-string externalDependencies.objectStorage.buckets.logs= \
+        --set-string externalDependencies.objectStorage.buckets.apps= \
+        --set-string secrets.objectStorage.existingSecret= \
+        >"$TEST_DIRECTORY/osmo-embedded.yaml"
+    require_deployment "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "embedded-seaweedfs-all-in-one"
+    resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" PersistentVolumeClaim \
+        embedded-seaweedfs-all-in-one-data \
+        >"$TEST_DIRECTORY/osmo-embedded-pvc.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-pvc.yaml" "storage: 10Gi"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-pvc.yaml" \
+        "helm.sh/resource-policy: keep"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "s3.bucket.create --name osmo-workflows"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "s3.bucket.create --name osmo-logs"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "s3.bucket.create --name osmo-apps"
+    resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" Job \
+        embedded-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-object-storage-bootstrap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap.yaml" \
+        "helm.sh/hook: pre-install,pre-upgrade"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap.yaml" \
+        'helm.sh/hook-weight: "10"'
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap.yaml" \
+        'image: "alpine/kubectl:1.33.4"'
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap.yaml" \
+        "embedded-seaweedfs-s3-secret"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap.yaml" \
+        "embedded-object-storage-credentials"
+    resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" Role \
+        embedded-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-object-storage-bootstrap-role.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-role.yaml" \
+        "resourceNames:"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-role.yaml" \
+        'verbs: ["get"]'
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-role.yaml" \
+        'verbs: ["patch", "update"]'
+    require_resource "$TEST_DIRECTORY/osmo-embedded.yaml" Secret \
+        embedded-seaweedfs-s3-secret
+    require_no_resource "$TEST_DIRECTORY/osmo-embedded.yaml" Secret \
+        embedded-object-storage-credentials
+    resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" ConfigMap \
+        embedded-osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-embedded-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-config.yaml" \
+        "override_url: http://embedded-seaweedfs-all-in-one:8333"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-config.yaml" \
+        "endpoint: s3://osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-config.yaml" \
+        "endpoint: s3://osmo-logs/logs"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-config.yaml" \
+        "endpoint: s3://osmo-apps/apps"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-config.yaml" \
+        "secretName: embedded-object-storage-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-config.yaml" \
+        "region: us-east-1"
+    resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" Deployment \
+        embedded-osmo-api >"$TEST_DIRECTORY/osmo-embedded-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-api.yaml" \
+        "mountPath: /etc/osmo/secrets/embedded-object-storage-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-api.yaml" \
+        "secretName: embedded-object-storage-credentials"
+
+    helm_template embedded-renamed "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set-string externalDependencies.objectStorage.endpoint= \
+        --set-string secrets.objectStorage.existingSecret= \
+        --set seaweedfs.fullnameOverride=custom-storage \
+        >"$TEST_DIRECTORY/osmo-embedded-renamed.yaml"
+    require_deployment "$TEST_DIRECTORY/osmo-embedded-renamed.yaml" \
+        custom-storage-all-in-one
+    require_resource "$TEST_DIRECTORY/osmo-embedded-renamed.yaml" Secret \
+        custom-storage-s3-secret
+    resource_document "$TEST_DIRECTORY/osmo-embedded-renamed.yaml" Job \
+        embedded-renamed-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-embedded-renamed-bootstrap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-renamed-bootstrap.yaml" \
+        "custom-storage-s3-secret"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-renamed.yaml" ConfigMap \
+        embedded-renamed-osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-embedded-renamed-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-renamed-config.yaml" \
+        "override_url: http://custom-storage-all-in-one:8333"
+
+    helm_template embedded-mirror "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set-string externalDependencies.objectStorage.endpoint= \
+        --set-string secrets.objectStorage.existingSecret= \
+        --set imageRegistry=mirror.example.com \
+        >"$TEST_DIRECTORY/osmo-embedded-mirror.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-mirror.yaml" Job \
+        embedded-mirror-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-embedded-mirror-bootstrap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-mirror-bootstrap.yaml" \
+        'image: "mirror.example.com/alpine/kubectl:1.33.4"'
+
+    if helm_template embedded-generated-native-existing "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set-string externalDependencies.objectStorage.endpoint= \
+        --set-string secrets.objectStorage.existingSecret= \
+        --set seaweedfs.s3.existingConfigSecret=native-existing \
+        >"$TEST_DIRECTORY/embedded-generated-native-existing.out" 2>&1; then
+        fail "expected generated credentials with a native existing Secret to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-generated-native-existing.out" \
+        "generated credentials cannot configure a SeaweedFS existingConfigSecret"
+
+    if helm_template embedded-generated-all-in-one-existing "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set-string externalDependencies.objectStorage.endpoint= \
+        --set-string secrets.objectStorage.existingSecret= \
+        --set seaweedfs.allInOne.s3.existingConfigSecret=native-existing \
+        >"$TEST_DIRECTORY/embedded-generated-all-in-one-existing.out" 2>&1; then
+        fail "expected generated credentials with an all-in-one existing Secret to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-generated-all-in-one-existing.out" \
+        "generated credentials cannot configure a SeaweedFS existingConfigSecret"
+
+    if helm_template embedded-existing-mismatch "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set secrets.objectStorage.generate=false \
+        --set secrets.objectStorage.existingSecret=embedded-object-storage-existing \
+        >"$TEST_DIRECTORY/embedded-existing-mismatch.out" 2>&1; then
+        fail "expected mismatched embedded existing Secret references to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-existing-mismatch.out" \
+        "seaweedfs.s3.existingConfigSecret must match secrets.objectStorage.existingSecret"
+
+    helm_template embedded-existing "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set secrets.objectStorage.generate=false \
+        --set secrets.objectStorage.existingSecret=embedded-object-storage-existing \
+        --set seaweedfs.s3.existingConfigSecret=embedded-object-storage-existing \
+        >"$TEST_DIRECTORY/osmo-embedded-existing.yaml"
+    require_not_contains "$TEST_DIRECTORY/osmo-embedded-existing.yaml" \
+        "object-storage-bootstrap"
+    require_no_resource "$TEST_DIRECTORY/osmo-embedded-existing.yaml" Secret \
+        embedded-object-storage-existing
+    require_no_resource "$TEST_DIRECTORY/osmo-embedded-existing.yaml" Secret \
+        embedded-existing-seaweedfs-s3-secret
+    require_contains "$TEST_DIRECTORY/osmo-embedded-existing.yaml" \
+        "secretName: embedded-object-storage-existing"
+
+    if helm_template embedded-existing-all-in-one-mismatch "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set secrets.objectStorage.generate=false \
+        --set secrets.objectStorage.existingSecret=embedded-object-storage-existing \
+        --set seaweedfs.s3.existingConfigSecret=embedded-object-storage-existing \
+        --set seaweedfs.allInOne.s3.existingConfigSecret=other-existing \
+        >"$TEST_DIRECTORY/embedded-existing-all-in-one-mismatch.out" 2>&1; then
+        fail "expected mismatched all-in-one embedded Secret reference to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-existing-all-in-one-mismatch.out" \
+        "seaweedfs.allInOne.s3.existingConfigSecret must be empty or match secrets.objectStorage.existingSecret"
+
+    if helm_template embedded-conflicting-credentials "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set secrets.objectStorage.existingSecret=embedded-object-storage-existing \
+        >"$TEST_DIRECTORY/embedded-conflicting-credentials.out" 2>&1; then
+        fail "expected conflicting embedded credential sources to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-conflicting-credentials.out" \
+        "generate and existingSecret are mutually exclusive"
+
+    if helm_template embedded-native-auth-disabled "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set-string externalDependencies.objectStorage.endpoint= \
+        --set-string secrets.objectStorage.existingSecret= \
+        --set seaweedfs.s3.enableAuth=false \
+        >"$TEST_DIRECTORY/embedded-native-auth-disabled.out" 2>&1; then
+        fail "expected generated storage without native SeaweedFS auth to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-native-auth-disabled.out" \
+        "seaweedfs.s3.enableAuth must be true for generated credentials"
+
+    if helm_template embedded-inline-credentials "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.objectStorage.enabled=true \
+        --set-string externalDependencies.objectStorage.endpoint= \
+        --set-string secrets.objectStorage.existingSecret= \
+        --set-string seaweedfs.s3.credentials.admin.accessKey=plaintext \
+        --set-string seaweedfs.s3.credentials.admin.secretKey=plaintext \
+        >"$TEST_DIRECTORY/embedded-inline-credentials.out" 2>&1; then
+        fail "expected inline SeaweedFS credentials to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-inline-credentials.out" \
+        "inline SeaweedFS credentials are not supported"
+
+    local embedded_ha_values="$CHARTS_ROOT/osmo/embedded-seaweedfs-ha-values.yaml"
+    [[ -f "$embedded_ha_values" ]] || \
+        fail "expected distributed embedded storage values at $embedded_ha_values"
+    helm_template ha "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$embedded_ha_values" \
+        >"$TEST_DIRECTORY/osmo-embedded-ha.yaml"
+    require_no_deployment "$TEST_DIRECTORY/osmo-embedded-ha.yaml" \
+        "ha-seaweedfs-all-in-one"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-ha.yaml" StatefulSet \
+        ha-seaweedfs-master >"$TEST_DIRECTORY/osmo-embedded-ha-master.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-master.yaml" "replicas: 3"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-master.yaml" \
+        "volumeClaimTemplates:"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-ha.yaml" StatefulSet \
+        ha-seaweedfs-volume >"$TEST_DIRECTORY/osmo-embedded-ha-volume.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-volume.yaml" "replicas: 3"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-volume.yaml" \
+        "volumeClaimTemplates:"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-volume.yaml" \
+        "requiredDuringSchedulingIgnoredDuringExecution:"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-ha.yaml" StatefulSet \
+        ha-seaweedfs-filer >"$TEST_DIRECTORY/osmo-embedded-ha-filer.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-filer.yaml" "replicas: 2"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-filer.yaml" \
+        'value: "true"'
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-filer.yaml" \
+        "name: WEED_POSTGRES_PASSWORD"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-ha.yaml" Deployment \
+        ha-seaweedfs-s3 >"$TEST_DIRECTORY/osmo-embedded-ha-s3.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-s3.yaml" "replicas: 2"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha-s3.yaml" \
+        "secretName: osmo-seaweedfs-s3"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha.yaml" \
+        "-defaultReplication=001"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha.yaml" \
+        "s3.bucket.create --name osmo-workflows"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-ha.yaml" \
+        "override_url: http://ha-seaweedfs-s3:8333"
+    require_no_resource "$TEST_DIRECTORY/osmo-embedded-ha.yaml" Secret \
+        osmo-seaweedfs-s3
+
+    if helm_template unsafe-generated-ha "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$embedded_ha_values" \
+        --set secrets.objectStorage.generate=true \
+        --set-string secrets.objectStorage.existingSecret= \
+        --set-string seaweedfs.s3.existingConfigSecret= \
+        >"$TEST_DIRECTORY/unsafe-generated-ha.out" 2>&1; then
+        fail "expected generated credentials with distributed SeaweedFS to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsafe-generated-ha.out" \
+        "generated credentials are supported only with seaweedfs.allInOne.enabled"
 
     cat >"$charts_copy/osmo/templates/postgresql-helper-contract.yaml" <<'EOF'
 {{- if .Values.embeddedDependencies.postgresql.enabled }}
@@ -2295,6 +2614,7 @@ case "$MODE" in
     osmo|all)
         test_yaml_helpers
         require_clean_osmo_sources
+        bash "$CHARTS_ROOT/osmo/tests/test_object_storage_bootstrap.sh"
         test_control_umbrella
         ;;
     *)

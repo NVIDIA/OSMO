@@ -49,9 +49,6 @@
 {{- end -}}
 {{- end -}}
 {{- end -}}
-{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
-{{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
-{{- end -}}
 {{- if .Values.embeddedDependencies.kaiScheduler.enabled -}}
 {{- fail "embeddedDependencies.kaiScheduler.enabled: embedded KAI Scheduler is not implemented" -}}
 {{- end -}}
@@ -125,7 +122,7 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if or .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
@@ -186,16 +183,16 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.externalDependencies.valkey.host) -}}
 {{- fail "externalDependencies.valkey.host is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.endpoint -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.endpoint) -}}
 {{- fail "externalDependencies.objectStorage.endpoint is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.buckets.workflows -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.workflows) -}}
 {{- fail "externalDependencies.objectStorage.buckets.workflows is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.buckets.logs -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.logs) -}}
 {{- fail "externalDependencies.objectStorage.buckets.logs is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.buckets.apps -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.apps) -}}
 {{- fail "externalDependencies.objectStorage.buckets.apps is required for the control plane" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.secrets.postgresql.existingSecret) -}}
@@ -204,8 +201,47 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.secrets.valkey.existingSecret) -}}
 {{- fail "secrets.valkey.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.objectStorage.existingSecret -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.secrets.objectStorage.existingSecret) -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
+{{- end -}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled .Values.secrets.objectStorage.generate .Values.secrets.objectStorage.existingSecret -}}
+{{- fail "secrets.objectStorage: generate and existingSecret are mutually exclusive for embedded object storage" -}}
+{{- end -}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled (not .Values.secrets.objectStorage.generate) (not .Values.secrets.objectStorage.existingSecret) -}}
+{{- fail "secrets.objectStorage: enable generate or configure existingSecret for embedded object storage" -}}
+{{- end -}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled .Values.secrets.objectStorage.generate (not .Values.seaweedfs.allInOne.enabled) -}}
+{{- fail "embedded object-storage generated credentials are supported only with seaweedfs.allInOne.enabled; distributed deployments require an existing Secret" -}}
+{{- end -}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled .Values.secrets.objectStorage.generate (not .Values.seaweedfs.s3.enableAuth) -}}
+{{- fail "seaweedfs.s3.enableAuth must be true for generated credentials" -}}
+{{- end -}}
+{{- $seaweedfsExistingSecret := .Values.seaweedfs.s3.existingConfigSecret | default "" -}}
+{{- $allInOneExistingSecret := .Values.seaweedfs.allInOne.s3.existingConfigSecret | default "" -}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled .Values.secrets.objectStorage.generate (or $seaweedfsExistingSecret $allInOneExistingSecret) -}}
+{{- fail "generated credentials cannot configure a SeaweedFS existingConfigSecret" -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- with .Values.seaweedfs.s3.credentials -}}
+{{- fail "inline SeaweedFS credentials are not supported; use generated credentials or an existing Secret" -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.embeddedDependencies.objectStorage.enabled .Values.secrets.objectStorage.existingSecret -}}
+{{- if ne $seaweedfsExistingSecret .Values.secrets.objectStorage.existingSecret -}}
+{{- fail "seaweedfs.s3.existingConfigSecret must match secrets.objectStorage.existingSecret for embedded object storage" -}}
+{{- end -}}
+{{- if and $allInOneExistingSecret (ne $allInOneExistingSecret .Values.secrets.objectStorage.existingSecret) -}}
+{{- fail "seaweedfs.allInOne.s3.existingConfigSecret must be empty or match secrets.objectStorage.existingSecret" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- $buckets := .Values.seaweedfs.s3.createBuckets -}}
+{{- if .Values.seaweedfs.allInOne.enabled -}}
+{{- $buckets = .Values.seaweedfs.allInOne.s3.createBuckets -}}
+{{- end -}}
+{{- if lt (len $buckets) 3 -}}
+{{- fail "embedded object storage requires three SeaweedFS createBuckets entries in workflows, logs, apps order" -}}
+{{- end -}}
 {{- end -}}
 {{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
 {{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
