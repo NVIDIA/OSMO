@@ -5,10 +5,13 @@ SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
 
+import io
 import importlib.util
 import sys
+import urllib.error
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "update_distroless.py"
@@ -23,6 +26,52 @@ SPEC.loader.exec_module(update_distroless)
 
 
 class UpdateDistrolessTest(unittest.TestCase):
+    def test_fetch_latest_probes_manifest_tags_omitted_from_catalog(self):
+        catalog_tags = {
+            update_distroless.PYTHON_REPO: [
+                "3.14-v4.0.9",
+                "3.14-v4.0.9-dev",
+            ],
+            update_distroless.NODE_REPO: ["24-v4.0.9"],
+        }
+        available_tags = {
+            (update_distroless.PYTHON_REPO, "3.14-v4.0.9"),
+            (update_distroless.PYTHON_REPO, "3.14-v4.0.9-dev"),
+            (update_distroless.PYTHON_REPO, "3.14-v4.0.10"),
+            (update_distroless.PYTHON_REPO, "3.14-v4.0.10-dev"),
+            (update_distroless.NODE_REPO, "24-v4.0.9"),
+            (update_distroless.NODE_REPO, "24-v4.0.10"),
+            (update_distroless.NODE_REPO, "24-v4.0.11"),
+        }
+
+        def manifest_digest(repository: str, tag: str) -> str:
+            if (repository, tag) not in available_tags:
+                raise urllib.error.HTTPError(
+                    url="https://nvcr.io",
+                    code=404,
+                    msg="Not Found",
+                    hdrs=None,
+                    fp=io.BytesIO(),
+                )
+            return "sha256:" + "a" * 64
+
+        with (
+            patch.object(
+                update_distroless,
+                "_repo_tags",
+                side_effect=lambda repository: catalog_tags[repository],
+            ),
+            patch.object(
+                update_distroless,
+                "_manifest_digest",
+                side_effect=manifest_digest,
+            ),
+        ):
+            latest = update_distroless.fetch_latest()
+
+        self.assertEqual(latest.python_version, "4.0.10")
+        self.assertEqual(latest.node_version, "4.0.11")
+
     def test_latest_version_for_prefix_ignores_attestations_and_dev_tags(self):
         tags = [
             "3.14-v4.0.8-dev",
