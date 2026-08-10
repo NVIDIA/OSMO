@@ -319,10 +319,10 @@ spec:
           - --set-xauthrequest=true
           - --set-authorization-header=true
           - --pass-access-token={{ $gw.oauth2Proxy.passAccessToken }}
-          {{- $valkey := $.Values.externalDependencies.valkey }}
+          {{- $valkeyHost := include "osmo.valkey.host" $ }}
           {{- if $gw.oauth2Proxy.redisSessionStore }}
           - --session-store-type=redis
-          - --redis-connection-url={{ if $valkey.tls.enabled }}rediss{{ else }}redis{{ end }}://{{ $valkey.host }}:{{ $valkey.port }}/{{ $valkey.database }}
+          - --redis-connection-url={{ if eq (include "osmo.valkey.tlsEnabled" $) "true" }}rediss{{ else }}redis{{ end }}://{{ $valkeyHost }}:{{ include "osmo.valkey.port" $ }}/{{ include "osmo.valkey.database" $ }}
           {{- end }}
           - --upstream=static://200
           - --redirect-url={{ trimSuffix "/" $.Values.externalUrl }}/oauth2/callback
@@ -338,8 +338,12 @@ spec:
           - name: OAUTH2_PROXY_REDIS_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ .Values.secrets.valkey.existingSecret }}
+                name: {{ include "osmo.valkey.secretName" . }}
                 key: {{ .Values.secrets.valkey.keys.password }}
+          {{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
+          - name: SSL_CERT_FILE
+            value: /etc/osmo/ca/valkey/ca-bundle.crt
+          {{- end }}
           {{- end }}
           {{- include "osmo.component.extraEnv" $gw.oauth2Proxy | nindent 10 }}
         {{- end }}
@@ -366,6 +370,11 @@ spec:
             mountPath: /etc/oauth2-proxy
             readOnly: true
           {{- end }}
+          {{- if and $gw.oauth2Proxy.redisSessionStore (eq (include "osmo.valkey.tlsEnabled" .) "true") }}
+          - name: valkey-ca
+            mountPath: /etc/osmo/ca/valkey
+            readOnly: true
+          {{- end }}
           {{- with $gw.oauth2Proxy.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
@@ -379,6 +388,14 @@ spec:
               path: client-secret
             - key: {{ $gw.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
               path: cookie-secret
+        {{- end }}
+        {{- if and $gw.oauth2Proxy.redisSessionStore (eq (include "osmo.valkey.tlsEnabled" .) "true") }}
+        - name: valkey-ca
+          secret:
+            secretName: {{ .Values.externalDependencies.valkey.tls.caExistingSecret }}
+            items:
+            - key: {{ .Values.externalDependencies.valkey.tls.caKey }}
+              path: ca-bundle.crt
         {{- end }}
         {{- with $gw.oauth2Proxy.pod.extraVolumes }}
           {{- toYaml . | nindent 8 }}
@@ -536,7 +553,7 @@ spec:
         env:
           {{- include "osmo.component.extraEnv" $gw.authz | nindent 10 }}
           {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 10 }}
-        {{- if or .Values.configuration.enabled $gw.authz.extraVolumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
+        {{- if or .Values.configuration.enabled $gw.authz.extraVolumeMounts .Values.externalDependencies.postgresql.tls.enabled (eq (include "osmo.valkey.tlsEnabled" .) "true") }}
         volumeMounts:
           {{- if .Values.configuration.enabled }}
           - name: configs
@@ -731,14 +748,18 @@ spec:
         - name: REDIS_SOCKET_TYPE
           value: tcp
         - name: REDIS_URL
-          value: {{ .Values.externalDependencies.valkey.host }}:{{ .Values.externalDependencies.valkey.port }}
+          value: {{ include "osmo.valkey.host" . }}:{{ include "osmo.valkey.port" . }}
         - name: REDIS_AUTH
           valueFrom:
             secretKeyRef:
-              name: {{ .Values.secrets.valkey.existingSecret }}
+              name: {{ include "osmo.valkey.secretName" . }}
               key: {{ .Values.secrets.valkey.keys.password }}
         - name: REDIS_TLS
-          value: {{ .Values.externalDependencies.valkey.tls.enabled | quote }}
+          value: {{ include "osmo.valkey.tlsEnabled" . | quote }}
+        {{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
+        - name: SSL_CERT_FILE
+          value: /etc/osmo/ca/valkey/ca-bundle.crt
+        {{- end }}
         - name: USE_STATSD
           value: "false"
         - name: RUNTIME_ROOT
@@ -762,6 +783,11 @@ spec:
         volumeMounts:
         - name: ratelimit-config
           mountPath: /data/ratelimit/config
+        {{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
+        - name: valkey-ca
+          mountPath: /etc/osmo/ca/valkey
+          readOnly: true
+        {{- end }}
         {{- with $gw.rateLimit.extraVolumeMounts }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -778,6 +804,14 @@ spec:
           items:
           - key: config.yaml
             path: config.yaml
+      {{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
+      - name: valkey-ca
+        secret:
+          secretName: {{ .Values.externalDependencies.valkey.tls.caExistingSecret }}
+          items:
+          - key: {{ .Values.externalDependencies.valkey.tls.caKey }}
+            path: ca-bundle.crt
+      {{- end }}
       {{- with $gw.rateLimit.pod.extraVolumes }}
         {{- toYaml . | nindent 6 }}
       {{- end }}

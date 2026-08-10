@@ -271,9 +271,35 @@ require_no_deployment() {
     fi
 }
 
+require_resource() {
+    local file=$1
+    local kind=$2
+    local name=$3
+    local document=$TEST_DIRECTORY/resource.yaml
+    resource_document "$file" "$kind" "$name" >"$document"
+    [[ -s "$document" ]] || fail "expected $kind/$name"
+}
+
+require_no_resource() {
+    local file=$1
+    local kind=$2
+    local name=$3
+    local document=$TEST_DIRECTORY/resource.yaml
+    if resource_document "$file" "$kind" "$name" >"$document" 2>/dev/null; then
+        fail "did not expect $kind/$name"
+    fi
+}
+
 require_clean_osmo_sources() {
-    require_not_contains "$CHARTS_ROOT/osmo/Chart.yaml" "dependencies:"
-    [[ ! -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must not have a dependency lock"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "dependencies:"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "- name: valkey"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.11.0"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
+        "repository: oci://ghcr.io/valkey-io/valkey-helm"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
+        "condition: embeddedDependencies.valkey.enabled"
+    [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
+    require_contains "$CHARTS_ROOT/osmo/Chart.lock" "version: 0.11.0"
     [[ ! -d "$CHARTS_ROOT/osmo/charts" ]] || fail "osmo must not contain packaged dependencies"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/postgres.yaml" ]] || \
         fail "osmo must not contain an unimplemented embedded PostgreSQL template"
@@ -325,8 +351,9 @@ test_control_umbrella() {
     local rendered="$TEST_DIRECTORY/osmo.yaml"
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
-    rm -rf "$charts_copy/osmo/charts"
-    rm -f "$charts_copy/osmo/Chart.lock"
+    if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null; then
+        helm dependency build "$charts_copy/osmo" >/dev/null
+    fi
 
     if ! helm lint "$charts_copy/osmo" >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
         cat "$TEST_DIRECTORY/osmo-lint.out" >&2
@@ -335,6 +362,12 @@ test_control_umbrella() {
 
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
+    if ! grep -Fq "osmo/charts/valkey/Chart.yaml" \
+        "$TEST_DIRECTORY/osmo-package.txt" && \
+        ! grep -Fq "osmo/charts/valkey-0.11.0.tgz" \
+        "$TEST_DIRECTORY/osmo-package.txt"; then
+        fail "packaged OSMO chart does not contain Valkey 0.11.0"
+    fi
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "/migration-job.yaml"
@@ -396,6 +429,13 @@ test_control_umbrella() {
         "name: worker-extension"
     require_no_deployment "$rendered" "postgres"
     require_no_deployment "$rendered" "redis"
+    require_no_deployment "$rendered" "osmo-valkey"
+    require_no_resource "$rendered" StatefulSet "osmo-valkey"
+    require_no_resource "$rendered" Service "osmo-valkey"
+    require_no_resource "$rendered" ServiceAccount "osmo-valkey"
+    require_no_resource "$rendered" NetworkPolicy "osmo-valkey"
+    require_no_resource "$rendered" Secret "osmo-valkey-credentials"
+    require_no_resource "$rendered" PersistentVolumeClaim "osmo-valkey"
     require_no_deployment "$rendered" "localstack-s3"
     require_no_deployment "$rendered" "osmo-backend-listener"
     require_no_deployment "$rendered" "osmo-backend-worker"
@@ -788,6 +828,269 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-api-role-binding.yaml" \
         "app.kubernetes.io/component: api"
 
+    resource_document "$rendered" Deployment osmo-ui \
+        >"$TEST_DIRECTORY/osmo-ui.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-ui.yaml" \
+        "serviceAccountName: default"
+
+    helm_template osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        --set-string commonLabels.owner=platform \
+        --set-string commonAnnotations.owner=platform \
+        >"$TEST_DIRECTORY/osmo-embedded-valkey.yaml"
+
+    require_deployment "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" "osmo-valkey"
+    require_resource "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" Service "osmo-valkey"
+    require_resource "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" \
+        PersistentVolumeClaim "osmo-valkey"
+    require_resource "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" \
+        ServiceAccount "osmo-valkey"
+    require_resource "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" \
+        NetworkPolicy "osmo-valkey"
+    require_resource "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" \
+        Secret "osmo-valkey-credentials"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" Secret \
+        osmo-valkey-credentials >"$TEST_DIRECTORY/osmo-valkey-secret.yaml"
+    require_occurrences "$TEST_DIRECTORY/osmo-valkey-secret.yaml" \
+        "owner: platform" 2
+    require_contains "$TEST_DIRECTORY/osmo-valkey-secret.yaml" \
+        "helm.sh/resource-policy: keep"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" Deployment \
+        osmo-valkey >"$TEST_DIRECTORY/osmo-valkey.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "type: Recreate"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "readinessProbe:"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "livenessProbe:"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "startupProbe:"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "readOnlyRootFilesystem: true"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "allowPrivilegeEscalation: false"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "automountServiceAccountToken: false"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "resources:"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" \
+        PersistentVolumeClaim osmo-valkey >"$TEST_DIRECTORY/osmo-valkey-pvc.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-pvc.yaml" \
+        '"helm.sh/resource-policy": keep'
+    require_contains "$TEST_DIRECTORY/osmo-valkey-pvc.yaml" "ReadWriteOnce"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-pvc.yaml" "storage: 8Gi"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" ConfigMap \
+        osmo-valkey-config >"$TEST_DIRECTORY/osmo-valkey-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" "appendonly yes"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" "appendfsync everysec"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" "maxmemory 384mb"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" \
+        "maxmemory-policy noeviction"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" \
+        "secretName: osmo-valkey-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" \
+        "redis-password:"
+
+    local valkey_consumer
+    for valkey_consumer in api worker logger agent delayed-job-monitor; do
+        resource_document "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" Deployment \
+            "osmo-$valkey_consumer" \
+            >"$TEST_DIRECTORY/osmo-$valkey_consumer-valkey.yaml"
+        require_contains "$TEST_DIRECTORY/osmo-$valkey_consumer-valkey.yaml" \
+            "- osmo-valkey"
+        require_contains "$TEST_DIRECTORY/osmo-$valkey_consumer-valkey.yaml" \
+            "name: osmo-valkey-credentials"
+        require_contains "$TEST_DIRECTORY/osmo-$valkey_consumer-valkey.yaml" \
+            "key: redis-password"
+    done
+
+    helm_template osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-review-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        >"$TEST_DIRECTORY/osmo-embedded-valkey-gateway.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-valkey-gateway.yaml" \
+        Deployment osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/osmo-embedded-valkey-oauth2-proxy.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-valkey-oauth2-proxy.yaml" \
+        "--redis-connection-url=redis://osmo-valkey:6379/0"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-valkey-oauth2-proxy.yaml" \
+        "name: osmo-valkey-credentials"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-valkey-gateway.yaml" \
+        Deployment osmo-gateway-ratelimit \
+        >"$TEST_DIRECTORY/osmo-embedded-valkey-ratelimit.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-valkey-ratelimit.yaml" \
+        "value: osmo-valkey:6379"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-valkey-ratelimit.yaml" \
+        "name: osmo-valkey-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-valkey-ratelimit.yaml" \
+        'value: "false"'
+
+    helm_template existing-embedded "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set-string secrets.valkey.existingSecret=existing-embedded-valkey \
+        --set-string valkey.auth.usersExistingSecret=existing-embedded-valkey \
+        >"$TEST_DIRECTORY/osmo-existing-embedded-valkey.yaml"
+    require_not_contains "$TEST_DIRECTORY/osmo-existing-embedded-valkey.yaml" \
+        "kind: Secret"
+    require_contains "$TEST_DIRECTORY/osmo-existing-embedded-valkey.yaml" \
+        "secretName: existing-embedded-valkey"
+
+    if helm_template conflicting-embedded "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret=existing-embedded-valkey \
+        >"$TEST_DIRECTORY/conflicting-embedded.out" 2>&1; then
+        fail "expected embedded and external Valkey configuration to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/conflicting-embedded.out" \
+        "externalDependencies.valkey.host must be empty"
+
+    if helm_template missing-embedded-credentials "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set-string secrets.valkey.existingSecret= \
+        >"$TEST_DIRECTORY/missing-embedded-credentials.out" 2>&1; then
+        fail "expected missing embedded Valkey credentials to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/missing-embedded-credentials.out" \
+        "requires generated or existing credentials"
+
+    if helm_template duplicate-embedded-credentials "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret=existing-embedded-valkey \
+        >"$TEST_DIRECTORY/duplicate-embedded-credentials.out" 2>&1; then
+        fail "expected duplicate embedded Valkey credential ownership to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/duplicate-embedded-credentials.out" \
+        "generate and existingSecret are mutually exclusive"
+
+    if helm_template inline-embedded-password "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        --set-string valkey.auth.aclUsers.default.password=plaintext \
+        >"$TEST_DIRECTORY/inline-embedded-password.out" 2>&1; then
+        fail "expected inline embedded Valkey credentials to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/inline-embedded-password.out" \
+        "inline Valkey passwords are not supported"
+
+    if helm_template mismatched-embedded-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set-string secrets.valkey.existingSecret=existing-embedded-valkey \
+        --set-string valkey.auth.usersExistingSecret=other-valkey \
+        >"$TEST_DIRECTORY/mismatched-embedded-secret.out" 2>&1; then
+        fail "expected mismatched embedded Valkey Secret names to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/mismatched-embedded-secret.out" \
+        "must match the effective Valkey Secret"
+
+    if helm_template context-sensitive-embedded-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set-string secrets.valkey.existingSecret=osmo \
+        --set-literal 'valkey.auth.usersExistingSecret={{ .Chart.Name }}' \
+        >"$TEST_DIRECTORY/context-sensitive-embedded-secret.out" 2>&1; then
+        fail "expected context-sensitive embedded Valkey Secret name to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/context-sensitive-embedded-secret.out" \
+        "must not contain templates when using an existing Secret"
+
+    helm_template first-generated-upgrade "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        >"$TEST_DIRECTORY/first-generated-upgrade.yaml"
+    require_resource "$TEST_DIRECTORY/first-generated-upgrade.yaml" Secret \
+        "first-generated-upgrade-valkey-credentials"
+
+    if helm_template embedded-tls "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        --set valkey.tls.enabled=true \
+        --set valkey.tls.existingSecret=valkey-tls \
+        >"$TEST_DIRECTORY/embedded-tls.out" 2>&1; then
+        fail "expected unsupported embedded Valkey TLS to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-tls.out" \
+        "embedded Valkey TLS is not supported"
+
+    if helm_template embedded-custom-port "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        --set valkey.service.port=6380 \
+        >"$TEST_DIRECTORY/embedded-custom-port.out" 2>&1; then
+        fail "expected unsupported embedded Valkey port to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-custom-port.out" \
+        "embedded Valkey requires service port 6379"
+
+    helm_template replicated-embedded "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        --set valkey.replica.enabled=true \
+        >"$TEST_DIRECTORY/osmo-replicated-valkey.yaml"
+    require_resource "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" StatefulSet \
+        replicated-embedded-valkey
+    require_resource "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" \
+        PodDisruptionBudget replicated-embedded-valkey
+    resource_document "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" StatefulSet \
+        replicated-embedded-valkey \
+        >"$TEST_DIRECTORY/osmo-replicated-valkey-statefulset.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-statefulset.yaml" \
+        "replicas: 3"
+    require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-statefulset.yaml" \
+        "whenDeleted: Retain"
+    require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-statefulset.yaml" \
+        "whenScaled: Retain"
+    require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-statefulset.yaml" \
+        "storage: \"8Gi\""
+    resource_document "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" ConfigMap \
+        replicated-embedded-valkey-init-scripts \
+        >"$TEST_DIRECTORY/osmo-replicated-valkey-init.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-init.yaml" \
+        "min-replicas-to-write 1"
+
     resource_document "$rendered" Deployment osmo-agent \
         >"$TEST_DIRECTORY/osmo-agent.yaml"
     require_occurrences "$TEST_DIRECTORY/osmo-agent.yaml" "        ports:" 1
@@ -905,6 +1208,7 @@ EOF
     helm_template osmo-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-review-values.yaml" \
         --set externalDependencies.postgresql.tls.enabled=true \
         --set externalDependencies.postgresql.tls.caExistingSecret=postgresql-ca \
         --set externalDependencies.valkey.tls.enabled=true \
@@ -931,6 +1235,26 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "/etc/osmo/ca/postgresql"
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" \
         "--postgres-ssl-mode=verify-full"
+    resource_document "$TEST_DIRECTORY/osmo-tls.yaml" Deployment \
+        osmo-tls-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/osmo-oauth2-proxy-tls.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-oauth2-proxy-tls.yaml" \
+        "--redis-connection-url=rediss://external-valkey:6379/0"
+    require_contains "$TEST_DIRECTORY/osmo-oauth2-proxy-tls.yaml" \
+        "name: SSL_CERT_FILE"
+    require_contains "$TEST_DIRECTORY/osmo-oauth2-proxy-tls.yaml" \
+        "/etc/osmo/ca/valkey/ca-bundle.crt"
+    require_contains "$TEST_DIRECTORY/osmo-oauth2-proxy-tls.yaml" \
+        "secretName: valkey-ca"
+    resource_document "$TEST_DIRECTORY/osmo-tls.yaml" Deployment \
+        osmo-tls-gateway-ratelimit \
+        >"$TEST_DIRECTORY/osmo-ratelimit-tls.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-ratelimit-tls.yaml" \
+        "name: SSL_CERT_FILE"
+    require_contains "$TEST_DIRECTORY/osmo-ratelimit-tls.yaml" \
+        "/etc/osmo/ca/valkey/ca-bundle.crt"
+    require_contains "$TEST_DIRECTORY/osmo-ratelimit-tls.yaml" \
+        "secretName: valkey-ca"
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1217,7 +1541,7 @@ EOF
     helm_template image-mirror "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set global.imageRegistry=mirror.example.com \
-        --set global.imagePullSecrets[0].name=mirror-secret \
+        --set global.imagePullSecrets[0]=mirror-secret \
         >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
         "image: mirror.example.com/nvidia/osmo/service:6.3.1"
@@ -1229,6 +1553,28 @@ EOF
         "- mirror.example.com/nvidia/osmo"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
         "name: mirror-secret"
+
+    helm_template embedded-image-pull-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        --set global.imagePullSecrets[0]=mirror-secret \
+        >"$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml" \
+        Deployment embedded-image-pull-secret-osmo-api \
+        >"$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
+        "name: mirror-secret"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml" \
+        Deployment embedded-image-pull-secret-valkey \
+        >"$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
+        "name: mirror-secret"
+    require_not_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
+        "map[name:mirror-secret]"
 
     helm_template image-component "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

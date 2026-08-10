@@ -21,6 +21,7 @@
         "kaiScheduler": { "$ref": "#/definitions/enabledBlock" }
       }
     },
+    "valkey": { "type": "object" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "global": { "$ref": "#/definitions/global" },
@@ -291,9 +292,8 @@
     "imagePullSecrets": {
       "type": "array",
       "items": {
-        "type": "object",
-        "properties": { "name": { "type": "string", "minLength": 1 } },
-        "required": ["name"]
+        "type": "string",
+        "minLength": 1
       }
     },
     "global": {

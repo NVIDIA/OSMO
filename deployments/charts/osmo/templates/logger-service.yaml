@@ -86,12 +86,12 @@ spec:
         - logger
         args:
         - --redis_host
-        - {{ .Values.externalDependencies.valkey.host }}
+        - {{ include "osmo.valkey.host" . }}
         - --redis_port
-        - {{ .Values.externalDependencies.valkey.port | quote }}
+        - {{ include "osmo.valkey.port" . | quote }}
         - --redis_db_number
-        - {{ .Values.externalDependencies.valkey.database | quote }}
-        {{- if .Values.externalDependencies.valkey.tls.enabled }}
+        - {{ include "osmo.valkey.database" . | quote }}
+        {{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
         - --redis_tls_enable
         - "true"
         {{- end}}

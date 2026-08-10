@@ -17,3 +17,8 @@ keywords:
 - physical-ai
 - kubernetes
 icon: https://media.githubusercontent.com/media/NVIDIA/OSMO/main/docs/_static/osmo_favicon.png
+dependencies:
+- name: valkey
+  version: 0.11.0
+  repository: oci://ghcr.io/valkey-io/valkey-helm
+  condition: embeddedDependencies.valkey.enabled

@@ -12,10 +12,8 @@ planes:
   compute:
     enabled: false
 
-# Select supporting systems managed by this Helm release.
-# TODO: Allow these switches as their dependency charts are added.
-# They must remain false for now; supply operator-managed services through
-# `externalDependencies` instead.
+# Select supporting systems managed by this Helm release. Embedded Valkey is
+# available; the other switches remain reserved for later chart dependencies.
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -26,9 +24,101 @@ embeddedDependencies:
   kaiScheduler:
     enabled: false
 
-# Connection details for dependencies owned outside this release. These
-# endpoints are required by the control plane because embedded dependencies
-# are not implemented yet.
+# Official Valkey dependency configuration. These defaults provide an
+# authenticated, persistent standalone primary when embedded Valkey is enabled.
+# The dependency also supports fixed-primary replication for read scaling and
+# data redundancy, but it does not provide Sentinel or automatic promotion.
+valkey:
+  image:
+    registry: docker.io
+    repository: valkey/valkey
+    pullPolicy: IfNotPresent
+    tag: "9.1.1"
+  serviceAccount:
+    create: true
+    automount: false
+  podSecurityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+  service:
+    type: ClusterIP
+    port: 6379
+  networkPolicy:
+    ingress:
+    - from:
+      - podSelector: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  initResources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  startupProbe:
+    enabled: true
+  livenessProbe:
+    enabled: true
+  readinessProbe:
+    enabled: true
+  dataStorage:
+    enabled: true
+    requestedSize: 8Gi
+    className: ''
+    accessModes:
+    - ReadWriteOnce
+    keepPvc: true
+  auth:
+    enabled: true
+    usersExistingSecret: '{{ printf "%s-valkey-credentials" .Release.Name | trunc 63 | trimSuffix "-" }}'
+    aclUsers:
+      default:
+        permissions: "~* &* +@all"
+        passwordKey: redis-password
+    aclConfig: ''
+  valkeyConfig: |
+    appendonly yes
+    appendfsync everysec
+    maxmemory 384mb
+    maxmemory-policy noeviction
+  deploymentStrategy: Recreate
+  replica:
+    enabled: false
+    replicas: 2
+    replicationUser: default
+    minReplicasToWrite: 1
+    minReplicasMaxLag: 10
+    persistence:
+      size: 8Gi
+      storageClass: ''
+      accessModes:
+      - ReadWriteOnce
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+
+# Connection details for dependencies owned outside this release. The Valkey
+# endpoint is required only when embedded Valkey is disabled.
 externalDependencies:
   # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
   # server certificate is signed by a private CA.
@@ -67,8 +157,8 @@ externalDependencies:
 nameOverride: ''
 fullnameOverride: ''
 
-# Global image registry and pull credentials. A non-empty registry overrides
-# every component and runtime image registry for air-gapped mirrors.
+# Global image registry and pull credential Secret names. A non-empty registry
+# overrides every component and runtime image registry for air-gapped mirrors.
 global:
   imageRegistry: ''
   imagePullSecrets: []
@@ -159,10 +249,9 @@ monitoring:
     relabelings: []
     metricRelabelings: []
 
-# References to operator-owned Kubernetes Secrets. Inline credentials are not
-# accepted.
-# TODO: Implement retained chart-generated credentials for `generate: true`;
-# all `generate` switches must remain false for now.
+# References to Kubernetes Secrets. Inline credentials are not accepted.
+# Generated credentials are supported only for embedded Valkey; every other
+# `generate` switch must remain false.
 secrets:
   # Password used with `externalDependencies.postgresql.username`.
   postgresql:
@@ -170,7 +259,9 @@ secrets:
     existingSecret: ''
     keys:
       password: db-password
-  # Password used for the external Valkey connection.
+  # Password used for the effective Valkey connection. Embedded mode supports
+  # either a retained generated Secret or an existing Secret; external mode
+  # requires an existing Secret.
   valkey:
     generate: false
     existingSecret: ''

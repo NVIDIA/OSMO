@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 
 The `osmo` chart is the unified OSMO deployment entry point.
 
-The chart currently deploys the OSMO control-plane services and gateway.
-Compute-plane workloads and dependencies will be added to this chart in future
-work.
+The chart currently deploys the OSMO control-plane services and gateway, with
+an optional embedded Valkey dependency. Compute-plane workloads and other
+dependencies will be added in future work.
 
 ## Install the control plane
 
@@ -51,6 +51,7 @@ secrets:
 Install the chart by layering the environment values after the profile:
 
 ```bash
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -60,6 +61,50 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 25m
 ```
 
+The dependency build is only needed for a source checkout. Packaged charts
+include the official `valkey/valkey` chart version `0.11.0`.
+
+## Embedded Valkey
+
+Embedded Valkey is disabled by default. Enable it with retained generated
+credentials as follows:
+
+```yaml
+embeddedDependencies:
+  valkey:
+    enabled: true
+
+externalDependencies:
+  valkey:
+    host: ''
+
+secrets:
+  valkey:
+    generate: true
+    existingSecret: ''
+```
+
+The generated Secret and 8 GiB `ReadWriteOnce` PVC are retained on uninstall.
+Back up both resources and restore the original Secret before reinstalling or
+recovering the PVC. To supply an existing Secret instead, disable
+`secrets.valkey.generate` and set both `secrets.valkey.existingSecret` and
+`valkey.auth.usersExistingSecret` to its name.
+
+The default standalone primary uses append-only persistence and a `Recreate`
+upgrade strategy. Kubernetes restarts a failed primary and reattaches its PVC;
+Valkey-backed OSMO operations are unavailable until it becomes Ready. Take a
+storage snapshot before upgrades and follow the CSI provider's guidance for
+volume expansion. Replication is available through
+`valkey.replica.enabled=true`, but the primary remains fixed and is not
+automatically failed over. Choose the topology before initial installation;
+changing between standalone and replication requires a planned data migration
+because the two modes use different PVCs. Use an external Valkey service for
+automatic primary promotion, multi-zone failover, managed backups, or TLS.
+
+To use external Valkey, keep `embeddedDependencies.valkey.enabled=false` and
+configure `externalDependencies.valkey` and
+`secrets.valkey.existingSecret` as shown in the installation example.
+
 ## Optional configuration
 
 - Configure component images and registry credentials under `global`,
@@ -68,7 +113,8 @@ helm upgrade --install osmo deployments/charts/osmo \
   security contexts, probes, volumes, and ServiceAccounts under `services`,
   `gateway`, and `podDefaults`.
 - Enable Prometheus Operator PodMonitors with `monitoring.podMonitor.enabled`.
-- Apply shared resource metadata with `commonLabels` and `commonAnnotations`.
+- Apply shared resource metadata to OSMO-owned resources with `commonLabels`
+  and `commonAnnotations`; configure dependency metadata under `valkey`.
 - Supply OSMO application configuration under `configuration`.
 
 See [`values.yaml`](values.yaml) for the complete configuration reference.

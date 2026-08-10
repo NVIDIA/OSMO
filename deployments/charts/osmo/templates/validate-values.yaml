@@ -9,14 +9,84 @@
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
 {{- fail "embeddedDependencies.postgresql.enabled: embedded PostgreSQL is not implemented" -}}
 {{- end -}}
-{{- if .Values.embeddedDependencies.valkey.enabled -}}
-{{- fail "embeddedDependencies.valkey.enabled: embedded Valkey is not implemented" -}}
-{{- end -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.kaiScheduler.enabled -}}
 {{- fail "embeddedDependencies.kaiScheduler.enabled: embedded KAI Scheduler is not implemented" -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.valkey.enabled -}}
+{{- if .Values.externalDependencies.valkey.host -}}
+{{- fail "externalDependencies.valkey.host must be empty when embedded Valkey is enabled" -}}
+{{- end -}}
+{{- if .Values.externalDependencies.valkey.tls.enabled -}}
+{{- fail "externalDependencies.valkey.tls must be disabled when embedded Valkey is enabled" -}}
+{{- end -}}
+{{- if and .Values.secrets.valkey.generate .Values.secrets.valkey.existingSecret -}}
+{{- fail "secrets.valkey.generate and existingSecret are mutually exclusive" -}}
+{{- end -}}
+{{- if and (not .Values.secrets.valkey.generate) (not .Values.secrets.valkey.existingSecret) -}}
+{{- fail "embedded Valkey requires generated or existing credentials" -}}
+{{- end -}}
+{{- if not .Values.valkey.auth.enabled -}}
+{{- fail "valkey.auth.enabled must be true for embedded Valkey" -}}
+{{- end -}}
+{{- if ne (int .Values.valkey.service.port) 6379 -}}
+{{- fail "embedded Valkey requires service port 6379" -}}
+{{- end -}}
+{{- if .Values.valkey.tls.enabled -}}
+{{- fail "embedded Valkey TLS is not supported; use an external TLS endpoint" -}}
+{{- end -}}
+{{- if .Values.valkey.auth.aclConfig -}}
+{{- fail "valkey.auth.aclConfig is not supported because credentials must come from a Kubernetes Secret" -}}
+{{- end -}}
+{{- range $username, $user := .Values.valkey.auth.aclUsers -}}
+{{- if $user.password -}}
+{{- fail (printf "inline Valkey passwords are not supported for ACL user %s" $username) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (hasKey .Values.valkey.auth.aclUsers "default") -}}
+{{- fail "valkey.auth.aclUsers.default is required for OSMO clients" -}}
+{{- end -}}
+{{- $effectiveSecret := include "osmo.valkey.secretName" . -}}
+{{- $configuredSecretValue := required "valkey.auth.usersExistingSecret is required" .Values.valkey.auth.usersExistingSecret -}}
+{{- $configuredSecret := $configuredSecretValue -}}
+{{- if .Values.secrets.valkey.generate -}}
+{{- $generatedSecretTemplate := "{{ printf \"%s-valkey-credentials\" .Release.Name | trunc 63 | trimSuffix \"-\" }}" -}}
+{{- if ne $configuredSecretValue $generatedSecretTemplate -}}
+{{- fail "valkey.auth.usersExistingSecret must use the chart default when generating credentials" -}}
+{{- end -}}
+{{- $configuredSecret = tpl $configuredSecretValue . -}}
+{{- else if or (contains "{{" $configuredSecretValue) (contains "}}" $configuredSecretValue) -}}
+{{- fail "valkey.auth.usersExistingSecret must not contain templates when using an existing Secret" -}}
+{{- end -}}
+{{- if ne $configuredSecret $effectiveSecret -}}
+{{- fail "valkey.auth.usersExistingSecret must match the effective Valkey Secret" -}}
+{{- end -}}
+{{- $defaultUser := index .Values.valkey.auth.aclUsers "default" -}}
+{{- $passwordKey := dig "passwordKey" "default" $defaultUser -}}
+{{- if ne $passwordKey .Values.secrets.valkey.keys.password -}}
+{{- fail "valkey.auth.aclUsers.default.passwordKey must match secrets.valkey.keys.password" -}}
+{{- end -}}
+{{- $embeddedName := include "osmo.valkey.fullname" . -}}
+{{- $standalonePvcName := default $embeddedName .Values.valkey.dataStorage.persistentVolumeClaimName -}}
+{{- $standalonePvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace $standalonePvcName -}}
+{{- $replicaPvcPrefix := printf "valkey-data-%s-" $embeddedName -}}
+{{- $persistentVolumeClaims := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "" -}}
+{{- $hasReplicaPvc := false -}}
+{{- range (default list $persistentVolumeClaims.items) -}}
+{{- if hasPrefix $replicaPvcPrefix .metadata.name -}}
+{{- $hasReplicaPvc = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.valkey.replica.enabled $standalonePvc -}}
+{{- fail "changing embedded Valkey from standalone to replication requires a planned data migration" -}}
+{{- end -}}
+{{- if and (not .Values.valkey.replica.enabled) $hasReplicaPvc -}}
+{{- fail "changing embedded Valkey from replication to standalone requires a planned data migration" -}}
+{{- end -}}
+{{- else if .Values.secrets.valkey.generate -}}
+{{- fail "secrets.valkey.generate is supported only when embedded Valkey is enabled" -}}
 {{- end -}}
 {{- if not .Values.externalUrl -}}
 {{- fail "externalUrl is required for the control plane" -}}
@@ -33,7 +103,7 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.postgresql.generate .Values.secrets.valkey.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if or .Values.secrets.postgresql.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
@@ -91,7 +161,7 @@
 {{- if not .Values.externalDependencies.postgresql.host -}}
 {{- fail "externalDependencies.postgresql.host is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.valkey.host -}}
+{{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.externalDependencies.valkey.host) -}}
 {{- fail "externalDependencies.valkey.host is required for the control plane" -}}
 {{- end -}}
 {{- if not .Values.externalDependencies.objectStorage.endpoint -}}
@@ -109,7 +179,7 @@
 {{- if not .Values.secrets.postgresql.existingSecret -}}
 {{- fail "secrets.postgresql.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.valkey.existingSecret -}}
+{{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.secrets.valkey.existingSecret) -}}
 {{- fail "secrets.valkey.existingSecret is required for the control plane" -}}
 {{- end -}}
 {{- if not .Values.secrets.objectStorage.existingSecret -}}

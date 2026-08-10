@@ -115,7 +115,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "osmo.component.imagePullSecrets" -}}
 {{- with .Values.global.imagePullSecrets }}
 imagePullSecrets:
-{{ toYaml . | nindent 2 }}
+{{- range . }}
+- name: {{ . }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -292,13 +294,65 @@ data:
 {{- end }}
 {{- end -}}
 
+{{- define "osmo.valkey.fullname" -}}
+{{- $name := default "valkey" (dig "nameOverride" "" .Values.valkey) -}}
+{{- $fullnameOverride := dig "fullnameOverride" "" .Values.valkey -}}
+{{- if $fullnameOverride -}}
+{{- $fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.valkey.generatedSecretName" -}}
+{{- printf "%s-valkey-credentials" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "osmo.valkey.host" -}}
+{{- if .Values.embeddedDependencies.valkey.enabled -}}
+{{- include "osmo.valkey.fullname" . -}}
+{{- else -}}
+{{- .Values.externalDependencies.valkey.host -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.valkey.port" -}}
+{{- if .Values.embeddedDependencies.valkey.enabled -}}
+{{- .Values.valkey.service.port -}}
+{{- else -}}
+{{- .Values.externalDependencies.valkey.port -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.valkey.database" -}}
+{{- if .Values.embeddedDependencies.valkey.enabled -}}0{{- else -}}
+{{- .Values.externalDependencies.valkey.database -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.valkey.tlsEnabled" -}}
+{{- if .Values.embeddedDependencies.valkey.enabled -}}false{{- else -}}
+{{- .Values.externalDependencies.valkey.tls.enabled -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.valkey.secretName" -}}
+{{- if and .Values.embeddedDependencies.valkey.enabled .Values.secrets.valkey.generate -}}
+{{- include "osmo.valkey.generatedSecretName" . -}}
+{{- else -}}
+{{- .Values.secrets.valkey.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}
 {{- if .Values.externalDependencies.postgresql.tls.enabled }}
 - name: postgresql-ca
   mountPath: /etc/osmo/ca/postgresql
   readOnly: true
 {{- end }}
-{{- if .Values.externalDependencies.valkey.tls.enabled }}
+{{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
 - name: valkey-ca
   mountPath: /etc/osmo/ca/valkey
   readOnly: true
@@ -314,7 +368,7 @@ data:
     - key: {{ .Values.externalDependencies.postgresql.tls.caKey }}
       path: ca.crt
 {{- end }}
-{{- if .Values.externalDependencies.valkey.tls.enabled }}
+{{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
 - name: valkey-ca
   secret:
     secretName: {{ .Values.externalDependencies.valkey.tls.caExistingSecret }}
@@ -332,7 +386,7 @@ data:
       name: {{ . }}
       key: {{ $.Values.secrets.postgresql.keys.password }}
 {{- end }}
-{{- with .Values.secrets.valkey.existingSecret }}
+{{- with (include "osmo.valkey.secretName" .) }}
 - name: OSMO_REDIS_PASSWORD
   valueFrom:
     secretKeyRef:
@@ -343,7 +397,7 @@ data:
 - name: PGSSLROOTCERT
   value: /etc/osmo/ca/postgresql/ca.crt
 {{- end }}
-{{- if .Values.externalDependencies.valkey.tls.enabled }}
+{{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
 - name: SSL_CERT_FILE
   value: /etc/osmo/ca/valkey/ca-bundle.crt
 {{- end }}
