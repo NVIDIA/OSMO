@@ -12,8 +12,9 @@ planes:
   compute:
     enabled: false
 
-# Select supporting systems managed by this Helm release. Embedded Valkey is
-# available; the other switches remain reserved for later chart dependencies.
+# Select supporting systems managed by this Helm release. Embedded PostgreSQL
+# requires a compatible CloudNativePG operator to be installed first. Embedded
+# Valkey is managed directly by this release.
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -24,8 +25,48 @@ embeddedDependencies:
   kaiScheduler:
     enabled: false
 
-# Connection details for dependencies owned outside this release. The Valkey
-# endpoint is required only when embedded Valkey is disabled.
+# CloudNativePG cluster chart values. These settings are used only when
+# embeddedDependencies.postgresql.enabled is true.
+postgresql:
+  type: postgresql
+  version:
+    postgresql: "16"
+  mode: standalone
+  cluster:
+    instances: 3
+    storage:
+      size: 20Gi
+      storageClass: ''
+    walStorage:
+      enabled: false
+      size: 5Gi
+      storageClass: ''
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    primaryUpdateMethod: switchover
+    primaryUpdateStrategy: unsupervised
+    affinity:
+      topologyKey: kubernetes.io/hostname
+    enableSuperuserAccess: false
+    enablePDB: true
+    postgresql:
+      synchronous:
+        method: any
+        number: 1
+        dataDurability: required
+    initdb:
+      database: osmo
+      owner: osmo
+  backups:
+    enabled: false
+
+# Connection details for dependencies owned outside this release. Each
+# endpoint is required only when its embedded dependency is disabled.
 externalDependencies:
   # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
   # server certificate is signed by a private CA.

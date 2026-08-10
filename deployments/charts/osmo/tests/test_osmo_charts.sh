@@ -291,7 +291,13 @@ require_no_resource() {
 }
 
 require_clean_osmo_sources() {
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: cluster"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.8.0"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
+        "condition: embeddedDependencies.postgresql.enabled"
     [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
+    [[ ! -e "$CHARTS_ROOT/osmo/charts/cluster-0.8.0.tgz" ]] || \
+        fail "osmo must not check in the CloudNativePG cluster archive"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/postgres.yaml" ]] || \
         fail "osmo must not contain an unimplemented embedded PostgreSQL template"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/redis.yaml" ]] || \
@@ -358,6 +364,12 @@ test_control_umbrella() {
         ! grep -Fq "osmo/charts/valkey-0.11.0.tgz" \
         "$TEST_DIRECTORY/osmo-package.txt"; then
         fail "packaged OSMO chart does not contain Valkey 0.11.0"
+    fi
+    if ! grep -Fq "osmo/charts/cluster/Chart.yaml" \
+        "$TEST_DIRECTORY/osmo-package.txt" && \
+        ! grep -Fq "osmo/charts/cluster-0.8.0.tgz" \
+        "$TEST_DIRECTORY/osmo-package.txt"; then
+        fail "packaged OSMO chart does not contain CloudNativePG cluster 0.8.0"
     fi
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
@@ -1106,6 +1118,26 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-init.yaml" \
         "min-replicas-to-write 1"
 
+    helm_template embedded-osmo "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-embedded.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "apiVersion: postgresql.cnpg.io/v1"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "kind: Cluster"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "instances: 3"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "size: 20Gi"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "method: any"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "number: 1"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "dataDurability: required"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "database: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "owner: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "enableSuperuserAccess: false"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "cpu: \"1\""
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "memory: 2Gi"
+
     resource_document "$rendered" Deployment osmo-agent \
         >"$TEST_DIRECTORY/osmo-agent.yaml"
     require_occurrences "$TEST_DIRECTORY/osmo-agent.yaml" "        ports:" 1
@@ -1710,15 +1742,13 @@ EOF
     require_contains "$TEST_DIRECTORY/unsupported-compute.out" \
         "compute plane is not implemented"
 
-    if helm_template unsupported-embedded "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set embeddedDependencies.postgresql.enabled=true \
-        >"$TEST_DIRECTORY/unsupported-embedded.out" 2>&1; then
-        fail "expected embeddedDependencies.postgresql.enabled=true to fail"
+    if helm_template missing-cnpg-operator "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        >"$TEST_DIRECTORY/missing-cnpg-operator.out" 2>&1; then
+        fail "expected embedded PostgreSQL without the CloudNativePG API to fail"
     fi
-    require_contains "$TEST_DIRECTORY/unsupported-embedded.out" \
-        "embedded PostgreSQL is not implemented"
+    require_contains "$TEST_DIRECTORY/missing-cnpg-operator.out" \
+        "install a compatible CloudNativePG operator"
 
     if helm_template unsupported-generated-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

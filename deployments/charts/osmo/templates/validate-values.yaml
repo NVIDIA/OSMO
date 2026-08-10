@@ -6,8 +6,8 @@
 {{- if not .Values.planes.control.enabled -}}
 {{- fail "planes.control.enabled: this chart version requires the control plane" -}}
 {{- end -}}
-{{- if .Values.embeddedDependencies.postgresql.enabled -}}
-{{- fail "embeddedDependencies.postgresql.enabled: embedded PostgreSQL is not implemented" -}}
+{{- if and .Values.embeddedDependencies.postgresql.enabled (not (.Capabilities.APIVersions.Has "postgresql.cnpg.io/v1")) -}}
+{{- fail "embeddedDependencies.postgresql.enabled: install a compatible CloudNativePG operator before enabling embedded PostgreSQL" -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
@@ -85,7 +85,7 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.postgresql.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if or (and .Values.secrets.postgresql.generate (not .Values.embeddedDependencies.postgresql.enabled)) .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
@@ -140,7 +140,7 @@
 {{- if hasKey .Values "components" -}}
 {{- fail "components is not a supported value; configure services and gateway" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.postgresql.host -}}
+{{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.externalDependencies.postgresql.host) -}}
 {{- fail "externalDependencies.postgresql.host is required for the control plane" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.externalDependencies.valkey.host) -}}
@@ -158,7 +158,7 @@
 {{- if not .Values.externalDependencies.objectStorage.buckets.apps -}}
 {{- fail "externalDependencies.objectStorage.buckets.apps is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.postgresql.existingSecret -}}
+{{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.secrets.postgresql.existingSecret) -}}
 {{- fail "secrets.postgresql.existingSecret is required for the control plane" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.secrets.valkey.existingSecret) -}}

@@ -22,6 +22,7 @@
       }
     },
     "valkey": { "type": "object" },
+    "postgresql": { "type": "object" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
