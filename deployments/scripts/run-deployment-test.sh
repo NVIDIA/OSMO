@@ -32,7 +32,7 @@
 #   2. Self-contained: ephemeral cluster + DB + Redis, torn down on EXIT.
 #   3. Identity-agnostic: no cloud creds, Vault, or Kargo tokens needed.
 #   4. Reproducible: no $RANDOM, no wall-clock dependencies in test logic.
-#   5. Bounded: 45-min hard timeout; every kubectl wait has --timeout.
+#   5. Bounded: configurable 45-min hard timeout; every kubectl wait has --timeout.
 #   6. Structured output: JSON result + per-stage logs in $RUN_DIR.
 #   7. Idempotent teardown: --destroy + kind delete + docker prune.
 #   8. Categorized exit codes:
@@ -146,7 +146,7 @@ JUNIT_XML="$RUN_DIR/junit.xml"
 
 KIND_CLUSTER_NAME="osmo-deployment-test"
 OSMO_NAMESPACE="osmo-minimal"
-HARD_TIMEOUT_SECONDS=2700  # 45 minutes
+HARD_TIMEOUT_SECONDS="${OSMO_DEPLOYMENT_TEST_TIMEOUT_SECONDS:-2700}"
 
 # Per-stage state for the final JSON.
 declare -a STAGE_NAMES=()
@@ -154,6 +154,7 @@ declare -a STAGE_EXIT_CODES=()
 declare -a STAGE_DURATIONS=()
 OVERALL_EXIT_CODE=0
 FAILED_STAGE=""
+OETF_PF_SUPERVISOR_PID=""
 
 log_info()  { printf '[%s] [INFO]  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 log_error() { printf '[%s] [ERROR] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
@@ -231,8 +232,18 @@ emit_junit_xml() {
     } > "$JUNIT_XML"
 }
 
+stop_oetf_port_forward() {
+    if [[ -n "$OETF_PF_SUPERVISOR_PID" ]]; then
+        kill "$OETF_PF_SUPERVISOR_PID" 2>/dev/null || true
+        wait "$OETF_PF_SUPERVISOR_PID" 2>/dev/null || true
+    fi
+    OETF_PF_SUPERVISOR_PID=""
+}
+
 cleanup() {
     local rc=$?
+    trap - RETURN
+    stop_oetf_port_forward
     # If we're here because a stage already set OVERALL_EXIT_CODE, preserve it;
     # otherwise infer from $rc (e.g. ERR-on-set -e from an unguarded command).
     if [[ "$OVERALL_EXIT_CODE" -eq 0 && "$rc" -ne 0 ]]; then
@@ -304,7 +315,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ── Hard 45-minute timeout ───────────────────────────────────────────────────
+# ── Bounded hard timeout ─────────────────────────────────────────────────────
 # Background watchdog process signals the main script if a stage hangs past
 # the bounded duration invariant. We send SIGTERM to the main shell ($$) only
 # --- not to the whole process group (`kill -- -$$`) --- because this script
@@ -604,30 +615,61 @@ stage_oetf_smoke() {
                 log_error "Neither osmo-gateway nor osmo-gateway-envoy found in $OSMO_NAMESPACE"
                 return 1
             fi
-            # nohup + & so the PF outlives this function's subshells.
-            # Also drop output to a per-run log so we can debug PF crashes.
-            nohup kubectl port-forward -n "$OSMO_NAMESPACE" \
-                "svc/${pf_svc}" "${pf_port}:80" \
-                > "$RUN_DIR/oetf-pf.log" 2>&1 &
-            local pf_pid=$!
-            # Smoke the PF before we hand off to OETF; OETF will retry on
-            # its own but a hard-fail here surfaces PF problems immediately.
+            # Keep one bounded restart available for transient AKS control-plane
+            # tunnel loss. The strict OETF log reader retries one idempotent GET
+            # after two seconds, giving this supervisor time to restore the port.
+            local pf_log="$RUN_DIR/oetf-pf.log"
+            : > "$pf_log"
+            (
+                local active_pf_pid=""
+                stop_active_pf() {
+                    if [[ -n "$active_pf_pid" ]] && kill -0 "$active_pf_pid" 2>/dev/null; then
+                        kill "$active_pf_pid" 2>/dev/null || true
+                        wait "$active_pf_pid" 2>/dev/null || true
+                    fi
+                }
+                trap 'stop_active_pf; exit 0' TERM INT
+                local attempt pf_rc
+                for attempt in 1 2; do
+                    printf '[%s] attempt=%s/2 start service=%s local_port=%s\n' \
+                        "$(date -u +%H:%M:%S)" "$attempt" "$pf_svc" "$pf_port" >> "$pf_log"
+                    kubectl port-forward -n "$OSMO_NAMESPACE" \
+                        "svc/${pf_svc}" "${pf_port}:80" >> "$pf_log" 2>&1 &
+                    active_pf_pid=$!
+                    if wait "$active_pf_pid"; then
+                        pf_rc=0
+                    else
+                        pf_rc=$?
+                    fi
+                    active_pf_pid=""
+                    printf '[%s] attempt=%s/2 exit rc=%s\n' \
+                        "$(date -u +%H:%M:%S)" "$attempt" "$pf_rc" >> "$pf_log"
+                    [[ "$attempt" -eq 2 ]] || sleep 1
+                done
+                printf '[%s] supervisor exhausted attempts=2\n' \
+                    "$(date -u +%H:%M:%S)" >> "$pf_log"
+            ) &
+            OETF_PF_SUPERVISOR_PID=$!
+            # RETURN fires for success and failure. The supervisor's TERM trap
+            # also stops and waits for its active kubectl child.
+            trap 'trap - RETURN; stop_oetf_port_forward' RETURN
+
             local pf_ready=""
             for _ in 1 2 3 4 5 6 7 8 9 10; do
+                if ! kill -0 "$OETF_PF_SUPERVISOR_PID" 2>/dev/null; then
+                    break
+                fi
                 if curl -sS -o /dev/null -m 2 "http://localhost:${pf_port}/api/version" 2>/dev/null; then
-                    pf_ready=1; break
+                    pf_ready=1
+                    break
                 fi
                 sleep 1
             done
             if [[ -z "$pf_ready" ]]; then
-                log_error "port-forward to ${pf_svc}:80 didn't become reachable on localhost:${pf_port}; check $RUN_DIR/oetf-pf.log"
-                kill "$pf_pid" 2>/dev/null || true
+                log_error "port-forward to ${pf_svc}:80 didn't become reachable on localhost:${pf_port}; check $pf_log"
                 return 1
             fi
-            log_info "Port-forward healthy (PID=$pf_pid). OETF will use http://localhost:${pf_port}"
-            # Ensure PF dies on function return (success OR failure).
-            # Bash RETURN trap is per-function — re-arm here.
-            trap "kill $pf_pid 2>/dev/null || true" RETURN
+            log_info "Port-forward healthy (supervisor PID=$OETF_PF_SUPERVISOR_PID). OETF will use http://localhost:${pf_port}"
             osmo_url="http://localhost:${pf_port}"
 
             # Set admin's profile-level default pool. Required because:
@@ -700,6 +742,28 @@ stage_oetf_smoke() {
             --output-json "$RUN_DIR/oetf-result.json"
     ) 2>&1 | tee "$OETF_LOG"
     local rc="${PIPESTATUS[0]}"
+    if [[ "$PROVIDER" == "azure" ]]; then
+        local pf_supervisor_alive=false
+        local pf_endpoint_healthy=false
+        local pf_restart_count
+        if kill -0 "$OETF_PF_SUPERVISOR_PID" 2>/dev/null; then
+            pf_supervisor_alive=true
+        fi
+        if curl -sS -o /dev/null -m 2 "http://localhost:${pf_port}/api/version" 2>/dev/null; then
+            pf_endpoint_healthy=true
+        fi
+        pf_restart_count="$(grep -c 'attempt=2/2 start' "$pf_log" || true)"
+        {
+            printf 'service=%s\n' "$pf_svc"
+            printf 'local_port=%s\n' "$pf_port"
+            printf 'supervisor_alive=%s\n' "$pf_supervisor_alive"
+            printf 'endpoint_healthy=%s\n' "$pf_endpoint_healthy"
+            printf 'restart_count=%s\n' "$pf_restart_count"
+        } > "$RUN_DIR/oetf-pf-status.txt"
+        if [[ "$pf_restart_count" -gt 0 ]]; then
+            log_info "WARNING: OETF port-forward required one restart; see $pf_log"
+        fi
+    fi
     return "$rc"
 }
 

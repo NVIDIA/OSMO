@@ -17,8 +17,9 @@ import os
 import pathlib
 import tempfile
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import requests
 import yaml
 
 from test.oetf.models import WorkflowServerStatus
@@ -396,6 +397,174 @@ class WaitForTaskCheckpointTest(unittest.TestCase):
         )
         with self.assertRaises(TypeError):
             handle.wait_for_task_checkpoint("ready")  # type: ignore[call-arg]
+
+
+class WorkflowLogsTest(unittest.TestCase):
+    """Strict terminal log reads distinguish transport errors from empty logs."""
+
+    def _make_handle(self):
+        fixture = MagicMock()
+        fixture.config.url = "http://localhost:9100"
+        handle = WorkflowHandle(
+            fixture=fixture, workflow_id="wf-test-1", timeout_seconds=60,
+        )
+        return fixture, handle
+
+    def test_best_effort_fetch_returns_empty_on_request_error(self):
+        fixture, handle = self._make_handle()
+        fixture.service_client.request.side_effect = ConnectionError(
+            "[Errno 111] Connection refused"
+        )
+
+        self.assertEqual(handle._fetch_logs(), "")  # pylint: disable=protected-access
+        fixture.service_client.request.assert_called_once()
+
+    def test_logs_raise_contextual_error_after_retry(self):
+        fixture, handle = self._make_handle()
+        error = ConnectionError("[Errno 111] Connection refused")
+        fixture.service_client.request.side_effect = error
+
+        with patch("test.oetf.runner_fixture.time.sleep") as sleep:
+            with self.assertRaises(RuntimeError) as raised:
+                _ = handle.logs
+
+        message = str(raised.exception)
+        self.assertIn("wf-test-1", message)
+        self.assertIn("http://localhost:9100/workflows/wf-test-1", message)
+        self.assertIn("Connection refused", message)
+        self.assertIs(raised.exception.__cause__, error)
+        self.assertEqual(fixture.service_client.request.call_count, 2)
+        sleep.assert_called_once_with(2)
+
+    def test_logs_recover_on_second_request(self):
+        fixture, handle = self._make_handle()
+        marker = "[OETF-MARKER] OETF_LOGGER_PROBE_RECOVERED"
+        response = MagicMock()
+        response.iter_lines.return_value = [marker.encode("utf-8")]
+        fixture.service_client.request.side_effect = [
+            ConnectionError("[Errno 111] Connection refused"), response,
+        ]
+
+        with patch("test.oetf.runner_fixture.time.sleep") as sleep:
+            self.assertEqual(handle.logs, marker)
+
+        self.assertEqual(fixture.service_client.request.call_count, 2)
+        sleep.assert_called_once_with(2)
+        response.close.assert_called_once_with()
+
+    def test_best_effort_stream_keeps_partial_lines(self):
+        fixture, handle = self._make_handle()
+        response = MagicMock()
+
+        def broken_stream():
+            yield b"partial"
+            raise requests.exceptions.ChunkedEncodingError("stream ended")
+
+        response.iter_lines.return_value = broken_stream()
+        fixture.service_client.request.return_value = response
+
+        self.assertEqual(
+            handle._fetch_logs(), "partial",  # pylint: disable=protected-access
+        )
+        fixture.service_client.request.assert_called_once()
+        response.close.assert_called_once_with()
+
+    def test_strict_stream_recovers_on_second_request(self):
+        fixture, handle = self._make_handle()
+        first_response = MagicMock()
+
+        def broken_stream():
+            yield b"partial"
+            raise requests.exceptions.ChunkedEncodingError("stream ended")
+
+        first_response.iter_lines.return_value = broken_stream()
+        marker = "[OETF-MARKER] OETF_LOGGER_PROBE_STREAM_RECOVERED"
+        second_response = MagicMock()
+        second_response.iter_lines.return_value = [marker.encode("utf-8")]
+        fixture.service_client.request.side_effect = [
+            first_response, second_response,
+        ]
+
+        with patch("test.oetf.runner_fixture.time.sleep") as sleep:
+            self.assertEqual(handle.logs, marker)
+
+        self.assertEqual(fixture.service_client.request.call_count, 2)
+        sleep.assert_called_once_with(2)
+        first_response.close.assert_called_once_with()
+        second_response.close.assert_called_once_with()
+
+    def test_strict_stream_retries_connection_error(self):
+        fixture, handle = self._make_handle()
+        first_response = MagicMock()
+        first_response.iter_lines.side_effect = requests.exceptions.ConnectionError(
+            "port-forward disconnected"
+        )
+        marker = "[OETF-MARKER] OETF_LOGGER_PROBE_CONNECTION_RECOVERED"
+        second_response = MagicMock()
+        second_response.iter_lines.return_value = [marker.encode("utf-8")]
+        fixture.service_client.request.side_effect = [
+            first_response, second_response,
+        ]
+
+        with patch("test.oetf.runner_fixture.time.sleep") as sleep:
+            self.assertEqual(handle.logs, marker)
+
+        self.assertEqual(fixture.service_client.request.call_count, 2)
+        sleep.assert_called_once_with(2)
+        first_response.close.assert_called_once_with()
+        second_response.close.assert_called_once_with()
+
+    def test_strict_stream_raises_after_second_incomplete_response(self):
+        fixture, handle = self._make_handle()
+        first_error = requests.exceptions.ChunkedEncodingError("first stream ended")
+        second_error = requests.exceptions.ChunkedEncodingError("second stream ended")
+        first_response = MagicMock()
+        first_response.iter_lines.side_effect = first_error
+        second_response = MagicMock()
+        second_response.iter_lines.side_effect = second_error
+        fixture.service_client.request.side_effect = [
+            first_response, second_response,
+        ]
+
+        with patch("test.oetf.runner_fixture.time.sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "second stream ended") as raised:
+                _ = handle.logs
+
+        self.assertIs(raised.exception.__cause__, second_error)
+        self.assertEqual(fixture.service_client.request.call_count, 2)
+        sleep.assert_called_once_with(2)
+        first_response.close.assert_called_once_with()
+        second_response.close.assert_called_once_with()
+
+    def test_task_check_raises_transport_error(self):
+        fixture, handle = self._make_handle()
+        fixture.service_client.request.side_effect = ConnectionError(
+            "[Errno 111] Connection refused"
+        )
+
+        with patch("test.oetf.runner_fixture.time.sleep"):
+            with self.assertRaisesRegex(RuntimeError, "Connection refused"):
+                handle.assert_in_task_checks_passed("logger-probe")
+
+    def test_logs_accept_successful_empty_response(self):
+        fixture, handle = self._make_handle()
+        response = MagicMock()
+        response.iter_lines.return_value = []
+        fixture.service_client.request.return_value = response
+
+        self.assertEqual(handle.logs, "")
+        response.close.assert_called_once_with()
+
+    def test_logs_return_and_cache_marker(self):
+        fixture, handle = self._make_handle()
+        marker = "[OETF-MARKER] OETF_LOGGER_PROBE_2026-08-10T00:00:00Z"
+        response = MagicMock()
+        response.iter_lines.return_value = [marker.encode("utf-8")]
+        fixture.service_client.request.return_value = response
+
+        self.assertEqual(handle.logs, marker)
+        self.assertEqual(handle.logs, marker)
+        fixture.service_client.request.assert_called_once()
 
 
 class TestRunnerFixtureDefaults(unittest.TestCase):

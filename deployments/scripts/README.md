@@ -90,6 +90,7 @@ scripts/
 ├── storage/                  # Per-backend storage logic (minio, azure-blob, s3, byo)
 ├── port-forward.sh           # One-shot or watchdog kubectl port-forward
 ├── verify.sh                 # End-to-end smoke tests (hello + GPU workflows)
+├── run-deployment-test.sh    # CI deployment gate and OETF runner
 ├── azure/terraform.sh        # Azure Terraform driver
 ├── aws/terraform.sh          # AWS Terraform driver
 ├── microk8s/install.sh       # Single-node MicroK8s bootstrap
@@ -128,6 +129,18 @@ When invoked, the entry-point runs these phases in order. Each is idempotent and
 6. **Watchdog port-forwards** (optional, default on for non-CI invocations) — `port-forward.sh --watchdog` for `osmo-service` (:9000) and `osmo-ui` (:3000).
 
 ## Scripts Overview
+### `run-deployment-test.sh`
+
+Runs the deployment gate and writes structured results under `RUN_DIR`. For
+Azure OETF runs, its localhost gateway port-forward may restart once after a
+transient tunnel failure. The attempt history and final health state are saved
+as `oetf-pf.log` and `oetf-pf-status.txt`.
+
+The GitHub workflow uploads OETF evidence and a named Azure diagnostic snapshot
+before Terraform destroy starts. Diagnostic collection does not query raw Helm
+values, Terraform state or variables, Kubernetes Secret objects, or process
+environment dumps.
+
 
 ### `deploy-osmo-minimal.sh`
 

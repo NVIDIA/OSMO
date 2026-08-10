@@ -24,6 +24,12 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_ci_summary",
+    srcs = ["test_ci_summary.py"],
+    deps = ["//test/oetf:ci_summary"],
+)
+
+osmo_py_test(
     name = "test_models_env",
     srcs = ["test_models_env.py"],
     main = "test_models_env.py",
@@ -43,6 +49,7 @@ osmo_py_test(
     deps = [
         "//test/oetf:models",
         "//test/oetf:runner_fixture",
+        requirement("requests"),
         requirement("pyyaml"),
     ],
 )

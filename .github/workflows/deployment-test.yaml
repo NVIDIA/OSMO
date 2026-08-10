@@ -65,6 +65,9 @@ on:
       - '.github/workflows/deployment-test.yaml'
       - 'deployments/scripts/run-deployment-test.sh'
       - 'deployments/terraform/azure/**'
+      - 'test/oetf/ci_summary.py'
+      - 'test/oetf/runner_fixture.py'
+      - 'test/scenarios/logger_connectivity/**'
   schedule:
     # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
     # is UTC, doesn't track DST). Schedule fires only on main, not on
@@ -88,7 +91,7 @@ jobs:
   # azurerm provider plugin from the Terraform Registry (HTTPS, no Azure
   # API call). terraform validate + fmt are purely local.
   init-only:
-    if: >
+    if: >-
       ${{ github.event_name == 'pull_request'
           || github.event.inputs.mode == 'init-only' }}
     runs-on: ubuntu-latest
@@ -172,7 +175,7 @@ jobs:
   # separate them from dev's `YYYY.MM.DD.hash.stgN` tags. Cleanup uses
   # the tag prefix.
   build-images:
-    if: >
+    if: >-
       ${{ github.event_name == 'schedule'
           || github.event.inputs.mode == 'full-deployment'
           || (github.event_name == 'pull_request'
@@ -794,6 +797,11 @@ jobs:
   # + oetf-smoke stages run. The wrapper sets up its own kubectl
   # port-forward to osmo-gateway and runs `bazel run //test/oetf:run`.
   oetf:
+    outputs:
+      failure_category: ${{ steps.classify_oetf.outputs.failure_category }}
+      failure_summary: ${{ steps.classify_oetf.outputs.failure_summary }}
+      next_action: ${{ steps.classify_oetf.outputs.next_action }}
+      failed_target: ${{ steps.classify_oetf.outputs.failed_target }}
     needs: [build-images, tf-apply, deploy-osmo]
     if: ${{ needs.deploy-osmo.result == 'success' }}
     runs-on: ubuntu-latest
@@ -805,6 +813,7 @@ jobs:
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
+      OSMO_DEPLOYMENT_TEST_TIMEOUT_SECONDS: "1200"
       OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
       OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
       # OETF lives at <repo>/test/oetf in the public repo; the wrapper's
@@ -932,42 +941,63 @@ jobs:
           bash deployments/scripts/run-deployment-test.sh --provider azure
           echo "▶ $(date -u +%H:%M:%S) OETF stage done"
 
-      - name: OETF result summary
-        if: always() && steps.run_oetf.conclusion != 'skipped'
-        env:
-          RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
+
+      - name: capture OETF failure diagnostics
+        if: always() && steps.run_oetf.conclusion == 'failure'
+        timeout-minutes: 3
         run: |
           set +e
-          oetf_json="$RUN_DIR/oetf-result.json"
-          if [ ! -f "$oetf_json" ]; then
-            { echo "### OETF stage ⚠️"; echo ""; echo "_no result JSON found at \`$oetf_json\` — wrapper likely died before OETF ran_"; } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json, os, pathlib
-          data = json.loads(pathlib.Path(os.environ["RUN_DIR"], "oetf-result.json").read_text())
-          total = data.get("total", 0)
-          passed = data.get("passed", 0)
-          failed = data.get("failed", 0)
-          errored = data.get("errored", 0)
-          skipped = data.get("skipped", 0)
-          status_icon = "✅" if (failed == 0 and errored == 0) else "❌"
-          row_icon = {"pass": "✅", "fail": "❌", "error": "⚠️", "skip": "⏭️"}
-          print(f"### OETF stage {status_icon}")
-          print()
-          print(f"- tags:    `{data.get('tags','-')}`")
-          print(f"- url:     `{data.get('url','-')}`")
-          print(f"- totals:  ✅ {passed} passed · ❌ {failed} failed · ⚠️ {errored} errored · ⏭️ {skipped} skipped (of {total})")
-          print()
-          print("| | Target | Time | Message |")
-          print("|---|---|---:|---|")
-          for r in data.get("results", []):
-              msg = (r.get("message") or "").strip().replace("\n", " ")
-              if len(msg) > 200:
-                  msg = msg[:200] + "…"
-              msg = msg.replace("|", "\\|")
-              print(f"| {row_icon.get(r.get('status'),'?')} | `{r.get('target','?')}` | {r.get('time',0):.1f}s | {msg} |")
-          PY
+          diagnostics="$RUN_DIR/oetf-local-diagnostics"
+          namespace=osmo-minimal
+          mkdir -p "$diagnostics"
+          date -u +%Y-%m-%dT%H:%M:%SZ > "$diagnostics/captured-at.txt"
+          tail -200 "$RUN_DIR/oetf-pf.log" > "$diagnostics/oetf-pf-tail.log" 2>&1
+          kubectl --request-timeout=10s get svc,endpoints \
+            -n "$namespace" -o wide > "$diagnostics/gateway-network.txt" 2>&1
+          kubectl --request-timeout=10s get endpointslices \
+            -n "$namespace" -o wide >> "$diagnostics/gateway-network.txt" 2>&1
+          kubectl --request-timeout=10s get pods -A -o wide \
+            > "$diagnostics/pods.txt" 2>&1
+          kubectl --request-timeout=10s get events -A --sort-by='.lastTimestamp' \
+            | tail -200 > "$diagnostics/events.txt" 2>&1
+
+          kubectl --request-timeout=10s get pods \
+            -n "$namespace" -o name 2>/dev/null \
+            | grep -E '(gateway|service|logger)' \
+            | while read -r pod; do
+                name="${pod#pod/}"
+                kubectl --request-timeout=10s describe "$pod" -n "$namespace" \
+                  > "$diagnostics/describe-${name}.txt" 2>&1
+                kubectl --request-timeout=10s logs "$pod" -n "$namespace" \
+                  --all-containers --tail=500 --since=20m --timestamps --prefix \
+                  > "$diagnostics/logs-${name}.log" 2>&1
+                kubectl --request-timeout=10s logs "$pod" -n "$namespace" \
+                  --all-containers --previous --tail=500 \
+                  --since=20m --timestamps --prefix \
+                  > "$diagnostics/logs-${name}-previous.log" 2>&1
+              done
+
+          kubectl --request-timeout=10s get pods \
+            -n kube-system -o name 2>/dev/null \
+            | grep 'konnectivity-agent' \
+            | while read -r pod; do
+                name="${pod#pod/}"
+                kubectl --request-timeout=10s describe "$pod" -n kube-system \
+                  > "$diagnostics/describe-kube-system-${name}.txt" 2>&1
+                kubectl --request-timeout=10s logs "$pod" -n kube-system \
+                  --all-containers --tail=500 --since=20m --timestamps --prefix \
+                  > "$diagnostics/logs-kube-system-${name}.log" 2>&1
+              done
+          exit 0
+
+      - name: classify OETF result
+        id: classify_oetf
+        if: always() && steps.run_oetf.conclusion != 'skipped'
+        run: |
+          python3 test/oetf/ci_summary.py \
+            --run-dir "$RUN_DIR" \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
 
       - name: upload OETF logs
         if: always()
@@ -976,13 +1006,163 @@ jobs:
           name: oetf-${{ github.run_id }}
           path: runs/deployment-test-azure/**
           retention-days: 14
-          if-no-files-found: warn
+          if-no-files-found: error
 
-  # ── Stage 4: terraform destroy + cluster diagnostics ─────────────────────
-  # Downloads the tfstate artifact tf-apply uploaded, captures a final
-  # cluster snapshot before destroy, then tears everything down.
-  tf-destroy:
+  # ── Stage 4: cluster diagnostics (must finish before destroy) ─────────────
+  azure-diagnostics:
     needs: [build-images, tf-apply, deploy-osmo, oetf]
+    if: ${{ always() && needs.tf-apply.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: internal-ci
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
+      OETF_FAILURE_CATEGORY: ${{ needs.oetf.outputs.failure_category }}
+      OETF_FAILURE_SUMMARY: ${{ needs.oetf.outputs.failure_summary }}
+      OETF_FAILED_TARGET: ${{ needs.oetf.outputs.failed_target }}
+      OETF_NEXT_ACTION: ${{ needs.oetf.outputs.next_action }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: install kubectl
+        if: always()
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION=v1.31.0
+          curl -fsSLo /tmp/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+
+      - name: download OETF evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: oetf-${{ github.run_id }}
+          path: runs/deployment-test-azure/oetf-runner/
+
+      - name: collect Azure, cluster, and OSMO diagnostics
+        if: always()
+        timeout-minutes: 5
+        run: |
+          set +e
+          diagnostics="$RUN_DIR/diagnostics"
+          mkdir -p "$diagnostics"
+          date -u +%Y-%m-%dT%H:%M:%SZ > "$diagnostics/captured-at.txt"
+
+          az resource list --resource-group "$AZURE_RESOURCE_GROUP" -o json \
+            > "$diagnostics/azure-resources.json" 2>&1
+          az aks show --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_CLUSTER_NAME" -o json \
+            > "$diagnostics/azure-aks.json" 2>&1
+          start_time="$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          az monitor activity-log list --resource-group "$AZURE_RESOURCE_GROUP" \
+            --start-time "$start_time" --status Failed -o json \
+            > "$diagnostics/azure-failed-activity.json" 2>&1
+
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_CLUSTER_NAME" \
+            --overwrite-existing --admin > "$diagnostics/az-creds.log" 2>&1
+
+          cluster_reachable=false
+          if kubectl --request-timeout=10s cluster-info \
+            > "$diagnostics/cluster-info.txt" 2>&1; then
+            cluster_reachable=true
+            kubectl --request-timeout=10s get pods -A -o wide \
+              > "$diagnostics/pods.txt" 2>&1
+            kubectl --request-timeout=10s get svc,endpoints \
+              -n osmo-minimal -o wide > "$diagnostics/osmo-network.txt" 2>&1
+            kubectl --request-timeout=10s get endpointslices \
+              -n osmo-minimal -o wide >> "$diagnostics/osmo-network.txt" 2>&1
+            kubectl --request-timeout=10s get events \
+              -A --sort-by='.lastTimestamp' \
+              | tail -200 > "$diagnostics/events.txt" 2>&1
+            kubectl --request-timeout=10s get pods -A \
+              --field-selector=status.phase!=Running -o wide \
+              > "$diagnostics/non-running.txt" 2>&1
+            kubectl --request-timeout=10s get pods -A \
+              -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{","}{end}{"\n"}{end}' \
+              | sort > "$diagnostics/image-refs.txt" 2>&1
+
+            for namespace in osmo-minimal osmo-operator osmo-workflows; do
+              kubectl --request-timeout=10s get pods \
+                -n "$namespace" -o name 2>/dev/null \
+                | while read -r pod; do
+                    [[ -z "$pod" ]] && continue
+                    name="${pod#pod/}"
+                    kubectl --request-timeout=10s logs "$pod" -n "$namespace" \
+                      --all-containers --tail=500 \
+                      --since=30m --prefix --timestamps \
+                      > "$diagnostics/logs-${namespace}-${name}.log" 2>&1
+                    kubectl --request-timeout=10s logs "$pod" -n "$namespace" \
+                      --all-containers --previous --tail=500 \
+                      --since=30m --prefix --timestamps \
+                      > "$diagnostics/logs-${namespace}-${name}-previous.log" 2>&1
+                  done
+            done
+
+            kubectl --request-timeout=10s get pods \
+              -n kube-system -o name 2>/dev/null \
+              | grep 'konnectivity-agent' \
+              | while read -r pod; do
+                  name="${pod#pod/}"
+                  kubectl --request-timeout=10s describe "$pod" -n kube-system \
+                    > "$diagnostics/describe-kube-system-${name}.txt" 2>&1
+                  kubectl --request-timeout=10s logs "$pod" -n kube-system \
+                    --all-containers --tail=500 \
+                    --since=30m --prefix --timestamps \
+                    > "$diagnostics/logs-kube-system-${name}.log" 2>&1
+                done
+          fi
+
+          {
+            echo "### Azure deployment diagnostics"
+            echo ""
+            echo "- cluster reachable: \`$cluster_reachable\`"
+            echo "- OETF category: \`${OETF_FAILURE_CATEGORY:-unknown}\`"
+            echo "- failed target: \`${OETF_FAILED_TARGET:--}\`"
+            echo "- summary: ${OETF_FAILURE_SUMMARY:-unavailable}"
+            echo "- next action: **${OETF_NEXT_ACTION:-Inspect this artifact and the failed job step.}**"
+            echo ""
+            echo "Raw Helm values, Terraform state/variables, Kubernetes Secrets,"
+            echo "and environment dumps are intentionally excluded."
+          } | tee "$diagnostics/diagnostic-summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: upload diagnostics before destroy
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-deployment-diagnostics-${{ github.run_id }}
+          path: |
+            runs/deployment-test-azure/diagnostics/**
+            runs/deployment-test-azure/oetf-runner/**
+          retention-days: 14
+          if-no-files-found: error
+
+
+  # ── Stage 5: terraform destroy (after diagnostics upload) ─────────────────
+  # Waits for evidence capture, then tears down the ephemeral Azure resources.
+  tf-destroy:
+    needs: [build-images, tf-apply, deploy-osmo, oetf, azure-diagnostics]
     # Run whenever tf-apply ran (any result) — a failed apply usually
     # leaves partial resources to tear down. Skip only if tf-apply never
     # ran.
@@ -1015,22 +1195,6 @@ jobs:
         with:
           terraform_version: 1.9.8
 
-      - name: install kubectl + helm
-        run: |
-          set -euo pipefail
-          KUBECTL_VERSION=v1.31.0
-          curl -fsSLo /tmp/kubectl \
-            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
-            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
-          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
-
-          HELM_VERSION=v3.16.2
-          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
-          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
-          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
-          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
 
       # The STASH_RAN marker guarantees this artifact exists, so a download
       # failure here is transient and should fail teardown loudly.
@@ -1048,103 +1212,13 @@ jobs:
           cp tf-state-download/azure.tfvars          "$RUNNER_TEMP/azure.tfvars" 2>/dev/null || true
           ls -la deployments/terraform/azure/example/terraform.tfstate "$RUNNER_TEMP/azure.tfvars" || true
 
-      # Capture a snapshot of cluster + OSMO state BEFORE terraform destroys
-      # everything. Self-contained: re-mints kubectl context up front in
-      # case anything along the way mangled the kubeconfig.
-      - name: dump cluster + OSMO diagnostics (always)
-        if: always()
-        timeout-minutes: 5
-        run: |
-          set +e
-          DIAG="$RUN_DIR/diagnostics"
-          mkdir -p "$DIAG"
-
-          echo "▶ refreshing kubectl context"
-          az aks get-credentials \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$AZURE_CLUSTER_NAME" \
-            --overwrite-existing --admin > "$DIAG/az_creds.log" 2>&1 || true
-          kubectl cluster-info > "$DIAG/cluster-info.txt" 2>&1 || \
-            { echo "::warning::kubectl can't reach the cluster — skipping in-cluster diagnostics"; exit 0; }
-
-          echo "::group::pods (all namespaces)"
-          kubectl get pods -A -o wide | tee "$DIAG/pods.txt"
-          echo "::endgroup::"
-
-          echo "::group::events (last 200, sorted by lastTimestamp)"
-          kubectl get events -A --sort-by='.lastTimestamp' 2>/dev/null | tail -200 | tee "$DIAG/events.txt"
-          echo "::endgroup::"
-
-          echo "::group::non-Running pods + describe"
-          kubectl get pods -A --field-selector=status.phase!=Running -o wide | tee "$DIAG/non-running.txt"
-          kubectl get pods -A --field-selector=status.phase!=Running \
-            -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' \
-            | while read -r ns pod; do
-                [[ -z "$ns" || -z "$pod" ]] && continue
-                kubectl describe pod "$pod" -n "$ns" > "$DIAG/describe-${ns}-${pod}.txt" 2>&1
-                kubectl logs "$pod" -n "$ns" --all-containers --tail=200 --prefix \
-                  > "$DIAG/logs-${ns}-${pod}.log" 2>&1
-              done
-          echo "::endgroup::"
-
-          echo "::group::image refs on running pods"
-          kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{","}{end}{"\n"}{end}' \
-            | sort | tee "$DIAG/image-refs.txt"
-          echo "::endgroup::"
-
-          echo "::group::OSMO pod logs (tail 500)"
-          for ns in osmo-minimal osmo-operator osmo-workflows; do
-            kubectl get pods -n "$ns" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null \
-              | while read -r pod; do
-                  [[ -z "$pod" ]] && continue
-                  kubectl logs "$pod" -n "$ns" --tail=500 --all-containers --prefix --timestamps \
-                    > "$DIAG/podlog-${ns}-${pod}.log" 2>&1
-                done
-          done
-          echo "::endgroup::"
-
-          echo "::group::helm releases + values"
-          helm list -A -o yaml > "$DIAG/helm-releases.yaml" 2>&1
-          while IFS='|' read -r r ns; do
-            [[ -z "$r" ]] && continue
-            helm status "$r" -n "$ns"     > "$DIAG/helm-status-${r}.txt"   2>&1
-            helm get values "$r" -n "$ns" > "$DIAG/helm-values-${r}.yaml" 2>&1
-          done < <(helm list -A -o json 2>/dev/null | jq -r '.[] | "\(.name)|\(.namespace)"')
-          echo "::endgroup::"
-
-          {
-            echo "### Cluster diagnostic snapshot"
-            echo ""
-            echo "Captured under \`$DIAG\` (uploaded as part of the \`tf-destroy-${GITHUB_RUN_ID}\` artifact)."
-            echo ""
-            echo "#### Pods not Running"
-            if [ -s "$DIAG/non-running.txt" ] && [ "$(wc -l < "$DIAG/non-running.txt")" -gt 1 ]; then
-              echo '```'
-              head -20 "$DIAG/non-running.txt"
-              echo '```'
-            else
-              echo "_(all pods Running)_"
-            fi
-            echo ""
-            echo "#### Image refs (first 30)"
-            echo '```'
-            head -30 "$DIAG/image-refs.txt"
-            echo '```'
-            echo ""
-            echo "#### Last 30 cluster events"
-            echo '```'
-            tail -30 "$DIAG/events.txt"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # Never fail — diagnostics are best-effort, must not block teardown.
-          exit 0
 
       - name: TEMP — terraform destroy
         if: always()
         working-directory: deployments/terraform/azure/example
         run: |
           set -euo pipefail
+          mkdir -p "$RUN_DIR"
           echo "::notice::terraform destroy starting — expected ~10–15 min"
 
           echo "::group::terraform init (refresh provider)"
@@ -1152,9 +1226,15 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::terraform destroy (streaming)"
+          set +e
           terraform destroy -input=false -auto-approve -no-color \
-            -var-file="$RUNNER_TEMP/azure.tfvars" \
-            || echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
+            -var-file="$RUNNER_TEMP/azure.tfvars" 2>&1 \
+            | tee "$RUN_DIR/terraform-destroy.log"
+          destroy_rc="${PIPESTATUS[0]}"
+          set -e
+          if [[ "$destroy_rc" -ne 0 ]]; then
+            echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
+          fi
           echo "::endgroup::"
 
           REMAINING=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
@@ -1173,14 +1253,18 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: upload destroy logs + diagnostics
+          if [[ "$destroy_rc" -ne 0 || "$REMAINING" != "0" ]]; then
+            exit 1
+          fi
+
+      - name: upload terraform destroy log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tf-destroy-${{ github.run_id }}
-          path: runs/deployment-test-azure/**
+          name: azure-terraform-destroy-${{ github.run_id }}
+          path: runs/deployment-test-azure/terraform-destroy.log
           retention-days: 14
-          if-no-files-found: warn
+          if-no-files-found: error
 
 
   # ── Slack failure-notification (schedule-only) ───────────────────────────
@@ -1192,20 +1276,24 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
 
   notify-slack-on-azure-deployment-test-failure:
-    needs: [build-images, tf-apply, deploy-osmo, oetf, tf-destroy]
+    needs: [build-images, tf-apply, deploy-osmo, oetf, azure-diagnostics, tf-destroy]
     # always() so this evaluates even when an upstream `needs:` failed.
     # Fires only on scheduled-run failures — PR-label and workflow_dispatch
     # runs surface their own status interactively.
-    if: >
+    if: >-
       ${{ always()
           && github.event_name == 'schedule'
           && (needs.build-images.result == 'failure'
               || needs.tf-apply.result == 'failure'
               || needs.deploy-osmo.result == 'failure'
               || needs.oetf.result == 'failure'
+              || needs.azure-diagnostics.result == 'failure'
               || needs.tf-destroy.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     steps:
       # Best-effort decoration (author/subject/links) — must never block
       # the notification; the post step has fallbacks for every output.
@@ -1243,7 +1331,6 @@ jobs:
           # commits — a single "current SHA" link is misleading.
           # Fall back to a plain "recent commits on main" view when this
           # is the first scheduled run (no prior green to compare against).
-          wf_name='Deployment Test'
           wf_runs=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
                           -H 'Accept: application/vnd.github+json' \
                           "https://api.github.com/repos/${REPO}/actions/workflows/deployment-test.yaml/runs?event=schedule&status=success&per_page=2")
@@ -1263,41 +1350,58 @@ jobs:
             compare_label="Recent commits on main"
           fi
 
-          # 3) Resolve the artifact ID for THIS run so the Slack button
-          # deep-links directly to the artifact's download page. GitHub
-          # has no `#artifacts` anchor on the run page — links with that
-          # fragment land at the top of the page with no scroll. The
-          # working URL shape is:
-          #   https://github.com/<owner>/<repo>/actions/runs/<run_id>/artifacts/<artifact_id>
-          # which renders the artifact's download flow directly. We pick
-          # the first non-expired artifact (full-deployment uploads a
-          # single one named `deployment-test-run-<run_id>`); fall back
-          # to the run page when none is found (e.g. job aborted before
-          # the always() upload step ran).
+          # 3) Resolve evidence artifacts by exact name. Artifact ordering is
+          # not stable and must not decide which bundle the on-call receives.
           artifacts_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
                                  -H 'Accept: application/vnd.github+json' \
-                                 "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?per_page=10")
-          # `.artifacts // []` — an API error response has no .artifacts, and
-          # iterating null aborts jq (and the step) with exit 5.
-          artifact_id=$(jq -r '[(.artifacts // [])[] | select(.expired==false)] | .[0].id // empty' <<<"$artifacts_resp")
-          artifact_name=$(jq -r '[(.artifacts // [])[] | select(.expired==false)] | .[0].name // empty' <<<"$artifacts_resp")
-          if [[ -n "$artifact_id" ]]; then
-            artifact_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}/artifacts/${artifact_id}"
-            artifact_label="Download ${artifact_name}"
-          else
-            artifact_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
-            artifact_label="(no artifact yet — open run page)"
+                                 "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?per_page=100")
+          diagnostics_name="azure-deployment-diagnostics-${RUN_ID}"
+          oetf_name="oetf-${RUN_ID}"
+          diagnostics_id=$(jq -r --arg name "$diagnostics_name" \
+            '[(.artifacts // [])[] | select(.expired==false and .name==$name)] | .[0].id // empty' \
+            <<<"$artifacts_resp")
+          oetf_id=$(jq -r --arg name "$oetf_name" \
+            '[(.artifacts // [])[] | select(.expired==false and .name==$name)] | .[0].id // empty' \
+            <<<"$artifacts_resp")
+          diagnostics_url=""
+          oetf_url=""
+          if [[ -n "$diagnostics_id" ]]; then
+            diagnostics_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}/artifacts/${diagnostics_id}"
+          fi
+          if [[ -n "$oetf_id" ]]; then
+            oetf_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}/artifacts/${oetf_id}"
           fi
 
-          # 4) Persist outputs (escape multi-line values).
+          # 4) Resolve the first failed job and step. Use GitHub's html_url
+          # rather than reconstructing the job URL.
+          jobs_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                            -H 'Accept: application/vnd.github+json' \
+                            "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/jobs?filter=latest&per_page=100")
+          failed_job_json=$(jq -c '[(.jobs // [])[] | select(.conclusion=="failure")] | .[0] // {}' \
+            <<<"$jobs_resp")
+          failed_job=$(jq -r '.name // "unknown job"' <<<"$failed_job_json")
+          failed_job_url=$(jq -r '.html_url // empty' <<<"$failed_job_json")
+          failed_step_json=$(jq -c '[.steps[]? | select(.conclusion=="failure")] | .[0] // {}' \
+            <<<"$failed_job_json")
+          failed_step=$(jq -r '.name // "unknown step"' <<<"$failed_step_json")
+          failed_step_number=$(jq -r '.number // empty' <<<"$failed_step_json")
+          failed_step_url="$failed_job_url"
+          if [[ -n "$failed_step_url" && -n "$failed_step_number" ]]; then
+            failed_step_url="${failed_step_url}#step:${failed_step_number}:1"
+          fi
+
+          # 5) Persist outputs (escape multi-line values).
           {
             echo "author<<__GHA_EOF__"; echo "$author"; echo "__GHA_EOF__"
             echo "subject<<__GHA_EOF__"; echo "$subject"; echo "__GHA_EOF__"
             echo "short_sha=${SHA:0:7}"
             echo "compare_url=$compare_url"
             echo "compare_label=$compare_label"
-            echo "artifact_url=$artifact_url"
-            echo "artifact_label=$artifact_label"
+            echo "diagnostics_url=$diagnostics_url"
+            echo "oetf_url=$oetf_url"
+            echo "failed_job=$failed_job"
+            echo "failed_step=$failed_step"
+            echo "failed_step_url=$failed_step_url"
           } >> "$GITHUB_OUTPUT"
 
       - name: Post failure notification to Slack
@@ -1315,7 +1419,12 @@ jobs:
           APPLY_RESULT: ${{ needs.tf-apply.result }}
           DEPLOY_RESULT: ${{ needs.deploy-osmo.result }}
           OETF_RESULT: ${{ needs.oetf.result }}
+          DIAGNOSTICS_RESULT: ${{ needs.azure-diagnostics.result }}
           DESTROY_RESULT: ${{ needs.tf-destroy.result }}
+          OETF_FAILURE_CATEGORY: ${{ needs.oetf.outputs.failure_category }}
+          OETF_FAILURE_SUMMARY: ${{ needs.oetf.outputs.failure_summary }}
+          OETF_FAILED_TARGET: ${{ needs.oetf.outputs.failed_target }}
+          OETF_NEXT_ACTION: ${{ needs.oetf.outputs.next_action }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -1328,8 +1437,11 @@ jobs:
           WORKFLOW: ${{ github.workflow }}
           COMPARE_URL: ${{ steps.ctx.outputs.compare_url }}
           COMPARE_LABEL: ${{ steps.ctx.outputs.compare_label }}
-          ARTIFACT_URL: ${{ steps.ctx.outputs.artifact_url }}
-          ARTIFACT_LABEL: ${{ steps.ctx.outputs.artifact_label }}
+          DIAGNOSTICS_URL: ${{ steps.ctx.outputs.diagnostics_url }}
+          OETF_URL: ${{ steps.ctx.outputs.oetf_url }}
+          FAILED_JOB: ${{ steps.ctx.outputs.failed_job }}
+          FAILED_STEP: ${{ steps.ctx.outputs.failed_step }}
+          FAILED_STEP_URL: ${{ steps.ctx.outputs.failed_step_url }}
           EVENT: ${{ github.event_name }}
         run: |
           set -uo pipefail
@@ -1351,33 +1463,82 @@ jobs:
           SHORT_SHA="${SHORT_SHA:-${FULL_SHA:0:7}}"
           COMPARE_URL="${COMPARE_URL:-${SERVER_URL}/${REPO}/commits/${REF_NAME}}"
           COMPARE_LABEL="${COMPARE_LABEL:-Recent commits}"
-          artifact_url="${ARTIFACT_URL:-$run_url}"
-          artifact_label="${ARTIFACT_LABEL:-Open run page}"
+          diagnostics_url="${DIAGNOSTICS_URL:-}"
+          oetf_url="${OETF_URL:-}"
+          FAILED_JOB="${FAILED_JOB:-unknown job}"
+          FAILED_STEP="${FAILED_STEP:-unknown step}"
+          failed_step_url="${FAILED_STEP_URL:-$run_url}"
+          failure_category="${OETF_FAILURE_CATEGORY:-}"
+          failure_summary="${OETF_FAILURE_SUMMARY:-}"
+          failed_target="${OETF_FAILED_TARGET:-}"
+          next_action="${OETF_NEXT_ACTION:-}"
+          if [[ "$OETF_RESULT" != "failure" || -z "$failure_category" || "$failure_category" == "none" ]]; then
+            failure_category="pipeline/${FAILED_JOB}"
+            failure_summary="${FAILED_JOB} / ${FAILED_STEP} failed."
+            failed_target="-"
+            if [[ -n "$diagnostics_url" ]]; then
+              next_action="Open the failed step and the named diagnostics artifact."
+            else
+              next_action="Open the failed step; diagnostics were not uploaded."
+            fi
+          fi
+
+          if [[ -n "$diagnostics_url" ]]; then
+            evidence_context="Diagnostics were uploaded before Terraform destroy started."
+          else
+            evidence_context="Diagnostics were not uploaded; use the failed step and any OETF logs."
+          fi
+
+          # OETF output can contain workload-controlled text. Prevent it from
+          # creating Slack mentions or links before rendering the message.
+          sanitize_for_slack() {
+            local value="$1"
+            value="${value//</(}"
+            value="${value//>/)}"
+            value="${value//@/at}"
+            printf '%s' "$value"
+          }
+          failure_summary="$(sanitize_for_slack "$failure_summary")"
+          failed_target="$(sanitize_for_slack "$failed_target")"
+          next_action="$(sanitize_for_slack "$next_action")"
+          failure_category="$(sanitize_for_slack "$failure_category")"
+          AUTHOR="$(sanitize_for_slack "$AUTHOR")"
+          SUBJECT="$(sanitize_for_slack "$SUBJECT")"
+          FAILED_JOB="$(sanitize_for_slack "$FAILED_JOB")"
+          FAILED_STEP="$(sanitize_for_slack "$FAILED_STEP")"
           header_text=":x: OSMO Azure deployment-test FAILED"
           trigger_label="Daily schedule (00:00 UTC = 5pm PDT)"
 
           payload=$(jq -n \
-            --arg channel       "$SLACK_CHANNEL" \
-            --arg header_text   "$header_text" \
-            --arg trigger_label "$trigger_label" \
-            --arg branch        "$REF_NAME" \
-            --arg short_sha     "$SHORT_SHA" \
-            --arg author        "$AUTHOR" \
-            --arg subject       "$SUBJECT" \
-            --arg bi            "$BI_RESULT" \
-            --arg apply         "$APPLY_RESULT" \
-            --arg deploy        "$DEPLOY_RESULT" \
-            --arg oetf          "$OETF_RESULT" \
-            --arg destroy       "$DESTROY_RESULT" \
-            --arg workflow      "$WORKFLOW" \
-            --arg run_url       "$run_url" \
-            --arg commit_url    "$commit_url" \
-            --arg workflow_url  "$workflow_url" \
-            --arg artifact_url  "$artifact_url" \
-            --arg artifact_label "$artifact_label" \
-            --arg compare_url   "$COMPARE_URL" \
-            --arg compare_label "$COMPARE_LABEL" \
-            --arg run_id        "$RUN_ID" \
+            --arg channel          "$SLACK_CHANNEL" \
+            --arg header_text      "$header_text" \
+            --arg trigger_label    "$trigger_label" \
+            --arg branch           "$REF_NAME" \
+            --arg short_sha        "$SHORT_SHA" \
+            --arg author           "$AUTHOR" \
+            --arg subject          "$SUBJECT" \
+            --arg bi               "$BI_RESULT" \
+            --arg apply            "$APPLY_RESULT" \
+            --arg deploy           "$DEPLOY_RESULT" \
+            --arg oetf             "$OETF_RESULT" \
+            --arg diagnostics      "$DIAGNOSTICS_RESULT" \
+            --arg destroy          "$DESTROY_RESULT" \
+            --arg workflow         "$WORKFLOW" \
+            --arg commit_url       "$commit_url" \
+            --arg workflow_url     "$workflow_url" \
+            --arg failed_job       "$FAILED_JOB" \
+            --arg failed_step      "$FAILED_STEP" \
+            --arg failed_step_url  "$failed_step_url" \
+            --arg failure_category "$failure_category" \
+            --arg failure_summary  "$failure_summary" \
+            --arg failed_target    "$failed_target" \
+            --arg next_action      "$next_action" \
+            --arg diagnostics_url  "$diagnostics_url" \
+            --arg evidence_context  "$evidence_context" \
+            --arg oetf_url         "$oetf_url" \
+            --arg compare_url      "$COMPARE_URL" \
+            --arg compare_label    "$COMPARE_LABEL" \
+            --arg run_id           "$RUN_ID" \
             '{
               channel: $channel,
               text: "\($header_text) — \($workflow) run #\($run_id) (branch \($branch))",
@@ -1390,38 +1551,44 @@ jobs:
                     { type: "mrkdwn", text: "*tf-apply*\n`\($apply)`" },
                     { type: "mrkdwn", text: "*deploy-osmo*\n`\($deploy)`" },
                     { type: "mrkdwn", text: "*oetf*\n`\($oetf)`" },
+                    { type: "mrkdwn", text: "*diagnostics*\n`\($diagnostics)`" },
                     { type: "mrkdwn", text: "*tf-destroy*\n`\($destroy)`" },
                     { type: "mrkdwn", text: "*Trigger*\n\($trigger_label)" }
                   ] },
                 { type: "section",
                   text: { type: "mrkdwn",
                           text: "*Branch:* `\($branch)`  •  *Tested commit:* <\($commit_url)|`\($short_sha)`> by *\($author)*\n>\($subject)" } },
+                { type: "section",
+                  text: { type: "mrkdwn",
+                          text: "*Automated diagnosis:* `\($failure_category)`\n*Failed step:* <\($failed_step_url)|\($failed_job) / \($failed_step)>\n*OETF target:* `\($failed_target)`\n*Summary:* \($failure_summary)\n*Next action:* *\($next_action)*" } },
                 { type: "context",
                   elements: [
                     { type: "mrkdwn",
-                      text: "Daily cron can span many commits since the last green run. Use the *\($compare_label)* button to see everything that landed in between — narrowing blame from a single SHA to the actual contributing change is usually faster from the compare view." }
+                      text: $evidence_context }
                   ] },
                 { type: "actions",
-                  elements: [
+                  elements: ([
                     { type: "button",
-                      text: { type: "plain_text", text: "View run + logs" },
-                      url:  $run_url,
+                      text: { type: "plain_text", text: "Open failed step" },
+                      url: $failed_step_url,
                       style: "danger" },
-                    { type: "button",
-                      text: { type: "plain_text", text: $artifact_label },
-                      url:  $artifact_url },
+                    (if $diagnostics_url != "" then
+                      { type: "button",
+                        text: { type: "plain_text", text: "Download diagnostics" },
+                        url: $diagnostics_url }
+                     else null end),
+                    (if $oetf_url != "" then
+                      { type: "button",
+                        text: { type: "plain_text", text: "Download OETF logs" },
+                        url: $oetf_url }
+                     else null end),
                     { type: "button",
                       text: { type: "plain_text", text: $compare_label },
-                      url:  $compare_url },
+                      url: $compare_url },
                     { type: "button",
                       text: { type: "plain_text", text: "Workflow file" },
-                      url:  $workflow_url }
-                  ] },
-                { type: "context",
-                  elements: [
-                    { type: "mrkdwn",
-                      text: ":bulb: First-look investigation: open *Download artifacts* → unzip → check `deployment-test-result.json` (which wrapper stage failed) and `diagnostics/` (cluster state at teardown)." }
-                  ] }
+                      url: $workflow_url }
+                  ] | map(select(. != null))) }
               ]
             }')
 
