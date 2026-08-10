@@ -960,7 +960,13 @@
             "resources": { "type": "object" },
             "primaryUpdateMethod": { "type": "string", "enum": ["switchover", "restart"] },
             "primaryUpdateStrategy": { "type": "string", "enum": ["unsupervised", "supervised"] },
-            "affinity": { "type": "object" },
+            "affinity": {
+              "type": "object",
+              "properties": {
+                "topologyKey": { "type": "string", "minLength": 1 },
+                "podAntiAffinityType": { "type": "string", "enum": ["preferred", "required"] }
+              }
+            },
             "enableSuperuserAccess": { "type": "boolean" },
             "enablePDB": { "type": "boolean" },
             "postgresql": {

@@ -18,9 +18,9 @@ dependencies remain future work.
 ## CloudNativePG prerequisite
 
 Embedded PostgreSQL requires the official CloudNativePG operator and CRDs.
-Install the pinned, Apache-2.0 CloudNativePG operator chart once per Kubernetes
-cluster before installing OSMO. The operator watches OSMO namespaces but has a
-separate Helm lifecycle:
+Install the pinned, Apache-2.0 CloudNativePG operator chart `0.29.0`
+(CloudNativePG `1.30.0`) once per Kubernetes cluster before installing OSMO.
+The operator watches OSMO namespaces but has a separate Helm lifecycle:
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -99,17 +99,21 @@ OSMO connects only to the stable `<release>-postgresql-rw` service. CNPG
 creates the application credential Secret (normally
 `<release>-postgresql-app`) and CA Secret, and OSMO uses certificate
 verification for every database connection. The generated database and owner
-are both `osmo` by default.
+are both `osmo` by default. Embedded PostgreSQL must remain in the OSMO release
+namespace. When `postgresql.cluster.certificates.serverCASecret` supplies a
+custom CNPG server CA, OSMO mounts `ca.crt` from that Secret automatically.
 
 ## High availability and operations
 
-The production defaults spread instances by `kubernetes.io/hostname`, enable a
-PodDisruptionBudget, and require quorum-based synchronous replication with
-`ANY 1`: a commit must be acknowledged by one standby. CNPG performs automatic
-failover and uses an unsupervised switchover when updating the primary. Loss of
-the primary should therefore promote a healthy standby; loss of enough
-instances to satisfy the synchronous requirement intentionally stops writes
-rather than acknowledging data that has not reached a standby.
+The production defaults require instances to run on different
+`kubernetes.io/hostname` values, enable a PodDisruptionBudget, and require
+quorum-based synchronous replication with `ANY 1`: a commit must be
+acknowledged by one standby. At least three schedulable nodes are therefore
+required for the default cluster. CNPG performs automatic failover and uses an
+unsupervised switchover when updating the primary. Loss of the primary should
+promote a healthy standby; loss of enough instances to satisfy the synchronous
+requirement intentionally stops writes rather than acknowledging data that has
+not reached a standby.
 
 Inspect the cluster and its persistent storage with:
 

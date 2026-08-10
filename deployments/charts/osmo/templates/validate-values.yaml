@@ -13,6 +13,9 @@
 {{- $initdbSecretName := dig "cluster" "initdb" "secret" "name" "" .Values.postgresql -}}
 {{- $synchronousInstances := int (dig "cluster" "postgresql" "synchronous" "number" 0 .Values.postgresql) -}}
 {{- $dataDurability := dig "cluster" "postgresql" "synchronous" "dataDurability" "" .Values.postgresql -}}
+{{- if .Values.postgresql.namespaceOverride -}}
+{{- fail "postgresql.namespaceOverride must be empty because embedded PostgreSQL and OSMO must share a namespace" -}}
+{{- end -}}
 {{- if .Values.externalDependencies.postgresql.host -}}
 {{- fail "externalDependencies.postgresql.host must be empty when embedded PostgreSQL is enabled" -}}
 {{- end -}}

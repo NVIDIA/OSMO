@@ -1135,6 +1135,8 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "owner: osmo"
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
         "enableSuperuserAccess: false"
+    require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" \
+        "podAntiAffinityType: required"
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "cpu: \"1\""
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "memory: 2Gi"
 
@@ -1162,6 +1164,16 @@ EOF
     done
     require_contains "$TEST_DIRECTORY/osmo-embedded-gateway-authz.yaml" \
         "--postgres-ssl-mode=verify-full"
+
+    helm_template embedded-profile "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-embedded-profile.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-profile.yaml" \
+        "kind: Cluster"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-profile.yaml" \
+        "name: embedded-profile-postgresql-app"
 
     helm_template embedded-existing "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -1199,6 +1211,30 @@ EOF
         "name: custom-embedded-database-app"
     require_contains "$TEST_DIRECTORY/osmo-embedded-named.yaml" \
         "secretName: custom-embedded-database-ca"
+
+    helm_template embedded-name-override "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.nameOverride=custom-postgresql \
+        >"$TEST_DIRECTORY/osmo-embedded-name-override.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-name-override.yaml" \
+        "name: embedded-name-override-custom-postgresql"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-name-override.yaml" \
+        "embedded-name-override-custom-postgresql-rw"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-name-override.yaml" \
+        "secretName: embedded-name-override-custom-postgresql-ca"
+
+    helm_template embedded-custom-ca "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.cluster.certificates.serverCASecret=custom-server-ca \
+        >"$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
+        "serverCASecret: custom-server-ca"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
+        "secretName: custom-server-ca"
+    require_not_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
+        "secretName: embedded-custom-ca-postgresql-ca"
 
     helm_template embedded-dev "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -1833,6 +1869,16 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/embedded-external-host.out" \
         "externalDependencies.postgresql.host must be empty"
+
+    if helm_template embedded-other-namespace "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.namespaceOverride=another-namespace \
+        >"$TEST_DIRECTORY/embedded-other-namespace.out" 2>&1; then
+        fail "expected embedded PostgreSQL in another namespace to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-other-namespace.out" \
+        "postgresql.namespaceOverride must be empty"
 
     if helm_template embedded-too-small "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \

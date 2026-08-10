@@ -403,7 +403,8 @@ data:
 
 {{- define "osmo.v1.postgresql-ca-secret-name" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
-{{- printf "%s-ca" (include "osmo.v1.postgresql-cluster-name" .) -}}
+{{- $serverCASecret := dig "cluster" "certificates" "serverCASecret" "" .Values.postgresql -}}
+{{- $serverCASecret | default (printf "%s-ca" (include "osmo.v1.postgresql-cluster-name" .)) -}}
 {{- else -}}
 {{- .Values.externalDependencies.postgresql.tls.caExistingSecret -}}
 {{- end -}}

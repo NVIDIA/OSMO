@@ -52,6 +52,7 @@ postgresql:
     primaryUpdateStrategy: unsupervised
     affinity:
       topologyKey: kubernetes.io/hostname
+      podAntiAffinityType: required
     enableSuperuserAccess: false
     enablePDB: true
     postgresql:
