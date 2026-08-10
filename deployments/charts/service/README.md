@@ -91,6 +91,8 @@ destination, but it cannot validate external DNS.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `services.mcp.enabled` | Deploy the MCP workload and Gateway routes. | `false` |
+| `services.mcp.imageName` | MCP image repository name. | `mcp` |
+| `services.mcp.imageTag` | Per-MCP image tag override; falls back to `global.osmoImageTag` when empty. | `""` |
 | `services.mcp.resourceUrl` | Canonical public HTTPS MCP URL ending in exact `/mcp`; also determines the fixed outbound Gateway origin. | `""` |
 | `services.mcp.authorizationServers` | OAuth/OIDC issuer identifiers advertised in protected-resource metadata. At least one is required when enabled. | `[]` |
 | `services.mcp.scopes` | OAuth scopes advertised in protected-resource metadata. | `[]` |

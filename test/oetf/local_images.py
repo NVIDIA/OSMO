@@ -78,7 +78,7 @@ def image_specs(arch: HostArch) -> List[ImageSpec]:
         ImageSpec(
             "mcp",
             _t("//src/service/mcp:mcp_image_load_{arch}", arch),
-            _t("osmo.local/mcp-self-hosted:latest-{arch}", arch),
+            _t("osmo.local/mcp:latest-{arch}", arch),
         ),
         ImageSpec(
             "logger",

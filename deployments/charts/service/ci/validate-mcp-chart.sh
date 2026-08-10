@@ -87,6 +87,7 @@ done
 assert_mcp_rendered 'kind: Deployment'
 assert_mcp_rendered 'kind: Service'
 assert_mcp_rendered 'name: osmo-mcp'
+assert_mcp_rendered 'image: nvcr.io/nvidia/osmo/mcp:latest'
 assert_mcp_rendered 'name: OSMO_GATEWAY_URL'
 assert_mcp_rendered 'name: OSMO_MCP_REQUEST_TIMEOUT_SECONDS'
 assert_mcp_rendered 'kind: NetworkPolicy'

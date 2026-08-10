@@ -67,7 +67,7 @@ class TestImageSpecs(unittest.TestCase):
         )
         self.assertEqual(
             mcp.docker_tag,
-            "osmo.local/mcp-self-hosted:latest-arm64",
+            "osmo.local/mcp:latest-arm64",
         )
 
 
