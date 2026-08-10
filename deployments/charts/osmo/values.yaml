@@ -200,14 +200,18 @@ monitoring:
     metricRelabelings: []
 
 # References to Kubernetes Secrets. Inline credentials are not accepted.
-# Generated credentials are supported only for embedded Valkey; every other
-# `generate` switch must remain false.
+# Generated credentials are supported by embedded PostgreSQL and embedded
+# Valkey; other `generate` switches must remain false.
 secrets:
-  # Password used with `externalDependencies.postgresql.username`.
+  # Embedded PostgreSQL generates a CNPG application Secret by default. For an
+  # existing embedded Secret, use the CNPG keys `username` and `password` and
+  # set postgresql.cluster.initdb.secret.name to the same Secret name. External
+  # PostgreSQL requires generate=false and uses keys.password.
   postgresql:
-    generate: false
+    generate: true
     existingSecret: ''
     keys:
+      username: username
       password: db-password
   # Password used for the effective Valkey connection. Embedded mode supports
   # either a retained generated Secret or an existing Secret; external mode

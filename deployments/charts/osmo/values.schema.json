@@ -22,7 +22,7 @@
       }
     },
     "valkey": { "type": "object" },
-    "postgresql": { "type": "object" },
+    "postgresql": { "$ref": "#/definitions/embeddedPostgresql" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
@@ -64,7 +64,7 @@
     "secrets": {
       "type": "object",
       "properties": {
-        "postgresql": { "$ref": "#/definitions/secretReference" },
+        "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
         "valkey": { "$ref": "#/definitions/secretReference" },
         "objectStorage": { "$ref": "#/definitions/secretReference" },
         "masterEncryptionKey": { "$ref": "#/definitions/secretReference" },
@@ -917,6 +917,80 @@
         "username": { "type": "string" }
       },
       "required": ["generate", "existingSecret", "keys"]
+    },
+    "postgresqlSecretReference": {
+      "type": "object",
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "properties": {
+            "username": { "type": "string", "minLength": 1 },
+            "password": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "embeddedPostgresql": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["postgresql"] },
+        "version": {
+          "type": "object",
+          "properties": {
+            "postgresql": { "type": "string", "pattern": "^[0-9]+$" }
+          }
+        },
+        "mode": { "type": "string", "enum": ["standalone"] },
+        "cluster": {
+          "type": "object",
+          "properties": {
+            "instances": { "type": "integer", "minimum": 1 },
+            "storage": { "$ref": "#/definitions/postgresqlStorage" },
+            "walStorage": {
+              "allOf": [
+                { "$ref": "#/definitions/postgresqlStorage" },
+                {
+                  "type": "object",
+                  "properties": { "enabled": { "type": "boolean" } }
+                }
+              ]
+            },
+            "resources": { "type": "object" },
+            "primaryUpdateMethod": { "type": "string", "enum": ["switchover", "restart"] },
+            "primaryUpdateStrategy": { "type": "string", "enum": ["unsupervised", "supervised"] },
+            "affinity": { "type": "object" },
+            "enableSuperuserAccess": { "type": "boolean" },
+            "enablePDB": { "type": "boolean" },
+            "postgresql": {
+              "type": "object",
+              "properties": {
+                "synchronous": {
+                  "type": "object",
+                  "properties": {
+                    "method": { "type": "string", "enum": ["any", "first"] },
+                    "number": { "type": "integer", "minimum": 0 },
+                    "dataDurability": { "type": "string", "enum": ["preferred", "required"] }
+                  }
+                }
+              }
+            },
+            "initdb": { "type": "object" }
+          }
+        },
+        "backups": {
+          "type": "object",
+          "properties": { "enabled": { "type": "boolean" } }
+        }
+      }
+    },
+    "postgresqlStorage": {
+      "type": "object",
+      "properties": {
+        "size": { "type": "string", "minLength": 1 },
+        "storageClass": { "type": "string" }
+      }
     }
   }
 }

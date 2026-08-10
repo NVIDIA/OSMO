@@ -9,6 +9,32 @@
 {{- if and .Values.embeddedDependencies.postgresql.enabled (not (.Capabilities.APIVersions.Has "postgresql.cnpg.io/v1")) -}}
 {{- fail "embeddedDependencies.postgresql.enabled: install a compatible CloudNativePG operator before enabling embedded PostgreSQL" -}}
 {{- end -}}
+{{- if .Values.embeddedDependencies.postgresql.enabled -}}
+{{- $initdbSecretName := dig "cluster" "initdb" "secret" "name" "" .Values.postgresql -}}
+{{- $synchronousInstances := int (dig "cluster" "postgresql" "synchronous" "number" 0 .Values.postgresql) -}}
+{{- $dataDurability := dig "cluster" "postgresql" "synchronous" "dataDurability" "" .Values.postgresql -}}
+{{- if .Values.externalDependencies.postgresql.host -}}
+{{- fail "externalDependencies.postgresql.host must be empty when embedded PostgreSQL is enabled" -}}
+{{- end -}}
+{{- if and (eq $dataDurability "required") (le (int .Values.postgresql.cluster.instances) $synchronousInstances) -}}
+{{- fail "postgresql.cluster: required synchronous replication needs at least 2 instances and more instances than synchronous standbys" -}}
+{{- end -}}
+{{- if and .Values.secrets.postgresql.generate (or .Values.secrets.postgresql.existingSecret $initdbSecretName) -}}
+{{- fail "secrets.postgresql: generate and existingSecret are mutually exclusive in embedded mode" -}}
+{{- end -}}
+{{- if and (not .Values.secrets.postgresql.generate) (not .Values.secrets.postgresql.existingSecret) -}}
+{{- fail "secrets.postgresql.existingSecret is required when embedded credential generation is disabled" -}}
+{{- end -}}
+{{- if and (not .Values.secrets.postgresql.generate) (ne .Values.secrets.postgresql.existingSecret $initdbSecretName) -}}
+{{- fail "secrets.postgresql.existingSecret must match postgresql.cluster.initdb.secret.name in embedded mode" -}}
+{{- end -}}
+{{- if and (not .Values.secrets.postgresql.generate) (or (ne .Values.secrets.postgresql.keys.username "username") (ne .Values.secrets.postgresql.keys.password "password")) -}}
+{{- fail "secrets.postgresql.keys.username and keys.password must be username and password for a CNPG existing Secret" -}}
+{{- end -}}
+{{- if .Values.postgresql.backups.enabled -}}
+{{- fail "postgresql.backups.enabled: embedded backup and restore will be added in OSMO-6609" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
 {{- end -}}
@@ -170,6 +196,6 @@
 {{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
 {{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if and .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
+{{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
 {{- end -}}

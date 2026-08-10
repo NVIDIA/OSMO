@@ -108,6 +108,7 @@ monitoring:
 
 secrets:
   postgresql:
+    generate: false
     existingSecret: osmo-postgresql
   valkey:
     existingSecret: osmo-valkey
