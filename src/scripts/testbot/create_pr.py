@@ -475,21 +475,17 @@ def _build_slack_review_payload(
     pr_url: str,
     pr_title: str,
 ) -> dict[str, Any]:
-    """Build a brief Slack Block Kit payload asking reviewers to review."""
+    """Build a brief Slack payload asking reviewers to review."""
     message = _build_slack_review_text(pr_url, pr_title)
 
+    # Plain text, no blocks: Slack only unfurls links in `text`, and messages
+    # posted by a bot need unfurl_links set explicitly. That lets the GitHub
+    # Slack app render the PR preview card under the message.
     return {
         "channel": _resolve_slack_channel(channel),
         "text": message,
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": message,
-                },
-            },
-        ],
+        "unfurl_links": True,
+        "unfurl_media": True,
     }
 
 

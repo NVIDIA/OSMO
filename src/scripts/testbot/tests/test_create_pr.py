@@ -309,7 +309,19 @@ class TestSlackReviewRequest(unittest.TestCase):
         )
         self.assertEqual(payload["channel"], "C0A8RJ738KZ")
         self.assertEqual(payload["text"], expected)
-        self.assertEqual(payload["blocks"][0]["text"]["text"], expected)
+
+    def test_build_slack_review_payload_enables_unfurl(self):
+        payload = _build_slack_review_payload(
+            channel="#osmo-slack-test",
+            pr_url="https://github.com/NVIDIA/OSMO/pull/123",
+            pr_title="[testbot] Add tests for foo.py",
+        )
+
+        # The GitHub Slack app only renders the PR card when Slack unfurls the
+        # link, which it will not do for a bot message carrying Block Kit blocks.
+        self.assertTrue(payload["unfurl_links"])
+        self.assertTrue(payload["unfurl_media"])
+        self.assertNotIn("blocks", payload)
 
     @patch("src.scripts.testbot.create_pr.urllib.request.urlopen")
     def test_post_slack_review_request_posts_payload(self, mock_urlopen):
