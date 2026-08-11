@@ -9,6 +9,7 @@ from pathlib import Path
 
 from src.scripts.testbot.verify_coverage import (
     DEFAULT_TARGET_THRESHOLD,
+    MAX_REPORTED_RANGES,
     RANGE_HIT_FRACTION,
     RangeResult,
     TargetReport,
@@ -328,6 +329,47 @@ class TestRenderMarkdown(unittest.TestCase):
         )
         md = render_markdown([report])
         self.assertIn("⚠️", md)
+
+    def test_fully_covered_target_lists_no_ranges(self):
+        # A checklist of all-✅ entries is noise; the summary line already
+        # carries the number a reviewer acts on.
+        report = TargetReport(
+            file_path="src/lib/foo.py",
+            listed_lines=4,
+            hit_lines=4,
+            ranges=[RangeResult(1, 2, 2, 2), RangeResult(5, 6, 2, 2)],
+            lcov_seen=True,
+        )
+        md = render_markdown([report])
+        self.assertNotIn("still uncovered", md)
+        self.assertNotIn("lines 1-2", md)
+
+    def test_names_still_uncovered_ranges(self):
+        report = TargetReport(
+            file_path="src/lib/foo.py",
+            listed_lines=4,
+            hit_lines=2,
+            ranges=[RangeResult(1, 2, 2, 2), RangeResult(5, 6, 0, 2)],
+            lcov_seen=True,
+        )
+        md = render_markdown([report])
+        self.assertIn("still uncovered: lines 5-6", md)
+        self.assertNotIn("lines 1-2", md)
+
+    def test_still_uncovered_ranges_are_capped(self):
+        misses = [RangeResult(n, n, 0, 1) for n in range(1, 15)]
+        report = TargetReport(
+            file_path="src/lib/foo.py",
+            listed_lines=14,
+            hit_lines=0,
+            ranges=misses,
+            lcov_seen=True,
+        )
+        md = render_markdown([report])
+        overflow = len(misses) - MAX_REPORTED_RANGES
+        self.assertIn(f"and {overflow} more", md)
+        self.assertIn("line 1,", md)
+        self.assertNotIn("line 14", md)
 
     def test_lcov_miss_marker(self):
         report = TargetReport(

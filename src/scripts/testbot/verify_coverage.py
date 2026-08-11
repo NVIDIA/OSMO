@@ -48,6 +48,10 @@ RANGE_HIT_FRACTION = 0.5
 # generator iterates until it clears this bar (or runs out of turns).
 DEFAULT_TARGET_THRESHOLD = 0.70
 
+# Cap on still-uncovered ranges named in the Markdown report. Enough to act
+# on; past that the list is noise and the JSON sidecar has the full set.
+MAX_REPORTED_RANGES = 8
+
 
 @dataclasses.dataclass(frozen=True)
 class RangeResult:
@@ -249,8 +253,10 @@ def render_markdown(reports: list[TargetReport]) -> str:
     """Render a Markdown coverage-gain section for the PR body.
 
     Mirrors the picker-rationale block format already used by
-    ``create_pr.py``: one heading, one row per target, then a per-range
-    checklist. The numbers come from the same JSON the LLM consumed during
+    ``create_pr.py``: one heading and one row per target. Only the ranges
+    still missing coverage are named — a per-range checklist of mostly-✅
+    entries ran to dozens of lines and buried the number that matters.
+    The numbers come from the same JSON the LLM consumed during
     iteration, so the PR description and the generator's view agree.
     """
     if not reports:
@@ -269,18 +275,16 @@ def render_markdown(reports: list[TargetReport]) -> str:
             f"{report.hit_lines}/{report.listed_lines} listed lines hit "
             f"({pct:.0f}%){note}"
         )
-        if not report.ranges:
-            lines.append("")
-            continue
-        for r in report.ranges:
-            span = (
-                f"line {r.start}" if r.start == r.end
-                else f"lines {r.start}-{r.end}"
+        still = report.still_uncovered_ranges()
+        if still:
+            shown = ", ".join(
+                f"line {start}" if start == end else f"lines {start}-{end}"
+                for start, end in still[:MAX_REPORTED_RANGES]
             )
-            check = "✅" if r.covered else "❌"
-            lines.append(
-                f"  - {check} {span} — {r.hit_lines}/{r.total_lines} hit"
-            )
+            overflow = len(still) - MAX_REPORTED_RANGES
+            if overflow > 0:
+                shown += f", and {overflow} more"
+            lines.append(f"  - still uncovered: {shown}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
