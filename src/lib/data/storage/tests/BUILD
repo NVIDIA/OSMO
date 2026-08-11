@@ -76,6 +76,15 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_copying",
+    srcs = ["test_copying.py"],
+    deps = [
+        "//src/lib/data/storage",
+        "//src/lib/data/storage/core",
+    ],
+)
+
+osmo_py_test(
     name = "test_streaming",
     srcs = ["test_streaming.py"],
     deps = [
