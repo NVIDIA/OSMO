@@ -146,6 +146,7 @@ test_control_umbrella() {
 
     require_deployment "$rendered" "osmo-api"
     require_no_deployment "$rendered" "osmo-service"
+    require_not_contains "$rendered" "name: osmo-service"
     require_deployment "$rendered" "osmo-worker"
     require_deployment "$rendered" "osmo-router"
     require_deployment "$rendered" "osmo-logger"
