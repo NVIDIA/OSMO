@@ -29,16 +29,6 @@ import websockets.exceptions
 
 from src.lib.utils import osmo_errors, port_forward
 
-# Captured before any test patches asyncio.wait, so the shim below can delegate
-# to the real implementation.
-original_asyncio_wait = asyncio.wait
-
-
-async def _wait_accepting_coroutines(awaitables, **kwargs):
-    """asyncio.wait shim that wraps bare coroutines into tasks first."""
-    tasks = [asyncio.ensure_future(awaitable) for awaitable in awaitables]
-    return await original_asyncio_wait(tasks, **kwargs)
-
 
 def _free_udp_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
@@ -819,39 +809,7 @@ class TestRunTcpShutdown(unittest.TestCase):
 
 
 class TestRunUdp(unittest.TestCase):
-    """Tests for run_udp datagram framing and shutdown.
-
-    Every test that gets past the datagram endpoint setup installs
-    _wait_accepting_coroutines over asyncio.wait; see the SUSPECTED BUG note on
-    test_forwards_router_datagram_without_an_asyncio_wait_shim below.
-    """
-
-    # SUSPECTED BUG: port_forward.py:run_udp passes bare coroutines to
-    # asyncio.wait(), which raises TypeError('Passing coroutines is forbidden,
-    # use tasks explicitly.') on Python 3.11+ — this repo pins Python 3.14. So
-    # run_udp always fails immediately after binding the datagram endpoint and
-    # UDP port forwarding cannot work at all. common.first_completed() is the
-    # existing helper that wraps coroutines in tasks; run_tcp_with_sock uses it
-    # but run_udp does not.
-    @unittest.skip('source bug — see comment above')
-    def test_forwards_router_datagram_without_an_asyncio_wait_shim(self):
-        async def run_test():
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as destination:
-                destination.bind(('127.0.0.1', 0))
-                destination.settimeout(5)
-                destination_port = destination.getsockname()[1]
-                frame = port_forward._encode_addr(b'pong', ('127.0.0.1', destination_port))
-                ctrl_websocket = _RecvThenClosedWebsocket([frame])
-
-                await port_forward.run_udp(
-                    cast(Any, _FakeServiceClient(cast(Any, ctrl_websocket))),
-                    '127.0.0.1', 0, 'test udp forward', 'api/router/udp', 1,
-                    'ws://router', 'ctrl-key', 'ctrl=cookie')
-
-                payload, _ = destination.recvfrom(1024)
-                self.assertEqual(payload, b'pong')
-
-        asyncio.run(run_test())
+    """Tests for run_udp datagram framing and shutdown."""
 
     def test_router_datagram_is_decoded_and_delivered_to_the_local_address(self):
         async def run_test():
@@ -872,8 +830,7 @@ class TestRunUdp(unittest.TestCase):
             self.assertEqual(payload, b'pong')
             self.assertTrue(ctrl_websocket.closed)
 
-        with mock.patch.object(asyncio, 'wait', new=_wait_accepting_coroutines):
-            asyncio.run(run_test())
+        asyncio.run(run_test())
 
     def test_local_datagram_is_framed_with_source_address_and_sent_to_router(self):
         async def run_test():
@@ -892,8 +849,7 @@ class TestRunUdp(unittest.TestCase):
             self.assertEqual(ip, '127.0.0.1')
             self.assertEqual(port, source_port)
 
-        with mock.patch.object(asyncio, 'wait', new=_wait_accepting_coroutines):
-            asyncio.run(run_test())
+        asyncio.run(run_test())
 
     def test_closed_router_connection_during_send_shuts_down_cleanly(self):
         async def run_test():
@@ -910,8 +866,7 @@ class TestRunUdp(unittest.TestCase):
             self.assertEqual(ctrl_websocket.sent, [])
             self.assertTrue(ctrl_websocket.closed)
 
-        with mock.patch.object(asyncio, 'wait', new=_wait_accepting_coroutines):
-            asyncio.run(run_test())
+        asyncio.run(run_test())
 
     def test_localhost_is_bound_as_ipv4_on_macos(self):
         created_endpoints = []
@@ -936,8 +891,7 @@ class TestRunUdp(unittest.TestCase):
         with mock.patch.object(port_forward.platform, 'system', return_value='Darwin'):
             with mock.patch.object(asyncio.BaseEventLoop, 'create_datagram_endpoint',
                                    record_local_addr):
-                with mock.patch.object(asyncio, 'wait', new=_wait_accepting_coroutines):
-                    asyncio.run(run_test())
+                asyncio.run(run_test())
 
     def test_refused_control_websocket_returns_without_raising(self):
         result = asyncio.run(port_forward.run_udp(

@@ -602,11 +602,6 @@ class LoadLocalFilesTest(unittest.TestCase):
         with self.assertRaisesRegex(osmo_errors.OSMOSubmissionError, 'does not exist'):
             workflow.load_local_files('/workspace/workflow.yaml', spec)
 
-    # SUSPECTED BUG: src/cli/workflow.py:load_local_files aliases the caller's task list.
-    # `tasks = workflow['workflow'].get('tasks', [])` hands back the spec's own list object, so
-    # `tasks += group.get('tasks', [])` extends it in place. Every group task is appended to
-    # workflow['workflow']['tasks'], silently rewriting the caller's spec before it is submitted.
-    @unittest.skip('source bug — see comment above')
     def test_group_tasks_are_not_appended_to_the_top_level_task_list(self):
         spec = {
             'workflow': {

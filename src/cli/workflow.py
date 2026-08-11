@@ -1237,10 +1237,10 @@ def _load_local_files_helper(workflow_file: str, section_dict: Dict):
 
 def load_local_files(workflow_file: str, workflow: Dict):
     # For v1 spec, and 'tasks' section of v2 spec
-    tasks = workflow['workflow'].get('tasks', [])
+    tasks = list(workflow['workflow'].get('tasks', []))
     # For 'groups' section of v2 spec
     for group in workflow['workflow'].get('groups', []):
-        tasks += group.get('tasks', [])
+        tasks.extend(group.get('tasks', []))
     # Substitute local file in all tasks
     for task in tasks:
         _load_local_files_helper(workflow_file, task)

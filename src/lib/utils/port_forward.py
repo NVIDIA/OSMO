@@ -300,9 +300,10 @@ async def run_udp(service_client: client.ServiceClient, app_host: str, app_port:
         transport, _ = await loop.create_datagram_endpoint(
             lambda: Protocol(), local_addr=(bind_host, app_port))  # type: ignore
 
-        _, pending = await asyncio.wait([send_datagram_to_router(),
-                                        receive_datagram_from_router(transport)],
-                                        return_when=asyncio.FIRST_COMPLETED)
+        _, pending = await asyncio.wait(
+            [asyncio.create_task(send_datagram_to_router()),
+             asyncio.create_task(receive_datagram_from_router(transport))],
+            return_when=asyncio.FIRST_COMPLETED)
         for i in pending:
             i.cancel()
     except (ConnectionRefusedError, websockets.exceptions.ConnectionClosedError) as err:
