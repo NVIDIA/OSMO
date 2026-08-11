@@ -237,7 +237,7 @@ spec:
       container: {{ $name }}
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.router.autoscaling.memoryTarget }}
+        averageUtilization: {{ .Values.services.router.autoscaling.hpaMemoryTarget }}
   - type: ContainerResource
     containerResource:
       name: cpu

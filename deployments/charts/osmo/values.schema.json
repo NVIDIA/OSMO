@@ -84,12 +84,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "api": { "$ref": "#/definitions/serviceComponent" },
-        "ui": { "$ref": "#/definitions/serviceComponent" },
-        "router": { "$ref": "#/definitions/serviceComponent" },
-        "worker": { "$ref": "#/definitions/serviceComponent" },
-        "logger": { "$ref": "#/definitions/serviceComponent" },
-        "agent": { "$ref": "#/definitions/serviceComponent" },
+        "api": { "$ref": "#/definitions/apiComponent" },
+        "ui": { "$ref": "#/definitions/uiComponent" },
+        "router": { "$ref": "#/definitions/autoscaledServiceComponent" },
+        "worker": { "$ref": "#/definitions/autoscaledServiceComponent" },
+        "logger": { "$ref": "#/definitions/autoscaledServiceComponent" },
+        "agent": { "$ref": "#/definitions/autoscaledServiceComponent" },
         "delayedJobMonitor": { "$ref": "#/definitions/serviceComponent" },
         "mcp": { "$ref": "#/definitions/mcpComponent" }
       }
@@ -98,10 +98,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "envoy": { "$ref": "#/definitions/gatewayComponent" },
-        "oauth2Proxy": { "$ref": "#/definitions/gatewayComponent" },
-        "authz": { "$ref": "#/definitions/gatewayComponent" },
-        "rateLimit": { "$ref": "#/definitions/gatewayComponent" },
+        "envoy": { "$ref": "#/definitions/gatewayEnvoyComponent" },
+        "oauth2Proxy": { "$ref": "#/definitions/gatewayOauth2ProxyComponent" },
+        "authz": { "$ref": "#/definitions/autoscaledServiceComponent" },
+        "rateLimit": { "$ref": "#/definitions/gatewayRateLimitComponent" },
         "upstreams": { "type": "object" },
         "networkPolicies": { "type": "object" },
         "tls": { "type": "object" }
@@ -192,8 +192,105 @@
         "resources": { "type": "object" }
       }
     },
+    "apiAuth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "deviceEndpoint": { "type": "string" },
+        "deviceClientId": { "type": "string" },
+        "browserEndpoint": { "type": "string" },
+        "browserClientId": { "type": "string" },
+        "tokenEndpoint": { "type": "string" },
+        "logoutEndpoint": { "type": "string" }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minReplicas": { "type": "integer", "minimum": 0 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "hpaMemoryTarget": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "hpaCpuTarget": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "customMetrics": { "type": "array" }
+      }
+    },
+    "envoyJwt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "userHeader": { "type": "string" },
+        "providers": { "type": "array" }
+      }
+    },
+    "uiService": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "portName": { "type": "string" },
+        "protocol": { "type": "string" },
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "extraPorts": { "type": "array" }
+      }
+    },
+    "autoscaledServiceComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/serviceComponent" },
+        {
+          "properties": {
+            "autoscaling": { "$ref": "#/definitions/autoscaling" }
+          }
+        }
+      ]
+    },
+    "apiComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/autoscaledServiceComponent" },
+        {
+          "properties": {
+            "auth": { "$ref": "#/definitions/apiAuth" }
+          }
+        }
+      ]
+    },
+    "uiComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/serviceComponent" },
+        {
+          "properties": {
+            "service": { "$ref": "#/definitions/uiService" }
+          }
+        }
+      ]
+    },
     "gatewayComponent": {
       "allOf": [{ "$ref": "#/definitions/serviceComponent" }]
+    },
+    "gatewayEnvoyComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/autoscaledServiceComponent" },
+        {
+          "properties": {
+            "jwt": { "$ref": "#/definitions/envoyJwt" }
+          }
+        }
+      ]
+    },
+    "gatewayOauth2ProxyComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/autoscaledServiceComponent" },
+        { "not": { "required": ["redis"] } }
+      ]
+    },
+    "gatewayRateLimitComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/gatewayComponent" },
+        { "not": { "required": ["redis"] } }
+      ]
     },
     "mcpComponent": {
       "allOf": [

@@ -176,6 +176,50 @@ test_control_umbrella() {
     require_contains "$rendered" "app.kubernetes.io/name: osmo"
     require_contains "$rendered" "app.kubernetes.io/component: api"
 
+    helm_template values-api "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.auth.enabled=true \
+        --set services.api.auth.deviceEndpoint=https://idp.example.com/device \
+        --set services.api.auth.deviceClientId=device-client \
+        --set services.api.auth.browserEndpoint=https://idp.example.com/authorize \
+        --set services.api.auth.browserClientId=browser-client \
+        --set services.api.auth.tokenEndpoint=https://idp.example.com/token \
+        --set services.api.auth.logoutEndpoint=https://idp.example.com/logout \
+        >"$TEST_DIRECTORY/osmo-values-api.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-values-api.yaml" Deployment values-api-osmo-api \
+        >"$TEST_DIRECTORY/osmo-values-api-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
+        "https://idp.example.com/device"
+    require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "device-client"
+    require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
+        "https://idp.example.com/authorize"
+    require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "browser-client"
+    require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
+        "https://idp.example.com/token"
+    require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
+        "https://idp.example.com/logout"
+
+    local legacy_value
+    local legacy_property
+    while IFS='|' read -r legacy_value legacy_property; do
+        if helm_template legacy-chart-values "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set "$legacy_value" \
+            >"$TEST_DIRECTORY/legacy-chart-values.out" 2>&1; then
+            fail "expected legacy $legacy_value to fail schema validation"
+        fi
+        require_contains "$TEST_DIRECTORY/legacy-chart-values.out" "$legacy_property"
+    done <<'EOF'
+services.api.auth.device_endpoint=https://idp.example.com/device|device_endpoint
+services.router.autoscaling.memoryTarget=80|memoryTarget
+gateway.envoy.jwt.user_header=x-osmo-user|user_header
+gateway.oauth2Proxy.redis.tlsEnabled=false|oauth2Proxy
+gateway.rateLimit.redis.tlsEnabled=false|rateLimit
+services.ui.service.selector.component=ui|selector
+EOF
+
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

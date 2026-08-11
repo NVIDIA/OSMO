@@ -312,10 +312,10 @@ spec:
           - --set-xauthrequest=true
           - --set-authorization-header=true
           - --pass-access-token={{ $gw.oauth2Proxy.passAccessToken }}
-          {{- $redisHost := $.Values.externalDependencies.valkey.host }}
+          {{- $valkey := $.Values.externalDependencies.valkey }}
           {{- if $gw.oauth2Proxy.redisSessionStore }}
           - --session-store-type=redis
-          - --redis-connection-url={{ if $gw.oauth2Proxy.redis.tlsEnabled }}rediss{{ else }}redis{{ end }}://{{ $redisHost }}:{{ $gw.oauth2Proxy.redis.port | default 6379 }}/{{ $gw.oauth2Proxy.redis.dbNumber | default 0 }}
+          - --redis-connection-url={{ if $valkey.tls.enabled }}rediss{{ else }}redis{{ end }}://{{ $valkey.host }}:{{ $valkey.port }}/{{ $valkey.database }}
           {{- end }}
           - --upstream=static://200
           - --redirect-url=https://{{ $envoyHostname }}/oauth2/callback
@@ -656,7 +656,7 @@ spec:
               name: {{ .Values.secrets.valkey.existingSecret }}
               key: {{ .Values.secrets.valkey.keys.password }}
         - name: REDIS_TLS
-          value: {{ dig "redis" "tlsEnabled" true $gw.rateLimit | quote }}
+          value: {{ .Values.externalDependencies.valkey.tls.enabled | quote }}
         - name: USE_STATSD
           value: "false"
         - name: RUNTIME_ROOT

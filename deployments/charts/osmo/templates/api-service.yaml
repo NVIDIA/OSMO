@@ -96,17 +96,17 @@ spec:
         {{- end }}
         {{- if .Values.services.api.auth.enabled }}
         - --device_endpoint
-        - {{ .Values.services.api.auth.device_endpoint }}
+        - {{ .Values.services.api.auth.deviceEndpoint }}
         - --device_client_id
-        - {{ .Values.services.api.auth.device_client_id }}
+        - {{ .Values.services.api.auth.deviceClientId }}
         - --browser_endpoint
-        - {{ .Values.services.api.auth.browser_endpoint }}
+        - {{ .Values.services.api.auth.browserEndpoint }}
         - --browser_client_id
-        - {{ .Values.services.api.auth.browser_client_id }}
+        - {{ .Values.services.api.auth.browserClientId }}
         - --token_endpoint
-        - {{ .Values.services.api.auth.token_endpoint }}
+        - {{ .Values.services.api.auth.tokenEndpoint }}
         - --logout_endpoint
-        - {{ .Values.services.api.auth.logout_endpoint }}
+        - {{ .Values.services.api.auth.logoutEndpoint }}
         {{- end }}
         {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.hostname" .) }}
         {{- if $serviceHostname }}

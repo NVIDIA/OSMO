@@ -4,6 +4,11 @@
 configuration:
   service: null
 
+externalDependencies:
+  valkey:
+    tls:
+      enabled: false
+
 services:
   api:
     monitoring:
@@ -63,7 +68,5 @@ gateway:
     enabled: true
   rateLimit:
     enabled: true
-    redis:
-      tlsEnabled: false
   networkPolicies:
     enabled: true

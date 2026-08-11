@@ -267,8 +267,8 @@ data:
                 - match:
                     path: /signout
                   redirect:
-                    {{- if .Values.services.api.auth.logout_endpoint }}
-                    path_redirect: "/oauth2/sign_out?rd={{ .Values.services.api.auth.logout_endpoint | urlquery }}"
+                    {{- if .Values.services.api.auth.logoutEndpoint }}
+                    path_redirect: "/oauth2/sign_out?rd={{ .Values.services.api.auth.logoutEndpoint | urlquery }}"
                     {{- else }}
                     path_redirect: "/oauth2/sign_out"
                     {{- end }}
@@ -741,7 +741,7 @@ data:
                           max_interval: 3s
                     claim_to_headers:
                     - claim_name: {{$provider.user_claim}}
-                      header_name: {{$envoy.jwt.user_header}}
+                      header_name: {{$envoy.jwt.userHeader}}
                   {{- end }}
                 rules:
                   {{- if $skipAuthPaths }}
