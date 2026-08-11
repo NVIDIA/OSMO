@@ -40,17 +40,7 @@ spec:
       {{- end }}
       {{- with .Values.services.router.pod.topologySpreadConstraints }}
       topologySpreadConstraints:
-      {{- range . }}
-      - topologyKey: {{.topologyKey }}
-        {{- range $key, $value := . }}
-        {{- if ne $key "topologyKey" }}
-        {{$key}}: {{$value}}
-        {{- end }}
-        {{- end }}
-        labelSelector:
-          matchLabels:
-            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "router") | nindent 12 }}
-      {{- end }}
+        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "router") | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.router)) }}
       nodeSelector:

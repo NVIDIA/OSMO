@@ -51,6 +51,15 @@ require_occurrences() {
         fail "expected '$expected' $count times in $file, found $actual"
 }
 
+require_line_count() {
+    local file=$1
+    local expected=$2
+    local actual
+    actual=$(awk 'END { print NR }' "$file")
+    [[ "$actual" -eq "$expected" ]] || \
+        fail "expected $expected lines in $file, found $actual"
+}
+
 require_no_grep_matches() {
     local output_file=$1
     local failure_message=$2
@@ -84,8 +93,57 @@ resource_document() {
     local name=$3
     awk -v kind="$kind" -v name="$name" '
         BEGIN { RS = "---" }
-        $0 ~ ("\nkind: " kind "\n") && $0 ~ ("\n  name: " name "\n") { print }
+        {
+            line_count = split($0, lines, "\n")
+            for (i = 1; i <= line_count - 2; i++) {
+                if (lines[i] == "kind: " kind &&
+                    lines[i + 1] == "metadata:" &&
+                    lines[i + 2] == "  name: " name) {
+                    print
+                    next
+                }
+            }
+        }
     ' "$file"
+}
+
+pod_template_labels() {
+    awk '
+        /^  template:$/ { in_template = 1; next }
+        in_template && /^    metadata:$/ { in_metadata = 1; next }
+        in_metadata && /^      labels:$/ { in_labels = 1; next }
+        in_labels && /^        [^ ]/ {
+            sub(/^        /, "")
+            print
+            next
+        }
+        in_labels { exit }
+    ' "$1"
+}
+
+deployment_selector_labels() {
+    awk '
+        /^  selector:$/ { in_selector = 1; next }
+        in_selector && /^    matchLabels:$/ { in_labels = 1; next }
+        in_labels && /^      [^ ]/ {
+            sub(/^      /, "")
+            print
+            next
+        }
+        in_labels { exit }
+    ' "$1"
+}
+
+topology_spread_constraints() {
+    awk '
+        /^      topologySpreadConstraints:$/ {
+            in_constraints = 1
+            print
+            next
+        }
+        in_constraints && /^      [[:alnum:]]/ { exit }
+        in_constraints { print }
+    ' "$1"
 }
 
 require_deployment() {
@@ -361,6 +419,34 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-node-port-service.yaml" "port: 8080"
     require_contains "$TEST_DIRECTORY/osmo-node-port-service.yaml" \
         "nodePort: 30080"
+    resource_document "$TEST_DIRECTORY/osmo-node-port.yaml" Deployment \
+        node-port-release-osmo-ui >"$TEST_DIRECTORY/osmo-node-port-ui.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-node-port-ui.yaml" \
+        'value: "node-port-release-osmo-gateway:8080"'
+
+    helm_template external-url-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string externalUrl=https://osmo.example.com:8443/osmo/ \
+        --set gateway.oauth2Proxy.enabled=true \
+        >"$TEST_DIRECTORY/osmo-external-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-external-url.yaml" Deployment \
+        external-url-release-osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/osmo-external-url-oauth2-proxy.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-external-url-oauth2-proxy.yaml" \
+        "- --redirect-url=https://osmo.example.com:8443/osmo/oauth2/callback"
+
+    helm_template external-http-url-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string externalUrl=http://osmo.example.com:65535/base/ \
+        --set gateway.oauth2Proxy.enabled=true \
+        >"$TEST_DIRECTORY/osmo-external-http-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-external-http-url.yaml" Deployment \
+        external-http-url-release-osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/osmo-external-http-url-oauth2-proxy.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-external-http-url-oauth2-proxy.yaml" \
+        "- --redirect-url=http://osmo.example.com:65535/base/oauth2/callback"
 
     helm_template values-api "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -404,22 +490,149 @@ gateway.envoy.jwt.user_header=x-osmo-user|user_header
 gateway.oauth2Proxy.redis.tlsEnabled=false|oauth2Proxy
 gateway.rateLimit.redis.tlsEnabled=false|rateLimit
 services.ui.service.selector.component=ui|selector
+gateway.upstreams.service.host=legacy-api|service
+gateway.upstreams.api.enabled=false|enabled
+gateway.upstreams.api.unknown=true|unknown
+gateway.networkPolicies.unknown=true|unknown
+gateway.networkPolicies.upstreams[0].component=service|component
+gateway.tls.unknown=true|unknown
+gateway.tls.upstreamCerts.service=legacy-api-tls|service
+EOF
+
+
+    local invalid_gateway_value
+    local invalid_gateway_property
+    while IFS='|' read -r invalid_gateway_value invalid_gateway_property; do
+        if helm_template invalid-gateway-values "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string "$invalid_gateway_value" \
+            >"$TEST_DIRECTORY/invalid-gateway-values.out" 2>&1; then
+            fail "expected invalid $invalid_gateway_value to fail schema validation"
+        fi
+        require_contains "$TEST_DIRECTORY/invalid-gateway-values.out" \
+            "$invalid_gateway_property"
+    done <<'EOF'
+gateway.upstreams.api.port=not-a-port|port
+gateway.networkPolicies.enabled=not-a-boolean|enabled
+gateway.tls.enabled=not-a-boolean|enabled
+gateway.tls.upstreamCerts.api[0]=invalid|api
 EOF
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set-string 'commonLabels.app\.kubernetes\.io/name=wrong' \
-        --set-string 'podDefaults.labels.app\.kubernetes\.io/component=wrong' \
+        -f "$CHARTS_ROOT/osmo/tests/control-hostile-metadata-values.yaml" \
         >"$TEST_DIRECTORY/osmo-hostile-labels.yaml"
     require_deployment "$TEST_DIRECTORY/osmo-hostile-labels.yaml" "osmo-api"
     resource_document "$TEST_DIRECTORY/osmo-hostile-labels.yaml" Deployment osmo-api \
         >"$TEST_DIRECTORY/osmo-api-hostile-labels.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" \
+    pod_template_labels "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" \
+        >"$TEST_DIRECTORY/osmo-api-pod-labels.yaml"
+    deployment_selector_labels "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" \
+        >"$TEST_DIRECTORY/osmo-api-selector-labels.yaml"
+    require_line_count "$TEST_DIRECTORY/osmo-api-selector-labels.yaml" 3
+    require_contains "$TEST_DIRECTORY/osmo-api-selector-labels.yaml" \
         "app.kubernetes.io/name: osmo"
-    require_contains "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" \
+    require_contains "$TEST_DIRECTORY/osmo-api-selector-labels.yaml" \
+        "app.kubernetes.io/instance: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-api-selector-labels.yaml" \
         "app.kubernetes.io/component: api"
-    require_not_contains "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" "wrong"
+    require_occurrences "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "helm.sh/chart:" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/name:" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/instance:" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/version:" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/managed-by:" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/part-of:" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/component:" 1
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "helm.sh/chart: osmo-0.1.0"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/name: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/instance: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/version: 6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/managed-by: Helm"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/part-of: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "app.kubernetes.io/component: api"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "example.com/common-label: preserved"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "example.com/pod-default-label: preserved"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "example.com/component-label: preserved"
+    require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
+        "example.com/precedence: component"
+    require_not_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" "wrong-"
+
+    local topology_component
+    for topology_component in api ui router worker logger agent; do
+        resource_document "$TEST_DIRECTORY/osmo-hostile-labels.yaml" Deployment \
+            "osmo-$topology_component" \
+            >"$TEST_DIRECTORY/osmo-$topology_component-hostile-topology.yaml"
+        topology_spread_constraints \
+            "$TEST_DIRECTORY/osmo-$topology_component-hostile-topology.yaml" \
+            >"$TEST_DIRECTORY/osmo-$topology_component-topology.yaml"
+        require_occurrences \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "labelSelector:" 1
+        require_occurrences \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "app.kubernetes.io/name: osmo" 1
+        require_occurrences \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "app.kubernetes.io/instance: osmo" 1
+        require_occurrences \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "app.kubernetes.io/component: $topology_component" 1
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "matchLabelKeys:"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "- pod-template-hash"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "maxSkew: 2"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "minDomains: 2"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "topologyKey: topology.example.com/$topology_component"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "whenUnsatisfiable: DoNotSchedule"
+        require_not_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "user.example.com/selector"
+        require_not_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "user.example.com/expression"
+        require_not_contains \
+            "$TEST_DIRECTORY/osmo-$topology_component-topology.yaml" \
+            "helm.sh/chart"
+    done
+
+    resource_document "$rendered" Role osmo-api-configmap-events \
+        >"$TEST_DIRECTORY/osmo-api-role.yaml"
+    resource_document "$rendered" RoleBinding osmo-api-configmap-events \
+        >"$TEST_DIRECTORY/osmo-api-role-binding.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-api-role.yaml" \
+        "app.kubernetes.io/component: api"
+    require_contains "$TEST_DIRECTORY/osmo-api-role-binding.yaml" \
+        "app.kubernetes.io/component: api"
 
     resource_document "$rendered" Deployment osmo-agent \
         >"$TEST_DIRECTORY/osmo-agent.yaml"
@@ -724,6 +937,58 @@ EOF
     require_contains "$TEST_DIRECTORY/invalid-httproute.out" \
         "httproute.parentRefs requires at least one entry when httproute.enabled=true"
 
+    if helm_template dangling-ingress "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.envoy.enabled=false \
+        --set ingress.enabled=true \
+        --set ingress.hostname=osmo.example.com \
+        >"$TEST_DIRECTORY/dangling-ingress.out" 2>&1; then
+        fail "expected ingress.enabled=true with Envoy disabled to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/dangling-ingress.out" \
+        "ingress.enabled=true requires gateway.envoy.enabled=true"
+
+    if helm_template dangling-httproute "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.envoy.enabled=false \
+        --set httproute.enabled=true \
+        --set httproute.parentRefs[0].name=shared-gateway \
+        >"$TEST_DIRECTORY/dangling-httproute.out" 2>&1; then
+        fail "expected httproute.enabled=true with Envoy disabled to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/dangling-httproute.out" \
+        "httproute.enabled=true requires gateway.envoy.enabled=true"
+
+    local invalid_external_url
+    for invalid_external_url in \
+        " " \
+        " https://osmo.example.com" \
+        "osmo.example.com" \
+        "ftp://osmo.example.com" \
+        "https:///missing-host" \
+        "https://osmo.example.com/bad path" \
+        "https://osmo.example.com/foo\"bar" \
+        "https://osmo.example.com/<bad>" \
+        "https://osmo.example.com/{bad}" \
+        "https://osmo.example.com/%ZZ" \
+        "https://osmo.example.com/foo|bar" \
+        "https://osmo.example.com/foo\\\\bar" \
+        "https://osmo.example.com:65536/base" \
+        "https://osmo.example.com?next=/base" \
+        "https://osmo.example.com#base" \
+        "https://[2001:db8::1]:8443/osmo/"; do
+        if helm_template invalid-external-url "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string "externalUrl=$invalid_external_url" \
+            >"$TEST_DIRECTORY/invalid-external-url.out" 2>&1; then
+            fail "expected invalid externalUrl '$invalid_external_url' to fail"
+        fi
+        require_contains "$TEST_DIRECTORY/invalid-external-url.out" "externalUrl"
+    done
+
     local required_value
     local expected_message
     while IFS='|' read -r required_value expected_message; do
@@ -741,6 +1006,18 @@ externalDependencies.objectStorage.buckets.workflows|buckets.workflows is requir
 externalDependencies.objectStorage.buckets.logs|buckets.logs is required
 externalDependencies.objectStorage.buckets.apps|buckets.apps is required
 EOF
+
+    helm install notes-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --dry-run=client \
+        --set gateway.envoy.service.port=8443 \
+        --set gateway.envoy.ssl.enabled=true \
+        >"$TEST_DIRECTORY/osmo-notes.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-notes.yaml" \
+        "service/notes-release-osmo-gateway 8080:8443"
+    require_contains "$TEST_DIRECTORY/osmo-notes.yaml" \
+        "curl https://127.0.0.1:8080/api/version"
 
     if helm_template unknown-root "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

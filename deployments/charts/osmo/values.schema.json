@@ -49,7 +49,16 @@
         "logFormat": { "type": "string", "enum": ["text", "json"] }
       }
     },
-    "externalUrl": { "type": "string" },
+    "externalUrl": {
+      "type": "string",
+      "anyOf": [
+        { "maxLength": 0 },
+        {
+          "format": "uri",
+          "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(?:/(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})*)*$"
+        }
+      ]
+    },
     "ingress": { "$ref": "#/definitions/ingress" },
     "httproute": { "$ref": "#/definitions/httpRoute" },
     "externalDependencies": {
@@ -95,9 +104,9 @@
         "oauth2Proxy": { "$ref": "#/definitions/gatewayOauth2ProxyComponent" },
         "authz": { "$ref": "#/definitions/autoscaledServiceComponent" },
         "rateLimit": { "$ref": "#/definitions/gatewayRateLimitComponent" },
-        "upstreams": { "type": "object" },
-        "networkPolicies": { "type": "object" },
-        "tls": { "type": "object" }
+        "upstreams": { "$ref": "#/definitions/gatewayUpstreams" },
+        "networkPolicies": { "$ref": "#/definitions/gatewayNetworkPolicies" },
+        "tls": { "$ref": "#/definitions/gatewayTls" }
       }
     }
   },
@@ -112,6 +121,84 @@
     "stringMap": {
       "type": "object",
       "additionalProperties": { "type": "string" }
+    },
+    "gatewayApiUpstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      },
+      "required": ["host", "port"]
+    },
+    "gatewayOptionalUpstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      },
+      "required": ["enabled", "host", "port"]
+    },
+    "gatewayUpstreams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api": { "$ref": "#/definitions/gatewayApiUpstream" },
+        "router": { "$ref": "#/definitions/gatewayOptionalUpstream" },
+        "ui": { "$ref": "#/definitions/gatewayOptionalUpstream" },
+        "agent": { "$ref": "#/definitions/gatewayOptionalUpstream" },
+        "logger": { "$ref": "#/definitions/gatewayOptionalUpstream" }
+      },
+      "required": ["api", "router", "ui", "agent", "logger"]
+    },
+    "gatewayNetworkPolicyUpstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "component": {
+          "type": "string",
+          "enum": ["api", "router", "ui", "agent", "logger", "mcp"]
+        },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      },
+      "required": ["name", "component"]
+    },
+    "gatewayNetworkPolicies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "upstreams": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/gatewayNetworkPolicyUpstream" }
+        }
+      },
+      "required": ["enabled", "upstreams"]
+    },
+    "gatewayUpstreamCerts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api": { "type": "string" },
+        "router": { "type": "string" },
+        "agent": { "type": "string" },
+        "logger": { "type": "string" },
+        "mcp": { "type": "string" }
+      },
+      "required": ["api", "router", "agent", "logger", "mcp"]
+    },
+    "gatewayTls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "upstreamCerts": { "$ref": "#/definitions/gatewayUpstreamCerts" },
+        "caSecret": { "type": "string" }
+      },
+      "required": ["enabled", "upstreamCerts", "caSecret"]
     },
     "ingressTls": {
       "type": "object",

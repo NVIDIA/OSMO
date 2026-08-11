@@ -15,6 +15,10 @@ uses operator-managed PostgreSQL, Valkey, object storage, and Kubernetes
 Secrets. Compute-plane workloads and chart-generated Secrets are outside this
 chart's clean-install boundary.
 
+Releases installed before this convention cleanup must be uninstalled and
+reinstalled. Do not upgrade those releases in place: this cleanup changes
+Deployment selectors, and Kubernetes treats those selectors as immutable.
+
 ## Chart conventions
 
 Named templates use dotted helper names: `osmo.<area>.<purpose>`. For example,

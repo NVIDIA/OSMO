@@ -27,7 +27,7 @@ app.kubernetes.io/name: {{ include "osmo.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "osmo.labels" -}}
+{{- define "osmo.metadata.standardLabels" -}}
 {{- $identity := dict
       "helm.sh/chart" (include "osmo.chart" .)
       "app.kubernetes.io/name" (include "osmo.name" .)
@@ -37,6 +37,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Chart.AppVersion -}}
 {{- $_ := set $identity "app.kubernetes.io/version" .Chart.AppVersion -}}
 {{- end -}}
+{{- toYaml $identity -}}
+{{- end -}}
+
+{{- define "osmo.labels" -}}
+{{- $identity := include "osmo.metadata.standardLabels" . | fromYaml -}}
 {{- toYaml (mergeOverwrite (deepCopy .Values.commonLabels) $identity) -}}
 {{- end -}}
 
@@ -46,10 +51,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- toYaml $labels -}}
 {{- end -}}
 
-{{- define "osmo.component.labels" -}}
-{{- $labels := include "osmo.labels" .root | fromYaml -}}
+{{- define "osmo.component.standardLabels" -}}
+{{- $labels := include "osmo.metadata.standardLabels" .root | fromYaml -}}
 {{- $_ := set $labels "app.kubernetes.io/component" .component -}}
 {{- toYaml $labels -}}
+{{- end -}}
+
+{{- define "osmo.component.labels" -}}
+{{- $labels := deepCopy .root.Values.commonLabels -}}
+{{- $identity := include "osmo.component.standardLabels" . | fromYaml -}}
+{{- toYaml (mergeOverwrite $labels $identity) -}}
 {{- end -}}
 
 {{- define "osmo.component.fullname" -}}
@@ -114,8 +125,19 @@ default
 
 {{- define "osmo.pod.labels" -}}
 {{- $labels := mergeOverwrite (deepCopy .root.Values.commonLabels) .root.Values.podDefaults.labels (dig "pod" "labels" dict .component) -}}
-{{- $identity := include "osmo.component.selectorLabels" (dict "root" .root "component" .componentName) | fromYaml -}}
+{{- $identity := include "osmo.component.standardLabels" (dict "root" .root "component" .componentName) | fromYaml -}}
 {{- toYaml (mergeOverwrite $labels $identity) -}}
+{{- end -}}
+
+{{- define "osmo.pod.topologySpreadConstraints" -}}
+{{- $constraints := list -}}
+{{- $selectorLabels := include "osmo.component.selectorLabels" (dict "root" .root "component" .componentName) | fromYaml -}}
+{{- range .constraints -}}
+{{- $constraint := omit (deepCopy .) "labelSelector" -}}
+{{- $_ := set $constraint "labelSelector" (dict "matchLabels" (deepCopy $selectorLabels)) -}}
+{{- $constraints = append $constraints $constraint -}}
+{{- end -}}
+{{- with $constraints }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
 {{- define "osmo.pod.tolerations" -}}

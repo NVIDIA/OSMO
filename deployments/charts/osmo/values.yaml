@@ -253,7 +253,7 @@ services:
       name: web-ui
       tag: ''
       pullPolicy: Always
-    # Leave empty to use this release's gateway Service and port 80.
+    # Leave empty to use this release's gateway Service and configured port.
     apiHostname: ''
     portForwardEnabled: false
     nextjsSslEnabled: false
@@ -755,7 +755,6 @@ gateway:
   # release's Services; set a host only to route outside the release.
   upstreams:
     api:
-      enabled: true
       host: ''
       port: 80
     router:

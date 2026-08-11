@@ -24,7 +24,7 @@ kind: Role
 metadata:
   name: {{ $apiName }}-configmap-events
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
 rules:
 # Emit Events on reload failures/recoveries.
 - apiGroups: [""]
@@ -44,7 +44,7 @@ kind: RoleBinding
 metadata:
   name: {{ $apiName }}-configmap-events
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

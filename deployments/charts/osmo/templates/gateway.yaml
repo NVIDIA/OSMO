@@ -16,7 +16,6 @@
 
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway.fullname" . }}
-{{- $envoyHostname := $gw.envoy.hostname | default (include "osmo.hostname" .) }}
 
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
@@ -275,7 +274,7 @@ spec:
           - --redis-connection-url={{ if $valkey.tls.enabled }}rediss{{ else }}redis{{ end }}://{{ $valkey.host }}:{{ $valkey.port }}/{{ $valkey.database }}
           {{- end }}
           - --upstream=static://200
-          - --redirect-url=https://{{ $envoyHostname }}/oauth2/callback
+          - --redirect-url={{ trimSuffix "/" $.Values.externalUrl }}/oauth2/callback
           - --silence-ping-logging=true
           - --skip-provider-button=true
           - --api-route=/api/.+

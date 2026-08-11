@@ -32,17 +32,9 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
     spec:
+      {{- with .Values.services.worker.pod.topologySpreadConstraints }}
       topologySpreadConstraints:
-      {{- range .Values.services.worker.pod.topologySpreadConstraints }}
-      - topologyKey: {{.topologyKey }}
-        {{- range $key, $value := . }}
-        {{- if ne $key "topologyKey" }}
-        {{$key}}: {{$value}}
-        {{- end }}
-        {{- end }}
-        labelSelector:
-          matchLabels:
-            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "worker") | nindent 12 }}
+        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "worker") | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.worker)) }}
       nodeSelector:

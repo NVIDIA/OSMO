@@ -21,6 +21,12 @@
 {{- if not .Values.externalUrl -}}
 {{- fail "externalUrl is required for the control plane" -}}
 {{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.gateway.envoy.enabled) -}}
+{{- fail "ingress.enabled=true requires gateway.envoy.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.httproute.enabled (not .Values.gateway.envoy.enabled) -}}
+{{- fail "httproute.enabled=true requires gateway.envoy.enabled=true" -}}
+{{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hostname) -}}
 {{- fail "ingress.hostname is required when ingress.enabled=true" -}}
 {{- end -}}

@@ -39,17 +39,9 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.services.agent.pod.topologySpreadConstraints }}
       topologySpreadConstraints:
-      {{- range .Values.services.agent.pod.topologySpreadConstraints }}
-      - topologyKey: {{.topologyKey }}
-        {{- range $key, $value := . }}
-        {{- if ne $key "topologyKey" }}
-        {{$key}}: {{$value}}
-        {{- end }}
-        {{- end }}
-        labelSelector:
-          matchLabels:
-            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "agent") | nindent 12 }}
+        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "agent") | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.agent)) }}
       nodeSelector:

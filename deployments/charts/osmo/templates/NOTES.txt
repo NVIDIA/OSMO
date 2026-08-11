@@ -16,8 +16,8 @@ this chart does not create a Gateway or GatewayClass.
 
 To test a ClusterIP gateway locally, run:
 
-  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "osmo.gateway.fullname" . }} 8080:80
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "osmo.gateway.fullname" . }} 8080:{{ .Values.gateway.envoy.service.port }}
 
 Then query:
 
-  curl http://127.0.0.1:8080/api/version
+  curl {{ ternary "https" "http" .Values.gateway.envoy.ssl.enabled }}://127.0.0.1:8080/api/version

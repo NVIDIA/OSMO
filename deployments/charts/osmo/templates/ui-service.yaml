@@ -35,17 +35,9 @@ spec:
     spec:
       hostAliases:
         {{ toYaml .Values.services.ui.pod.hostAliases | nindent 8}}
+      {{- with .Values.services.ui.pod.topologySpreadConstraints }}
       topologySpreadConstraints:
-      {{- range .Values.services.ui.pod.topologySpreadConstraints }}
-      - topologyKey: {{.topologyKey }}
-        {{- range $key, $value := . }}
-        {{- if ne $key "topologyKey" }}
-        {{$key}}: {{$value}}
-        {{- end }}
-        {{- end }}
-        labelSelector:
-          matchLabels:
-            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "ui") | nindent 12 }}
+        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "ui") | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.ui)) }}
       nodeSelector:
@@ -76,7 +68,7 @@ spec:
         - name: NODE_OPTIONS
           value: '--max-http-header-size={{ mul .Values.services.ui.maxHttpHeaderSizeKb 1024 }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
-          value: {{ .Values.services.ui.apiHostname | default (printf "%s:80" (include "osmo.gateway.fullname" .)) | quote }}
+          value: {{ .Values.services.ui.apiHostname | default (printf "%s:%v" (include "osmo.gateway.fullname" .) .Values.gateway.envoy.service.port) | quote }}
         - name: NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED
           value: {{ .Values.services.ui.portForwardEnabled | quote }}
         - name: NEXT_PUBLIC_OSMO_SSL_ENABLED

@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+commonLabels:
+  helm.sh/chart: wrong-common
+  app.kubernetes.io/name: wrong-common
+  app.kubernetes.io/instance: wrong-common
+  app.kubernetes.io/version: wrong-common
+  app.kubernetes.io/managed-by: wrong-common
+  app.kubernetes.io/part-of: wrong-common
+  app.kubernetes.io/component: wrong-common
+  example.com/common-label: preserved
+  example.com/precedence: common
+
+podDefaults:
+  labels:
+    helm.sh/chart: wrong-pod-default
+    app.kubernetes.io/name: wrong-pod-default
+    app.kubernetes.io/instance: wrong-pod-default
+    app.kubernetes.io/version: wrong-pod-default
+    app.kubernetes.io/managed-by: wrong-pod-default
+    app.kubernetes.io/part-of: wrong-pod-default
+    app.kubernetes.io/component: wrong-pod-default
+    example.com/pod-default-label: preserved
+    example.com/precedence: pod-default
+
+services:
+  api:
+    pod:
+      labels:
+        helm.sh/chart: wrong-component
+        app.kubernetes.io/name: wrong-component
+        app.kubernetes.io/instance: wrong-component
+        app.kubernetes.io/version: wrong-component
+        app.kubernetes.io/managed-by: wrong-component
+        app.kubernetes.io/part-of: wrong-component
+        app.kubernetes.io/component: wrong-component
+        example.com/component-label: preserved
+        example.com/precedence: component
+      topologySpreadConstraints:
+      - maxSkew: 2
+        minDomains: 2
+        topologyKey: topology.example.com/api
+        whenUnsatisfiable: DoNotSchedule
+        matchLabelKeys:
+        - pod-template-hash
+        labelSelector:
+          matchLabels:
+            user.example.com/selector: hostile-api
+          matchExpressions:
+          - key: user.example.com/expression
+            operator: Exists
+  ui:
+    pod:
+      topologySpreadConstraints:
+      - maxSkew: 2
+        minDomains: 2
+        topologyKey: topology.example.com/ui
+        whenUnsatisfiable: DoNotSchedule
+        matchLabelKeys:
+        - pod-template-hash
+        labelSelector:
+          matchLabels:
+            user.example.com/selector: hostile-ui
+          matchExpressions:
+          - key: user.example.com/expression
+            operator: Exists
+  router:
+    pod:
+      topologySpreadConstraints:
+      - maxSkew: 2
+        minDomains: 2
+        topologyKey: topology.example.com/router
+        whenUnsatisfiable: DoNotSchedule
+        matchLabelKeys:
+        - pod-template-hash
+        labelSelector:
+          matchLabels:
+            user.example.com/selector: hostile-router
+          matchExpressions:
+          - key: user.example.com/expression
+            operator: Exists
+  worker:
+    pod:
+      topologySpreadConstraints:
+      - maxSkew: 2
+        minDomains: 2
+        topologyKey: topology.example.com/worker
+        whenUnsatisfiable: DoNotSchedule
+        matchLabelKeys:
+        - pod-template-hash
+        labelSelector:
+          matchLabels:
+            user.example.com/selector: hostile-worker
+          matchExpressions:
+          - key: user.example.com/expression
+            operator: Exists
+  logger:
+    pod:
+      topologySpreadConstraints:
+      - maxSkew: 2
+        minDomains: 2
+        topologyKey: topology.example.com/logger
+        whenUnsatisfiable: DoNotSchedule
+        matchLabelKeys:
+        - pod-template-hash
+        labelSelector:
+          matchLabels:
+            user.example.com/selector: hostile-logger
+          matchExpressions:
+          - key: user.example.com/expression
+            operator: Exists
+  agent:
+    pod:
+      topologySpreadConstraints:
+      - maxSkew: 2
+        minDomains: 2
+        topologyKey: topology.example.com/agent
+        whenUnsatisfiable: DoNotSchedule
+        matchLabelKeys:
+        - pod-template-hash
+        labelSelector:
+          matchLabels:
+            user.example.com/selector: hostile-agent
+          matchExpressions:
+          - key: user.example.com/expression
+            operator: Exists
