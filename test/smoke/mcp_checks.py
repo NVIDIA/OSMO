@@ -298,6 +298,7 @@ class McpChecks(SmokeFixture):
                 "valid": True,
                 "pool": pool,
                 "logs": "Workflow validation succeeded.",
+                "warnings": [],
             },
         )
 

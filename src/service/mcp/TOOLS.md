@@ -31,12 +31,14 @@ RBAC.
 | Profile | `osmo_get_profile` | Active identity, settings, roles, accessible pools, and non-secret token name/expiry metadata | `GET /api/profile/settings` |
 | Pools | `osmo_search_pools` | Accessible pools only; local text search and bounded output preserve shared node-set capacity | `GET /api/profile/settings`, `GET /api/pool_quota` |
 | Resources | `osmo_list_resources`, `osmo_get_resource` | Profile-selected accessible pools; normalized CLI-compatible capacity/used/free quantities; local bounded output and uniform node not-found behavior | `GET /api/profile/settings`, `GET /api/resources`, `GET /api/resources/{node_name}` |
-| Workflows | `osmo_list_workflows`, `osmo_get_workflow`, `osmo_get_workflow_logs`, `osmo_get_workflow_events`, `osmo_get_workflow_spec` | Active user's workflows in token-accessible pools; canonical workflow IDs; compact status and marked bounded text | `GET /api/workflow...` |
+| Workflows | `osmo_list_workflows`, `osmo_get_workflow`, `osmo_get_workflow_logs`, `osmo_get_workflow_events`, `osmo_get_workflow_spec` | Active user's workflows in token-accessible pools; label filters, projected labels, and bounded/redacted policy warnings; canonical workflow IDs; compact status and marked bounded text | `GET /api/workflow...` |
 | Applications | `osmo_list_apps`, `osmo_get_app`, `osmo_get_app_spec` | Active user's apps by default; app specs resolve a concrete newest READY version from bounded history when omitted, and return marked bounded text | `GET /api/app...` |
 | Credential metadata | `osmo_list_credentials` | Names and types only; never profiles or credential payloads | `GET /api/credentials` |
 
 These tools are read-only, idempotent, closed-world operations. Workflow and
-application list APIs paginate upstream. Pool and resource tools bound their
+application list APIs paginate upstream. Workflow pages are capped at 50 so
+maximum-size label maps remain within the upstream and MCP result budgets.
+Pool and resource tools bound their
 MCP output but may read a complete accessible upstream response because the
 existing APIs do not offer agent-facing pagination. Logs apply Core's tail
 control only when the caller explicitly requests it; all long-text tools return
@@ -94,9 +96,13 @@ or explicit manual checks rather than sequential live comparisons.
 Validation sets `validation_only=true` and is a non-idempotent write because a
 failed validation can create a `FAILED_SUBMISSION` workflow record. Submission
 accepts raw YAML and preserves the original template when it detects standard
-Jinja and OSMO template markers. It returns only the new workflow ID, selected
-pool, and effective priority. Restart and cancel are destructive one-shot
-operations.
+Jinja and OSMO template markers. Submit and validation accept repeatable,
+non-secret `key=value` label overrides matching the CLI; later duplicate keys
+win in Core. Successful submission, validation, and restart results return
+bounded, redacted label-policy warnings from Core. Label overrides are query
+parameters and may appear in Gateway/authz access logs. Submission otherwise
+returns only the new workflow ID, selected pool, and effective priority.
+Restart and cancel are destructive one-shot operations.
 
 Submit-by-workflow-ID is intentionally omitted. Core authorizes creation in the
 target pool but does not enforce source-pool read access when retrieving the
@@ -121,8 +127,8 @@ consume compute or mutate existing workflow state.
 ## Phase 3: user-owned mutations (implemented; deployment verification pending)
 
 `osmo_set_profile`, `osmo_delete_credential`,
-`osmo_create_app`, `osmo_update_app`, `osmo_delete_app`, and
-`osmo_rename_app` and `osmo_submit_app` are implemented. Profile updates
+`osmo_create_app`, `osmo_update_app`, `osmo_delete_app`,
+`osmo_rename_app`, and `osmo_submit_app` are implemented. Profile updates
 change exactly one external CLI-supported setting per call: the default pool,
 email notifications, or Slack notifications. Other profile settings are
 outside this tool's public contract. Core returns JSON `null` after accepting
@@ -150,7 +156,8 @@ one `POST /api/pool/{pool}/workflow` with the matching `app_uuid` and
 `app_version`. This intentionally avoids the CLI's independent metadata/spec
 resolution, which can associate a newer PENDING version with a spec resolved
 from a READY version. The result contains only the workflow ID, app name and
-version, pool, priority, and confirmation.
+version, pool, priority, bounded/redacted policy warnings, and confirmation. It
+accepts the same non-secret label overrides as workflow submission.
 
 App metadata/spec reads require `app:Read`. An omitted pool additionally
 requires `profile:Read`; an explicit pool skips that profile read and relies on
@@ -167,8 +174,9 @@ against disposable user-owned state.
 ## Out of scope
 
 The external MCP does not expose CLI login/logout or access-token management,
-local file and data transfer, workflow exec/port-forward/rsync, or privileged
-user, backend, and service-configuration administration. Kubernetes process
+credential creation or replacement, local file and data transfer, workflow
+exec/port-forward/rsync, or privileged user, backend, and service-configuration
+administration. Kubernetes process
 health remains available through `/health`, `/health/live`, and `/health/ready`;
 `osmo_health` instead checks caller-bound OSMO access.
 

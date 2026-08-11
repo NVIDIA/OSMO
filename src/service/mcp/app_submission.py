@@ -33,7 +33,10 @@ from src.service.mcp.workflow_action_models import (
     PoolName,
     VariableOverrides,
 )
-from src.service.mcp.workflow_models import WorkflowPriority
+from src.service.mcp.workflow_models import (
+    WorkflowLabelAssignments,
+    WorkflowPriority,
+)
 
 
 async def osmo_submit_app(
@@ -44,9 +47,13 @@ async def osmo_submit_app(
     set_variables: VariableOverrides | None = None,
     set_string_variables: VariableOverrides | None = None,
     priority: WorkflowPriority = 'NORMAL',
+    labels: WorkflowLabelAssignments | None = None,
 ) -> SubmitAppResult:
     """Resolve and submit one concrete READY OSMO app version."""
     apps.validated_app_name(name)
+    validated_labels = (
+        workflow_submission.validate_workflow_label_assignments(labels)
+    )
     validated_version = tool_validation.validate_optional_integer(
         version,
         field='app version',
@@ -94,6 +101,7 @@ async def osmo_submit_app(
         priority=validated_priority,
         payload=payload,
         operation='submit an OSMO app',
+        labels=validated_labels,
         app_uuid=resolved.uuid,
         app_version=resolved.version,
     )
@@ -103,5 +111,6 @@ async def osmo_submit_app(
         app_version=resolved.version,
         pool=pool_name,
         priority=validated_priority,
+        warnings=upstream.warnings,
         submitted=True,
     )

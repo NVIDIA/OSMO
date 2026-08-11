@@ -23,7 +23,11 @@ import pydantic
 from src.service.mcp.app_models import AppName, AppVersionNumber
 from src.service.mcp.tool_models import ClosedToolModel, ExtensibleUpstreamModel
 from src.service.mcp.workflow_action_models import PoolName
-from src.service.mcp.workflow_models import WorkflowId, WorkflowPriority
+from src.service.mcp.workflow_models import (
+    WorkflowId,
+    WorkflowPriority,
+    WorkflowWarnings,
+)
 
 
 MAX_APP_DESCRIPTION_BYTES = 2048
@@ -143,4 +147,5 @@ class SubmitAppResult(ClosedToolModel):
     app_version: AppVersionNumber
     pool: PoolName
     priority: WorkflowPriority
+    warnings: WorkflowWarnings = pydantic.Field(default_factory=list)
     submitted: Literal[True]

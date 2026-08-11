@@ -41,7 +41,11 @@ from src.service.mcp.workflow_action_models import (
     WorkflowSpecText,
     WorkflowTemplatePayload,
 )
-from src.service.mcp.workflow_models import WorkflowId, WorkflowPriority
+from src.service.mcp.workflow_models import (
+    WorkflowId,
+    WorkflowLabelAssignments,
+    WorkflowPriority,
+)
 
 
 _MAX_JSON_RESPONSE_BYTES = 64 * 1024
@@ -55,8 +59,12 @@ async def osmo_submit_workflow(
     set_variables: VariableOverrides | None = None,
     set_string_variables: VariableOverrides | None = None,
     priority: WorkflowPriority = 'NORMAL',
+    labels: WorkflowLabelAssignments | None = None,
 ) -> SubmitWorkflowResult:
     """Submit raw workflow YAML to Core using the caller's OSMO identity."""
+    validated_labels = (
+        workflow_submission.validate_workflow_label_assignments(labels)
+    )
     validated_set_variables = workflow_submission.validate_variable_overrides(
         set_variables,
         field='set_variables',
@@ -84,11 +92,13 @@ async def osmo_submit_workflow(
         priority=validated_priority,
         payload=payload,
         operation='submit a workflow',
+        labels=validated_labels,
     )
     return SubmitWorkflowResult(
         workflow_id=upstream.name,
         pool=pool_name,
         priority=validated_priority,
+        warnings=upstream.warnings,
         submitted=True,
     )
 
@@ -99,8 +109,12 @@ async def osmo_validate_workflow(
     pool: PoolName | None = None,
     set_variables: VariableOverrides | None = None,
     set_string_variables: VariableOverrides | None = None,
+    labels: WorkflowLabelAssignments | None = None,
 ) -> ValidateWorkflowResult:
     """Validate workflow YAML using Core's authoritative submission checks."""
+    validated_labels = (
+        workflow_submission.validate_workflow_label_assignments(labels)
+    )
     validated_spec = tool_validation.validate_inline_text(
         workflow_spec,
         field='workflow_spec',
@@ -135,7 +149,10 @@ async def osmo_validate_workflow(
         path=f'/api/pool/{encoded_pool}/workflow',
         operation='validate a workflow',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
-        query={'validation_only': True},
+        query=workflow_submission.build_submission_query(
+            labels=validated_labels,
+            validation_only=True,
+        ),
         payload=payload.model_dump(mode='json', exclude_none=True),
     )
     upstream = tool_validation.validate_mutation_response(
@@ -147,6 +164,7 @@ async def osmo_validate_workflow(
         valid=True,
         pool=pool_name,
         logs=upstream.logs,
+        warnings=upstream.warnings,
     )
 
 
@@ -190,6 +208,7 @@ async def osmo_restart_workflow(
         workflow_id=upstream.name,
         parent_workflow_id=workflow_id,
         pool=pool_name,
+        warnings=upstream.warnings,
         restart_submitted=True,
     )
 

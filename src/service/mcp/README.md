@@ -110,6 +110,12 @@ Credential inspection returns names and types only. Profile inspection
 intentionally includes non-secret access-token identity metadata (name and
 expiry). Bearer values are never returned.
 
+Workflow lists accept CLI-compatible label selectors and absent-label keys,
+return each workflow's labels, and are capped at 50 entries per page so valid
+maximum-size label maps remain within both upstream and MCP result budgets.
+Workflow detail returns stored labels and current bounded, redacted policy
+warnings.
+
 `osmo_set_profile` updates only the default pool or email/Slack notification
 state supported by the external CLI and Core contract. Other profile settings
 are outside this tool's public contract. Core returns no updated profile
@@ -139,8 +145,11 @@ the external MCP preserves that existing API/RBAC contract.
 complete spec under a 128-KiB ceiling, and submits it through the same shared
 workflow-submission path as raw YAML. This avoids the CLI's independent
 metadata/spec resolution while preserving its template overrides and priority
-semantics. Overrides may contain sensitive values, so callers should prefer
-OSMO credentials for secrets; MCP does not return or log overrides, but the
+semantics. It also preserves CLI-compatible non-secret workflow label
+overrides and returns bounded, redacted label-policy warnings. Labels are query
+parameters and may appear in Gateway/authz access logs. Template overrides may
+contain sensitive values, so callers should prefer OSMO credentials for
+secrets; MCP does not return or log overrides, but the
 calling client may retain its arguments. Explicit pools rely on the
 authoritative `workflow:Create` check; an omitted pool additionally reads the
 profile to select its accessible default or sole pool. The preflight app reads
@@ -153,11 +162,15 @@ Workflow validation calls Core's submission endpoint with
 `validation_only=true`. It is intentionally annotated as a non-idempotent
 write because a failed validation can create a `FAILED_SUBMISSION` record.
 Workflow submission accepts bounded raw YAML, template overrides, a target
-pool, and scheduling priority. It intentionally does not accept local paths,
-environment injection, dry-run rendering, or source workflow IDs. The latter
-would let Core read a source spec without a source-pool authorization check.
-The result contains only the new workflow ID, pool, priority, and submission
-confirmation; Core-generated URLs are not returned.
+pool, scheduling priority, and repeatable non-secret `key=value` label
+overrides. Validation accepts the same label overrides. Later duplicate keys
+win in Core, matching the CLI, and successful validation, submission, restart,
+and app-submission results return bounded, redacted label-policy warnings.
+Labels are query parameters and may appear in Gateway/authz access logs.
+Submission intentionally does not accept local paths, environment injection,
+dry-run rendering, or source workflow IDs. The latter would let Core read a
+source spec without a source-pool authorization check. Core-generated URLs are
+not returned.
 
 Restart accepts only a failed source workflow and always performs a compact
 workflow read before its POST, including when the target pool is explicit.
@@ -243,7 +256,7 @@ authentication. Its token needs `mcp:Access`, `profile:Read`, and
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
 ```
 
-The smoke test rejects unauthenticated access, verifies the exact 26-tool
+The smoke test rejects unauthenticated access, verifies the exact 25-tool
 catalog, compares the profile projection with Core, checks caller-bound
 health, and validates a small workflow through Gateway → MCP → Gateway → Core.
 A successful validation does not enqueue compute or create a workflow row.

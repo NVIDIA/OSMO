@@ -49,6 +49,9 @@ workflow:
     command: [echo]
     args: [ok]
 """
+_POLICY_WARNING = (
+    "Workflow is missing label 'cost-center'; add it before enforcement."
+)
 
 
 def _app_metadata(
@@ -134,6 +137,11 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
             schema['properties']['priority']['default'],
             'NORMAL',
         )
+        self.assertEqual(schema['properties']['labels']['default'], None)
+        self.assertEqual(
+            schema['properties']['labels']['anyOf'][0]['maxItems'],
+            50,
+        )
         for field in ('set_variables', 'set_string_variables'):
             self.assertTrue(
                 schema['properties'][field]['anyOf'][0]['writeOnly']
@@ -177,6 +185,7 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'logs': (
                     f'https://example.test/logs?secret={upstream_secret}'
                 ),
+                'warnings': [_POLICY_WARNING],
             })
 
         with self.assertLogs(
@@ -193,6 +202,7 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
                     'set_variables': ['replicas=2'],
                     'set_string_variables': ['image_tag=latest'],
                     'priority': 'HIGH',
+                    'labels': ['project=sim_alpha', 'team=robotics'],
                 },
             )
 
@@ -204,6 +214,7 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
             'app_version': 3,
             'pool': 'pool-a',
             'priority': 'HIGH',
+            'warnings': [_POLICY_WARNING],
             'submitted': True,
         })
         self.assertNotIn(spec_secret, response.text)
@@ -242,6 +253,8 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 ('app_uuid', 'app-uuid-123'),
                 ('app_version', '3'),
                 ('priority', 'HIGH'),
+                ('label', 'project=sim_alpha'),
+                ('label', 'team=robotics'),
             ],
         )
         self.assertEqual(json.loads(submit_request.content), {
@@ -309,6 +322,7 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
             'app_version': 8,
             'pool': 'pool-default',
             'priority': 'NORMAL',
+            'warnings': [],
             'submitted': True,
         })
         self.assertEqual(
@@ -354,6 +368,7 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
             {'name': 'training_app', 'pool': '../other-pool'},
             {'name': 'training_app', 'version': True},
             {'name': 'training_app', 'pool': 'pool-a', 'priority': 'URGENT'},
+            {'name': 'training_app', 'pool': 'pool-a', 'labels': ['project']},
             {
                 'name': 'training_app',
                 'pool': 'pool-a',

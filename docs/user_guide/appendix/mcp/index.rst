@@ -96,10 +96,11 @@ The self-hosted MCP groups tools into the following areas:
        availability.
    * - Workflows
      - List workflows; inspect status, logs, events, and specifications;
-       validate, submit, restart, and cancel workflows.
+       filter and inspect workflow labels; validate or submit label overrides;
+       inspect label-policy warnings; restart and cancel workflows.
    * - Applications
      - List applications; inspect metadata, versions, and specifications; create,
-       update, delete, and rename applications.
+       update, delete, rename, and submit applications.
    * - Credentials
      - List credential names and types or delete a credential. Secret payloads
        are never returned by MCP.
@@ -130,6 +131,8 @@ MCP deliberately exposes a smaller surface than the CLI:
   application YAML.
 * Application descriptions can appear in service access logs and must not
   contain secrets.
+* Workflow label overrides can appear in service access logs and must not
+  contain secrets.
 
 Capabilities Not Exposed
 ========================
@@ -137,6 +140,7 @@ Capabilities Not Exposed
 The self-hosted MCP does not expose:
 
 * CLI login, logout, or access-token management;
+* credential creation or replacement;
 * local file expansion or data upload and download;
 * workflow exec, port forwarding, or rsync;
 * privileged user, backend, role, or service-configuration administration; or

@@ -71,6 +71,10 @@ _SUMMARY = {
     'app_name': None,
     'app_version': None,
     'priority': 'NORMAL',
+    'labels': {
+        'project': 'sim_alpha',
+        'team': 'robotics',
+    },
 }
 _DETAIL: dict[str, object] = {
     'name': 'wf-1',
@@ -123,6 +127,13 @@ _DETAIL: dict[str, object] = {
     'app_version': None,
     'plugins': {},
     'priority': 'NORMAL',
+    'labels': {
+        'project': 'sim_alpha',
+        'team': 'robotics',
+    },
+    'warnings': [
+        "Workflow is missing label 'cost-center'; add it before enforcement.",
+    ],
 }
 
 
@@ -184,8 +195,18 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         list_properties = tools['osmo_list_workflows']['inputSchema']['properties']
         self.assertEqual(list_properties['limit']['default'], 50)
         self.assertEqual(list_properties['limit']['minimum'], 1)
-        self.assertEqual(list_properties['limit']['maximum'], 200)
+        self.assertEqual(list_properties['limit']['maximum'], 50)
         self.assertEqual(list_properties['offset']['minimum'], 0)
+        self.assertEqual(list_properties['labels']['default'], None)
+        self.assertEqual(list_properties['no_labels']['default'], None)
+        self.assertEqual(
+            list_properties['labels']['anyOf'][0]['maxItems'],
+            50,
+        )
+        self.assertEqual(
+            list_properties['no_labels']['anyOf'][0]['maxItems'],
+            50,
+        )
         list_schema = json.dumps(list_properties)
         for value in ('RUNNING', 'FAILED_PREEMPTED', 'HIGH', 'NORMAL', 'LOW'):
             self.assertIn(value, list_schema)
@@ -224,6 +245,10 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(structured['offset'], 0)
         self.assertTrue(structured['more_entries'])
         self.assertEqual(structured['workflows'][0]['name'], 'wf-1')
+        self.assertEqual(
+            structured['workflows'][0]['labels'],
+            {'project': 'sim_alpha', 'team': 'robotics'},
+        )
         self.assertNotIn('logs', structured['workflows'][0])
         self.assertNotIn(_BEARER_SECRET, response.text)
 
@@ -267,6 +292,11 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'tags': ['nightly', 'gpu'],
                 'app': 'trainer:2',
                 'priority': ['HIGH', 'LOW'],
+                'labels': [
+                    'project=(sim_*|hil_*)',
+                    'team=robotics',
+                ],
+                'no_labels': ['deprecated.example.com/owner'],
                 'limit': 7,
                 'offset': 3,
             })
@@ -285,6 +315,9 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ('app', 'trainer:2'),
             ('priority', 'HIGH'),
             ('priority', 'LOW'),
+            ('label', 'project=(sim_*|hil_*)'),
+            ('label', 'team=robotics'),
+            ('no_label', 'deprecated.example.com/owner'),
             ('pools', 'pool-a'),
             ('pools', 'pool-b'),
         ])
@@ -397,6 +430,11 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         get_result = get_response.json()['result']['structuredContent']['workflow']
         self.assertEqual(get_result['groups'][0]['tasks'][0]['node_name'], 'node-1')
+        self.assertEqual(
+            get_result['labels'],
+            {'project': 'sim_alpha', 'team': 'robotics'},
+        )
+        self.assertEqual(get_result['warnings'], _DETAIL['warnings'])
         self.assertNotIn('spec', get_result)
         self.assertNotIn('template_spec', get_result)
         self.assertNotIn('dashboard_url', get_result)
@@ -510,7 +548,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ('osmo_get_workflow', {'workflow_id': 'workflow-name'}),
             ('osmo_list_workflows', {'limit': 0}),
             ('osmo_list_workflows', {'limit': True}),
-            ('osmo_list_workflows', {'limit': 201}),
+            ('osmo_list_workflows', {'limit': 51}),
             ('osmo_list_workflows', {'offset': -1}),
             ('osmo_list_workflows', {'offset': True}),
             ('osmo_list_workflows', {'status': []}),
@@ -518,6 +556,11 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ('osmo_list_workflows', {'priority': []}),
             ('osmo_list_workflows', {'priority': 'HIGH'}),
             ('osmo_list_workflows', {'name': 'bad\nquery'}),
+            ('osmo_list_workflows', {'labels': []}),
+            ('osmo_list_workflows', {'labels': ['project']}),
+            ('osmo_list_workflows', {'labels': ['project=(sim|)']}),
+            ('osmo_list_workflows', {'no_labels': []}),
+            ('osmo_list_workflows', {'no_labels': ['Bad Prefix/team']}),
             ('osmo_list_workflows', {'pool': ['p' * 500] * 40}),
             (
                 'osmo_get_workflow_logs',
@@ -607,6 +650,43 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             malformed_page_handler,
             'osmo_list_workflows',
             {},
+        )
+        self.assertTrue(response.json()['result']['isError'])
+        self.assertIn('invalid response', response.text)
+
+        async def invalid_labels_handler(
+            request: httpx.Request,
+        ) -> httpx.Response:
+            del request
+            return httpx.Response(200, json={
+                'workflows': [{
+                    **_SUMMARY,
+                    'labels': {'invalid label': 'value'},
+                }],
+                'more_entries': False,
+            })
+
+        response = await invoke(
+            invalid_labels_handler,
+            'osmo_list_workflows',
+            {},
+        )
+        self.assertTrue(response.json()['result']['isError'])
+        self.assertIn('invalid response', response.text)
+
+        async def invalid_warnings_handler(
+            request: httpx.Request,
+        ) -> httpx.Response:
+            del request
+            return httpx.Response(200, json={
+                **_DETAIL,
+                'warnings': ['unsafe\nsecond line'],
+            })
+
+        response = await invoke(
+            invalid_warnings_handler,
+            'osmo_get_workflow',
+            {'workflow_id': 'wf-1'},
         )
         self.assertTrue(response.json()['result']['isError'])
         self.assertIn('invalid response', response.text)

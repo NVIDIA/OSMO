@@ -86,14 +86,15 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         workflows.osmo_list_workflows,
         'osmo_list_workflows',
         'List OSMO workflows',
-        'List the active user\'s workflows across accessible pools, newest first.',
+        'List the active user\'s workflows across accessible pools, newest '
+        'first, with optional label-presence and label-value filters.',
     ),
     (
         workflows.osmo_get_workflow,
         'osmo_get_workflow',
         'Get OSMO workflow',
-        'Get one workflow\'s status and optional task-group metadata; '
-        'set skip_groups=true for a compact result.',
+        'Get one workflow\'s status, labels, policy warnings, and optional '
+        'task-group metadata; set skip_groups=true for a compact result.',
     ),
     (
         workflows.osmo_get_workflow_logs,
@@ -118,15 +119,15 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         workflow_actions.osmo_submit_workflow,
         'osmo_submit_workflow',
         'Submit an OSMO workflow',
-        'Submit raw workflow YAML to run in OSMO. This consumes real '
-        'compute and is not automatically retried.',
+        'Submit raw workflow YAML with optional non-secret label overrides. '
+        'This consumes real compute and is not automatically retried.',
     ),
     (
         workflow_actions.osmo_validate_workflow,
         'osmo_validate_workflow',
         'Validate an OSMO workflow',
-        'Validate workflow YAML with OSMO Core without submitting it. '
-        'A failed validation may create a FAILED_SUBMISSION record.',
+        'Validate workflow YAML and optional non-secret label overrides with '
+        'OSMO Core. A failed validation may create a FAILED_SUBMISSION record.',
     ),
     (
         workflow_actions.osmo_restart_workflow,
@@ -198,8 +199,9 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         app_submission.osmo_submit_app,
         'osmo_submit_app',
         'Submit OSMO app',
-        'Resolve and pin a READY app version, then submit it to run in '
-        'OSMO. This consumes real compute and is not automatically retried.',
+        'Resolve and pin a READY app version, then submit it with optional '
+        'non-secret label overrides. This consumes real compute and is not '
+        'automatically retried.',
     ),
     (
         credentials.osmo_list_credentials,
@@ -263,6 +265,8 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
         'tags': None,
         'app': None,
         'priority': None,
+        'labels': None,
+        'no_labels': None,
         'limit': 50,
         'offset': 0,
     },
@@ -280,11 +284,13 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
         'set_variables': None,
         'set_string_variables': None,
         'priority': 'NORMAL',
+        'labels': None,
     },
     'osmo_validate_workflow': {
         'pool': None,
         'set_variables': None,
         'set_string_variables': None,
+        'labels': None,
     },
     'osmo_restart_workflow': {'pool': None},
     'osmo_cancel_workflow': {'force': False},
@@ -304,6 +310,7 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
         'set_variables': None,
         'set_string_variables': None,
         'priority': 'NORMAL',
+        'labels': None,
     },
 }
 
@@ -462,7 +469,10 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         ):
             properties = tools_by_name[tool_name].inputSchema['properties']
             self.assertEqual(properties['limit']['minimum'], 1)
-            self.assertEqual(properties['limit']['maximum'], 200)
+            self.assertEqual(
+                properties['limit']['maximum'],
+                50 if tool_name == 'osmo_list_workflows' else 200,
+            )
             self.assertEqual(properties['offset']['minimum'], 0)
 
         log_properties = tools_by_name[

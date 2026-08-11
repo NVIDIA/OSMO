@@ -20,6 +20,7 @@ import re
 
 from mcp.server.fastmcp import Context
 
+import src.lib.utils.workflow_labels as shared_labels
 from src.service.mcp import (
     access_scope,
     gateway,
@@ -30,6 +31,8 @@ from src.service.mcp import (
 from src.service.mcp.workflow_models import (
     MAX_QUERY_TEXT_BYTES as _MAX_QUERY_TEXT_BYTES,
     MAX_QUERY_VALUES as _MAX_QUERY_VALUES,
+    MAX_WORKFLOW_LABEL_KEY_BYTES as _MAX_WORKFLOW_LABEL_KEY_BYTES,
+    MAX_WORKFLOW_LABEL_SELECTOR_BYTES as _MAX_WORKFLOW_LABEL_SELECTOR_BYTES,
     WORKFLOW_ID_PATTERN as _WORKFLOW_ID_PATTERN,
     WORKFLOW_PRIORITIES as _WORKFLOW_PRIORITIES,
     WORKFLOW_STATUSES as _WORKFLOW_STATUSES,
@@ -45,7 +48,10 @@ from src.service.mcp.workflow_models import (
     WorkflowEventsResult,
     WorkflowGroup,
     WorkflowId,
+    WorkflowLabelKeys,
+    WorkflowLabelSelectors,
     WorkflowLogsResult,
+    WorkflowPageLimit,
     WorkflowPriority,
     WorkflowPriorities,
     WorkflowSpecResult,
@@ -72,6 +78,7 @@ __all__ = (
     'WorkflowGroup',
     'WorkflowId',
     'WorkflowLogsResult',
+    'WorkflowPageLimit',
     'WorkflowPriorities',
     'WorkflowPriority',
     'WorkflowSpecResult',
@@ -103,14 +110,16 @@ async def osmo_list_workflows(
     tags: QueryTextList | None = None,
     app: QueryText | None = None,
     priority: WorkflowPriorities | None = None,
-    limit: PageLimit = 50,
+    labels: WorkflowLabelSelectors | None = None,
+    no_labels: WorkflowLabelKeys | None = None,
+    limit: WorkflowPageLimit = 50,
     offset: PageOffset = 0,
 ) -> ListWorkflowsResult:
     """List the active user's workflows across accessible pools, newest first."""
     tool_validation.validate_page(
         limit,
         offset,
-        maximum_limit=200,
+        maximum_limit=50,
     )
     query: dict[str, gateway.QueryValue] = {
         'limit': limit,
@@ -166,6 +175,10 @@ async def osmo_list_workflows(
         if any(value not in _WORKFLOW_PRIORITIES for value in priorities):
             raise tool_errors.PublicToolError('Invalid workflow priority.')
         query['priority'] = priorities
+    if labels is not None:
+        query['label'] = _validate_label_selectors(labels)
+    if no_labels is not None:
+        query['no_label'] = _validate_missing_label_keys(no_labels)
 
     scope = await access_scope.request_access_scope(context)
     if requested_pools is not None:
@@ -404,3 +417,35 @@ def _validate_task_controls(
             'task_name is required when retry_id is set.'
         )
     return validated_task_name
+
+
+def _validate_label_selectors(values: list[str]) -> list[str]:
+    """Validate Core-compatible workflow label selectors."""
+    validated = tool_validation.validate_query_values(
+        values,
+        field='labels',
+        max_count=_MAX_QUERY_VALUES,
+        max_value_bytes=_MAX_WORKFLOW_LABEL_SELECTOR_BYTES,
+    )
+    try:
+        for selector in validated:
+            shared_labels.parse_workflow_label_selector(selector)
+    except ValueError as error:
+        raise tool_errors.PublicToolError('Invalid labels.') from error
+    return validated
+
+
+def _validate_missing_label_keys(values: list[str]) -> list[str]:
+    """Validate Core-compatible absent workflow label keys."""
+    validated = tool_validation.validate_query_values(
+        values,
+        field='no_labels',
+        max_count=_MAX_QUERY_VALUES,
+        max_value_bytes=_MAX_WORKFLOW_LABEL_KEY_BYTES,
+    )
+    try:
+        for key in validated:
+            shared_labels.validate_workflow_label_key(key)
+    except ValueError as error:
+        raise tool_errors.PublicToolError('Invalid no_labels.') from error
+    return validated

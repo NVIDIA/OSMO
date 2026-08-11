@@ -86,10 +86,17 @@ osmo_py_test(
     deps = [
         "//src/cli:cli_lib",
         "//src/lib/utils:resource_quantities",
+        "//src/lib/utils:workflow_labels",
         "//src/lib/utils:workflow",
+        "//src/service/mcp:app_action_models",
+        "//src/service/mcp:app_submission_tools",
         "//src/service/mcp:resource_tools",
         "//src/service/mcp:tool_registry",
+        "//src/service/mcp:workflow_action_models",
+        "//src/service/mcp:workflow_action_tools",
+        "//src/service/mcp:workflow_models",
         "//src/service/mcp:workflow_submission",
+        "//src/service/mcp:workflow_tools",
     ],
 )
 

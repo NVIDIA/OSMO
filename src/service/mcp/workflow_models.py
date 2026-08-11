@@ -21,6 +21,8 @@ from typing import Annotated, Literal
 
 import pydantic
 
+import src.lib.utils.workflow_labels as shared_labels
+from src.service.mcp import tool_errors
 from src.service.mcp.tool_models import ClosedToolModel, PageLimit, PageOffset
 
 
@@ -37,8 +39,13 @@ __all__ = (
     'WorkflowEventsResult',
     'WorkflowGroup',
     'WorkflowId',
+    'WorkflowLabelAssignments',
+    'WorkflowLabelKeys',
+    'WorkflowLabelSelectors',
+    'WorkflowLabels',
     'WorkflowLogsResult',
     'WorkflowPriorities',
+    'WorkflowPageLimit',
     'WorkflowPriority',
     'WorkflowSpecResult',
     'WorkflowStatus',
@@ -50,8 +57,29 @@ __all__ = (
 
 MAX_QUERY_TEXT_BYTES = 512
 MAX_QUERY_VALUES = 50
+MAX_WORKFLOW_LABEL_KEY_BYTES = 317
+MAX_WORKFLOW_LABEL_VALUE_BYTES = 63
+MAX_WORKFLOW_LABEL_SELECTOR_BYTES = 4096
+MAX_WORKFLOW_WARNING_BYTES = 1024
 WORKFLOW_ID_PATTERN = r'[A-Za-z](?:[A-Za-z0-9_-]*[A-Za-z0-9])?-[0-9]+'
 
+
+def _safe_workflow_warning(value: str) -> str:
+    """Scrub one policy warning and fail closed if no bounded text remains."""
+    safe_value = tool_errors.safe_error_text(value)
+    try:
+        encoded_value = safe_value.encode('utf-8')
+    except UnicodeEncodeError as error:
+        raise ValueError('Invalid workflow warning.') from error
+    if not safe_value or len(encoded_value) > MAX_WORKFLOW_WARNING_BYTES:
+        raise ValueError('Invalid workflow warning.')
+    return safe_value
+
+
+WorkflowPageLimit = Annotated[
+    int,
+    pydantic.Field(strict=True, ge=1, le=50),
+]
 LastNLines = Annotated[pydantic.StrictInt, pydantic.Field(ge=1, le=10_000)]
 RetryId = Annotated[pydantic.StrictInt, pydantic.Field(ge=0, le=1_000_000)]
 QueryText = Annotated[str, pydantic.Field(min_length=1, max_length=512)]
@@ -67,6 +95,83 @@ WorkflowId = Annotated[
 QueryTextList = Annotated[
     list[QueryText],
     pydantic.Field(min_length=1, max_length=MAX_QUERY_VALUES),
+]
+WorkflowLabelKey = Annotated[
+    str,
+    pydantic.AfterValidator(shared_labels.validate_workflow_label_key),
+    pydantic.Field(min_length=1, max_length=MAX_WORKFLOW_LABEL_KEY_BYTES),
+]
+WorkflowLabelValue = Annotated[
+    str,
+    pydantic.AfterValidator(shared_labels.validate_workflow_label_value),
+    pydantic.Field(min_length=1, max_length=MAX_WORKFLOW_LABEL_VALUE_BYTES),
+]
+WorkflowLabelAssignment = Annotated[
+    str,
+    pydantic.Field(
+        min_length=3,
+        max_length=(
+            MAX_WORKFLOW_LABEL_KEY_BYTES
+            + 1
+            + MAX_WORKFLOW_LABEL_VALUE_BYTES
+        ),
+    ),
+]
+WorkflowLabelAssignments = Annotated[
+    list[WorkflowLabelAssignment],
+    pydantic.Field(
+        min_length=1,
+        max_length=MAX_QUERY_VALUES,
+        description=(
+            'Non-secret workflow label key=value overrides. Later duplicate '
+            'keys win, matching the CLI. Values are sent as query parameters '
+            'and may appear in Gateway access logs.'
+        ),
+    ),
+]
+WorkflowLabelSelector = Annotated[
+    str,
+    pydantic.Field(min_length=3, max_length=MAX_WORKFLOW_LABEL_SELECTOR_BYTES),
+]
+WorkflowLabelSelectors = Annotated[
+    list[WorkflowLabelSelector],
+    pydantic.Field(
+        min_length=1,
+        max_length=MAX_QUERY_VALUES,
+        description=(
+            'Workflow label KEY=SELECTOR filters. Selectors support exact '
+            'values, * wildcards, and (VALUE|VALUE) alternatives. Every '
+            'provided selector must match.'
+        ),
+    ),
+]
+WorkflowLabelKeys = Annotated[
+    list[WorkflowLabelKey],
+    pydantic.Field(
+        min_length=1,
+        max_length=MAX_QUERY_VALUES,
+        description=(
+            'Workflow label keys that must be absent. Every provided key '
+            'must be absent.'
+        ),
+    ),
+]
+WorkflowLabels = Annotated[
+    dict[WorkflowLabelKey, WorkflowLabelValue],
+    pydantic.Field(max_length=shared_labels.MAX_WORKFLOW_LABELS),
+]
+WorkflowWarning = Annotated[
+    str,
+    pydantic.Field(
+        min_length=1,
+        max_length=MAX_WORKFLOW_WARNING_BYTES,
+        pattern=r'^[^\x00-\x1f\x7f]+$',
+    ),
+    pydantic.AfterValidator(_safe_workflow_warning),
+]
+WorkflowWarnings = Annotated[
+    list[WorkflowWarning],
+    pydantic.Field(max_length=shared_labels.MAX_WORKFLOW_LABELS),
 ]
 WorkflowStatus = Literal[
     'RUNNING',
@@ -111,6 +216,7 @@ class WorkflowSummary(ClosedToolModel):
     submit_time: str
     status: str
     priority: str
+    labels: WorkflowLabels = pydantic.Field(default_factory=dict)
     pool: str | None = None
     overview: str | None = None
     app_owner: str | None = None
@@ -152,6 +258,8 @@ class WorkflowDetail(ClosedToolModel):
     submit_time: str
     status: str
     priority: str
+    labels: WorkflowLabels = pydantic.Field(default_factory=dict)
+    warnings: WorkflowWarnings = pydantic.Field(default_factory=list)
     cancelled_by: str | None = None
     parent_name: str | None = None
     parent_job_id: int | None = None

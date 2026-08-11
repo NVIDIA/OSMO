@@ -137,7 +137,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         name='osmo_list_workflows',
         title='List OSMO workflows',
         description=(
-            'List the active user\'s workflows across accessible pools, newest first.'
+            'List the active user\'s workflows across accessible pools, newest '
+            'first, with optional label-presence and label-value filters.'
         ),
     ),
     ToolSpec(
@@ -145,8 +146,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         name='osmo_get_workflow',
         title='Get OSMO workflow',
         description=(
-            'Get one workflow\'s status and optional task-group metadata; '
-            'set skip_groups=true for a compact result.'
+            'Get one workflow\'s status, labels, policy warnings, and optional '
+            'task-group metadata; set skip_groups=true for a compact result.'
         ),
     ),
     ToolSpec(
@@ -179,8 +180,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         name='osmo_submit_workflow',
         title='Submit an OSMO workflow',
         description=(
-            'Submit raw workflow YAML to run in OSMO. This consumes real '
-            'compute and is not automatically retried.'
+            'Submit raw workflow YAML with optional non-secret label overrides. '
+            'This consumes real compute and is not automatically retried.'
         ),
         annotations=_write_annotations(destructive=False),
     ),
@@ -189,8 +190,9 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         name='osmo_validate_workflow',
         title='Validate an OSMO workflow',
         description=(
-            'Validate workflow YAML with OSMO Core without submitting it. '
-            'A failed validation may create a FAILED_SUBMISSION record.'
+            'Validate workflow YAML and optional non-secret label overrides '
+            'with OSMO Core. A failed validation may create a '
+            'FAILED_SUBMISSION record.'
         ),
         annotations=_write_annotations(destructive=False),
     ),
@@ -289,8 +291,9 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         name='osmo_submit_app',
         title='Submit OSMO app',
         description=(
-            'Resolve and pin a READY app version, then submit it to run in '
-            'OSMO. This consumes real compute and is not automatically retried.'
+            'Resolve and pin a READY app version, then submit it with optional '
+            'non-secret label overrides. This consumes real compute and is not '
+            'automatically retried.'
         ),
         annotations=_write_annotations(destructive=False),
     ),

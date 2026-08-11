@@ -20,18 +20,26 @@ SPDX-License-Identifier: Apache-2.0
 # helpers without making network requests.
 # pylint: disable=protected-access
 
+import argparse
 import dataclasses
+import inspect
 import unittest
 from typing import Any
 
+from src.cli import app as cli_app
 from src.cli import resources as cli_resources
 from src.cli import workflow as cli_workflow
+import src.lib.utils.workflow_labels as shared_labels
 from src.lib.utils import resource_quantities, workflow as workflow_utils
 from src.service.mcp import (
+    app_submission,
     resources as mcp_resources,
     tool_registry,
+    workflow_actions,
     workflow_submission,
+    workflows,
 )
+from src.service.mcp import app_action_models, workflow_action_models, workflow_models
 
 
 _SHARED_REQUEST = 'shared_request'
@@ -82,8 +90,10 @@ _PARITY_CONTRACTS = {
         _SEMANTIC_PROJECTION,
         'osmo resource info <node> --pool <pool> --platform <platform>',
         (
-            'MCP omits resource kinds without positive allocatable capacity; '
-            'CLI detail may render their explicit zero capacity.'
+            'MCP requires explicit pool/platform selection when a node has '
+            'multiple accessible assignments and omits resource kinds without '
+            'positive allocatable capacity; CLI selects the first assignment '
+            'and may render explicit zero capacity.'
         ),
     ),
     'osmo_list_workflows': _ParityContract(
@@ -109,12 +119,18 @@ _PARITY_CONTRACTS = {
     'osmo_submit_workflow': _ParityContract(
         _INTENTIONAL_DIFFERENCE,
         'osmo workflow submit <workflow-file>',
-        'MCP accepts bounded inline YAML; CLI also supports local files.',
+        (
+            'MCP accepts bounded inline YAML while sharing per-run label '
+            'overrides and policy-warning results with the CLI.'
+        ),
     ),
     'osmo_validate_workflow': _ParityContract(
         _INTENTIONAL_DIFFERENCE,
         'osmo workflow validate <workflow-file>',
-        'MCP accepts bounded inline YAML instead of a local file.',
+        (
+            'MCP accepts bounded inline YAML instead of a local file while '
+            'sharing label overrides and policy-warning results.'
+        ),
     ),
     'osmo_restart_workflow': _ParityContract(
         _SHARED_REQUEST,
@@ -163,7 +179,10 @@ _PARITY_CONTRACTS = {
     'osmo_submit_app': _ParityContract(
         _INTENTIONAL_DIFFERENCE,
         'osmo app submit <app-id>',
-        'MCP resolves and returns the concrete READY version it submits.',
+        (
+            'MCP resolves and returns the concrete READY version it submits '
+            'while sharing label overrides and policy-warning results.'
+        ),
     ),
     'osmo_list_credentials': _ParityContract(
         _SEMANTIC_PROJECTION,
@@ -371,6 +390,134 @@ class WorkflowTemplateParityTest(unittest.TestCase):
                 )
                 self.assertEqual(cli_detected, expected)
                 self.assertEqual(mcp_detected, expected)
+
+
+def _cli_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest='resource')
+    cli_workflow.setup_parser(subparsers)
+    cli_app.setup_parser(subparsers)
+    return parser
+
+
+def _subcommand_parser(
+    parser: argparse.ArgumentParser,
+    *commands: str,
+) -> argparse.ArgumentParser:
+    current = parser
+    for command in commands:
+        subparser_action = next(
+            action
+            for action in current._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        current = subparser_action.choices[command]
+    return current
+
+
+class WorkflowLabelParityTest(unittest.TestCase):
+    """Guard the CLI/Core workflow-label surface represented by MCP."""
+
+    def test_every_cli_label_option_has_an_mcp_argument(self) -> None:
+        parser = _cli_parser()
+        cases = (
+            (
+                ('workflow', 'submit'),
+                workflow_actions.osmo_submit_workflow,
+                {'labels'},
+            ),
+            (
+                ('workflow', 'validate'),
+                workflow_actions.osmo_validate_workflow,
+                {'labels'},
+            ),
+            (
+                ('workflow', 'list'),
+                workflows.osmo_list_workflows,
+                {'labels', 'no_labels'},
+            ),
+            (
+                ('app', 'submit'),
+                app_submission.osmo_submit_app,
+                {'labels'},
+            ),
+        )
+
+        for commands, mcp_tool, expected_arguments in cases:
+            with self.subTest(commands=commands):
+                command_parser = _subcommand_parser(parser, *commands)
+                cli_arguments = {
+                    action.dest
+                    for action in command_parser._actions
+                    if 'label' in action.dest
+                }
+                mcp_arguments = set(inspect.signature(mcp_tool).parameters)
+                self.assertEqual(cli_arguments, expected_arguments)
+                self.assertLessEqual(expected_arguments, mcp_arguments)
+
+    def test_cli_label_values_map_to_exact_core_queries(self) -> None:
+        parser = _cli_parser()
+        submit_args = parser.parse_args([
+            'workflow',
+            'submit',
+            'workflow.yaml',
+            '--label',
+            'project=sim_alpha',
+            '--label',
+            'team=robotics',
+        ])
+        labels = workflow_submission.validate_workflow_label_assignments(
+            submit_args.labels
+        )
+
+        self.assertEqual(
+            workflow_submission.build_submission_query(labels=labels),
+            {
+                'label': ['project=sim_alpha', 'team=robotics'],
+            },
+        )
+
+        list_args = parser.parse_args([
+            'workflow',
+            'list',
+            '--label',
+            'project=(sim_*|hil_*)',
+            '--no-label',
+            'deprecated.example.com/owner',
+        ])
+        self.assertEqual(
+            workflows._validate_label_selectors(list_args.labels),
+            ['project=(sim_*|hil_*)'],
+        )
+        self.assertEqual(
+            workflows._validate_missing_label_keys(list_args.no_labels),
+            ['deprecated.example.com/owner'],
+        )
+
+    def test_all_label_paths_share_one_validation_implementation(self) -> None:
+        self.assertIs(
+            cli_workflow.validation.parse_workflow_label_assignment,
+            shared_labels.parse_workflow_label_assignment,
+        )
+        self.assertIs(
+            cli_workflow.validation.parse_workflow_label_selector,
+            shared_labels.parse_workflow_label_selector,
+        )
+
+    def test_models_preserve_labels_and_policy_warnings(self) -> None:
+        self.assertIn('labels', workflow_models.WorkflowSummary.model_fields)
+        self.assertLessEqual(
+            {'labels', 'warnings'},
+            set(workflow_models.WorkflowDetail.model_fields),
+        )
+        for result_model in (
+            workflow_action_models.ValidateWorkflowResult,
+            workflow_action_models.SubmitWorkflowResult,
+            workflow_action_models.RestartWorkflowResult,
+            app_action_models.SubmitAppResult,
+        ):
+            with self.subTest(result_model=result_model):
+                self.assertIn('warnings', result_model.model_fields)
 
 
 if __name__ == '__main__':

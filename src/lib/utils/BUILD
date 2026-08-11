@@ -148,11 +148,18 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "workflow_labels",
+    srcs = ["workflow_labels.py"],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "validation",
     srcs = ["validation.py"],
     deps = [
         ":common",
         ":osmo_errors",
+        ":workflow_labels",
         "//src/lib/data/storage/constants",
     ],
 )

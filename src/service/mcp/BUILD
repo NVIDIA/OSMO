@@ -164,7 +164,9 @@ osmo_py_library(
     srcs = ["workflow_models.py"],
     deps = [
         requirement("pydantic"),
+        ":tool_errors",
         ":tool_models",
+        "//src/lib/utils:workflow_labels",
     ],
     visibility = ["//visibility:public"],
 )
@@ -256,6 +258,7 @@ osmo_py_library(
         ":tool_requests",
         ":tool_validation",
         ":workflow_models",
+        "//src/lib/utils:workflow_labels",
     ],
     visibility = ["//visibility:public"],
 )
@@ -266,11 +269,13 @@ osmo_py_library(
     deps = [
         requirement("mcp"),
         ":access_scope",
+        ":gateway",
         ":tool_errors",
         ":tool_requests",
         ":tool_validation",
         ":workflow_action_models",
         ":workflow_models",
+        "//src/lib/utils:workflow_labels",
         "//src/lib/utils:workflow",
     ],
     visibility = ["//visibility:public"],

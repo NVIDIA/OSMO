@@ -21,7 +21,11 @@ from typing import Annotated, Literal
 import pydantic
 
 from src.service.mcp.tool_models import ClosedToolModel
-from src.service.mcp.workflow_models import WorkflowId, WorkflowPriority
+from src.service.mcp.workflow_models import (
+    WorkflowId,
+    WorkflowPriority,
+    WorkflowWarnings,
+)
 
 
 PoolName = Annotated[
@@ -75,6 +79,7 @@ class UpstreamValidationResult(ClosedToolModel):
 
     name: Annotated[str, pydantic.Field(min_length=1, max_length=512)]
     logs: Literal['Workflow validation succeeded.']
+    warnings: WorkflowWarnings = pydantic.Field(default_factory=list)
 
 
 class ValidateWorkflowResult(ClosedToolModel):
@@ -83,6 +88,7 @@ class ValidateWorkflowResult(ClosedToolModel):
     valid: bool
     pool: PoolName
     logs: Literal['Workflow validation succeeded.']
+    warnings: WorkflowWarnings = pydantic.Field(default_factory=list)
 
 
 class UpstreamSubmitResult(ClosedToolModel):
@@ -93,6 +99,7 @@ class UpstreamSubmitResult(ClosedToolModel):
     name: WorkflowId
     overview: Annotated[str, pydantic.Field(min_length=1, max_length=16_384)]
     logs: Annotated[str, pydantic.Field(min_length=1, max_length=16_384)]
+    warnings: WorkflowWarnings = pydantic.Field(default_factory=list)
 
 
 class SubmitWorkflowResult(ClosedToolModel):
@@ -101,6 +108,7 @@ class SubmitWorkflowResult(ClosedToolModel):
     workflow_id: WorkflowId
     pool: PoolName
     priority: WorkflowPriority
+    warnings: WorkflowWarnings = pydantic.Field(default_factory=list)
     submitted: Literal[True]
 
 
@@ -118,6 +126,7 @@ class RestartWorkflowResult(ClosedToolModel):
     workflow_id: WorkflowId
     parent_workflow_id: WorkflowId
     pool: PoolName
+    warnings: WorkflowWarnings = pydantic.Field(default_factory=list)
     restart_submitted: Literal[True]
 
 

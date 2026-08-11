@@ -56,6 +56,9 @@ workflow:
     command: [echo]
     args: [ok]
 """
+_POLICY_WARNING = (
+    "Workflow is missing label 'cost-center'; add it before enforcement."
+)
 _FAILED_WORKFLOW = {
     'name': 'source-workflow-1',
     'uuid': 'source-workflow-uuid',
@@ -110,6 +113,16 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             validation_schema['properties']['workflow_spec']['maxLength'],
             256 * 1024,
         )
+        self.assertEqual(
+            validation_schema['properties']['labels']['default'],
+            None,
+        )
+        self.assertEqual(
+            validation_schema['properties']['labels'][
+                'anyOf'
+            ][0]['maxItems'],
+            50,
+        )
         submit_schema = tools['osmo_submit_workflow']['inputSchema']
         self.assertEqual(submit_schema['required'], ['workflow_spec'])
         self.assertEqual(
@@ -163,6 +176,9 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'dashboard_url': (
                     f'https://example.test/?secret={upstream_secret}'
                 ),
+                'warnings': [
+                    f'{_POLICY_WARNING} token={upstream_secret}',
+                ],
             })
 
         response = await _HARNESS.call_tool(
@@ -174,6 +190,11 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'set_variables': ['replicas=2'],
                 'set_string_variables': ['image_tag=latest'],
                 'priority': 'HIGH',
+                'labels': [
+                    'project=old',
+                    'project=sim_alpha',
+                    'team=robotics',
+                ],
             },
         )
 
@@ -183,6 +204,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             'workflow_id': 'mcp-submission-1',
             'pool': 'pool-a',
             'priority': 'HIGH',
+            'warnings': [f'{_POLICY_WARNING} token=[REDACTED]'],
             'submitted': True,
         })
         self.assertNotIn(upstream_secret, response.text)
@@ -192,7 +214,12 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request.url.path, '/api/pool/pool-a/workflow')
         self.assertEqual(
             request.url.params.multi_items(),
-            [('priority', 'HIGH')],
+            [
+                ('priority', 'HIGH'),
+                ('label', 'project=old'),
+                ('label', 'project=sim_alpha'),
+                ('label', 'team=robotics'),
+            ],
         )
         self.assertEqual(json.loads(request.content), {
             'file': _WORKFLOW_SPEC,
@@ -230,6 +257,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             'workflow_id': 'mcp-template-1',
             'pool': 'pool-a',
             'priority': 'NORMAL',
+            'warnings': [],
             'submitted': True,
         })
         self.assertEqual(
@@ -305,6 +333,20 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             },
             {'workflow_spec': _WORKFLOW_SPEC, 'dry_run': True},
             {'workflow_spec': _WORKFLOW_SPEC, 'priority': 'URGENT'},
+            {'workflow_spec': _WORKFLOW_SPEC, 'labels': ['project']},
+            {
+                'workflow_spec': _WORKFLOW_SPEC,
+                'labels': [
+                    f'label{index}=value'
+                    for index in range(17)
+                ],
+            },
+            {
+                'workflow_spec': _WORKFLOW_SPEC,
+                'labels': [
+                    'a' * 253 + '/' + 'b' * 63 + '=' + 'c' * 63
+                ] * 50,
+            },
             {'workflow_spec': 'x' * (128 * 1024 + 1)},
         )
         async with _HARNESS.client(handler) as client:
@@ -373,6 +415,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'logs': (
                     f'https://example.test/logs?secret={upstream_secret}'
                 ),
+                'warnings': [_POLICY_WARNING],
             })
 
         response = await _HARNESS.call_tool(
@@ -387,6 +430,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             'workflow_id': 'restarted-workflow-2',
             'parent_workflow_id': 'source-workflow-1',
             'pool': 'pool-a',
+            'warnings': [_POLICY_WARNING],
             'restart_submitted': True,
         })
         self.assertNotIn(upstream_secret, response.text)
@@ -595,6 +639,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'logs': 'Workflow validation succeeded.',
                 'overview': 'https://user:url-secret@example.test/workflow',
                 'dashboard_url': 'https://example.test/?token=url-secret',
+                'warnings': [_POLICY_WARNING],
             })
 
         response = await _HARNESS.call_tool(
@@ -607,6 +652,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'set_string_variables': [
                     f'password={override_secret}',
                 ],
+                'labels': ['project=sim_alpha', 'team=robotics'],
             },
         )
 
@@ -616,6 +662,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             'valid': True,
             'pool': 'pool-a',
             'logs': 'Workflow validation succeeded.',
+            'warnings': [_POLICY_WARNING],
         })
         for sensitive_value in (
             _BEARER_SECRET,
@@ -630,7 +677,11 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request.url.path, '/api/pool/pool-a/workflow')
         self.assertEqual(
             request.url.params.multi_items(),
-            [('validation_only', 'true')],
+            [
+                ('validation_only', 'true'),
+                ('label', 'project=sim_alpha'),
+                ('label', 'team=robotics'),
+            ],
         )
         self.assertEqual(
             json.loads(request.content),
@@ -755,6 +806,8 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             {'workflow_spec': _WORKFLOW_SPEC, 'pool': '../private'},
             {'workflow_spec': _WORKFLOW_SPEC, 'set_variables': ['missing']},
             {'workflow_spec': _WORKFLOW_SPEC, 'set_variables': [True]},
+            {'workflow_spec': _WORKFLOW_SPEC, 'labels': ['project']},
+            {'workflow_spec': _WORKFLOW_SPEC, 'labels': [True]},
             {
                 'workflow_spec': _WORKFLOW_SPEC,
                 'set_string_variables': ['key=' + 'x' * 2048],
@@ -841,6 +894,21 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
                 'name': 'workflow-1',
                 'logs': 'password=upstream-success-secret',
             }),
+            httpx.Response(200, json={
+                'name': 'workflow-1',
+                'logs': 'Workflow validation succeeded.',
+                'warnings': ['x' * 1025],
+            }),
+            httpx.Response(200, json={
+                'name': 'workflow-1',
+                'logs': 'Workflow validation succeeded.',
+                'warnings': ['\u200b'],
+            }),
+            httpx.Response(200, json={
+                'name': 'workflow-1',
+                'logs': 'Workflow validation succeeded.',
+                'warnings': [_POLICY_WARNING] * 17,
+            }),
             httpx.Response(200, content=b'x' * (64 * 1024 + 1)),
         ]
 
@@ -849,7 +917,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
             return responses.pop(0)
 
         async with _HARNESS.client(handler) as client:
-            for request_id in range(1, 5):
+            for request_id in range(1, 8):
                 response = await _HARNESS.call_tool_with_client(
                     client,
                     'osmo_validate_workflow',

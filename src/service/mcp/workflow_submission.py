@@ -18,9 +18,11 @@ SPDX-License-Identifier: Apache-2.0
 
 from mcp.server.fastmcp import Context
 
+import src.lib.utils.workflow_labels as shared_labels
 from src.lib.utils import workflow as workflow_utils
 from src.service.mcp import (
     access_scope,
+    gateway,
     tool_errors,
     tool_requests,
     tool_validation,
@@ -30,6 +32,9 @@ from src.service.mcp.workflow_action_models import (
     WorkflowTemplatePayload,
 )
 from src.service.mcp.workflow_models import (
+    MAX_QUERY_VALUES,
+    MAX_WORKFLOW_LABEL_KEY_BYTES,
+    MAX_WORKFLOW_LABEL_VALUE_BYTES,
     WORKFLOW_PRIORITIES,
     WorkflowPriority,
 )
@@ -38,6 +43,10 @@ from src.service.mcp.workflow_models import (
 _MAX_SUBMISSION_SPEC_BYTES = 128 * 1024
 _MAX_JSON_RESPONSE_BYTES = 64 * 1024
 _MAX_OVERRIDE_BYTES = 2048
+_MAX_SUBMISSION_QUERY_BYTES = 16 * 1024
+_MAX_LABEL_ASSIGNMENT_BYTES = (
+    MAX_WORKFLOW_LABEL_KEY_BYTES + 1 + MAX_WORKFLOW_LABEL_VALUE_BYTES
+)
 
 
 def validate_pool_name(pool: str | None) -> str | None:
@@ -118,6 +127,74 @@ def validate_variable_overrides(
     return validated
 
 
+def validate_workflow_label_assignments(
+    values: list[str] | None,
+) -> list[str]:
+    """Validate bounded CLI-compatible workflow label overrides."""
+    if values is None:
+        return []
+    validated = tool_validation.validate_query_values(
+        values,
+        field='labels',
+        max_count=MAX_QUERY_VALUES,
+        max_value_bytes=_MAX_LABEL_ASSIGNMENT_BYTES,
+    )
+    parsed_labels: dict[str, str] = {}
+    try:
+        for assignment in validated:
+            key, value = shared_labels.parse_workflow_label_assignment(
+                assignment
+            )
+            parsed_labels[key] = value
+        shared_labels.validate_workflow_labels(parsed_labels)
+    except ValueError as error:
+        raise tool_errors.PublicToolError('Invalid labels.') from error
+    return validated
+
+
+def build_submission_query(
+    *,
+    labels: list[str],
+    validation_only: bool = False,
+    priority: WorkflowPriority = 'NORMAL',
+    app_uuid: str | None = None,
+    app_version: int | None = None,
+) -> dict[str, gateway.QueryValue]:
+    """Build one bounded Core submission query shared by all MCP actions."""
+    validated_priority = validate_priority(priority)
+    validated_labels = (
+        validate_workflow_label_assignments(labels) if labels else []
+    )
+    if (app_uuid is None) != (app_version is None):
+        raise ValueError(
+            'App UUID and version must be provided together.'
+        )
+    query: dict[str, gateway.QueryValue] = {}
+    if validation_only:
+        query['validation_only'] = True
+    if app_uuid is not None and app_version is not None:
+        query['app_uuid'] = tool_validation.validate_query_text(
+            app_uuid,
+            field='app UUID',
+            max_bytes=512,
+        )
+        query['app_version'] = tool_validation.validate_integer(
+            app_version,
+            field='app version',
+            minimum=1,
+        )
+    if validated_priority != 'NORMAL':
+        query['priority'] = validated_priority
+    if validated_labels:
+        query['label'] = validated_labels
+    tool_validation.validate_query_size(
+        query,
+        operation='Workflow submission query',
+        max_bytes=_MAX_SUBMISSION_QUERY_BYTES,
+    )
+    return query
+
+
 def build_submission_payload(
     workflow_spec: str,
     *,
@@ -149,35 +226,21 @@ async def request_submission(
     priority: WorkflowPriority,
     payload: WorkflowTemplatePayload,
     operation: str,
+    labels: list[str],
     app_uuid: str | None = None,
     app_version: int | None = None,
 ) -> UpstreamSubmitResult:
     """Perform one non-retried Core workflow submission."""
-    validated_priority = validate_priority(priority)
     encoded_pool = tool_validation.safe_path_segment(
         pool,
         field='pool',
     )
-    if (app_uuid is None) != (app_version is None):
-        raise ValueError(
-            'App UUID and version must be provided together.'
-        )
-    submission_query: dict[str, str | int] = {}
-    if app_uuid is not None and app_version is not None:
-        submission_query['app_uuid'] = tool_validation.validate_query_text(
-            app_uuid,
-            field='app UUID',
-            max_bytes=512,
-        )
-        submission_query['app_version'] = (
-            tool_validation.validate_integer(
-                app_version,
-                field='app version',
-                minimum=1,
-            )
-        )
-    if validated_priority != 'NORMAL':
-        submission_query['priority'] = validated_priority
+    submission_query = build_submission_query(
+        labels=labels,
+        priority=priority,
+        app_uuid=app_uuid,
+        app_version=app_version,
+    )
     response = await tool_requests.request_json_mutation(
         context,
         path=f'/api/pool/{encoded_pool}/workflow',
