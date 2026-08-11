@@ -164,6 +164,19 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_workflow_units",
+    srcs = ["test_workflow_units.py"],
+    deps = [
+        "//src/lib/utils:common",
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:priority",
+        "//src/utils/connectors",
+        "//src/utils/job",
+        requirement("pydantic"),
+    ],
+)
+
+osmo_py_test(
     name = "test_task_units",
     srcs = ["test_task_units.py"],
     deps = [

@@ -1,0 +1,311 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+{{- if and .Values.planes.control.enabled .Values.services.ui.enabled }}
+{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "ui") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "osmo.v1.labels" . | nindent 4 }}
+spec:
+  replicas: {{ if .Values.services.ui.autoscaling.enabled }}{{ .Values.services.ui.autoscaling.minReplicas }}{{ else }}{{ .Values.services.ui.replicas }}{{ end }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
+      annotations:
+        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
+    spec:
+      hostAliases:
+        {{ toYaml .Values.services.ui.pod.hostAliases | nindent 8}}
+      topologySpreadConstraints:
+      {{- range .Values.services.ui.pod.topologySpreadConstraints }}
+      - topologyKey: {{.topologyKey }}
+        {{- range $key, $value := . }}
+        {{- if ne $key "topologyKey" }}
+        {{$key}}: {{$value}}
+        {{- end }}
+        {{- end }}
+        labelSelector:
+          matchLabels:
+            app: {{ $name }}
+      {{- end }}
+      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.ui)) }}
+      nodeSelector:
+        {{- . | nindent 8 }}
+      {{- end }}
+      tolerations:
+        {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
+      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
+      {{- if .Values.services.ui.pod.initContainers }}
+      initContainers:
+        {{- toYaml .Values.services.ui.pod.initContainers | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.ui "root" . "suffix" "ui") }}
+      containers:
+      - name: {{ $name }}
+        image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.ui) }}
+        {{- with .Values.services.ui.command }}
+        command:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.services.ui.args }}
+        args:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        env:
+        - name: PORT
+          value: '{{ .Values.services.ui.containerPort }}'
+        - name: NODE_OPTIONS
+          value: '--max-http-header-size={{ mul .Values.services.ui.maxHttpHeaderSizeKb 1024 }}'
+        - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
+          value: {{ .Values.services.ui.apiHostname | default (printf "%s:80" (include "osmo.v1.gateway-name" .)) | quote }}
+        - name: NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED
+          value: {{ .Values.services.ui.portForwardEnabled | quote }}
+        - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
+          value: {{ .Values.services.ui.nextjsSslEnabled | quote }}
+        - name: DOCS_BASE_URL
+          value: {{ .Values.services.ui.docsBaseUrl | quote }}
+        - name: CLI_INSTALL_SCRIPT_URL
+          value: {{ .Values.services.ui.cliInstallScriptUrl | quote }}
+        {{- with .Values.services.ui.env }}
+        {{- range $env := . }}
+        - name: {{ $env.name }}
+          {{- if (hasKey $env "value") }}
+          value: {{ $env.value | quote }}
+          {{- else if $env.valueFrom }}
+          valueFrom:
+            {{- toYaml $env.valueFrom | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.services.ui.envFrom }}
+        envFrom:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.ui) }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1000
+        {{- if .Values.services.ui.volumeMounts }}
+        volumeMounts:
+        {{- end }}
+        {{- with .Values.services.ui.volumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.services.ui.resources | nindent 10 }}
+
+        {{- with .Values.services.ui.livenessProbe }}
+        # Any failure to return the version api means the service is in a bad state
+        livenessProbe:
+          {{- if .httpGet }}
+          httpGet:
+            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
+            path: {{ .httpGet.path | default "/" }}
+            {{- with .httpGet.scheme }}
+            scheme: {{ . }}
+            {{- end }}
+            {{- with .httpGet.httpHeaders }}
+            httpHeaders:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else if .tcpSocket }}
+          tcpSocket:
+            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
+          {{- else if .exec }}
+          exec:
+            {{- toYaml .exec | nindent 12 }}
+          {{- end }}
+          {{- with .failureThreshold }}
+          failureThreshold: {{ . }}
+          {{- end }}
+          {{- with .periodSeconds }}
+          periodSeconds: {{ . }}
+          {{- end }}
+          {{- with .timeoutSeconds }}
+          timeoutSeconds: {{ . }}
+          {{- end }}
+          {{- with .initialDelaySeconds }}
+          initialDelaySeconds: {{ . }}
+          {{- end }}
+          {{- with .successThreshold }}
+          successThreshold: {{ . }}
+          {{- end }}
+        {{- end }}
+
+        {{- with .Values.services.ui.startupProbe }}
+        startupProbe:
+          {{- if .httpGet }}
+          httpGet:
+            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
+            path: {{ .httpGet.path | default "/" }}
+            {{- with .httpGet.scheme }}
+            scheme: {{ . }}
+            {{- end }}
+            {{- with .httpGet.httpHeaders }}
+            httpHeaders:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else if .tcpSocket }}
+          tcpSocket:
+            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
+          {{- else if .exec }}
+          exec:
+            {{- toYaml .exec | nindent 12 }}
+          {{- end }}
+          {{- with .failureThreshold }}
+          failureThreshold: {{ . }}
+          {{- end }}
+          {{- with .periodSeconds }}
+          periodSeconds: {{ . }}
+          {{- end }}
+          {{- with .timeoutSeconds }}
+          timeoutSeconds: {{ . }}
+          {{- end }}
+          {{- with .initialDelaySeconds }}
+          initialDelaySeconds: {{ . }}
+          {{- end }}
+          {{- with .successThreshold }}
+          successThreshold: {{ . }}
+          {{- end }}
+        {{- end }}
+
+        {{- with .Values.services.ui.readinessProbe }}
+        # Do a basic database read operation to ensure the service is able to serve traffic
+        readinessProbe:
+          {{- if .httpGet }}
+          httpGet:
+            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
+            path: {{ .httpGet.path | default "/" }}
+            {{- with .httpGet.scheme }}
+            scheme: {{ . }}
+            {{- end }}
+            {{- with .httpGet.httpHeaders }}
+            httpHeaders:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else if .tcpSocket }}
+          tcpSocket:
+            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
+          {{- else if .exec }}
+          exec:
+            {{- toYaml .exec | nindent 12 }}
+          {{- end }}
+          {{- with .failureThreshold }}
+          failureThreshold: {{ . }}
+          {{- end }}
+          {{- with .periodSeconds }}
+          periodSeconds: {{ . }}
+          {{- end }}
+          {{- with .timeoutSeconds }}
+          timeoutSeconds: {{ . }}
+          {{- end }}
+          {{- with .initialDelaySeconds }}
+          initialDelaySeconds: {{ . }}
+          {{- end }}
+          {{- with .successThreshold }}
+          successThreshold: {{ . }}
+          {{- end }}
+        {{- end }}
+
+      {{- with .Values.services.ui.pod.sidecars }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      volumes:
+        {{- with .Values.services.ui.pod.volumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "osmo.v1.labels" . | nindent 4 }}
+    {{- with .Values.services.ui.service.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.services.ui.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.services.ui.service.type }}
+  type: {{ . }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.services.ui.service.port }}
+      targetPort: {{ .Values.services.ui.containerPort }}
+      protocol: {{ .Values.services.ui.service.protocol }}
+      name: {{ .Values.services.ui.service.portName }}
+    {{- range .Values.services.ui.service.extraPorts }}
+    - port: {{ .port }}
+      targetPort: {{ .targetPort | default .port }}
+      protocol: {{ .protocol | default "TCP" }}
+      name: {{ .name }}
+      {{- with .nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
+    {{- end }}
+  selector:
+    app: {{ $name }}
+    {{- with .Values.services.ui.service.selector }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+
+{{- if .Values.services.ui.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "osmo.v1.labels" . | nindent 4 }}
+  annotations:
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ .Values.services.ui.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.services.ui.autoscaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      container: {{ $name }}
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.ui.autoscaling.hpaTarget }}
+  {{- with .Values.services.ui.autoscaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}
+{{- end }}

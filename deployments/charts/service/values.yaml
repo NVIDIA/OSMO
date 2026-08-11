@@ -127,7 +127,7 @@ services:
     ## Docker image name and optional tag override. An empty imageTag uses
     ## global.osmoImageTag.
     ##
-    imageName: mcp-self-hosted
+    imageName: mcp
     imageTag: ""
     imagePullPolicy: Always
 

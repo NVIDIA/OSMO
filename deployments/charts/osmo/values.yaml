@@ -1,0 +1,1146 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Select which OSMO planes this release owns.
+planes:
+  # Deploy the API, UI, router, workers, logging services, and gateway. This
+  # must remain true while the chart supports only control-plane releases.
+  control:
+    enabled: true
+  # TODO: Allow this switch after compute-plane templates are added.
+  # Reserved for backend-operator workloads. Enabling it is currently rejected.
+  compute:
+    enabled: false
+
+# Select supporting systems managed by this Helm release.
+# TODO: Allow these switches as their dependency charts are added.
+# They must remain false for now; supply operator-managed services through
+# `externalDependencies` instead.
+embeddedDependencies:
+  postgresql:
+    enabled: false
+  valkey:
+    enabled: false
+  objectStorage:
+    enabled: false
+  gateway:
+    enabled: false
+  kaiScheduler:
+    enabled: false
+
+# Connection details for dependencies owned outside this release. These
+# endpoints are required by the control plane because embedded dependencies
+# are not implemented yet.
+externalDependencies:
+  # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
+  # server certificate is signed by a private CA.
+  postgresql:
+    host: ''
+    port: 5432
+    database: osmo
+    username: postgres
+    tls:
+      enabled: false
+      caExistingSecret: ''
+      caKey: ca.crt
+  # Valkey provides queues, caches, events, and distributed coordination.
+  # When TLS is enabled, caKey must contain a complete trust bundle (including
+  # public/system roots needed by other HTTPS clients), because Python Redis
+  # consumes it through SSL_CERT_FILE.
+  valkey:
+    host: ''
+    port: 6379
+    database: 0
+    tls:
+      enabled: false
+      caExistingSecret: ''
+      caKey: ca-bundle.crt
+  # S3-compatible storage for workflow data, logs, and application bundles.
+  objectStorage:
+    endpoint: ''
+    region: us-east-1
+    buckets:
+      workflows: ''
+      logs: ''
+      apps: ''
+
+# Override the names Helm derives from the chart and release. Leave empty for
+# conventional names such as `osmo-service` and `osmo-gateway`.
+nameOverride: ''
+fullnameOverride: ''
+
+# Shared defaults for OSMO-owned images. A service can override these values in
+# its own `image` block; an empty service tag inherits `image.tag`, which in
+# turn defaults to Chart.appVersion.
+image:
+  registry: nvcr.io
+  repositoryPrefix: nvidia/osmo
+  tag: ''
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Metadata and scheduling defaults shared by OSMO-owned workloads. Labels,
+# annotations, and node selectors merge with service-specific pod values;
+# service-specific tolerations replace this list.
+commonLabels: {}
+commonAnnotations: {}
+podDefaults:
+  labels: {}
+  annotations: {}
+  nodeSelector: {}
+  tolerations: []
+  # TODO: Apply these shared pod-policy fields to every OSMO workload.
+  affinity: {}
+  podSecurityContext: {}
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    runAsNonRoot: true
+    runAsUser: 1001
+
+# Shared Python service logging settings.
+logging:
+  enabled: true
+  logLevel: INFO
+  k8sLogLevel: WARNING
+  logFormat: text
+
+# Describe how clients reach the release.
+#
+# Supported mode values are `external`, `gateway`, and `ingress`. Only
+# `external` is implemented today: the chart creates the internal
+# `osmo-gateway` Service but expects an operator-managed proxy, load balancer,
+# or port-forward to expose it.
+# TODO: Implement Kubernetes edge resources for `gateway` and `ingress` modes;
+# those modes currently fail validation.
+exposure:
+  mode: external
+  # Public OSMO URL used in generated service configuration. Include the
+  # scheme, for example `https://osmo.example.com`.
+  baseUrl: ''
+
+# References to operator-owned Kubernetes Secrets. Inline credentials are not
+# accepted.
+# TODO: Implement retained chart-generated credentials for `generate: true`;
+# all `generate` switches must remain false for now.
+secrets:
+  # Password used with `externalDependencies.postgresql.username`.
+  postgresql:
+    generate: false
+    existingSecret: ''
+    keys:
+      password: db-password
+  # Password used for the external Valkey connection.
+  valkey:
+    generate: false
+    existingSecret: ''
+    keys:
+      password: redis-password
+  # Storage SDK configuration file mounted for all three object-storage uses.
+  objectStorage:
+    generate: false
+    existingSecret: ''
+    keys:
+      credentials: object-storage.yaml
+  # Master encryption key configuration mounted into OSMO services.
+  masterEncryptionKey:
+    generate: false
+    existingSecret: ''
+    mountPath: /opt/osmo/config.yaml
+    keys:
+      config: mek.yaml
+  # Optional password used to bootstrap the named administrator account.
+  defaultAdmin:
+    generate: false
+    existingSecret: ''
+    username: admin
+    keys:
+      password: password
+
+
+# Control-plane application services. Each service owns its image, scaling,
+# probes, resources, environment overrides, and pod-level settings. Internal
+# commands, ports, Service names, and required connection arguments remain
+# chart-managed implementation details.
+services:
+  # Optional Model Context Protocol endpoint exposed through the gateway.
+  mcp:
+    enabled: false
+    replicas: 1
+    image:
+      name: mcp-self-hosted
+      tag: ''
+      pullPolicy: Always
+    port: 8000
+    resourceUrl: ''
+    requestTimeoutSeconds: 10
+    authorizationServers: []
+    scopes: []
+    allowedOrigins: []
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    livenessProbe:
+      httpGet:
+        port: http
+        path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        port: http
+        path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+    startupProbe:
+      httpGet:
+        port: http
+        path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 24
+    env: []
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsNonRoot: true
+        runAsUser: 1001
+
+  # Browser-based OSMO user interface.
+  ui:
+    enabled: true
+    replicas: 1
+    image:
+      name: web-ui
+      tag: ''
+      pullPolicy: Always
+    # Leave empty to use this release's gateway Service and port 80.
+    apiHostname: ''
+    portForwardEnabled: false
+    nextjsSslEnabled: false
+    containerPort: 8000
+    serviceAccount:
+      name: osmo
+      create: false
+      annotations: {}
+    maxHttpHeaderSizeKb: 128
+    command: []
+    args: []
+    docsBaseUrl: https://nvidia.github.io/OSMO/main/user_guide/
+    cliInstallScriptUrl: https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 3
+      hpaTarget: 85
+      customMetrics: []
+    service:
+      type: ''
+      port: 80
+      portName: http
+      protocol: TCP
+      labels: {}
+      annotations: {}
+      extraPorts: []
+      selector: {}
+    resources: {}
+    extraPorts: []
+    envFrom: []
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 3
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      timeoutSeconds: 3
+      periodSeconds: 5
+    env: []
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      topologySpreadConstraints:
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      hostAliases: []
+      initContainers: []
+
+  # Promotes scheduled Redis jobs when their delay expires.
+  delayedJobMonitor:
+    enabled: true
+    replicas: 1
+    image:
+      name: delayed-job-monitor
+      tag: ''
+      pullPolicy: Always
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - '30'
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
+    resources: {}
+    extraArgs: []
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    volumeMounts:
+    - name: progress-files
+      mountPath: /var/run/osmo
+    env: []
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      initContainers: []
+      volumes:
+      - name: progress-files
+        emptyDir: {}
+
+  # Executes asynchronous control-plane jobs from the Valkey queue.
+  worker:
+    enabled: true
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 10
+      hpaMemoryTarget: 80
+      hpaCpuTarget: 80
+      customMetrics: []
+    image:
+      name: worker
+      tag: ''
+      pullPolicy: Always
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - '300'
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
+    resources: {}
+    extraArgs: []
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    env: []
+    replicas: 2
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      topologySpreadConstraints:
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      initContainers: []
+
+  # Main OSMO REST API and control-plane service.
+  api:
+    enabled: true
+    monitoring:
+      podMonitor:
+        enabled: false
+        interval: 30s
+        scrapeTimeout: 10s
+        scheme: http
+        tlsConfig: {}
+    autoscaling:
+      minReplicas: 3
+      maxReplicas: 9
+      hpaMemoryTarget: 80
+      hpaCpuTarget: 80
+      customMetrics: []
+    image:
+      name: service
+      tag: ''
+      pullPolicy: Always
+    hostname: ''
+    clientInstallUrl: https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh
+    disableTaskMetrics: false
+    auth:
+      enabled: false
+      device_endpoint: ''
+      device_client_id: ''
+      browser_endpoint: ''
+      browser_client_id: ''
+      token_endpoint: ''
+      logout_endpoint: ''
+    livenessProbe:
+      httpGet:
+        port: 8000
+        path: /api/version
+      timeoutSeconds: 20
+      failureThreshold: 3
+      periodSeconds: 45
+    startupProbe:
+      httpGet:
+        port: 8000
+        path: /api/version
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
+    # Keep readiness authorization-neutral: this endpoint only confirms that
+    # the API process is ready to receive traffic.
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /health
+      failureThreshold: 3
+      periodSeconds: 45
+      timeoutSeconds: 20
+    resources: {}
+    extraArgs: []
+    serviceAccount:
+      name: ''
+      create: true
+      annotations: {}
+    env: []
+    replicas: 3
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      hostAliases: []
+      initContainers: []
+
+  # Routes sticky HTTP and WebSocket sessions to connected backends.
+  router:
+    enabled: true
+    autoscaling:
+      minReplicas: 3
+      maxReplicas: 5
+      memoryTarget: 80
+      hpaCpuTarget: 80
+      customMetrics: []
+    image:
+      name: router
+      tag: ''
+      pullPolicy: Always
+    hostname: ''
+    webserverEnabled: false
+    extraArgs: []
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    extraPorts: []
+    resources: {}
+    livenessProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 30
+    startupProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 30
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      periodSeconds: 5
+      failureThreshold: 2
+      timeoutSeconds: 30
+    env: []
+    replicas: 3
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      hostAliases: []
+      initContainers: []
+
+  # Receives workflow logs and task metrics from runtime containers.
+  logger:
+    enabled: true
+    autoscaling:
+      minReplicas: 3
+      maxReplicas: 9
+      hpaMemoryTarget: 80
+      hpaCpuTarget: 80
+      customMetrics: []
+    image:
+      name: logger
+      tag: ''
+      pullPolicy: Always
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - '60'
+        - --progress_file
+        - /var/run/osmo/last_progress
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
+    resources:
+      requests:
+        cpu: '1'
+        memory: 1Gi
+      limits:
+        memory: 1Gi
+    extraArgs: []
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    envoy: {}
+    env: []
+    replicas: 3
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      initContainers: []
+
+  # Receives backend-cluster events and heartbeat streams.
+  agent:
+    enabled: true
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 9
+      hpaMemoryTarget: 80
+      hpaCpuTarget: 80
+      customMetrics: []
+    image:
+      name: agent
+      tag: ''
+      pullPolicy: Always
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - '60'
+        - --progress_file
+        - /var/run/osmo/last_progress
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /health
+      periodSeconds: 45
+      failureThreshold: 3
+      timeoutSeconds: 20
+    resources:
+      requests:
+        cpu: 500m
+        memory: 500Mi
+      limits:
+        memory: 1Gi
+    extraArgs: []
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    envoy: {}
+    env: []
+    replicas: 1
+    pod:
+      labels: {}
+      annotations: {}
+      nodeSelector: {}
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      initContainers: []
+
+# Internal API gateway and optional gateway-adjacent services. This block is
+# independent of `exposure.mode`: `gateway.envoy` routes traffic inside the
+# release even when an external edge owns the public URL.
+gateway:
+  # Envoy proxy that provides the single in-cluster OSMO entry point.
+  envoy:
+    enabled: true
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 6
+      hpaCpuTarget: 80
+      hpaMemoryTarget: 80
+      customMetrics: []
+    image:
+      repository: envoyproxy/envoy:v1.38.1
+      pullPolicy: IfNotPresent
+    logLevel: info
+    listenerPort: 8080
+    maxHeadersSizeKb: 128
+    blockedIPs: []
+    hostname: ''
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    defaultIdentity:
+      user: ''
+      roles: ''
+      allowedPools: ''
+    service:
+      type: LoadBalancer
+      httpsPort: 443
+      nodePort: null
+      annotations: {}
+    # TODO: Remove this legacy enabled switch and derive Ingress rendering from
+    # top-level exposure.mode when ingress exposure is implemented.
+    ingress:
+      enabled: false
+      ingressClass: alb
+      albAnnotations:
+        enabled: false
+        groupName: osmo
+        groupOrder: '10'
+        sslCertArn: ''
+      sslEnabled: false
+      sslSecret: osmo-tls
+      annotations: {}
+    ssl:
+      enabled: false
+      secretName: envoy-ssl-cert
+    resources:
+      requests:
+        cpu: 200m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    livenessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+    startupProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 3
+    idp:
+      host: ''
+    internalJwks:
+      enabled: true
+      cluster: osmo-service-jwks
+      host: ''
+      port: ''
+    jwt:
+      user_header: x-osmo-user
+      providers: []
+    skipAuthPaths:
+    - /api/version
+    - /api/auth/login
+    - /api/auth/keys
+    - /api/auth/refresh_token
+    - /api/auth/jwt/refresh_token
+    - /api/auth/jwt/access_token
+    - /api/router/version
+    - /client/version
+    extraSkipAuthPaths: []
+    routerRoute:
+      prefix: /api/router
+      timeout: 0s
+      cookie:
+        name: _osmo_router_affinity
+        ttl: 0s
+    serviceRoutes: []
+    extraRoutes: []
+    extraClusters: []
+    maxRequests: 100
+    volumeMounts: []
+    replicas: 2
+    pod:
+      nodeSelector: {}
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsNonRoot: true
+        runAsUser: 1001
+      volumes: []
+      labels: {}
+      annotations: {}
+
+  # Internal destinations used by Envoy routes. Empty hosts resolve to this
+  # release's Services; set a host only to route outside the release.
+  upstreams:
+    service:
+      enabled: true
+      host: ''
+      port: 80
+    router:
+      enabled: true
+      host: ''
+      port: 8000
+    ui:
+      enabled: true
+      host: ''
+      port: 80
+    agent:
+      enabled: true
+      host: ''
+      port: 80
+    logger:
+      enabled: true
+      host: ''
+      port: 8000
+
+  # Optional OIDC login/session proxy. The split-plane control profile keeps
+  # it disabled unless an identity provider and existing Secret are supplied.
+  oauth2Proxy:
+    enabled: true
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 3
+      hpaCpuTarget: 80
+      hpaMemoryTarget: 80
+      customMetrics: []
+    image:
+      repository: quay.io/oauth2-proxy/oauth2-proxy:v7.14.2
+      pullPolicy: IfNotPresent
+    httpPort: 4180
+    metricsPort: 44180
+    provider: oidc
+    oidcIssuerUrl: ''
+    clientId: ''
+    cookieName: _osmo_session
+    cookieSecure: true
+    cookieDomain: ''
+    cookieExpire: 168h
+    cookieRefresh: 1h
+    scope: openid email profile
+    passAccessToken: false
+    redisSessionStore: true
+    useKubernetesSecrets: false
+    secretName: oauth2-proxy-secrets
+    clientSecretKey: client_secret
+    cookieSecretKey: cookie_secret
+    secretPaths:
+      clientSecret: /etc/oauth2-proxy/client-secret
+      cookieSecret: /etc/oauth2-proxy/cookie-secret
+    extraArgs: []
+    redis:
+      port: 6379
+      tlsEnabled: true
+      dbNumber: 0
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    volumeMounts: []
+    env: []
+    replicas: 1
+    pod:
+      annotations: {}
+      nodeSelector: {}
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsNonRoot: true
+        runAsUser: 1001
+      volumes: []
+      labels: {}
+
+  # Optional external-authorization service backed by OSMO role policies.
+  authz:
+    enabled: true
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 3
+      hpaCpuTarget: 80
+      hpaMemoryTarget: 80
+      customMetrics: []
+    image:
+      name: authz-sidecar
+      tag: ''
+      pullPolicy: Always
+    grpcPort: 50052
+    postgres:
+      maxConns: 10
+      minConns: 2
+      maxConnLifetimeMin: 5
+    cache:
+      ttl: 300
+      maxSize: 1000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    livenessProbe:
+      grpc:
+        port: 50052
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    readinessProbe:
+      grpc:
+        port: 50052
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    volumeMounts: []
+    env: []
+    replicas: 1
+    pod:
+      annotations: {}
+      nodeSelector: {}
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsNonRoot: true
+        runAsUser: 10001
+      volumes: []
+      labels: {}
+
+  # Optional Envoy-compatible global rate-limit service backed by Valkey.
+  rateLimit:
+    enabled: false
+    replicas: 1
+    image:
+      repository: envoyproxy/ratelimit:875d418c
+      pullPolicy: IfNotPresent
+    grpcPort: 8091
+    httpPort: 8090
+    redis:
+      port: 6379
+      tlsEnabled: true
+    config:
+      domain: ratelimit
+      descriptors: []
+    resources:
+      requests:
+        cpu: '0.1'
+        memory: 200Mi
+      limits:
+        memory: 200Mi
+    serviceAccount:
+      name: ''
+      create: false
+      annotations: {}
+    volumeMounts: []
+    env: []
+    pod:
+      annotations: {}
+      nodeSelector: {}
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsNonRoot: true
+        runAsUser: 1001
+      volumes: []
+      labels: {}
+
+  # Optional ingress policies limiting gateway traffic to known upstream pods.
+  networkPolicies:
+    enabled: false
+    # Release-relative component suffixes prevent policies from selecting pods
+    # owned by another OSMO release in the same namespace.
+    upstreams:
+    - name: service
+      component: service
+      port: 8000
+    - name: router
+      component: router
+      port: 8000
+    - name: ui
+      component: ui
+      port: 8000
+
+  # TLS for traffic from Envoy to OSMO upstream services. Existing Secret
+  # names provide fixed certificates; empty entries use each service's
+  # chart-managed self-signed mode. This does not configure public edge TLS.
+  tls:
+    enabled: true
+    upstreamCerts:
+      service: ''
+      router: ''
+      agent: ''
+      logger: ''
+      mcp: ''
+    caSecret: ''
+
+# OSMO domain configuration rendered into the service ConfigMap. Enable this
+# in a profile to manage workflows, pod templates, validation rules, roles,
+# backends, and pools with the release.
+configuration:
+  # When false, the chart does not render or mount the OSMO configuration
+  # ConfigMap. The split-plane control profile enables it.
+  enabled: false
+  extraConfigMaps: []
+  extraAnnotations: {}
+  service: {}
+  workflow:
+    max_num_tasks: 100
+    max_exec_timeout: 30d
+    default_exec_timeout: 7d
+    labels_config:
+      policy: []
+  podTemplates:
+    default_ctrl:
+      spec:
+        containers:
+        - name: osmo-ctrl
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+            requests:
+              cpu: '1'
+              memory: 1Gi
+              ephemeral-storage: 1Gi
+    default_user:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              nvidia.com/gpu: '{{USER_GPU}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+            requests:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              nvidia.com/gpu: '{{USER_GPU}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+  resourceValidations:
+    default_cpu:
+    - operator: LE
+      left_operand: '{{USER_CPU}}'
+      right_operand: '{{K8_CPU}}'
+      assert_message: Value {{USER_CPU}} too high for CPU
+    - operator: GT
+      left_operand: '{{USER_CPU}}'
+      right_operand: '0'
+      assert_message: Value {{USER_CPU}} needs to be greater than 0 for CPU
+    default_memory:
+    - operator: LE
+      left_operand: '{{USER_MEMORY}}'
+      right_operand: '{{K8_MEMORY}}'
+      assert_message: Value {{USER_MEMORY}} too high for memory
+    - operator: GT
+      left_operand: '{{USER_MEMORY}}'
+      right_operand: '0'
+      assert_message: Value {{USER_MEMORY}} needs to be greater than 0 for memory
+    default_gpu:
+    - operator: LE
+      left_operand: '{{USER_GPU}}'
+      right_operand: '{{K8_GPU}}'
+      assert_message: GPU value {{USER_GPU}} too high for GPU
+    - operator: GE
+      left_operand: '{{USER_GPU}}'
+      right_operand: '0'
+      assert_message: GPU value {{USER_GPU}} cannot be negative
+    default_storage:
+    - operator: LT
+      left_operand: '{{USER_STORAGE}}'
+      right_operand: '{{K8_STORAGE}}'
+      assert_message: Value {{USER_STORAGE}} too high for storage
+    - operator: GT
+      left_operand: '{{USER_STORAGE}}'
+      right_operand: '0'
+      assert_message: Value {{USER_STORAGE}} needs to be greater than 0 for storage
+  roles:
+    osmo-admin:
+      description: "Admin role \u2014 full access to all resources"
+      policies:
+      - effect: Allow
+        actions:
+        - '*:*'
+        resources:
+        - '*'
+      external_roles:
+      - osmo-admin
+    osmo-user:
+      description: "User role \u2014 standard workflow and data operations"
+      policies:
+      - effect: Allow
+        actions:
+        - app:*
+        - auth:Token
+        - credentials:*
+        - mcp:Access
+        - pool:List
+        - profile:Read
+        - profile:Update
+        - resources:Read
+        - user:List
+        - workflow:List
+        - workflow:Read
+        resources:
+        - '*'
+      - effect: Allow
+        actions:
+        - workflow:*
+        resources:
+        - pool/default
+      external_roles:
+      - osmo-user
+    osmo-default:
+      description: "Default role \u2014 login, profile, health check"
+      policies:
+      - effect: Allow
+        actions:
+        - auth:Login
+        - auth:Refresh
+        - auth:Token
+        - profile:*
+        - system:Health
+        resources:
+        - '*'
+      external_roles: []
+    osmo-ctrl:
+      description: "Controller role \u2014 internal container communication"
+      policies:
+      - effect: Allow
+        actions:
+        - internal:Logger
+        - internal:Router
+        resources:
+        - '*'
+      external_roles:
+      - osmo-ctrl
+    osmo-backend:
+      description: "Backend role \u2014 internal operator communication"
+      policies:
+      - effect: Allow
+        actions:
+        - internal:Operator
+        - config:Read
+        - pool:List
+        resources:
+        - '*'
+      external_roles:
+      - osmo-backend
+  backends:
+    default:
+      description: Default backend
+      scheduler_settings:
+        scheduler_type: kai
+        scheduler_name: kai-scheduler
+        scheduler_timeout: 30
+  pools:
+    default:
+      description: Default pool
+      backend: default
+      default_platform: default
+      common_pod_template:
+      - default_ctrl
+      - default_user
+      common_resource_validations:
+      - default_cpu
+      - default_memory
+      - default_storage
+      - default_gpu
+      common_default_variables:
+        USER_CPU: 1
+        USER_GPU: 0
+        USER_MEMORY: 1Gi
+        USER_STORAGE: 1Gi
+      platforms:
+        default: {}
+  backendTests: {}
+  groupTemplates: {}

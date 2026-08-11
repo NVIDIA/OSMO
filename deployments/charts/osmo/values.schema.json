@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$comment": "SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. SPDX-License-Identifier: Apache-2.0",
+  "title": "OSMO Helm chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "planes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "control": { "$ref": "#/definitions/enabledBlock" },
+        "compute": { "$ref": "#/definitions/enabledBlock" }
+      },
+      "required": ["control", "compute"]
+    },
+    "embeddedDependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "postgresql": { "$ref": "#/definitions/enabledBlock" },
+        "valkey": { "$ref": "#/definitions/enabledBlock" },
+        "objectStorage": { "$ref": "#/definitions/enabledBlock" },
+        "gateway": { "$ref": "#/definitions/enabledBlock" },
+        "kaiScheduler": { "$ref": "#/definitions/enabledBlock" }
+      }
+    },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "image": { "$ref": "#/definitions/globalImage" },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "name": { "type": "string", "minLength": 1 } },
+        "required": ["name"]
+      }
+    },
+    "commonLabels": { "$ref": "#/definitions/stringMap" },
+    "commonAnnotations": { "$ref": "#/definitions/stringMap" },
+    "podDefaults": { "$ref": "#/definitions/podSettings" },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "logLevel": { "type": "string" },
+        "k8sLogLevel": { "type": "string" },
+        "logFormat": { "type": "string", "enum": ["text", "json"] }
+      }
+    },
+    "exposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["external", "gateway", "ingress"] },
+        "baseUrl": { "type": "string" }
+      },
+      "required": ["mode"]
+    },
+    "externalDependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "postgresql": { "$ref": "#/definitions/databaseConnection" },
+        "valkey": { "$ref": "#/definitions/valkeyConnection" },
+        "objectStorage": { "$ref": "#/definitions/objectStorageConnection" }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "postgresql": { "$ref": "#/definitions/secretReference" },
+        "valkey": { "$ref": "#/definitions/secretReference" },
+        "objectStorage": { "$ref": "#/definitions/secretReference" },
+        "masterEncryptionKey": { "$ref": "#/definitions/secretReference" },
+        "defaultAdmin": { "$ref": "#/definitions/secretReference" }
+      }
+    },
+    "configuration": { "type": "object" },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api": { "$ref": "#/definitions/serviceComponent" },
+        "ui": { "$ref": "#/definitions/serviceComponent" },
+        "router": { "$ref": "#/definitions/serviceComponent" },
+        "worker": { "$ref": "#/definitions/serviceComponent" },
+        "logger": { "$ref": "#/definitions/serviceComponent" },
+        "agent": { "$ref": "#/definitions/serviceComponent" },
+        "delayedJobMonitor": { "$ref": "#/definitions/serviceComponent" },
+        "mcp": { "$ref": "#/definitions/mcpComponent" }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "envoy": { "$ref": "#/definitions/gatewayComponent" },
+        "oauth2Proxy": { "$ref": "#/definitions/gatewayComponent" },
+        "authz": { "$ref": "#/definitions/gatewayComponent" },
+        "rateLimit": { "$ref": "#/definitions/gatewayComponent" },
+        "upstreams": { "type": "object" },
+        "networkPolicies": { "type": "object" },
+        "tls": { "type": "object" }
+      }
+    }
+  },
+  "required": ["planes", "embeddedDependencies", "externalDependencies", "image", "exposure", "secrets", "services", "gateway"],
+  "definitions": {
+    "enabledBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "enabled": { "type": "boolean" } },
+      "required": ["enabled"]
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "globalImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry": { "type": "string", "minLength": 1 },
+        "repositoryPrefix": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      },
+      "required": ["registry", "repositoryPrefix", "pullPolicy"]
+    },
+    "componentImage": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "repository": { "type": "string", "minLength": 1 }
+      }
+    },
+    "podSettings": {
+      "type": "object",
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "containerSecurityContext": { "type": "object" },
+        "topologySpreadConstraints": { "type": "array" },
+        "hostAliases": { "type": "array" },
+        "initContainers": { "type": "array" },
+        "volumes": { "type": "array" },
+        "sidecars": { "type": "array" }
+      }
+    },
+    "serviceComponent": {
+      "type": "object",
+      "not": {
+        "anyOf": [
+          { "required": ["imageName"] },
+          { "required": ["imageTag"] },
+          { "required": ["imagePullPolicy"] },
+          { "required": ["serviceName"] },
+          { "required": ["serviceAccountName"] },
+          { "required": ["scaling"] },
+          { "required": ["nodeSelector"] },
+          { "required": ["tolerations"] },
+          { "required": ["extraPodLabels"] },
+          { "required": ["extraPodAnnotations"] },
+          { "required": ["extraEnv"] },
+          { "required": ["extraEnvs"] },
+          { "required": ["extraVolumeMounts"] },
+          { "required": ["extraVolumes"] },
+          { "required": ["extraSidecars"] },
+          { "required": ["extraContainers"] },
+          { "required": ["initContainers"] }
+        ]
+      },
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "pod": { "$ref": "#/definitions/podSettings" },
+        "serviceAccount": { "type": "object" },
+        "autoscaling": { "type": "object" },
+        "env": { "type": "array" },
+        "extraArgs": { "type": "array" },
+        "resources": { "type": "object" }
+      }
+    },
+    "gatewayComponent": {
+      "allOf": [{ "$ref": "#/definitions/serviceComponent" }]
+    },
+    "mcpComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/serviceComponent" },
+        {
+          "properties": {
+            "requestTimeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            }
+          }
+        }
+      ]
+    },
+    "tlsConnection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "caExistingSecret": { "type": "string" },
+        "caKey": { "type": "string", "minLength": 1 }
+      }
+    },
+    "databaseConnection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "database": { "type": "string" },
+        "username": { "type": "string" },
+        "tls": { "$ref": "#/definitions/tlsConnection" }
+      }
+    },
+    "valkeyConnection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "database": { "type": "integer", "minimum": 0 },
+        "tls": { "$ref": "#/definitions/tlsConnection" }
+      }
+    },
+    "objectStorageConnection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": { "type": "string" },
+        "region": { "type": "string" },
+        "buckets": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workflows": { "type": "string" },
+            "logs": { "type": "string" },
+            "apps": { "type": "string" }
+          }
+        }
+      }
+    },
+    "secretReference": {
+      "type": "object",
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "keys": { "type": "object" },
+        "mountPath": { "type": "string" },
+        "username": { "type": "string" }
+      }
+    }
+  }
+}

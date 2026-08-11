@@ -24,6 +24,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -99,6 +100,30 @@ def latest_version_for_prefix(tags: Iterable[str], prefix: str, dev: bool = Fals
     return max(versions, key=_version_tuple)
 
 
+def latest_manifest_version_for_prefix(
+    repo: str,
+    prefix: str,
+    catalog_version: str,
+    dev: bool = False,
+) -> str:
+    """Return the latest contiguous patch version resolvable from the registry."""
+    suffix = "-dev" if dev else ""
+    latest_version = catalog_version
+
+    while True:
+        major, minor, patch = _version_tuple(latest_version)
+        candidate_version = f"{major}.{minor}.{patch + 1}"
+        candidate_tag = f"{prefix}-v{candidate_version}{suffix}"
+        try:
+            _manifest_digest(repo, candidate_tag)
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                error.close()
+                return latest_version
+            raise
+        latest_version = candidate_version
+
+
 def _registry_token(repo: str) -> str:
     query = urllib.parse.urlencode({"scope": f"repository:{repo}:pull"})
     url = f"{REGISTRY}/proxy_auth?{query}"
@@ -152,10 +177,19 @@ def fetch_latest() -> DistrolessLatest:
     python_tags = _repo_tags(PYTHON_REPO)
     node_tags = _repo_tags(NODE_REPO)
 
-    python_version = latest_version_for_prefix(python_tags, PYTHON_IMAGE_VERSION)
-    python_dev_version = latest_version_for_prefix(
-        python_tags,
+    python_version = latest_manifest_version_for_prefix(
+        PYTHON_REPO,
         PYTHON_IMAGE_VERSION,
+        latest_version_for_prefix(python_tags, PYTHON_IMAGE_VERSION),
+    )
+    python_dev_version = latest_manifest_version_for_prefix(
+        PYTHON_REPO,
+        PYTHON_IMAGE_VERSION,
+        latest_version_for_prefix(
+            python_tags,
+            PYTHON_IMAGE_VERSION,
+            dev=True,
+        ),
         dev=True,
     )
     if python_dev_version != python_version:
@@ -164,7 +198,11 @@ def fetch_latest() -> DistrolessLatest:
             f"runtime={python_version} dev={python_dev_version}"
         )
 
-    node_version = latest_version_for_prefix(node_tags, NODE_IMAGE_VERSION)
+    node_version = latest_manifest_version_for_prefix(
+        NODE_REPO,
+        NODE_IMAGE_VERSION,
+        latest_version_for_prefix(node_tags, NODE_IMAGE_VERSION),
+    )
 
     python_tag = f"{PYTHON_IMAGE_VERSION}-v{python_version}"
     python_dev_tag = f"{PYTHON_IMAGE_VERSION}-v{python_version}-dev"

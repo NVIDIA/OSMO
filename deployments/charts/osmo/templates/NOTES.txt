@@ -1,0 +1,13 @@
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+
+OSMO control plane installed.
+
+The supported external exposure mode renders no public edge resource. To test
+the gateway locally, run:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "osmo.v1.gateway-name" . }} 8080:80
+
+Then query:
+
+  curl http://127.0.0.1:8080/api/version

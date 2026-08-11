@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+configuration:
+  service: null
+
+services:
+  api:
+    monitoring:
+      podMonitor:
+        enabled: true
+  ui:
+    docsBaseUrl: "*docs"
+    cliInstallScriptUrl: "&install"
+  worker:
+    pod:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: worker-zone
+        whenUnsatisfiable: ScheduleAnyway
+  delayedJobMonitor:
+    resources:
+      requests:
+        cpu: 321m
+        memory: 512Mi
+  router:
+    env:
+    - name: EMPTY_VALUE
+      value: ""
+  agent:
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /review-ready
+      periodSeconds: 17
+      failureThreshold: 2
+      timeoutSeconds: 4
+    serviceAccount:
+      name: ""
+      create: true
+      annotations: {}
+
+gateway:
+  envoy:
+    ssl:
+      enabled: true
+      secretName: gateway-tls
+    ingress:
+      enabled: true
+      sslEnabled: true
+      albAnnotations:
+        enabled: true
+        groupName: osmo
+        groupOrder: "10"
+        # Synthetic test-only ARN used to verify ALB annotation rendering.
+        sslCertArn: arn:aws:acm:us-east-1:123456789012:certificate/test
+  oauth2Proxy:
+    enabled: true
+    useKubernetesSecrets: true
+    oidcIssuerUrl: https://issuer.example.com
+    clientId: osmo
+  authz:
+    enabled: true
+  rateLimit:
+    enabled: true
+    redis:
+      tlsEnabled: false
+  networkPolicies:
+    enabled: true

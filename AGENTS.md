@@ -116,6 +116,14 @@ bash deployments/charts/service/tests/render-tests.sh
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
 | `service/mcp/` | Serves the stateless Streamable HTTP MCP endpoint for external OSMO clients. |
 
+### Deployment Charts (`deployments/charts/`)
+
+| Chart | Purpose |
+|-------|---------|
+| `osmo/` | Unified chart with directly owned control-plane services and gateway templates; the initial profile excludes compute-plane workloads. |
+| `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
+| `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
+
 ### Python Libraries (`lib/`)
 
 | Library | Key Classes | Purpose |

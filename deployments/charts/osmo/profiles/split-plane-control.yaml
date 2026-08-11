@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: false
+
+embeddedDependencies:
+  postgresql:
+    enabled: false
+  valkey:
+    enabled: false
+  objectStorage:
+    enabled: false
+  gateway:
+    enabled: false
+  kaiScheduler:
+    enabled: false
+
+exposure:
+  mode: external
+
+configuration:
+  enabled: true
+  workflow:
+    # The public 6.3.1 image predates workflow label policies.
+    labels_config: null
+
+services:
+  mcp:
+    enabled: false
+  ui:
+    enabled: true
+  api:
+    monitoring:
+      podMonitor:
+        enabled: false
+
+gateway:
+  envoy:
+    enabled: true
+    service:
+      # Keep the unauthenticated in-cluster gateway behind an operator-managed,
+      # authenticating edge rather than provisioning a public load balancer.
+      type: ClusterIP
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
+  rateLimit:
+    enabled: false
+
+secrets:
+  postgresql:
+    existingSecret: osmo-postgresql
+  valkey:
+    existingSecret: osmo-valkey
+  objectStorage:
+    existingSecret: osmo-object-storage
+  masterEncryptionKey:
+    existingSecret: osmo-master-encryption-key

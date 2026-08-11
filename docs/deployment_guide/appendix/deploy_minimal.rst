@@ -87,21 +87,23 @@ create matching Secrets for the service and backend operator:
 
 .. code-block:: bash
 
-   $ set -o pipefail
-   $ TOKEN_FILE=$(mktemp)
-   $ chmod 600 "$TOKEN_FILE"
-   $ trap 'rm -f -- "$TOKEN_FILE"' EXIT INT TERM
-   $ if ! openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" || \
-       [ ! -s "$TOKEN_FILE" ]; then
-       echo "Failed to generate backend bootstrap token" >&2
-       exit 1
-     fi
-   $ kubectl create secret generic osmo-operator-token \
-       --from-file=token="$TOKEN_FILE" --namespace osmo-minimal
-   $ kubectl create secret generic osmo-operator-token \
-       --from-file=token="$TOKEN_FILE" --namespace osmo-operator
-   $ rm -f -- "$TOKEN_FILE"
-   $ trap - EXIT INT TERM
+   $ (
+       set -o pipefail
+       TOKEN_FILE=$(mktemp)
+       chmod 600 "$TOKEN_FILE"
+       trap 'rm -f -- "$TOKEN_FILE"' EXIT INT TERM
+       if ! openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" || \
+           [ ! -s "$TOKEN_FILE" ]; then
+         echo "Failed to generate backend bootstrap token" >&2
+         exit 1
+       fi
+       kubectl create secret generic osmo-operator-token \
+         --from-file=token="$TOKEN_FILE" --namespace osmo-minimal
+       kubectl create secret generic osmo-operator-token \
+         --from-file=token="$TOKEN_FILE" --namespace osmo-operator
+       rm -f -- "$TOKEN_FILE"
+       trap - EXIT INT TERM
+     )
 
 Create the master encryption key (MEK) for database encryption:
 

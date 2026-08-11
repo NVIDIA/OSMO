@@ -1,0 +1,74 @@
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.planes.compute.enabled -}}
+{{- fail "planes.compute.enabled: compute plane is not implemented in this chart version" -}}
+{{- end -}}
+{{- if not .Values.planes.control.enabled -}}
+{{- fail "planes.control.enabled: this chart version requires the control plane" -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.postgresql.enabled -}}
+{{- fail "embeddedDependencies.postgresql.enabled: embedded PostgreSQL is not implemented" -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.valkey.enabled -}}
+{{- fail "embeddedDependencies.valkey.enabled: embedded Valkey is not implemented" -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.gateway.enabled -}}
+{{- fail "embeddedDependencies.gateway.enabled: embedded Gateway API controller is not implemented" -}}
+{{- end -}}
+{{- if .Values.embeddedDependencies.kaiScheduler.enabled -}}
+{{- fail "embeddedDependencies.kaiScheduler.enabled: embedded KAI Scheduler is not implemented" -}}
+{{- end -}}
+{{- if ne .Values.exposure.mode "external" -}}
+{{- fail "exposure.mode: only external exposure is implemented" -}}
+{{- end -}}
+{{- if not .Values.exposure.baseUrl -}}
+{{- fail "exposure.baseUrl is required for the control plane" -}}
+{{- end -}}
+{{- if or .Values.secrets.postgresql.generate .Values.secrets.valkey.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
+{{- end -}}
+{{- if hasKey .Values "controlPlane" -}}
+{{- fail "controlPlane is not a supported value; configure services and gateway directly" -}}
+{{- end -}}
+{{- if hasKey .Values "components" -}}
+{{- fail "components is not a supported value; configure services and gateway" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.postgresql.host -}}
+{{- fail "externalDependencies.postgresql.host is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.valkey.host -}}
+{{- fail "externalDependencies.valkey.host is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.objectStorage.endpoint -}}
+{{- fail "externalDependencies.objectStorage.endpoint is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.objectStorage.buckets.workflows -}}
+{{- fail "externalDependencies.objectStorage.buckets.workflows is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.objectStorage.buckets.logs -}}
+{{- fail "externalDependencies.objectStorage.buckets.logs is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.externalDependencies.objectStorage.buckets.apps -}}
+{{- fail "externalDependencies.objectStorage.buckets.apps is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.secrets.postgresql.existingSecret -}}
+{{- fail "secrets.postgresql.existingSecret is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.secrets.valkey.existingSecret -}}
+{{- fail "secrets.valkey.existingSecret is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.secrets.objectStorage.existingSecret -}}
+{{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
+{{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
+{{- end -}}
+{{- if and .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
+{{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- end -}}
+{{- if and .Values.externalDependencies.valkey.tls.enabled (not .Values.externalDependencies.valkey.tls.caExistingSecret) -}}
+{{- fail "externalDependencies.valkey.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- end -}}

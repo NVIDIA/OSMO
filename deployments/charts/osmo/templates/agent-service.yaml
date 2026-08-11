@@ -1,0 +1,224 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{/* Create a copy of the shared sidecar config values */}}
+
+{{- if and .Values.planes.control.enabled .Values.services.agent.enabled }}
+{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "agent") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" .Values.services.agent) | nindent 8 }}
+      annotations:
+        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.agent) | nindent 8 }}
+    spec:
+      {{- with .Values.services.agent.pod.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      topologySpreadConstraints:
+      {{- range .Values.services.agent.pod.topologySpreadConstraints }}
+      - topologyKey: {{.topologyKey }}
+        {{- range $key, $value := . }}
+        {{- if ne $key "topologyKey" }}
+        {{$key}}: {{$value}}
+        {{- end }}
+        {{- end }}
+        labelSelector:
+          matchLabels:
+            app: {{ $name }}
+      {{- end }}
+      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.agent)) }}
+      nodeSelector:
+        {{- . | nindent 8 }}
+      {{- end }}
+      tolerations:
+        {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.agent) | nindent 8 }}
+      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.agent "root" . "suffix" "agent") }}
+      {{- with .Values.services.agent.pod.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      containers:
+      - name: {{ $name }}
+        image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.agent) }}
+        command:
+        - agent_service
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
+        ports:
+        - name: metrics
+          containerPort: 9464
+        args:
+        - --redis_host
+        - {{ .Values.externalDependencies.valkey.host }}
+        - --redis_port
+        - {{ .Values.externalDependencies.valkey.port | quote }}
+        - --redis_db_number
+        - {{ .Values.externalDependencies.valkey.database | quote }}
+        {{- if .Values.externalDependencies.valkey.tls.enabled }}
+        - --redis_tls_enable
+        - "true"
+        {{- end}}
+        {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.v1.hostname" .) }}
+        {{- if $serviceHostname }}
+        - --service_hostname
+        - {{ $serviceHostname }}
+        {{- end }}
+        - --postgres_host
+        - {{ .Values.externalDependencies.postgresql.host }}
+        - --postgres_port
+        - {{ .Values.externalDependencies.postgresql.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.externalDependencies.postgresql.database}}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        - --mek_file
+        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        {{- end}}
+        {{- if .Values.externalDependencies.postgresql.username }}
+        - --postgres_user
+        - {{ .Values.externalDependencies.postgresql.username }}
+        {{- end }}
+        {{- if .Values.logging.enabled }}
+        - --log_level
+        - {{ .Values.logging.logLevel }}
+        - --k8s_log_level
+        - {{ .Values.logging.k8sLogLevel }}
+        - --log_format
+        - {{ .Values.logging.logFormat | default "text" }}
+        {{- end }}
+        {{- include "osmo.v1.configmap-args" . | nindent 8 }}
+        {{- range $arg := .Values.services.agent.extraArgs }}
+        - {{ $arg | quote }}
+        {{- end }}
+        {{- include "osmo.v1.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        env:
+        {{- include "osmo.v1.configmap-env" . | nindent 8 }}
+        {{- include "osmo.v1.extra-env" .Values.services.agent | nindent 8 }}
+        {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
+        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.agent) }}
+        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.agent.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
+        volumeMounts:
+        {{- end }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
+        - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
+          name: mek-volume
+          subPath: mek.yaml
+        {{- end }}
+        {{- include "osmo.v1.configmap-volume-mounts" . | nindent 8 }}
+        {{- include "osmo.v1.external-ca-volume-mounts" . | nindent 8 }}
+        {{- include "osmo.v1.extra-volume-mounts" .Values.services.agent | nindent 8 }}
+        {{- include "osmo.v1.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        resources:
+        {{- toYaml .Values.services.agent.resources | nindent 10 }}
+
+        # A failed progress check means the container is in a bad state
+        livenessProbe:
+          exec:
+            command:
+            - progress_check
+            - --progress_interval
+            - "300"
+            - --progress_file
+            - /var/run/osmo/last_progress
+          timeoutSeconds: 20
+          failureThreshold: 3
+          periodSeconds: 45
+
+        {{- with .Values.services.agent.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        readinessProbe:
+          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.agent.readinessProbe "context" .) | nindent 10 }}
+
+      {{- include "osmo.v1.extra-sidecars" .Values.services.agent | nindent 6 }}
+      volumes:
+        {{- include "osmo.v1.extra-volumes" .Values.services.agent | nindent 8 }}
+        {{- include "osmo.v1.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        {{- include "osmo.v1.mek-volume" . | nindent 8 }}
+        {{- include "osmo.v1.configmap-volumes" . | nindent 8 }}
+        {{- include "osmo.v1.external-ca-volumes" . | nindent 8 }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+spec:
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ $name }}
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+  annotations:
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ .Values.services.agent.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.services.agent.autoscaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: {{ $name }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.agent.autoscaling.hpaMemoryTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: {{ $name }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.agent.autoscaling.hpaCpuTarget }}
+  {{- with .Values.services.agent.autoscaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

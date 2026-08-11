@@ -462,7 +462,7 @@ oci_image(
 oci_load(
     name = "mcp_image_load_x86_64",
     image = ":mcp_image_x86_64",
-    repo_tags = ["osmo.local/mcp-self-hosted:latest-x86_64"],
+    repo_tags = ["osmo.local/mcp:latest-x86_64"],
     tags = ["manual"],
     target_compatible_with = ["@platforms//cpu:x86_64"],
 )
@@ -470,7 +470,7 @@ oci_load(
 oci_push(
     name = "mcp_push_x86_64",
     image = ":mcp_image_x86_64",
-    repository = BASE_IMAGE_URL + "mcp-self-hosted",
+    repository = BASE_IMAGE_URL + "mcp",
     remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     tags = ["manual"],
     target_compatible_with = ["@platforms//cpu:x86_64"],
@@ -492,7 +492,7 @@ oci_image(
 oci_load(
     name = "mcp_image_load_arm64",
     image = ":mcp_image_arm64",
-    repo_tags = ["osmo.local/mcp-self-hosted:latest-arm64"],
+    repo_tags = ["osmo.local/mcp:latest-arm64"],
     tags = ["manual"],
     target_compatible_with = ["@platforms//cpu:arm64"],
 )
@@ -500,7 +500,7 @@ oci_load(
 oci_push(
     name = "mcp_push_arm64",
     image = ":mcp_image_arm64",
-    repository = BASE_IMAGE_URL + "mcp-self-hosted",
+    repository = BASE_IMAGE_URL + "mcp",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     tags = ["manual"],
     target_compatible_with = ["@platforms//cpu:arm64"],
