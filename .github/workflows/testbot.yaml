@@ -25,18 +25,18 @@ on:
     inputs:
       max_targets:
         description: 'Max files to target'
-        default: '1'
+        default: '3'
       max_uncovered:
         description: 'Max uncovered lines per target (0 = no cap)'
         default: '500'
       max_turns:
         description: 'Max Claude Code agent turns'
-        # Matches the schedule-trigger fallback below. Large picks
-        # (e.g., utils/job/jobs.py at 500 uncovered lines) need the
-        # extra headroom — runs/26536045087 hit max_turns at 101/100
-        # after Claude's 200K context window auto-compacted, wiping
-        # most of the exploration state mid-run.
-        default: '200'
+        # Matches the schedule-trigger fallback below. Scales with
+        # max_targets — the generator runs the full read/write/verify
+        # loop per target, and runs/26536045087 hit max_turns at 101/100
+        # on a single target after Claude's context auto-compacted,
+        # wiping most of the exploration state mid-run.
+        default: '400'
       timeout_minutes:
         description: 'Workflow timeout in minutes'
         default: '60'
@@ -211,7 +211,7 @@ jobs:
         run: |
           PYTHONPATH=. python src/scripts/testbot/select_targets_agent.py \
             --shortlist "$RUNNER_TEMP/shortlist.json" \
-            --max-targets ${{ inputs.max_targets || '1' }} \
+            --max-targets ${{ inputs.max_targets || '3' }} \
             --output "$RUNNER_TEMP/targets.txt" \
             --meta-output "$RUNNER_TEMP/targets_meta.json"
           echo "::group::Selected targets"
@@ -315,7 +315,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-5' }}
-          MAX_TURNS: ${{ inputs.max_turns || '200' }}
+          MAX_TURNS: ${{ inputs.max_turns || '400' }}
           DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
 
