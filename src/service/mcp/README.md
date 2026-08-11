@@ -23,6 +23,23 @@ REST APIs. It does not authenticate users itself. The deployment contract
 requires every MCP request and every resulting API request to pass through the
 same deployment's Gateway.
 
+OSMO can expose MCP authentication in either of two deployment modes:
+
+- **Direct identity-provider mode** retains the existing behavior. The Gateway
+  advertises the configured identity provider, and clients may need an OAuth
+  client ID, scopes, and callback configuration supplied by the deployment
+  administrator.
+- **Broker mode** enables the OSMO MCP OAuth broker. A client is configured
+  with only the deployment's `/mcp` endpoint, discovers the broker through
+  standard OAuth metadata, registers its callback dynamically, and completes
+  the same deployment identity-provider login in a browser. The broker is an
+  authentication-edge service; it does not execute tools or replace OSMO
+  authorization.
+
+Broker mode is feature-gated by `services.mcp.oauthBroker.enabled` and disabled
+by default. This preserves direct mode for existing deployments and provides a
+configuration-only rollback during staged rollout.
+
 ## Request flow and trust boundary
 
 ```text
@@ -97,6 +114,124 @@ The relay boundary has these invariants:
 The Gateway, MCP process, receiving OSMO APIs, and applicable middleware are
 inside the bearer-token handling boundary. None of them may log or persist the
 authorization value.
+
+## Endpoint-only OAuth
+
+When broker mode is enabled, the public flow is:
+
+```text
+MCP client
+  -> Gateway /mcp (401 with protected-resource metadata)
+  -> OSMO MCP OAuth broker discovery and dynamic client registration
+  -> deployment identity provider login in the user's browser
+  -> broker authorization-code exchange with PKCE
+  -> Gateway /mcp with an OSMO MCP resource token
+  -> existing MCP and API-specific Gateway authorization flow
+```
+
+The client still performs an interactive browser login, but it does not need a
+deployment-specific client ID, scope list, callback URL, or callback port. For
+example, a fresh Codex profile requires only:
+
+```bash
+codex mcp add osmo --url https://<osmo-host>/mcp
+codex mcp login osmo
+```
+
+Clients that support OAuth discovery, Dynamic Client Registration, and PKCE
+S256 can use the same endpoint-only flow. Dynamic registration creates a
+short-lived public client record in OSMO; it does not create a new application
+in the upstream identity provider. The broker owns one administrator-managed
+upstream OAuth application and one stable callback URL.
+
+The broker issues an access token with the exact MCP audience and the single
+advertised `mcp:access` scope. In the current bearer-relay architecture, the
+Gateway also accepts that token on the API pass made by the MCP process; a
+holder could therefore present it directly to API routes. Existing OSMO RBAC,
+API-specific actions, and pool scope still apply on every such request.
+Enabling the broker does not grant an OSMO role or expand a user's semantic
+permissions. Strict route-level audience isolation requires a later internal
+token-exchange/delegation design so MCP no longer relays the user's bearer.
+
+### Deployment prerequisites
+
+Before enabling broker mode, an administrator must provide:
+
+- one confidential OAuth application in the deployment identity provider,
+  with the broker's exact public callback registered;
+- its client ID and client secret through the deployment's secret manager;
+- a broker signing key through the secret manager, with public keys available
+  from the broker JWKS endpoint;
+- a shared Redis namespace for dynamic registrations, one-use authorization
+  codes, login transactions, and rotating refresh sessions;
+- an exact public MCP resource URL and broker issuer URL for the deployment;
+- identity and role claims that preserve the Gateway's current user and role
+  mapping; and
+- Gateway routes for only the broker's documented OAuth endpoints, plus a JWT
+  provider that validates the broker issuer and exact MCP audience.
+
+The public protocol surface is deliberately narrow:
+
+```text
+GET  /.well-known/oauth-protected-resource/mcp
+GET  /.well-known/oauth-authorization-server
+GET  /oauth/jwks.json
+GET  /oauth/authorize
+GET  /oauth/callback/entra
+POST /oauth/register
+POST /oauth/token
+POST /oauth/revoke
+```
+
+Only these exact OAuth paths and methods may bypass the normal Gateway JWT and
+OSMO authorization filters. `/mcp` itself remains protected.
+
+A minimal values overlay selects broker mode and its public/upstream issuers;
+credentials remain file-mounted secrets:
+
+```yaml
+services:
+  mcp:
+    resourceUrl: https://<osmo-host>/mcp
+    oauthBroker:
+      enabled: true
+      issuerUrl: https://<osmo-host>
+      entra:
+        issuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
+        clientId: <broker-application-client-id>
+        clientSecretFile: /etc/osmo/mcp-auth/client-secret
+      signingPrivateJwkFile: /etc/osmo/mcp-auth/signing-private.jwk
+      redis:
+        dbNumber: <dedicated-database-number>
+        keyPrefix: osmo:mcp-auth
+```
+
+Do not place the upstream client secret, signing key, access token, refresh
+token, authorization code, or user session in Helm values, Git, logs, or the
+MCP tool process. The broker runs as a separate Deployment even though the
+existing `mcp` container image also contains the `/usr/bin/mcp-auth`
+executable. `/usr/bin/mcp` remains the MCP tool-service command.
+
+Readiness must fail closed until the broker has loaded its signing key, can
+reach its state store, and has validated upstream discovery. Liveness reports
+only process health. Operators should monitor registration, authorization,
+callback, token, refresh, revocation, rate-limit, Redis, and upstream identity
+provider outcomes without logging credential or identity payloads.
+
+### Rollout and rollback
+
+The current feature gate deploys the broker, adds its Gateway trust and routes,
+and changes protected-resource metadata in one rollout. Use it first on a dev
+instance, verify broker readiness immediately, and run discovery, dynamic
+registration, login, refresh, revocation, replica failover, and key-rotation
+tests from clean client profiles. A separate deploy-only/advertise switch is a
+production-readiness follow-up for installations that require a shadow rollout.
+During the rollback window the Gateway may accept both the broker issuer and the
+prior direct issuer, but metadata advertises only the selected mode.
+
+To roll back, point protected-resource metadata to the direct identity
+provider and disable the broker feature gate. The MCP tool catalog, `/mcp`
+route, and API authorization behavior do not change between modes.
 
 ## Available tools
 
@@ -205,6 +340,12 @@ projection, and handlers in the matching domain module. `tool_registry.py` is
 the single source of registration metadata used by both the server and
 catalog.
 
+The optional OAuth authorization-server implementation lives in sibling
+`service/mcp_auth/`. It is packaged in the same container image for release
+simplicity but runs as a separate process and Kubernetes Deployment. The MCP
+tool service must not import broker state, upstream identity-provider clients,
+or signing credentials.
+
 Do not import the CLI runtime. Extract only pure public helpers when behavior
 genuinely needs to match another OSMO surface.
 
@@ -234,10 +375,16 @@ Keep each new tool a narrow adapter:
 ## Local validation
 
 ```bash
-bazel test --test_output=errors //src/service/mcp/...
+bazel test --test_output=errors \
+  //src/service/mcp/... \
+  //src/service/mcp_auth/...
 bazel build \
   //src/service/mcp:mcp_binary \
+  //src/service/mcp_auth:mcp_auth_binary \
   //test/smoke:mcp-checks
+bazel build \
+  --platforms=//bzl/platforms:linux_x86_64 \
+  //src/service/mcp:mcp_image_x86_64
 bazel test //test/smoke:mcp-checks-pylint
 bash deployments/charts/service/ci/validate-mcp-chart.sh
 ```

@@ -166,6 +166,121 @@ services:
     ##
     allowedOrigins: []
 
+    ## OSMO-owned OAuth authorization server for endpoint-only MCP client setup.
+    ## When enabled, RFC 9728 metadata advertises this broker instead of the
+    ## authorizationServers/scopes above. The broker performs Entra login and
+    ## issues short-lived OSMO JWTs accepted by the Gateway. Disabled by default
+    ## so existing direct-identity-provider deployments remain unchanged.
+    ##
+    oauthBroker:
+      enabled: false
+
+      ## Public HTTPS origin used as the OAuth issuer. It must be the origin of
+      ## resourceUrl without /mcp, for example https://osmo.example.com.
+      ##
+      issuerUrl: ""
+      scope: mcp:access
+
+      ## Public HTTPS redirect origins allowed for pre-registered web clients.
+      ## Native clients use dynamically allocated loopback redirects and need
+      ## no entries. Keep this empty unless a trusted web client is required.
+      ##
+      trustedHttpsRedirectOrigins: []
+
+      replicas: 2
+      serviceName: osmo-mcp-oauth
+      port: 8001
+
+      ## Microsoft Entra is the broker's upstream identity provider. The
+      ## redirect URL is derived as <issuerUrl>/oauth/callback/entra.
+      ##
+      entra:
+        issuerUrl: ""
+        clientId: ""
+        clientSecretFile: /etc/osmo/mcp-auth/client-secret
+        ## Only these validated upstream roles may be copied into broker JWTs.
+        ## An empty list passes no upstream roles.
+        allowedUpstreamRoles: []
+
+      ## Shared Redis holds dynamic clients, authorization transactions, and
+      ## refresh-token families. Empty serviceName/port values inherit the
+      ## chart's services.redis settings. Use a dedicated database and prefix.
+      ##
+      redis:
+        serviceName: ""
+        port: null
+        dbNumber: 0
+        tlsEnabled: true
+        passwordFile: ""
+        keyPrefix: osmo:mcp-auth
+
+      signingPrivateJwkFile: /etc/osmo/mcp-auth/signing-private.jwk
+
+      accessTokenTtlSeconds: 600
+      refreshTokenTtlSeconds: 28800
+      clientRegistrationTtlSeconds: 2592000
+
+      ## Optionally mount the broker credentials from one existing Kubernetes
+      ## Secret. Leave name empty when files are supplied by Vault injection or
+      ## custom extraVolumes/extraVolumeMounts.
+      ##
+      existingSecret:
+        name: ""
+        mountPath: /etc/osmo/mcp-auth
+        clientSecretKey: client-secret
+        signingPrivateJwkKey: signing-private-jwk
+        redisPasswordKey: redis-password
+
+      serviceAccountName: ""
+
+      extraPodLabels: {}
+      extraPodAnnotations: {}
+      extraEnv: []
+      extraVolumeMounts: []
+      extraVolumes: []
+
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        runAsNonRoot: true
+        runAsUser: 1001
+
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          memory: "256Mi"
+
+      livenessProbe:
+        httpGet:
+          port: http
+          path: /health/live
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          port: http
+          path: /health/ready
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 2
+      startupProbe:
+        httpGet:
+          port: http
+          path: /health/ready
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 24
+
+      nodeSelector: {}
+      tolerations: []
+
     ## Additional pod labels and annotations.
     ##
     extraPodLabels: {}
@@ -2434,6 +2549,7 @@ gateway:
       agent: ""
       logger: ""
       mcp: ""
+      mcpOauthBroker: ""
 
     ## Optional CA bundle for Envoy upstream validation. When set, Envoy
     ## validates upstream certs against ca.crt from this Secret. When empty,

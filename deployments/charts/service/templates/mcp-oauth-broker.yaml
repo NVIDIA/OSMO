@@ -1,0 +1,315 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- $mcp := .Values.services.mcp }}
+{{- $broker := $mcp.oauthBroker }}
+{{- if $broker.enabled }}
+{{- if not $mcp.enabled }}
+{{- fail "services.mcp.oauthBroker.enabled requires services.mcp.enabled=true" }}
+{{- end }}
+{{- $issuerUrl := include "osmo.mcp-oauth-issuer-url" . }}
+{{- $resourceUrl := include "osmo.mcp-resource-url" . }}
+{{- $serviceName := required "services.mcp.oauthBroker.serviceName is required when the OAuth broker is enabled" $broker.serviceName }}
+{{- if or (lt (int $broker.port) 1) (gt (int $broker.port) 65535) }}
+{{- fail "services.mcp.oauthBroker.port must be between 1 and 65535" }}
+{{- end }}
+{{- if lt (int $broker.replicas) 1 }}
+{{- fail "services.mcp.oauthBroker.replicas must be at least 1" }}
+{{- end }}
+{{- if ne $broker.scope "mcp:access" }}
+{{- fail "services.mcp.oauthBroker.scope must be mcp:access" }}
+{{- end }}
+{{- if not (kindIs "slice" $broker.trustedHttpsRedirectOrigins) }}
+{{- fail "services.mcp.oauthBroker.trustedHttpsRedirectOrigins must be a list" }}
+{{- end }}
+{{- range $origin := $broker.trustedHttpsRedirectOrigins }}
+{{- if or (not (kindIs "string" $origin)) (not (regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?$" $origin)) }}
+{{- fail "services.mcp.oauthBroker.trustedHttpsRedirectOrigins entries must be exact HTTPS origins" }}
+{{- end }}
+{{- $originPortSuffix := regexFind ":[0-9]+$" $origin }}
+{{- if $originPortSuffix }}
+{{- $originPort := trimPrefix ":" $originPortSuffix | int }}
+{{- if or (lt $originPort 1) (gt $originPort 65535) }}
+{{- fail "services.mcp.oauthBroker.trustedHttpsRedirectOrigins ports must be between 1 and 65535" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if not (regexMatch "^https://[^?#]+$" (required "services.mcp.oauthBroker.entra.issuerUrl is required when the OAuth broker is enabled" $broker.entra.issuerUrl)) }}
+{{- fail "services.mcp.oauthBroker.entra.issuerUrl must be an HTTPS URL without a query or fragment" }}
+{{- end }}
+{{- $entraClientId := required "services.mcp.oauthBroker.entra.clientId is required when the OAuth broker is enabled" $broker.entra.clientId }}
+{{- $entraClientSecretFile := required "services.mcp.oauthBroker.entra.clientSecretFile is required when the OAuth broker is enabled" $broker.entra.clientSecretFile }}
+{{- $signingPrivateJwkFile := required "services.mcp.oauthBroker.signingPrivateJwkFile is required when the OAuth broker is enabled" $broker.signingPrivateJwkFile }}
+{{- if not (hasPrefix "/" $entraClientSecretFile) }}
+{{- fail "services.mcp.oauthBroker.entra.clientSecretFile must be an absolute path" }}
+{{- end }}
+{{- if not (hasPrefix "/" $signingPrivateJwkFile) }}
+{{- fail "services.mcp.oauthBroker.signingPrivateJwkFile must be an absolute path" }}
+{{- end }}
+{{- if not (kindIs "slice" $broker.entra.allowedUpstreamRoles) }}
+{{- fail "services.mcp.oauthBroker.entra.allowedUpstreamRoles must be a list" }}
+{{- end }}
+{{- range $role := $broker.entra.allowedUpstreamRoles }}
+{{- if or (not (kindIs "string" $role)) (eq (trim $role) "") (contains "," $role) }}
+{{- fail "services.mcp.oauthBroker.entra.allowedUpstreamRoles entries must be non-empty strings without commas" }}
+{{- end }}
+{{- end }}
+{{- $redisHost := $broker.redis.serviceName | default .Values.services.redis.serviceName | required "services.mcp.oauthBroker.redis.serviceName or services.redis.serviceName is required" }}
+{{- $redisPort := .Values.services.redis.port }}
+{{- if not (kindIs "invalid" $broker.redis.port) }}
+{{- $redisPort = $broker.redis.port }}
+{{- end }}
+{{- if or (lt (int $redisPort) 1) (gt (int $redisPort) 65535) }}
+{{- fail "services.mcp.oauthBroker.redis.port must be between 1 and 65535" }}
+{{- end }}
+{{- if or (lt (int $broker.redis.dbNumber) 0) (gt (int $broker.redis.dbNumber) 15) }}
+{{- fail "services.mcp.oauthBroker.redis.dbNumber must be between 0 and 15" }}
+{{- end }}
+{{- $redisKeyPrefix := required "services.mcp.oauthBroker.redis.keyPrefix is required" $broker.redis.keyPrefix }}
+{{- if not (regexMatch "^[A-Za-z0-9:._~-]{1,128}$" $redisKeyPrefix) }}
+{{- fail "services.mcp.oauthBroker.redis.keyPrefix contains unsupported characters" }}
+{{- end }}
+{{- if and $broker.redis.passwordFile (not (hasPrefix "/" $broker.redis.passwordFile)) }}
+{{- fail "services.mcp.oauthBroker.redis.passwordFile must be an absolute path" }}
+{{- end }}
+{{- if or (lt (int $broker.accessTokenTtlSeconds) 60) (gt (int $broker.accessTokenTtlSeconds) 3600) }}
+{{- fail "services.mcp.oauthBroker.accessTokenTtlSeconds must be between 60 and 3600" }}
+{{- end }}
+{{- if or (lt (int $broker.refreshTokenTtlSeconds) 300) (gt (int $broker.refreshTokenTtlSeconds) 604800) }}
+{{- fail "services.mcp.oauthBroker.refreshTokenTtlSeconds must be between 300 and 604800" }}
+{{- end }}
+{{- if or (lt (int $broker.clientRegistrationTtlSeconds) 3600) (gt (int $broker.clientRegistrationTtlSeconds) 7776000) }}
+{{- fail "services.mcp.oauthBroker.clientRegistrationTtlSeconds must be between 3600 and 7776000" }}
+{{- end }}
+{{- $reservedEnvNames := list
+      "OSMO_MCP_AUTH_HOST"
+      "OSMO_MCP_AUTH_PORT"
+      "OSMO_MCP_AUTH_ISSUER_URL"
+      "OSMO_MCP_AUTH_RESOURCE_URL"
+      "OSMO_MCP_AUTH_SCOPE"
+      "OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIGINS"
+      "OSMO_MCP_AUTH_REDIS_URL"
+      "OSMO_MCP_AUTH_REDIS_PASSWORD_FILE"
+      "OSMO_MCP_AUTH_REDIS_KEY_PREFIX"
+      "OSMO_MCP_AUTH_ENTRA_ISSUER_URL"
+      "OSMO_MCP_AUTH_ENTRA_CLIENT_ID"
+      "OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE"
+      "OSMO_MCP_AUTH_ENTRA_REDIRECT_URL"
+      "OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE"
+      "OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS"
+      "OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
+      "OSMO_MCP_AUTH_CLIENT_REGISTRATION_TTL_SECONDS"
+      "OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES"
+    }}
+{{- range $env := $broker.extraEnv }}
+{{- if has (toString (default "" $env.name)) $reservedEnvNames }}
+{{- fail (printf "services.mcp.oauthBroker.extraEnv must not override managed variable %s" $env.name) }}
+{{- end }}
+{{- end }}
+{{- if $broker.existingSecret.name }}
+{{- $mountPath := required "services.mcp.oauthBroker.existingSecret.mountPath is required when an existing Secret is configured" $broker.existingSecret.mountPath }}
+{{- if not (hasPrefix "/" $mountPath) }}
+{{- fail "services.mcp.oauthBroker.existingSecret.mountPath must be an absolute path" }}
+{{- end }}
+{{- $clientSecretKey := required "services.mcp.oauthBroker.existingSecret.clientSecretKey is required" $broker.existingSecret.clientSecretKey }}
+{{- $signingKey := required "services.mcp.oauthBroker.existingSecret.signingPrivateJwkKey is required" $broker.existingSecret.signingPrivateJwkKey }}
+{{- if and $broker.redis.passwordFile (not $broker.existingSecret.redisPasswordKey) }}
+{{- fail "services.mcp.oauthBroker.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
+{{- end }}
+{{- end }}
+{{- $imageTag := $mcp.imageTag | default .Values.global.osmoImageTag }}
+{{- $redisScheme := ternary "rediss" "redis" $broker.redis.tlsEnabled }}
+{{- $redisUrl := printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $broker.redis.dbNumber }}
+{{- $entraRedirectUrl := printf "%s/oauth/callback/entra" $issuerUrl }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $serviceName }}
+  labels:
+    app: {{ $serviceName }}
+    app.kubernetes.io/component: mcp-oauth-broker
+spec:
+  replicas: {{ $broker.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ $serviceName }}
+        app.kubernetes.io/component: mcp-oauth-broker
+        {{- with $broker.extraPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $broker.extraPodAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with $broker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $broker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" $broker.serviceAccountName "Values" .Values) }}
+      containers:
+      - name: {{ $serviceName }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ $mcp.imageName }}:{{ $imageTag }}
+        imagePullPolicy: {{ $mcp.imagePullPolicy }}
+        command:
+        - mcp-auth
+        {{- if .Values.gateway.tls.enabled }}
+        args:
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcpOauthBroker) | nindent 8 }}
+        {{- end }}
+        securityContext:
+          {{- toYaml $broker.securityContext | nindent 10 }}
+        ports:
+        - name: http
+          containerPort: {{ $broker.port }}
+          protocol: TCP
+        env:
+        - name: OSMO_MCP_AUTH_HOST
+          value: "0.0.0.0"
+        - name: OSMO_MCP_AUTH_PORT
+          value: {{ $broker.port | quote }}
+        - name: OSMO_MCP_AUTH_ISSUER_URL
+          value: {{ $issuerUrl | quote }}
+        - name: OSMO_MCP_AUTH_RESOURCE_URL
+          value: {{ $resourceUrl | quote }}
+        - name: OSMO_MCP_AUTH_SCOPE
+          value: {{ $broker.scope | quote }}
+        - name: OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIGINS
+          value: {{ join "," $broker.trustedHttpsRedirectOrigins | quote }}
+        - name: OSMO_MCP_AUTH_REDIS_URL
+          value: {{ $redisUrl | quote }}
+        {{- if $broker.redis.passwordFile }}
+        - name: OSMO_MCP_AUTH_REDIS_PASSWORD_FILE
+          value: {{ $broker.redis.passwordFile | quote }}
+        {{- end }}
+        - name: OSMO_MCP_AUTH_REDIS_KEY_PREFIX
+          value: {{ $redisKeyPrefix | quote }}
+        - name: OSMO_MCP_AUTH_ENTRA_ISSUER_URL
+          value: {{ $broker.entra.issuerUrl | quote }}
+        - name: OSMO_MCP_AUTH_ENTRA_CLIENT_ID
+          value: {{ $entraClientId | quote }}
+        - name: OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE
+          value: {{ $entraClientSecretFile | quote }}
+        - name: OSMO_MCP_AUTH_ENTRA_REDIRECT_URL
+          value: {{ $entraRedirectUrl | quote }}
+        - name: OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE
+          value: {{ $signingPrivateJwkFile | quote }}
+        - name: OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS
+          value: {{ $broker.accessTokenTtlSeconds | int | quote }}
+        - name: OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS
+          value: {{ $broker.refreshTokenTtlSeconds | int | quote }}
+        - name: OSMO_MCP_AUTH_CLIENT_REGISTRATION_TTL_SECONDS
+          value: {{ $broker.clientRegistrationTtlSeconds | int | quote }}
+        - name: OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES
+          value: {{ join "," $broker.entra.allowedUpstreamRoles | quote }}
+        {{- with $broker.extraEnv }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml $broker.resources | nindent 10 }}
+        {{- if or $broker.existingSecret.name $broker.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcpOauthBroker) }}
+        volumeMounts:
+        {{- if $broker.existingSecret.name }}
+        - name: mcp-auth-secrets
+          mountPath: {{ $broker.existingSecret.mountPath }}
+          readOnly: true
+        {{- end }}
+        {{- with $broker.extraVolumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcpOauthBroker) | nindent 8 }}
+        {{- end }}
+        livenessProbe:
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" $broker.livenessProbe "context" .) | nindent 10 }}
+        readinessProbe:
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" $broker.readinessProbe "context" .) | nindent 10 }}
+        startupProbe:
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" $broker.startupProbe "context" .) | nindent 10 }}
+      {{- if or $broker.existingSecret.name $broker.extraVolumes (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcpOauthBroker) }}
+      volumes:
+      {{- if $broker.existingSecret.name }}
+      - name: mcp-auth-secrets
+        secret:
+          secretName: {{ $broker.existingSecret.name }}
+          items:
+          - key: {{ $broker.existingSecret.clientSecretKey }}
+            path: client-secret
+          - key: {{ $broker.existingSecret.signingPrivateJwkKey }}
+            path: signing-private.jwk
+          {{- if $broker.redis.passwordFile }}
+          - key: {{ $broker.existingSecret.redisPasswordKey }}
+            path: redis-password
+          {{- end }}
+      {{- end }}
+      {{- with $broker.extraVolumes }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcpOauthBroker) | nindent 6 }}
+      {{- end }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $serviceName }}
+  labels:
+    app: {{ $serviceName }}
+    app.kubernetes.io/component: mcp-oauth-broker
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: {{ $broker.port }}
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: {{ $serviceName }}
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $serviceName }}-allow-gateway-envoy
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ $serviceName }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 10 }}
+    ports:
+    - port: {{ $broker.port }}
+      protocol: TCP
+{{- end }}

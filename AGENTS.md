@@ -115,6 +115,7 @@ bash deployments/charts/service/tests/render-tests.sh
 | `service/logger/` | Receives structured logs from osmo-ctrl containers. Persists task metrics to PostgreSQL. Distributed barriers via Redis. |
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
 | `service/mcp/` | Serves the stateless Streamable HTTP MCP endpoint for external OSMO clients. |
+| `service/mcp_auth/` | Optional OAuth authorization broker for endpoint-only MCP client setup; delegates user login to the deployment identity provider and issues OSMO MCP resource tokens. |
 
 ### Deployment Charts (`deployments/charts/`)
 
