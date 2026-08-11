@@ -654,6 +654,8 @@ gateway:
       httpsPort: 443
       nodePort: null
       annotations: {}
+    # TODO: Remove this legacy enabled switch and derive Ingress rendering from
+    # top-level exposure.mode when ingress exposure is implemented.
     ingress:
       enabled: false
       ingressClass: alb

@@ -98,40 +98,46 @@ jobs:
           version: 'v3.14.0'
 
       - name: Build Helm Dependencies
+        env:
+          CHART: ${{ matrix.chart }}
         run: |
-          echo "Building dependencies for: ${{ matrix.chart }}"
-          helm dependency build deployments/charts/${{ matrix.chart }} || true
+          echo "Building dependencies for: $CHART"
+          helm dependency build "deployments/charts/$CHART" || true
           # Show what was fetched
-          if [ -d "deployments/charts/${{ matrix.chart }}/charts" ]; then
+          if [ -d "deployments/charts/$CHART/charts" ]; then
             echo "Dependencies fetched:"
-            ls -la deployments/charts/${{ matrix.chart }}/charts/
+            ls -la "deployments/charts/$CHART/charts/"
           fi
 
       - name: Helm Lint
+        env:
+          CHART: ${{ matrix.chart }}
         run: |
-          echo "Linting chart: ${{ matrix.chart }}"
-          if [ "${{ matrix.chart }}" = "osmo" ]; then
+          echo "Linting chart: $CHART"
+          if [ "$CHART" = "osmo" ]; then
             helm lint deployments/charts/osmo \
               --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/split-plane-control.yaml \
               -f deployments/charts/osmo/tests/control-external-values.yaml
           else
-            helm lint deployments/charts/${{ matrix.chart }}
+            helm lint "deployments/charts/$CHART"
           fi
 
       - name: Helm Template (validate rendering)
+        env:
+          CHART: ${{ matrix.chart }}
         run: |
-          echo "Validating template rendering for: ${{ matrix.chart }}"
+          echo "Validating template rendering for: $CHART"
           # Capture output, only show on failure
           HELM_ARGS=()
-          if [ "${{ matrix.chart }}" = "osmo" ]; then
+          if [ "$CHART" = "osmo" ]; then
             HELM_ARGS+=(
               --kube-version 1.30.0
               -f deployments/charts/osmo/profiles/split-plane-control.yaml
               -f deployments/charts/osmo/tests/control-external-values.yaml
             )
           fi
-          if ! OUTPUT=$(helm template test-release deployments/charts/${{ matrix.chart }} "${HELM_ARGS[@]}" 2>&1); then
+          if ! OUTPUT=$(helm template test-release "deployments/charts/$CHART" "${HELM_ARGS[@]}" 2>&1); then
             echo "❌ Template rendering failed:"
             echo "$OUTPUT"
             exit 1
