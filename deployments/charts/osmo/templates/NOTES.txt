@@ -3,8 +3,18 @@
 
 OSMO control plane installed.
 
-The supported external exposure mode renders no public edge resource. To test
-the gateway locally, run:
+The API component is named {{ include "osmo.api.fullname" . }}. The gateway
+Service has one port and follows gateway.envoy.service.type; Ingress and
+HTTPRoute are optional edge resources.
+
+Configured public URL:
+
+  {{ .Values.externalUrl }}
+
+An HTTPRoute attaches to an existing Gateway named in httproute.parentRefs;
+this chart does not create a Gateway or GatewayClass.
+
+To test a ClusterIP gateway locally, run:
 
   kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "osmo.gateway.fullname" . }} 8080:80
 
