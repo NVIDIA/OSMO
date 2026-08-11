@@ -212,14 +212,14 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
         "ingressClassName: nginx"
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
-        "host: osmo.example.com"
+        'host: "osmo.example.com"'
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
         "name: ingress-release-osmo-gateway"
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "number: 80"
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
         "secretName: osmo-ingress-tls"
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
-        "host: extra.example.com"
+        'host: "extra.example.com"'
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "path: /extra"
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "path: /custom"
     require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
@@ -236,6 +236,27 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "wrong"
     require_occurrences "$TEST_DIRECTORY/osmo-ingress.yaml" "kind: Ingress" 1
     require_not_contains "$TEST_DIRECTORY/osmo-ingress.yaml" "kind: HTTPRoute"
+
+    helm_template wildcard-ingress-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set ingress.enabled=true \
+        --set-string 'ingress.hostname=*.example.com' \
+        --set ingress.tls.enabled=true \
+        --set ingress.tls.secretName=wildcard-ingress-tls \
+        --set-string 'ingress.extraHosts[0].name=*.extra.example.com' \
+        --set-string 'ingress.extraTls[0].hosts[0]=*.tls.example.com' \
+        --set ingress.extraTls[0].secretName=wildcard-extra-tls \
+        >"$TEST_DIRECTORY/osmo-wildcard-ingress.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-wildcard-ingress.yaml" Ingress \
+        wildcard-ingress-release-osmo-gateway \
+        >"$TEST_DIRECTORY/osmo-wildcard-ingress-resource.yaml"
+    require_occurrences "$TEST_DIRECTORY/osmo-wildcard-ingress-resource.yaml" \
+        '"*.example.com"' 2
+    require_contains "$TEST_DIRECTORY/osmo-wildcard-ingress-resource.yaml" \
+        '"*.extra.example.com"'
+    require_contains "$TEST_DIRECTORY/osmo-wildcard-ingress-resource.yaml" \
+        "'*.tls.example.com'"
 
     helm_template route-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

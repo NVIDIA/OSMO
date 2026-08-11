@@ -24,7 +24,7 @@ spec:
   tls:
   {{- if $ingress.tls.enabled }}
   - hosts:
-    - {{ $ingress.hostname }}
+    - {{ $ingress.hostname | quote }}
     {{- with $ingress.tls.secretName }}
     secretName: {{ . }}
     {{- end }}
@@ -34,7 +34,7 @@ spec:
   {{- end }}
   {{- end }}
   rules:
-  - host: {{ $ingress.hostname }}
+  - host: {{ $ingress.hostname | quote }}
     http:
       paths:
       - path: {{ $ingress.path }}
@@ -48,7 +48,7 @@ spec:
         {{- toYaml . | nindent 6 }}
       {{- end }}
   {{- range $extraHost := $ingress.extraHosts }}
-  - host: {{ $extraHost.name }}
+  - host: {{ $extraHost.name | quote }}
     http:
       paths:
       - path: {{ $extraHost.path | default $ingress.path }}
