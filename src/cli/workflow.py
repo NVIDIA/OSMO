@@ -1107,6 +1107,11 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
     if args.priority:
         params['priority'] = args.priority
     if args.labels:
+        try:
+            for label_selector in args.labels:
+                validation.parse_workflow_label_selector(label_selector)
+        except ValueError as error:
+            raise osmo_errors.OSMOUserError(str(error)) from error
         params['label'] = args.labels
     if args.no_labels:
         params['no_label'] = args.no_labels

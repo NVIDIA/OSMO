@@ -44,8 +44,8 @@ __all__ = (
     'WorkflowLabelSelectors',
     'WorkflowLabels',
     'WorkflowLogsResult',
-    'WorkflowPriorities',
     'WorkflowPageLimit',
+    'WorkflowPriorities',
     'WorkflowPriority',
     'WorkflowSpecResult',
     'WorkflowStatus',
@@ -59,8 +59,11 @@ MAX_QUERY_TEXT_BYTES = 512
 MAX_QUERY_VALUES = 50
 MAX_WORKFLOW_LABEL_KEY_BYTES = 317
 MAX_WORKFLOW_LABEL_VALUE_BYTES = 63
-MAX_WORKFLOW_LABEL_SELECTOR_BYTES = 4096
+MAX_WORKFLOW_LABEL_SELECTOR_BYTES = (
+    shared_labels.MAX_WORKFLOW_LABEL_SELECTOR_BYTES
+)
 MAX_WORKFLOW_WARNING_BYTES = 1024
+MAX_WORKFLOW_WARNINGS = 16
 WORKFLOW_ID_PATTERN = r'[A-Za-z](?:[A-Za-z0-9_-]*[A-Za-z0-9])?-[0-9]+'
 
 
@@ -98,13 +101,13 @@ QueryTextList = Annotated[
 ]
 WorkflowLabelKey = Annotated[
     str,
-    pydantic.AfterValidator(shared_labels.validate_workflow_label_key),
     pydantic.Field(min_length=1, max_length=MAX_WORKFLOW_LABEL_KEY_BYTES),
+    pydantic.AfterValidator(shared_labels.validate_workflow_label_key),
 ]
 WorkflowLabelValue = Annotated[
     str,
-    pydantic.AfterValidator(shared_labels.validate_workflow_label_value),
     pydantic.Field(min_length=1, max_length=MAX_WORKFLOW_LABEL_VALUE_BYTES),
+    pydantic.AfterValidator(shared_labels.validate_workflow_label_value),
 ]
 WorkflowLabelAssignment = Annotated[
     str,
@@ -171,7 +174,7 @@ WorkflowWarning = Annotated[
 ]
 WorkflowWarnings = Annotated[
     list[WorkflowWarning],
-    pydantic.Field(max_length=shared_labels.MAX_WORKFLOW_LABELS),
+    pydantic.Field(max_length=MAX_WORKFLOW_WARNINGS),
 ]
 WorkflowStatus = Literal[
     'RUNNING',

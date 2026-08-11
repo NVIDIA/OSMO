@@ -129,7 +129,7 @@ bash deployments/charts/service/tests/render-tests.sh
 | Library | Key Classes | Purpose |
 |---------|-------------|---------|
 | `lib/data/storage/` | `Client`, `StorageBackend`, `ExecutorParameters`, `StoragePath` | Multi-cloud storage SDK (S3, Azure, GCS, Swift, TOS). Parallel multiprocess+multithread executor. Streaming upload/download. |
-| `lib/utils/` | `LoginManager`, `ServiceClient`, `OSMOError` hierarchy | Client SDK for HTTP/WebSocket requests with JWT auth. Error types, logging, validation, credential management. |
+| `lib/utils/` | `LoginManager`, `ServiceClient`, `OSMOError` hierarchy | Client SDK for HTTP/WebSocket requests with JWT auth. Error types, logging, validation, credential management, and shared workflow-label parsing (`workflow_labels.py`). |
 | `lib/rsync/` | `RsyncClient` | File watch-based rsync with debounce/reconciliation. Port forwarding for remote access. |
 
 ### Python Utilities (`utils/`)

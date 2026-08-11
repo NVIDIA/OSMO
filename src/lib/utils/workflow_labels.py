@@ -24,6 +24,7 @@ import re
 
 
 MAX_WORKFLOW_LABELS = 16
+MAX_WORKFLOW_LABEL_SELECTOR_BYTES = 4096
 MAX_WORKFLOW_LABEL_SELECTOR_PATTERNS = 32
 
 _LABEL_NAME_PATTERN = re.compile(
@@ -208,6 +209,16 @@ def _expand_workflow_label_selector_value(value: str) -> tuple[str, ...]:
 
 def parse_workflow_label_selector(selector: str) -> WorkflowLabelSelector:
     """Parse an exact or anchored glob-alternation selector."""
+    if not isinstance(selector, str):
+        raise ValueError('Workflow label selectors must be strings.')
+    try:
+        selector_bytes = selector.encode('utf-8')
+    except UnicodeEncodeError as error:
+        raise ValueError('Workflow label selectors must be valid UTF-8.') from error
+    if len(selector_bytes) > MAX_WORKFLOW_LABEL_SELECTOR_BYTES:
+        raise ValueError(
+            'Workflow label selectors can be at most '
+            f'{MAX_WORKFLOW_LABEL_SELECTOR_BYTES} bytes.')
     if '=' not in selector:
         raise ValueError('Workflow label selectors must use key=value format.')
 

@@ -436,6 +436,24 @@ class TestWorkflowLabelValidation(unittest.TestCase):
         with self.assertRaises(ValueError):
             validation.parse_workflow_label_selector('PPP=' + 'x' * 63 + '*')
 
+    def test_selector_rejects_oversized_raw_value_before_parsing(self):
+        oversized_selector = (
+            'PPP='
+            + 'x' * validation.MAX_WORKFLOW_LABEL_SELECTOR_BYTES
+        )
+
+        with self.assertRaisesRegex(ValueError, 'at most 4096 bytes'):
+            validation.parse_workflow_label_selector(oversized_selector)
+
+    def test_selector_rejects_non_string(self):
+        with self.assertRaisesRegex(ValueError, 'must be strings'):
+            validation.parse_workflow_label_selector(
+                None)  # type: ignore[arg-type]
+
+    def test_selector_rejects_invalid_utf8(self):
+        with self.assertRaisesRegex(ValueError, 'valid UTF-8'):
+            validation.parse_workflow_label_selector('PPP=\ud800')
+
 
 class TestPodLabelPrefix(unittest.TestCase):
     """Tests for the pod-label prefix merge and its validation."""

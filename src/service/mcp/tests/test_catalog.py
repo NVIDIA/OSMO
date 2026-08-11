@@ -87,7 +87,7 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         'osmo_list_workflows',
         'List OSMO workflows',
         'List the active user\'s workflows across accessible pools, newest '
-        'first, with optional label-presence and label-value filters.',
+        'first, with optional label selectors and absent-label keys.',
     ),
     (
         workflows.osmo_get_workflow,

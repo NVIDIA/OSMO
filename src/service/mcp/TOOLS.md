@@ -36,9 +36,9 @@ RBAC.
 | Credential metadata | `osmo_list_credentials` | Names and types only; never profiles or credential payloads | `GET /api/credentials` |
 
 These tools are read-only, idempotent, closed-world operations. Workflow and
-application list APIs paginate upstream. Workflow pages are capped at 50 so
-maximum-size label maps remain within the upstream and MCP result budgets.
-Pool and resource tools bound their
+application list APIs paginate upstream. Workflow pages are capped at 50
+entries per page so maximum-size label maps remain within the upstream and MCP
+result budgets. Pool and resource tools bound their
 MCP output but may read a complete accessible upstream response because the
 existing APIs do not offer agent-facing pagination. Logs apply Core's tail
 control only when the caller explicitly requests it; all long-text tools return

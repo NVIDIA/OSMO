@@ -138,7 +138,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         title='List OSMO workflows',
         description=(
             'List the active user\'s workflows across accessible pools, newest '
-            'first, with optional label-presence and label-value filters.'
+            'first, with optional label selectors and absent-label keys.'
         ),
     ),
     ToolSpec(

@@ -23,7 +23,7 @@ import unittest
 from unittest import mock
 
 from src.cli import workflow
-from src.lib.utils import client
+from src.lib.utils import client, osmo_errors, validation
 
 
 WARN_MISSING_PROJECT_MESSAGE = (
@@ -188,6 +188,36 @@ class TestWorkflowLabelParser(unittest.TestCase):
                 'team=robotics_(a|b)',
             ])
         self.assertEqual(params['no_label'], ['project'])
+
+    def test_list_rejects_oversized_label_before_request(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        args = argparse.Namespace(
+            user=[],
+            status=None,
+            name=None,
+            order='asc',
+            all_users=False,
+            tags=None,
+            pool=[],
+            app=None,
+            priority=None,
+            labels=[
+                'project='
+                + 'x' * validation.MAX_WORKFLOW_LABEL_SELECTOR_BYTES
+            ],
+            no_labels=[],
+            submitted_after=None,
+            submitted_before=None,
+            count=20,
+            offset=0,
+            format_type='json',
+        )
+
+        with self.assertRaisesRegex(
+                osmo_errors.OSMOUserError, 'at most 4096 bytes'):
+            workflow._list_workflows(service_client, args)
+
+        service_client.request.assert_not_called()
 
 
 class TestWorkflowLabelOutput(unittest.TestCase):
