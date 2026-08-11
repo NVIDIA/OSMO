@@ -15,17 +15,17 @@
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
 {{- end -}}
-{{- if .Values.embeddedDependencies.gateway.enabled -}}
-{{- fail "embeddedDependencies.gateway.enabled: embedded Gateway API controller is not implemented" -}}
-{{- end -}}
 {{- if .Values.embeddedDependencies.kaiScheduler.enabled -}}
 {{- fail "embeddedDependencies.kaiScheduler.enabled: embedded KAI Scheduler is not implemented" -}}
 {{- end -}}
-{{- if ne .Values.exposure.mode "external" -}}
-{{- fail "exposure.mode: only external exposure is implemented" -}}
+{{- if not .Values.externalUrl -}}
+{{- fail "externalUrl is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.exposure.baseUrl -}}
-{{- fail "exposure.baseUrl is required for the control plane" -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hostname) -}}
+{{- fail "ingress.hostname is required when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
+{{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
 {{- if or .Values.secrets.postgresql.generate .Values.secrets.valkey.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}

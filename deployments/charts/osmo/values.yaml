@@ -23,8 +23,6 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
-  gateway:
-    enabled: false
   kaiScheduler:
     enabled: false
 
@@ -107,19 +105,40 @@ logging:
   k8sLogLevel: WARNING
   logFormat: text
 
-# Describe how clients reach the release.
-#
-# Supported mode values are `external`, `gateway`, and `ingress`. Only
-# `external` is implemented today: the chart creates the internal
-# `osmo-gateway` Service but expects an operator-managed proxy, load balancer,
-# or port-forward to expose it.
-# TODO: Implement Kubernetes edge resources for `gateway` and `ingress` modes;
-# those modes currently fail validation.
-exposure:
-  mode: external
-  # Public OSMO URL used in generated service configuration. Include the
-  # scheme, for example `https://osmo.example.com`.
-  baseUrl: ''
+# Public OSMO URL used in generated service configuration and redirects.
+# Include the scheme, for example `https://osmo.example.com`.
+externalUrl: ''
+
+# Optional Kubernetes Ingress for the OSMO gateway Service.
+ingress:
+  enabled: false
+  labels: {}
+  annotations: {}
+  ingressClassName: ''
+  hostname: ''
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: ''
+  extraHosts: []
+  extraPaths: []
+  extraRules: []
+  extraTls: []
+
+# Optional Gateway API HTTPRoute. Parent references must target a Gateway
+# managed outside this chart.
+httproute:
+  enabled: false
+  labels: {}
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
 
 # References to operator-owned Kubernetes Secrets. Inline credentials are not
 # accepted.
@@ -620,8 +639,8 @@ services:
       initContainers: []
 
 # Internal API gateway and optional gateway-adjacent services. This block is
-# independent of `exposure.mode`: `gateway.envoy` routes traffic inside the
-# release even when an external edge owns the public URL.
+# independent of the Kubernetes edge mechanism: `gateway.envoy` routes traffic
+# inside the release even when an external edge owns the public URL.
 gateway:
   # Envoy proxy that provides the single in-cluster OSMO entry point.
   envoy:
@@ -649,23 +668,14 @@ gateway:
       roles: ''
       allowedPools: ''
     service:
-      type: LoadBalancer
-      httpsPort: 443
+      type: ClusterIP
+      port: 80
       nodePort: null
+      labels: {}
       annotations: {}
-    # TODO: Remove this legacy enabled switch and derive Ingress rendering from
-    # top-level exposure.mode when ingress exposure is implemented.
-    ingress:
-      enabled: false
-      ingressClass: alb
-      albAnnotations:
-        enabled: false
-        groupName: osmo
-        groupOrder: '10'
-        sslCertArn: ''
-      sslEnabled: false
-      sslSecret: osmo-tls
-      annotations: {}
+      loadBalancerClass: ''
+      loadBalancerSourceRanges: []
+      externalTrafficPolicy: Cluster
     ssl:
       enabled: false
       secretName: envoy-ssl-cert

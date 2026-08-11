@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.ingress.enabled }}
+{{- $ingress := .Values.ingress }}
+{{- $gatewayName := include "osmo.gateway.fullname" . }}
+{{- $identityLabels := include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | fromYaml }}
+{{- $labels := mergeOverwrite (deepCopy $ingress.labels) $identityLabels }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $gatewayName }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+  {{- with $ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $ingress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if or $ingress.tls.enabled $ingress.extraTls }}
+  tls:
+  {{- if $ingress.tls.enabled }}
+  - hosts:
+    - {{ $ingress.hostname }}
+    {{- with $ingress.tls.secretName }}
+    secretName: {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- with $ingress.extraTls }}
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
+  {{- end }}
+  rules:
+  - host: {{ $ingress.hostname }}
+    http:
+      paths:
+      - path: {{ $ingress.path }}
+        pathType: {{ $ingress.pathType }}
+        backend:
+          service:
+            name: {{ $gatewayName }}
+            port:
+              number: {{ $.Values.gateway.envoy.service.port }}
+      {{- with $ingress.extraPaths }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+  {{- range $extraHost := $ingress.extraHosts }}
+  - host: {{ $extraHost.name }}
+    http:
+      paths:
+      - path: {{ $extraHost.path | default $ingress.path }}
+        pathType: {{ $extraHost.pathType | default $ingress.pathType }}
+        backend:
+          service:
+            name: {{ $gatewayName }}
+            port:
+              number: {{ $.Values.gateway.envoy.service.port }}
+  {{- end }}
+  {{- with $ingress.extraRules }}
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

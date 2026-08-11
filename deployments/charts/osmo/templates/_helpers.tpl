@@ -81,7 +81,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "osmo.hostname" -}}
-{{- $url := trimSuffix "/" .Values.exposure.baseUrl -}}
+{{- $url := trimSuffix "/" .Values.externalUrl -}}
 {{- $withoutScheme := regexReplaceAll "^https?://" $url "" -}}
 {{- regexReplaceAll "[:/].*$" $withoutScheme "" -}}
 {{- end -}}

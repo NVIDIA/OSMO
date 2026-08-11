@@ -14,13 +14,8 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
-  gateway:
-    enabled: false
   kaiScheduler:
     enabled: false
-
-exposure:
-  mode: external
 
 configuration:
   enabled: true

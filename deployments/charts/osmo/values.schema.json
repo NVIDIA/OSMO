@@ -21,7 +21,6 @@
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
         "valkey": { "$ref": "#/definitions/enabledBlock" },
         "objectStorage": { "$ref": "#/definitions/enabledBlock" },
-        "gateway": { "$ref": "#/definitions/enabledBlock" },
         "kaiScheduler": { "$ref": "#/definitions/enabledBlock" }
       }
     },
@@ -50,15 +49,9 @@
         "logFormat": { "type": "string", "enum": ["text", "json"] }
       }
     },
-    "exposure": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "mode": { "type": "string", "enum": ["external", "gateway", "ingress"] },
-        "baseUrl": { "type": "string" }
-      },
-      "required": ["mode"]
-    },
+    "externalUrl": { "type": "string" },
+    "ingress": { "$ref": "#/definitions/ingress" },
+    "httproute": { "$ref": "#/definitions/httpRoute" },
     "externalDependencies": {
       "type": "object",
       "additionalProperties": false,
@@ -108,7 +101,7 @@
       }
     }
   },
-  "required": ["planes", "embeddedDependencies", "externalDependencies", "image", "exposure", "secrets", "services", "gateway"],
+  "required": ["planes", "embeddedDependencies", "externalDependencies", "image", "externalUrl", "ingress", "httproute", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
@@ -119,6 +112,99 @@
     "stringMap": {
       "type": "object",
       "additionalProperties": { "type": "string" }
+    },
+    "ingressTls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "secretName": { "type": "string" }
+      },
+      "required": ["enabled", "secretName"]
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "ingressClassName": { "type": "string" },
+        "hostname": { "type": "string" },
+        "path": { "type": "string", "minLength": 1 },
+        "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"] },
+        "tls": { "$ref": "#/definitions/ingressTls" },
+        "extraHosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 },
+              "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
+            },
+            "required": ["name"]
+          }
+        },
+        "extraPaths": { "type": "array", "items": { "type": "object" } },
+        "extraRules": { "type": "array", "items": { "type": "object" } },
+        "extraTls": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["enabled", "labels", "annotations", "ingressClassName", "hostname", "path", "pathType", "tls", "extraHosts", "extraPaths", "extraRules", "extraTls"]
+    },
+    "httpRouteParentRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "group": { "type": "string" },
+        "kind": { "type": "string" },
+        "namespace": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "sectionName": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "httpRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "parentRefs": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/httpRouteParentRef" }
+        },
+        "hostnames": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "object" }
+        }
+      },
+      "required": ["enabled", "labels", "annotations", "parentRefs", "hostnames", "rules"]
+    },
+    "gatewayService": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "nodePort": { "type": ["integer", "null"], "minimum": 1, "maximum": 65535 },
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "loadBalancerClass": { "type": "string" },
+        "loadBalancerSourceRanges": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "externalTrafficPolicy": { "type": "string", "enum": ["Cluster", "Local"] }
+      },
+      "required": ["type", "port", "nodePort", "labels", "annotations", "loadBalancerClass", "loadBalancerSourceRanges", "externalTrafficPolicy"]
     },
     "globalImage": {
       "type": "object",
@@ -274,7 +360,9 @@
       "allOf": [
         { "$ref": "#/definitions/autoscaledServiceComponent" },
         {
+          "not": { "required": ["ingress"] },
           "properties": {
+            "service": { "$ref": "#/definitions/gatewayService" },
             "jwt": { "$ref": "#/definitions/envoyJwt" }
           }
         }

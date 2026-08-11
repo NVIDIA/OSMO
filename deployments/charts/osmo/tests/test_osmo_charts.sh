@@ -175,6 +175,171 @@ test_control_umbrella() {
     require_not_contains "$rendered" "OSMO_SCHEMA_VERSION"
     require_contains "$rendered" "app.kubernetes.io/name: osmo"
     require_contains "$rendered" "app.kubernetes.io/component: api"
+    resource_document "$rendered" Service osmo-gateway \
+        >"$TEST_DIRECTORY/osmo-gateway-service.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-gateway-service.yaml" "type: ClusterIP"
+    require_occurrences "$TEST_DIRECTORY/osmo-gateway-service.yaml" \
+        "targetPort: envoy-http" 1
+    require_not_contains "$rendered" "kind: Ingress"
+    require_not_contains "$rendered" "kind: HTTPRoute"
+
+    helm_template ingress-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set ingress.enabled=true \
+        --set ingress.ingressClassName=nginx \
+        --set ingress.hostname=osmo.example.com \
+        --set ingress.tls.enabled=true \
+        --set ingress.tls.secretName=osmo-ingress-tls \
+        --set ingress.extraHosts[0].name=extra.example.com \
+        --set ingress.extraHosts[0].path=/extra \
+        --set ingress.extraPaths[0].path=/custom \
+        --set ingress.extraPaths[0].pathType=Exact \
+        --set ingress.extraPaths[0].backend.service.name=custom-service \
+        --set ingress.extraPaths[0].backend.service.port.number=8080 \
+        --set ingress.extraRules[0].host=rule.example.com \
+        --set ingress.extraRules[0].http.paths[0].path=/rule \
+        --set ingress.extraRules[0].http.paths[0].pathType=Prefix \
+        --set ingress.extraRules[0].http.paths[0].backend.service.name=rule-service \
+        --set ingress.extraRules[0].http.paths[0].backend.service.port.number=8081 \
+        --set ingress.extraTls[0].hosts[0]=extra.example.com \
+        --set ingress.extraTls[0].secretName=extra-tls \
+        --set-string 'ingress.labels.app\.kubernetes\.io/name=wrong' \
+        --set-string 'ingress.labels.app\.kubernetes\.io/component=wrong' \
+        >"$TEST_DIRECTORY/osmo-ingress.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-ingress.yaml" Ingress \
+        ingress-release-osmo-gateway >"$TEST_DIRECTORY/osmo-ingress-resource.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "ingressClassName: nginx"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "host: osmo.example.com"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "name: ingress-release-osmo-gateway"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "number: 80"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "secretName: osmo-ingress-tls"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "host: extra.example.com"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "path: /extra"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "path: /custom"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "name: custom-service"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "host: rule.example.com"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "name: rule-service"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "secretName: extra-tls"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "app.kubernetes.io/name: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" \
+        "app.kubernetes.io/component: gateway-envoy"
+    require_not_contains "$TEST_DIRECTORY/osmo-ingress-resource.yaml" "wrong"
+    require_occurrences "$TEST_DIRECTORY/osmo-ingress.yaml" "kind: Ingress" 1
+    require_not_contains "$TEST_DIRECTORY/osmo-ingress.yaml" "kind: HTTPRoute"
+
+    helm_template route-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set httproute.enabled=true \
+        --set httproute.parentRefs[0].name=shared-gateway \
+        --set httproute.parentRefs[0].namespace=ingress-system \
+        --set httproute.parentRefs[0].sectionName=https \
+        --set httproute.hostnames[0]=osmo.example.com \
+        --set httproute.rules[0].matches[0].path.type=PathPrefix \
+        --set httproute.rules[0].matches[0].path.value=/ \
+        --set httproute.rules[0].backendRefs[0].name=wrong-backend \
+        --set httproute.rules[0].backendRefs[0].port=9999 \
+        --set-string 'httproute.labels.app\.kubernetes\.io/name=wrong' \
+        --set-string 'httproute.labels.app\.kubernetes\.io/component=wrong' \
+        >"$TEST_DIRECTORY/osmo-httproute.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-httproute.yaml" HTTPRoute \
+        route-release-osmo-gateway >"$TEST_DIRECTORY/osmo-httproute-resource.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "apiVersion: gateway.networking.k8s.io/v1"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "name: shared-gateway"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "namespace: ingress-system"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "sectionName: https"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "- osmo.example.com"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "type: PathPrefix"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" "value: /"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "name: route-release-osmo-gateway"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" "port: 80"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "app.kubernetes.io/name: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" \
+        "app.kubernetes.io/component: gateway-envoy"
+    require_not_contains "$TEST_DIRECTORY/osmo-httproute-resource.yaml" "wrong"
+    require_occurrences "$TEST_DIRECTORY/osmo-httproute.yaml" "kind: HTTPRoute" 1
+    require_not_contains "$TEST_DIRECTORY/osmo-httproute.yaml" "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/osmo-httproute.yaml" "kind: GatewayClass"
+    require_not_contains "$TEST_DIRECTORY/osmo-httproute.yaml" "kind: Gateway"
+    require_not_contains "$TEST_DIRECTORY/osmo-httproute.yaml" "kind: GRPCRoute"
+
+    helm_template combined-edge-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set ingress.enabled=true \
+        --set ingress.hostname=osmo.example.com \
+        --set httproute.enabled=true \
+        --set httproute.parentRefs[0].name=shared-gateway \
+        >"$TEST_DIRECTORY/osmo-combined-edge.yaml"
+    require_occurrences "$TEST_DIRECTORY/osmo-combined-edge.yaml" \
+        "kind: Ingress" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-combined-edge.yaml" \
+        "kind: HTTPRoute" 1
+
+    helm_template load-balancer-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.envoy.service.type=LoadBalancer \
+        --set gateway.envoy.service.port=443 \
+        --set gateway.envoy.service.nodePort=30443 \
+        --set gateway.envoy.service.loadBalancerClass=example.com/lb \
+        --set gateway.envoy.service.loadBalancerSourceRanges[0]=192.0.2.0/24 \
+        --set gateway.envoy.ssl.enabled=true \
+        >"$TEST_DIRECTORY/osmo-load-balancer.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-load-balancer.yaml" Service \
+        load-balancer-release-osmo-gateway \
+        >"$TEST_DIRECTORY/osmo-load-balancer-service.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" \
+        "type: LoadBalancer"
+    require_contains "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" \
+        "loadBalancerClass: example.com/lb"
+    require_contains "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" \
+        "- 192.0.2.0/24"
+    require_contains "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" \
+        "externalTrafficPolicy: Cluster"
+    require_contains "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" "name: https"
+    require_contains "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" "port: 443"
+    require_contains "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" \
+        "nodePort: 30443"
+    require_occurrences "$TEST_DIRECTORY/osmo-load-balancer-service.yaml" \
+        "targetPort: envoy-http" 1
+    require_not_contains "$TEST_DIRECTORY/osmo-load-balancer.yaml" "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/osmo-load-balancer.yaml" "kind: HTTPRoute"
+
+    helm_template node-port-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.envoy.service.type=NodePort \
+        --set gateway.envoy.service.port=8080 \
+        --set gateway.envoy.service.nodePort=30080 \
+        --set gateway.envoy.service.externalTrafficPolicy=Local \
+        >"$TEST_DIRECTORY/osmo-node-port.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-node-port.yaml" Service \
+        node-port-release-osmo-gateway >"$TEST_DIRECTORY/osmo-node-port-service.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-node-port-service.yaml" "type: NodePort"
+    require_contains "$TEST_DIRECTORY/osmo-node-port-service.yaml" \
+        "externalTrafficPolicy: Local"
+    require_contains "$TEST_DIRECTORY/osmo-node-port-service.yaml" "port: 8080"
+    require_contains "$TEST_DIRECTORY/osmo-node-port-service.yaml" \
+        "nodePort: 30080"
 
     helm_template values-api "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -427,15 +592,25 @@ EOF
     require_contains "$TEST_DIRECTORY/unsupported-embedded.out" \
         "embedded PostgreSQL is not implemented"
 
-    if helm_template unsupported-exposure "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set exposure.mode=gateway \
-        >"$TEST_DIRECTORY/unsupported-exposure.out" 2>&1; then
-        fail "expected exposure.mode=gateway to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/unsupported-exposure.out" \
-        "only external exposure is implemented"
+    local legacy_exposure_value
+    local legacy_exposure_property
+    while IFS='|' read -r legacy_exposure_value legacy_exposure_property; do
+        if helm_template legacy-exposure "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set "$legacy_exposure_value" \
+            >"$TEST_DIRECTORY/legacy-exposure.out" 2>&1; then
+            fail "expected legacy $legacy_exposure_value to fail schema validation"
+        fi
+        require_contains "$TEST_DIRECTORY/legacy-exposure.out" \
+            "$legacy_exposure_property"
+    done <<'EOF'
+exposure.mode=external|exposure
+exposure.baseUrl=https://osmo.example.com|exposure
+embeddedDependencies.gateway.enabled=false|gateway
+gateway.envoy.ingress.enabled=false|'not' failed
+gateway.envoy.service.httpsPort=443|httpsPort
+EOF
 
     if helm_template unsupported-generated-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -488,6 +663,46 @@ EOF
         "requestTimeoutSeconds"
     require_contains "$TEST_DIRECTORY/invalid-mcp-timeout.out" "60"
 
+    local invalid_service_value
+    local invalid_service_property
+    while IFS='|' read -r invalid_service_value invalid_service_property; do
+        if helm_template invalid-gateway-service "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set "$invalid_service_value" \
+            >"$TEST_DIRECTORY/invalid-gateway-service.out" 2>&1; then
+            fail "expected invalid $invalid_service_value to fail schema validation"
+        fi
+        require_contains "$TEST_DIRECTORY/invalid-gateway-service.out" \
+            "$invalid_service_property"
+    done <<'EOF'
+gateway.envoy.service.type=ExternalName|type
+gateway.envoy.service.port=0|port
+gateway.envoy.service.nodePort=65536|nodePort
+gateway.envoy.service.externalTrafficPolicy=Nearest|externalTrafficPolicy
+gateway.envoy.service.loadBalancerIP=192.0.2.1|loadBalancerIP
+EOF
+
+    if helm_template invalid-ingress "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set ingress.enabled=true \
+        >"$TEST_DIRECTORY/invalid-ingress.out" 2>&1; then
+        fail "expected ingress.enabled=true without hostname to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-ingress.out" \
+        "ingress.hostname is required when ingress.enabled=true"
+
+    if helm_template invalid-httproute "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set httproute.enabled=true \
+        >"$TEST_DIRECTORY/invalid-httproute.out" 2>&1; then
+        fail "expected httproute.enabled=true without parentRefs to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-httproute.out" \
+        "httproute.parentRefs requires at least one entry when httproute.enabled=true"
+
     local required_value
     local expected_message
     while IFS='|' read -r required_value expected_message; do
@@ -500,7 +715,7 @@ EOF
         fi
         require_contains "$TEST_DIRECTORY/missing-required.out" "$expected_message"
     done <<'EOF'
-exposure.baseUrl|exposure.baseUrl is required
+externalUrl|externalUrl is required
 externalDependencies.objectStorage.buckets.workflows|buckets.workflows is required
 externalDependencies.objectStorage.buckets.logs|buckets.logs is required
 externalDependencies.objectStorage.buckets.apps|buckets.apps is required

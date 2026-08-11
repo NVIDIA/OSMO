@@ -50,15 +50,6 @@ gateway:
     ssl:
       enabled: true
       secretName: gateway-tls
-    ingress:
-      enabled: true
-      sslEnabled: true
-      albAnnotations:
-        enabled: true
-        groupName: osmo
-        groupOrder: "10"
-        # Synthetic test-only ARN used to verify ALB annotation rendering.
-        sslCertArn: arn:aws:acm:us-east-1:123456789012:certificate/test
   oauth2Proxy:
     enabled: true
     useKubernetesSecrets: true
@@ -70,3 +61,12 @@ gateway:
     enabled: true
   networkPolicies:
     enabled: true
+
+ingress:
+  enabled: true
+  hostname: osmo.example.com
+  annotations:
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+  tls:
+    enabled: true
+    secretName: osmo-ingress-tls
