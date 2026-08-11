@@ -259,9 +259,11 @@ def reports_from_json(payload: object) -> list[TargetReport]:
         return []
 
     def _int(value: object) -> int:
+        if not isinstance(value, (int, float, str)):
+            return 0
         try:
-            return int(value or 0)
-        except (TypeError, ValueError):
+            return int(value)
+        except ValueError:
             return 0
 
     reports: list[TargetReport] = []
