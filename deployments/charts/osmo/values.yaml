@@ -65,7 +65,7 @@ externalDependencies:
       apps: ''
 
 # Override the names Helm derives from the chart and release. Leave empty for
-# conventional names such as `osmo-service` and `osmo-gateway`.
+# conventional names such as `osmo-api` and `osmo-gateway`.
 nameOverride: ''
 fullnameOverride: ''
 
@@ -701,7 +701,7 @@ gateway:
       host: ''
     internalJwks:
       enabled: true
-      cluster: osmo-service-jwks
+      cluster: osmo-api-jwks
       host: ''
       port: ''
     jwt:
@@ -745,7 +745,7 @@ gateway:
   # Internal destinations used by Envoy routes. Empty hosts resolve to this
   # release's Services; set a host only to route outside the release.
   upstreams:
-    service:
+    api:
       enabled: true
       host: ''
       port: 80
@@ -938,8 +938,8 @@ gateway:
     # Release-relative component suffixes prevent policies from selecting pods
     # owned by another OSMO release in the same namespace.
     upstreams:
-    - name: service
-      component: service
+    - name: api
+      component: api
       port: 8000
     - name: router
       component: router
@@ -954,7 +954,7 @@ gateway:
   tls:
     enabled: true
     upstreamCerts:
-      service: ''
+      api: ''
       router: ''
       agent: ''
       logger: ''

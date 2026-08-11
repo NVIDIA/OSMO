@@ -18,21 +18,21 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: {{ include "osmo.v1.componentName" (dict "root" $root "suffix" "otel-monitor") }}
+  name: {{ include "osmo.component.fullname" (dict "root" $root "suffix" "otel-monitor") }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" $root "component" "monitoring") | nindent 4 }}
 spec:
   podMetricsEndpoints:
   - interval: 15s
     port: metrics
     path: /metrics
   selector:
+    matchLabels:
+      {{- include "osmo.selectorLabels" $root | nindent 6 }}
     matchExpressions:
-    - { key: app,
+    - { key: app.kubernetes.io/component,
         operator: In,
-        values: [{{ include "osmo.v1.componentName" (dict "root" $root "suffix" "agent") }},
-                 {{ include "osmo.v1.apiName" $root }},
-                 {{ include "osmo.v1.componentName" (dict "root" $root "suffix" "worker") }},
-                 {{ include "osmo.v1.componentName" (dict "root" $root "suffix" "logger") }},
-                 {{ include "osmo.v1.componentName" (dict "root" $root "suffix" "delayed-job-monitor") }}]
+        values: [agent, api, worker, logger, delayed-job-monitor]
       }
 {{- end }}
 {{- if and .Values.services.api.monitoring.podMonitor.enabled .Values.gateway.envoy.enabled }}
@@ -40,7 +40,9 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: {{ include "osmo.v1.componentName" (dict "root" . "suffix" "gateway-envoy-monitor") }}
+  name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "gateway-envoy-monitor") }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "monitoring") | nindent 4 }}
 spec:
   podMetricsEndpoints:
   - interval: 15s
@@ -48,16 +50,16 @@ spec:
     path: /stats/prometheus
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "osmo.v1.gateway-name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/component: envoy
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-envoy") | nindent 6 }}
 {{- end }}
 {{- if and .Values.services.api.monitoring.podMonitor.enabled .Values.gateway.oauth2Proxy.enabled }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: {{ include "osmo.v1.componentName" (dict "root" . "suffix" "gateway-oauth2-proxy-monitor") }}
+  name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "gateway-oauth2-proxy-monitor") }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "monitoring") | nindent 4 }}
 spec:
   podMetricsEndpoints:
   - interval: 15s
@@ -65,7 +67,5 @@ spec:
     path: /metrics
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "osmo.v1.gateway-name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/component: oauth2-proxy
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 6 }}
 {{- end }}

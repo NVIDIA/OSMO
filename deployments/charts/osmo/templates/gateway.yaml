@@ -15,13 +15,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {{- $gw := .Values.gateway }}
-{{- $gwName := include "osmo.v1.gateway-name" . }}
-{{- $envoyHostname := $gw.envoy.hostname | default (include "osmo.v1.hostname" .) }}
+{{- $gwName := include "osmo.gateway.fullname" . }}
+{{- $envoyHostname := $gw.envoy.hostname | default (include "osmo.hostname" .) }}
 
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
 {{/* ================================================================ */}}
-{{- include "osmo.v1.gateway-envoy-config" . }}
+{{- include "osmo.gateway.envoyConfig" . }}
 
 ---
 
@@ -34,27 +34,28 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $gwName }}-envoy
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "osmo.v1.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 6 }}
+      {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "osmo.v1.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 8 }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" $gw.envoy) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" $gw.envoy "componentName" "gateway-envoy") | nindent 8 }}
       annotations:
-        checksum/envoy-config: {{ include "osmo.v1.gateway-envoy-config" . | sha256sum }}
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" $gw.envoy) | nindent 8 }}
+        checksum/envoy-config: {{ include "osmo.gateway.envoyConfig" . | sha256sum }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.envoy) | nindent 8 }}
     spec:
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" $gw.envoy)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.envoy)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" $gw.envoy) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" $gw.envoy "root" . "suffix" "gateway-envoy") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" $gw.envoy) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" $gw.envoy "root" . "suffix" "gateway-envoy") }}
       containers:
       - name: envoy
         securityContext:
@@ -141,6 +142,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $gwName }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | nindent 4 }}
   {{- with $gw.envoy.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -162,7 +165,7 @@ spec:
       name: https
     {{- end }}
   selector:
-    {{- include "osmo.v1.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 4 }}
+    {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | nindent 4 }}
 
 {{- if $gw.envoy.ingress.enabled }}
 ---
@@ -176,6 +179,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $gwName }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | nindent 4 }}
   annotations:
     {{- if $gw.envoy.ingress.albAnnotations.enabled }}
     alb.ingress.kubernetes.io/target-type: ip
@@ -215,6 +220,8 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ $gwName }}-envoy
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -253,26 +260,27 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $gwName }}-oauth2-proxy
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "osmo.v1.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 6 }}
+      {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "oauth2-proxy" "context" .) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "osmo.v1.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 8 }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" $gw.oauth2Proxy "componentName" "gateway-oauth2-proxy") | nindent 8 }}
       annotations:
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
     spec:
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" $gw.oauth2Proxy)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.oauth2Proxy)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" $gw.oauth2Proxy "root" . "suffix" "gateway-oauth2-proxy") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" $gw.oauth2Proxy "root" . "suffix" "gateway-oauth2-proxy") }}
       containers:
       - name: oauth2-proxy
         image: "{{ $gw.oauth2Proxy.image.repository }}"
@@ -326,7 +334,7 @@ spec:
                 name: {{ .Values.secrets.valkey.existingSecret }}
                 key: {{ .Values.secrets.valkey.keys.password }}
           {{- end }}
-          {{- include "osmo.v1.extra-env" $gw.oauth2Proxy | nindent 10 }}
+          {{- include "osmo.component.extraEnv" $gw.oauth2Proxy | nindent 10 }}
         {{- end }}
         ports:
         - name: http
@@ -375,6 +383,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $gwName }}-oauth2-proxy
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 4 }}
 spec:
   ports:
     - port: {{ $gw.oauth2Proxy.httpPort }}
@@ -386,7 +396,7 @@ spec:
       protocol: TCP
       name: metrics
   selector:
-    {{- include "osmo.v1.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 4 }}
+    {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "oauth2-proxy" "context" .) | nindent 4 }}
 
 ---
 
@@ -394,6 +404,8 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ $gwName }}-oauth2-proxy
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -431,32 +443,33 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $gwName }}-authz
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-authz") | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "osmo.v1.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 6 }}
+      {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "authz" "context" .) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "osmo.v1.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 8 }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" $gw.authz) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" $gw.authz "componentName" "gateway-authz") | nindent 8 }}
       annotations:
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" $gw.authz) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.authz) | nindent 8 }}
     spec:
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" $gw.authz)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.authz)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" $gw.authz) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" $gw.authz "root" . "suffix" "gateway-authz") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" $gw.authz) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" $gw.authz "root" . "suffix" "gateway-authz") }}
       containers:
       - name: authz
         securityContext:
           {{- toYaml $gw.authz.pod.containerSecurityContext | nindent 10 }}
-        image: {{ include "osmo.v1.image" (dict "root" . "component" $gw.authz) }}
-        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" $gw.authz) }}
+        image: {{ include "osmo.component.image" (dict "root" . "component" $gw.authz) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" $gw.authz) }}
         args:
           - "--grpc-port={{ $gw.authz.grpcPort }}"
           {{- if .Values.configuration.enabled }}
@@ -477,8 +490,8 @@ spec:
           - "--log-format={{ . }}"
           {{- end }}
         env:
-          {{- include "osmo.v1.extra-env" $gw.authz | nindent 10 }}
-          {{- include "osmo.v1.connection-secret-env" . | nindent 10 }}
+          {{- include "osmo.component.extraEnv" $gw.authz | nindent 10 }}
+          {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 10 }}
         {{- if or .Values.configuration.enabled $gw.authz.volumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
           {{- if .Values.configuration.enabled }}
@@ -489,7 +502,7 @@ spec:
           {{- with $gw.authz.volumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
-          {{- include "osmo.v1.external-ca-volume-mounts" . | nindent 10 }}
+          {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 10 }}
         {{- end }}
         {{- with $gw.authz.livenessProbe }}
         livenessProbe:
@@ -505,12 +518,12 @@ spec:
         {{- if .Values.configuration.enabled }}
         - name: configs
           configMap:
-            name: {{ include "osmo.v1.apiName" . }}-configs
+            name: {{ include "osmo.api.fullname" . }}-config
         {{- end }}
         {{- with $gw.authz.pod.volumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- include "osmo.v1.external-ca-volumes" . | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 
 ---
 
@@ -518,6 +531,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $gwName }}-authz
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-authz") | nindent 4 }}
 spec:
   ports:
     - port: {{ $gw.authz.grpcPort }}
@@ -525,7 +540,7 @@ spec:
       protocol: TCP
       name: grpc
   selector:
-    {{- include "osmo.v1.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 4 }}
+    {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "authz" "context" .) | nindent 4 }}
 
 ---
 
@@ -533,6 +548,8 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ $gwName }}-authz
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-authz") | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -570,6 +587,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ $gwName }}-ratelimit-config
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
 data:
   config.yaml: |
     domain: {{ $gw.rateLimit.config.domain | default "ratelimit" }}
@@ -582,28 +601,29 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $gwName }}-ratelimit
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-ratelimit") | nindent 4 }}
 spec:
   replicas: {{ $gw.rateLimit.replicas }}
   selector:
     matchLabels:
-      {{- include "osmo.v1.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 6 }}
+      {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "ratelimit" "context" .) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "osmo.v1.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 8 }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" $gw.rateLimit "componentName" "gateway-ratelimit") | nindent 8 }}
       annotations:
         checksum/ratelimit-config: {{ $gw.rateLimit.config | toYaml | sha256sum }}
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
     spec:
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" $gw.rateLimit)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.rateLimit)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" $gw.rateLimit "root" . "suffix" "gateway-ratelimit") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" $gw.rateLimit "root" . "suffix" "gateway-ratelimit") }}
       containers:
       - name: ratelimit
         image: "{{ $gw.rateLimit.image.repository }}"
@@ -651,7 +671,7 @@ spec:
           value: "::"
         - name: GRPC_HOST
           value: "::"
-        {{- include "osmo.v1.extra-env" $gw.rateLimit | nindent 8 }}
+        {{- include "osmo.component.extraEnv" $gw.rateLimit | nindent 8 }}
         ports:
         - name: grpc
           containerPort: {{ $gw.rateLimit.grpcPort }}
@@ -686,6 +706,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $gwName }}-ratelimit
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "gateway-ratelimit") | nindent 4 }}
 spec:
   ports:
     - port: {{ $gw.rateLimit.grpcPort }}
@@ -697,7 +719,7 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "osmo.v1.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 4 }}
+    {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "ratelimit" "context" .) | nindent 4 }}
 {{- end }}
 
 ---
@@ -706,17 +728,19 @@ spec:
 {{/* Network Policies                                                 */}}
 {{/* ================================================================ */}}
 {{- if $gw.networkPolicies.enabled }}
-{{- $envoyLabels := (include "osmo.v1.gateway-component-labels" (dict "component" "envoy" "context" .) | fromYaml) }}
+{{- $envoyLabels := (include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | fromYaml) }}
 {{- range $gw.networkPolicies.upstreams }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: {{ $gwName }}-allow-envoy-to-{{ .name }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" $ "component" .component) | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      app: {{ include "osmo.v1.componentName" (dict "root" $ "suffix" .component) }}
+      {{- include "osmo.component.selectorLabels" (dict "root" $ "component" .component) | nindent 6 }}
   policyTypes:
   - Ingress
   ingress:

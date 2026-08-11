@@ -16,8 +16,8 @@
 
 {{- if and .Values.planes.control.enabled .Values.services.mcp.enabled }}
 {{- $mcp := .Values.services.mcp }}
-{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "mcp") }}
-{{- $mcpResourceUrl := include "osmo.v1.mcp-resource-url" . }}
+{{- $name := include "osmo.component.fullname" (dict "root" . "suffix" "mcp") }}
+{{- $mcpResourceUrl := include "osmo.mcp.resourceUrl" . }}
 {{- $gatewayUrl := trimSuffix "/mcp" $mcpResourceUrl }}
 {{- $requestTimeoutSeconds := toString $mcp.requestTimeoutSeconds }}
 {{- $reservedEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_GATEWAY_URL" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" }}
@@ -31,40 +31,37 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
-    app.kubernetes.io/component: mcp
+    {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
 spec:
   replicas: {{ $mcp.replicas }}
   selector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "mcp") | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ $name }}
-        app.kubernetes.io/component: mcp
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" $mcp) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" $mcp "componentName" "mcp") | nindent 8 }}
       annotations:
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" $mcp) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" $mcp) | nindent 8 }}
     spec:
       automountServiceAccountToken: false
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" $mcp)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $mcp)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" $mcp) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" $mcp "root" . "suffix" "mcp") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" $mcp) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" $mcp "root" . "suffix" "mcp") }}
       containers:
       - name: {{ $name }}
-        image: {{ include "osmo.v1.image" (dict "root" . "component" $mcp) }}
-        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" $mcp) }}
+        image: {{ include "osmo.component.image" (dict "root" . "component" $mcp) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" $mcp) }}
         command:
         - mcp
         {{- if .Values.gateway.tls.enabled }}
         args:
-        {{- include "osmo.v1.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
         {{- end }}
         securityContext:
           {{- toYaml $mcp.pod.containerSecurityContext | nindent 10 }}
@@ -88,17 +85,17 @@ spec:
           {{- toYaml $mcp.resources | nindent 10 }}
         {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
         volumeMounts:
-        {{- include "osmo.v1.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
         {{- end }}
         livenessProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" $mcp.livenessProbe "context" .) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.livenessProbe "context" .) | nindent 10 }}
         readinessProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
         startupProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
       {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
       volumes:
-      {{- include "osmo.v1.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 6 }}
+      {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 6 }}
       {{- end }}
 
 ---
@@ -108,8 +105,7 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
-    app.kubernetes.io/component: mcp
+    {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
 spec:
   type: ClusterIP
   ports:
@@ -118,7 +114,7 @@ spec:
     targetPort: http
     protocol: TCP
   selector:
-    app: {{ $name }}
+    {{- include "osmo.component.selectorLabels" (dict "root" . "component" "mcp") | nindent 4 }}
 
 ---
 
@@ -126,17 +122,19 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: {{ $name }}-allow-gateway-envoy
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "mcp") | nindent 6 }}
   policyTypes:
   - Ingress
   ingress:
   - from:
     - podSelector:
         matchLabels:
-          {{- include "osmo.v1.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 10 }}
+          {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | nindent 10 }}
     ports:
     - port: {{ $mcp.port }}
       protocol: TCP

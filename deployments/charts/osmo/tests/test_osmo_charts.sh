@@ -144,7 +144,8 @@ test_control_umbrella() {
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$rendered"
 
-    require_deployment "$rendered" "osmo-service"
+    require_deployment "$rendered" "osmo-api"
+    require_no_deployment "$rendered" "osmo-service"
     require_deployment "$rendered" "osmo-worker"
     require_deployment "$rendered" "osmo-router"
     require_deployment "$rendered" "osmo-logger"
@@ -171,6 +172,23 @@ test_control_umbrella() {
     require_not_contains "$rendered" "vault.hashicorp.com"
     require_not_contains "$rendered" "labels_config:"
     require_not_contains "$rendered" "OSMO_SCHEMA_VERSION"
+    require_contains "$rendered" "app.kubernetes.io/name: osmo"
+    require_contains "$rendered" "app.kubernetes.io/component: api"
+
+    helm_template osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string 'commonLabels.app\.kubernetes\.io/name=wrong' \
+        --set-string 'podDefaults.labels.app\.kubernetes\.io/component=wrong' \
+        >"$TEST_DIRECTORY/osmo-hostile-labels.yaml"
+    require_deployment "$TEST_DIRECTORY/osmo-hostile-labels.yaml" "osmo-api"
+    resource_document "$TEST_DIRECTORY/osmo-hostile-labels.yaml" Deployment osmo-api \
+        >"$TEST_DIRECTORY/osmo-api-hostile-labels.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" \
+        "app.kubernetes.io/name: osmo"
+    require_contains "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" \
+        "app.kubernetes.io/component: api"
+    require_not_contains "$TEST_DIRECTORY/osmo-api-hostile-labels.yaml" "wrong"
 
     resource_document "$rendered" Deployment osmo-agent \
         >"$TEST_DIRECTORY/osmo-agent.yaml"
@@ -224,7 +242,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
         'value: "review-release-osmo-gateway:80"'
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
-        "address: review-release-osmo-service"
+        "address: review-release-osmo-api"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
         "address: review-release-osmo-router-headless"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
@@ -240,10 +258,10 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
         "name: review-release-osmo-gateway-oauth2-proxy-monitor"
     resource_document "$TEST_DIRECTORY/osmo-review.yaml" NetworkPolicy \
-        review-release-osmo-gateway-allow-envoy-to-service \
+        review-release-osmo-gateway-allow-envoy-to-api \
         >"$TEST_DIRECTORY/osmo-review-service-network-policy.yaml"
     require_contains "$TEST_DIRECTORY/osmo-review-service-network-policy.yaml" \
-        "app: review-release-osmo-service"
+        "app.kubernetes.io/component: api"
     resource_document "$TEST_DIRECTORY/osmo-review.yaml" Deployment \
         review-release-osmo-gateway-oauth2-proxy \
         >"$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml"
@@ -275,7 +293,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-review-ingress.yaml" \
         "alb.ingress.kubernetes.io/backend-protocol: HTTPS"
     resource_document "$TEST_DIRECTORY/osmo-review.yaml" Deployment \
-        review-release-osmo-service >"$TEST_DIRECTORY/osmo-review-api.yaml"
+        review-release-osmo-api >"$TEST_DIRECTORY/osmo-review-api.yaml"
     require_contains "$TEST_DIRECTORY/osmo-review-api.yaml" "path: /health"
     require_not_contains "$TEST_DIRECTORY/osmo-review-api.yaml" "x-osmo-roles"
 

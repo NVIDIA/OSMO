@@ -14,24 +14,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.api.enabled }}
-{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "service") }}
+{{- $name := include "osmo.api.fullname" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ $name }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
     spec:
       {{- with .Values.services.api.pod.hostAliases }}
       hostAliases:
@@ -47,23 +46,23 @@ spec:
         {{- end }}
         labelSelector:
           matchLabels:
-            app: {{ $name }}
+            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "api") | nindent 12 }}
       {{- end }}
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.api)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.api)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.api "root" . "suffix" "service") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" .Values.services.api "root" . "suffix" "api") }}
       {{- with .Values.services.api.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       containers:
       - name: {{ $name }}
-        image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.api) }}
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.api) }}
         command:
         - service
         args:
@@ -109,7 +108,7 @@ spec:
         - --logout_endpoint
         - {{ .Values.services.api.auth.logout_endpoint }}
         {{- end }}
-        {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.v1.hostname" .) }}
+        {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.hostname" .) }}
         {{- if $serviceHostname }}
         - --service_hostname
         - {{ $serviceHostname }}
@@ -119,9 +118,9 @@ spec:
         - {{ .Values.services.api.clientInstallUrl }}
         {{- end }}
         - --osmo_image_location
-        - {{ include "osmo.v1.imageRepository" . }}
+        - {{ include "osmo.component.imageRepository" . }}
         - --osmo_image_tag
-        - {{ include "osmo.v1.imageTag" . | quote }}
+        - {{ include "osmo.component.imageTag" . | quote }}
         {{- if .Values.logging.enabled }}
         - --log_level
         - {{ .Values.logging.logLevel }}
@@ -134,17 +133,17 @@ spec:
         - --default_admin_username
         - {{ .Values.secrets.defaultAdmin.username | quote }}
         {{- end }}
-        {{- include "osmo.v1.configmap-args" . | nindent 8 }}
+        {{- include "osmo.configuration.args" . | nindent 8 }}
         {{- range $arg := .Values.services.api.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.v1.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.api.disableTaskMetrics | quote }}
-        {{- include "osmo.v1.configmap-env" . | nindent 8 }}
-        {{- include "osmo.v1.extra-env" .Values.services.api | nindent 8 }}
-        {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
+        {{- include "osmo.configuration.env" . | nindent 8 }}
+        {{- include "osmo.component.extraEnv" .Values.services.api | nindent 8 }}
+        {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         {{- if .Values.secrets.defaultAdmin.existingSecret }}
         - name: OSMO_DEFAULT_ADMIN_PASSWORD
           valueFrom:
@@ -152,7 +151,7 @@ spec:
               name: {{ .Values.secrets.defaultAdmin.existingSecret }}
               key: {{ .Values.secrets.defaultAdmin.keys.password }}
         {{- end }}
-        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.api) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.api) }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -162,7 +161,7 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.api.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
+        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.api.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.api) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
         {{- end }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
@@ -170,34 +169,34 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- include "osmo.v1.configmap-volume-mounts" . | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volume-mounts" . | nindent 8 }}
-        {{- include "osmo.v1.extra-volume-mounts" .Values.services.api | nindent 8 }}
-        {{- include "osmo.v1.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
+        {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
+        {{- include "osmo.component.extraVolumeMounts" .Values.services.api | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.api.resources | nindent 10 }}
 
         # Any failure to return the version api means the service is in a bad state
         livenessProbe:
-        {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.api.livenessProbe "context" .) | nindent 10 }}
+        {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.livenessProbe "context" .) | nindent 10 }}
 
 
         # Probe spec comes from values.yaml; the helper overlays
         # `scheme: HTTPS` when gateway.tls.enabled is true.
         startupProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.api.startupProbe "context" .) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.startupProbe "context" .) | nindent 10 }}
 
         # Readiness must not require privileged request headers.
         readinessProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.api.readinessProbe "context" .) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.readinessProbe "context" .) | nindent 10 }}
 
-      {{- include "osmo.v1.extra-sidecars" .Values.services.api | nindent 6 }}
+      {{- include "osmo.pod.extraSidecars" .Values.services.api | nindent 6 }}
       volumes:
-        {{- include "osmo.v1.extra-volumes" .Values.services.api | nindent 8 }}
-        {{- include "osmo.v1.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
-        {{- include "osmo.v1.mek-volume" . | nindent 8 }}
-        {{- include "osmo.v1.configmap-volumes" . | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volumes" . | nindent 8 }}
+        {{- include "osmo.pod.extraVolumes" .Values.services.api | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
+        {{- include "osmo.configuration.volumes" . | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 ---
 
 apiVersion: v1
@@ -205,7 +204,7 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
 spec:
   ports:
     - port: 80
@@ -213,7 +212,7 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: {{ $name }}
+    {{- include "osmo.component.selectorLabels" (dict "root" . "component" "api") | nindent 4 }}
 
 ---
 
@@ -222,7 +221,7 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
   annotations:
 spec:
   scaleTargetRef:

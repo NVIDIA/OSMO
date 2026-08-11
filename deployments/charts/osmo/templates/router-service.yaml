@@ -15,25 +15,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {{- if and .Values.planes.control.enabled .Values.services.router.enabled }}
-{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "router") }}
+{{- $name := include "osmo.component.fullname" (dict "root" . "suffix" "router") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "router") | nindent 4 }}
 spec:
   replicas: {{ .Values.services.router.autoscaling.minReplicas }}
   selector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "router") | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ $name }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" .Values.services.router) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.router "componentName" "router") | nindent 8 }}
       annotations:
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.router) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.router) | nindent 8 }}
     spec:
       {{- with .Values.services.router.pod.hostAliases }}
       hostAliases:
@@ -50,28 +49,28 @@ spec:
         {{- end }}
         labelSelector:
           matchLabels:
-            app: {{ $name }}
+            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "router") | nindent 12 }}
       {{- end }}
       {{- end }}
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.router)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.router)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.router) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.router "root" . "suffix" "router") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.router) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" .Values.services.router "root" . "suffix" "router") }}
       {{- with .Values.services.router.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       containers:
       - name: {{ $name }}
-        image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.router) }}
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.router) }}
         command:
         - router
         args:
-        {{- $routerHostname := .Values.services.router.hostname | default (include "osmo.v1.hostname" .) }}
+        {{- $routerHostname := .Values.services.router.hostname | default (include "osmo.hostname" .) }}
         {{- if $routerHostname }}
         - --hostname
         - {{ $routerHostname }}
@@ -106,9 +105,9 @@ spec:
         - {{ . }}
         {{- end }}
         {{- end }}
-        {{- include "osmo.v1.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         env:
-        {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
+        {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         {{- with .Values.services.router.env }}
         {{- range . }}
         - name: {{ .name }}
@@ -120,7 +119,7 @@ spec:
           {{- end }}
         {{- end }}
         {{- end }}
-        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.router) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.router) }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -148,37 +147,37 @@ spec:
         {{- with .Values.services.router.volumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- include "osmo.v1.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volume-mounts" . | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- end }}
         resources:
         {{- toYaml .Values.services.router.resources | nindent 10 }}
 
         {{- with .Values.services.router.livenessProbe }}
         livenessProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" . "context" $) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" . "context" $) | nindent 10 }}
         {{- end }}
 
         {{- with .Values.services.router.startupProbe }}
         startupProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" . "context" $) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" . "context" $) | nindent 10 }}
         {{- end }}
 
         {{- with .Values.services.router.readinessProbe }}
         readinessProbe:
-          {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" . "context" $) | nindent 10 }}
+          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" . "context" $) | nindent 10 }}
         {{- end }}
 
       {{- with .Values.services.router.pod.sidecars }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
-        {{- include "osmo.v1.mek-volume" . | nindent 8 }}
+        {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- with .Values.services.router.pod.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- include "osmo.v1.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volumes" . | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 
 ---
 
@@ -187,7 +186,7 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "router") | nindent 4 }}
 spec:
   ports:
     - port: 80
@@ -195,7 +194,7 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: {{ $name }}
+    {{- include "osmo.component.selectorLabels" (dict "root" . "component" "router") | nindent 4 }}
 
 ---
 
@@ -204,7 +203,7 @@ kind: Service
 metadata:
   name: {{ $name }}-headless
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "router") | nindent 4 }}
 spec:
   clusterIP: None
   ports:
@@ -213,7 +212,7 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: {{ $name }}
+    {{- include "osmo.component.selectorLabels" (dict "root" . "component" "router") | nindent 4 }}
 
 ---
 
@@ -222,7 +221,7 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "router") | nindent 4 }}
   annotations:
 spec:
   scaleTargetRef:

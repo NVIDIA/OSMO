@@ -14,41 +14,40 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.delayedJobMonitor.enabled }}
-{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "delayed-job-monitor") }}
+{{- $name := include "osmo.component.fullname" (dict "root" . "suffix" "delayed-job-monitor") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "delayed-job-monitor") | nindent 4 }}
 spec:
   replicas: {{ .Values.services.delayedJobMonitor.replicas }}
   selector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "delayed-job-monitor") | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ $name }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.delayedJobMonitor "componentName" "delayed-job-monitor") | nindent 8 }}
       annotations:
-      {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
+      {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
     spec:
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.delayedJobMonitor)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.delayedJobMonitor)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.delayedJobMonitor "root" . "suffix" "delayed-job-monitor") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" .Values.services.delayedJobMonitor "root" . "suffix" "delayed-job-monitor") }}
       {{- with .Values.services.delayedJobMonitor.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       containers:
       - name: {{ $name }}
-        image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.delayedJobMonitor) }}
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.delayedJobMonitor) }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -60,7 +59,7 @@ spec:
           containerPort: 9464
         command:
         - delayed_job_monitor
-        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.delayedJobMonitor) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.delayedJobMonitor) }}
         args:
         - --metrics_otel_collector_component
         - {{ $name }}
@@ -103,8 +102,8 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
-        {{- include "osmo.v1.extra-env" .Values.services.delayedJobMonitor | nindent 8 }}
-        {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
+        {{- include "osmo.component.extraEnv" .Values.services.delayedJobMonitor | nindent 8 }}
+        {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         resources:
         {{- toYaml .Values.services.delayedJobMonitor.resources | nindent 10 }}
 
@@ -116,8 +115,8 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- include "osmo.v1.extra-volume-mounts" .Values.services.delayedJobMonitor | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volume-mounts" . | nindent 8 }}
+        {{- include "osmo.component.extraVolumeMounts" .Values.services.delayedJobMonitor | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
 
         # Restart if no progress for 300 seconds
         livenessProbe:
@@ -135,9 +134,9 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
 
-      {{- include "osmo.v1.extra-sidecars" .Values.services.delayedJobMonitor | nindent 6 }}
+      {{- include "osmo.pod.extraSidecars" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:
-        {{- include "osmo.v1.extra-volumes" .Values.services.delayedJobMonitor | nindent 8 }}
-        {{- include "osmo.v1.mek-volume" . | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volumes" . | nindent 8 }}
+        {{- include "osmo.pod.extraVolumes" .Values.services.delayedJobMonitor | nindent 8 }}
+        {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 {{- end }}

@@ -14,29 +14,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Grants the osmo service the minimum RBAC needed to emit K8s Events
-# on the osmo-configs ConfigMap. Operators see these in the ArgoCD UI,
+# Grants the osmo API the minimum RBAC needed to emit K8s Events
+# on the osmo-api-config ConfigMap. Operators see these in the ArgoCD UI,
 # `kubectl describe configmap`, and `kubectl get events`.
 {{- if .Values.configuration.enabled }}
-{{- $apiName := include "osmo.v1.apiName" . }}
+{{- $apiName := include "osmo.api.fullname" . }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ $apiName }}-configmap-events
   labels:
-    app: {{ $apiName }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
 rules:
 # Emit Events on reload failures/recoveries.
 - apiGroups: [""]
   resources: ["events"]
   verbs: ["create", "get", "patch"]
-# Read the osmo-configs ConfigMap to fetch its UID. `kubectl describe
+# Read the osmo-api-config ConfigMap to fetch its UID. `kubectl describe
 # configmap` filters associated events by involvedObject.uid, so without
 # this the events wouldn't appear in that view (though they'd still be
 # visible in `kubectl get events --field-selector` and the ArgoCD UI).
 - apiGroups: [""]
   resources: ["configmaps"]
-  resourceNames: ["{{ $apiName }}-configs"]
+  resourceNames: ["{{ $apiName }}-config"]
   verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -44,12 +44,12 @@ kind: RoleBinding
 metadata:
   name: {{ $apiName }}-configmap-events
   labels:
-    app: {{ $apiName }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ $apiName }}-configmap-events
 subjects:
 - kind: ServiceAccount
-  name: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.api "root" . "suffix" "service") }}
+  name: {{ include "osmo.component.serviceAccountName" (dict "component" .Values.services.api "root" . "suffix" "api") }}
 {{- end }}

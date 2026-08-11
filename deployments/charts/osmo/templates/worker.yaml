@@ -14,24 +14,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.worker.enabled }}
-{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "worker") }}
+{{- $name := include "osmo.component.fullname" (dict "root" . "suffix" "worker") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "worker") | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ $name }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.worker "componentName" "worker") | nindent 8 }}
       annotations:
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
     spec:
       topologySpreadConstraints:
       {{- range .Values.services.worker.pod.topologySpreadConstraints }}
@@ -43,23 +42,23 @@ spec:
         {{- end }}
         labelSelector:
           matchLabels:
-            app: {{ $name }}
+            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "worker") | nindent 12 }}
       {{- end }}
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.worker)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.worker)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.worker "root" . "suffix" "worker") }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" .Values.services.worker "root" . "suffix" "worker") }}
       {{- with .Values.services.worker.pod.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       containers:
       - name: {{ $name }}
-        image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.worker) }}
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.worker) }}
         command:
         - "worker"
         securityContext:
@@ -71,7 +70,7 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.worker) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.worker) }}
         args:
         - --metrics_otel_collector_component
         - {{ $name }}
@@ -109,14 +108,14 @@ spec:
         - --log_format
         - {{ .Values.logging.logFormat | default "text" }}
         {{- end }}
-        {{- include "osmo.v1.configmap-args" . | nindent 8 }}
+        {{- include "osmo.configuration.args" . | nindent 8 }}
         {{- range $arg := .Values.services.worker.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
         env:
-        {{- include "osmo.v1.configmap-env" . | nindent 8 }}
-        {{- include "osmo.v1.extra-env" .Values.services.worker | nindent 8 }}
-        {{- include "osmo.v1.connection-secret-env" . | nindent 8 }}
+        {{- include "osmo.configuration.env" . | nindent 8 }}
+        {{- include "osmo.component.extraEnv" .Values.services.worker | nindent 8 }}
+        {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.worker.volumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
         {{- end }}
@@ -125,9 +124,9 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- include "osmo.v1.configmap-volume-mounts" . | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volume-mounts" . | nindent 8 }}
-        {{- include "osmo.v1.extra-volume-mounts" .Values.services.worker | nindent 8 }}
+        {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
+        {{- include "osmo.component.extraVolumeMounts" .Values.services.worker | nindent 8 }}
         resources:
         {{- toYaml .Values.services.worker.resources | nindent 10 }}
 
@@ -148,12 +147,12 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
 
-      {{- include "osmo.v1.extra-sidecars" .Values.services.worker | nindent 6 }}
+      {{- include "osmo.pod.extraSidecars" .Values.services.worker | nindent 6 }}
       volumes:
-        {{- include "osmo.v1.extra-volumes" .Values.services.worker | nindent 8 }}
-        {{- include "osmo.v1.mek-volume" . | nindent 8 }}
-        {{- include "osmo.v1.configmap-volumes" . | nindent 8 }}
-        {{- include "osmo.v1.external-ca-volumes" . | nindent 8 }}
+        {{- include "osmo.pod.extraVolumes" .Values.services.worker | nindent 8 }}
+        {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
+        {{- include "osmo.configuration.volumes" . | nindent 8 }}
+        {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 
 ---
 
@@ -162,7 +161,7 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "worker") | nindent 4 }}
   annotations:
 spec:
   scaleTargetRef:

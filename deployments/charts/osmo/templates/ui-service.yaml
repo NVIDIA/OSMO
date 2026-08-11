@@ -14,26 +14,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.ui.enabled }}
-{{- $name := include "osmo.v1.componentName" (dict "root" . "suffix" "ui") }}
+{{- $name := include "osmo.component.fullname" (dict "root" . "suffix" "ui") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
-    {{- include "osmo.v1.labels" . | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "ui") | nindent 4 }}
 spec:
   replicas: {{ if .Values.services.ui.autoscaling.enabled }}{{ .Values.services.ui.autoscaling.minReplicas }}{{ else }}{{ .Values.services.ui.replicas }}{{ end }}
   selector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" "ui") | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ $name }}
-        {{- include "osmo.v1.pod-default-labels" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.ui "componentName" "ui") | nindent 8 }}
       annotations:
-        {{- include "osmo.v1.extra-annotations" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
     spec:
       hostAliases:
         {{ toYaml .Values.services.ui.pod.hostAliases | nindent 8}}
@@ -47,23 +45,23 @@ spec:
         {{- end }}
         labelSelector:
           matchLabels:
-            app: {{ $name }}
+            {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "ui") | nindent 12 }}
       {{- end }}
-      {{- with (include "osmo.v1.node-selector" (dict "root" . "component" .Values.services.ui)) }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.ui)) }}
       nodeSelector:
         {{- . | nindent 8 }}
       {{- end }}
       tolerations:
-        {{- include "osmo.v1.tolerations" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
-      {{- include "osmo.v1.imagePullSecrets" . | nindent 6 }}
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
       {{- if .Values.services.ui.pod.initContainers }}
       initContainers:
         {{- toYaml .Values.services.ui.pod.initContainers | nindent 6 }}
       {{- end }}
-      serviceAccountName: {{ include "osmo.v1.service-account-name" (dict "component" .Values.services.ui "root" . "suffix" "ui") }}
+      serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" .Values.services.ui "root" . "suffix" "ui") }}
       containers:
       - name: {{ $name }}
-        image: {{ include "osmo.v1.image" (dict "root" . "component" .Values.services.ui) }}
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.ui) }}
         {{- with .Values.services.ui.command }}
         command:
           {{- toYaml . | nindent 10 }}
@@ -78,7 +76,7 @@ spec:
         - name: NODE_OPTIONS
           value: '--max-http-header-size={{ mul .Values.services.ui.maxHttpHeaderSizeKb 1024 }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
-          value: {{ .Values.services.ui.apiHostname | default (printf "%s:80" (include "osmo.v1.gateway-name" .)) | quote }}
+          value: {{ .Values.services.ui.apiHostname | default (printf "%s:80" (include "osmo.gateway.fullname" .)) | quote }}
         - name: NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED
           value: {{ .Values.services.ui.portForwardEnabled | quote }}
         - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
@@ -102,7 +100,7 @@ spec:
         envFrom:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        imagePullPolicy: {{ include "osmo.v1.imagePullPolicy" (dict "root" . "component" .Values.services.ui) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.ui) }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -246,11 +244,8 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
-    {{- include "osmo.v1.labels" . | nindent 4 }}
-    {{- with .Values.services.ui.service.labels }}
-      {{- toYaml . | nindent 4 }}
-    {{- end }}
+    {{- $serviceLabels := mergeOverwrite (deepCopy .Values.services.ui.service.labels) (include "osmo.component.labels" (dict "root" . "component" "ui") | fromYaml) }}
+    {{- toYaml $serviceLabels | nindent 4 }}
   {{- with .Values.services.ui.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -274,10 +269,7 @@ spec:
       {{- end }}
     {{- end }}
   selector:
-    app: {{ $name }}
-    {{- with .Values.services.ui.service.selector }}
-      {{- toYaml . | nindent 4 }}
-    {{- end }}
+    {{- include "osmo.component.selectorLabels" (dict "root" . "component" "ui") | nindent 4 }}
 
 {{- if .Values.services.ui.autoscaling.enabled }}
 ---
@@ -286,8 +278,7 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: {{ $name }}
   labels:
-    app: {{ $name }}
-    {{- include "osmo.v1.labels" . | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "ui") | nindent 4 }}
   annotations:
 spec:
   scaleTargetRef:

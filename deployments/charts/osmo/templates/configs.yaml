@@ -17,9 +17,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "osmo.v1.apiName" . }}-configs
+  name: {{ include "osmo.api.fullname" . }}-config
   labels:
-    app: {{ include "osmo.v1.apiName" . }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
   {{- with .Values.configuration.extraAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

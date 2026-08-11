@@ -18,17 +18,15 @@
 Gateway component name prefix. All gateway resources are named
 <prefix>-<component>, e.g. osmo-gateway-envoy.
 */}}
-{{- define "osmo.v1.gateway-name" -}}
-{{- include "osmo.v1.componentName" (dict "root" . "suffix" "gateway") -}}
+{{- define "osmo.gateway.fullname" -}}
+{{- include "osmo.component.fullname" (dict "root" . "suffix" "gateway") -}}
 {{- end }}
 
 {{/*
 Gateway component labels. Pass a dict with "component" and "context" keys.
 */}}
-{{- define "osmo.v1.gateway-component-labels" -}}
-app.kubernetes.io/name: {{ include "osmo.v1.gateway-name" .context }}
-app.kubernetes.io/instance: {{ .context.Release.Name }}
-app.kubernetes.io/component: {{ .component }}
+{{- define "osmo.gateway.componentSelectorLabels" -}}
+{{- include "osmo.component.selectorLabels" (dict "root" .context "component" (printf "gateway-%s" .component)) -}}
 {{- end }}
 
 {{/*
@@ -39,7 +37,7 @@ uvicorn loads tls.crt + tls.key from there (--ssl_keyfile / --ssl_certfile).
 When empty, the Python service mints an ephemeral self-signed cert in
 process at startup (--ssl_self_signed true) — no chart-side cert material.
 */}}
-{{- define "osmo.v1.upstream-tls-args" -}}
+{{- define "osmo.gateway.upstreamTlsArgs" -}}
 {{- if .context.Values.gateway.tls.enabled }}
 {{- if .secretName }}
 - --ssl_keyfile
@@ -58,7 +56,7 @@ TLS volume mount for an upstream container. Only emitted when a Secret
 name is provided — self-signed mode keeps cert material in an in-process
 tempdir, so no mount is needed.
 */}}
-{{- define "osmo.v1.upstream-tls-volume-mount" -}}
+{{- define "osmo.gateway.upstreamTlsVolumeMount" -}}
 {{- if and .context.Values.gateway.tls.enabled .secretName }}
 - name: tls
   mountPath: /etc/osmo/tls
@@ -70,7 +68,7 @@ tempdir, so no mount is needed.
 TLS volume for an upstream pod. Pass dict with "context" and "secretName".
 Only emitted when secretName is non-empty.
 */}}
-{{- define "osmo.v1.upstream-tls-volume" -}}
+{{- define "osmo.gateway.upstreamTlsVolume" -}}
 {{- if and .context.Values.gateway.tls.enabled .secretName }}
 - name: tls
   secret:
@@ -84,9 +82,9 @@ Pass dict with "probe" (the probe value from Values) and "context" ($).
 
 Use:
   livenessProbe:
-  {{- include "osmo.v1.upstream-probe-yaml" (dict "probe" .Values.services.api.livenessProbe "context" .) | nindent 10 }}
+  {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.livenessProbe "context" .) | nindent 10 }}
 */}}
-{{- define "osmo.v1.upstream-probe-yaml" -}}
+{{- define "osmo.gateway.upstreamProbeYaml" -}}
 {{- $probe := .probe }}
 {{- if and $probe .context.Values.gateway.tls.enabled (hasKey $probe "httpGet") }}
   {{- $probe = mustMergeOverwrite (deepCopy $probe) (dict "httpGet" (dict "scheme" "HTTPS")) }}
