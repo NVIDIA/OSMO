@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("//bzl:py.bzl", "osmo_py_test")
 
 osmo_py_test(
@@ -24,5 +25,24 @@ osmo_py_test(
     deps = [
         "//src/service/agent:helpers",
         "//src/utils/job",
+    ],
+)
+
+osmo_py_test(
+    name = "test_helpers",
+    srcs = ["test_helpers.py"],
+    deps = [
+        requirement("fastapi"),
+        "//src/lib/utils:common",
+        "//src/lib/utils:logging",
+        "//src/lib/utils:osmo_errors",
+        "//src/service/agent:helpers",
+        "//src/service/core/config",
+        "//src/service/core/workflow",
+        "//src/utils:backend_messages",
+        "//src/utils/connectors",
+        "//src/utils/job",
+        "//src/utils/job:backend_job",
+        "//src/utils/metrics",
     ],
 )

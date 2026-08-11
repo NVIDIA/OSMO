@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("@rules_python//python:defs.bzl", "py_test")
+load("//bzl:py.bzl", "osmo_py_test")
 
 py_test(
     name = "test_cli",
@@ -38,7 +39,7 @@ py_test(
     ]
 )
 
-py_test(
+osmo_py_test(
     name = "test_workflow",
     srcs = [
         "test_workflow.py"
