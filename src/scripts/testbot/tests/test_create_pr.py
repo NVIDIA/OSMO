@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from src.scripts.testbot.create_pr import (  # noqa: E501
     _build_generator_summary_section,
+    MAX_REPORTED_RANGES,
     SLACK_API_URL,
     TESTBOT_SLACK_CHANNEL_DEFAULT,
     _build_coverage_section,
@@ -1151,9 +1152,10 @@ class TestBuildCoverageSection(unittest.TestCase):
         self.assertIn("8/10", section)
         self.assertIn("80%", section)
         self.assertIn("✅", section)
-        # Per-range detail should be in the body so reviewers can scan
-        # which blocks were missed without leaving the PR.
-        self.assertIn("lines 90-99", section)
+        # Covered ranges are not listed. A checklist of all-✅ bullets ran to
+        # ~300 lines on a 3-target PR and buried the summary lines above.
+        self.assertNotIn("lines 90-99", section)
+        self.assertNotIn("still uncovered", section)
 
     def test_below_threshold_target_gets_warning_marker(self):
         path = self._write_report([
@@ -1228,23 +1230,44 @@ class TestBuildCoverageSection(unittest.TestCase):
             {
                 "file_path": "src/lib/foo.py",
                 "listed_lines": 1,
-                "hit_lines": 1,
-                "hit_fraction": 1.0,
-                "passed": True,
+                "hit_lines": 0,
+                "hit_fraction": 0.0,
+                "passed": False,
                 "lcov_seen": True,
                 "ranges": [
                     {"start": 5, "end": 5,
-                     "hit_lines": 1, "total_lines": 1, "covered": True},
+                     "hit_lines": 0, "total_lines": 1, "covered": False},
                 ],
-                "still_uncovered_ranges": [],
+                "still_uncovered_ranges": [[5, 5]],
             },
         ])
         try:
             section = _build_coverage_section(path)
         finally:
             os.unlink(path)
-        self.assertIn("line 5", section)
+        self.assertIn("still uncovered: line 5", section)
         self.assertNotIn("lines 5-5", section)
+
+    def test_still_uncovered_ranges_are_capped(self):
+        misses = [[n, n] for n in range(1, 15)]
+        path = self._write_report([
+            {
+                "file_path": "src/lib/foo.py",
+                "listed_lines": 14,
+                "hit_lines": 0,
+                "hit_fraction": 0.0,
+                "passed": False,
+                "lcov_seen": True,
+                "ranges": [],
+                "still_uncovered_ranges": misses,
+            },
+        ])
+        try:
+            section = _build_coverage_section(path)
+        finally:
+            os.unlink(path)
+        self.assertIn(f"and {len(misses) - MAX_REPORTED_RANGES} more", section)
+        self.assertNotIn("line 14", section)
 
 
 if __name__ == "__main__":

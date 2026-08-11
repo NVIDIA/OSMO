@@ -26,6 +26,7 @@ import urllib.request
 from typing import Any
 
 from src.scripts.testbot.guardrails import get_changed_test_files
+from src.scripts.testbot.verify_coverage import MAX_REPORTED_RANGES
 
 logging.basicConfig(
     level=logging.INFO,
@@ -376,23 +377,21 @@ def _build_coverage_section(path: str) -> str:
             f"{hit}/{listed} listed lines hit ({hit_fraction * 100:.0f}%)"
             f"{note}"
         )
-        # Detail per range so reviewers can spot which specific blocks
-        # the bot missed without leaving the PR view.
-        for r in entry.get("ranges", []) or []:
-            if not isinstance(r, dict):
-                continue
-            start = r.get("start")
-            end = r.get("end")
-            hit_lines = r.get("hit_lines", 0)
-            total_lines = r.get("total_lines", 0)
-            covered = bool(r.get("covered", False))
-            if start is None or end is None:
-                continue
-            span = f"line {start}" if start == end else f"lines {start}-{end}"
-            check = "✅" if covered else "❌"
-            lines.append(
-                f"  - {check} {span} — {hit_lines}/{total_lines} hit"
+        # Name only the ranges still missing coverage. Listing every range
+        # meant ~300 lines of mostly-✅ bullets on a 3-target PR (#1291),
+        # which buried the summary lines above. The JSON sidecar keeps the
+        # full per-range detail for the generator's self-iteration loop.
+        spans = []
+        for start, end in entry.get("still_uncovered_ranges", []) or []:
+            spans.append(
+                f"line {start}" if start == end else f"lines {start}-{end}"
             )
+        if spans:
+            shown = ", ".join(spans[:MAX_REPORTED_RANGES])
+            overflow = len(spans) - MAX_REPORTED_RANGES
+            if overflow > 0:
+                shown += f", and {overflow} more"
+            lines.append(f"  - still uncovered: {shown}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
