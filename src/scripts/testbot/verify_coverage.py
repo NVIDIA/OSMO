@@ -249,15 +249,50 @@ def build_reports(
     return reports
 
 
-def render_markdown(reports: list[TargetReport]) -> str:
-    """Render a Markdown coverage-gain section for the PR body.
+def reports_from_json(payload: object) -> list[TargetReport]:
+    """Rebuild reports from the JSON written by ``render_json``.
 
-    Mirrors the picker-rationale block format already used by
-    ``create_pr.py``: one heading and one row per target. Only the ranges
-    still missing coverage are named — a per-range checklist of mostly-✅
-    entries ran to dozens of lines and buried the number that matters.
-    The numbers come from the same JSON the LLM consumed during
-    iteration, so the PR description and the generator's view agree.
+    Fail-soft: malformed entries and fields are skipped or coerced to 0 so
+    a bad value upstream degrades the PR body instead of blocking the PR.
+    """
+    if not isinstance(payload, list):
+        return []
+
+    def _int(value: object) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    reports: list[TargetReport] = []
+    for entry in payload:
+        if not isinstance(entry, dict) or not entry.get("file_path"):
+            continue
+        ranges = []
+        for raw in entry.get("ranges") or []:
+            if not isinstance(raw, dict):
+                continue
+            start, end = raw.get("start"), raw.get("end")
+            if start is None or end is None:
+                continue
+            ranges.append(RangeResult(
+                _int(start), _int(end),
+                _int(raw.get("hit_lines")), _int(raw.get("total_lines")),
+            ))
+        reports.append(TargetReport(
+            file_path=str(entry["file_path"]),
+            listed_lines=_int(entry.get("listed_lines")),
+            hit_lines=_int(entry.get("hit_lines")),
+            ranges=ranges,
+            lcov_seen=bool(entry.get("lcov_seen", True)),
+        ))
+    return reports
+
+
+def render_markdown(reports: list[TargetReport]) -> str:
+    """Render the Markdown coverage-gain section for the PR body.
+
+    One row per target, naming only the ranges still missing coverage.
     """
     if not reports:
         return ""

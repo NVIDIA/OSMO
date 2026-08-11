@@ -26,7 +26,10 @@ import urllib.request
 from typing import Any
 
 from src.scripts.testbot.guardrails import get_changed_test_files
-from src.scripts.testbot.verify_coverage import MAX_REPORTED_RANGES
+from src.scripts.testbot.verify_coverage import (
+    render_markdown,
+    reports_from_json,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -323,77 +326,18 @@ def _build_generator_summary_section(path: str) -> str:
 def _build_coverage_section(path: str) -> str:
     """Render the coverage-gain section from verify_coverage.py's JSON.
 
-    The verifier writes one entry per picker target with the listed-line
-    hit count and per-range outcome. Missing / unreadable reports yield
-    an empty string so the PR opens unchanged. Below-threshold files get
-    a ⚠️ marker so reviewers can scan the gap at a glance — for example
-    ``2/121 lines (2%)`` should jump out the way the roles.go PR did.
+    Missing / unreadable reports yield an empty string so the PR still
+    opens. Rendering itself lives in verify_coverage so the PR body and
+    the generator's self-check report cannot drift apart.
     """
     if not path:
         return ""
     try:
-        reports = json.loads(Path(path).read_text(encoding="utf-8"))
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("Could not read coverage report %s: %s", path, exc)
         return ""
-    if not isinstance(reports, list) or not reports:
-        return ""
-
-    lines: list[str] = ["## Coverage gain on listed uncovered ranges", ""]
-    for entry in reports:
-        if not isinstance(entry, dict):
-            continue
-        file_path = entry.get("file_path", "")
-        if not file_path:
-            continue
-        # Fail-soft on malformed values so a stray string in one field can't
-        # abort PR creation — we'd rather show 0 and let the reviewer see the
-        # gap than block the whole pipeline on a typo upstream.
-        try:
-            listed = int(entry.get("listed_lines", 0) or 0)
-        except (TypeError, ValueError):
-            listed = 0
-        try:
-            hit = int(entry.get("hit_lines", 0) or 0)
-        except (TypeError, ValueError):
-            hit = 0
-        try:
-            hit_fraction = float(entry.get("hit_fraction", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            hit_fraction = 0.0
-        passed = bool(entry.get("passed", False))
-        lcov_seen = bool(entry.get("lcov_seen", True))
-        if not lcov_seen:
-            marker = "❔"
-            note = (
-                " — file not found in LCOV (test target may not have run; "
-                "the harness ran `bazel coverage` over //... after generation)"
-            )
-        else:
-            marker = "✅" if passed else "⚠️"
-            note = ""
-        lines.append(
-            f"{marker} **`{file_path}`** — "
-            f"{hit}/{listed} listed lines hit ({hit_fraction * 100:.0f}%)"
-            f"{note}"
-        )
-        # Name only the ranges still missing coverage. Listing every range
-        # meant ~300 lines of mostly-✅ bullets on a 3-target PR (#1291),
-        # which buried the summary lines above. The JSON sidecar keeps the
-        # full per-range detail for the generator's self-iteration loop.
-        spans = []
-        for start, end in entry.get("still_uncovered_ranges", []) or []:
-            spans.append(
-                f"line {start}" if start == end else f"lines {start}-{end}"
-            )
-        if spans:
-            shown = ", ".join(spans[:MAX_REPORTED_RANGES])
-            overflow = len(spans) - MAX_REPORTED_RANGES
-            if overflow > 0:
-                shown += f", and {overflow} more"
-            lines.append(f"  - still uncovered: {shown}")
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
+    return render_markdown(reports_from_json(payload))
 
 
 def _build_rationale_section(meta: dict[str, dict]) -> str:

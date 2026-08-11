@@ -10,9 +10,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from src.scripts.testbot.verify_coverage import MAX_REPORTED_RANGES
 from src.scripts.testbot.create_pr import (  # noqa: E501
     _build_generator_summary_section,
-    MAX_REPORTED_RANGES,
     SLACK_API_URL,
     TESTBOT_SLACK_CHANNEL_DEFAULT,
     _build_coverage_section,
@@ -1249,7 +1249,11 @@ class TestBuildCoverageSection(unittest.TestCase):
         self.assertNotIn("lines 5-5", section)
 
     def test_still_uncovered_ranges_are_capped(self):
-        misses = [[n, n] for n in range(1, 15)]
+        misses = [
+            {"start": n, "end": n, "hit_lines": 0, "total_lines": 1,
+             "covered": False}
+            for n in range(1, 15)
+        ]
         path = self._write_report([
             {
                 "file_path": "src/lib/foo.py",
@@ -1258,8 +1262,8 @@ class TestBuildCoverageSection(unittest.TestCase):
                 "hit_fraction": 0.0,
                 "passed": False,
                 "lcov_seen": True,
-                "ranges": [],
-                "still_uncovered_ranges": misses,
+                "ranges": misses,
+                "still_uncovered_ranges": [[n, n] for n in range(1, 15)],
             },
         ])
         try:
