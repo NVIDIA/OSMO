@@ -28,7 +28,16 @@ import httpx
 from jwcrypto import jwk  # type: ignore
 import jwt  # type: ignore
 
-from src.service.mcp_auth import config, entra, models, server, store, tokens, validation
+from src.service.mcp_auth import (
+    config,
+    entra,
+    models,
+    provider,
+    server,
+    store,
+    tokens,
+    validation,
+)
 
 
 class _FakeUpstream:
@@ -75,7 +84,6 @@ class OAuthProviderTest(unittest.IsolatedAsyncioTestCase):
             entra_client_secret_file='/not-read-in-unit-test',
             entra_redirect_url='https://osmo.example/oauth/callback/entra',
             signing_private_jwk_file='/not-read-in-unit-test',
-            allowed_upstream_roles='osmo-user,osmo-admin',
         )
         self.store = store.InMemoryBrokerStore()
         self.upstream = _FakeUpstream()
@@ -166,6 +174,19 @@ class OAuthProviderTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
+
+    def _assert_token_server_error(self, response: httpx.Response) -> None:
+        self.assertEqual(response.status_code, 500, response.text)
+        self.assertEqual(response.headers['cache-control'], 'no-store')
+        self.assertEqual(response.headers['pragma'], 'no-cache')
+        self.assertEqual(response.headers['content-type'], 'application/json')
+        self.assertEqual(
+            response.json(),
+            {
+                'error': 'server_error',
+                'error_description': 'token request could not be completed',
+            },
+        )
 
     async def test_metadata_dcr_and_cors_are_public_client_compatible(self) -> None:
         metadata = await self.client.get('/.well-known/oauth-authorization-server')
@@ -318,6 +339,75 @@ class OAuthProviderTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(active_after_reuse.status_code, 400)
         self.assertEqual(active_after_reuse.json()['error'], 'invalid_grant')
+
+    async def test_refresh_store_failure_returns_sanitized_oauth_error(self) -> None:
+        client_id = await self._register()
+        initial = await self._initial_tokens(client_id)
+        refresh_form = {
+            'grant_type': 'refresh_token',
+            'client_id': client_id,
+            'refresh_token': str(initial['refresh_token']),
+            'resource': self.config.resource_url,
+        }
+        sensitive_exception_message = 'store failed while handling secret-token-value'
+
+        with (
+            mock.patch.object(
+                self.store,
+                'rotate_refresh_session',
+                new=mock.AsyncMock(
+                    side_effect=RuntimeError(sensitive_exception_message),
+                ),
+            ),
+            self.assertLogs(provider.logger.name, level='ERROR') as captured_logs,
+        ):
+            response = await self.client.post('/oauth/token', data=refresh_form)
+
+        self._assert_token_server_error(response)
+        self.assertEqual(len(captured_logs.records), 1)
+        log_record = captured_logs.records[0]
+        self.assertEqual(getattr(log_record, 'exception_class'), 'RuntimeError')
+        self.assertEqual(getattr(log_record, 'oauth_grant_type'), 'refresh_token')
+        self.assertEqual(getattr(log_record, 'response_status_code'), 500)
+        self.assertEqual(
+            getattr(log_record, 'response_content_type'),
+            'application/json',
+        )
+        self.assertEqual(
+            getattr(log_record, 'response_body_bytes'),
+            len(response.content),
+        )
+        self.assertGreaterEqual(getattr(log_record, 'elapsed_ms'), 0)
+        self.assertNotIn(sensitive_exception_message, captured_logs.output[0])
+
+    async def test_refresh_signing_failure_returns_sanitized_oauth_error(self) -> None:
+        client_id = await self._register()
+        initial = await self._initial_tokens(client_id)
+        refresh_form = {
+            'grant_type': 'refresh_token',
+            'client_id': client_id,
+            'refresh_token': str(initial['refresh_token']),
+            'resource': self.config.resource_url,
+        }
+        sensitive_exception_message = 'signing failed for secret-token-value'
+
+        with (
+            mock.patch.object(
+                self.token_issuer,
+                'issue',
+                side_effect=ValueError(sensitive_exception_message),
+            ),
+            self.assertLogs(provider.logger.name, level='ERROR') as captured_logs,
+        ):
+            response = await self.client.post('/oauth/token', data=refresh_form)
+
+        self._assert_token_server_error(response)
+        self.assertEqual(len(captured_logs.records), 1)
+        log_record = captured_logs.records[0]
+        self.assertEqual(getattr(log_record, 'exception_class'), 'ValueError')
+        self.assertEqual(getattr(log_record, 'oauth_grant_type'), 'refresh_token')
+        self.assertEqual(getattr(log_record, 'response_status_code'), 500)
+        self.assertNotIn(sensitive_exception_message, captured_logs.output[0])
 
     async def test_refresh_revoke_racing_rotation_cannot_leave_successor(self) -> None:
         broker_store = store.InMemoryBrokerStore()

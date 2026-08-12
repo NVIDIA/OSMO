@@ -108,7 +108,6 @@ def create_runtime_application(
             'Entra client secret',
         ),
         redirect_uri=broker_config.entra_redirect_url,
-        allowed_roles=broker_config.allowed_roles,
         http_client=http_client,
     )
     access_token_issuer = tokens.AccessTokenIssuer.from_jwk_file(

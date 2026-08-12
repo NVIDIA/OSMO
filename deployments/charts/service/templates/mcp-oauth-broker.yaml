@@ -59,14 +59,6 @@
 {{- if not (hasPrefix "/" $signingPrivateJwkFile) }}
 {{- fail "services.mcp.oauthBroker.signingPrivateJwkFile must be an absolute path" }}
 {{- end }}
-{{- if not (kindIs "slice" $broker.entra.allowedUpstreamRoles) }}
-{{- fail "services.mcp.oauthBroker.entra.allowedUpstreamRoles must be a list" }}
-{{- end }}
-{{- range $role := $broker.entra.allowedUpstreamRoles }}
-{{- if or (not (kindIs "string" $role)) (eq (trim $role) "") (contains "," $role) }}
-{{- fail "services.mcp.oauthBroker.entra.allowedUpstreamRoles entries must be non-empty strings without commas" }}
-{{- end }}
-{{- end }}
 {{- $redisHost := $broker.redis.serviceName | default .Values.services.redis.serviceName | required "services.mcp.oauthBroker.redis.serviceName or services.redis.serviceName is required" }}
 {{- $redisPort := .Values.services.redis.port }}
 {{- if not (kindIs "invalid" $broker.redis.port) }}
@@ -112,7 +104,6 @@
       "OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS"
       "OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
       "OSMO_MCP_AUTH_CLIENT_REGISTRATION_TTL_SECONDS"
-      "OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES"
     }}
 {{- range $env := $broker.extraEnv }}
 {{- if has (toString (default "" $env.name)) $reservedEnvNames }}
@@ -226,8 +217,6 @@ spec:
           value: {{ $broker.refreshTokenTtlSeconds | int | quote }}
         - name: OSMO_MCP_AUTH_CLIENT_REGISTRATION_TTL_SECONDS
           value: {{ $broker.clientRegistrationTtlSeconds | int | quote }}
-        - name: OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES
-          value: {{ join "," $broker.entra.allowedUpstreamRoles | quote }}
         {{- with $broker.extraEnv }}
           {{- toYaml . | nindent 8 }}
         {{- end }}

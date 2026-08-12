@@ -145,13 +145,18 @@ in the upstream identity provider. The broker owns one administrator-managed
 upstream OAuth application and one stable callback URL.
 
 The broker issues an access token with the exact MCP audience and the single
-advertised `mcp:access` scope. In the current bearer-relay architecture, the
-Gateway also accepts that token on the API pass made by the MCP process; a
-holder could therefore present it directly to API routes. Existing OSMO RBAC,
-API-specific actions, and pool scope still apply on every such request.
-Enabling the broker does not grant an OSMO role or expand a user's semantic
-permissions. Strict route-level audience isolation requires a later internal
-token-exchange/delegation design so MCP no longer relays the user's bearer.
+advertised `mcp:access` scope. After validating the upstream token's signature,
+issuer, audience, nonce, and authorized party, it preserves the upstream
+app-specific `roles` claim in the broker token. OSMO then resolves exact role
+names and configured external-role mappings to semantic permissions. Entra app
+role definitions and assignments are therefore part of OSMO's authorization
+boundary and require the same review as direct OSMO role assignments. In the
+current bearer-relay architecture, the Gateway also accepts that token on the
+API pass made by the MCP process; a holder could therefore present it directly
+to API routes. Existing OSMO RBAC, API-specific actions, and pool scope still
+apply on every such request. Strict route-level audience isolation requires a
+later internal token-exchange/delegation design so MCP no longer relays the
+user's bearer.
 
 ### Deployment prerequisites
 
@@ -228,6 +233,10 @@ tests from clean client profiles. A separate deploy-only/advertise switch is a
 production-readiness follow-up for installations that require a shadow rollout.
 During the rollback window the Gateway may accept both the broker issuer and the
 prior direct issuer, but metadata advertises only the selected mode.
+
+Broker refresh sessions cache the validated identity and roles. After changing
+an Entra app-role assignment, users must log out and authenticate again, or wait
+for the configured refresh-session TTL, before the new role set is reflected.
 
 To roll back, point protected-resource metadata to the direct identity
 provider and disable the broker feature gate. The MCP tool catalog, `/mcp`

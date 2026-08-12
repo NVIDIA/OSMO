@@ -198,9 +198,6 @@ services:
         issuerUrl: ""
         clientId: ""
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
-        ## Only these validated upstream roles may be copied into broker JWTs.
-        ## An empty list passes no upstream roles.
-        allowedUpstreamRoles: []
 
       ## Shared Redis holds dynamic clients, authorization transactions, and
       ## refresh-token families. Empty serviceName/port values inherit the

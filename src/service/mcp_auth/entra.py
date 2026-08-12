@@ -79,14 +79,12 @@ class EntraOIDCProvider:
         client_id: str,
         client_secret: str,
         redirect_uri: str,
-        allowed_roles: frozenset[str],
         http_client: httpx.AsyncClient,
     ) -> None:
         self._issuer = issuer.rstrip('/')
         self._client_id = client_id
         self._client_secret = client_secret
         self._redirect_uri = redirect_uri
-        self._allowed_roles = allowed_roles
         self._http_client = http_client
         self._discovery: _Discovery | None = None
         self._discovery_lock = asyncio.Lock()
@@ -268,7 +266,17 @@ class EntraOIDCProvider:
             isinstance(role, str) for role in claimed_roles
         ):
             raise ValueError('upstream ID token roles claim must be an array of strings')
-        roles = tuple(sorted(set(claimed_roles).intersection(self._allowed_roles)))
+        if len(claimed_roles) > 256 or any(
+            not role
+            or len(role) > 256
+            or ',' in role
+            or any(ord(character) < 32 or ord(character) == 127 for character in role)
+            for role in claimed_roles
+        ):
+            raise ValueError(
+                'upstream ID token roles claim contains unsupported role values'
+            )
+        roles = tuple(sorted(set(claimed_roles)))
         return models.BrokerIdentity(
             subject=stable_subject,
             username=username,

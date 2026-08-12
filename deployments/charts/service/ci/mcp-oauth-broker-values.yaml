@@ -29,8 +29,6 @@ services:
       entra:
         issuerUrl: https://login.microsoftonline.com/example-tenant/v2.0
         clientId: example-mcp-broker-client
-        allowedUpstreamRoles:
-        - osmo-user
       redis:
         serviceName: broker-redis.example.internal
         port: 6380

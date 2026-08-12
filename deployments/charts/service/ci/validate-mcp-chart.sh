@@ -169,7 +169,10 @@ assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_REDIS_URL'
 assert_broker_workload_rendered 'value: "rediss://broker-redis.example.internal:6380/14"'
 assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE'
 assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE'
-assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES'
+if grep -F -- 'OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES' \
+    "$BROKER_WORKLOAD_MANIFEST" >/dev/null; then
+  fail 'broker workload still renders the removed upstream-role allowlist'
+fi
 assert_broker_workload_rendered 'path: /health/live'
 assert_broker_workload_rendered 'path: /health/ready'
 assert_broker_workload_rendered 'secretName: mcp-oauth-broker-secrets'

@@ -321,19 +321,46 @@ class OAuthAuthorizationServer:
 
     async def token(self, request: Request) -> JSONResponse:
         """Exchange a code or rotate a refresh token for a broker JWT."""
-        if request.headers.get('Authorization'):
-            raise OAuthError(
-                'invalid_client',
-                'public clients must use token_endpoint_auth_method none',
-                status_code=401,
+        started_at = time.monotonic()
+        grant_type = 'unknown'
+        try:
+            if request.headers.get('Authorization'):
+                raise OAuthError(
+                    'invalid_client',
+                    'public clients must use token_endpoint_auth_method none',
+                    status_code=401,
+                )
+            form = await _form_body(request)
+            grant_type = _form_parameter(form, 'grant_type')
+            if grant_type == 'authorization_code':
+                return await self._exchange_authorization_code(form)
+            if grant_type == 'refresh_token':
+                return await self._exchange_refresh_token(form)
+            raise OAuthError('unsupported_grant_type', 'grant_type is not supported')
+        except OAuthError:
+            raise
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            response = _json_response(
+                {
+                    'error': 'server_error',
+                    'error_description': 'token request could not be completed',
+                },
+                status_code=500,
             )
-        form = await _form_body(request)
-        grant_type = _form_parameter(form, 'grant_type')
-        if grant_type == 'authorization_code':
-            return await self._exchange_authorization_code(form)
-        if grant_type == 'refresh_token':
-            return await self._exchange_refresh_token(form)
-        raise OAuthError('unsupported_grant_type', 'grant_type is not supported')
+            logger.error(
+                'Unexpected OAuth token endpoint failure',
+                extra={
+                    'elapsed_ms': round((time.monotonic() - started_at) * 1000, 3),
+                    'exception_class': type(error).__name__,
+                    'oauth_grant_type': (
+                        grant_type if grant_type in _SUPPORTED_GRANT_TYPES else 'unknown'
+                    ),
+                    'response_body_bytes': len(response.body),
+                    'response_content_type': response.media_type,
+                    'response_status_code': response.status_code,
+                },
+            )
+            return response
 
     async def _exchange_authorization_code(
         self,

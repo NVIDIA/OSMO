@@ -29,7 +29,7 @@ from src.service.mcp_auth import entra
 
 
 class EntraOIDCProviderTest(unittest.IsolatedAsyncioTestCase):
-    async def test_authorize_and_exchange_validate_oidc_and_filter_roles(self) -> None:
+    async def test_authorize_and_exchange_validate_oidc_and_preserve_roles(self) -> None:
         issuer = 'https://login.example/tenant/v2.0'
         client_id = 'entra-client'
         nonce = 'expected-nonce'
@@ -44,7 +44,7 @@ class EntraOIDCProviderTest(unittest.IsolatedAsyncioTestCase):
             'tid': 'tenant-id',
             'oid': 'object-id',
             'preferred_username': 'user@example.com',
-            'roles': ['osmo-user', 'untrusted-role'],
+            'roles': ['untrusted-role', 'osmo-user', 'osmo-user'],
             'nonce': nonce,
             'iat': int(time.time()),
             'exp': int(time.time()) + 300,
@@ -65,6 +65,26 @@ class EntraOIDCProviderTest(unittest.IsolatedAsyncioTestCase):
             algorithm='RS256',
             headers={'kid': 'entra-key'},
         )
+        unsafe_role_tokens = {
+            code: jwt.encode(
+                {**id_token_claims, 'roles': roles},
+                private_pem,
+                algorithm='RS256',
+                headers={'kid': 'entra-key'},
+            )
+            for code, roles in {
+                'comma-role': ['osmo-user,osmo-admin'],
+                'control-role': ['osmo-user\nosmo-admin'],
+            }.items()
+        }
+        no_roles_claims = dict(id_token_claims)
+        no_roles_claims.pop('roles')
+        no_roles_token = jwt.encode(
+            no_roles_claims,
+            private_pem,
+            algorithm='RS256',
+            headers={'kid': 'entra-key'},
+        )
 
         async def handler(request: httpx.Request) -> httpx.Response:
             if request.url.path.endswith('/.well-known/openid-configuration'):
@@ -80,10 +100,14 @@ class EntraOIDCProviderTest(unittest.IsolatedAsyncioTestCase):
                 body = parse.parse_qs(request.content.decode())
                 self.assertEqual(body['client_secret'], ['secret'])
                 self.assertEqual(body['code_verifier'], ['upstream-verifier'])
+                code = body['code'][0]
                 token = (
                     wrong_azp_token
-                    if body['code'] == ['wrong-azp']
-                    else encoded_id_token
+                    if code == 'wrong-azp'
+                    else unsafe_role_tokens.get(
+                        code,
+                        no_roles_token if code == 'no-roles' else encoded_id_token,
+                    )
                 )
                 return httpx.Response(200, json={'id_token': token})
             return httpx.Response(404)
@@ -93,7 +117,6 @@ class EntraOIDCProviderTest(unittest.IsolatedAsyncioTestCase):
             client_id=client_id,
             client_secret='secret',
             redirect_uri='https://osmo.example/oauth/callback/entra',
-            allowed_roles=frozenset({'osmo-user'}),
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
         )
         authorization_url = await provider.authorization_url(
@@ -113,13 +136,27 @@ class EntraOIDCProviderTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(identity.subject, 'tenant-id:object-id')
         self.assertEqual(identity.username, 'user@example.com')
-        self.assertEqual(identity.roles, ('osmo-user',))
+        self.assertEqual(identity.roles, ('osmo-user', 'untrusted-role'))
+        identity_without_roles = await provider.exchange_authorization_code(
+            code='no-roles',
+            nonce=nonce,
+            code_verifier='upstream-verifier',
+        )
+        self.assertEqual(identity_without_roles.roles, ())
         with self.assertRaisesRegex(ValueError, 'authorized party'):
             await provider.exchange_authorization_code(
                 code='wrong-azp',
                 nonce=nonce,
                 code_verifier='upstream-verifier',
             )
+        for unsafe_code in unsafe_role_tokens:
+            with self.subTest(unsafe_code=unsafe_code):
+                with self.assertRaisesRegex(ValueError, 'unsupported role values'):
+                    await provider.exchange_authorization_code(
+                        code=unsafe_code,
+                        nonce=nonce,
+                        code_verifier='upstream-verifier',
+                    )
         await provider.close()
 
     async def test_discovery_rejects_issuer_mismatch(self) -> None:
@@ -137,7 +174,6 @@ class EntraOIDCProviderTest(unittest.IsolatedAsyncioTestCase):
             client_id='client',
             client_secret='secret',
             redirect_uri='https://osmo.example/oauth/callback/entra',
-            allowed_roles=frozenset(),
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
         )
         self.assertFalse(await provider.ready())

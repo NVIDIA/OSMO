@@ -102,10 +102,6 @@ class OAuthBrokerConfig(
         min_length=1,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE'},
     )
-    allowed_upstream_roles: str = pydantic.Field(
-        default='',
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES'},
-    )
     trusted_https_redirect_origins: str = pydantic.Field(
         default='',
         description='Comma-separated exact HTTPS origins allowed for DCR redirects.',
@@ -151,7 +147,7 @@ class OAuthBrokerConfig(
     )
 
     @pydantic.model_validator(mode='after')
-    def _validate_urls_and_roles(self) -> 'OAuthBrokerConfig':
+    def _validate_urls(self) -> 'OAuthBrokerConfig':
         issuer = _validate_https_url(self.issuer_url, root_only=True)
         resource = _validate_https_url(self.resource_url, root_only=False)
         entra_issuer = _validate_https_url(self.entra_issuer_url, root_only=False)
@@ -169,9 +165,6 @@ class OAuthBrokerConfig(
             raise ValueError('redis_url must be an absolute redis:// or rediss:// URL')
         if parsed_redis.password is not None:
             raise ValueError('redis_url password must be provided through redis_password_file')
-        roles = self.allowed_roles
-        if any(len(role) > 256 for role in roles):
-            raise ValueError('allowed upstream roles must contain 1 to 256 characters')
         for trusted_origin in self.trusted_redirect_origins:
             if _validate_https_url(trusted_origin, root_only=True) != trusted_origin:
                 raise ValueError('trusted HTTPS redirect origins must be normalized origins')
@@ -181,15 +174,6 @@ class OAuthBrokerConfig(
         self.entra_issuer_url = entra_issuer
         self.entra_redirect_url = redirect
         return self
-
-    @property
-    def allowed_roles(self) -> frozenset[str]:
-        """Return the normalized allowlist configured as comma-separated roles."""
-        return frozenset(
-            role.strip()
-            for role in self.allowed_upstream_roles.split(',')
-            if role.strip()
-        )
 
     @property
     def trusted_redirect_origins(self) -> frozenset[str]:
