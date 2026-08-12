@@ -5,17 +5,16 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO Helm Chart
 
-The `osmo` chart deploys the OSMO control-plane services and gateway.
+The `osmo` chart is the unified OSMO deployment entry point.
+
+The chart currently deploys the OSMO control-plane services and gateway.
+Compute-plane workloads and dependencies will be added to this chart in future
+work.
 
 The supported `split-plane-control` profile installs the API, UI, router,
 worker, logger, agent, delayed-job monitor, and standalone OSMO gateway. It
 uses operator-managed PostgreSQL, Valkey, object storage, and Kubernetes
-Secrets. Compute-plane workloads and chart-generated Secrets are outside this
-chart's clean-install boundary.
-
-Install the chart in a dedicated namespace. OSMO Deployments in that namespace
-must use the selectors rendered by this chart because Kubernetes Deployment
-selectors are immutable.
+Secrets.
 
 ## Values layout
 
@@ -42,9 +41,9 @@ registry credentials once through `global.imagePullSecrets`.
 
 Known chart values are schema-validated. Kubernetes pass-through structures
 such as resources, probes, affinity, security contexts, volumes, custom HPA
-metrics and behavior, and PodMonitor TLS/relabeling accept fields supported by
-the target Kubernetes APIs. The `configuration` subtree accepts OSMO
-application configuration.
+metrics and behavior, PodDisruptionBudget specs, and PodMonitor TLS/relabeling
+accept fields supported by the target Kubernetes APIs. The `configuration`
+subtree accepts OSMO application configuration.
 
 ## Control-plane installation
 
@@ -115,7 +114,9 @@ enables `maxUnavailable: 1` with `unhealthyPodEvictionPolicy: AlwaysAllow` for
 replicated API, router, worker, logger, and Envoy workloads. A PDB protects only
 against voluntary disruption; it does not replace replicas, topology spread,
 health probes, or application-level recovery. Overly strict budgets can block
-node drains, so set exactly one of `minAvailable` and `maxUnavailable`.
+node drains, so set exactly one of `minAvailable` and `maxUnavailable`. Native
+PDB spec fields are passed through to Kubernetes, while the chart supplies the
+selector for each component.
 
 ## Pod and ServiceAccount security
 
@@ -156,8 +157,8 @@ installed. The chart creates an OSMO application PodMonitor and, when their
 components are enabled, separate Envoy and OAuth2 Proxy monitors. Configure
 Prometheus discovery through `labels`, metadata through `annotations`, and
 scraping through `interval`, `scrapeTimeout`, `scheme`, `tlsConfig`,
-`honorLabels`, `targetLabels`, `relabelings`, and `metricRelabelings`. The chart
-does not install the Prometheus Operator or its CRDs.
+`honorLabels`, `podTargetLabels`, `relabelings`, and `metricRelabelings`. The
+chart does not install the Prometheus Operator or its CRDs.
 
 ## Existing Secret contract
 

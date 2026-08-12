@@ -155,7 +155,7 @@ monitoring:
     scheme: http
     tlsConfig: {}
     honorLabels: false
-    targetLabels: []
+    podTargetLabels: []
     relabelings: []
     metricRelabelings: []
 

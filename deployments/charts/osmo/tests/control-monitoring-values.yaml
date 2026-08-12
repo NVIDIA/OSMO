@@ -33,7 +33,7 @@ monitoring:
     tlsConfig:
       insecureSkipVerify: true
     honorLabels: true
-    targetLabels:
+    podTargetLabels:
     - app.kubernetes.io/component
     relabelings:
     - action: replace

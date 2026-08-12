@@ -977,6 +977,10 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
         "unhealthyPodEvictionPolicy: AlwaysAllow"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "futureSpecField: forwarded"
+    require_not_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "user-supplied-selector"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
         "policy-owner: platform"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
         "policy.example.com/reason: api-availability"
@@ -1022,7 +1026,9 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
         "honorLabels: true"
     require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
-        "targetLabels:"
+        "podTargetLabels:"
+    require_occurrences "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "  targetLabels:" 0
     require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
         "targetLabel: cluster"
     require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \

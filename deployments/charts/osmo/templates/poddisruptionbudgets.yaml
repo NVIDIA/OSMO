@@ -30,17 +30,12 @@ metadata:
     {{- . | nindent 4 }}
   {{- end }}
 spec:
+  {{- $spec := omit $pdb "enabled" "labels" "annotations" "selector" }}
+  {{- with $spec }}
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" $root "component" $item.componentName) | nindent 6 }}
-  {{- if hasKey $pdb "minAvailable" }}
-  minAvailable: {{ get $pdb "minAvailable" }}
-  {{- end }}
-  {{- if hasKey $pdb "maxUnavailable" }}
-  maxUnavailable: {{ get $pdb "maxUnavailable" }}
-  {{- end }}
-  {{- with (dig "unhealthyPodEvictionPolicy" "" $pdb) }}
-  unhealthyPodEvictionPolicy: {{ . }}
-  {{- end }}
 {{- end }}
 {{- end }}

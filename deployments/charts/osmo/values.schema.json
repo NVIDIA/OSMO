@@ -188,11 +188,11 @@
         "scheme": { "type": "string", "enum": ["http", "https"] },
         "tlsConfig": { "type": "object" },
         "honorLabels": { "type": "boolean" },
-        "targetLabels": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "podTargetLabels": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "relabelings": { "type": "array", "items": { "type": "object" } },
         "metricRelabelings": { "type": "array", "items": { "type": "object" } }
       },
-      "required": ["enabled", "labels", "annotations", "interval", "scrapeTimeout", "scheme", "tlsConfig", "honorLabels", "targetLabels", "relabelings", "metricRelabelings"]
+      "required": ["enabled", "labels", "annotations", "interval", "scrapeTimeout", "scheme", "tlsConfig", "honorLabels", "podTargetLabels", "relabelings", "metricRelabelings"]
     },
     "monitoring": {
       "type": "object",

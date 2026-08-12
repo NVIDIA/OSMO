@@ -48,8 +48,8 @@ metadata:
     {{- . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with $monitor.targetLabels }}
-  targetLabels:
+  {{- with $monitor.podTargetLabels }}
+  podTargetLabels:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   podMetricsEndpoints:
@@ -77,8 +77,8 @@ metadata:
     {{- . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with $monitor.targetLabels }}
-  targetLabels:
+  {{- with $monitor.podTargetLabels }}
+  podTargetLabels:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   podMetricsEndpoints:
@@ -101,8 +101,8 @@ metadata:
     {{- . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with $monitor.targetLabels }}
-  targetLabels:
+  {{- with $monitor.podTargetLabels }}
+  podTargetLabels:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   podMetricsEndpoints:

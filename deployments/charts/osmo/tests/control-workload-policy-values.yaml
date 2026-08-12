@@ -46,6 +46,11 @@ services:
         policy.example.com/reason: api-availability
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
+      # Simulates a native PDB spec field added after this chart release.
+      futureSpecField: forwarded
+      selector:
+        matchLabels:
+          user-supplied-selector: ignored
   worker:
     podDisruptionBudget:
       enabled: true
