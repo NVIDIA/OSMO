@@ -23,6 +23,10 @@ metadata:
     {{- include "osmo.component.labels" (dict "root" . "component" "delayed-job-monitor") | nindent 4 }}
 spec:
   replicas: {{ .Values.services.delayedJobMonitor.replicas }}
+  {{- with .Values.services.delayedJobMonitor.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "delayed-job-monitor") | nindent 6 }}
@@ -33,6 +37,14 @@ spec:
       annotations:
       {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ .Values.services.delayedJobMonitor.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" .Values.services.delayedJobMonitor) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" .Values.services.delayedJobMonitor)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.delayedJobMonitor)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -49,11 +61,7 @@ spec:
       - name: {{ $name }}
         image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.delayedJobMonitor) }}
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
-          runAsNonRoot: true
-          runAsUser: 1001
+          {{- include "osmo.container.securityContext" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 10 }}
         ports:
         - name: metrics
           containerPort: 9464

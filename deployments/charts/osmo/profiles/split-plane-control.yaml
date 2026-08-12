@@ -35,6 +35,12 @@ services:
       requests:
         cpu: 500m
         memory: 512Mi
+    podDisruptionBudget:
+      enabled: true
+      labels: {}
+      annotations: {}
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
   api:
     autoscaling:
       enabled: true
@@ -42,6 +48,12 @@ services:
       requests:
         cpu: 500m
         memory: 512Mi
+    podDisruptionBudget:
+      enabled: true
+      labels: {}
+      annotations: {}
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
     monitoring:
       podMonitor:
         enabled: false
@@ -52,9 +64,21 @@ services:
       requests:
         cpu: 200m
         memory: 256Mi
+    podDisruptionBudget:
+      enabled: true
+      labels: {}
+      annotations: {}
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
   logger:
     autoscaling:
       enabled: true
+    podDisruptionBudget:
+      enabled: true
+      labels: {}
+      annotations: {}
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
   agent:
     autoscaling:
       enabled: true
@@ -64,6 +88,12 @@ gateway:
     enabled: true
     autoscaling:
       enabled: true
+    podDisruptionBudget:
+      enabled: true
+      labels: {}
+      annotations: {}
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
     service:
       # Keep the unauthenticated in-cluster gateway behind an operator-managed,
       # authenticating edge rather than provisioning a public load balancer.

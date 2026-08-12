@@ -39,6 +39,10 @@ spec:
   {{- if not $gw.envoy.autoscaling.enabled }}
   replicas: {{ $gw.envoy.replicas }}
   {{- end }}
+  {{- with $gw.envoy.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | nindent 6 }}
@@ -50,6 +54,14 @@ spec:
         checksum/envoy-config: {{ include "osmo.gateway.envoyConfig" . | sha256sum }}
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.envoy) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ $gw.envoy.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" $gw.envoy) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" $gw.envoy) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" $gw.envoy)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.envoy)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -61,7 +73,7 @@ spec:
       containers:
       - name: envoy
         securityContext:
-          {{- toYaml $gw.envoy.pod.containerSecurityContext | nindent 10 }}
+          {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.envoy) | nindent 10 }}
         image: "{{ $gw.envoy.image.repository }}"
         imagePullPolicy: {{ $gw.envoy.image.pullPolicy }}
         args:
@@ -235,6 +247,10 @@ spec:
   {{- if not $gw.oauth2Proxy.autoscaling.enabled }}
   replicas: {{ $gw.oauth2Proxy.replicas }}
   {{- end }}
+  {{- with $gw.oauth2Proxy.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "oauth2-proxy" "context" .) | nindent 6 }}
@@ -245,6 +261,14 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ $gw.oauth2Proxy.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" $gw.oauth2Proxy) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" $gw.oauth2Proxy)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.oauth2Proxy)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -258,7 +282,7 @@ spec:
         image: "{{ $gw.oauth2Proxy.image.repository }}"
         imagePullPolicy: {{ $gw.oauth2Proxy.image.pullPolicy }}
         securityContext:
-          {{- toYaml $gw.oauth2Proxy.pod.containerSecurityContext | nindent 10 }}
+          {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.oauth2Proxy) | nindent 10 }}
         args:
           {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
           - --client-secret-file=/etc/oauth2-proxy/client-secret
@@ -431,6 +455,10 @@ spec:
   {{- if not $gw.authz.autoscaling.enabled }}
   replicas: {{ $gw.authz.replicas }}
   {{- end }}
+  {{- with $gw.authz.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "authz" "context" .) | nindent 6 }}
@@ -441,6 +469,14 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.authz) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ $gw.authz.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" $gw.authz) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" $gw.authz) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" $gw.authz)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.authz)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -452,7 +488,7 @@ spec:
       containers:
       - name: authz
         securityContext:
-          {{- toYaml $gw.authz.pod.containerSecurityContext | nindent 10 }}
+          {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.authz) | nindent 10 }}
         image: {{ include "osmo.component.image" (dict "root" . "component" $gw.authz) }}
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" $gw.authz) }}
         args:
@@ -600,6 +636,10 @@ metadata:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-ratelimit") | nindent 4 }}
 spec:
   replicas: {{ $gw.rateLimit.replicas }}
+  {{- with $gw.rateLimit.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "ratelimit" "context" .) | nindent 6 }}
@@ -611,6 +651,14 @@ spec:
         checksum/ratelimit-config: {{ $gw.rateLimit.config | toYaml | sha256sum }}
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ $gw.rateLimit.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" $gw.rateLimit) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" $gw.rateLimit)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $gw.rateLimit)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -624,7 +672,7 @@ spec:
         image: "{{ $gw.rateLimit.image.repository }}"
         imagePullPolicy: "{{ $gw.rateLimit.image.pullPolicy }}"
         securityContext:
-          {{- toYaml $gw.rateLimit.pod.containerSecurityContext | nindent 10 }}
+          {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.rateLimit) | nindent 10 }}
         {{- /* The default 875d418c image does not define an ENTRYPOINT. */}}
         command:
           {{- toYaml ($gw.rateLimit.command | default (list "/bin/ratelimit")) | nindent 10 }}

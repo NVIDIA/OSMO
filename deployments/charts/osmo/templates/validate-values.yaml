@@ -58,6 +58,30 @@
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- $pdbComponents := list
+  (dict "path" "services.mcp" "component" .Values.services.mcp)
+  (dict "path" "services.ui" "component" .Values.services.ui)
+  (dict "path" "services.delayedJobMonitor" "component" .Values.services.delayedJobMonitor)
+  (dict "path" "services.worker" "component" .Values.services.worker)
+  (dict "path" "services.api" "component" .Values.services.api)
+  (dict "path" "services.router" "component" .Values.services.router)
+  (dict "path" "services.logger" "component" .Values.services.logger)
+  (dict "path" "services.agent" "component" .Values.services.agent)
+  (dict "path" "gateway.envoy" "component" .Values.gateway.envoy)
+  (dict "path" "gateway.oauth2Proxy" "component" .Values.gateway.oauth2Proxy)
+  (dict "path" "gateway.authz" "component" .Values.gateway.authz)
+  (dict "path" "gateway.rateLimit" "component" .Values.gateway.rateLimit) -}}
+{{- range $item := $pdbComponents -}}
+{{- $pdb := dig "podDisruptionBudget" dict $item.component -}}
+{{- if dig "enabled" false $pdb -}}
+{{- if and (hasKey $pdb "minAvailable") (hasKey $pdb "maxUnavailable") -}}
+{{- fail (printf "%s.podDisruptionBudget cannot set both minAvailable and maxUnavailable" $item.path) -}}
+{{- end -}}
+{{- if and (not (hasKey $pdb "minAvailable")) (not (hasKey $pdb "maxUnavailable")) -}}
+{{- fail (printf "%s.podDisruptionBudget requires minAvailable or maxUnavailable when enabled" $item.path) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- if hasKey .Values "controlPlane" -}}
 {{- fail "controlPlane is not a supported value; configure services and gateway directly" -}}
 {{- end -}}

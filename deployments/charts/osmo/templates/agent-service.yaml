@@ -28,6 +28,10 @@ spec:
   {{- if not .Values.services.agent.autoscaling.enabled }}
   replicas: {{ .Values.services.agent.replicas }}
   {{- end }}
+  {{- with .Values.services.agent.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "agent") | nindent 6 }}
@@ -38,6 +42,14 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.agent) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ .Values.services.agent.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" .Values.services.agent) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" .Values.services.agent) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" .Values.services.agent)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with .Values.services.agent.pod.hostAliases }}
       hostAliases:
         {{- toYaml . | nindent 8 }}
@@ -64,11 +76,7 @@ spec:
         command:
         - agent_service
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
-          runAsNonRoot: true
-          runAsUser: 1001
+          {{- include "osmo.container.securityContext" (dict "root" . "component" .Values.services.agent) | nindent 10 }}
         ports:
         - name: metrics
           containerPort: 9464

@@ -25,6 +25,10 @@ spec:
   {{- if not .Values.services.ui.autoscaling.enabled }}
   replicas: {{ .Values.services.ui.replicas }}
   {{- end }}
+  {{- with .Values.services.ui.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "ui") | nindent 6 }}
@@ -35,6 +39,14 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ .Values.services.ui.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" .Values.services.ui) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" .Values.services.ui) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" .Values.services.ui)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       hostAliases:
         {{ toYaml .Values.services.ui.pod.hostAliases | nindent 8}}
       {{- with .Values.services.ui.pod.topologySpreadConstraints }}
@@ -96,11 +108,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.ui) }}
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
-          runAsNonRoot: true
-          runAsUser: 1000
+          {{- include "osmo.container.securityContext" (dict "root" . "component" .Values.services.ui) | nindent 10 }}
         {{- if .Values.services.ui.volumeMounts }}
         volumeMounts:
         {{- end }}

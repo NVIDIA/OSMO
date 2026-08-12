@@ -34,6 +34,10 @@ metadata:
     {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
 spec:
   replicas: {{ $mcp.replicas }}
+  {{- with $mcp.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "mcp") | nindent 6 }}
@@ -44,7 +48,14 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $mcp) | nindent 8 }}
     spec:
-      automountServiceAccountToken: false
+      automountServiceAccountToken: {{ $mcp.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" $mcp) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" $mcp) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" $mcp)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $mcp)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -64,7 +75,7 @@ spec:
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
         {{- end }}
         securityContext:
-          {{- toYaml $mcp.pod.containerSecurityContext | nindent 10 }}
+          {{- include "osmo.container.securityContext" (dict "root" . "component" $mcp) | nindent 10 }}
         ports:
         - name: http
           containerPort: {{ $mcp.port }}

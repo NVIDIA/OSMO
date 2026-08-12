@@ -327,7 +327,8 @@
         "hostAliases": { "type": "array" },
         "initContainers": { "type": "array" },
         "volumes": { "type": "array" },
-        "sidecars": { "type": "array" }
+        "sidecars": { "type": "array" },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
       }
     },
     "serviceComponent": {
@@ -358,8 +359,10 @@
         "replicas": { "type": "integer", "minimum": 0 },
         "image": { "$ref": "#/definitions/componentImage" },
         "pod": { "$ref": "#/definitions/podSettings" },
-        "serviceAccount": { "type": "object" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "deploymentStrategy": { "type": "object" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "env": { "type": "array" },
         "extraArgs": { "type": "array" },
         "resources": { "type": "object" }
@@ -391,6 +394,43 @@
         "behavior": { "type": "object" }
       },
       "required": ["enabled", "minReplicas", "maxReplicas", "hpaMemoryTarget", "hpaCpuTarget", "customMetrics", "behavior"]
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "create": { "type": "boolean" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      },
+      "required": ["name", "create", "annotations", "automountServiceAccountToken"]
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "minAvailable": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^(?:100|[1-9]?[0-9])%$" }
+          ]
+        },
+        "maxUnavailable": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^(?:100|[1-9]?[0-9])%$" }
+          ]
+        },
+        "unhealthyPodEvictionPolicy": {
+          "type": "string",
+          "enum": ["IfHealthyBudget", "AlwaysAllow"]
+        }
+      },
+      "required": ["enabled", "labels", "annotations", "unhealthyPodEvictionPolicy"]
     },
     "envoyJwt": {
       "type": "object",

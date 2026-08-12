@@ -154,6 +154,30 @@ default
 {{- with $selector }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
+{{- define "osmo.pod.affinity" -}}
+{{- $affinity := mergeOverwrite (deepCopy .root.Values.podDefaults.affinity) (dig "pod" "affinity" dict .component) -}}
+{{- with $affinity }}{{ toYaml . }}{{- end -}}
+{{- end -}}
+
+{{- define "osmo.pod.securityContext" -}}
+{{- $context := mergeOverwrite (deepCopy .root.Values.podDefaults.podSecurityContext) (dig "pod" "podSecurityContext" dict .component) -}}
+{{- with $context }}{{ toYaml . }}{{- end -}}
+{{- end -}}
+
+{{- define "osmo.container.securityContext" -}}
+{{- $context := mergeOverwrite (deepCopy .root.Values.podDefaults.containerSecurityContext) (dig "pod" "containerSecurityContext" dict .component) -}}
+{{- with $context }}{{ toYaml . }}{{- end -}}
+{{- end -}}
+
+{{- define "osmo.pod.terminationGracePeriodSeconds" -}}
+{{- $pod := dig "pod" dict .component -}}
+{{- if hasKey $pod "terminationGracePeriodSeconds" -}}
+{{- $pod.terminationGracePeriodSeconds -}}
+{{- else -}}
+{{- .root.Values.podDefaults.terminationGracePeriodSeconds -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "osmo.component.extraEnv" -}}
 {{- with .env }}{{ toYaml . }}{{- end -}}
 {{- end -}}

@@ -865,6 +865,102 @@ EOF
     require_contains "$TEST_DIRECTORY/scaling-without-memory-request.out" \
         "services.worker autoscaling memory target requires resources.requests.memory"
 
+    helm_template workload-policy "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-workload-policy-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-workload-policy.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" Deployment \
+        workload-policy-osmo-api \
+        >"$TEST_DIRECTORY/osmo-workload-policy-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "type: Recreate"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "terminationGracePeriodSeconds: 75"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "seccompProfile:"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "type: RuntimeDefault"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "fsGroup: 2000"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "runAsGroup: 2001"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "readOnlyRootFilesystem: true"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "runAsUser: 4321"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "nodeAffinity:"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "podAntiAffinity:"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "automountServiceAccountToken: true"
+    resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" ServiceAccount \
+        workload-policy-osmo-api \
+        >"$TEST_DIRECTORY/osmo-workload-policy-api-service-account.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/osmo-workload-policy-api-service-account.yaml" \
+        "automountServiceAccountToken: true"
+
+    resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" Deployment \
+        workload-policy-osmo-worker \
+        >"$TEST_DIRECTORY/osmo-workload-policy-worker.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-worker.yaml" \
+        "terminationGracePeriodSeconds: 45"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-worker.yaml" \
+        "runAsUser: 1234"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-worker.yaml" \
+        "automountServiceAccountToken: false"
+
+    resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" Deployment \
+        workload-policy-osmo-ui \
+        >"$TEST_DIRECTORY/osmo-workload-policy-ui.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
+        "serviceAccountName: default"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
+        "automountServiceAccountToken: false"
+    require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
+        "type: RuntimeDefault" 10
+
+    resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
+        PodDisruptionBudget workload-policy-osmo-api \
+        >"$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "maxUnavailable: 1"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "unhealthyPodEvictionPolicy: AlwaysAllow"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "policy-owner: platform"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "policy.example.com/reason: api-availability"
+    require_occurrences "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "app.kubernetes.io/managed-by:" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "app.kubernetes.io/component: api" 2
+    require_occurrences "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "app.kubernetes.io/instance: workload-policy" 2
+    require_occurrences "$TEST_DIRECTORY/osmo-workload-policy-api-pdb.yaml" \
+        "app.kubernetes.io/name: osmo" 2
+
+    resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
+        PodDisruptionBudget workload-policy-osmo-worker \
+        >"$TEST_DIRECTORY/osmo-workload-policy-worker-pdb.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-worker-pdb.yaml" \
+        "minAvailable: 1"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-worker-pdb.yaml" \
+        "unhealthyPodEvictionPolicy: IfHealthyBudget"
+
+    if helm_template invalid-pdb "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.podDisruptionBudget.enabled=true \
+        --set services.api.podDisruptionBudget.minAvailable=1 \
+        --set services.api.podDisruptionBudget.maxUnavailable=1 \
+        >"$TEST_DIRECTORY/invalid-pdb.out" 2>&1; then
+        fail "expected a PDB with both availability fields to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-pdb.out" \
+        "services.api.podDisruptionBudget cannot set both minAvailable and maxUnavailable"
+
     if helm_template unsupported-compute "$charts_copy/osmo" \
         --set planes.compute.enabled=true \
         >"$TEST_DIRECTORY/unsupported-compute.out" 2>&1; then

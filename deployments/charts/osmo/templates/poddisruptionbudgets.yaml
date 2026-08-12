@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- $root := . -}}
+{{- $components := list
+  (dict "suffix" "api" "componentName" "api" "component" .Values.services.api)
+  (dict "suffix" "ui" "componentName" "ui" "component" .Values.services.ui)
+  (dict "suffix" "router" "componentName" "router" "component" .Values.services.router)
+  (dict "suffix" "worker" "componentName" "worker" "component" .Values.services.worker)
+  (dict "suffix" "logger" "componentName" "logger" "component" .Values.services.logger)
+  (dict "suffix" "agent" "componentName" "agent" "component" .Values.services.agent)
+  (dict "suffix" "delayed-job-monitor" "componentName" "delayed-job-monitor" "component" .Values.services.delayedJobMonitor)
+  (dict "suffix" "mcp" "componentName" "mcp" "component" .Values.services.mcp)
+  (dict "suffix" "gateway-envoy" "componentName" "gateway-envoy" "component" .Values.gateway.envoy)
+  (dict "suffix" "gateway-oauth2-proxy" "componentName" "gateway-oauth2-proxy" "component" .Values.gateway.oauth2Proxy)
+  (dict "suffix" "gateway-authz" "componentName" "gateway-authz" "component" .Values.gateway.authz)
+  (dict "suffix" "gateway-ratelimit" "componentName" "gateway-ratelimit" "component" .Values.gateway.rateLimit) -}}
+{{- range $item := $components -}}
+{{- $pdb := dig "podDisruptionBudget" dict $item.component -}}
+{{- if and $item.component.enabled (dig "enabled" false $pdb) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "osmo.component.fullname" (dict "root" $root "suffix" $item.suffix) }}
+  labels:
+    {{- $labels := mergeOverwrite (deepCopy (dig "labels" dict $pdb)) (include "osmo.component.labels" (dict "root" $root "component" $item.componentName) | fromYaml) }}
+    {{- toYaml $labels | nindent 4 }}
+  {{- with (dig "annotations" dict $pdb) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "osmo.component.selectorLabels" (dict "root" $root "component" $item.componentName) | nindent 6 }}
+  {{- if hasKey $pdb "minAvailable" }}
+  minAvailable: {{ get $pdb "minAvailable" }}
+  {{- end }}
+  {{- if hasKey $pdb "maxUnavailable" }}
+  maxUnavailable: {{ get $pdb "maxUnavailable" }}
+  {{- end }}
+  {{- with (dig "unhealthyPodEvictionPolicy" "" $pdb) }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end }}

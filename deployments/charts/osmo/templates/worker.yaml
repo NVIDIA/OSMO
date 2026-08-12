@@ -25,6 +25,10 @@ spec:
   {{- if not .Values.services.worker.autoscaling.enabled }}
   replicas: {{ .Values.services.worker.replicas }}
   {{- end }}
+  {{- with .Values.services.worker.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
@@ -35,6 +39,14 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
     spec:
+      automountServiceAccountToken: {{ .Values.services.worker.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- include "osmo.pod.securityContext" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" .Values.services.worker) }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" .Values.services.worker)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with .Values.services.worker.pod.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "worker") | nindent 8 }}
@@ -57,11 +69,7 @@ spec:
         command:
         - "worker"
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
-          runAsNonRoot: true
-          runAsUser: 1001
+          {{- include "osmo.container.securityContext" (dict "root" . "component" .Values.services.worker) | nindent 10 }}
         ports:
         - name: metrics
           containerPort: 9464

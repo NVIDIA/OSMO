@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+podDefaults:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 50
+        preference:
+          matchExpressions:
+          - key: workload-class
+            operator: In
+            values:
+            - osmo
+  podSecurityContext:
+    fsGroup: 2000
+  containerSecurityContext:
+    runAsUser: 1234
+  terminationGracePeriodSeconds: 45
+
+services:
+  api:
+    deploymentStrategy:
+      type: Recreate
+    pod:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 75
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  workload-tier: api
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
+        runAsUser: 4321
+      podSecurityContext:
+        runAsGroup: 2001
+      terminationGracePeriodSeconds: 75
+    podDisruptionBudget:
+      enabled: true
+      labels:
+        policy-owner: platform
+      annotations:
+        policy.example.com/reason: api-availability
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
+  worker:
+    podDisruptionBudget:
+      enabled: true
+      labels: {}
+      annotations: {}
+      minAvailable: 1
+      unhealthyPodEvictionPolicy: IfHealthyBudget

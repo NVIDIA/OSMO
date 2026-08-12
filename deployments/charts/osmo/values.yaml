@@ -89,7 +89,9 @@ podDefaults:
   tolerations: []
   # TODO: Apply these shared pod-policy fields to every OSMO workload.
   affinity: {}
-  podSecurityContext: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   containerSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -97,6 +99,7 @@ podDefaults:
       - ALL
     runAsNonRoot: true
     runAsUser: 1001
+  terminationGracePeriodSeconds: 30
 
 # Shared Python service logging settings.
 logging:
@@ -202,6 +205,12 @@ services:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     resources:
       requests:
         cpu: 100m
@@ -259,9 +268,15 @@ services:
     nextjsSslEnabled: false
     containerPort: 8000
     serviceAccount:
-      name: osmo
+      name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     maxHttpHeaderSizeKb: 128
     command: []
     args: []
@@ -313,6 +328,8 @@ services:
       labels: {}
       annotations: {}
       nodeSelector: {}
+      containerSecurityContext:
+        runAsUser: 1000
       topologySpreadConstraints:
       - topologyKey: kubernetes.io/hostname
         maxSkew: 1
@@ -347,6 +364,12 @@ services:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     volumeMounts:
     - name: progress-files
       mountPath: /var/run/osmo
@@ -391,6 +414,12 @@ services:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     env: []
     replicas: 2
     pod:
@@ -469,6 +498,12 @@ services:
       name: ''
       create: true
       annotations: {}
+      automountServiceAccountToken: true
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     env: []
     replicas: 3
     pod:
@@ -504,6 +539,12 @@ services:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     extraPorts: []
     resources: {}
     livenessProbe:
@@ -579,6 +620,12 @@ services:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     envoy: {}
     env: []
     replicas: 3
@@ -637,6 +684,12 @@ services:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     envoy: {}
     env: []
     replicas: 1
@@ -677,6 +730,12 @@ gateway:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     defaultIdentity:
       user: ''
       roles: ''
@@ -834,6 +893,12 @@ gateway:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     volumeMounts: []
     env: []
     replicas: 1
@@ -898,6 +963,12 @@ gateway:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     volumeMounts: []
     env: []
     replicas: 1
@@ -936,6 +1007,12 @@ gateway:
       name: ''
       create: false
       annotations: {}
+      automountServiceAccountToken: false
+    podDisruptionBudget:
+      enabled: false
+      labels: {}
+      annotations: {}
+      unhealthyPodEvictionPolicy: IfHealthyBudget
     volumeMounts: []
     env: []
     pod:
