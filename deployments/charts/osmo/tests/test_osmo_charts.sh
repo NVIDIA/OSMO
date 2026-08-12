@@ -242,6 +242,46 @@ test_control_umbrella() {
     require_deployment "$rendered" "osmo-delayed-job-monitor"
     require_deployment "$rendered" "osmo-ui"
     require_deployment "$rendered" "osmo-gateway-envoy"
+    local hardened_component
+    for hardened_component in \
+        api worker router logger agent delayed-job-monitor ui gateway-envoy; do
+        resource_document "$rendered" Deployment "osmo-$hardened_component" \
+            >"$TEST_DIRECTORY/osmo-$hardened_component.yaml"
+        require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
+            "readOnlyRootFilesystem: true"
+    done
+    for hardened_component in api router logger agent; do
+        require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
+            "mountPath: /tmp"
+        require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
+            "name: osmo-runtime-tmp"
+    done
+    for hardened_component in worker logger agent delayed-job-monitor; do
+        require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
+            "mountPath: /var/run/osmo"
+        require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
+            "name: osmo-progress-files"
+    done
+
+    helm_template protected-writable-volumes "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-volume-extension-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-protected-writable-volumes.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-protected-writable-volumes.yaml" \
+        Deployment protected-writable-volumes-osmo-api \
+        >"$TEST_DIRECTORY/osmo-protected-api-volumes.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-protected-api-volumes.yaml" \
+        "name: osmo-runtime-tmp"
+    require_contains "$TEST_DIRECTORY/osmo-protected-api-volumes.yaml" \
+        "name: api-extension"
+    resource_document "$TEST_DIRECTORY/osmo-protected-writable-volumes.yaml" \
+        Deployment protected-writable-volumes-osmo-worker \
+        >"$TEST_DIRECTORY/osmo-protected-worker-volumes.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-protected-worker-volumes.yaml" \
+        "name: osmo-progress-files"
+    require_contains "$TEST_DIRECTORY/osmo-protected-worker-volumes.yaml" \
+        "name: worker-extension"
     require_no_deployment "$rendered" "postgres"
     require_no_deployment "$rendered" "redis"
     require_no_deployment "$rendered" "localstack-s3"
@@ -791,6 +831,12 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "/etc/osmo/ca/valkey/ca-bundle.crt"
     require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "key: ca-bundle.crt"
     resource_document "$TEST_DIRECTORY/osmo-tls.yaml" Deployment \
+        osmo-tls-router >"$TEST_DIRECTORY/osmo-router-tls.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-router-tls.yaml" \
+        "/etc/osmo/ca/postgresql/ca.crt"
+    require_contains "$TEST_DIRECTORY/osmo-router-tls.yaml" \
+        "/etc/osmo/ca/valkey/ca-bundle.crt"
+    resource_document "$TEST_DIRECTORY/osmo-tls.yaml" Deployment \
         osmo-tls-gateway-authz >"$TEST_DIRECTORY/osmo-authz-tls.yaml"
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "secretName: postgresql-ca"
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "/etc/osmo/ca/postgresql"
@@ -1184,7 +1230,7 @@ EOF
 exposure.mode=external|exposure
 exposure.baseUrl=https://osmo.example.com|exposure
 embeddedDependencies.gateway.enabled=false|gateway
-gateway.envoy.ingress.enabled=false|'not' failed
+gateway.envoy.ingress.enabled=false|ingress
 gateway.envoy.service.httpsPort=443|httpsPort
 EOF
 
@@ -1378,6 +1424,44 @@ EOF
         fail "expected legacy per-service fields to fail schema validation"
     fi
     require_contains "$TEST_DIRECTORY/legacy-component.out" "worker"
+
+    local wrong_component_value
+    for wrong_component_value in \
+        services.api.httpPort=1234 \
+        services.ui.grpcPort=1234 \
+        services.router.cookieName=wrong \
+        services.worker.httpPort=1234 \
+        services.logger.clientId=wrong \
+        services.agent.service.type=ClusterIP \
+        services.delayedJobMonitor.autoscaling.enabled=true \
+        services.mcp.hostname=wrong \
+        gateway.envoy.grpcPort=1234 \
+        gateway.oauth2Proxy.jwt.userHeader=wrong \
+        gateway.authz.cookieName=wrong \
+        gateway.rateLimit.autoscaling.enabled=true; do
+        if helm_template wrong-component "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set "$wrong_component_value" \
+            >"$TEST_DIRECTORY/wrong-component.out" 2>&1; then
+            fail "expected wrong-component value $wrong_component_value to fail"
+        fi
+    done
+
+    local unsupported_pod_value
+    for unsupported_pod_value in \
+        podDefaults.hostAliases[0].ip=127.0.0.1 \
+        services.delayedJobMonitor.pod.topologySpreadConstraints[0].topologyKey=zone \
+        services.mcp.pod.extraVolumes[0].name=ignored \
+        gateway.envoy.pod.topologySpreadConstraints[0].topologyKey=zone; do
+        if helm_template unsupported-pod "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set "$unsupported_pod_value" \
+            >"$TEST_DIRECTORY/unsupported-pod.out" 2>&1; then
+            fail "expected unsupported pod value $unsupported_pod_value to fail"
+        fi
+    done
 }
 
 case "$MODE" in

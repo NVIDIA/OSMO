@@ -141,19 +141,19 @@ spec:
           protocol: {{ .protocol | default "TCP" }}
         {{- end }}
         {{- end }}
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.services.router.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.router) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
+        - name: osmo-runtime-tmp
+          mountPath: /tmp
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- with .Values.services.router.volumeMounts }}
+        {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
-        {{- end }}
         resources:
         {{- toYaml .Values.services.router.resources | nindent 10 }}
 
@@ -176,8 +176,10 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
+        - name: osmo-runtime-tmp
+          emptyDir: {}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
-        {{- with .Values.services.router.pod.volumes }}
+        {{- with .Values.services.router.pod.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}

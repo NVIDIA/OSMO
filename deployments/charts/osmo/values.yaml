@@ -89,7 +89,6 @@ podDefaults:
   annotations: {}
   nodeSelector: {}
   tolerations: []
-  # TODO: Apply these shared pod-policy fields to every OSMO workload.
   affinity: {}
   podSecurityContext:
     seccompProfile:
@@ -345,11 +344,13 @@ services:
       timeoutSeconds: 3
       periodSeconds: 5
     env: []
+    extraVolumeMounts: []
     pod:
       labels: {}
       annotations: {}
       nodeSelector: {}
       containerSecurityContext:
+        readOnlyRootFilesystem: true
         runAsUser: 1000
       topologySpreadConstraints:
       - topologyKey: kubernetes.io/hostname
@@ -360,6 +361,7 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+      extraVolumes: []
 
   # Promotes scheduled Redis jobs when their delay expires.
   delayedJobMonitor:
@@ -393,18 +395,16 @@ services:
       labels: {}
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
-    volumeMounts:
-    - name: progress-files
-      mountPath: /var/run/osmo
+    extraVolumeMounts: []
     env: []
     pod:
       labels: {}
       annotations: {}
       nodeSelector: {}
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
       initContainers: []
-      volumes:
-      - name: progress-files
-        emptyDir: {}
+      extraVolumes: []
 
   # Executes asynchronous control-plane jobs from the Valkey queue.
   worker:
@@ -447,10 +447,13 @@ services:
       unhealthyPodEvictionPolicy: IfHealthyBudget
     env: []
     replicas: 2
+    extraVolumeMounts: []
     pod:
       labels: {}
       annotations: {}
       nodeSelector: {}
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
       topologySpreadConstraints:
       - topologyKey: kubernetes.io/hostname
         maxSkew: 1
@@ -459,6 +462,7 @@ services:
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+      extraVolumes: []
 
   # Main OSMO REST API and control-plane service.
   api:
@@ -526,16 +530,20 @@ services:
       unhealthyPodEvictionPolicy: IfHealthyBudget
     env: []
     replicas: 3
+    extraVolumeMounts: []
     pod:
       labels: {}
       annotations: {}
       nodeSelector: {}
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
       topologySpreadConstraints:
       - topologyKey: topology.kubernetes.io/zone
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+      extraVolumes: []
 
   # Routes sticky HTTP and WebSocket sessions to connected backends.
   router:
@@ -593,16 +601,20 @@ services:
       timeoutSeconds: 30
     env: []
     replicas: 3
+    extraVolumeMounts: []
     pod:
       labels: {}
       annotations: {}
       nodeSelector: {}
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
       topologySpreadConstraints:
       - topologyKey: topology.kubernetes.io/zone
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+      extraVolumes: []
 
   # Receives workflow logs and task metrics from runtime containers.
   logger:
@@ -653,15 +665,19 @@ services:
     envoy: {}
     env: []
     replicas: 3
+    extraVolumeMounts: []
     pod:
       labels: {}
       annotations: {}
       nodeSelector: {}
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
       topologySpreadConstraints:
       - topologyKey: topology.kubernetes.io/zone
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+      extraVolumes: []
 
   # Receives backend-cluster events and heartbeat streams.
   agent:
@@ -719,15 +735,19 @@ services:
     envoy: {}
     env: []
     replicas: 1
+    extraVolumeMounts: []
     pod:
       labels: {}
       annotations: {}
       nodeSelector: {}
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
       topologySpreadConstraints:
       - topologyKey: topology.kubernetes.io/zone
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+      extraVolumes: []
 
 # Internal API gateway and optional gateway-adjacent services. This block is
 # independent of the Kubernetes edge mechanism: `gateway.envoy` routes traffic
@@ -838,7 +858,7 @@ gateway:
     extraRoutes: []
     extraClusters: []
     maxRequests: 100
-    volumeMounts: []
+    extraVolumeMounts: []
     replicas: 2
     pod:
       nodeSelector: {}
@@ -847,9 +867,10 @@ gateway:
         capabilities:
           drop:
           - ALL
+        readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 1001
-      volumes: []
+      extraVolumes: []
       labels: {}
       annotations: {}
 
@@ -931,7 +952,7 @@ gateway:
       labels: {}
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
-    volumeMounts: []
+    extraVolumeMounts: []
     env: []
     replicas: 1
     pod:
@@ -944,7 +965,7 @@ gateway:
           - ALL
         runAsNonRoot: true
         runAsUser: 1001
-      volumes: []
+      extraVolumes: []
       labels: {}
 
   # Optional external-authorization service backed by OSMO role policies.
@@ -1003,7 +1024,7 @@ gateway:
       labels: {}
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
-    volumeMounts: []
+    extraVolumeMounts: []
     env: []
     replicas: 1
     pod:
@@ -1016,7 +1037,7 @@ gateway:
           - ALL
         runAsNonRoot: true
         runAsUser: 10001
-      volumes: []
+      extraVolumes: []
       labels: {}
 
   # Optional Envoy-compatible global rate-limit service backed by Valkey.
@@ -1050,7 +1071,7 @@ gateway:
       labels: {}
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
-    volumeMounts: []
+    extraVolumeMounts: []
     env: []
     pod:
       annotations: {}
@@ -1062,7 +1083,7 @@ gateway:
           - ALL
         runAsNonRoot: true
         runAsUser: 1001
-      volumes: []
+      extraVolumes: []
       labels: {}
 
   # Optional ingress policies limiting gateway traffic to known upstream pods.

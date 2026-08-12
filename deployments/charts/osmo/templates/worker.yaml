@@ -123,9 +123,9 @@ spec:
         {{- include "osmo.configuration.env" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.worker | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.worker.volumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
-        {{- end }}
+        - name: osmo-progress-files
+          mountPath: /var/run/osmo
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
           name: mek-volume
@@ -156,6 +156,8 @@ spec:
 
       {{- include "osmo.pod.extraSidecars" .Values.services.worker | nindent 6 }}
       volumes:
+        - name: osmo-progress-files
+          emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.worker | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}

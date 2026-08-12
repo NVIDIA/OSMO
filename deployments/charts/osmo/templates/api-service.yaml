@@ -168,9 +168,9 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.api.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.api) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
-        {{- end }}
+        - name: osmo-runtime-tmp
+          mountPath: /tmp
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
           name: mek-volume
@@ -199,6 +199,8 @@ spec:
 
       {{- include "osmo.pod.extraSidecars" .Values.services.api | nindent 6 }}
       volumes:
+        - name: osmo-runtime-tmp
+          emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.api | nindent 8 }}
         {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}

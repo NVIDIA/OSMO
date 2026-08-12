@@ -119,9 +119,9 @@ spec:
         resources:
         {{- toYaml .Values.services.delayedJobMonitor.resources | nindent 10 }}
 
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.services.delayedJobMonitor.volumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
-        {{- end }}
+        - name: osmo-progress-files
+          mountPath: /var/run/osmo
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
           name: mek-volume
@@ -148,6 +148,8 @@ spec:
 
       {{- include "osmo.pod.extraSidecars" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:
+        - name: osmo-progress-files
+          emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}

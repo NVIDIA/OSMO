@@ -108,7 +108,7 @@ spec:
             mountPath: /etc/ssl/envoy-certs
             readOnly: true
           {{- end }}
-          {{- with $gw.envoy.volumeMounts }}
+          {{- with $gw.envoy.extraVolumeMounts }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
         resources:
@@ -142,7 +142,7 @@ spec:
           secret:
             secretName: {{ $gw.envoy.ssl.secretName | default "envoy-ssl-cert" }}
         {{- end }}
-        {{- with $gw.envoy.pod.volumes }}
+        {{- with $gw.envoy.pod.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
 
@@ -366,7 +366,7 @@ spec:
             mountPath: /etc/oauth2-proxy
             readOnly: true
           {{- end }}
-          {{- with $gw.oauth2Proxy.volumeMounts }}
+          {{- with $gw.oauth2Proxy.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
       volumes:
@@ -380,7 +380,7 @@ spec:
             - key: {{ $gw.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
               path: cookie-secret
         {{- end }}
-        {{- with $gw.oauth2Proxy.pod.volumes }}
+        {{- with $gw.oauth2Proxy.pod.extraVolumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
 
@@ -536,14 +536,14 @@ spec:
         env:
           {{- include "osmo.component.extraEnv" $gw.authz | nindent 10 }}
           {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 10 }}
-        {{- if or .Values.configuration.enabled $gw.authz.volumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
+        {{- if or .Values.configuration.enabled $gw.authz.extraVolumeMounts .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
           {{- if .Values.configuration.enabled }}
           - name: configs
             mountPath: /etc/osmo/configs
             readOnly: true
           {{- end }}
-          {{- with $gw.authz.volumeMounts }}
+          {{- with $gw.authz.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
           {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 10 }}
@@ -564,7 +564,7 @@ spec:
           configMap:
             name: {{ include "osmo.api.fullname" . }}-config
         {{- end }}
-        {{- with $gw.authz.pod.volumes }}
+        {{- with $gw.authz.pod.extraVolumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
@@ -762,7 +762,7 @@ spec:
         volumeMounts:
         - name: ratelimit-config
           mountPath: /data/ratelimit/config
-        {{- with $gw.rateLimit.volumeMounts }}
+        {{- with $gw.rateLimit.extraVolumeMounts }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         livenessProbe:
@@ -778,7 +778,7 @@ spec:
           items:
           - key: config.yaml
             path: config.yaml
-      {{- with $gw.rateLimit.pod.volumes }}
+      {{- with $gw.rateLimit.pod.extraVolumes }}
         {{- toYaml . | nindent 6 }}
       {{- end }}
 

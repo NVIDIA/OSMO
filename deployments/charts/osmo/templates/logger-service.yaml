@@ -127,9 +127,11 @@ spec:
         {{- include "osmo.component.extraEnv" .Values.services.logger | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.logger) }}
-        {{- if or .Values.secrets.masterEncryptionKey.existingSecret .Values.configuration.enabled .Values.services.logger.volumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.logger) .Values.externalDependencies.postgresql.tls.enabled .Values.externalDependencies.valkey.tls.enabled }}
         volumeMounts:
-        {{- end }}
+        - name: osmo-runtime-tmp
+          mountPath: /tmp
+        - name: osmo-progress-files
+          mountPath: /var/run/osmo
         {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
           name: mek-volume
@@ -175,6 +177,10 @@ spec:
 
       {{- include "osmo.pod.extraSidecars" .Values.services.logger | nindent 6 }}
       volumes:
+        - name: osmo-runtime-tmp
+          emptyDir: {}
+        - name: osmo-progress-files
+          emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.logger | nindent 8 }}
         {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}

@@ -195,11 +195,11 @@ default
 {{- end -}}
 
 {{- define "osmo.component.extraVolumeMounts" -}}
-{{- with (dig "volumeMounts" list .) }}{{ toYaml . }}{{- end -}}
+{{- with (dig "extraVolumeMounts" list .) }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
 {{- define "osmo.pod.extraVolumes" -}}
-{{- with (dig "pod" "volumes" list .) }}{{ toYaml . }}{{- end -}}
+{{- with (dig "pod" "extraVolumes" list .) }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
 {{- define "osmo.pod.extraSidecars" -}}

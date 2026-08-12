@@ -7,3 +7,13 @@ type: application
 version: 0.1.0
 appVersion: "6.3.1"
 kubeVersion: ">=1.30.0-0"
+home: https://nvidia.github.io/OSMO/main/
+sources:
+- https://github.com/NVIDIA/OSMO
+keywords:
+- osmo
+- workflows
+- robotics
+- physical-ai
+- kubernetes
+icon: https://raw.githubusercontent.com/NVIDIA/OSMO/main/docs/_static/osmo_favicon.png

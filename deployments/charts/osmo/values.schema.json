@@ -30,7 +30,7 @@
     "runtimeImage": { "$ref": "#/definitions/runtimeImage" },
     "commonLabels": { "$ref": "#/definitions/stringMap" },
     "commonAnnotations": { "$ref": "#/definitions/stringMap" },
-    "podDefaults": { "$ref": "#/definitions/podSettings" },
+    "podDefaults": { "$ref": "#/definitions/podDefaults" },
     "logging": {
       "type": "object",
       "additionalProperties": false,
@@ -81,11 +81,11 @@
       "properties": {
         "api": { "$ref": "#/definitions/apiComponent" },
         "ui": { "$ref": "#/definitions/uiComponent" },
-        "router": { "$ref": "#/definitions/autoscaledServiceComponent" },
-        "worker": { "$ref": "#/definitions/autoscaledServiceComponent" },
-        "logger": { "$ref": "#/definitions/autoscaledServiceComponent" },
-        "agent": { "$ref": "#/definitions/autoscaledServiceComponent" },
-        "delayedJobMonitor": { "$ref": "#/definitions/serviceComponent" },
+        "router": { "$ref": "#/definitions/routerComponent" },
+        "worker": { "$ref": "#/definitions/workerComponent" },
+        "logger": { "$ref": "#/definitions/loggerComponent" },
+        "agent": { "$ref": "#/definitions/agentComponent" },
+        "delayedJobMonitor": { "$ref": "#/definitions/delayedJobMonitorComponent" },
         "mcp": { "$ref": "#/definitions/mcpComponent" }
       }
     },
@@ -95,7 +95,7 @@
       "properties": {
         "envoy": { "$ref": "#/definitions/gatewayEnvoyComponent" },
         "oauth2Proxy": { "$ref": "#/definitions/gatewayOauth2ProxyComponent" },
-        "authz": { "$ref": "#/definitions/autoscaledServiceComponent" },
+        "authz": { "$ref": "#/definitions/gatewayAuthzComponent" },
         "rateLimit": { "$ref": "#/definitions/gatewayRateLimitComponent" },
         "upstreams": { "$ref": "#/definitions/gatewayUpstreams" },
         "networkPolicies": { "$ref": "#/definitions/gatewayNetworkPolicies" },
@@ -366,113 +366,87 @@
         "topologySpreadConstraints": { "type": "array" },
         "hostAliases": { "type": "array" },
         "initContainers": { "type": "array" },
-        "volumes": { "type": "array" },
+        "extraVolumes": { "type": "array" },
         "sidecars": { "type": "array" },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
       }
     },
-    "serviceComponent": {
+    "podDefaults": {
       "type": "object",
       "additionalProperties": false,
-      "not": {
-        "anyOf": [
-          { "required": ["imageName"] },
-          { "required": ["imageTag"] },
-          { "required": ["imagePullPolicy"] },
-          { "required": ["serviceName"] },
-          { "required": ["serviceAccountName"] },
-          { "required": ["scaling"] },
-          { "required": ["nodeSelector"] },
-          { "required": ["tolerations"] },
-          { "required": ["extraPodLabels"] },
-          { "required": ["extraPodAnnotations"] },
-          { "required": ["extraEnv"] },
-          { "required": ["extraEnvs"] },
-          { "required": ["extraVolumeMounts"] },
-          { "required": ["extraVolumes"] },
-          { "required": ["extraSidecars"] },
-          { "required": ["extraContainers"] },
-          { "required": ["initContainers"] }
-        ]
-      },
       "properties": {
-        "enabled": { "type": "boolean" },
-        "replicas": { "type": "integer", "minimum": 0 },
-        "image": { "$ref": "#/definitions/componentImage" },
-        "pod": { "$ref": "#/definitions/podSettings" },
-        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
-        "autoscaling": { "$ref": "#/definitions/autoscaling" },
-        "deploymentStrategy": { "type": "object" },
-        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
-        "env": { "type": "array" },
-        "extraArgs": { "type": "array" },
-        "resources": { "type": "object" },
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "resourceUrl": { "type": "string" },
-        "requestTimeoutSeconds": { "type": "integer", "minimum": 1 },
-        "authorizationServers": { "type": "array" },
-        "scopes": { "type": "array" },
-        "allowedOrigins": { "type": "array" },
-        "apiHostname": { "type": "string" },
-        "portForwardEnabled": { "type": "boolean" },
-        "nextjsSslEnabled": { "type": "boolean" },
-        "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "maxHttpHeaderSizeKb": { "type": "integer", "minimum": 1 },
-        "command": { "type": "array" },
-        "args": { "type": "array" },
-        "docsBaseUrl": { "type": "string" },
-        "cliInstallScriptUrl": { "type": "string" },
-        "service": { "type": "object" },
-        "extraPorts": { "type": "array" },
-        "envFrom": { "type": "array" },
-        "volumeMounts": { "type": "array" },
-        "hostname": { "type": "string" },
-        "clientInstallUrl": { "type": "string" },
-        "disableTaskMetrics": { "type": "boolean" },
-        "auth": { "type": "object" },
-        "webserverEnabled": { "type": "boolean" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
-        "startupProbe": { "type": "object" },
-        "envoy": { "type": "object" },
-        "logLevel": { "type": "string" },
-        "listenerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "maxHeadersSizeKb": { "type": "integer", "minimum": 1 },
-        "blockedIPs": { "type": "array" },
-        "defaultIdentity": { "$ref": "#/definitions/gatewayDefaultIdentity" },
-        "ssl": { "$ref": "#/definitions/gatewaySsl" },
-        "idp": { "$ref": "#/definitions/gatewayIdp" },
-        "internalJwks": { "$ref": "#/definitions/gatewayInternalJwks" },
-        "jwt": { "$ref": "#/definitions/envoyJwt" },
-        "skipAuthPaths": { "type": "array" },
-        "extraSkipAuthPaths": { "type": "array" },
-        "routerRoute": { "$ref": "#/definitions/gatewayRouterRoute" },
-        "serviceRoutes": { "type": "array" },
-        "extraRoutes": { "type": "array" },
-        "extraClusters": { "type": "array" },
-        "maxRequests": { "type": "integer", "minimum": 1 },
-        "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "metricsPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "provider": { "type": "string" },
-        "oidcIssuerUrl": { "type": "string" },
-        "clientId": { "type": "string" },
-        "cookieName": { "type": "string" },
-        "cookieSecure": { "type": "boolean" },
-        "cookieDomain": { "type": "string" },
-        "cookieExpire": { "type": "string" },
-        "cookieRefresh": { "type": "string" },
-        "scope": { "type": "string" },
-        "passAccessToken": { "type": "boolean" },
-        "redisSessionStore": { "type": "boolean" },
-        "useKubernetesSecrets": { "type": "boolean" },
-        "secretName": { "type": "string" },
-        "clientSecretKey": { "type": "string" },
-        "cookieSecretKey": { "type": "string" },
-        "secretPaths": { "$ref": "#/definitions/oauthSecretPaths" },
-        "grpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "postgres": { "$ref": "#/definitions/authzPostgres" },
-        "cache": { "$ref": "#/definitions/authzCache" },
-        "config": { "$ref": "#/definitions/rateLimitConfig" }
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "containerSecurityContext": { "type": "object" },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "podSettingsWithoutHostAliases": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "containerSecurityContext": { "type": "object" },
+        "topologySpreadConstraints": { "type": "array" },
+        "initContainers": { "type": "array" },
+        "extraVolumes": { "type": "array" },
+        "sidecars": { "type": "array" },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "podSettingsWithoutTopologyOrHosts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "containerSecurityContext": { "type": "object" },
+        "initContainers": { "type": "array" },
+        "extraVolumes": { "type": "array" },
+        "sidecars": { "type": "array" },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "podSettingsWithVolumes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "containerSecurityContext": { "type": "object" },
+        "extraVolumes": { "type": "array" },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "podSettingsSchedulingOnly": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "containerSecurityContext": { "type": "object" },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
       }
     },
     "gatewayDefaultIdentity": {
@@ -657,76 +631,304 @@
         "extraPorts": { "type": "array" }
       }
     },
-    "autoscaledServiceComponent": {
-      "allOf": [
-        { "$ref": "#/definitions/serviceComponent" },
-        {
-          "properties": {
-            "autoscaling": { "$ref": "#/definitions/autoscaling" }
-          }
-        }
-      ]
-    },
     "apiComponent": {
-      "allOf": [
-        { "$ref": "#/definitions/autoscaledServiceComponent" },
-        {
-          "properties": {
-            "auth": { "$ref": "#/definitions/apiAuth" }
-          }
-        }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "hostname": { "type": "string" },
+        "clientInstallUrl": { "type": "string" },
+        "disableTaskMetrics": { "type": "boolean" },
+        "auth": { "$ref": "#/definitions/apiAuth" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "startupProbe": { "type": "object" },
+        "resources": { "type": "object" },
+        "extraArgs": { "type": "array" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "env": { "type": "array" },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettings" },
+        "deploymentStrategy": { "type": "object" }
+      }
     },
     "uiComponent": {
-      "allOf": [
-        { "$ref": "#/definitions/serviceComponent" },
-        {
-          "properties": {
-            "service": { "$ref": "#/definitions/uiService" }
-          }
-        }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "apiHostname": { "type": "string" },
+        "portForwardEnabled": { "type": "boolean" },
+        "nextjsSslEnabled": { "type": "boolean" },
+        "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "maxHttpHeaderSizeKb": { "type": "integer", "minimum": 1 },
+        "command": { "type": "array" },
+        "args": { "type": "array" },
+        "docsBaseUrl": { "type": "string" },
+        "cliInstallScriptUrl": { "type": "string" },
+        "service": { "$ref": "#/definitions/uiService" },
+        "resources": { "type": "object" },
+        "extraPorts": { "type": "array" },
+        "envFrom": { "type": "array" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "startupProbe": { "type": "object" },
+        "env": { "type": "array" },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettings" },
+        "deploymentStrategy": { "type": "object" }
+      }
     },
-    "gatewayComponent": {
-      "allOf": [{ "$ref": "#/definitions/serviceComponent" }]
+    "workerComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "startupProbe": { "type": "object" },
+        "resources": { "type": "object" },
+        "extraArgs": { "type": "array" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "env": { "type": "array" },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettingsWithoutHostAliases" },
+        "deploymentStrategy": { "type": "object" }
+      }
+    },
+    "routerComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "hostname": { "type": "string" },
+        "webserverEnabled": { "type": "boolean" },
+        "extraArgs": { "type": "array" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "extraPorts": { "type": "array" },
+        "resources": { "type": "object" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "startupProbe": { "type": "object" },
+        "env": { "type": "array" },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettings" },
+        "deploymentStrategy": { "type": "object" }
+      }
+    },
+    "loggerComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "startupProbe": { "type": "object" },
+        "resources": { "type": "object" },
+        "extraArgs": { "type": "array" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "envoy": { "type": "object" },
+        "env": { "type": "array" },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettings" },
+        "deploymentStrategy": { "type": "object" }
+      }
+    },
+    "agentComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "startupProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "resources": { "type": "object" },
+        "extraArgs": { "type": "array" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "envoy": { "type": "object" },
+        "env": { "type": "array" },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettings" },
+        "deploymentStrategy": { "type": "object" }
+      }
+    },
+    "delayedJobMonitorComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "startupProbe": { "type": "object" },
+        "resources": { "type": "object" },
+        "extraArgs": { "type": "array" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "env": { "type": "array" },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettingsWithoutTopologyOrHosts" },
+        "deploymentStrategy": { "type": "object" }
+      }
     },
     "gatewayEnvoyComponent": {
-      "allOf": [
-        { "$ref": "#/definitions/autoscaledServiceComponent" },
-        {
-          "not": { "required": ["ingress"] },
-          "properties": {
-            "service": { "$ref": "#/definitions/gatewayService" },
-            "jwt": { "$ref": "#/definitions/envoyJwt" }
-          }
-        }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "logLevel": { "type": "string" },
+        "listenerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "maxHeadersSizeKb": { "type": "integer", "minimum": 1 },
+        "blockedIPs": { "type": "array" },
+        "hostname": { "type": "string" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "defaultIdentity": { "$ref": "#/definitions/gatewayDefaultIdentity" },
+        "service": { "$ref": "#/definitions/gatewayService" },
+        "ssl": { "$ref": "#/definitions/gatewaySsl" },
+        "resources": { "type": "object" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "startupProbe": { "type": "object" },
+        "idp": { "$ref": "#/definitions/gatewayIdp" },
+        "internalJwks": { "$ref": "#/definitions/gatewayInternalJwks" },
+        "jwt": { "$ref": "#/definitions/envoyJwt" },
+        "skipAuthPaths": { "type": "array" },
+        "extraSkipAuthPaths": { "type": "array" },
+        "routerRoute": { "$ref": "#/definitions/gatewayRouterRoute" },
+        "serviceRoutes": { "type": "array" },
+        "extraRoutes": { "type": "array" },
+        "extraClusters": { "type": "array" },
+        "maxRequests": { "type": "integer", "minimum": 1 },
+        "extraVolumeMounts": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "deploymentStrategy": { "type": "object" }
+      }
     },
     "gatewayOauth2ProxyComponent": {
-      "allOf": [
-        { "$ref": "#/definitions/autoscaledServiceComponent" },
-        { "not": { "required": ["redis"] } }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "metricsPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "provider": { "type": "string" },
+        "oidcIssuerUrl": { "type": "string" },
+        "clientId": { "type": "string" },
+        "cookieName": { "type": "string" },
+        "cookieSecure": { "type": "boolean" },
+        "cookieDomain": { "type": "string" },
+        "cookieExpire": { "type": "string" },
+        "cookieRefresh": { "type": "string" },
+        "scope": { "type": "string" },
+        "passAccessToken": { "type": "boolean" },
+        "redisSessionStore": { "type": "boolean" },
+        "useKubernetesSecrets": { "type": "boolean" },
+        "secretName": { "type": "string" },
+        "clientSecretKey": { "type": "string" },
+        "cookieSecretKey": { "type": "string" },
+        "secretPaths": { "$ref": "#/definitions/oauthSecretPaths" },
+        "extraArgs": { "type": "array" },
+        "resources": { "type": "object" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "extraVolumeMounts": { "type": "array" },
+        "env": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "deploymentStrategy": { "type": "object" }
+      }
+    },
+    "gatewayAuthzComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "grpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "postgres": { "$ref": "#/definitions/authzPostgres" },
+        "cache": { "$ref": "#/definitions/authzCache" },
+        "resources": { "type": "object" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "extraVolumeMounts": { "type": "array" },
+        "env": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "deploymentStrategy": { "type": "object" }
+      }
     },
     "gatewayRateLimitComponent": {
-      "allOf": [
-        { "$ref": "#/definitions/gatewayComponent" },
-        { "not": { "required": ["redis"] } }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "grpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "config": { "$ref": "#/definitions/rateLimitConfig" },
+        "resources": { "type": "object" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "extraVolumeMounts": { "type": "array" },
+        "env": { "type": "array" },
+        "command": { "type": "array" },
+        "args": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "deploymentStrategy": { "type": "object" }
+      }
     },
     "mcpComponent": {
-      "allOf": [
-        { "$ref": "#/definitions/serviceComponent" },
-        {
-          "properties": {
-            "requestTimeoutSeconds": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 60
-            }
-          }
-        }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "resourceUrl": { "type": "string" },
+        "requestTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "authorizationServers": { "type": "array" },
+        "scopes": { "type": "array" },
+        "allowedOrigins": { "type": "array" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+        "resources": { "type": "object" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "startupProbe": { "type": "object" },
+        "env": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettingsSchedulingOnly" },
+        "deploymentStrategy": { "type": "object" }
+      }
     },
     "tlsConnection": {
       "type": "object",

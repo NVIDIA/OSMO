@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  api:
+    extraVolumeMounts:
+    - name: api-extension
+      mountPath: /var/lib/osmo-extension
+    pod:
+      extraVolumes:
+      - name: api-extension
+        emptyDir: {}
+  worker:
+    extraVolumeMounts:
+    - name: worker-extension
+      mountPath: /var/lib/osmo-worker-extension
+    pod:
+      extraVolumes:
+      - name: worker-extension
+        emptyDir: {}

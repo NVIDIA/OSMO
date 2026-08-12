@@ -113,10 +113,10 @@ spec:
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.ui) }}
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" .Values.services.ui) | nindent 10 }}
-        {{- if .Values.services.ui.volumeMounts }}
+        {{- if .Values.services.ui.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
-        {{- with .Values.services.ui.volumeMounts }}
+        {{- with .Values.services.ui.extraVolumeMounts }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         resources:
@@ -239,7 +239,7 @@ spec:
         {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
-        {{- with .Values.services.ui.pod.volumes }}
+        {{- with .Values.services.ui.pod.extraVolumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
 

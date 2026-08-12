@@ -28,7 +28,7 @@ labels, and workload selector labels. This grammar keeps generic chart helpers,
 component helpers, gateway helpers, and application-specific helpers distinct.
 
 Chart-owned value names use lower camel case, such as `externalUrl`,
-`externalDependencies`, `imagePullSecrets`, and `gateway.envoy`. The
+`externalDependencies`, `global.imagePullSecrets`, and `gateway.envoy`. The
 `configuration.*` subtree is the exception: it carries OSMO application
 configuration and preserves the application's field spelling. Use the
 currently documented values; the chart does not provide aliases for superseded
@@ -58,14 +58,25 @@ configuration resources that belong to the API use that same derived name.
 - `externalUrl` is the required public OSMO URL used in generated service
   configuration and redirects.
 - `ingress` and `httproute` optionally configure Kubernetes edge resources.
+- `monitoring` configures Prometheus Operator PodMonitors.
 - `secrets` contains typed references to operator-owned Kubernetes Secrets.
 - `configuration` contains shared OSMO domain configuration.
-- `image`, `imagePullSecrets`, `commonLabels`, `commonAnnotations`, and
-  `podDefaults` provide shared workload defaults.
+- `global`, `runtimeImage`, `commonLabels`, `commonAnnotations`, and
+  `podDefaults` provide shared image, metadata, and workload defaults.
 
-Service images inherit the top-level registry, repository prefix, tag, and
-pull policy. A component can override these beneath its own `image` block.
-Maps merge with shared defaults and component lists replace inherited lists.
+Every component image uses `registry`, `repository`, `tag`, `digest`, and
+`pullPolicy`. A non-empty `global.imageRegistry` replaces every component and
+runtime registry, which supports a registry mirror without rewriting
+repositories. A component digest takes precedence over its tag. Workflow
+runtime images use the separate `runtimeImage` repository and tag. Configure
+registry credentials once through `global.imagePullSecrets`.
+
+Chart-owned values are schema-validated and unknown keys fail installation.
+Kubernetes pass-through structures such as resources, probes, affinity,
+security contexts, volumes, custom HPA metrics and behavior, and PodMonitor
+TLS/relabeling remain open to fields supported by the target Kubernetes APIs.
+The `configuration` subtree remains open because it is OSMO application
+configuration rather than a Helm API.
 
 ## Control-plane installation
 
@@ -115,6 +126,70 @@ helm upgrade --install osmo deployments/charts/osmo \
   --wait \
   --timeout 25m
 ```
+
+## Scaling and disruption behavior
+
+Every scalable component has the same `autoscaling` contract. When
+`autoscaling.enabled` is false, its Deployment uses `replicas` and the chart
+does not create an HPA. When it is true, the HPA owns replica count through
+`minReplicas` and `maxReplicas`; optional `behavior` is passed directly to the
+autoscaling/v2 API.
+
+CPU or memory utilization targets require matching non-empty
+`resources.requests.cpu` or `resources.requests.memory`. The chart rejects an
+enabled HPA that Kubernetes could not calculate. The split-plane control
+profile enables autoscaling for the production API, router, worker, logger,
+agent, and Envoy workloads and supplies their required requests.
+
+Each component also has a `podDisruptionBudget` block. General defaults leave
+budgets disabled so local clusters are easy to drain. The production profile
+enables `maxUnavailable: 1` with `unhealthyPodEvictionPolicy: AlwaysAllow` for
+replicated API, router, worker, logger, and Envoy workloads. A PDB protects only
+against voluntary disruption; it does not replace replicas, topology spread,
+health probes, or application-level recovery. Overly strict budgets can block
+node drains, so set exactly one of `minAvailable` and `maxUnavailable`.
+
+## Pod and ServiceAccount security
+
+`podDefaults` supplies shared affinity, scheduling, Pod security context,
+container security context, and termination grace period. Component `pod`
+values override shared maps. The default Pod security context uses
+`seccompProfile.type: RuntimeDefault`; containers drop all Linux capabilities,
+disallow privilege escalation, and run as non-root.
+
+The API, UI, router, worker, logger, agent, delayed-job monitor, and Envoy
+default to `readOnlyRootFilesystem: true`. Their shipped images were validated
+in a live Kind deployment with that setting. The chart mounts ephemeral
+`emptyDir` volumes at `/tmp` where services mint ephemeral TLS material and at
+`/var/run/osmo` where progress probes exchange state. These writable paths are
+chart-owned and remain present when operators append custom
+`extraVolumeMounts` and `pod.extraVolumes`. Optional components that have not
+passed the same live check do not claim this default.
+
+`serviceAccount.automountServiceAccountToken` defaults to false for components
+that do not use the Kubernetes API. It remains true for the API because
+configuration reload reporting reads its ConfigMap and creates Events through
+the chart's Role. The value controls both the Pod and any ServiceAccount the
+component asks the chart to create.
+
+## Metadata precedence
+
+`commonLabels` and `commonAnnotations` apply to all chart-owned resources.
+`podDefaults.labels` and `podDefaults.annotations` add Pod-only metadata, and
+resource or component maps override common metadata. Chart identity labels and
+behavioral annotations such as the Envoy configuration checksum are protected
+and take final precedence so user metadata cannot break selectors or rollout
+triggers.
+
+## Prometheus Operator monitoring
+
+Set `monitoring.podMonitor.enabled: true` when the Prometheus Operator CRDs are
+installed. The chart creates an OSMO application PodMonitor and, when their
+components are enabled, separate Envoy and OAuth2 Proxy monitors. Configure
+Prometheus discovery through `labels`, metadata through `annotations`, and
+scraping through `interval`, `scrapeTimeout`, `scheme`, `tlsConfig`,
+`honorLabels`, `targetLabels`, `relabelings`, and `metricRelabelings`. The chart
+does not install the Prometheus Operator or its CRDs.
 
 ## Existing Secret contract
 
