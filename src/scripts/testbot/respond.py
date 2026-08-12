@@ -44,7 +44,10 @@ ALLOWED_TOOLS = (
     "Bash(bazel test *),Bash(bazel build *),"
     "Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),"
     "Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *),"
-    "Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *)"
+    "Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *),"
+    # Needed for "/testbot update the PR description" requests; the workflow
+    # token already carries pull-requests: write.
+    "Bash(gh pr edit *)"
 )
 
 THREADS_QUERY = """
