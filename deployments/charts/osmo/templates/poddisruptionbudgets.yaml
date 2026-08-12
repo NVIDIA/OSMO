@@ -25,9 +25,9 @@ metadata:
   labels:
     {{- $labels := mergeOverwrite (deepCopy (dig "labels" dict $pdb)) (include "osmo.component.labels" (dict "root" $root "component" $item.componentName) | fromYaml) }}
     {{- toYaml $labels | nindent 4 }}
-  {{- with (dig "annotations" dict $pdb) }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" $root "annotations" (dig "annotations" dict $pdb))) }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- . | nindent 4 }}
   {{- end }}
 spec:
   selector:

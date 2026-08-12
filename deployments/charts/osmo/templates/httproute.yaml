@@ -11,9 +11,9 @@ metadata:
   name: {{ include "osmo.gateway.fullname" . }}
   labels:
     {{- toYaml $labels | nindent 4 }}
-  {{- with $route.annotations }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $route.annotations)) }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- . | nindent 4 }}
   {{- end }}
 spec:
   parentRefs:

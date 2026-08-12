@@ -109,6 +109,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 data:
   bootstrap.yaml: |
     admin:

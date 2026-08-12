@@ -63,6 +63,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- toYaml (mergeOverwrite $labels $identity) -}}
 {{- end -}}
 
+{{- define "osmo.metadata.annotations" -}}
+{{- $annotations := deepCopy .root.Values.commonAnnotations -}}
+{{- $annotations = mergeOverwrite $annotations (dig "annotations" dict .) -}}
+{{- $annotations = mergeOverwrite $annotations (dig "protectedAnnotations" dict .) -}}
+{{- with $annotations }}{{ toYaml . }}{{- end -}}
+{{- end -}}
+
 {{- define "osmo.component.fullname" -}}
 {{- $root := .root -}}
 {{- $suffix := .suffix -}}
@@ -120,6 +127,7 @@ default
 
 {{- define "osmo.pod.annotations" -}}
 {{- $annotations := mergeOverwrite (deepCopy .root.Values.commonAnnotations) .root.Values.podDefaults.annotations (dig "pod" "annotations" dict .component) -}}
+{{- $annotations = mergeOverwrite $annotations (dig "protectedAnnotations" dict .) -}}
 {{- with $annotations }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
@@ -204,6 +212,10 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" $ "component" "configuration") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" $)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 data:
   {{- toYaml .data | nindent 2 }}
 {{- end }}

@@ -9,11 +9,12 @@ externalDependencies:
     tls:
       enabled: false
 
+monitoring:
+  podMonitor:
+    enabled: true
+
 services:
-  api:
-    monitoring:
-      podMonitor:
-        enabled: true
+  api: {}
   ui:
     docsBaseUrl: "*docs"
     cliInstallScriptUrl: "&install"

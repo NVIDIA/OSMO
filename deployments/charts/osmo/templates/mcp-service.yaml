@@ -32,6 +32,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ $mcp.replicas }}
   {{- with $mcp.deploymentStrategy }}
@@ -117,6 +121,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   ports:
@@ -135,6 +143,10 @@ metadata:
   name: {{ $name }}-allow-gateway-envoy
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   podSelector:
     matchLabels:

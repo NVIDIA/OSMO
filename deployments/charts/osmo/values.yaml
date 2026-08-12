@@ -143,6 +143,21 @@ httproute:
         type: PathPrefix
         value: /
 
+# Optional Prometheus Operator PodMonitors for OSMO metrics endpoints.
+monitoring:
+  podMonitor:
+    enabled: false
+    labels: {}
+    annotations: {}
+    interval: 30s
+    scrapeTimeout: 10s
+    scheme: http
+    tlsConfig: {}
+    honorLabels: false
+    targetLabels: []
+    relabelings: []
+    metricRelabelings: []
+
 # References to operator-owned Kubernetes Secrets. Inline credentials are not
 # accepted.
 # TODO: Implement retained chart-generated credentials for `generate: true`;
@@ -438,13 +453,6 @@ services:
   # Main OSMO REST API and control-plane service.
   api:
     enabled: true
-    monitoring:
-      podMonitor:
-        enabled: false
-        interval: 30s
-        scrapeTimeout: 10s
-        scheme: http
-        tlsConfig: {}
     autoscaling:
       enabled: false
       minReplicas: 3

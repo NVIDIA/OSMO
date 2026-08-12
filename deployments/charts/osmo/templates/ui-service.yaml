@@ -21,6 +21,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "ui") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not .Values.services.ui.autoscaling.enabled }}
   replicas: {{ .Values.services.ui.replicas }}
@@ -248,9 +252,9 @@ metadata:
   labels:
     {{- $serviceLabels := mergeOverwrite (deepCopy .Values.services.ui.service.labels) (include "osmo.component.labels" (dict "root" . "component" "ui") | fromYaml) }}
     {{- toYaml $serviceLabels | nindent 4 }}
-  {{- with .Values.services.ui.service.annotations }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.ui.service.annotations)) }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- . | nindent 4 }}
   {{- end }}
 spec:
   {{- with .Values.services.ui.service.type }}
@@ -281,7 +285,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "ui") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

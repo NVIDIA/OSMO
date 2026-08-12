@@ -24,6 +24,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not .Values.services.logger.autoscaling.enabled }}
   replicas: {{ .Values.services.logger.replicas }}
@@ -185,6 +189,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   ports:
     - port: 80
@@ -202,6 +210,10 @@ metadata:
   name: {{ $name }}-headless
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   clusterIP: None
   ports:
@@ -221,7 +233,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

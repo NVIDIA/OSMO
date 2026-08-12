@@ -20,9 +20,9 @@ metadata:
   name: {{ include "osmo.api.fullname" . }}-config
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
-  {{- with .Values.configuration.extraAnnotations }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.configuration.extraAnnotations)) }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- . | nindent 4 }}
   {{- end }}
 data:
   config.yaml: |

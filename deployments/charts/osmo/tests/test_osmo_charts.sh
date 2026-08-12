@@ -121,6 +121,20 @@ pod_template_labels() {
     ' "$1"
 }
 
+pod_template_annotations() {
+    awk '
+        /^  template:$/ { in_template = 1; next }
+        in_template && /^    metadata:$/ { in_metadata = 1; next }
+        in_metadata && /^      annotations:$/ { in_annotations = 1; next }
+        in_annotations && /^        [^ ]/ {
+            sub(/^        /, "")
+            print
+            next
+        }
+        in_annotations { exit }
+    ' "$1"
+}
+
 deployment_selector_labels() {
     awk '
         /^  selector:$/ { in_selector = 1; next }
@@ -144,6 +158,46 @@ topology_spread_constraints() {
         in_constraints && /^      [[:alnum:]]/ { exit }
         in_constraints { print }
     ' "$1"
+}
+
+require_resource_metadata_annotation() {
+    local file=$1
+    local annotation_key=$2
+    awk -v annotation_key="$annotation_key" '
+        BEGIN { RS = "---"; missing = 0 }
+        {
+            kind = ""
+            name = ""
+            in_metadata = 0
+            in_annotations = 0
+            found = 0
+            line_count = split($0, lines, "\n")
+            for (i = 1; i <= line_count; i++) {
+                if (lines[i] ~ /^kind: /) {
+                    kind = lines[i]
+                    sub(/^kind: /, "", kind)
+                } else if (lines[i] == "metadata:") {
+                    in_metadata = 1
+                    in_annotations = 0
+                } else if (in_metadata && lines[i] ~ /^  name: / && name == "") {
+                    name = lines[i]
+                    sub(/^  name: /, "", name)
+                } else if (in_metadata && lines[i] == "  annotations:") {
+                    in_annotations = 1
+                } else if (in_annotations && index(lines[i], "    " annotation_key ":") == 1) {
+                    found = 1
+                } else if (in_metadata && lines[i] ~ /^[^ ]/) {
+                    in_metadata = 0
+                    in_annotations = 0
+                }
+            }
+            if (kind != "" && !found) {
+                print "missing " annotation_key " on " kind "/" name > "/dev/stderr"
+                missing = 1
+            }
+        }
+        END { exit missing }
+    ' "$file" || fail "expected every rendered resource to have annotation $annotation_key"
 }
 
 require_deployment() {
@@ -948,6 +1002,80 @@ EOF
         "minAvailable: 1"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-worker-pdb.yaml" \
         "unhealthyPodEvictionPolicy: IfHealthyBudget"
+
+    helm_template monitoring "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-monitoring-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-monitoring.yaml"
+    require_resource_metadata_annotation "$TEST_DIRECTORY/osmo-monitoring.yaml" \
+        "platform.example.com/owner"
+    resource_document "$TEST_DIRECTORY/osmo-monitoring.yaml" PodMonitor \
+        monitoring-osmo-otel-monitor \
+        >"$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "prometheus: platform"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "platform.example.com/owner: monitor"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "interval: 99s"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "scrapeTimeout: 88s"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "scheme: https"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "insecureSkipVerify: true"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "honorLabels: true"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "targetLabels:"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "targetLabel: cluster"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "replacement: osmo-test"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-pod-monitor.yaml" \
+        "regex: unwanted_metric"
+
+    resource_document "$TEST_DIRECTORY/osmo-monitoring.yaml" Ingress \
+        monitoring-osmo-gateway \
+        >"$TEST_DIRECTORY/osmo-monitoring-ingress.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-ingress.yaml" \
+        "platform.example.com/owner: edge"
+    resource_document "$TEST_DIRECTORY/osmo-monitoring.yaml" Deployment \
+        monitoring-osmo-api \
+        >"$TEST_DIRECTORY/osmo-monitoring-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-api.yaml" \
+        "platform.example.com/owner: common"
+    require_contains "$TEST_DIRECTORY/osmo-monitoring-api.yaml" \
+        "platform.example.com/owner: pod"
+    resource_document "$TEST_DIRECTORY/osmo-monitoring.yaml" Deployment \
+        monitoring-osmo-gateway-envoy \
+        >"$TEST_DIRECTORY/osmo-monitoring-envoy.yaml"
+    pod_template_annotations "$TEST_DIRECTORY/osmo-monitoring-envoy.yaml" \
+        >"$TEST_DIRECTORY/osmo-monitoring-envoy-pod-annotations.yaml"
+    require_occurrences \
+        "$TEST_DIRECTORY/osmo-monitoring-envoy-pod-annotations.yaml" \
+        "checksum/envoy-config:" 1
+    require_not_contains \
+        "$TEST_DIRECTORY/osmo-monitoring-envoy-pod-annotations.yaml" \
+        "checksum/envoy-config: wrong"
+
+    helm_template monitoring-defaults "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-monitoring-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-monitoring-defaults.yaml"
+    require_resource_metadata_annotation \
+        "$TEST_DIRECTORY/osmo-monitoring-defaults.yaml" \
+        "platform.example.com/owner"
+
+    helm_template monitoring-mcp "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-monitoring-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-monitoring-mcp.yaml"
+    require_resource_metadata_annotation \
+        "$TEST_DIRECTORY/osmo-monitoring-mcp.yaml" \
+        "platform.example.com/owner"
 
     if helm_template invalid-pdb "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

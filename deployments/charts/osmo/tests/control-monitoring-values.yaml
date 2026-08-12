@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+commonAnnotations:
+  platform.example.com/owner: common
+  checksum/envoy-config: wrong
+
+podDefaults:
+  annotations:
+    platform.example.com/owner: pod
+
+ingress:
+  enabled: true
+  hostname: osmo.example.com
+  annotations:
+    platform.example.com/owner: edge
+
+httproute:
+  enabled: true
+  parentRefs:
+  - name: shared-gateway
+
+monitoring:
+  podMonitor:
+    enabled: true
+    labels:
+      prometheus: platform
+    annotations:
+      platform.example.com/owner: monitor
+    interval: 99s
+    scrapeTimeout: 88s
+    scheme: https
+    tlsConfig:
+      insecureSkipVerify: true
+    honorLabels: true
+    targetLabels:
+    - app.kubernetes.io/component
+    relabelings:
+    - action: replace
+      targetLabel: cluster
+      replacement: osmo-test
+    metricRelabelings:
+    - action: drop
+      sourceLabels:
+      - __name__
+      regex: unwanted_metric

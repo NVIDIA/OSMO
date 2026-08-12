@@ -13,19 +13,47 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-{{- if .Values.services.api.monitoring.podMonitor.enabled }}
+{{- define "osmo.monitoring.podMetricsEndpoint" -}}
+interval: {{ .monitor.interval }}
+scrapeTimeout: {{ .monitor.scrapeTimeout }}
+scheme: {{ .monitor.scheme }}
+port: {{ .port }}
+path: {{ .path }}
+honorLabels: {{ .monitor.honorLabels }}
+{{- with .monitor.tlsConfig }}
+tlsConfig:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .monitor.relabelings }}
+relabelings:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .monitor.metricRelabelings }}
+metricRelabelings:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+{{- $monitor := .Values.monitoring.podMonitor -}}
+{{- if $monitor.enabled }}
 {{- $root := . }}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: {{ include "osmo.component.fullname" (dict "root" $root "suffix" "otel-monitor") }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" $root "component" "monitoring") | nindent 4 }}
+    {{- $labels := mergeOverwrite (deepCopy $monitor.labels) (include "osmo.component.labels" (dict "root" $root "component" "monitoring") | fromYaml) }}
+    {{- toYaml $labels | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" $root "annotations" $monitor.annotations)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
+  {{- with $monitor.targetLabels }}
+  targetLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   podMetricsEndpoints:
-  - interval: 15s
-    port: metrics
-    path: /metrics
+  - {{ include "osmo.monitoring.podMetricsEndpoint" (dict "monitor" $monitor "port" "metrics" "path" "/metrics") | nindent 4 | trim }}
   selector:
     matchLabels:
       {{- include "osmo.selectorLabels" $root | nindent 6 }}
@@ -35,36 +63,50 @@ spec:
         values: [agent, api, worker, logger, delayed-job-monitor]
       }
 {{- end }}
-{{- if and .Values.services.api.monitoring.podMonitor.enabled .Values.gateway.envoy.enabled }}
+{{- if and $monitor.enabled .Values.gateway.envoy.enabled }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "gateway-envoy-monitor") }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "monitoring") | nindent 4 }}
+    {{- $labels := mergeOverwrite (deepCopy $monitor.labels) (include "osmo.component.labels" (dict "root" . "component" "monitoring") | fromYaml) }}
+    {{- toYaml $labels | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $monitor.annotations)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
+  {{- with $monitor.targetLabels }}
+  targetLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   podMetricsEndpoints:
-  - interval: 15s
-    port: envoy-admin
-    path: /stats/prometheus
+  - {{ include "osmo.monitoring.podMetricsEndpoint" (dict "monitor" $monitor "port" "envoy-admin" "path" "/stats/prometheus") | nindent 4 | trim }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-envoy") | nindent 6 }}
 {{- end }}
-{{- if and .Values.services.api.monitoring.podMonitor.enabled .Values.gateway.oauth2Proxy.enabled }}
+{{- if and $monitor.enabled .Values.gateway.oauth2Proxy.enabled }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "gateway-oauth2-proxy-monitor") }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "monitoring") | nindent 4 }}
+    {{- $labels := mergeOverwrite (deepCopy $monitor.labels) (include "osmo.component.labels" (dict "root" . "component" "monitoring") | fromYaml) }}
+    {{- toYaml $labels | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $monitor.annotations)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
+  {{- with $monitor.targetLabels }}
+  targetLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   podMetricsEndpoints:
-  - interval: 15s
-    port: oauth2-metrics
-    path: /metrics
+  - {{ include "osmo.monitoring.podMetricsEndpoint" (dict "monitor" $monitor "port" "oauth2-metrics" "path" "/metrics") | nindent 4 | trim }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 6 }}

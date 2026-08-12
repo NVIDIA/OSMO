@@ -61,6 +61,7 @@
     },
     "ingress": { "$ref": "#/definitions/ingress" },
     "httproute": { "$ref": "#/definitions/httpRoute" },
+    "monitoring": { "$ref": "#/definitions/monitoring" },
     "externalDependencies": {
       "type": "object",
       "additionalProperties": false,
@@ -110,7 +111,7 @@
       }
     }
   },
-  "required": ["planes", "embeddedDependencies", "externalDependencies", "image", "externalUrl", "ingress", "httproute", "secrets", "services", "gateway"],
+  "required": ["planes", "embeddedDependencies", "externalDependencies", "image", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
@@ -199,6 +200,32 @@
         "caSecret": { "type": "string" }
       },
       "required": ["enabled", "upstreamCerts", "caSecret"]
+    },
+    "podMonitor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "interval": { "type": "string", "minLength": 1 },
+        "scrapeTimeout": { "type": "string", "minLength": 1 },
+        "scheme": { "type": "string", "enum": ["http", "https"] },
+        "tlsConfig": { "type": "object" },
+        "honorLabels": { "type": "boolean" },
+        "targetLabels": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "relabelings": { "type": "array", "items": { "type": "object" } },
+        "metricRelabelings": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["enabled", "labels", "annotations", "interval", "scrapeTimeout", "scheme", "tlsConfig", "honorLabels", "targetLabels", "relabelings", "metricRelabelings"]
+    },
+    "monitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "podMonitor": { "$ref": "#/definitions/podMonitor" }
+      },
+      "required": ["podMonitor"]
     },
     "ingressTls": {
       "type": "object",

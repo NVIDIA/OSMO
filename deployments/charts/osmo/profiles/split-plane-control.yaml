@@ -54,9 +54,6 @@ services:
       annotations: {}
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
-    monitoring:
-      podMonitor:
-        enabled: false
   router:
     autoscaling:
       enabled: true
@@ -103,6 +100,10 @@ gateway:
   authz:
     enabled: false
   rateLimit:
+    enabled: false
+
+monitoring:
+  podMonitor:
     enabled: false
 
 secrets:

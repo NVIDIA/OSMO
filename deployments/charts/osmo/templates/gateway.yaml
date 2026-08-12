@@ -35,6 +35,10 @@ metadata:
   name: {{ $gwName }}-envoy
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not $gw.envoy.autoscaling.enabled }}
   replicas: {{ $gw.envoy.replicas }}
@@ -51,8 +55,7 @@ spec:
       labels:
         {{- include "osmo.pod.labels" (dict "root" . "component" $gw.envoy "componentName" "gateway-envoy") | nindent 8 }}
       annotations:
-        checksum/envoy-config: {{ include "osmo.gateway.envoyConfig" . | sha256sum }}
-        {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.envoy) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.envoy "protectedAnnotations" (dict "checksum/envoy-config" (include "osmo.gateway.envoyConfig" . | sha256sum))) | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ $gw.envoy.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -158,9 +161,9 @@ metadata:
   name: {{ $gwName }}
   labels:
     {{- toYaml $serviceLabels | nindent 4 }}
-  {{- with $service.annotations }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $service.annotations)) }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- . | nindent 4 }}
   {{- end }}
 spec:
   type: {{ $service.type }}
@@ -194,6 +197,10 @@ metadata:
   name: {{ $gwName }}-envoy
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -243,6 +250,10 @@ metadata:
   name: {{ $gwName }}-oauth2-proxy
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not $gw.oauth2Proxy.autoscaling.enabled }}
   replicas: {{ $gw.oauth2Proxy.replicas }}
@@ -381,6 +392,10 @@ metadata:
   name: {{ $gwName }}-oauth2-proxy
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   ports:
     - port: {{ $gw.oauth2Proxy.httpPort }}
@@ -403,6 +418,10 @@ metadata:
   name: {{ $gwName }}-oauth2-proxy
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -451,6 +470,10 @@ metadata:
   name: {{ $gwName }}-authz
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-authz") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not $gw.authz.autoscaling.enabled }}
   replicas: {{ $gw.authz.replicas }}
@@ -554,6 +577,10 @@ metadata:
   name: {{ $gwName }}-authz
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-authz") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   ports:
     - port: {{ $gw.authz.grpcPort }}
@@ -572,6 +599,10 @@ metadata:
   name: {{ $gwName }}-authz
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-authz") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -620,6 +651,10 @@ metadata:
   name: {{ $gwName }}-ratelimit-config
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "configuration") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 data:
   config.yaml: |
     domain: {{ $gw.rateLimit.config.domain | default "ratelimit" }}
@@ -634,6 +669,10 @@ metadata:
   name: {{ $gwName }}-ratelimit
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-ratelimit") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ $gw.rateLimit.replicas }}
   {{- with $gw.rateLimit.deploymentStrategy }}
@@ -751,6 +790,10 @@ metadata:
   name: {{ $gwName }}-ratelimit
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-ratelimit") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   ports:
     - port: {{ $gw.rateLimit.grpcPort }}
@@ -780,6 +823,10 @@ metadata:
   name: {{ $gwName }}-allow-envoy-to-{{ .name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" $ "component" .component) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" $)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   podSelector:
     matchLabels:

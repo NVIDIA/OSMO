@@ -21,6 +21,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "delayed-job-monitor") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ .Values.services.delayedJobMonitor.replicas }}
   {{- with .Values.services.delayedJobMonitor.deploymentStrategy }}

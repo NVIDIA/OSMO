@@ -21,6 +21,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not .Values.services.api.autoscaling.enabled }}
   replicas: {{ .Values.services.api.replicas }}
@@ -208,6 +212,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   ports:
     - port: 80
@@ -226,7 +234,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

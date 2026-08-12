@@ -12,9 +12,9 @@ metadata:
   name: {{ $gatewayName }}
   labels:
     {{- toYaml $labels | nindent 4 }}
-  {{- with $ingress.annotations }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $ingress.annotations)) }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- . | nindent 4 }}
   {{- end }}
 spec:
   {{- with $ingress.ingressClassName }}
