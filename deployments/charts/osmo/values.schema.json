@@ -310,7 +310,7 @@
         },
         "externalTrafficPolicy": { "type": "string", "enum": ["Cluster", "Local"] }
       },
-      "required": ["type", "port", "nodePort", "labels", "annotations", "loadBalancerClass", "loadBalancerSourceRanges", "externalTrafficPolicy"]
+      "required": ["type", "port", "labels", "annotations", "loadBalancerClass", "loadBalancerSourceRanges", "externalTrafficPolicy"]
     },
     "imagePullSecrets": {
       "type": "array",
@@ -571,7 +571,7 @@
         "customMetrics": { "type": "array" },
         "behavior": { "type": "object" }
       },
-      "required": ["enabled", "minReplicas", "maxReplicas", "hpaMemoryTarget", "hpaCpuTarget", "customMetrics", "behavior"]
+      "required": ["enabled", "minReplicas", "maxReplicas", "hpaCpuTarget", "customMetrics", "behavior"]
     },
     "serviceAccount": {
       "type": "object",

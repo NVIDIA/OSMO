@@ -221,6 +221,11 @@ test_control_umbrella() {
     rm -rf "$charts_copy/osmo/charts"
     rm -f "$charts_copy/osmo/Chart.lock"
 
+    if ! helm lint "$charts_copy/osmo" >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
+        cat "$TEST_DIRECTORY/osmo-lint.out" >&2
+        fail "expected chart defaults to pass helm lint"
+    fi
+
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
