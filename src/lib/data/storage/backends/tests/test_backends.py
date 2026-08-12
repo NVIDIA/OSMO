@@ -518,6 +518,96 @@ class IsAwsEndpointTest(unittest.TestCase):
         for url in ['', '   ', 'not-a-url']:
             self.assertFalse(backends._is_aws_endpoint(url), url)
 
+    def test_unterminated_ipv6_literal_returns_false(self):
+        """urlparse raises ValueError on an unterminated IPv6 literal; the guard
+        must swallow it and report 'not AWS' rather than propagate."""
+        self.assertFalse(backends._is_aws_endpoint('http://[::1'))
+
+
+class SkipDataAuthTest(unittest.TestCase):
+    """Tests for the OSMO_SKIP_DATA_AUTH bypass gate."""
+
+    # pylint: disable=protected-access
+
+    def test_unset_returns_false(self):
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertFalse(backends._skip_data_auth())
+
+    def test_zero_returns_false(self):
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: '0'}):
+            self.assertFalse(backends._skip_data_auth())
+
+    def test_one_returns_true(self):
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: '1'}):
+            self.assertTrue(backends._skip_data_auth())
+
+    def test_truthy_string_returns_false(self):
+        """Only the literal '1' disables credential validation — a truthy-looking
+        value must not silently open the bypass."""
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: 'true'}):
+            self.assertFalse(backends._skip_data_auth())
+
+
+class ConstructStorageBackendTest(unittest.TestCase):
+    """Tests for construct_storage_backend scheme dispatch and URI validation."""
+
+    def test_swift_uri_returns_swift_backend(self):
+        backend = backends.construct_storage_backend(
+            'swift://swift.example.com/AUTH_team/mycontainer/data',
+        )
+        self.assertIsInstance(backend, backends.SwiftBackend)
+
+    def test_s3_uri_returns_s3_backend(self):
+        backend = backends.construct_storage_backend('s3://my-bucket/data')
+        self.assertIsInstance(backend, backends.S3Backend)
+
+    def test_gs_uri_returns_gs_backend(self):
+        backend = backends.construct_storage_backend('gs://my-bucket/data')
+        self.assertIsInstance(backend, backends.GSBackend)
+
+    def test_tos_uri_returns_tos_backend(self):
+        backend = backends.construct_storage_backend(
+            'tos://tos-s3-cn-beijing.volces.com/my-bucket/data',
+        )
+        self.assertIsInstance(backend, backends.TOSBackend)
+
+    def test_azure_uri_returns_azure_backend(self):
+        backend = backends.construct_storage_backend('azure://myaccount/mycontainer/data')
+        self.assertIsInstance(backend, backends.AzureBlobStorageBackend)
+
+    def test_unknown_scheme_raises(self):
+        with self.assertRaises(osmo_errors.OSMOError) as ctx:
+            backends.construct_storage_backend('ftp://host/path')
+        self.assertIn('Unknown URI scheme: ftp', str(ctx.exception))
+
+    def test_malformed_swift_uri_raises(self):
+        """Swift requires namespace and container; one path segment is not enough."""
+        with self.assertRaises(osmo_errors.OSMOError) as ctx:
+            backends.construct_storage_backend('swift://swift.example.com/AUTH_team')
+        self.assertIn('Incorrectly formatted Swift URI', str(ctx.exception))
+
+    def test_malformed_s3_uri_raises(self):
+        with self.assertRaises(osmo_errors.OSMOError) as ctx:
+            backends.construct_storage_backend('s3://my,bucket/data')
+        self.assertIn('Incorrectly formatted S3 URI', str(ctx.exception))
+
+    def test_malformed_gs_uri_raises(self):
+        with self.assertRaises(osmo_errors.OSMOError) as ctx:
+            backends.construct_storage_backend('gs://my,bucket/data')
+        self.assertIn('Incorrectly formatted GS URI', str(ctx.exception))
+
+    def test_malformed_tos_uri_raises(self):
+        """TOS requires a bucket segment after the host."""
+        with self.assertRaises(osmo_errors.OSMOError) as ctx:
+            backends.construct_storage_backend('tos://tos-s3-cn-beijing.volces.com')
+        self.assertIn('Incorrectly formatted TOS URI', str(ctx.exception))
+
+    def test_malformed_azure_uri_raises(self):
+        """Azure requires a container segment after the storage account."""
+        with self.assertRaises(osmo_errors.OSMOError) as ctx:
+            backends.construct_storage_backend('azure://myaccount')
+        self.assertIn('Incorrectly formatted Azure URI', str(ctx.exception))
+
 
 class GetS3AddressingStyleTest(unittest.TestCase):
     """Tests for _get_s3_addressing_style helper."""
@@ -860,6 +950,902 @@ class EndpointValidationErrorTest(unittest.TestCase):
             access_key='s',
         )
         self.assertEqual(cred.endpoint, 's3://bucket/prefix')
+
+
+class SwiftBackendUriTest(unittest.TestCase):
+    """Tests for SwiftBackend URI parsing and derived addresses."""
+
+    @staticmethod
+    def _backend(
+        uri: str = 'swift://swift.example.com/AUTH_team/mycontainer/data/file.txt',
+        profile: bool = False,
+    ) -> backends.SwiftBackend:
+        return cast(
+            backends.SwiftBackend,
+            backends.construct_storage_backend(uri, profile=profile),
+        )
+
+    def test_endpoint_is_https_netloc(self):
+        self.assertEqual(self._backend().endpoint, 'https://swift.example.com')
+
+    def test_profile_includes_namespace(self):
+        self.assertEqual(self._backend().profile, 'swift://swift.example.com/AUTH_team')
+
+    def test_container_uri_appends_container_to_profile(self):
+        self.assertEqual(
+            self._backend().container_uri,
+            'swift://swift.example.com/AUTH_team/mycontainer',
+        )
+
+    def test_parse_uri_to_link_uses_v1_path(self):
+        self.assertEqual(
+            self._backend().parse_uri_to_link('us-east-1'),
+            'https://swift.example.com/v1/AUTH_team/mycontainer/data/file.txt',
+        )
+
+    def test_parse_uri_to_link_strips_trailing_slash_for_container_root(self):
+        link = self._backend('swift://swift.example.com/AUTH_team/mycontainer').parse_uri_to_link(
+            'us-east-1',
+        )
+        self.assertEqual(link, 'https://swift.example.com/v1/AUTH_team/mycontainer')
+
+    def test_profile_uri_has_empty_container_and_path(self):
+        backend = self._backend('swift://swift.example.com/AUTH_team', profile=True)
+        self.assertEqual(
+            (backend.namespace, backend.container, backend.path),
+            ('AUTH_team', '', ''),
+        )
+
+    def test_region_uses_credential_region(self):
+        region = self._backend().region(
+            _static_cred('swift://swift.example.com/AUTH_team', region='us-west-2'),
+        )
+        self.assertEqual(region, 'us-west-2')
+
+    def test_region_falls_back_to_default(self):
+        region = self._backend().region(_static_cred('swift://swift.example.com/AUTH_team'))
+        self.assertEqual(region, constants.DEFAULT_BOTO3_REGION)
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_region_resolves_credential_when_none_given(self, mock_get_config):
+        mock_get_config.return_value = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            region='eu-west-1',
+        )
+        self.assertEqual(self._backend().region(), 'eu-west-1')
+
+
+class SwiftBackendDataAuthTest(unittest.TestCase):
+    """Tests for SwiftBackend.data_auth namespace checks and error mapping."""
+
+    def setUp(self):
+        self.backend = cast(backends.SwiftBackend, backends.construct_storage_backend(
+            'swift://swift.example.com/AUTH_team/mycontainer/data',
+        ))
+        patcher = mock.patch('src.lib.data.storage.backends.s3.create_client')
+        self.mock_create_client = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.swift_client = mock.Mock()
+        self.mock_create_client.return_value = self.swift_client
+
+    def test_skip_data_auth_short_circuits(self):
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: '1'}):
+            self.backend.data_auth(data_cred=_static_cred('swift://swift.example.com/AUTH_team'))
+        self.mock_create_client.assert_not_called()
+
+    def test_bare_access_key_id_is_prefixed_with_auth(self):
+        """access_key_id 'team' maps to namespace 'AUTH_team' and validates."""
+        data_cred = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            access_key_id='team',
+            region='us-east-1',
+        )
+
+        self.backend.data_auth(data_cred=data_cred)
+
+        self.swift_client.head_bucket.assert_called_once_with(Bucket='mycontainer')
+
+    def test_scoped_access_key_id_uses_segment_after_colon(self):
+        data_cred = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            access_key_id='project:AUTH_team',
+            region='us-east-1',
+        )
+
+        self.backend.data_auth(data_cred=data_cred)
+
+        self.swift_client.head_bucket.assert_called_once_with(Bucket='mycontainer')
+
+    def test_namespace_mismatch_raises_credential_error(self):
+        data_cred = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            access_key_id='other-team',
+            region='us-east-1',
+        )
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self.backend.data_auth(data_cred=data_cred)
+
+        self.assertIn('is not valid for the AUTH_team namespace', str(ctx.exception))
+        self.mock_create_client.assert_not_called()
+
+    def test_container_root_lists_buckets(self):
+        backend = cast(backends.SwiftBackend, backends.construct_storage_backend(
+            'swift://swift.example.com/AUTH_team',
+            profile=True,
+        ))
+
+        backend.data_auth(
+            data_cred=_static_cred(
+                'swift://swift.example.com/AUTH_team',
+                access_key_id='team',
+                region='us-east-1',
+            ),
+        )
+
+        self.swift_client.list_buckets.assert_called_once_with(MaxBuckets=1)
+
+    def test_default_credential_is_not_supported(self):
+        with self.assertRaises(NotImplementedError) as ctx:
+            self.backend.data_auth(
+                data_cred=_default_cred('swift://swift.example.com/AUTH_team'),
+            )
+        self.assertIn('not supported for Swift backend', str(ctx.exception))
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_resolves_credential_when_none_given(self, mock_get_config):
+        mock_get_config.return_value = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            access_key_id='team',
+            region='us-east-1',
+        )
+
+        self.backend.data_auth()
+
+        self.swift_client.head_bucket.assert_called_once_with(Bucket='mycontainer')
+
+    @mock.patch('src.lib.data.storage.core.client.execute_api')
+    def test_authorization_header_malformed_reports_region(self, mock_execute_api):
+        mock_execute_api.side_effect = client.OSMODataStorageClientError(
+            'AuthorizationHeaderMalformed',
+        )
+        data_cred = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            access_key_id='team',
+            region='us-west-2',
+        )
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self.backend.data_auth(data_cred=data_cred)
+
+        self.assertIn('region us-west-2 is not valid', str(ctx.exception))
+
+    @mock.patch('src.lib.data.storage.core.client.execute_api')
+    def test_signature_mismatch_reports_access_key_id(self, mock_execute_api):
+        mock_execute_api.side_effect = client.OSMODataStorageClientError('SignatureDoesNotMatch')
+        data_cred = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            access_key_id='team',
+            region='us-east-1',
+        )
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self.backend.data_auth(data_cred=data_cred)
+
+        self.assertIn('access_key_id team is not valid', str(ctx.exception))
+
+    @mock.patch('src.lib.data.storage.core.client.execute_api')
+    def test_other_storage_error_is_wrapped(self, mock_execute_api):
+        mock_execute_api.side_effect = client.OSMODataStorageClientError('NoSuchBucket')
+        data_cred = _static_cred(
+            'swift://swift.example.com/AUTH_team',
+            access_key_id='team',
+            region='us-east-1',
+        )
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self.backend.data_auth(data_cred=data_cred)
+
+        self.assertIn('Data key validation error', str(ctx.exception))
+
+
+class S3BackendParseUriToLinkBareHostTest(unittest.TestCase):
+    """Tests for override_url values that omit the scheme."""
+
+    @staticmethod
+    def _backend() -> backends.S3Backend:
+        return cast(
+            backends.S3Backend,
+            backends.construct_storage_backend('s3://my-bucket/foo/bar'),
+        )
+
+    def test_bare_host_defaults_to_https_virtual_host(self):
+        link = self._backend().parse_uri_to_link('us-east-1', override_url='cwobject.com')
+        self.assertEqual(link, 'https://my-bucket.cwobject.com/foo/bar')
+
+    def test_bare_host_with_base_path_preserves_prefix(self):
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='gateway.example.com/s3',
+        )
+        self.assertEqual(link, 'https://my-bucket.gateway.example.com/s3/foo/bar')
+
+    def test_bare_host_with_base_path_in_path_style(self):
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='gateway.example.com/s3',
+            addressing_style='path',
+        )
+        self.assertEqual(link, 'https://gateway.example.com/s3/my-bucket/foo/bar')
+
+
+class S3BackendDataAuthTest(unittest.TestCase):
+    """Tests for S3Backend.data_auth IAM simulation and its bypass branches."""
+
+    def setUp(self):
+        env_patcher = mock.patch.dict('os.environ', {}, clear=True)
+        env_patcher.start()
+        self.addCleanup(env_patcher.stop)
+
+        session_patcher = mock.patch('src.lib.data.storage.backends.backends.boto3.Session')
+        mock_session_class = session_patcher.start()
+        self.addCleanup(session_patcher.stop)
+
+        self.aws_client = mock.Mock()
+        self.aws_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/alice',
+        }
+        self.aws_client.simulate_principal_policy.return_value = {
+            'EvaluationResults': [
+                {'EvalActionName': 's3:GetObject', 'EvalDecision': 'allowed'},
+            ],
+        }
+        mock_session_class.return_value.client.return_value = self.aws_client
+
+    @staticmethod
+    def _backend(uri: str = 's3://my-bucket/data/file.txt') -> backends.S3Backend:
+        return cast(backends.S3Backend, backends.construct_storage_backend(uri))
+
+    def test_skip_data_auth_short_circuits(self):
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: '1'}):
+            self._backend().data_auth(
+                data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            )
+        self.aws_client.simulate_principal_policy.assert_not_called()
+
+    @mock.patch.object(backends.S3Backend, '_validate_bucket_access')
+    def test_ambient_credential_uses_bucket_access_check(self, mock_validate_bucket_access):
+        """SimulatePrincipalPolicy misses bucket-policy grants, so ambient
+        credentials must fall back to a real head_bucket check."""
+        data_cred = _default_cred('s3://my-bucket')
+
+        self._backend().data_auth(data_cred=data_cred)
+
+        mock_validate_bucket_access.assert_called_once_with(data_cred=data_cred)
+        self.aws_client.simulate_principal_policy.assert_not_called()
+
+    @mock.patch.object(backends.S3Backend, '_validate_bucket_access')
+    def test_non_aws_environment_endpoint_uses_bucket_access_check(
+        self,
+        mock_validate_bucket_access,
+    ):
+        data_cred = _static_cred('s3://my-bucket', region='us-east-1')
+
+        with mock.patch.dict('os.environ', {'AWS_ENDPOINT_URL_S3': 'http://minio:9000'}):
+            self._backend().data_auth(data_cred=data_cred)
+
+        mock_validate_bucket_access.assert_called_once_with(data_cred=data_cred)
+
+    def test_read_access_simulates_get_object_on_object_arn(self):
+        self._backend().data_auth(
+            data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            access_type=common.AccessType.READ,
+        )
+
+        call_kwargs = self.aws_client.simulate_principal_policy.call_args.kwargs
+        self.assertEqual(call_kwargs['ActionNames'], ['s3:GetObject'])
+        self.assertEqual(call_kwargs['ResourceArns'], ['arn:aws:s3:::my-bucket/data/file.txt'])
+
+    def test_write_access_simulates_put_and_get_object(self):
+        self.aws_client.simulate_principal_policy.return_value = {
+            'EvaluationResults': [
+                {'EvalActionName': 's3:PutObject', 'EvalDecision': 'allowed'},
+                {'EvalActionName': 's3:GetObject', 'EvalDecision': 'allowed'},
+            ],
+        }
+
+        self._backend().data_auth(
+            data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            access_type=common.AccessType.WRITE,
+        )
+
+        call_kwargs = self.aws_client.simulate_principal_policy.call_args.kwargs
+        self.assertEqual(call_kwargs['ActionNames'], ['s3:PutObject', 's3:GetObject'])
+
+    def test_delete_access_simulates_delete_object(self):
+        self.aws_client.simulate_principal_policy.return_value = {
+            'EvaluationResults': [
+                {'EvalActionName': 's3:DeleteObject', 'EvalDecision': 'allowed'},
+            ],
+        }
+
+        self._backend().data_auth(
+            data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            access_type=common.AccessType.DELETE,
+        )
+
+        call_kwargs = self.aws_client.simulate_principal_policy.call_args.kwargs
+        self.assertEqual(call_kwargs['ActionNames'], ['s3:DeleteObject'])
+
+    def test_no_access_type_simulates_no_actions(self):
+        self._backend().data_auth(data_cred=_static_cred('s3://my-bucket', region='us-east-1'))
+
+        call_kwargs = self.aws_client.simulate_principal_policy.call_args.kwargs
+        self.assertEqual(call_kwargs['ActionNames'], [])
+
+    def test_bucket_root_simulates_wildcard_arn(self):
+        self._backend('s3://my-bucket').data_auth(
+            data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            access_type=common.AccessType.READ,
+        )
+
+        call_kwargs = self.aws_client.simulate_principal_policy.call_args.kwargs
+        self.assertEqual(call_kwargs['ResourceArns'], ['arn:aws:s3:::my-bucket/*'])
+
+    def test_prefix_arn_gets_wildcard_suffix(self):
+        """IAM simulation treats a trailing slash as an object key, so prefixes
+        need an explicit wildcard to match their contents."""
+        self._backend('s3://my-bucket/data/').data_auth(
+            data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            access_type=common.AccessType.READ,
+        )
+
+        call_kwargs = self.aws_client.simulate_principal_policy.call_args.kwargs
+        self.assertEqual(call_kwargs['ResourceArns'], ['arn:aws:s3:::my-bucket/data/*'])
+
+    def test_assumed_role_arn_is_converted_to_iam_role_arn(self):
+        """SimulatePrincipalPolicy rejects STS assumed-role session ARNs."""
+        self.aws_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:sts::123456789012:assumed-role/my-path/my-role/session-1',
+        }
+
+        self._backend().data_auth(
+            data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            access_type=common.AccessType.READ,
+        )
+
+        call_kwargs = self.aws_client.simulate_principal_policy.call_args.kwargs
+        self.assertEqual(
+            call_kwargs['PolicySourceArn'],
+            'arn:aws:iam::123456789012:role/my-path/my-role',
+        )
+
+    def test_denied_evaluation_raises_credential_error(self):
+        self.aws_client.simulate_principal_policy.return_value = {
+            'EvaluationResults': [
+                {'EvalActionName': 's3:GetObject', 'EvalDecision': 'implicitDeny'},
+            ],
+        }
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self._backend().data_auth(
+                data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+                access_type=common.AccessType.READ,
+            )
+
+        self.assertIn('no s3:GetObject access for s3://my-bucket/data/file.txt', str(ctx.exception))
+
+    @mock.patch('src.lib.data.storage.core.client.execute_api')
+    def test_storage_client_error_is_wrapped(self, mock_execute_api):
+        mock_execute_api.side_effect = client.OSMODataStorageClientError('AccessDenied')
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self._backend().data_auth(
+                data_cred=_static_cred('s3://my-bucket', region='us-east-1'),
+            )
+
+        self.assertIn('Data key validation error: AccessDenied', str(ctx.exception))
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_resolves_credential_when_none_given(self, mock_get_config):
+        mock_get_config.return_value = _static_cred('s3://my-bucket', region='us-east-1')
+
+        self._backend().data_auth(access_type=common.AccessType.READ)
+
+        self.aws_client.simulate_principal_policy.assert_called_once()
+
+
+class S3BackendRegionCachingTest(unittest.TestCase):
+    """Tests for S3Backend.region caching and credential resolution."""
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_region_is_inferred_once_and_cached(self, mock_create_client):
+        s3_client = mock.Mock()
+        s3_client.get_bucket_location.return_value = {'LocationConstraint': 'eu-central-1'}
+        mock_create_client.return_value = s3_client
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            's3://my-bucket/data',
+        ))
+        data_cred = _static_cred('s3://my-bucket')
+
+        first = s3_backend.region(data_cred=data_cred)
+        second = s3_backend.region(data_cred=data_cred)
+
+        self.assertEqual((first, second), ('eu-central-1', 'eu-central-1'))
+        mock_create_client.assert_called_once()
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_empty_location_constraint_falls_back_to_default(self, mock_create_client):
+        """us-east-1 buckets report an empty LocationConstraint."""
+        s3_client = mock.Mock()
+        s3_client.get_bucket_location.return_value = {'LocationConstraint': ''}
+        mock_create_client.return_value = s3_client
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            's3://my-bucket/data',
+        ))
+
+        region = s3_backend.region(data_cred=_static_cred('s3://my-bucket'))
+
+        self.assertEqual(region, constants.DEFAULT_BOTO3_REGION)
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_resolves_credential_when_none_given(self, mock_get_config):
+        mock_get_config.return_value = _static_cred('s3://my-bucket', region='ap-south-1')
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            's3://my-bucket/data',
+        ))
+
+        self.assertEqual(s3_backend.region(), 'ap-south-1')
+
+
+class GSBackendTest(unittest.TestCase):
+    """Tests for GSBackend URI parsing, links, and credential validation."""
+
+    @staticmethod
+    def _backend(uri: str = 'gs://my-bucket/data/file.txt') -> backends.GSBackend:
+        return cast(backends.GSBackend, backends.construct_storage_backend(uri))
+
+    def test_endpoint_is_google_storage_host(self):
+        self.assertEqual(self._backend().endpoint, f'https://{constants.DEFAULT_GS_HOST}')
+
+    def test_profile_is_scheme_and_bucket(self):
+        self.assertEqual(self._backend().profile, 'gs://my-bucket')
+
+    def test_container_uri_is_profile(self):
+        self.assertEqual(self._backend().container_uri, 'gs://my-bucket')
+
+    def test_parse_uri_to_link_uses_json_api_path(self):
+        self.assertEqual(
+            self._backend().parse_uri_to_link('us-east1'),
+            'https://storage.googleapis.com/storage/v1/b/my-bucket/o/data/file.txt',
+        )
+
+    def test_region_uses_credential_region(self):
+        self.assertEqual(
+            self._backend().region(_static_cred('gs://my-bucket', region='europe-west1')),
+            'europe-west1',
+        )
+
+    def test_region_falls_back_to_gs_default(self):
+        self.assertEqual(
+            self._backend().region(_static_cred('gs://my-bucket')),
+            constants.DEFAULT_GS_REGION,
+        )
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_region_resolves_credential_when_none_given(self, mock_get_config):
+        mock_get_config.return_value = _static_cred('gs://my-bucket', region='asia-east1')
+        self.assertEqual(self._backend().region(), 'asia-east1')
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_skip_data_auth_short_circuits(self, mock_create_client):
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: '1'}):
+            self._backend().data_auth(data_cred=_static_cred('gs://my-bucket'))
+        mock_create_client.assert_not_called()
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_static_credential_validates_bucket_access(self, mock_create_client):
+        gs_client = mock.Mock()
+        mock_create_client.return_value = gs_client
+
+        self._backend().data_auth(
+            data_cred=_static_cred('gs://my-bucket', region='us-east1'),
+        )
+
+        gs_client.head_bucket.assert_called_once_with(Bucket='my-bucket')
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_bucket_access_targets_backend_endpoint(self, mock_create_client):
+        mock_create_client.return_value = mock.Mock()
+
+        self._backend().data_auth(
+            data_cred=_static_cred('gs://my-bucket', region='us-east1'),
+        )
+
+        self.assertEqual(
+            mock_create_client.call_args.kwargs['endpoint_url'],
+            f'https://{constants.DEFAULT_GS_HOST}',
+        )
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_bucket_access_prefers_credential_override_url(self, mock_create_client):
+        mock_create_client.return_value = mock.Mock()
+
+        self._backend().data_auth(
+            data_cred=_static_cred(
+                'gs://my-bucket',
+                region='us-east1',
+                override_url='http://gcs-emulator:4443',
+            ),
+        )
+
+        self.assertEqual(
+            mock_create_client.call_args.kwargs['endpoint_url'],
+            'http://gcs-emulator:4443',
+        )
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    @mock.patch('src.lib.data.storage.core.client.execute_api')
+    def test_bucket_access_failure_raises_credential_error(
+        self,
+        mock_execute_api,
+        mock_create_client,
+    ):
+        mock_create_client.return_value = mock.Mock()
+        mock_execute_api.side_effect = client.OSMODataStorageClientError('NoSuchBucket')
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self._backend().data_auth(
+                data_cred=_static_cred('gs://my-bucket', region='us-east1'),
+            )
+
+        self.assertIn('Data key validation error for gs://my-bucket', str(ctx.exception))
+
+    def test_default_credential_is_not_supported(self):
+        with self.assertRaises(NotImplementedError) as ctx:
+            self._backend().data_auth(data_cred=_default_cred('gs://my-bucket'))
+        self.assertIn('not supported for GS backend', str(ctx.exception))
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_data_auth_resolves_credential_when_none_given(
+        self,
+        mock_get_config,
+        mock_create_client,
+    ):
+        mock_get_config.return_value = _static_cred('gs://my-bucket', region='us-east1')
+        gs_client = mock.Mock()
+        mock_create_client.return_value = gs_client
+
+        self._backend().data_auth()
+
+        gs_client.head_bucket.assert_called_once_with(Bucket='my-bucket')
+
+
+class TOSBackendTest(unittest.TestCase):
+    """Tests for TOSBackend URI parsing, links, and credential validation."""
+
+    @staticmethod
+    def _backend(
+        uri: str = 'tos://tos-s3-cn-beijing.volces.com/my-bucket/data/file.txt',
+        profile: bool = False,
+    ) -> backends.TOSBackend:
+        return cast(
+            backends.TOSBackend,
+            backends.construct_storage_backend(uri, profile=profile),
+        )
+
+    def test_endpoint_is_https_netloc(self):
+        self.assertEqual(self._backend().endpoint, 'https://tos-s3-cn-beijing.volces.com')
+
+    def test_profile_includes_bucket(self):
+        self.assertEqual(
+            self._backend().profile,
+            'tos://tos-s3-cn-beijing.volces.com/my-bucket',
+        )
+
+    def test_container_uri_is_profile(self):
+        self.assertEqual(
+            self._backend().container_uri,
+            'tos://tos-s3-cn-beijing.volces.com/my-bucket',
+        )
+
+    def test_parse_uri_to_link_uses_virtual_host(self):
+        self.assertEqual(
+            self._backend().parse_uri_to_link('cn-beijing'),
+            'https://my-bucket.tos-s3-cn-beijing.volces.com/data/file.txt',
+        )
+
+    def test_region_is_derived_from_host(self):
+        self.assertEqual(self._backend().region(), 'cn-beijing')
+
+    def test_default_region(self):
+        self.assertEqual(self._backend().default_region, constants.DEFAULT_TOS_REGION)
+
+    def test_profile_uri_has_empty_container_and_path(self):
+        backend = self._backend('tos://tos-s3-cn-beijing.volces.com/my-bucket', profile=True)
+        self.assertEqual((backend.container, backend.path), ('', ''))
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_skip_data_auth_short_circuits(self, mock_create_client):
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: '1'}):
+            self._backend().data_auth(
+                data_cred=_static_cred('tos://tos-s3-cn-beijing.volces.com/my-bucket'),
+            )
+        mock_create_client.assert_not_called()
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_static_credential_validates_bucket_access(self, mock_create_client):
+        tos_client = mock.Mock()
+        mock_create_client.return_value = tos_client
+
+        self._backend().data_auth(
+            data_cred=_static_cred('tos://tos-s3-cn-beijing.volces.com/my-bucket'),
+        )
+
+        tos_client.head_bucket.assert_called_once_with(Bucket='my-bucket')
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_profile_without_container_lists_buckets(self, mock_create_client):
+        tos_client = mock.Mock()
+        mock_create_client.return_value = tos_client
+
+        self._backend(
+            'tos://tos-s3-cn-beijing.volces.com/my-bucket',
+            profile=True,
+        ).data_auth(
+            data_cred=_static_cred('tos://tos-s3-cn-beijing.volces.com/my-bucket'),
+        )
+
+        tos_client.list_buckets.assert_called_once_with(MaxBuckets=1)
+
+    def test_default_credential_is_not_supported(self):
+        with self.assertRaises(NotImplementedError) as ctx:
+            self._backend().data_auth(
+                data_cred=_default_cred('tos://tos-s3-cn-beijing.volces.com/my-bucket'),
+            )
+        self.assertIn('not supported for TOS backend', str(ctx.exception))
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_data_auth_resolves_credential_when_none_given(
+        self,
+        mock_get_config,
+        mock_create_client,
+    ):
+        mock_get_config.return_value = _static_cred(
+            'tos://tos-s3-cn-beijing.volces.com/my-bucket',
+        )
+        tos_client = mock.Mock()
+        mock_create_client.return_value = tos_client
+
+        self._backend().data_auth()
+
+        tos_client.head_bucket.assert_called_once_with(Bucket='my-bucket')
+
+
+class AzureBlobStorageBackendTest(unittest.TestCase):
+    """Tests for AzureBlobStorageBackend URI parsing, links, and region defaults."""
+
+    @staticmethod
+    def _backend(
+        uri: str = 'azure://myaccount/mycontainer/data/file.txt',
+        profile: bool = False,
+    ) -> backends.AzureBlobStorageBackend:
+        return cast(
+            backends.AzureBlobStorageBackend,
+            backends.construct_storage_backend(uri, profile=profile),
+        )
+
+    def test_endpoint_is_account_blob_host(self):
+        self.assertEqual(
+            self._backend().endpoint,
+            f'https://myaccount.{constants.DEFAULT_AZURE_HOST}',
+        )
+
+    def test_profile_is_scheme_and_storage_account(self):
+        self.assertEqual(self._backend().profile, 'azure://myaccount')
+
+    def test_container_uri_appends_container_to_profile(self):
+        self.assertEqual(self._backend().container_uri, 'azure://myaccount/mycontainer')
+
+    def test_parse_uri_to_link_appends_container_and_path(self):
+        self.assertEqual(
+            self._backend().parse_uri_to_link('eastus'),
+            f'https://myaccount.{constants.DEFAULT_AZURE_HOST}/mycontainer/data/file.txt',
+        )
+
+    def test_parse_uri_to_link_strips_trailing_slash_for_container_root(self):
+        link = self._backend('azure://myaccount/mycontainer').parse_uri_to_link('eastus')
+        self.assertEqual(
+            link,
+            f'https://myaccount.{constants.DEFAULT_AZURE_HOST}/mycontainer',
+        )
+
+    def test_profile_uri_has_empty_container_and_path(self):
+        backend = self._backend('azure://myaccount', profile=True)
+        self.assertEqual((backend.storage_account, backend.container, backend.path),
+                         ('myaccount', '', ''))
+
+    def test_region_is_azure_default(self):
+        self.assertEqual(self._backend().region(), constants.DEFAULT_AZURE_REGION)
+
+    def test_default_region(self):
+        self.assertEqual(self._backend().default_region, constants.DEFAULT_AZURE_REGION)
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+        return_value=None,
+    )
+    def test_client_factory_resolves_ambient_credential(self, mock_get_config):
+        # pylint: disable=unused-argument
+        factory = self._backend().client_factory()
+
+        self.assertEqual(factory.account_url, f'https://myaccount.{constants.DEFAULT_AZURE_HOST}')
+        self.assertIsInstance(factory.data_cred, credentials.DefaultDataCredential)
+
+    def test_client_factory_uses_given_credential(self):
+        data_cred = _default_cred('azure://myaccount')
+
+        factory = self._backend().client_factory(data_cred=data_cred)
+
+        self.assertIs(factory.data_cred, data_cred)
+
+
+class AzureBlobStorageBackendDataAuthTest(unittest.TestCase):
+    """Tests for AzureBlobStorageBackend.data_auth validation paths."""
+
+    def setUp(self):
+        patcher = mock.patch('src.lib.data.storage.backends.azure.create_client')
+        self.mock_create_client = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.service_client = self.mock_create_client.return_value.__enter__.return_value
+
+    @staticmethod
+    def _backend(
+        uri: str = 'azure://myaccount/mycontainer/data/file.txt',
+        profile: bool = False,
+    ) -> backends.AzureBlobStorageBackend:
+        return cast(
+            backends.AzureBlobStorageBackend,
+            backends.construct_storage_backend(uri, profile=profile),
+        )
+
+    def test_skip_data_auth_short_circuits(self):
+        with mock.patch.dict('os.environ', {backends.OSMO_SKIP_DATA_AUTH: '1'}):
+            self._backend().data_auth(data_cred=_default_cred('azure://myaccount'))
+        self.mock_create_client.assert_not_called()
+
+    def test_container_properties_are_fetched_when_container_is_set(self):
+        self._backend().data_auth(data_cred=_default_cred('azure://myaccount'))
+
+        container_client = self.service_client.get_container_client.return_value.__enter__.return_value  # pylint: disable=line-too-long
+        self.service_client.get_container_client.assert_called_once_with('mycontainer')
+        container_client.get_container_properties.assert_called_once_with()
+
+    def test_account_without_container_lists_containers(self):
+        self.service_client.list_containers.return_value = iter([mock.Mock()])
+
+        self._backend('azure://myaccount', profile=True).data_auth(
+            data_cred=_default_cred('azure://myaccount'),
+        )
+
+        self.service_client.list_containers.assert_called_once_with(results_per_page=1)
+
+    def test_no_accessible_containers_raises_credential_error(self):
+        self.service_client.list_containers.return_value = iter([])
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self._backend('azure://myaccount', profile=True).data_auth(
+                data_cred=_default_cred('azure://myaccount'),
+            )
+
+        self.assertIn('No containers accessible', str(ctx.exception))
+
+    @mock.patch('src.lib.data.storage.core.client.execute_api')
+    def test_storage_client_error_is_wrapped(self, mock_execute_api):
+        mock_execute_api.side_effect = client.OSMODataStorageClientError('AuthenticationFailed')
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self._backend().data_auth(data_cred=_default_cred('azure://myaccount'))
+
+        self.assertIn('Data auth validation error', str(ctx.exception))
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+        return_value=None,
+    )
+    def test_resolves_credential_when_none_given(self, mock_get_config):
+        # pylint: disable=unused-argument
+        self._backend().data_auth()
+
+        resolved_cred = self.mock_create_client.call_args.args[0]
+        self.assertIsInstance(resolved_cred, credentials.DefaultDataCredential)
+
+
+class Boto3BackendClientFactoryTest(unittest.TestCase):
+    """Tests for Boto3Backend.client_factory credential and endpoint resolution."""
+
+    @staticmethod
+    def _gs_backend() -> backends.GSBackend:
+        return cast(backends.GSBackend, backends.construct_storage_backend('gs://my-bucket/data'))
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+    )
+    def test_resolves_credential_when_none_given(self, mock_get_config):
+        data_cred = _static_cred('gs://my-bucket', region='us-east1')
+        mock_get_config.return_value = data_cred
+
+        factory = self._gs_backend().client_factory()
+
+        self.assertIs(factory.data_cred, data_cred)
+        self.assertEqual(factory.endpoint_url, f'https://{constants.DEFAULT_GS_HOST}')
+
+    def test_explicit_region_kwarg_wins_over_credential(self):
+        factory = self._gs_backend().client_factory(
+            data_cred=_static_cred('gs://my-bucket', region='us-east1'),
+            region='europe-west4',
+        )
+
+        self.assertEqual(factory.region, 'europe-west4')
+
+    def test_gs_backend_does_not_advertise_batch_delete(self):
+        """GCS has no S3-compatible batch delete; the factory must not claim it."""
+        factory = self._gs_backend().client_factory(
+            data_cred=_static_cred('gs://my-bucket', region='us-east1'),
+        )
+
+        self.assertFalse(factory.supports_batch_delete)
+
+
+class StorageBackendToStoragePathTest(unittest.TestCase):
+    """Tests for StorageBackend.to_storage_path."""
+
+    def test_uses_default_region_when_not_given(self):
+        tos_backend = backends.construct_storage_backend(
+            'tos://tos-s3-cn-beijing.volces.com/my-bucket/data',
+        )
+
+        storage_path = tos_backend.to_storage_path()
+
+        self.assertEqual(storage_path.region, constants.DEFAULT_TOS_REGION)
+
+    def test_carries_backend_coordinates(self):
+        azure_backend = backends.construct_storage_backend('azure://myaccount/mycontainer/data')
+
+        storage_path = azure_backend.to_storage_path(region='westus')
+
+        self.assertEqual(
+            (
+                storage_path.scheme,
+                storage_path.container,
+                storage_path.prefix,
+                storage_path.endpoint_url,
+                storage_path.region,
+            ),
+            (
+                'azure',
+                'mycontainer',
+                'data',
+                f'https://myaccount.{constants.DEFAULT_AZURE_HOST}',
+                'westus',
+            ),
+        )
 
 
 if __name__ == '__main__':
