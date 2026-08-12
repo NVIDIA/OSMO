@@ -17,6 +17,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 # pylint: disable=protected-access
 import json
+import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -34,6 +36,63 @@ def _make_api_exception(body_dict):
     err = kb_exceptions.ApiException(status=body_dict.get('code', 0))
     err.body = json.dumps(body_dict)
     return err
+
+
+_CRONJOB_TEMPLATE = '''
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ resource_name }}
+  labels:
+    {{ node_condition_prefix }}component: backend-test
+    {{ node_condition_prefix }}backend: {{ backend_name }}
+    {{ node_condition_prefix }}test: {{ test_name }}
+spec:
+  schedule: "{{ cron_schedule }}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: runner
+              image: busybox
+          volumes:
+            - name: config
+              configMap:
+                name: {{ configmap_name }}
+'''
+
+_UNKNOWN_KIND_TEMPLATE = '''
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ resource_name }}-secret
+stringData:
+  backend: {{ backend_name }}
+'''
+
+_INVALID_YAML_TEMPLATE = 'kind: CronJob\nmetadata: [unclosed\n'
+
+
+def _make_sync_test_job(*, test_configs=None,
+                        node_condition_prefix='example.com/'):
+    """Builds a BackendSynchronizeBackendTest, bypassing pydantic validators."""
+    return backend_jobs.BackendSynchronizeBackendTest.model_construct(
+        backend='backend-a',
+        job_type='BackendSynchronizeBackendTest',
+        super_type='backend',
+        job_id='backend-a-sync-tests-test',
+        test_configs=test_configs if test_configs is not None else {},
+        node_condition_prefix=node_condition_prefix,
+    )
+
+
+def _k8s_list_item(name):
+    """A kubernetes list entry whose to_dict() only carries metadata.name."""
+    item = mock.MagicMock()
+    item.to_dict.return_value = {'metadata': {'name': name}}
+    return item
 
 
 class ImmutableTargetAlreadyCurrentTest(unittest.TestCase):
@@ -1182,6 +1241,513 @@ class BackendSynchronizeQueuesExecuteTest(unittest.TestCase):
                                side_effect=err):
             result = job.execute(_FakeContext(), mock.Mock())
         self.assertEqual(result.status, jobs_base.JobStatus.FAILED_RETRY)
+
+
+class BackendSynchronizeBackendTestValidationTest(unittest.TestCase):
+    """Cover the job_type allow-list and the job_id naming contract."""
+
+    def test_get_allowed_job_type_is_synchronize_backend_test(self):
+        self.assertEqual(
+            backend_jobs.BackendSynchronizeBackendTest._get_allowed_job_type(),
+            ['BackendSynchronizeBackendTest'])
+
+    def test_construction_rejects_foreign_job_type(self):
+        """A mismatched job_type must be rejected against the allow-list."""
+        with self.assertRaises(osmo_errors.OSMOServerError):
+            backend_jobs.BackendSynchronizeBackendTest(
+                backend='backend-a',
+                test_configs={},
+                node_condition_prefix='example.com/',
+                job_type='BackendSynchronizeQueues',
+                job_id='backend-a-sync-tests-1')
+
+    def test_construction_rejects_job_id_without_sync_tests_marker(self):
+        with self.assertRaises(osmo_errors.OSMOServerError):
+            backend_jobs.BackendSynchronizeBackendTest(
+                backend='backend-a',
+                test_configs={},
+                node_condition_prefix='example.com/',
+                job_id='backend-a-no-marker')
+
+
+class BackendSynchronizeBackendTestApplyTest(unittest.TestCase):
+    """Cover _apply_cronjob / _apply_configmap create, update and error paths."""
+
+    def _cronjob(self):
+        return {'apiVersion': 'batch/v1', 'kind': 'CronJob',
+                'metadata': {'name': 'gpucheck'}}
+
+    def _configmap(self):
+        return {'apiVersion': 'v1', 'kind': 'ConfigMap',
+                'metadata': {'name': 'gpucheck-config'}}
+
+    def _context(self):
+        return _FakeContext(test_runner_namespace='test-ns')
+
+    def test_apply_cronjob_without_resource_version_creates_it(self):
+        job = _make_sync_test_job()
+        cronjob = self._cronjob()
+        batch_api = mock.MagicMock()
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=batch_api):
+            job._apply_cronjob(self._context(), cronjob)
+
+        batch_api.create_namespaced_cron_job.assert_called_once_with(
+            'test-ns', cronjob)
+        batch_api.replace_namespaced_cron_job.assert_not_called()
+
+    def test_apply_cronjob_with_resource_version_replaces_it(self):
+        job = _make_sync_test_job()
+        cronjob = self._cronjob()
+        batch_api = mock.MagicMock()
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=batch_api):
+            job._apply_cronjob(self._context(), cronjob, resource_version='42')
+
+        batch_api.replace_namespaced_cron_job.assert_called_once_with(
+            'gpucheck', 'test-ns', cronjob)
+        batch_api.create_namespaced_cron_job.assert_not_called()
+
+    def test_apply_cronjob_with_resource_version_stamps_it_on_metadata(self):
+        """Optimistic concurrency: the replace must carry the resourceVersion."""
+        job = _make_sync_test_job()
+        cronjob = self._cronjob()
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=mock.MagicMock()):
+            job._apply_cronjob(self._context(), cronjob, resource_version='42')
+
+        self.assertEqual(cronjob['metadata']['resourceVersion'], '42')
+
+    def test_apply_cronjob_reraises_api_exception(self):
+        job = _make_sync_test_job()
+        batch_api = mock.MagicMock()
+        batch_api.create_namespaced_cron_job.side_effect = _make_api_exception(
+            {'message': 'forbidden', 'code': 403})
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=batch_api):
+            with self.assertRaises(kb_exceptions.ApiException):
+                job._apply_cronjob(self._context(), self._cronjob())
+
+    def test_apply_cronjob_reraises_unexpected_error(self):
+        job = _make_sync_test_job()
+        batch_api = mock.MagicMock()
+        batch_api.replace_namespaced_cron_job.side_effect = RuntimeError('boom')
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=batch_api):
+            with self.assertRaises(RuntimeError):
+                job._apply_cronjob(self._context(), self._cronjob(),
+                                   resource_version='7')
+
+    def test_apply_configmap_without_resource_version_creates_it(self):
+        job = _make_sync_test_job()
+        configmap = self._configmap()
+        core_api = mock.MagicMock()
+        with mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=core_api):
+            job._apply_configmap(self._context(), configmap)
+
+        core_api.create_namespaced_config_map.assert_called_once_with(
+            'test-ns', configmap)
+        core_api.replace_namespaced_config_map.assert_not_called()
+
+    def test_apply_configmap_with_resource_version_replaces_it(self):
+        job = _make_sync_test_job()
+        configmap = self._configmap()
+        core_api = mock.MagicMock()
+        with mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=core_api):
+            job._apply_configmap(self._context(), configmap,
+                                 resource_version='9')
+
+        core_api.replace_namespaced_config_map.assert_called_once_with(
+            'gpucheck-config', 'test-ns', configmap)
+        self.assertEqual(configmap['metadata']['resourceVersion'], '9')
+
+    def test_apply_configmap_reraises_api_exception(self):
+        job = _make_sync_test_job()
+        core_api = mock.MagicMock()
+        core_api.create_namespaced_config_map.side_effect = _make_api_exception(
+            {'message': 'conflict', 'code': 409})
+        with mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=core_api):
+            with self.assertRaises(kb_exceptions.ApiException):
+                job._apply_configmap(self._context(), self._configmap())
+
+    def test_apply_configmap_reraises_unexpected_error(self):
+        job = _make_sync_test_job()
+        core_api = mock.MagicMock()
+        core_api.replace_namespaced_config_map.side_effect = RuntimeError('bad')
+        with mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=core_api):
+            with self.assertRaises(RuntimeError):
+                job._apply_configmap(self._context(), self._configmap(),
+                                     resource_version='3')
+
+
+class BackendSynchronizeBackendTestDeleteTest(unittest.TestCase):
+    """Cover _delete_cronjob / _delete_configmap including the 404 tolerance."""
+
+    def _context(self):
+        return _FakeContext(test_runner_namespace='test-ns')
+
+    def test_delete_cronjob_deletes_from_test_runner_namespace(self):
+        job = _make_sync_test_job()
+        batch_api = mock.MagicMock()
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=batch_api):
+            job._delete_cronjob(self._context(), 'gpucheck')
+
+        batch_api.delete_namespaced_cron_job.assert_called_once_with(
+            'gpucheck', 'test-ns')
+
+    def test_delete_cronjob_tolerates_already_absent_cronjob(self):
+        job = _make_sync_test_job()
+        batch_api = mock.MagicMock()
+        batch_api.delete_namespaced_cron_job.side_effect = _make_api_exception(
+            {'message': 'not found', 'code': 404})
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=batch_api):
+            self.assertIsNone(job._delete_cronjob(self._context(), 'gone'))
+
+    def test_delete_cronjob_reraises_non_404_api_exception(self):
+        job = _make_sync_test_job()
+        batch_api = mock.MagicMock()
+        batch_api.delete_namespaced_cron_job.side_effect = _make_api_exception(
+            {'message': 'forbidden', 'code': 403})
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=batch_api):
+            with self.assertRaises(kb_exceptions.ApiException):
+                job._delete_cronjob(self._context(), 'gpucheck')
+
+    def test_delete_configmap_deletes_from_test_runner_namespace(self):
+        job = _make_sync_test_job()
+        core_api = mock.MagicMock()
+        with mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=core_api):
+            job._delete_configmap(self._context(), 'gpucheck-config')
+
+        core_api.delete_namespaced_config_map.assert_called_once_with(
+            'gpucheck-config', 'test-ns')
+
+    def test_delete_configmap_tolerates_already_absent_configmap(self):
+        job = _make_sync_test_job()
+        core_api = mock.MagicMock()
+        core_api.delete_namespaced_config_map.side_effect = _make_api_exception(
+            {'message': 'not found', 'code': 404})
+        with mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=core_api):
+            self.assertIsNone(job._delete_configmap(self._context(), 'gone'))
+
+    def test_delete_configmap_reraises_non_404_api_exception(self):
+        job = _make_sync_test_job()
+        core_api = mock.MagicMock()
+        core_api.delete_namespaced_config_map.side_effect = _make_api_exception(
+            {'message': 'forbidden', 'code': 403})
+        with mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=core_api):
+            with self.assertRaises(kb_exceptions.ApiException):
+                job._delete_configmap(self._context(), 'gpucheck-config')
+
+
+class LoadCronjobSpecTest(unittest.TestCase):
+    """Cover template resolution and Jinja rendering in _load_cronjob_spec."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmpdir = tmp.name
+
+    def _write(self, name, contents):
+        path = os.path.join(self.tmpdir, name)
+        with open(path, 'w', encoding='utf-8') as handle:
+            handle.write(contents)
+        return path
+
+    def test_load_cronjob_spec_renders_template_values(self):
+        job = _make_sync_test_job()
+        path = self._write('cronjob.yaml', _CRONJOB_TEMPLATE)
+
+        spec = job._load_cronjob_spec('GpuCheck', {'cron_schedule': '0 * * * *'},
+                                      'gpucheck', 'gpucheck-config', path)
+
+        self.assertEqual(spec['kind'], 'CronJob')
+        self.assertEqual(spec['metadata']['name'], 'gpucheck')
+        self.assertEqual(spec['spec']['schedule'], '0 * * * *')
+
+    def test_load_cronjob_spec_renders_backend_and_test_labels(self):
+        job = _make_sync_test_job()
+        path = self._write('cronjob.yaml', _CRONJOB_TEMPLATE)
+
+        spec = job._load_cronjob_spec('GpuCheck', {'cron_schedule': '@daily'},
+                                      'gpucheck', 'gpucheck-config', path)
+
+        self.assertEqual(spec['metadata']['labels'], {
+            'example.com/component': 'backend-test',
+            'example.com/backend': 'backend-a',
+            'example.com/test': 'GpuCheck',
+        })
+
+    def test_load_cronjob_spec_renders_configmap_name_reference(self):
+        job = _make_sync_test_job()
+        path = self._write('cronjob.yaml', _CRONJOB_TEMPLATE)
+
+        spec = job._load_cronjob_spec('GpuCheck', {'cron_schedule': '@daily'},
+                                      'gpucheck', 'gpucheck-config', path)
+
+        volume = spec['spec']['jobTemplate']['spec']['template']['spec']['volumes'][0]
+        self.assertEqual(volume['configMap']['name'], 'gpucheck-config')
+
+    def test_load_cronjob_spec_returns_empty_when_absolute_path_missing(self):
+        job = _make_sync_test_job()
+        missing = os.path.join(self.tmpdir, 'absent.yaml')
+
+        with self.assertLogs(level='WARNING') as captured:
+            spec = job._load_cronjob_spec(
+                'GpuCheck', {'cron_schedule': '@daily'}, 'gpucheck',
+                'gpucheck-config', missing)
+
+        self.assertEqual(spec, {})
+        self.assertIn(missing, captured.output[0])
+
+    def test_load_cronjob_spec_resolves_relative_path_against_module_dir(self):
+        """Legacy file-based specs are relative to backend_jobs.py's directory."""
+        job = _make_sync_test_job()
+        module_dir = os.path.dirname(os.path.realpath(backend_jobs.__file__))
+
+        with self.assertLogs(level='WARNING') as captured:
+            spec = job._load_cronjob_spec(
+                'GpuCheck', {'cron_schedule': '@daily'}, 'gpucheck',
+                'gpucheck-config', 'templates/absent.yaml')
+
+        self.assertEqual(spec, {})
+        self.assertIn(os.path.join(module_dir, 'templates/absent.yaml'),
+                      captured.output[0])
+
+    def test_load_cronjob_spec_returns_empty_on_malformed_yaml(self):
+        job = _make_sync_test_job()
+        path = self._write('broken.yaml', _INVALID_YAML_TEMPLATE)
+
+        with self.assertLogs(level='ERROR'):
+            spec = job._load_cronjob_spec(
+                'GpuCheck', {'cron_schedule': '@daily'}, 'gpucheck',
+                'gpucheck-config', path)
+
+        self.assertEqual(spec, {})
+
+
+class GenerateBackendTestResourcesTest(unittest.TestCase):
+    """Cover _generate_backend_test_resources_from_configs."""
+
+    def test_generate_resources_emits_configmap_then_cronjob(self):
+        job = _make_sync_test_job(
+            test_configs={'GpuCheck': {'cron_schedule': '@daily'}})
+        with mock.patch.object(job, '_load_cronjob_spec',
+                               return_value={'kind': 'CronJob'}):
+            resources = job._generate_backend_test_resources_from_configs('s.yaml')
+
+        self.assertEqual([resource['kind'] for resource in resources],
+                         ['ConfigMap', 'CronJob'])
+
+    def test_generate_resources_lowercases_resource_names(self):
+        job = _make_sync_test_job(
+            test_configs={'GpuCheck': {'cron_schedule': '@daily'}})
+        with mock.patch.object(job, '_load_cronjob_spec',
+                               return_value={'kind': 'CronJob'}) as mock_load:
+            job._generate_backend_test_resources_from_configs('s.yaml')
+
+        mock_load.assert_called_once_with('GpuCheck',
+                                          {'cron_schedule': '@daily'},
+                                          'gpucheck', 'gpucheck-config',
+                                          's.yaml')
+
+    def test_generate_resources_labels_configmap_with_backend_and_test(self):
+        job = _make_sync_test_job(
+            test_configs={'GpuCheck': {'cron_schedule': '@daily'}})
+        with mock.patch.object(job, '_load_cronjob_spec',
+                               return_value={'kind': 'CronJob'}):
+            resources = job._generate_backend_test_resources_from_configs('s.yaml')
+
+        self.assertEqual(resources[0]['metadata']['labels'], {
+            'example.com/component': 'backend-test-config',
+            'example.com/backend': 'backend-a',
+            'example.com/test': 'GpuCheck',
+        })
+
+    def test_generate_resources_serializes_test_config_into_configmap(self):
+        job = _make_sync_test_job(
+            test_configs={'GpuCheck': {'cron_schedule': '@daily'}})
+        with mock.patch.object(job, '_load_cronjob_spec',
+                               return_value={'kind': 'CronJob'}):
+            resources = job._generate_backend_test_resources_from_configs('s.yaml')
+
+        self.assertEqual(json.loads(resources[0]['data']['test_config.json']),
+                         {'cron_schedule': '@daily'})
+
+    def test_generate_resources_skips_test_whose_spec_fails_to_load(self):
+        """An unloadable template must not emit an orphan ConfigMap."""
+        job = _make_sync_test_job(
+            test_configs={'GpuCheck': {'cron_schedule': '@daily'}})
+        with mock.patch.object(job, '_load_cronjob_spec', return_value={}):
+            with self.assertLogs(level='ERROR'):
+                resources = job._generate_backend_test_resources_from_configs(
+                    's.yaml')
+
+        self.assertEqual(resources, [])
+
+    def test_generate_resources_skips_test_whose_template_read_raises(self):
+        job = _make_sync_test_job(
+            test_configs={'GpuCheck': {'cron_schedule': '@daily'}})
+        with mock.patch.object(job, '_load_cronjob_spec',
+                               side_effect=OSError('permission denied')):
+            with self.assertLogs(level='ERROR'):
+                resources = job._generate_backend_test_resources_from_configs(
+                    's.yaml')
+
+        self.assertEqual(resources, [])
+
+    def test_generate_resources_returns_empty_without_test_configs(self):
+        job = _make_sync_test_job(test_configs={})
+
+        self.assertEqual(
+            job._generate_backend_test_resources_from_configs('s.yaml'), [])
+
+
+class BackendSynchronizeBackendTestExecuteTest(unittest.TestCase):
+    """Cover BackendSynchronizeBackendTest.execute end to end."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.spec_path = os.path.join(tmp.name, 'cronjob.yaml')
+        with open(self.spec_path, 'w', encoding='utf-8') as handle:
+            handle.write(_CRONJOB_TEMPLATE)
+        self.unknown_kind_path = os.path.join(tmp.name, 'secret.yaml')
+        with open(self.unknown_kind_path, 'w', encoding='utf-8') as handle:
+            handle.write(_UNKNOWN_KIND_TEMPLATE)
+        self.batch_api = mock.MagicMock()
+        self.core_api = mock.MagicMock()
+        self.batch_api.list_namespaced_cron_job.return_value.items = []
+        self.core_api.list_namespaced_config_map.return_value.items = []
+
+    def _job(self):
+        return _make_sync_test_job(
+            test_configs={'GpuCheck': {'cron_schedule': '0 * * * *'}})
+
+    def _execute(self, spec_file=None):
+        context = _FakeContext(test_runner_namespace='test-ns',
+                               cronjob_spec_file=spec_file)
+        with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
+                               return_value=self.batch_api), \
+             mock.patch.object(backend_jobs.kb_client, 'CoreV1Api',
+                               return_value=self.core_api):
+            return self._job().execute(context, mock.Mock())
+
+    def test_execute_skips_everything_without_a_spec_file(self):
+        result = self._execute()
+
+        self.assertEqual(result.status, jobs_base.JobStatus.SUCCESS)
+        self.batch_api.list_namespaced_cron_job.assert_not_called()
+        self.core_api.list_namespaced_config_map.assert_not_called()
+
+    def test_execute_creates_configmap_and_cronjob_for_each_test_config(self):
+        result = self._execute(spec_file=self.spec_path)
+
+        self.assertEqual(result.status, jobs_base.JobStatus.SUCCESS)
+        self.assertEqual(self.core_api.create_namespaced_config_map.call_count, 1)
+        self.assertEqual(self.batch_api.create_namespaced_cron_job.call_count, 1)
+
+    def test_execute_creates_configmap_before_cronjob(self):
+        """CronJobs mount the ConfigMap, so ordering is load bearing."""
+        self._execute(spec_file=self.spec_path)
+
+        self.core_api.create_namespaced_config_map.assert_called_once()
+        self.batch_api.create_namespaced_cron_job.assert_called_once()
+        namespace, cronjob = self.batch_api.create_namespaced_cron_job.call_args.args
+        self.assertEqual(namespace, 'test-ns')
+        self.assertEqual(cronjob['metadata']['name'], 'gpucheck')
+
+    def test_execute_deletes_existing_cronjob_before_recreating_it(self):
+        self.batch_api.list_namespaced_cron_job.return_value.items = [
+            _k8s_list_item('gpucheck')]
+
+        self._execute(spec_file=self.spec_path)
+
+        self.batch_api.delete_namespaced_cron_job.assert_called_once_with(
+            'gpucheck', 'test-ns')
+
+    def test_execute_deletes_existing_configmap_before_recreating_it(self):
+        self.core_api.list_namespaced_config_map.return_value.items = [
+            _k8s_list_item('gpucheck-config')]
+
+        self._execute(spec_file=self.spec_path)
+
+        self.core_api.delete_namespaced_config_map.assert_called_once_with(
+            'gpucheck-config', 'test-ns')
+
+    def test_execute_deletes_cronjob_that_is_no_longer_configured(self):
+        """Retired tests must not keep running on the backend."""
+        self.batch_api.list_namespaced_cron_job.return_value.items = [
+            _k8s_list_item('obsolete-check')]
+
+        self._execute(spec_file=self.spec_path)
+
+        self.batch_api.delete_namespaced_cron_job.assert_called_once_with(
+            'obsolete-check', 'test-ns')
+
+    def test_execute_deletes_configmap_that_is_no_longer_configured(self):
+        self.core_api.list_namespaced_config_map.return_value.items = [
+            _k8s_list_item('obsolete-check-config')]
+
+        self._execute(spec_file=self.spec_path)
+
+        self.core_api.delete_namespaced_config_map.assert_called_once_with(
+            'obsolete-check-config', 'test-ns')
+
+    def test_execute_keeps_creating_after_deleting_stale_resources(self):
+        self.batch_api.list_namespaced_cron_job.return_value.items = [
+            _k8s_list_item('gpucheck'), _k8s_list_item('obsolete-check')]
+        self.core_api.list_namespaced_config_map.return_value.items = [
+            _k8s_list_item('gpucheck-config'),
+            _k8s_list_item('obsolete-check-config')]
+
+        result = self._execute(spec_file=self.spec_path)
+
+        self.assertEqual(result.status, jobs_base.JobStatus.SUCCESS)
+        self.assertEqual(self.batch_api.delete_namespaced_cron_job.call_args_list,
+                         [mock.call('gpucheck', 'test-ns'),
+                          mock.call('obsolete-check', 'test-ns')])
+        self.assertEqual(self.core_api.delete_namespaced_config_map.call_args_list,
+                         [mock.call('gpucheck-config', 'test-ns'),
+                          mock.call('obsolete-check-config', 'test-ns')])
+
+    def test_execute_warns_and_skips_unknown_resource_kind(self):
+        with self.assertLogs(level='WARNING') as captured:
+            result = self._execute(spec_file=self.unknown_kind_path)
+
+        self.assertEqual(result.status, jobs_base.JobStatus.SUCCESS)
+        self.batch_api.create_namespaced_cron_job.assert_not_called()
+        self.assertIn('Unknown resource kind', captured.output[0])
+
+    def test_execute_returns_failed_retry_when_listing_cannot_connect(self):
+        self.batch_api.list_namespaced_cron_job.side_effect = \
+            urllib3.exceptions.MaxRetryError(mock.Mock(), 'http://x',
+                                             Exception('down'))
+
+        result = self._execute(spec_file=self.spec_path)
+
+        self.assertEqual(result.status, jobs_base.JobStatus.FAILED_RETRY)
+        assert result.message is not None
+        self.assertIn('Listing CronJobs/ConfigMaps failed', result.message)
+
+    def test_execute_returns_failed_retry_on_api_exception(self):
+        self.core_api.list_namespaced_config_map.side_effect = \
+            _make_api_exception({'message': 'forbidden', 'code': 403})
+
+        result = self._execute(spec_file=self.spec_path)
+
+        self.assertEqual(result.status, jobs_base.JobStatus.FAILED_RETRY)
+        assert result.message is not None
+        self.assertIn('synchronization ApiException', result.message)
 
 
 if __name__ == '__main__':

@@ -23,11 +23,27 @@ from typing import cast
 from unittest import mock
 
 from src.lib.data.storage import constants
-from src.lib.data.storage.backends import azure, backends, s3
+from src.lib.data.storage.backends import azure, backends, common, s3
 from src.lib.data.storage.credentials import credentials
-from src.lib.data.storage.core import header
+from src.lib.data.storage.core import client, header
 from src.lib.utils import osmo_errors
 from src.utils.connectors import postgres
+
+
+def _static_cred(endpoint, *, access_key_id='ak', region=None,
+                 override_url=None):
+    """A StaticDataCredential with the fields the backends actually read."""
+    return credentials.StaticDataCredential(
+        endpoint=endpoint,
+        access_key_id=access_key_id,
+        access_key='sk',
+        region=region,
+        override_url=override_url,
+    )
+
+
+def _default_cred(endpoint):
+    return credentials.DefaultDataCredential(endpoint=endpoint)
 
 
 class TestBackends(unittest.TestCase):
