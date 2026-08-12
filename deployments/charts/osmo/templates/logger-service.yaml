@@ -25,6 +25,9 @@ metadata:
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
 spec:
+  {{- if not .Values.services.logger.autoscaling.enabled }}
+  replicas: {{ .Values.services.logger.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "logger") | nindent 6 }}
@@ -203,6 +206,7 @@ spec:
 
 ---
 
+{{- if .Values.services.logger.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -217,7 +221,12 @@ spec:
     name: {{ $name }}
   minReplicas: {{ .Values.services.logger.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.services.logger.autoscaling.maxReplicas }}
+  {{- with .Values.services.logger.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   metrics:
+  {{- if .Values.services.logger.autoscaling.hpaMemoryTarget }}
   - type: ContainerResource
     containerResource:
       name: memory
@@ -225,6 +234,8 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.logger.autoscaling.hpaMemoryTarget }}
+  {{- end }}
+  {{- if .Values.services.logger.autoscaling.hpaCpuTarget }}
   - type: ContainerResource
     containerResource:
       name: cpu
@@ -232,7 +243,9 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.logger.autoscaling.hpaCpuTarget }}
+  {{- end }}
   {{- with .Values.services.logger.autoscaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
+{{- end }}
 {{- end }}

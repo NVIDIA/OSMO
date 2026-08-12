@@ -36,6 +36,28 @@
 {{- if or .Values.secrets.postgresql.generate .Values.secrets.valkey.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
+{{- $autoscaledComponents := list
+  (dict "path" "services.ui" "component" .Values.services.ui)
+  (dict "path" "services.worker" "component" .Values.services.worker)
+  (dict "path" "services.api" "component" .Values.services.api)
+  (dict "path" "services.router" "component" .Values.services.router)
+  (dict "path" "services.logger" "component" .Values.services.logger)
+  (dict "path" "services.agent" "component" .Values.services.agent)
+  (dict "path" "gateway.envoy" "component" .Values.gateway.envoy)
+  (dict "path" "gateway.oauth2Proxy" "component" .Values.gateway.oauth2Proxy)
+  (dict "path" "gateway.authz" "component" .Values.gateway.authz) -}}
+{{- range $item := $autoscaledComponents -}}
+{{- $component := $item.component -}}
+{{- if and $component.enabled $component.autoscaling.enabled -}}
+{{- $requests := dig "requests" dict $component.resources -}}
+{{- if and $component.autoscaling.hpaCpuTarget (not (get $requests "cpu")) -}}
+{{- fail (printf "%s autoscaling CPU target requires resources.requests.cpu" $item.path) -}}
+{{- end -}}
+{{- if and $component.autoscaling.hpaMemoryTarget (not (get $requests "memory")) -}}
+{{- fail (printf "%s autoscaling memory target requires resources.requests.memory" $item.path) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- if hasKey .Values "controlPlane" -}}
 {{- fail "controlPlane is not a supported value; configure services and gateway directly" -}}
 {{- end -}}

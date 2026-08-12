@@ -36,6 +36,9 @@ metadata:
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-envoy") | nindent 4 }}
 spec:
+  {{- if not $gw.envoy.autoscaling.enabled }}
+  replicas: {{ $gw.envoy.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | nindent 6 }}
@@ -172,6 +175,7 @@ spec:
 
 ---
 
+{{- if $gw.envoy.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -185,7 +189,12 @@ spec:
     name: {{ $gwName }}-envoy
   minReplicas: {{ $gw.envoy.autoscaling.minReplicas }}
   maxReplicas: {{ $gw.envoy.autoscaling.maxReplicas }}
+  {{- with $gw.envoy.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   metrics:
+  {{- if $gw.envoy.autoscaling.hpaCpuTarget }}
   - type: ContainerResource
     containerResource:
       name: cpu
@@ -193,6 +202,8 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.envoy.autoscaling.hpaCpuTarget }}
+  {{- end }}
+  {{- if $gw.envoy.autoscaling.hpaMemoryTarget }}
   - type: ContainerResource
     containerResource:
       name: memory
@@ -200,9 +211,11 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.envoy.autoscaling.hpaMemoryTarget }}
+  {{- end }}
   {{- with $gw.envoy.autoscaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
+{{- end }}
 
 {{- end }}{{/* end envoy.enabled */}}
 
@@ -219,6 +232,9 @@ metadata:
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 4 }}
 spec:
+  {{- if not $gw.oauth2Proxy.autoscaling.enabled }}
+  replicas: {{ $gw.oauth2Proxy.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "oauth2-proxy" "context" .) | nindent 6 }}
@@ -356,6 +372,7 @@ spec:
 
 ---
 
+{{- if $gw.oauth2Proxy.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -369,7 +386,12 @@ spec:
     name: {{ $gwName }}-oauth2-proxy
   minReplicas: {{ $gw.oauth2Proxy.autoscaling.minReplicas }}
   maxReplicas: {{ $gw.oauth2Proxy.autoscaling.maxReplicas }}
+  {{- with $gw.oauth2Proxy.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   metrics:
+  {{- if $gw.oauth2Proxy.autoscaling.hpaCpuTarget }}
   - type: ContainerResource
     containerResource:
       name: cpu
@@ -377,6 +399,8 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.oauth2Proxy.autoscaling.hpaCpuTarget }}
+  {{- end }}
+  {{- if $gw.oauth2Proxy.autoscaling.hpaMemoryTarget }}
   - type: ContainerResource
     containerResource:
       name: memory
@@ -384,9 +408,11 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.oauth2Proxy.autoscaling.hpaMemoryTarget }}
+  {{- end }}
   {{- with $gw.oauth2Proxy.autoscaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
+{{- end }}
 {{- end }}
 
 ---
@@ -402,6 +428,9 @@ metadata:
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "gateway-authz") | nindent 4 }}
 spec:
+  {{- if not $gw.authz.autoscaling.enabled }}
+  replicas: {{ $gw.authz.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "authz" "context" .) | nindent 6 }}
@@ -500,6 +529,7 @@ spec:
 
 ---
 
+{{- if $gw.authz.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -513,7 +543,12 @@ spec:
     name: {{ $gwName }}-authz
   minReplicas: {{ $gw.authz.autoscaling.minReplicas }}
   maxReplicas: {{ $gw.authz.autoscaling.maxReplicas }}
+  {{- with $gw.authz.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   metrics:
+  {{- if $gw.authz.autoscaling.hpaCpuTarget }}
   - type: ContainerResource
     containerResource:
       name: cpu
@@ -521,6 +556,8 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.authz.autoscaling.hpaCpuTarget }}
+  {{- end }}
+  {{- if $gw.authz.autoscaling.hpaMemoryTarget }}
   - type: ContainerResource
     containerResource:
       name: memory
@@ -528,9 +565,11 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.authz.autoscaling.hpaMemoryTarget }}
+  {{- end }}
   {{- with $gw.authz.autoscaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
+{{- end }}
 {{- end }}
 
 ---

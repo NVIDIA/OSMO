@@ -28,14 +28,42 @@ services:
     enabled: false
   ui:
     enabled: true
+  worker:
+    autoscaling:
+      enabled: true
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
   api:
+    autoscaling:
+      enabled: true
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
     monitoring:
       podMonitor:
         enabled: false
+  router:
+    autoscaling:
+      enabled: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+  logger:
+    autoscaling:
+      enabled: true
+  agent:
+    autoscaling:
+      enabled: true
 
 gateway:
   envoy:
     enabled: true
+    autoscaling:
+      enabled: true
     service:
       # Keep the unauthenticated in-cluster gateway behind an operator-managed,
       # authenticating edge rather than provisioning a public load balancer.

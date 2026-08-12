@@ -271,8 +271,10 @@ services:
       enabled: false
       minReplicas: 1
       maxReplicas: 3
-      hpaTarget: 85
+      hpaCpuTarget: 85
+      hpaMemoryTarget: null
       customMetrics: []
+      behavior: {}
     service:
       type: ''
       port: 80
@@ -362,11 +364,13 @@ services:
   worker:
     enabled: true
     autoscaling:
+      enabled: false
       minReplicas: 2
       maxReplicas: 10
       hpaMemoryTarget: 80
       hpaCpuTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       name: worker
       tag: ''
@@ -413,11 +417,13 @@ services:
         scheme: http
         tlsConfig: {}
     autoscaling:
+      enabled: false
       minReplicas: 3
       maxReplicas: 9
       hpaMemoryTarget: 80
       hpaCpuTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       name: service
       tag: ''
@@ -480,11 +486,13 @@ services:
   router:
     enabled: true
     autoscaling:
+      enabled: false
       minReplicas: 3
       maxReplicas: 5
       hpaMemoryTarget: 80
       hpaCpuTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       name: router
       tag: ''
@@ -537,11 +545,13 @@ services:
   logger:
     enabled: true
     autoscaling:
+      enabled: false
       minReplicas: 3
       maxReplicas: 9
       hpaMemoryTarget: 80
       hpaCpuTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       name: logger
       tag: ''
@@ -586,11 +596,13 @@ services:
   agent:
     enabled: true
     autoscaling:
+      enabled: false
       minReplicas: 1
       maxReplicas: 9
       hpaMemoryTarget: 80
       hpaCpuTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       name: agent
       tag: ''
@@ -646,11 +658,13 @@ gateway:
   envoy:
     enabled: true
     autoscaling:
+      enabled: false
       minReplicas: 2
       maxReplicas: 6
       hpaCpuTarget: 80
       hpaMemoryTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       repository: envoyproxy/envoy:v1.38.1
       pullPolicy: IfNotPresent
@@ -779,11 +793,13 @@ gateway:
   oauth2Proxy:
     enabled: true
     autoscaling:
+      enabled: false
       minReplicas: 1
       maxReplicas: 3
       hpaCpuTarget: 80
       hpaMemoryTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       repository: quay.io/oauth2-proxy/oauth2-proxy:v7.14.2
       pullPolicy: IfNotPresent
@@ -838,11 +854,13 @@ gateway:
   authz:
     enabled: true
     autoscaling:
+      enabled: false
       minReplicas: 1
       maxReplicas: 3
       hpaCpuTarget: 80
       hpaMemoryTarget: 80
       customMetrics: []
+      behavior: {}
     image:
       name: authz-sidecar
       tag: ''

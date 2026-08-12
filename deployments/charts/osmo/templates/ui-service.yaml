@@ -22,7 +22,9 @@ metadata:
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "ui") | nindent 4 }}
 spec:
-  replicas: {{ if .Values.services.ui.autoscaling.enabled }}{{ .Values.services.ui.autoscaling.minReplicas }}{{ else }}{{ .Values.services.ui.replicas }}{{ end }}
+  {{- if not .Values.services.ui.autoscaling.enabled }}
+  replicas: {{ .Values.services.ui.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "ui") | nindent 6 }}
@@ -279,14 +281,29 @@ spec:
     name: {{ $name }}
   minReplicas: {{ .Values.services.ui.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.services.ui.autoscaling.maxReplicas }}
+  {{- with .Values.services.ui.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   metrics:
+  {{- if .Values.services.ui.autoscaling.hpaCpuTarget }}
+  - type: ContainerResource
+    containerResource:
+      container: {{ $name }}
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.ui.autoscaling.hpaCpuTarget }}
+  {{- end }}
+  {{- if .Values.services.ui.autoscaling.hpaMemoryTarget }}
   - type: ContainerResource
     containerResource:
       container: {{ $name }}
       name: memory
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.ui.autoscaling.hpaTarget }}
+        averageUtilization: {{ .Values.services.ui.autoscaling.hpaMemoryTarget }}
+  {{- end }}
   {{- with .Values.services.ui.autoscaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}

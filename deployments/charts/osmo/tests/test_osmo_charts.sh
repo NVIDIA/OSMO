@@ -808,6 +808,63 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-overrides.yaml" "kubernetes.io/os: linux"
     require_no_deployment "$TEST_DIRECTORY/osmo-overrides.yaml" "osmo-logger"
 
+    helm_template scaling-disabled "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.autoscaling.enabled=false \
+        --set services.api.replicas=4 \
+        >"$TEST_DIRECTORY/osmo-scaling-disabled.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-scaling-disabled.yaml" Deployment \
+        scaling-disabled-osmo-api \
+        >"$TEST_DIRECTORY/osmo-scaling-disabled-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-scaling-disabled-api.yaml" \
+        "replicas: 4"
+    resource_document "$TEST_DIRECTORY/osmo-scaling-disabled.yaml" \
+        HorizontalPodAutoscaler scaling-disabled-osmo-api \
+        >"$TEST_DIRECTORY/osmo-scaling-disabled-api-hpa.yaml"
+    require_line_count "$TEST_DIRECTORY/osmo-scaling-disabled-api-hpa.yaml" 0
+
+    helm_template scaling-enabled "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.autoscaling.enabled=true \
+        --set services.api.autoscaling.behavior.scaleDown.stabilizationWindowSeconds=300 \
+        >"$TEST_DIRECTORY/osmo-scaling-enabled.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-scaling-enabled.yaml" \
+        HorizontalPodAutoscaler scaling-enabled-osmo-api \
+        >"$TEST_DIRECTORY/osmo-scaling-enabled-api-hpa.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-scaling-enabled-api-hpa.yaml" \
+        "stabilizationWindowSeconds: 300"
+    resource_document "$TEST_DIRECTORY/osmo-scaling-enabled.yaml" Deployment \
+        scaling-enabled-osmo-api \
+        >"$TEST_DIRECTORY/osmo-scaling-enabled-api.yaml"
+    require_not_contains "$TEST_DIRECTORY/osmo-scaling-enabled-api.yaml" \
+        "replicas:"
+
+    if helm_template scaling-without-cpu-request "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.autoscaling.enabled=true \
+        --set services.api.resources.requests.memory=256Mi \
+        --set-string services.api.resources.requests.cpu= \
+        >"$TEST_DIRECTORY/scaling-without-cpu-request.out" 2>&1; then
+        fail "expected API CPU autoscaling without a CPU request to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/scaling-without-cpu-request.out" \
+        "services.api autoscaling CPU target requires resources.requests.cpu"
+
+    if helm_template scaling-without-memory-request "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.worker.autoscaling.enabled=true \
+        --set services.worker.resources.requests.cpu=100m \
+        --set-string services.worker.resources.requests.memory= \
+        >"$TEST_DIRECTORY/scaling-without-memory-request.out" 2>&1; then
+        fail "expected worker memory autoscaling without a memory request to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/scaling-without-memory-request.out" \
+        "services.worker autoscaling memory target requires resources.requests.memory"
+
     if helm_template unsupported-compute "$charts_copy/osmo" \
         --set planes.compute.enabled=true \
         >"$TEST_DIRECTORY/unsupported-compute.out" 2>&1; then

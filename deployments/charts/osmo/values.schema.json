@@ -359,7 +359,7 @@
         "image": { "$ref": "#/definitions/componentImage" },
         "pod": { "$ref": "#/definitions/podSettings" },
         "serviceAccount": { "type": "object" },
-        "autoscaling": { "type": "object" },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
         "env": { "type": "array" },
         "extraArgs": { "type": "array" },
         "resources": { "type": "object" }
@@ -382,12 +382,15 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "enabled": { "type": "boolean" },
         "minReplicas": { "type": "integer", "minimum": 0 },
         "maxReplicas": { "type": "integer", "minimum": 1 },
-        "hpaMemoryTarget": { "type": "integer", "minimum": 1, "maximum": 100 },
-        "hpaCpuTarget": { "type": "integer", "minimum": 1, "maximum": 100 },
-        "customMetrics": { "type": "array" }
-      }
+        "hpaMemoryTarget": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 },
+        "hpaCpuTarget": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 },
+        "customMetrics": { "type": "array" },
+        "behavior": { "type": "object" }
+      },
+      "required": ["enabled", "minReplicas", "maxReplicas", "hpaMemoryTarget", "hpaCpuTarget", "customMetrics", "behavior"]
     },
     "envoyJwt": {
       "type": "object",
