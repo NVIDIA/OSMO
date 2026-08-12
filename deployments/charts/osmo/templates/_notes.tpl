@@ -12,8 +12,10 @@ Configured public URL:
 
   {{ .Values.externalUrl }}
 
+{{ if .Values.httproute.enabled }}
 An HTTPRoute attaches to an existing Gateway named in httproute.parentRefs;
 this chart does not create a Gateway or GatewayClass.
+{{ end }}
 
 To test a ClusterIP gateway locally, run:
 
