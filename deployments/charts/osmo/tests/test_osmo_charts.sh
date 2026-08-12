@@ -33,6 +33,20 @@ require_contains() {
     grep -Fq -- "$expected" "$file" || fail "expected '$expected' in $file"
 }
 
+require_schema_path() {
+    local file=$1
+    local expected=$2
+    awk -v expected="$expected" '
+        {
+            gsub(/\//, ".")
+            if (index($0, expected) > 0) {
+                found = 1
+            }
+        }
+        END { exit !found }
+    ' "$file" || fail "expected schema path '$expected' in $file"
+}
+
 require_not_contains() {
     local file=$1
     local unexpected=$2
@@ -79,16 +93,52 @@ resource_document() {
     local kind=$2
     local name=$3
     awk -v kind="$kind" -v name="$name" '
-        BEGIN { RS = "---" }
+        function reset_document() {
+            document = ""
+            document_kind = ""
+            document_name = ""
+            in_metadata = 0
+        }
+        function finish_document() {
+            if (document_kind == kind && document_name == name) {
+                printf "%s", document
+                found = 1
+            }
+        }
+        BEGIN {
+            found = 0
+            reset_document()
+        }
+        /^---[[:space:]]*$/ {
+            finish_document()
+            reset_document()
+            next
+        }
         {
-            line_count = split($0, lines, "\n")
-            for (i = 1; i <= line_count - 2; i++) {
-                if (lines[i] == "kind: " kind &&
-                    lines[i + 1] == "metadata:" &&
-                    lines[i + 2] == "  name: " name) {
-                    print
-                    next
-                }
+            document = document $0 ORS
+        }
+        /^kind: / {
+            document_kind = $0
+            sub(/^kind: /, "", document_kind)
+            next
+        }
+        /^metadata:$/ {
+            in_metadata = 1
+            next
+        }
+        in_metadata && /^  name: / && document_name == "" {
+            document_name = $0
+            sub(/^  name: /, "", document_name)
+            next
+        }
+        in_metadata && /^[^ ]/ {
+            in_metadata = 0
+        }
+        END {
+            finish_document()
+            if (!found) {
+                print "resource not found: " kind "/" name > "/dev/stderr"
+                exit 1
             }
         }
     ' "$file"
@@ -151,39 +201,59 @@ require_resource_metadata_annotation() {
     local file=$1
     local annotation_key=$2
     awk -v annotation_key="$annotation_key" '
-        BEGIN { RS = "---"; missing = 0 }
-        {
+        function reset_document() {
             kind = ""
             name = ""
             in_metadata = 0
             in_annotations = 0
             found = 0
-            line_count = split($0, lines, "\n")
-            for (i = 1; i <= line_count; i++) {
-                if (lines[i] ~ /^kind: /) {
-                    kind = lines[i]
-                    sub(/^kind: /, "", kind)
-                } else if (lines[i] == "metadata:") {
-                    in_metadata = 1
-                    in_annotations = 0
-                } else if (in_metadata && lines[i] ~ /^  name: / && name == "") {
-                    name = lines[i]
-                    sub(/^  name: /, "", name)
-                } else if (in_metadata && lines[i] == "  annotations:") {
-                    in_annotations = 1
-                } else if (in_annotations && index(lines[i], "    " annotation_key ":") == 1) {
-                    found = 1
-                } else if (in_metadata && lines[i] ~ /^[^ ]/) {
-                    in_metadata = 0
-                    in_annotations = 0
-                }
-            }
+        }
+        function finish_document() {
             if (kind != "" && !found) {
                 print "missing " annotation_key " on " kind "/" name > "/dev/stderr"
                 missing = 1
             }
         }
-        END { exit missing }
+        BEGIN {
+            missing = 0
+            reset_document()
+        }
+        /^---[[:space:]]*$/ {
+            finish_document()
+            reset_document()
+            next
+        }
+        /^kind: / {
+            kind = $0
+            sub(/^kind: /, "", kind)
+            next
+        }
+        /^metadata:$/ {
+            in_metadata = 1
+            in_annotations = 0
+            next
+        }
+        in_metadata && /^  name: / && name == "" {
+            name = $0
+            sub(/^  name: /, "", name)
+            next
+        }
+        in_metadata && /^  annotations:$/ {
+            in_annotations = 1
+            next
+        }
+        in_annotations && index($0, "    " annotation_key ":") == 1 {
+            found = 1
+            next
+        }
+        in_metadata && /^[^ ]/ {
+            in_metadata = 0
+            in_annotations = 0
+        }
+        END {
+            finish_document()
+            exit missing
+        }
     ' "$file" || fail "expected every rendered resource to have annotation $annotation_key"
 }
 
@@ -211,6 +281,43 @@ require_clean_osmo_sources() {
         fail "osmo must not contain an unimplemented embedded Valkey template"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/localstack-s3.yaml" ]] || \
         fail "osmo must not contain an unimplemented embedded object-storage template"
+}
+
+test_yaml_helpers() {
+    local fixture="$TEST_DIRECTORY/yaml-helper-fixture.yaml"
+    cat >"$fixture" <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    certificate-data
+    -----END CERTIFICATE-----
+metadata:
+  name: certificate-config
+  annotations:
+    test.osmo.nvidia.com/required: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: annotated-service
+  annotations:
+    test.osmo.nvidia.com/required: "true"
+EOF
+
+    require_resource_metadata_annotation "$fixture" \
+        "test.osmo.nvidia.com/required"
+
+    resource_document "$fixture" ConfigMap certificate-config \
+        >"$TEST_DIRECTORY/certificate-config.yaml"
+    require_contains "$TEST_DIRECTORY/certificate-config.yaml" \
+        "certificate-data"
+
+    if resource_document "$fixture" Secret missing-secret \
+        >"$TEST_DIRECTORY/missing-resource.yaml" 2>/dev/null; then
+        fail "expected absent resource extraction to fail"
+    fi
 }
 
 test_control_umbrella() {
@@ -557,13 +664,13 @@ test_control_umbrella() {
             >"$TEST_DIRECTORY/invalid-gateway-values.out" 2>&1; then
             fail "expected invalid $invalid_gateway_value to fail schema validation"
         fi
-        require_contains "$TEST_DIRECTORY/invalid-gateway-values.out" \
+        require_schema_path "$TEST_DIRECTORY/invalid-gateway-values.out" \
             "$invalid_gateway_property"
     done <<'EOF'
-gateway.upstreams.api.port=not-a-port|port
-gateway.networkPolicies.enabled=not-a-boolean|enabled
-gateway.tls.enabled=not-a-boolean|enabled
-gateway.tls.upstreamCerts.api[0]=invalid|api
+gateway.upstreams.api.port=not-a-port|gateway.upstreams.api.port
+gateway.networkPolicies.enabled=not-a-boolean|gateway.networkPolicies.enabled
+gateway.tls.enabled=not-a-boolean|gateway.tls.enabled
+gateway.tls.upstreamCerts.api[0]=invalid|gateway.tls.upstreamCerts.api
 EOF
 
     helm_template osmo "$charts_copy/osmo" \
@@ -698,6 +805,11 @@ EOF
         >"$TEST_DIRECTORY/osmo-review.yaml"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" 'value: "*docs"'
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" 'value: "&install"'
+    resource_document "$TEST_DIRECTORY/osmo-review.yaml" ConfigMap \
+        review-release-osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-review-api-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-review-api-config.yaml" \
+        "service_base_url: https://osmo.example.com"
     resource_document "$TEST_DIRECTORY/osmo-review.yaml" Deployment \
         review-release-osmo-worker >"$TEST_DIRECTORY/osmo-review-worker.yaml"
     require_contains "$TEST_DIRECTORY/osmo-review-worker.yaml" \
@@ -867,10 +979,11 @@ EOF
         >"$TEST_DIRECTORY/osmo-scaling-disabled-api.yaml"
     require_contains "$TEST_DIRECTORY/osmo-scaling-disabled-api.yaml" \
         "replicas: 4"
-    resource_document "$TEST_DIRECTORY/osmo-scaling-disabled.yaml" \
+    if resource_document "$TEST_DIRECTORY/osmo-scaling-disabled.yaml" \
         HorizontalPodAutoscaler scaling-disabled-osmo-api \
-        >"$TEST_DIRECTORY/osmo-scaling-disabled-api-hpa.yaml"
-    require_line_count "$TEST_DIRECTORY/osmo-scaling-disabled-api-hpa.yaml" 0
+        >"$TEST_DIRECTORY/osmo-scaling-disabled-api-hpa.yaml" 2>/dev/null; then
+        fail "did not expect HorizontalPodAutoscaler/scaling-disabled-osmo-api"
+    fi
 
     helm_template scaling-enabled "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1233,13 +1346,13 @@ EOF
             >"$TEST_DIRECTORY/invalid-gateway-service.out" 2>&1; then
             fail "expected invalid $invalid_service_value to fail schema validation"
         fi
-        require_contains "$TEST_DIRECTORY/invalid-gateway-service.out" \
+        require_schema_path "$TEST_DIRECTORY/invalid-gateway-service.out" \
             "$invalid_service_property"
     done <<'EOF'
-gateway.envoy.service.type=ExternalName|type
-gateway.envoy.service.port=0|port
-gateway.envoy.service.nodePort=65536|nodePort
-gateway.envoy.service.externalTrafficPolicy=Nearest|externalTrafficPolicy
+gateway.envoy.service.type=ExternalName|gateway.envoy.service.type
+gateway.envoy.service.port=0|gateway.envoy.service.port
+gateway.envoy.service.nodePort=65536|gateway.envoy.service.nodePort
+gateway.envoy.service.externalTrafficPolicy=Nearest|gateway.envoy.service.externalTrafficPolicy
 EOF
 
     if helm_template invalid-ingress "$charts_copy/osmo" \
@@ -1332,22 +1445,47 @@ externalDependencies.objectStorage.buckets.logs|buckets.logs is required
 externalDependencies.objectStorage.buckets.apps|buckets.apps is required
 EOF
 
-    helm install notes-release "$charts_copy/osmo" \
+    cat >"$charts_copy/osmo/templates/test-notes.yaml" <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rendered-notes
+data:
+  notes: |-
+{{ include "osmo.notes" . | indent 4 }}
+EOF
+    helm_template notes-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --dry-run=client \
         --set gateway.envoy.service.port=8443 \
         --set gateway.envoy.ssl.enabled=true \
         >"$TEST_DIRECTORY/osmo-notes.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-notes.yaml" \
+    resource_document "$TEST_DIRECTORY/osmo-notes.yaml" ConfigMap rendered-notes \
+        >"$TEST_DIRECTORY/osmo-notes-configmap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-notes-configmap.yaml" \
         "service/notes-release-osmo-gateway 8080:8443"
-    require_contains "$TEST_DIRECTORY/osmo-notes.yaml" \
-        "curl https://127.0.0.1:8080/api/version"
+    require_contains "$TEST_DIRECTORY/osmo-notes-configmap.yaml" \
+        "local-only TLS check"
+    require_contains "$TEST_DIRECTORY/osmo-notes-configmap.yaml" \
+        "curl --insecure https://127.0.0.1:8080/api/version"
+
+    helm_template notes-http-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.envoy.ssl.enabled=false \
+        >"$TEST_DIRECTORY/osmo-http-notes.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-http-notes.yaml" ConfigMap rendered-notes \
+        >"$TEST_DIRECTORY/osmo-http-notes-configmap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-http-notes-configmap.yaml" \
+        "curl http://127.0.0.1:8080/api/version"
+    require_not_contains "$TEST_DIRECTORY/osmo-http-notes-configmap.yaml" \
+        "--insecure"
 
 }
 
 case "$MODE" in
     osmo|all)
+        test_yaml_helpers
         require_clean_osmo_sources
         test_control_umbrella
         ;;
