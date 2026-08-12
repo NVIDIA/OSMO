@@ -5,9 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO Helm Chart
 
-The `osmo` chart is the unified OSMO deployment entry point. This initial
-version directly owns the control-plane service and gateway templates. It does
-not depend on the legacy `service` chart.
+The `osmo` chart deploys the OSMO control-plane services and gateway.
 
 The supported `split-plane-control` profile installs the API, UI, router,
 worker, logger, agent, delayed-job monitor, and standalone OSMO gateway. It
@@ -15,38 +13,9 @@ uses operator-managed PostgreSQL, Valkey, object storage, and Kubernetes
 Secrets. Compute-plane workloads and chart-generated Secrets are outside this
 chart's clean-install boundary.
 
-Releases installed before this convention cleanup must be uninstalled and
-reinstalled. Do not upgrade those releases in place: this cleanup changes
-Deployment selectors, and Kubernetes treats those selectors as immutable.
-
-## Chart conventions
-
-Named templates use dotted helper names: `osmo.<area>.<purpose>`. For example,
-`osmo.component.fullname`, `osmo.component.labels`, and
-`osmo.component.selectorLabels` derive a component's resource name, metadata
-labels, and workload selector labels. This grammar keeps generic chart helpers,
-component helpers, gateway helpers, and application-specific helpers distinct.
-
-Chart-owned value names use lower camel case, such as `externalUrl`,
-`externalDependencies`, `global.imagePullSecrets`, and `gateway.envoy`. The
-`configuration.*` subtree is the exception: it carries OSMO application
-configuration and preserves the application's field spelling. Use the
-currently documented values; the chart does not provide aliases for superseded
-value names.
-
-All chart-owned resources use Kubernetes recommended labels. The chart
-protects its identity keys from user-supplied label maps:
-`helm.sh/chart`, `app.kubernetes.io/name`,
-`app.kubernetes.io/instance`, `app.kubernetes.io/managed-by`,
-`app.kubernetes.io/part-of`, `app.kubernetes.io/version`, and the component's
-`app.kubernetes.io/component`. Workload selectors intentionally contain only
-`app.kubernetes.io/name`, `app.kubernetes.io/instance`, and
-`app.kubernetes.io/component`; do not add operational or user labels to a
-selector.
-
-The control-plane API is named `api`, not `service`. Its generated resource and
-DNS name follow the component helper (normally `<release>-osmo-api`), and
-configuration resources that belong to the API use that same derived name.
+Install the chart in a dedicated namespace. OSMO Deployments in that namespace
+must use the selectors rendered by this chart because Kubernetes Deployment
+selectors are immutable.
 
 ## Values layout
 
@@ -71,12 +40,11 @@ repositories. A component digest takes precedence over its tag. Workflow
 runtime images use the separate `runtimeImage` repository and tag. Configure
 registry credentials once through `global.imagePullSecrets`.
 
-Chart-owned values are schema-validated and unknown keys fail installation.
-Kubernetes pass-through structures such as resources, probes, affinity,
-security contexts, volumes, custom HPA metrics and behavior, and PodMonitor
-TLS/relabeling remain open to fields supported by the target Kubernetes APIs.
-The `configuration` subtree remains open because it is OSMO application
-configuration rather than a Helm API.
+Known chart values are schema-validated. Kubernetes pass-through structures
+such as resources, probes, affinity, security contexts, volumes, custom HPA
+metrics and behavior, and PodMonitor TLS/relabeling accept fields supported by
+the target Kubernetes APIs. The `configuration` subtree accepts OSMO
+application configuration.
 
 ## Control-plane installation
 

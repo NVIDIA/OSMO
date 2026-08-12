@@ -3,11 +3,9 @@
   "$comment": "SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. SPDX-License-Identifier: Apache-2.0",
   "title": "OSMO Helm chart values",
   "type": "object",
-  "additionalProperties": false,
   "properties": {
     "planes": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "control": { "$ref": "#/definitions/enabledBlock" },
         "compute": { "$ref": "#/definitions/enabledBlock" }
@@ -16,7 +14,6 @@
     },
     "embeddedDependencies": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
         "valkey": { "$ref": "#/definitions/enabledBlock" },
@@ -33,7 +30,6 @@
     "podDefaults": { "$ref": "#/definitions/podDefaults" },
     "logging": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "logLevel": { "type": "string" },
@@ -56,7 +52,6 @@
     "monitoring": { "$ref": "#/definitions/monitoring" },
     "externalDependencies": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "postgresql": { "$ref": "#/definitions/databaseConnection" },
         "valkey": { "$ref": "#/definitions/valkeyConnection" },
@@ -65,7 +60,6 @@
     },
     "secrets": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "postgresql": { "$ref": "#/definitions/secretReference" },
         "valkey": { "$ref": "#/definitions/secretReference" },
@@ -77,7 +71,6 @@
     "configuration": { "type": "object" },
     "services": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "api": { "$ref": "#/definitions/apiComponent" },
         "ui": { "$ref": "#/definitions/uiComponent" },
@@ -91,7 +84,6 @@
     },
     "gateway": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "envoy": { "$ref": "#/definitions/gatewayEnvoyComponent" },
         "oauth2Proxy": { "$ref": "#/definitions/gatewayOauth2ProxyComponent" },
@@ -107,7 +99,6 @@
   "definitions": {
     "enabledBlock": {
       "type": "object",
-      "additionalProperties": false,
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
     },
@@ -117,7 +108,6 @@
     },
     "gatewayApiUpstream": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "host": { "type": "string" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
@@ -126,7 +116,6 @@
     },
     "gatewayOptionalUpstream": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "host": { "type": "string" },
@@ -136,7 +125,6 @@
     },
     "gatewayUpstreams": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "api": { "$ref": "#/definitions/gatewayApiUpstream" },
         "router": { "$ref": "#/definitions/gatewayOptionalUpstream" },
@@ -148,7 +136,6 @@
     },
     "gatewayNetworkPolicyUpstream": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "component": {
@@ -161,7 +148,6 @@
     },
     "gatewayNetworkPolicies": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "upstreams": {
@@ -173,7 +159,6 @@
     },
     "gatewayUpstreamCerts": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "api": { "type": "string" },
         "router": { "type": "string" },
@@ -185,7 +170,6 @@
     },
     "gatewayTls": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "upstreamCerts": { "$ref": "#/definitions/gatewayUpstreamCerts" },
@@ -195,7 +179,6 @@
     },
     "podMonitor": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "labels": { "$ref": "#/definitions/stringMap" },
@@ -213,7 +196,6 @@
     },
     "monitoring": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "podMonitor": { "$ref": "#/definitions/podMonitor" }
       },
@@ -221,7 +203,6 @@
     },
     "ingressTls": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "secretName": { "type": "string" }
@@ -230,7 +211,6 @@
     },
     "ingress": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "labels": { "$ref": "#/definitions/stringMap" },
@@ -244,7 +224,6 @@
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
             "properties": {
               "name": { "type": "string", "minLength": 1 },
               "path": { "type": "string", "minLength": 1 },
@@ -261,7 +240,6 @@
     },
     "httpRouteParentRef": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "group": { "type": "string" },
         "kind": { "type": "string" },
@@ -273,7 +251,6 @@
     },
     "httpRoute": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "labels": { "$ref": "#/definitions/stringMap" },
@@ -296,7 +273,6 @@
     },
     "gatewayService": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
@@ -316,14 +292,12 @@
       "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": false,
         "properties": { "name": { "type": "string", "minLength": 1 } },
         "required": ["name"]
       }
     },
     "global": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "imageRegistry": { "type": "string" },
         "imagePullSecrets": { "$ref": "#/definitions/imagePullSecrets" }
@@ -332,7 +306,6 @@
     },
     "runtimeImage": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "registry": { "type": "string" },
         "repository": { "type": "string", "minLength": 1 },
@@ -342,7 +315,6 @@
     },
     "componentImage": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "registry": { "type": "string" },
         "repository": { "type": "string", "minLength": 1 },
@@ -354,7 +326,6 @@
     },
     "podSettings": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
@@ -373,7 +344,6 @@
     },
     "podDefaults": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
@@ -387,7 +357,6 @@
     },
     "podSettingsWithoutHostAliases": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
@@ -405,7 +374,6 @@
     },
     "podSettingsWithoutTopologyOrHosts": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
@@ -422,7 +390,6 @@
     },
     "podSettingsWithVolumes": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
@@ -437,7 +404,6 @@
     },
     "podSettingsSchedulingOnly": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
@@ -451,7 +417,6 @@
     },
     "gatewayDefaultIdentity": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "user": { "type": "string" },
         "roles": { "type": "string" },
@@ -461,7 +426,6 @@
     },
     "gatewaySsl": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "secretName": { "type": "string" }
@@ -470,13 +434,11 @@
     },
     "gatewayIdp": {
       "type": "object",
-      "additionalProperties": false,
       "properties": { "host": { "type": "string" } },
       "required": ["host"]
     },
     "gatewayInternalJwks": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "cluster": { "type": "string" },
@@ -492,7 +454,6 @@
     },
     "gatewayRouteCookie": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "ttl": { "type": "string", "minLength": 1 }
@@ -501,7 +462,6 @@
     },
     "gatewayRouterRoute": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "prefix": { "type": "string", "minLength": 1 },
         "timeout": { "type": "string", "minLength": 1 },
@@ -511,7 +471,6 @@
     },
     "oauthSecretPaths": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "clientSecret": { "type": "string", "minLength": 1 },
         "cookieSecret": { "type": "string", "minLength": 1 }
@@ -520,7 +479,6 @@
     },
     "authzPostgres": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "maxConns": { "type": "integer", "minimum": 1 },
         "minConns": { "type": "integer", "minimum": 0 },
@@ -530,7 +488,6 @@
     },
     "authzCache": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "ttl": { "type": "integer", "minimum": 1 },
         "maxSize": { "type": "integer", "minimum": 1 }
@@ -539,7 +496,6 @@
     },
     "rateLimitConfig": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "domain": { "type": "string", "minLength": 1 },
         "descriptors": { "type": "array" }
@@ -548,7 +504,6 @@
     },
     "apiAuth": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "deviceEndpoint": { "type": "string" },
@@ -561,7 +516,6 @@
     },
     "autoscaling": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "minReplicas": { "type": "integer", "minimum": 0 },
@@ -575,7 +529,6 @@
     },
     "serviceAccount": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "name": { "type": "string" },
         "create": { "type": "boolean" },
@@ -586,7 +539,6 @@
     },
     "podDisruptionBudget": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "labels": { "$ref": "#/definitions/stringMap" },
@@ -612,7 +564,6 @@
     },
     "envoyJwt": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "userHeader": { "type": "string" },
         "providers": { "type": "array" }
@@ -620,7 +571,6 @@
     },
     "uiService": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "type": { "type": "string" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
@@ -633,7 +583,6 @@
     },
     "apiComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -658,7 +607,6 @@
     },
     "uiComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -690,7 +638,6 @@
     },
     "workerComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -709,7 +656,6 @@
     },
     "routerComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -733,7 +679,6 @@
     },
     "loggerComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -753,7 +698,6 @@
     },
     "agentComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -774,7 +718,6 @@
     },
     "delayedJobMonitorComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -792,7 +735,6 @@
     },
     "gatewayEnvoyComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -829,7 +771,6 @@
     },
     "gatewayOauth2ProxyComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -865,7 +806,6 @@
     },
     "gatewayAuthzComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -887,7 +827,6 @@
     },
     "gatewayRateLimitComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -908,7 +847,6 @@
     },
     "mcpComponent": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -932,7 +870,6 @@
     },
     "tlsConnection": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "caExistingSecret": { "type": "string" },
@@ -941,7 +878,6 @@
     },
     "databaseConnection": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "host": { "type": "string" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
@@ -952,7 +888,6 @@
     },
     "valkeyConnection": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "host": { "type": "string" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
@@ -962,13 +897,11 @@
     },
     "objectStorageConnection": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "endpoint": { "type": "string" },
         "region": { "type": "string" },
         "buckets": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "workflows": { "type": "string" },
             "logs": { "type": "string" },
@@ -979,7 +912,6 @@
     },
     "secretReference": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "generate": { "type": "boolean" },
         "existingSecret": { "type": "string" },

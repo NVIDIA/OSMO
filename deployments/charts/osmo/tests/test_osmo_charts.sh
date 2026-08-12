@@ -547,34 +547,6 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
         "https://idp.example.com/logout"
 
-    local legacy_value
-    local legacy_property
-    while IFS='|' read -r legacy_value legacy_property; do
-        if helm_template legacy-chart-values "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set "$legacy_value" \
-            >"$TEST_DIRECTORY/legacy-chart-values.out" 2>&1; then
-            fail "expected legacy $legacy_value to fail schema validation"
-        fi
-        require_contains "$TEST_DIRECTORY/legacy-chart-values.out" "$legacy_property"
-    done <<'EOF'
-services.api.auth.device_endpoint=https://idp.example.com/device|device_endpoint
-services.router.autoscaling.memoryTarget=80|memoryTarget
-gateway.envoy.jwt.user_header=x-osmo-user|user_header
-gateway.oauth2Proxy.redis.tlsEnabled=false|oauth2Proxy
-gateway.rateLimit.redis.tlsEnabled=false|rateLimit
-services.ui.service.selector.component=ui|selector
-gateway.upstreams.service.host=legacy-api|service
-gateway.upstreams.api.enabled=false|enabled
-gateway.upstreams.api.unknown=true|unknown
-gateway.networkPolicies.unknown=true|unknown
-gateway.networkPolicies.upstreams[0].component=service|component
-gateway.tls.unknown=true|unknown
-gateway.tls.upstreamCerts.service=legacy-api-tls|service
-EOF
-
-
     local invalid_gateway_value
     local invalid_gateway_property
     while IFS='|' read -r invalid_gateway_value invalid_gateway_property; do
@@ -847,15 +819,6 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "/etc/osmo/ca/postgresql"
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" \
         "--postgres-ssl-mode=verify-full"
-
-    if helm_template unsupported-migration "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set services.migration.enabled=true \
-        >"$TEST_DIRECTORY/unsupported-migration.out" 2>&1; then
-        fail "expected services.migration to fail schema validation"
-    fi
-    require_contains "$TEST_DIRECTORY/unsupported-migration.out" "migration"
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1167,27 +1130,20 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-image-digest.yaml" \
         "worker:ignored"
 
-    local unknown_nested_value
-    while IFS= read -r unknown_nested_value; do
-        if helm_template unknown-nested "$charts_copy/osmo" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set "$unknown_nested_value" \
-            >"$TEST_DIRECTORY/unknown-nested.out" 2>&1; then
-            fail "expected unknown chart-owned value $unknown_nested_value to fail"
-        fi
-        require_contains "$TEST_DIRECTORY/unknown-nested.out" "typo"
-    done <<'EOF'
-services.worker.typo=true
-services.worker.image.typo=true
-services.worker.serviceAccount.typo=true
-services.worker.podDisruptionBudget.typo=true
-services.worker.pod.typo=true
-monitoring.podMonitor.typo=true
-gateway.envoy.internalJwks.typo=true
-gateway.authz.postgres.typo=true
-gateway.rateLimit.config.typo=true
-secrets.valkey.typo=true
-EOF
+    helm_template unknown-root "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set unsupportedRoot.enabled=true \
+        >"$TEST_DIRECTORY/unknown-root.yaml"
+    require_deployment "$TEST_DIRECTORY/unknown-root.yaml" "unknown-root-osmo-api"
+
+    helm_template unknown-nested "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.worker.typo=true \
+        --set services.worker.image.typo=true \
+        --set gateway.envoy.service.loadBalancerIP=192.0.2.1 \
+        >"$TEST_DIRECTORY/unknown-nested.yaml"
+    require_deployment "$TEST_DIRECTORY/unknown-nested.yaml" \
+        "unknown-nested-osmo-worker"
 
     if helm_template invalid-pdb "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1219,26 +1175,6 @@ EOF
     require_contains "$TEST_DIRECTORY/unsupported-embedded.out" \
         "embedded PostgreSQL is not implemented"
 
-    local legacy_exposure_value
-    local legacy_exposure_property
-    while IFS='|' read -r legacy_exposure_value legacy_exposure_property; do
-        if helm_template legacy-exposure "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set "$legacy_exposure_value" \
-            >"$TEST_DIRECTORY/legacy-exposure.out" 2>&1; then
-            fail "expected legacy $legacy_exposure_value to fail schema validation"
-        fi
-        require_contains "$TEST_DIRECTORY/legacy-exposure.out" \
-            "$legacy_exposure_property"
-    done <<'EOF'
-exposure.mode=external|exposure
-exposure.baseUrl=https://osmo.example.com|exposure
-embeddedDependencies.gateway.enabled=false|gateway
-gateway.envoy.ingress.enabled=false|ingress
-gateway.envoy.service.httpsPort=443|httpsPort
-EOF
-
     if helm_template unsupported-generated-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -1258,15 +1194,6 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/unsupported-legacy-values.out" \
         "controlPlane"
-
-    if helm_template unsupported-legacy-external "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set external.postgresql.host=legacy-postgresql \
-        >"$TEST_DIRECTORY/unsupported-legacy-external.out" 2>&1; then
-        fail "expected legacy external values to fail schema validation"
-    fi
-    require_contains "$TEST_DIRECTORY/unsupported-legacy-external.out" "external"
 
     if helm_template invalid-replicas "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1307,7 +1234,6 @@ gateway.envoy.service.type=ExternalName|type
 gateway.envoy.service.port=0|port
 gateway.envoy.service.nodePort=65536|nodePort
 gateway.envoy.service.externalTrafficPolicy=Nearest|externalTrafficPolicy
-gateway.envoy.service.loadBalancerIP=192.0.2.1|loadBalancerIP
 EOF
 
     if helm_template invalid-ingress "$charts_copy/osmo" \
@@ -1412,61 +1338,6 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-notes.yaml" \
         "curl https://127.0.0.1:8080/api/version"
 
-    if helm_template unknown-root "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set unsupportedRoot.enabled=true \
-        >"$TEST_DIRECTORY/unknown-root.out" 2>&1; then
-        fail "expected an unknown top-level value to fail schema validation"
-    fi
-    require_contains "$TEST_DIRECTORY/unknown-root.out" "unsupportedRoot"
-
-    if helm_template legacy-component "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set services.worker.imageName=legacy-worker \
-        >"$TEST_DIRECTORY/legacy-component.out" 2>&1; then
-        fail "expected legacy per-service fields to fail schema validation"
-    fi
-    require_contains "$TEST_DIRECTORY/legacy-component.out" "worker"
-
-    local wrong_component_value
-    for wrong_component_value in \
-        services.api.httpPort=1234 \
-        services.ui.grpcPort=1234 \
-        services.router.cookieName=wrong \
-        services.worker.httpPort=1234 \
-        services.logger.clientId=wrong \
-        services.agent.service.type=ClusterIP \
-        services.delayedJobMonitor.autoscaling.enabled=true \
-        services.mcp.hostname=wrong \
-        gateway.envoy.grpcPort=1234 \
-        gateway.oauth2Proxy.jwt.userHeader=wrong \
-        gateway.authz.cookieName=wrong \
-        gateway.rateLimit.autoscaling.enabled=true; do
-        if helm_template wrong-component "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set "$wrong_component_value" \
-            >"$TEST_DIRECTORY/wrong-component.out" 2>&1; then
-            fail "expected wrong-component value $wrong_component_value to fail"
-        fi
-    done
-
-    local unsupported_pod_value
-    for unsupported_pod_value in \
-        podDefaults.hostAliases[0].ip=127.0.0.1 \
-        services.delayedJobMonitor.pod.topologySpreadConstraints[0].topologyKey=zone \
-        services.mcp.pod.extraVolumes[0].name=ignored \
-        gateway.envoy.pod.topologySpreadConstraints[0].topologyKey=zone; do
-        if helm_template unsupported-pod "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set "$unsupported_pod_value" \
-            >"$TEST_DIRECTORY/unsupported-pod.out" 2>&1; then
-            fail "expected unsupported pod value $unsupported_pod_value to fail"
-        fi
-    done
 }
 
 case "$MODE" in
