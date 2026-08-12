@@ -83,19 +83,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "osmo.component.image" -}}
 {{- $root := .root -}}
 {{- $component := .component -}}
-{{- $registry := $root.Values.image.registry -}}
-{{- $prefix := $root.Values.image.repositoryPrefix -}}
-{{- $name := required "component image.name is required" $component.image.name -}}
-{{- $tag := $component.image.tag | default $root.Values.image.tag | default $root.Chart.AppVersion -}}
-{{- printf "%s/%s/%s:%s" $registry $prefix $name $tag -}}
+{{- $registry := $root.Values.global.imageRegistry | default $component.image.registry -}}
+{{- $repository := required "component image.repository is required" $component.image.repository -}}
+{{- $base := ternary (printf "%s/%s" $registry $repository) $repository (ne $registry "") -}}
+{{- if $component.image.digest -}}
+{{- printf "%s@%s" $base $component.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" $base ($component.image.tag | default $root.Chart.AppVersion) -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "osmo.component.imageRepository" -}}
-{{- printf "%s/%s" .Values.image.registry .Values.image.repositoryPrefix -}}
+{{- $registry := .Values.global.imageRegistry | default .Values.runtimeImage.registry -}}
+{{- ternary (printf "%s/%s" $registry .Values.runtimeImage.repository) .Values.runtimeImage.repository (ne $registry "") -}}
 {{- end -}}
 
 {{- define "osmo.component.imageTag" -}}
-{{- .Values.image.tag | default .Chart.AppVersion -}}
+{{- .Values.runtimeImage.tag | default .Chart.AppVersion -}}
 {{- end -}}
 
 {{- define "osmo.hostname" -}}
@@ -105,11 +109,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "osmo.component.imagePullPolicy" -}}
-{{- .component.image.pullPolicy | default .root.Values.image.pullPolicy -}}
+{{- .component.image.pullPolicy -}}
 {{- end -}}
 
 {{- define "osmo.component.imagePullSecrets" -}}
-{{- with .Values.imagePullSecrets }}
+{{- with .Values.global.imagePullSecrets }}
 imagePullSecrets:
 {{ toYaml . | nindent 2 }}
 {{- end }}

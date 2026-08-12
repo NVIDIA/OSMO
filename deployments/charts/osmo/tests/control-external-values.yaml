@@ -34,6 +34,6 @@ secrets:
 services:
   api:
     image:
-      name: service
+      repository: nvidia/osmo/service
   mcp:
     enabled: false

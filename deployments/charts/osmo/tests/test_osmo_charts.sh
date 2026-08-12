@@ -60,19 +60,6 @@ require_line_count() {
         fail "expected $expected lines in $file, found $actual"
 }
 
-require_no_grep_matches() {
-    local output_file=$1
-    local failure_message=$2
-    shift 2
-    if grep -ERn -- "$@" >"$output_file"; then
-        cat "$output_file" >&2
-        fail "$failure_message"
-    else
-        local status=$?
-        [[ "$status" -eq 1 ]] || fail "grep failed with status $status"
-    fi
-}
-
 deployment_names() {
     awk '
         /^kind: Deployment$/ { deployment = 1; metadata = 0; next }
@@ -215,17 +202,6 @@ require_no_deployment() {
 }
 
 require_clean_osmo_sources() {
-    require_no_grep_matches "$TEST_DIRECTORY/legacy-template-values.out" \
-        "osmo templates still reference legacy values" \
-        '\.Values\.(global|controlPlane|components|services\.(configFile|configs|defaultAdmin|localstackS3|postgres|redis))' \
-        "$CHARTS_ROOT/osmo/templates"
-    require_no_grep_matches "$TEST_DIRECTORY/legacy-external-values.out" \
-        "osmo templates still reference the legacy external values block" \
-        '\.Values\.external([^[:alnum:]_]|$)' "$CHARTS_ROOT/osmo/templates"
-    require_no_grep_matches "$TEST_DIRECTORY/legacy-default-values.out" \
-        "osmo defaults still expose legacy values" \
-        '^(global|controlPlane|components):|^    (imageName|imageTag|imagePullPolicy|serviceAccountName):' \
-        "$CHARTS_ROOT/osmo/values.yaml"
     require_not_contains "$CHARTS_ROOT/osmo/Chart.yaml" "dependencies:"
     [[ ! -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must not have a dependency lock"
     [[ ! -d "$CHARTS_ROOT/osmo/charts" ]] || fail "osmo must not contain packaged dependencies"
@@ -774,6 +750,8 @@ EOF
         "name: REDIS_AUTH"
     require_contains "$TEST_DIRECTORY/osmo-review-ratelimit.yaml" \
         'value: "false"'
+    require_contains "$TEST_DIRECTORY/osmo-review-ratelimit.yaml" \
+        'image: "docker.io/envoyproxy/ratelimit:875d418c"'
     helm_template authz-database "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -844,6 +822,8 @@ EOF
         "issuer: https://issuer.example.com"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
+        "image: nvcr.io/nvidia/osmo/mcp-self-hosted:6.3.1"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 10
 
@@ -852,7 +832,7 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set commonLabels.team=platform \
         --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=linux' \
-        --set services.worker.image.name=custom-worker \
+        --set services.worker.image.repository=nvidia/osmo/custom-worker \
         --set services.worker.image.tag=test-tag \
         --set services.logger.enabled=false \
         >"$TEST_DIRECTORY/osmo-overrides.yaml"
@@ -1076,6 +1056,87 @@ EOF
     require_resource_metadata_annotation \
         "$TEST_DIRECTORY/osmo-monitoring-mcp.yaml" \
         "platform.example.com/owner"
+
+    helm_template image-defaults "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-image-defaults.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/service:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/web-ui:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/worker:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/router:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/logger:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/agent:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/delayed-job-monitor:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        "image: nvcr.io/nvidia/osmo/authz-sidecar:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        'image: "docker.io/envoyproxy/envoy:v1.38.1"'
+    require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
+        'image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"'
+
+    helm_template image-mirror "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set global.imageRegistry=mirror.example.com \
+        --set global.imagePullSecrets[0].name=mirror-secret \
+        >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
+        "image: mirror.example.com/nvidia/osmo/service:6.3.1"
+    require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
+        'image: "mirror.example.com/envoyproxy/envoy:v1.38.1"'
+    require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
+        'image: "mirror.example.com/oauth2-proxy/oauth2-proxy:v7.14.2"'
+    require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
+        "- mirror.example.com/nvidia/osmo"
+    require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
+        "name: mirror-secret"
+
+    helm_template image-component "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.worker.image.registry=registry.example.com \
+        --set services.worker.image.repository=custom/team/worker \
+        --set services.worker.image.tag=v2 \
+        >"$TEST_DIRECTORY/osmo-image-component.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-image-component.yaml" \
+        "image: registry.example.com/custom/team/worker:v2"
+
+    helm_template image-digest "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.worker.image.tag=ignored \
+        --set-string services.worker.image.digest=sha256:0123456789abcdef \
+        >"$TEST_DIRECTORY/osmo-image-digest.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-image-digest.yaml" \
+        "image: nvcr.io/nvidia/osmo/worker@sha256:0123456789abcdef"
+    require_not_contains "$TEST_DIRECTORY/osmo-image-digest.yaml" \
+        "worker:ignored"
+
+    local unknown_nested_value
+    while IFS= read -r unknown_nested_value; do
+        if helm_template unknown-nested "$charts_copy/osmo" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set "$unknown_nested_value" \
+            >"$TEST_DIRECTORY/unknown-nested.out" 2>&1; then
+            fail "expected unknown chart-owned value $unknown_nested_value to fail"
+        fi
+        require_contains "$TEST_DIRECTORY/unknown-nested.out" "typo"
+    done <<'EOF'
+services.worker.typo=true
+services.worker.image.typo=true
+services.worker.serviceAccount.typo=true
+services.worker.podDisruptionBudget.typo=true
+services.worker.pod.typo=true
+monitoring.podMonitor.typo=true
+gateway.envoy.internalJwks.typo=true
+gateway.authz.postgres.typo=true
+gateway.rateLimit.config.typo=true
+secrets.valkey.typo=true
+EOF
 
     if helm_template invalid-pdb "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

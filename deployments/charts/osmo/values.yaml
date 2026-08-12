@@ -67,15 +67,17 @@ externalDependencies:
 nameOverride: ''
 fullnameOverride: ''
 
-# Shared defaults for OSMO-owned images. A service can override these values in
-# its own `image` block; an empty service tag inherits `image.tag`, which in
-# turn defaults to Chart.appVersion.
-image:
+# Global image registry and pull credentials. A non-empty registry overrides
+# every component and runtime image registry for air-gapped mirrors.
+global:
+  imageRegistry: ''
+  imagePullSecrets: []
+
+# Runtime images referenced by submitted workflows.
+runtimeImage:
   registry: nvcr.io
-  repositoryPrefix: nvidia/osmo
+  repository: nvidia/osmo
   tag: ''
-  pullPolicy: IfNotPresent
-imagePullSecrets: []
 
 # Metadata and scheduling defaults shared by OSMO-owned workloads. Labels,
 # annotations, and node selectors merge with service-specific pod values;
@@ -207,9 +209,11 @@ services:
     enabled: false
     replicas: 1
     image:
-      name: mcp-self-hosted
+      registry: nvcr.io
+      repository: nvidia/osmo/mcp-self-hosted
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     port: 8000
     resourceUrl: ''
     requestTimeoutSeconds: 10
@@ -274,9 +278,11 @@ services:
     enabled: true
     replicas: 1
     image:
-      name: web-ui
+      registry: nvcr.io
+      repository: nvidia/osmo/web-ui
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     # Leave empty to use this release's gateway Service and configured port.
     apiHostname: ''
     portForwardEnabled: false
@@ -360,9 +366,11 @@ services:
     enabled: true
     replicas: 1
     image:
-      name: delayed-job-monitor
+      registry: nvcr.io
+      repository: nvidia/osmo/delayed-job-monitor
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     startupProbe:
       exec:
         command:
@@ -410,9 +418,11 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      name: worker
+      registry: nvcr.io
+      repository: nvidia/osmo/worker
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     startupProbe:
       exec:
         command:
@@ -462,9 +472,11 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      name: service
+      registry: nvcr.io
+      repository: nvidia/osmo/service
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     hostname: ''
     clientInstallUrl: https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh
     disableTaskMetrics: false
@@ -537,9 +549,11 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      name: router
+      registry: nvcr.io
+      repository: nvidia/osmo/router
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     hostname: ''
     webserverEnabled: false
     extraArgs: []
@@ -602,9 +616,11 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      name: logger
+      registry: nvcr.io
+      repository: nvidia/osmo/logger
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     startupProbe:
       exec:
         command:
@@ -659,9 +675,11 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      name: agent
+      registry: nvcr.io
+      repository: nvidia/osmo/agent
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     startupProbe:
       exec:
         command:
@@ -727,7 +745,10 @@ gateway:
       customMetrics: []
       behavior: {}
     image:
-      repository: envoyproxy/envoy:v1.38.1
+      registry: docker.io
+      repository: envoyproxy/envoy
+      tag: v1.38.1
+      digest: ''
       pullPolicy: IfNotPresent
     logLevel: info
     listenerPort: 8080
@@ -868,7 +889,10 @@ gateway:
       customMetrics: []
       behavior: {}
     image:
-      repository: quay.io/oauth2-proxy/oauth2-proxy:v7.14.2
+      registry: quay.io
+      repository: oauth2-proxy/oauth2-proxy
+      tag: v7.14.2
+      digest: ''
       pullPolicy: IfNotPresent
     httpPort: 4180
     metricsPort: 44180
@@ -935,9 +959,11 @@ gateway:
       customMetrics: []
       behavior: {}
     image:
-      name: authz-sidecar
+      registry: nvcr.io
+      repository: nvidia/osmo/authz-sidecar
       tag: ''
-      pullPolicy: Always
+      digest: ''
+      pullPolicy: IfNotPresent
     grpcPort: 50052
     postgres:
       maxConns: 10
@@ -998,7 +1024,10 @@ gateway:
     enabled: false
     replicas: 1
     image:
-      repository: envoyproxy/ratelimit:875d418c
+      registry: docker.io
+      repository: envoyproxy/ratelimit
+      tag: 875d418c
+      digest: ''
       pullPolicy: IfNotPresent
     grpcPort: 8091
     httpPort: 8090

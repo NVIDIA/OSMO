@@ -77,8 +77,8 @@ spec:
       - name: envoy
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.envoy) | nindent 10 }}
-        image: "{{ $gw.envoy.image.repository }}"
-        imagePullPolicy: {{ $gw.envoy.image.pullPolicy }}
+        image: "{{ include "osmo.component.image" (dict "root" . "component" $gw.envoy) }}"
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" $gw.envoy) }}
         args:
           - -c
           - /var/config/bootstrap.yaml
@@ -290,8 +290,8 @@ spec:
       serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" $gw.oauth2Proxy "root" . "suffix" "gateway-oauth2-proxy") }}
       containers:
       - name: oauth2-proxy
-        image: "{{ $gw.oauth2Proxy.image.repository }}"
-        imagePullPolicy: {{ $gw.oauth2Proxy.image.pullPolicy }}
+        image: "{{ include "osmo.component.image" (dict "root" . "component" $gw.oauth2Proxy) }}"
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" $gw.oauth2Proxy) }}
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.oauth2Proxy) | nindent 10 }}
         args:
@@ -708,8 +708,8 @@ spec:
       serviceAccountName: {{ include "osmo.component.serviceAccountName" (dict "component" $gw.rateLimit "root" . "suffix" "gateway-ratelimit") }}
       containers:
       - name: ratelimit
-        image: "{{ $gw.rateLimit.image.repository }}"
-        imagePullPolicy: "{{ $gw.rateLimit.image.pullPolicy }}"
+        image: "{{ include "osmo.component.image" (dict "root" . "component" $gw.rateLimit) }}"
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" $gw.rateLimit) }}
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.rateLimit) | nindent 10 }}
         {{- /* The default 875d418c image does not define an ENTRYPOINT. */}}
