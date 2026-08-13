@@ -16,7 +16,7 @@
       "type": "object",
       "properties": {
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
-        "valkey": { "$ref": "#/definitions/enabledBlock" },
+        "valkey": { "$ref": "#/definitions/embeddedValkey" },
         "objectStorage": { "$ref": "#/definitions/enabledBlock" },
         "kaiScheduler": { "$ref": "#/definitions/enabledBlock" }
       }
@@ -24,7 +24,7 @@
     "valkey": { "type": "object" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
-    "global": { "$ref": "#/definitions/global" },
+    "imageRegistry": { "type": "string" },
     "imagePullSecrets": { "$ref": "#/definitions/imagePullSecrets" },
     "runtimeImage": { "$ref": "#/definitions/runtimeImage" },
     "commonLabels": { "$ref": "#/definitions/stringMap" },
@@ -97,12 +97,20 @@
       }
     }
   },
-  "required": ["planes", "embeddedDependencies", "externalDependencies", "global", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "embeddedDependencies", "externalDependencies", "imageRegistry", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
+    },
+    "embeddedValkey": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "topologyMigrationAcknowledged": { "type": "boolean" }
+      },
+      "required": ["enabled", "topologyMigrationAcknowledged"]
     },
     "stringMap": {
       "type": "object",
@@ -299,14 +307,6 @@
         },
         "required": ["name"]
       }
-    },
-    "global": {
-      "type": "object",
-      "properties": {
-        "imageRegistry": { "type": "string" },
-        "imagePullSecrets": false
-      },
-      "required": ["imageRegistry"]
     },
     "runtimeImage": {
       "type": "object",

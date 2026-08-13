@@ -88,7 +88,10 @@ The generated Secret and 8 GiB `ReadWriteOnce` PVC are retained on uninstall.
 Back up both resources and restore the original Secret before reinstalling or
 recovering the PVC. To supply an existing Secret instead, disable
 `secrets.valkey.generate` and set both `secrets.valkey.existingSecret` and
-`valkey.auth.usersExistingSecret` to its name.
+`valkey.auth.usersExistingSecret` to its name. An existing Secret is recommended
+for production and GitOps installations. Generated credentials are retained in
+the Kubernetes Secret and Helm release history; restrict access to both and use
+`--hide-secret` when previewing an install or upgrade.
 
 The default standalone primary uses append-only persistence and a `Recreate`
 upgrade strategy. Kubernetes restarts a failed primary and reattaches its PVC;
@@ -98,8 +101,11 @@ volume expansion. Replication is available through
 `valkey.replica.enabled=true`, but the primary remains fixed and is not
 automatically failed over. Choose the topology before initial installation;
 changing between standalone and replication requires a planned data migration
-because the two modes use different PVCs. Use an external Valkey service for
-automatic primary promotion, multi-zone failover, managed backups, or TLS.
+because the two modes use different PVCs. After arranging that migration, set
+`embeddedDependencies.valkey.topologyMigrationAcknowledged=true`. The safety
+check relies on live Kubernetes lookups, so inspect retained PVCs yourself when
+rendering offline or when Helm cannot list them. Use an external Valkey service
+for automatic primary promotion, multi-zone failover, managed backups, or TLS.
 
 To use external Valkey, keep `embeddedDependencies.valkey.enabled=false` and
 configure `externalDependencies.valkey` and
@@ -107,11 +113,11 @@ configure `externalDependencies.valkey` and
 
 ## Optional configuration
 
-- Configure the shared image registry under `global.imageRegistry`, OSMO-owned
-  pull credentials under `imagePullSecrets`, and component images under
-  `runtimeImage` and each component's `image` block. Configure dependency
-  images and pull credentials in their native values blocks; for example,
-  Valkey uses `valkey.image` and `valkey.imagePullSecrets`.
+- Configure the OSMO image registry under `imageRegistry`, pull credentials
+  under `imagePullSecrets`, and component images under `runtimeImage` and each
+  component's `image` block. Configure dependency images and pull credentials
+  in their native values blocks; for example, Valkey uses `valkey.image` and
+  `valkey.imagePullSecrets`.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,
   `gateway`, and `podDefaults`.

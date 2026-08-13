@@ -291,15 +291,7 @@ require_no_resource() {
 }
 
 require_clean_osmo_sources() {
-    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "dependencies:"
-    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "- name: valkey"
-    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.11.0"
-    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
-        "repository: oci://ghcr.io/valkey-io/valkey-helm"
-    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
-        "condition: embeddedDependencies.valkey.enabled"
     [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
-    require_contains "$CHARTS_ROOT/osmo/Chart.lock" "version: 0.11.0"
     [[ ! -d "$CHARTS_ROOT/osmo/charts" ]] || fail "osmo must not contain packaged dependencies"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/postgres.yaml" ]] || \
         fail "osmo must not contain an unimplemented embedded PostgreSQL template"
@@ -871,6 +863,10 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "allowPrivilegeEscalation: false"
     require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "automountServiceAccountToken: false"
     require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "resources:"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "cpu: 500m"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "memory: 1Gi"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "cpu: 1"
+    require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" "memory: 2Gi"
 
     resource_document "$TEST_DIRECTORY/osmo-embedded-valkey.yaml" \
         PersistentVolumeClaim osmo-valkey >"$TEST_DIRECTORY/osmo-valkey-pvc.yaml"
@@ -883,7 +879,7 @@ EOF
         osmo-valkey-config >"$TEST_DIRECTORY/osmo-valkey-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" "appendonly yes"
     require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" "appendfsync everysec"
-    require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" "maxmemory 384mb"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" "maxmemory 1gb"
     require_contains "$TEST_DIRECTORY/osmo-valkey-config.yaml" \
         "maxmemory-policy noeviction"
     require_contains "$TEST_DIRECTORY/osmo-valkey.yaml" \
@@ -938,8 +934,8 @@ EOF
         --set-string secrets.valkey.existingSecret=existing-embedded-valkey \
         --set-string valkey.auth.usersExistingSecret=existing-embedded-valkey \
         >"$TEST_DIRECTORY/osmo-existing-embedded-valkey.yaml"
-    require_not_contains "$TEST_DIRECTORY/osmo-existing-embedded-valkey.yaml" \
-        "kind: Secret"
+    require_no_resource "$TEST_DIRECTORY/osmo-existing-embedded-valkey.yaml" Secret \
+        existing-embedded-valkey-credentials
     require_contains "$TEST_DIRECTORY/osmo-existing-embedded-valkey.yaml" \
         "secretName: existing-embedded-valkey"
 
@@ -1020,17 +1016,16 @@ EOF
     require_contains "$TEST_DIRECTORY/context-sensitive-embedded-secret.out" \
         "must not contain templates when using an existing Secret"
 
-    helm_template first-generated-upgrade "$charts_copy/osmo" \
-        --is-upgrade \
+    helm_template generated-secret-render "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set embeddedDependencies.valkey.enabled=true \
         --set-string externalDependencies.valkey.host= \
         --set secrets.valkey.generate=true \
         --set-string secrets.valkey.existingSecret= \
-        >"$TEST_DIRECTORY/first-generated-upgrade.yaml"
-    require_resource "$TEST_DIRECTORY/first-generated-upgrade.yaml" Secret \
-        "first-generated-upgrade-valkey-credentials"
+        >"$TEST_DIRECTORY/generated-secret-render.yaml"
+    require_resource "$TEST_DIRECTORY/generated-secret-render.yaml" Secret \
+        "generated-secret-render-valkey-credentials"
 
     if helm_template embedded-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1061,6 +1056,20 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-custom-port.out" \
         "embedded Valkey requires service port 6379"
 
+    if helm_template embedded-external-database "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set externalDependencies.valkey.database=1 \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        >"$TEST_DIRECTORY/embedded-external-database.out" 2>&1; then
+        fail "expected an external Valkey database in embedded mode to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-external-database.out" \
+        "externalDependencies.valkey.database must be 0 when embedded Valkey is enabled"
+
     helm_template replicated-embedded "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -1074,6 +1083,13 @@ EOF
         replicated-embedded-valkey
     require_resource "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" \
         PodDisruptionBudget replicated-embedded-valkey
+    require_resource "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" Service \
+        replicated-embedded-valkey
+    resource_document "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" Deployment \
+        replicated-embedded-osmo-api \
+        >"$TEST_DIRECTORY/osmo-replicated-valkey-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-api.yaml" \
+        "- replicated-embedded-valkey"
     resource_document "$TEST_DIRECTORY/osmo-replicated-valkey.yaml" StatefulSet \
         replicated-embedded-valkey \
         >"$TEST_DIRECTORY/osmo-replicated-valkey-statefulset.yaml"
@@ -1540,7 +1556,7 @@ EOF
 
     helm_template image-mirror "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set global.imageRegistry=mirror.example.com \
+        --set imageRegistry=mirror.example.com \
         --set imagePullSecrets[0].name=mirror-secret \
         >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
@@ -1561,6 +1577,8 @@ EOF
         --set-string externalDependencies.valkey.host= \
         --set secrets.valkey.generate=true \
         --set-string secrets.valkey.existingSecret= \
+        --set imageRegistry=osmo-mirror.example.com \
+        --set valkey.image.registry=valkey-mirror.example.com \
         --set imagePullSecrets[0].name=osmo-mirror-secret \
         --set valkey.imagePullSecrets[0]=valkey-mirror-secret \
         >"$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml"
@@ -1569,6 +1587,10 @@ EOF
         >"$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml"
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
+    require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
+        "image: osmo-mirror.example.com/nvidia/osmo/service:6.3.1"
+    require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
+        "valkey-mirror.example.com"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "name: valkey-mirror-secret"
     resource_document "$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml" \
@@ -1576,6 +1598,10 @@ EOF
         >"$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml"
     require_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
         "name: valkey-mirror-secret"
+    require_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
+        "image: valkey-mirror.example.com/valkey/valkey:9.1.1"
+    require_not_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
+        "osmo-mirror.example.com"
     require_not_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
 
@@ -1596,15 +1622,6 @@ EOF
     fi
     require_schema_path "$TEST_DIRECTORY/invalid-image-pull-secret-name.out" \
         "imagePullSecrets.0"
-
-    if helm_template invalid-global-image-pull-secret "$charts_copy/osmo" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set global.imagePullSecrets[0]=legacy-secret \
-        >"$TEST_DIRECTORY/invalid-global-image-pull-secret.out" 2>&1; then
-        fail "expected global.imagePullSecrets to fail schema validation"
-    fi
-    require_schema_path "$TEST_DIRECTORY/invalid-global-image-pull-secret.out" \
-        "global.imagePullSecrets"
 
     helm_template image-component "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

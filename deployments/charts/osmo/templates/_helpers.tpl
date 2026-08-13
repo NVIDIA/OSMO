@@ -83,7 +83,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "osmo.component.image" -}}
 {{- $root := .root -}}
 {{- $component := .component -}}
-{{- $registry := $root.Values.global.imageRegistry | default $component.image.registry -}}
+{{- $registry := $root.Values.imageRegistry | default $component.image.registry -}}
 {{- $repository := required "component image.repository is required" $component.image.repository -}}
 {{- $base := ternary (printf "%s/%s" $registry $repository) $repository (ne $registry "") -}}
 {{- if $component.image.digest -}}
@@ -94,7 +94,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "osmo.component.imageRepository" -}}
-{{- $registry := .Values.global.imageRegistry | default .Values.runtimeImage.registry -}}
+{{- $registry := .Values.imageRegistry | default .Values.runtimeImage.registry -}}
 {{- ternary (printf "%s/%s" $registry .Values.runtimeImage.repository) .Values.runtimeImage.repository (ne $registry "") -}}
 {{- end -}}
 

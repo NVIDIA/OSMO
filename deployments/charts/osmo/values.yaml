@@ -19,6 +19,7 @@ embeddedDependencies:
     enabled: false
   valkey:
     enabled: false
+    topologyMigrationAcknowledged: false
   objectStorage:
     enabled: false
   kaiScheduler:
@@ -35,11 +36,11 @@ valkey:
       - podSelector: {}
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
   initResources:
     requests:
       cpu: 50m
@@ -63,7 +64,7 @@ valkey:
   valkeyConfig: |
     appendonly yes
     appendfsync everysec
-    maxmemory 384mb
+    maxmemory 1gb
     maxmemory-policy noeviction
   deploymentStrategy: Recreate
   replica:
@@ -116,10 +117,9 @@ externalDependencies:
 nameOverride: ''
 fullnameOverride: ''
 
-# A non-empty registry overrides every component and runtime image registry for
-# air-gapped mirrors.
-global:
-  imageRegistry: ''
+# A non-empty registry overrides OSMO-owned component and runtime image
+# registries. Configure dependency registries in their native values blocks.
+imageRegistry: ''
 
 # Pull credential Secret references for OSMO-owned pods. Configure dependency
 # pull credentials in the dependency's native values block.
