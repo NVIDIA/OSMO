@@ -19,6 +19,8 @@ import platform
 import time
 import unittest
 
+import jinja2
+
 from src.lib.utils import jinja_sandbox, osmo_errors
 
 
@@ -27,6 +29,13 @@ from src.lib.utils import jinja_sandbox, osmo_errors
 
 def triple(x):
     return x*3
+
+
+def triple_kill_process_on_odd(x):
+    """Terminates the worker subprocess before it can send a result back."""
+    if x % 2 == 0:
+        return x*3
+    raise SystemExit(1)
 
 
 def triple_hang_on_odd(x):
@@ -169,6 +178,52 @@ class TestJinjaSandbox(unittest.TestCase):
     def test_big_template_multiple_times(self):
         for _ in range(5):
             jinja_sandbox.sandboxed_jinja_substitute(BIG_TEMPLATE, {'name': 'my-workflow'})
+
+
+class TestRenderTemplate(unittest.TestCase):
+    """The rendering contract enforced inside each sandboxed worker."""
+
+    def test_render_template_substitutes_provided_data(self):
+        result = jinja_sandbox.SandboxedJinjaRenderer.render_template(
+            GOOD_TEMPLATE, {'name': 'World'})
+
+        self.assertEqual(result, 'Hello, World!')
+
+    def test_render_template_rejects_undefined_variable(self):
+        with self.assertRaises(jinja2.exceptions.UndefinedError):
+            jinja_sandbox.SandboxedJinjaRenderer.render_template(GOOD_TEMPLATE, {})
+
+    def test_render_template_rejects_unsafe_attribute_access(self):
+        with self.assertRaises(jinja2.exceptions.SecurityError):
+            jinja_sandbox.SandboxedJinjaRenderer.render_template(
+                UNSAFE_TEMPLATE, {'name': 'World'})
+
+
+class TestSandboxedWorkerContainment(unittest.TestCase):
+    """A worker must never hand a dead or poisoned subprocess back to its caller."""
+
+    def test_worker_raises_memory_error_when_subprocess_dies_before_replying(self):
+        worker = jinja_sandbox.SandboxedWorker(triple_kill_process_on_odd)
+        self.addCleanup(worker.shutdown)
+
+        with self.assertRaises(MemoryError):
+            worker.run(1)
+
+    def test_worker_still_serves_work_after_subprocess_death(self):
+        worker = jinja_sandbox.SandboxedWorker(triple_kill_process_on_odd)
+        self.addCleanup(worker.shutdown)
+        with self.assertRaises(MemoryError):
+            worker.run(1)
+
+        self.assertEqual(worker.run(4), 12)
+
+    def test_pool_still_serves_work_after_subprocess_death(self):
+        pool = jinja_sandbox.SandboxedWorkerPool(triple_kill_process_on_odd, num_workers=1)
+        self.addCleanup(pool.shutdown)
+        with self.assertRaises(MemoryError):
+            pool.run(1)
+
+        self.assertEqual(pool.run(4), 12)
 
 
 if __name__ == '__main__':

@@ -49,6 +49,16 @@ py_test(
 )
 
 py_test(
+    name = "test_config",
+    srcs = [
+        "test_config.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
+
+py_test(
     name = "test_config_update",
     srcs = [
         "test_config_update.py"
