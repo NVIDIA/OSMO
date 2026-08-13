@@ -435,6 +435,11 @@ py_image_layer(
     binary = ":mcp_binary",
 )
 
+py_image_layer(
+    name = "mcp_auth_layer",
+    binary = "//src/service/mcp_auth:mcp_auth_binary",
+)
+
 osmo_python_wrapper(
     name = "mcp_wrapper",
     bin_name = "mcp",
@@ -442,9 +447,20 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/mcp/mcp_binary.runfiles",
 )
 
+osmo_python_wrapper(
+    name = "mcp_auth_wrapper",
+    bin_name = "mcp-auth",
+    main = "/src/service/mcp_auth/server.py",
+    runfiles_dir = "/src/service/mcp_auth/mcp_auth_binary.runfiles",
+)
+
 filegroup(
     name = "mcp_image_layers",
     srcs = [
+        ":mcp_auth_layer_default",
+        ":mcp_auth_layer_interpreter",
+        ":mcp_auth_layer_packages",
+        ":mcp_auth_wrapper",
         ":mcp_layer_default",
         ":mcp_layer_interpreter",
         ":mcp_layer_packages",

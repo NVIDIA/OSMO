@@ -35,6 +35,7 @@ mypy_cli(
     deps =[
         app_requirement("certifi"),
         app_requirement("fastapi"),
+        app_requirement("fastmcp-slim"),
         app_requirement("jinja2"),
         app_requirement("lark"),
         app_requirement("mcp"),
@@ -43,6 +44,7 @@ mypy_cli(
         app_requirement("mypy-boto3-sts"),
         app_requirement("opentelemetry-sdk"),
         app_requirement("pydantic"),
+        app_requirement("py-key-value-aio"),
         app_requirement("pyjwt"),
         app_requirement("shtab"),
         app_requirement("slack_sdk"),

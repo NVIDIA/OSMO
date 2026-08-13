@@ -45,6 +45,19 @@ h11==0.16.0
 # Model Context Protocol
 mcp>=1.27,<2
 
+# Endpoint-only MCP OAuth. FastMCP's OIDCProxy is used as a focused OAuth proxy;
+# these explicit server-import dependencies avoid upgrading OSMO's existing
+# Uvicorn/WebSocket runtime through the broad `server` extra.
+fastmcp-slim[mcp]==3.4.7
+authlib>=1.6.11
+griffelib>=2.0.0
+jsonref>=1.1.0
+joserfc>=1.1.0
+packaging>=24.0
+py-key-value-aio[filetree,memory,redis,wrappers-encryption]>=0.4.4,<0.5.0
+python-multipart>=0.0.26
+uncalled-for>=0.2.0
+
 # JWT
 pyjwt==2.13.0
 
