@@ -27,8 +27,10 @@ services:
       trustedHttpsRedirectOrigins:
       - https://trusted-client.example.com
       entra:
-        issuerUrl: https://login.microsoftonline.com/example-tenant/v2.0
+        tenantId: example-tenant
         clientId: example-mcp-broker-client
+        identifierUri: https://osmo.example.com/mcp
+        tokenIssuer: https://login.microsoftonline.com/example-tenant/v2.0
       redis:
         serviceName: broker-redis.example.internal
         port: 6380

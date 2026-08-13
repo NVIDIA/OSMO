@@ -36,12 +36,21 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
 {{- $mcpOauthBrokerRoutes := list
       (dict "name" "mcp-oauth-authorization-server-metadata" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$" "method" "GET")
-      (dict "name" "mcp-oauth-jwks" "path" "/oauth/jwks.json" "pathRegex" "^/oauth/jwks[.]json([?].*)?$" "method" "GET")
-      (dict "name" "mcp-oauth-authorize" "path" "/oauth/authorize" "pathRegex" "^/oauth/authorize([?].*)?$" "method" "GET")
-      (dict "name" "mcp-oauth-entra-callback" "path" "/oauth/callback/entra" "pathRegex" "^/oauth/callback/entra([?].*)?$" "method" "GET" "timeout" "30s")
-      (dict "name" "mcp-oauth-register" "path" "/oauth/register" "pathRegex" "^/oauth/register([?].*)?$" "method" "POST")
-      (dict "name" "mcp-oauth-token" "path" "/oauth/token" "pathRegex" "^/oauth/token([?].*)?$" "method" "POST")
-      (dict "name" "mcp-oauth-revoke" "path" "/oauth/revoke" "pathRegex" "^/oauth/revoke([?].*)?$" "method" "POST")
+      (dict "name" "mcp-oauth-authorize-get" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "GET")
+      (dict "name" "mcp-oauth-authorize-post" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "POST")
+      (dict "name" "mcp-oauth-entra-callback" "path" "/oauth/callback/entra" "pathRegex" "^/oauth/callback/entra([?].*)?$" "method" "GET" "timeout" "45s")
+      (dict "name" "mcp-oauth-register" "path" "/register" "pathRegex" "^/register([?].*)?$" "method" "POST")
+      (dict "name" "mcp-oauth-token" "path" "/token" "pathRegex" "^/token([?].*)?$" "method" "POST" "timeout" "45s")
+      (dict "name" "mcp-oauth-consent-get" "path" "/consent" "pathRegex" "^/consent([?].*)?$" "method" "GET")
+      (dict "name" "mcp-oauth-consent-post" "path" "/consent" "pathRegex" "^/consent([?].*)?$" "method" "POST")
+    }}
+{{- $mcpOauthBrokerOptionRoutes := list
+      (dict "name" "mcp-oauth-authorization-server-metadata-options" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$")
+      (dict "name" "mcp-oauth-authorize-options" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$")
+      (dict "name" "mcp-oauth-entra-callback-options" "path" "/oauth/callback/entra" "pathRegex" "^/oauth/callback/entra([?].*)?$" "timeout" "45s")
+      (dict "name" "mcp-oauth-register-options" "path" "/register" "pathRegex" "^/register([?].*)?$")
+      (dict "name" "mcp-oauth-token-options" "path" "/token" "pathRegex" "^/token([?].*)?$")
+      (dict "name" "mcp-oauth-consent-options" "path" "/consent" "pathRegex" "^/consent([?].*)?$")
     }}
 {{- $mcpResourceUrl := "" }}
 {{- $mcpMetadataUrl := "" }}
@@ -63,16 +72,14 @@ setting detects this rotation and triggers Envoy to reload.
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp-resource-url" . }}
 {{- if $mcpOauthBrokerEnabled }}
-{{- $mcpOauthIssuerUrl = include "osmo.mcp-oauth-issuer-url" . }}
+{{- $mcpOauthIssuerUrl = printf "%s/" (include "osmo.mcp-oauth-issuer-url" .) }}
 {{- $mcpAuthorizationServers = list $mcpOauthIssuerUrl }}
 {{- $mcpScopes = list $mcpOauthBroker.scope }}
-{{- $brokerJwksScheme := ternary "https" "http" $gw.tls.enabled }}
-{{- $brokerJwksUri := printf "%s://%s:%v/oauth/jwks.json" $brokerJwksScheme $mcpOauthBroker.serviceName $mcpOauthBroker.port }}
 {{- /* Broker tokens remain a global provider because the MCP service relays
        the user's same bearer token through Gateway to /api routes. Semantic
        OSMO RBAC still applies there. Moving this to an MCP-only provider
        requires token exchange/internal delegation in the MCP service. */}}
-{{- $jwtProviders = append $jwtProviders (dict "issuer" $mcpOauthIssuerUrl "audience" $mcpResourceUrl "jwks_uri" $brokerJwksUri "cluster" "osmo-mcp-oauth" "user_claim" "preferred_username") }}
+{{- $jwtProviders = append $jwtProviders (dict "issuer" $mcpOauthIssuerUrl "audience" $mcpResourceUrl "local_jwks_file" $mcpOauthBroker.signingJwksFile "nested_upstream_claims" true) }}
 {{- else }}
 {{- if not (kindIs "slice" $mcp.authorizationServers) }}
 {{- fail "services.mcp.authorizationServers must be a list" }}
@@ -378,7 +385,9 @@ data:
                     envoy.filters.http.ext_authz:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
-                - name: {{ printf "%s-options" $route.name }}
+                {{- end }}
+                {{- range $route := $mcpOauthBrokerOptionRoutes }}
+                - name: {{ $route.name }}
                   match:
                     path: {{ $route.path }}
                     headers:
@@ -755,6 +764,8 @@ data:
                                       header_name: ":method"
                                   value_match:
                                     exact: {{ $route.method | quote }}
+                          {{- end }}
+                          {{- range $route := $mcpOauthBrokerOptionRoutes }}
                           - and_matcher:
                               predicate:
                               - single_predicate:
@@ -842,6 +853,12 @@ data:
                     - name: authorization
                       value_prefix: "Bearer "
                     - name: x-osmo-auth
+                    {{- if hasKey $provider "local_jwks_file" }}
+                    # FastMCP uses HS256. This private local JWKS contains the
+                    # shared secret and must never be published over HTTP.
+                    local_jwks:
+                      filename: {{ $provider.local_jwks_file | quote }}
+                    {{- else }}
                     remote_jwks:
                       http_uri:
                         uri: {{ $provider.jwks_uri }}
@@ -856,9 +873,12 @@ data:
                         retry_back_off:
                           base_interval: 0.01s
                           max_interval: 3s
+                    {{- end }}
+                    {{- if hasKey $provider "user_claim" }}
                     claim_to_headers:
                     - claim_name: {{$provider.user_claim}}
                       header_name: {{$envoy.jwt.user_header}}
+                    {{- end }}
                   {{- end }}
                 rules:
                   {{- if $skipAuthPaths }}
@@ -901,9 +921,58 @@ data:
                       if (meta == nil or meta.verified_jwt == nil) then
                         return
                       end
-                      local roles = meta.verified_jwt.roles
+                      {{- if $mcpOauthBrokerEnabled }}
+                      -- FastMCP signs access and refresh JWTs with the same
+                      -- issuer, audience, and key. Its access tokens omit
+                      -- token_use; refresh tokens set token_use=refresh.
+                      -- Envoy validates only JWT cryptography, so reject the
+                      -- refresh form before it can become a bearer token.
+                      if (meta.verified_jwt.iss == {{ $mcpOauthIssuerUrl | quote }} and meta.verified_jwt.token_use ~= nil) then
+                        request_handle:respond(
+                          {[':status'] = '401', ['content-type'] = 'application/json', ['cache-control'] = 'no-store'},
+                          '{"error":"invalid_token"}'
+                        )
+                        return
+                      end
+                      if (meta.verified_jwt.iss == {{ $mcpOauthIssuerUrl | quote }}) then
+                        local required_scope = {{ $mcpOauthBroker.scope | quote }}
+                        local has_required_scope = false
+                        if (type(meta.verified_jwt.scope) == 'string') then
+                          for token_scope in string.gmatch(meta.verified_jwt.scope, '%S+') do
+                            if (token_scope == required_scope) then
+                              has_required_scope = true
+                              break
+                            end
+                          end
+                        end
+                        if (not has_required_scope) then
+                          request_handle:respond(
+                            {[':status'] = '403', ['content-type'] = 'application/json', ['cache-control'] = 'no-store'},
+                            '{"error":"insufficient_scope"}'
+                          )
+                          return
+                        end
+                      end
+                      {{- end }}
+                      local claims = meta.verified_jwt
+                      {{- if $mcpOauthBrokerEnabled }}
+                      if (meta.verified_jwt.iss == {{ $mcpOauthIssuerUrl | quote }} and type(claims.upstream_claims) == 'table') then
+                        claims = claims.upstream_claims
+                        local username = claims.preferred_username or claims.unique_name or claims.upn or claims.email
+                        if (username ~= nil) then
+                          request_handle:headers():replace({{ $envoy.jwt.user_header | quote }}, tostring(username))
+                        end
+                      end
+                      {{- end }}
+                      local roles = claims.roles
                       if (roles ~= nil and type(roles) == 'table') then
-                        request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                        local safe_roles = {}
+                        for _, role in ipairs(roles) do
+                          if (type(role) == 'string' and #role <= 256 and not string.find(role, '[,%c]')) then
+                            table.insert(safe_roles, role)
+                          end
+                        end
+                        request_handle:headers():replace('x-osmo-roles', table.concat(safe_roles, ','))
                       end
                       if (meta.verified_jwt.osmo_token_name ~= nil) then
                         request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))

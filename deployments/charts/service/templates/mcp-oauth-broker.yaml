@@ -29,8 +29,8 @@
 {{- if lt (int $broker.replicas) 1 }}
 {{- fail "services.mcp.oauthBroker.replicas must be at least 1" }}
 {{- end }}
-{{- if ne $broker.scope "mcp:access" }}
-{{- fail "services.mcp.oauthBroker.scope must be mcp:access" }}
+{{- if ne $broker.scope "access_as_user" }}
+{{- fail "services.mcp.oauthBroker.scope must be access_as_user" }}
 {{- end }}
 {{- if not (kindIs "slice" $broker.trustedHttpsRedirectOrigins) }}
 {{- fail "services.mcp.oauthBroker.trustedHttpsRedirectOrigins must be a list" }}
@@ -47,17 +47,23 @@
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if not (regexMatch "^https://[^?#]+$" (required "services.mcp.oauthBroker.entra.issuerUrl is required when the OAuth broker is enabled" $broker.entra.issuerUrl)) }}
-{{- fail "services.mcp.oauthBroker.entra.issuerUrl must be an HTTPS URL without a query or fragment" }}
-{{- end }}
+{{- $entraTenantId := required "services.mcp.oauthBroker.entra.tenantId is required when the OAuth broker is enabled" $broker.entra.tenantId }}
 {{- $entraClientId := required "services.mcp.oauthBroker.entra.clientId is required when the OAuth broker is enabled" $broker.entra.clientId }}
 {{- $entraClientSecretFile := required "services.mcp.oauthBroker.entra.clientSecretFile is required when the OAuth broker is enabled" $broker.entra.clientSecretFile }}
-{{- $signingPrivateJwkFile := required "services.mcp.oauthBroker.signingPrivateJwkFile is required when the OAuth broker is enabled" $broker.signingPrivateJwkFile }}
+{{- $entraIdentifierUri := required "services.mcp.oauthBroker.entra.identifierUri is required when the OAuth broker is enabled" $broker.entra.identifierUri }}
+{{- $entraTokenIssuer := required "services.mcp.oauthBroker.entra.tokenIssuer is required when the OAuth broker is enabled" $broker.entra.tokenIssuer }}
+{{- if ne (trimSuffix "/" $entraIdentifierUri) $resourceUrl }}
+{{- fail "services.mcp.oauthBroker.entra.identifierUri must match services.mcp.resourceUrl" }}
+{{- end }}
+{{- if not (regexMatch "^https://[^/?#]+(/[^?#]*)?$" $entraTokenIssuer) }}
+{{- fail "services.mcp.oauthBroker.entra.tokenIssuer must be an absolute HTTPS issuer without query or fragment" }}
+{{- end }}
+{{- $signingJwksFile := required "services.mcp.oauthBroker.signingJwksFile is required when the OAuth broker is enabled" $broker.signingJwksFile }}
 {{- if not (hasPrefix "/" $entraClientSecretFile) }}
 {{- fail "services.mcp.oauthBroker.entra.clientSecretFile must be an absolute path" }}
 {{- end }}
-{{- if not (hasPrefix "/" $signingPrivateJwkFile) }}
-{{- fail "services.mcp.oauthBroker.signingPrivateJwkFile must be an absolute path" }}
+{{- if not (hasPrefix "/" $signingJwksFile) }}
+{{- fail "services.mcp.oauthBroker.signingJwksFile must be an absolute path" }}
 {{- end }}
 {{- $redisHost := $broker.redis.serviceName | default .Values.services.redis.serviceName | required "services.mcp.oauthBroker.redis.serviceName or services.redis.serviceName is required" }}
 {{- $redisPort := .Values.services.redis.port }}
@@ -83,9 +89,6 @@
 {{- if or (lt (int $broker.refreshTokenTtlSeconds) 300) (gt (int $broker.refreshTokenTtlSeconds) 604800) }}
 {{- fail "services.mcp.oauthBroker.refreshTokenTtlSeconds must be between 300 and 604800" }}
 {{- end }}
-{{- if or (lt (int $broker.clientRegistrationTtlSeconds) 3600) (gt (int $broker.clientRegistrationTtlSeconds) 7776000) }}
-{{- fail "services.mcp.oauthBroker.clientRegistrationTtlSeconds must be between 3600 and 7776000" }}
-{{- end }}
 {{- $reservedEnvNames := list
       "OSMO_MCP_AUTH_HOST"
       "OSMO_MCP_AUTH_PORT"
@@ -96,14 +99,14 @@
       "OSMO_MCP_AUTH_REDIS_URL"
       "OSMO_MCP_AUTH_REDIS_PASSWORD_FILE"
       "OSMO_MCP_AUTH_REDIS_KEY_PREFIX"
-      "OSMO_MCP_AUTH_ENTRA_ISSUER_URL"
+      "OSMO_MCP_AUTH_ENTRA_TENANT_ID"
       "OSMO_MCP_AUTH_ENTRA_CLIENT_ID"
       "OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE"
-      "OSMO_MCP_AUTH_ENTRA_REDIRECT_URL"
-      "OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE"
+      "OSMO_MCP_AUTH_ENTRA_IDENTIFIER_URI"
+      "OSMO_MCP_AUTH_ENTRA_TOKEN_ISSUER"
+      "OSMO_MCP_AUTH_SIGNING_JWKS_FILE"
       "OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS"
       "OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
-      "OSMO_MCP_AUTH_CLIENT_REGISTRATION_TTL_SECONDS"
     }}
 {{- range $env := $broker.extraEnv }}
 {{- if has (toString (default "" $env.name)) $reservedEnvNames }}
@@ -116,7 +119,7 @@
 {{- fail "services.mcp.oauthBroker.existingSecret.mountPath must be an absolute path" }}
 {{- end }}
 {{- $clientSecretKey := required "services.mcp.oauthBroker.existingSecret.clientSecretKey is required" $broker.existingSecret.clientSecretKey }}
-{{- $signingKey := required "services.mcp.oauthBroker.existingSecret.signingPrivateJwkKey is required" $broker.existingSecret.signingPrivateJwkKey }}
+{{- $signingKey := required "services.mcp.oauthBroker.existingSecret.signingJwksKey is required" $broker.existingSecret.signingJwksKey }}
 {{- if and $broker.redis.passwordFile (not $broker.existingSecret.redisPasswordKey) }}
 {{- fail "services.mcp.oauthBroker.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
 {{- end }}
@@ -124,7 +127,6 @@
 {{- $imageTag := $mcp.imageTag | default .Values.global.osmoImageTag }}
 {{- $redisScheme := ternary "rediss" "redis" $broker.redis.tlsEnabled }}
 {{- $redisUrl := printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $broker.redis.dbNumber }}
-{{- $entraRedirectUrl := printf "%s/oauth/callback/entra" $issuerUrl }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -201,22 +203,22 @@ spec:
         {{- end }}
         - name: OSMO_MCP_AUTH_REDIS_KEY_PREFIX
           value: {{ $redisKeyPrefix | quote }}
-        - name: OSMO_MCP_AUTH_ENTRA_ISSUER_URL
-          value: {{ $broker.entra.issuerUrl | quote }}
+        - name: OSMO_MCP_AUTH_ENTRA_TENANT_ID
+          value: {{ $entraTenantId | quote }}
         - name: OSMO_MCP_AUTH_ENTRA_CLIENT_ID
           value: {{ $entraClientId | quote }}
         - name: OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE
           value: {{ $entraClientSecretFile | quote }}
-        - name: OSMO_MCP_AUTH_ENTRA_REDIRECT_URL
-          value: {{ $entraRedirectUrl | quote }}
-        - name: OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE
-          value: {{ $signingPrivateJwkFile | quote }}
+        - name: OSMO_MCP_AUTH_ENTRA_IDENTIFIER_URI
+          value: {{ $entraIdentifierUri | quote }}
+        - name: OSMO_MCP_AUTH_ENTRA_TOKEN_ISSUER
+          value: {{ $entraTokenIssuer | quote }}
+        - name: OSMO_MCP_AUTH_SIGNING_JWKS_FILE
+          value: {{ $signingJwksFile | quote }}
         - name: OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS
           value: {{ $broker.accessTokenTtlSeconds | int | quote }}
         - name: OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS
           value: {{ $broker.refreshTokenTtlSeconds | int | quote }}
-        - name: OSMO_MCP_AUTH_CLIENT_REGISTRATION_TTL_SECONDS
-          value: {{ $broker.clientRegistrationTtlSeconds | int | quote }}
         {{- with $broker.extraEnv }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -249,8 +251,8 @@ spec:
           items:
           - key: {{ $broker.existingSecret.clientSecretKey }}
             path: client-secret
-          - key: {{ $broker.existingSecret.signingPrivateJwkKey }}
-            path: signing-private.jwk
+          - key: {{ $broker.existingSecret.signingJwksKey }}
+            path: signing-jwks.json
           {{- if $broker.redis.passwordFile }}
           - key: {{ $broker.existingSecret.redisPasswordKey }}
             path: redis-password

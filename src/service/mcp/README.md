@@ -144,19 +144,19 @@ short-lived public client record in OSMO; it does not create a new application
 in the upstream identity provider. The broker owns one administrator-managed
 upstream OAuth application and one stable callback URL.
 
-The broker issues an access token with the exact MCP audience and the single
-advertised `mcp:access` scope. After validating the upstream token's signature,
-issuer, audience, nonce, and authorized party, it preserves the upstream
-app-specific `roles` claim in the broker token. OSMO then resolves exact role
-names and configured external-role mappings to semantic permissions. Entra app
-role definitions and assignments are therefore part of OSMO's authorization
-boundary and require the same review as direct OSMO role assignments. In the
-current bearer-relay architecture, the Gateway also accepts that token on the
-API pass made by the MCP process; a holder could therefore present it directly
-to API routes. Existing OSMO RBAC, API-specific actions, and pool scope still
-apply on every such request. Strict route-level audience isolation requires a
-later internal token-exchange/delegation design so MCP no longer relays the
-user's bearer.
+FastMCP's Azure provider owns DCR, PKCE, consent, Entra exchange, and refresh.
+It issues a short-lived proxy token with the exact MCP audience and the single
+advertised `access_as_user` scope. The token contains the identity and roles
+from the cryptographically verified Entra access token under
+`upstream_claims`; the Gateway reads those claims and applies the existing OSMO
+role model. Entra app-role definitions and assignments are therefore part of
+OSMO's authorization boundary and require the same review as direct OSMO role
+assignments. In the current bearer-relay architecture, the Gateway also accepts
+that token on the API pass made by the MCP process; a holder could therefore
+present it directly to API routes. Existing OSMO RBAC, API-specific actions,
+and pool scope still apply on every such request. Strict route-level audience
+isolation requires a later internal token-exchange/delegation design so MCP no
+longer relays the user's bearer.
 
 ### Deployment prerequisites
 
@@ -165,10 +165,11 @@ Before enabling broker mode, an administrator must provide:
 - one confidential OAuth application in the deployment identity provider,
   with the broker's exact public callback registered;
 - its client ID and client secret through the deployment's secret manager;
-- a broker signing key through the secret manager, with public keys available
-  from the broker JWKS endpoint;
-- a shared Redis namespace for dynamic registrations, one-use authorization
-  codes, login transactions, and rotating refresh sessions;
+- the delegated `<resource-url>/access_as_user` scope on that application;
+- one private 256-bit HS256 key as a single-key JWKS mounted into both the
+  broker and Gateway; this symmetric key must never be exposed publicly;
+- a shared Redis namespace for FastMCP's encrypted clients, authorization
+  transactions, upstream tokens, and refresh state;
 - an exact public MCP resource URL and broker issuer URL for the deployment;
 - identity and role claims that preserve the Gateway's current user and role
   mapping; and
@@ -180,12 +181,13 @@ The public protocol surface is deliberately narrow:
 ```text
 GET  /.well-known/oauth-protected-resource/mcp
 GET  /.well-known/oauth-authorization-server
-GET  /oauth/jwks.json
-GET  /oauth/authorize
+GET  /authorize
+POST /authorize
 GET  /oauth/callback/entra
-POST /oauth/register
-POST /oauth/token
-POST /oauth/revoke
+POST /register
+POST /token
+GET  /consent
+POST /consent
 ```
 
 Only these exact OAuth paths and methods may bypass the normal Gateway JWT and
@@ -201,14 +203,17 @@ services:
     oauthBroker:
       enabled: true
       issuerUrl: https://<osmo-host>
+      scope: access_as_user
       entra:
-        issuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
+        tenantId: <tenant-id>
         clientId: <broker-application-client-id>
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
-      signingPrivateJwkFile: /etc/osmo/mcp-auth/signing-private.jwk
+        identifierUri: https://<osmo-host>/mcp
+        tokenIssuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+      signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
       redis:
         dbNumber: <dedicated-database-number>
-        keyPrefix: osmo:mcp-auth
+        keyPrefix: osmo:mcp-fastmcp
 ```
 
 Do not place the upstream client secret, signing key, access token, refresh
@@ -217,26 +222,27 @@ MCP tool process. The broker runs as a separate Deployment even though the
 existing `mcp` container image also contains the `/usr/bin/mcp-auth`
 executable. `/usr/bin/mcp` remains the MCP tool-service command.
 
-Readiness must fail closed until the broker has loaded its signing key, can
-reach its state store, and has validated upstream discovery. Liveness reports
-only process health. Operators should monitor registration, authorization,
-callback, token, refresh, revocation, rate-limit, Redis, and upstream identity
-provider outcomes without logging credential or identity payloads.
+Readiness fails closed until the broker has loaded its signing key and can
+reach its state store. Liveness reports only process health. Operators should
+monitor registration, authorization, callback, token, refresh, consent, Redis,
+and upstream identity-provider outcomes without logging credential or identity
+payloads.
 
 ### Rollout and rollback
 
 The current feature gate deploys the broker, adds its Gateway trust and routes,
 and changes protected-resource metadata in one rollout. Use it first on a dev
 instance, verify broker readiness immediately, and run discovery, dynamic
-registration, login, refresh, revocation, replica failover, and key-rotation
-tests from clean client profiles. A separate deploy-only/advertise switch is a
-production-readiness follow-up for installations that require a shadow rollout.
+registration, login, refresh, restart recovery, and key-rotation tests from
+clean client profiles. The prototype uses one broker replica because FastMCP's
+refresh serialization is process-local. A separate deploy-only/advertise
+switch is a production-readiness follow-up for installations that require a
+shadow rollout.
 During the rollback window the Gateway may accept both the broker issuer and the
 prior direct issuer, but metadata advertises only the selected mode.
 
-Broker refresh sessions cache the validated identity and roles. After changing
-an Entra app-role assignment, users must log out and authenticate again, or wait
-for the configured refresh-session TTL, before the new role set is reflected.
+After changing an Entra app-role assignment, users should log out and
+authenticate again so the next token definitely contains the updated role set.
 
 To roll back, point protected-resource metadata to the direct identity
 provider and disable the broker feature gate. The MCP tool catalog, `/mcp`

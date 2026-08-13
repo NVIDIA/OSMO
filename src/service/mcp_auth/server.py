@@ -17,56 +17,127 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import asyncio
+import base64
 from collections.abc import AsyncIterator
 import contextlib
+import json
+import logging
+import re
+from typing import Any
+from typing import cast
 
+from cryptography.fernet import Fernet
+from fastmcp.server.auth.providers.azure import AzureProvider
 import httpx
+from key_value.aio.protocols import AsyncKeyValue
+from key_value.aio.stores.redis import RedisStore
+from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+from key_value.aio.wrappers.prefix_collections import PrefixCollectionsWrapper
+from mcp.server.auth.provider import TokenError
+from redis import asyncio as redis_asyncio
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 import uvicorn  # type: ignore
 
 from src.lib.utils import logging as logging_utils
-from src.service.mcp_auth import config, entra, provider, store, tokens
+from src.service.mcp_auth import config
+
+
+LOGGER = logging.getLogger(__name__)
+_SAFE_ROLE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$')
+
+
+class OSMOAzureProvider(AzureProvider):
+    """Validate Entra before embedding identity consumed by Gateway RBAC."""
+
+    async def _extract_upstream_claims(
+        self,
+        idp_tokens: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        access_token = idp_tokens.get('access_token')
+        if not isinstance(access_token, str) or not access_token:
+            raise TokenError('invalid_grant', 'Upstream access token is missing')
+
+        validated = await self._token_validator.verify_token(access_token)
+        if validated is None or not isinstance(validated.claims, dict):
+            raise TokenError(
+                'invalid_grant',
+                'Upstream access token validation failed',
+            )
+
+        claims: dict[str, Any] = {}
+        for name in ('preferred_username', 'unique_name', 'upn', 'email'):
+            value = validated.claims.get(name)
+            if isinstance(value, str) and value and not _contains_control(value):
+                claims[name] = value
+
+        roles = validated.claims.get('roles')
+        if roles is not None:
+            if not isinstance(roles, list) or len(roles) > 256:
+                raise TokenError('invalid_grant', 'Upstream roles claim is invalid')
+            if not all(isinstance(role, str) and _SAFE_ROLE.fullmatch(role) for role in roles):
+                raise TokenError('invalid_grant', 'Upstream roles claim is invalid')
+            claims['roles'] = sorted(set(roles))
+
+        return claims or None
 
 
 def create_application(
-    broker_config: config.OAuthBrokerConfig,
     *,
-    broker_store: store.BrokerStore,
-    upstream_provider: entra.UpstreamOIDCProvider,
-    access_token_issuer: tokens.AccessTokenIssuer,
+    auth_provider: AzureProvider,
+    readiness_check: Any | None = None,
 ) -> Starlette:
-    """Create a dependency-injected OAuth authorization server."""
-    authorization_server = provider.OAuthAuthorizationServer(
-        broker_config=broker_config,
-        broker_store=broker_store,
-        upstream_provider=upstream_provider,
-        access_token_issuer=access_token_issuer,
+    """Create the public FastMCP OAuth proxy application."""
+    routes = list(auth_provider.get_routes('/mcp'))
+
+    async def health_live(_: Request) -> JSONResponse:
+        return JSONResponse({'status': 'ok'})
+
+    async def health_ready(_: Request) -> JSONResponse:
+        if readiness_check is not None:
+            await readiness_check()
+        return JSONResponse({'status': 'ok'})
+
+    routes.extend(
+        [
+            Route('/health/live', health_live, methods=['GET']),
+            Route('/health/ready', health_ready, methods=['GET']),
+        ]
     )
-    application = Starlette(
-        debug=False,
-        routes=[
-            Route(
-                '/.well-known/oauth-authorization-server',
-                authorization_server.metadata,
-                methods=['GET'],
-            ),
-            Route('/oauth/register', authorization_server.register, methods=['POST']),
-            Route('/oauth/authorize', authorization_server.authorize, methods=['GET']),
-            Route(
-                '/oauth/callback/entra',
-                authorization_server.callback,
-                methods=['GET'],
-            ),
-            Route('/oauth/token', authorization_server.token, methods=['POST']),
-            Route('/oauth/revoke', authorization_server.revoke, methods=['POST']),
-            Route('/oauth/jwks.json', authorization_server.jwks, methods=['GET']),
-            Route('/health/live', authorization_server.health_live, methods=['GET']),
-            Route('/health/ready', authorization_server.health_ready, methods=['GET']),
-        ],
-        exception_handlers={provider.OAuthError: provider.oauth_error_response},
-    )
+    application = Starlette(debug=False, routes=routes)
+
+    async def unexpected_oauth_error(
+        request: Request,
+        error: Exception,
+    ) -> JSONResponse:
+        # FastMCP already returns protocol-shaped responses for OAuth errors.
+        # This boundary handles infrastructure/programming failures that would
+        # otherwise become Starlette's plaintext 500, which OAuth clients
+        # cannot parse. Never log the exception message or request body.
+        LOGGER.error(
+            'Unexpected FastMCP OAuth failure',
+            extra={
+                'path': request.url.path,
+                'method': request.method,
+                'exception_type': type(error).__name__,
+            },
+        )
+        return JSONResponse(
+            {
+                'error': 'server_error',
+                'error_description': 'OAuth service temporarily unavailable',
+            },
+            status_code=500,
+            headers={
+                'Cache-Control': 'no-store',
+                'Pragma': 'no-cache',
+            },
+        )
+
+    application.add_exception_handler(Exception, unexpected_oauth_error)
     # OAuth public clients use no cookies or client secrets. Wildcard CORS is
     # intentional so browser-hosted Inspector clients can perform discovery,
     # DCR, and token exchange while redirect trust is enforced separately.
@@ -74,68 +145,124 @@ def create_application(
         CORSMiddleware,
         allow_origins=['*'],
         allow_methods=['GET', 'POST', 'OPTIONS'],
-        allow_headers=['Accept', 'Content-Type'],
+        allow_headers=['Accept', 'Authorization', 'Content-Type'],
         allow_credentials=False,
         max_age=600,
     )
     return application
 
 
-def create_runtime_application(
-    broker_config: config.OAuthBrokerConfig,
-    *,
-    http_transport: httpx.AsyncBaseTransport | None = None,
-) -> Starlette:
-    """Create production Redis, Entra, and signing-key dependencies."""
+def create_runtime_application(broker_config: config.OAuthBrokerConfig) -> Starlette:
+    """Create FastMCP Azure, encrypted Redis, and signing dependencies."""
     redis_password = _read_optional_secret(broker_config.redis_password_file)
-    broker_store = store.RedisBrokerStore.from_url(
+    redis_client = redis_asyncio.Redis.from_url(
         broker_config.redis_url,
         password=redis_password,
-        key_prefix=broker_config.redis_key_prefix,
-        connect_timeout_seconds=broker_config.redis_connect_timeout_seconds,
-        operation_timeout_seconds=broker_config.redis_operation_timeout_seconds,
+        socket_connect_timeout=broker_config.redis_connect_timeout_seconds,
+        socket_timeout=broker_config.redis_operation_timeout_seconds,
+        # py-key-value-aio only deserializes Redis values returned as text.
+        # Binary responses are treated as missing OAuth state.
+        decode_responses=True,
+    )
+    redis_store = RedisStore(client=redis_client)
+    namespaced_store = PrefixCollectionsWrapper(
+        key_value=redis_store,
+        prefix=broker_config.redis_key_prefix,
+    )
+    signing_key = _read_signing_jwks(broker_config.signing_jwks_file)
+    encrypted_store: AsyncKeyValue = FernetEncryptionWrapper(
+        key_value=namespaced_store,
+        fernet=Fernet(
+            base64.urlsafe_b64encode(
+                _derive_storage_key(signing_key),
+            )
+        ),
     )
     http_client = httpx.AsyncClient(
         timeout=broker_config.upstream_timeout_seconds,
-        transport=http_transport,
         follow_redirects=False,
     )
-    upstream_provider = entra.EntraOIDCProvider(
-        issuer=broker_config.entra_issuer_url,
+    auth_provider = OSMOAzureProvider(
         client_id=broker_config.entra_client_id,
         client_secret=_read_required_secret(
             broker_config.entra_client_secret_file,
             'Entra client secret',
         ),
-        redirect_uri=broker_config.entra_redirect_url,
+        tenant_id=broker_config.entra_tenant_id,
+        required_scopes=[broker_config.scope],
+        base_url=broker_config.issuer_url,
+        resource_base_url=broker_config.issuer_url,
+        identifier_uri=broker_config.entra_identifier_uri,
+        issuer_url=broker_config.issuer_url,
+        redirect_path='/oauth/callback/entra',
+        additional_authorize_scopes=['openid', 'profile', 'email'],
+        allowed_client_redirect_uris=broker_config.allowed_client_redirect_uris,
+        client_storage=encrypted_store,
+        jwt_signing_key=signing_key,
+        require_authorization_consent=True,
+        fallback_refresh_token_expiry_seconds=(
+            broker_config.refresh_token_ttl_seconds
+        ),
+        fastmcp_access_token_expiry_seconds=(broker_config.access_token_ttl_seconds),
+        token_expiry_threshold_seconds=30,
+        token_issuer=broker_config.entra_token_issuer,
         http_client=http_client,
-    )
-    access_token_issuer = tokens.AccessTokenIssuer.from_jwk_file(
-        broker_config.signing_private_jwk_file,
-        issuer=broker_config.issuer_url,
-        audience=broker_config.resource_url,
-        access_token_ttl_seconds=broker_config.access_token_ttl_seconds,
+        enable_cimd=False,
     )
     application = create_application(
-        broker_config,
-        broker_store=broker_store,
-        upstream_provider=upstream_provider,
-        access_token_issuer=access_token_issuer,
+        auth_provider=auth_provider,
+        readiness_check=redis_client.ping,
     )
 
     @contextlib.asynccontextmanager
-    async def lifespan(lifespan_application: Starlette) -> AsyncIterator[None]:
-        del lifespan_application
+    async def lifespan(_: Starlette) -> AsyncIterator[None]:
         try:
             yield
         finally:
-            try:
-                await upstream_provider.close()
-            finally:
-                await broker_store.close()
+            await http_client.aclose()
+            await cast(Any, redis_client).aclose()
 
     application.router.lifespan_context = lifespan
     return application
+
+
+def _read_signing_jwks(path: str) -> bytes:
+    """Read one private HS256 JWK without exposing it through public routes."""
+    with open(path, encoding='utf-8') as jwks_file:
+        document = json.load(jwks_file)
+    keys = document.get('keys') if isinstance(document, dict) else None
+    if not isinstance(keys, list) or len(keys) != 1 or not isinstance(keys[0], dict):
+        raise ValueError('FastMCP signing JWKS must contain exactly one key')
+    key = keys[0]
+    if key.get('kty') != 'oct':
+        raise ValueError('FastMCP signing key must use kty=oct')
+    if key.get('alg') not in {None, 'HS256'}:
+        raise ValueError('FastMCP signing key alg must be HS256')
+    if key.get('use') not in {None, 'sig'}:
+        raise ValueError('FastMCP signing key use must be sig')
+    encoded_key = key.get('k')
+    if not isinstance(encoded_key, str) or not encoded_key:
+        raise ValueError('FastMCP signing key must contain k')
+    try:
+        signing_key = base64.urlsafe_b64decode(
+            encoded_key + '=' * (-len(encoded_key) % 4)
+        )
+    except (ValueError, TypeError) as error:
+        raise ValueError('FastMCP signing key k must be base64url') from error
+    if len(signing_key) != 32:
+        raise ValueError('FastMCP signing key must contain exactly 256 bits')
+    return signing_key
+
+
+def _derive_storage_key(signing_key: bytes) -> bytes:
+    """Derive a separate 256-bit Fernet key from the token signing key."""
+    import hashlib  # pylint: disable=import-outside-toplevel
+
+    return hashlib.sha256(b'osmo-fastmcp-storage-v1\0' + signing_key).digest()
+
+
+def _contains_control(value: str) -> bool:
+    return any(ord(character) < 32 or ord(character) == 127 for character in value)
 
 
 def _read_required_secret(path: str, name: str) -> str:
@@ -153,7 +280,7 @@ def _read_optional_secret(path: str | None) -> str | None:
 
 
 def main() -> None:
-    """Run the broker using OSMO's standard static config and TLS behavior."""
+    """Run FastMCP's Azure OAuth proxy with OSMO TLS and logging."""
     broker_config = config.OAuthBrokerConfig.load()
     logging_utils.init_logger('mcp-auth', broker_config)
     application = create_runtime_application(broker_config)

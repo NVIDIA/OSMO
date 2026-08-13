@@ -166,11 +166,11 @@ services:
     ##
     allowedOrigins: []
 
-    ## OSMO-owned OAuth authorization server for endpoint-only MCP client setup.
-    ## When enabled, RFC 9728 metadata advertises this broker instead of the
-    ## authorizationServers/scopes above. The broker performs Entra login and
-    ## issues short-lived OSMO JWTs accepted by the Gateway. Disabled by default
-    ## so existing direct-identity-provider deployments remain unchanged.
+    ## FastMCP Azure OAuth proxy for endpoint-only MCP client setup. When
+    ## enabled, RFC 9728 metadata advertises this proxy instead of the
+    ## authorizationServers/scopes above. FastMCP owns DCR, PKCE, Entra token
+    ## exchange, encrypted refresh storage, and short-lived Gateway tokens.
+    ## Disabled by default so direct-identity-provider deployments are unchanged.
     ##
     oauthBroker:
       enabled: false
@@ -179,7 +179,7 @@ services:
       ## resourceUrl without /mcp, for example https://osmo.example.com.
       ##
       issuerUrl: ""
-      scope: mcp:access
+      scope: access_as_user
 
       ## Public HTTPS redirect origins allowed for pre-registered web clients.
       ## Native clients use dynamically allocated loopback redirects and need
@@ -187,7 +187,7 @@ services:
       ##
       trustedHttpsRedirectOrigins: []
 
-      replicas: 2
+      replicas: 1
       serviceName: osmo-mcp-oauth
       port: 8001
 
@@ -195,9 +195,11 @@ services:
       ## redirect URL is derived as <issuerUrl>/oauth/callback/entra.
       ##
       entra:
-        issuerUrl: ""
+        tenantId: ""
         clientId: ""
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
+        identifierUri: ""
+        tokenIssuer: ""
 
       ## Shared Redis holds dynamic clients, authorization transactions, and
       ## refresh-token families. Empty serviceName/port values inherit the
@@ -209,23 +211,26 @@ services:
         dbNumber: 0
         tlsEnabled: true
         passwordFile: ""
-        keyPrefix: osmo:mcp-auth
+        keyPrefix: osmo:mcp-fastmcp
 
-      signingPrivateJwkFile: /etc/osmo/mcp-auth/signing-private.jwk
+      ## Private single-key HS256 JWKS shared only with the Gateway. Never
+      ## expose this file as a public JWKS because it contains the signing key.
+      ##
+      signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
 
       accessTokenTtlSeconds: 600
       refreshTokenTtlSeconds: 28800
-      clientRegistrationTtlSeconds: 2592000
 
       ## Optionally mount the broker credentials from one existing Kubernetes
-      ## Secret. Leave name empty when files are supplied by Vault injection or
-      ## custom extraVolumes/extraVolumeMounts.
+      ## Secret. The chart also mounts only its signingJwksKey into Gateway
+      ## Envoy at signingJwksFile. Leave name empty when both workloads receive
+      ## files through Vault injection or custom volume mounts.
       ##
       existingSecret:
         name: ""
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
-        signingPrivateJwkKey: signing-private-jwk
+        signingJwksKey: signing-jwks
         redisPasswordKey: redis-password
 
       serviceAccountName: ""

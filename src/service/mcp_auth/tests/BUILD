@@ -20,23 +20,15 @@ load("//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
-    name = "test_provider",
-    srcs = ["test_provider.py"],
+    name = "test_server",
+    srcs = ["test_server.py"],
     deps = [
+        requirement("fastmcp-slim"),
         requirement("httpx"),
-        requirement("jwcrypto"),
+        requirement("py-key-value-aio"),
         requirement("pyjwt"),
+        requirement("starlette"),
         "//src/service/mcp_auth:mcp_auth_lib",
         "//src/service/mcp_auth:mcp_auth_service_lib",
-    ],
-)
-osmo_py_test(
-    name = "test_entra",
-    srcs = ["test_entra.py"],
-    deps = [
-        requirement("httpx"),
-        requirement("jwcrypto"),
-        requirement("pyjwt"),
-        "//src/service/mcp_auth:mcp_auth_lib",
     ],
 )

@@ -29,7 +29,7 @@ class OAuthBrokerConfig(
     static_config.StaticConfig,
     ssl_config.SSLConfig,
 ):
-    """Runtime and protocol configuration for the OSMO MCP OAuth broker."""
+    """Runtime configuration for FastMCP's Azure OAuth proxy."""
 
     model_config = pydantic.ConfigDict(hide_input_in_errors=True)
 
@@ -52,7 +52,7 @@ class OAuthBrokerConfig(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
     )
     scope: str = pydantic.Field(
-        default='mcp:access',
+        default='access_as_user',
         pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
         json_schema_extra={'env': 'OSMO_MCP_AUTH_SCOPE'},
     )
@@ -65,7 +65,7 @@ class OAuthBrokerConfig(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_REDIS_PASSWORD_FILE'},
     )
     redis_key_prefix: str = pydantic.Field(
-        default='osmo:mcp-auth',
+        default='osmo:mcp-fastmcp',
         min_length=1,
         max_length=128,
         pattern=r'^[A-Za-z0-9:._~-]+$',
@@ -83,8 +83,10 @@ class OAuthBrokerConfig(
         le=30,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_REDIS_OPERATION_TIMEOUT_SECONDS'},
     )
-    entra_issuer_url: str = pydantic.Field(
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_ISSUER_URL'},
+    entra_tenant_id: str = pydantic.Field(
+        min_length=1,
+        max_length=128,
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_TENANT_ID'},
     )
     entra_client_id: str = pydantic.Field(
         min_length=1,
@@ -95,12 +97,18 @@ class OAuthBrokerConfig(
         min_length=1,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE'},
     )
-    entra_redirect_url: str = pydantic.Field(
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_REDIRECT_URL'},
+    entra_identifier_uri: str = pydantic.Field(
+        description='Application ID URI that owns the delegated MCP scope.',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_IDENTIFIER_URI'},
     )
-    signing_private_jwk_file: str = pydantic.Field(
+    entra_token_issuer: str = pydantic.Field(
+        description='Exact issuer expected in Entra access tokens.',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_TOKEN_ISSUER'},
+    )
+    signing_jwks_file: str = pydantic.Field(
         min_length=1,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE'},
+        description='Private single-key HS256 JWKS shared with the Gateway.',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_SIGNING_JWKS_FILE'},
     )
     trusted_https_redirect_origins: str = pydantic.Field(
         default='',
@@ -121,24 +129,6 @@ class OAuthBrokerConfig(
         le=604800,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS'},
     )
-    client_registration_ttl_seconds: int = pydantic.Field(
-        default=2592000,
-        ge=3600,
-        le=7776000,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_CLIENT_REGISTRATION_TTL_SECONDS'},
-    )
-    authorization_transaction_ttl_seconds: int = pydantic.Field(
-        default=600,
-        ge=60,
-        le=900,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_TRANSACTION_TTL_SECONDS'},
-    )
-    authorization_code_ttl_seconds: int = pydantic.Field(
-        default=90,
-        ge=30,
-        le=300,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_CODE_TTL_SECONDS'},
-    )
     upstream_timeout_seconds: int = pydantic.Field(
         default=10,
         ge=1,
@@ -150,16 +140,20 @@ class OAuthBrokerConfig(
     def _validate_urls(self) -> 'OAuthBrokerConfig':
         issuer = _validate_https_url(self.issuer_url, root_only=True)
         resource = _validate_https_url(self.resource_url, root_only=False)
-        entra_issuer = _validate_https_url(self.entra_issuer_url, root_only=False)
-        redirect = _validate_https_url(self.entra_redirect_url, root_only=False)
+        identifier_uri = _validate_https_url(
+            self.entra_identifier_uri,
+            root_only=False,
+        )
+        token_issuer = _validate_https_url(
+            self.entra_token_issuer,
+            root_only=False,
+            preserve_trailing_slash=True,
+        )
 
         if resource != f'{issuer}/mcp':
             raise ValueError('resource_url must be the issuer origin followed by /mcp')
-        if redirect != f'{issuer}/oauth/callback/entra':
-            raise ValueError(
-                'entra_redirect_url must be the issuer origin followed by '
-                '/oauth/callback/entra'
-            )
+        if identifier_uri != resource:
+            raise ValueError('entra_identifier_uri must match resource_url')
         parsed_redis = parse.urlsplit(self.redis_url)
         if parsed_redis.scheme not in {'redis', 'rediss'} or not parsed_redis.hostname:
             raise ValueError('redis_url must be an absolute redis:// or rediss:// URL')
@@ -171,21 +165,36 @@ class OAuthBrokerConfig(
 
         self.issuer_url = issuer
         self.resource_url = resource
-        self.entra_issuer_url = entra_issuer
-        self.entra_redirect_url = redirect
+        self.entra_identifier_uri = identifier_uri
+        self.entra_token_issuer = token_issuer
         return self
 
     @property
-    def trusted_redirect_origins(self) -> frozenset[str]:
+    def trusted_redirect_origins(self) -> tuple[str, ...]:
         """Return explicit HTTPS origins that may register redirect callbacks."""
-        return frozenset(
+        return tuple(
             origin.strip().rstrip('/')
             for origin in self.trusted_https_redirect_origins.split(',')
             if origin.strip()
         )
 
+    @property
+    def allowed_client_redirect_uris(self) -> list[str]:
+        """Return safe loopback callbacks plus explicitly trusted HTTPS origins."""
+        return [
+            'http://localhost:*',
+            'http://127.0.0.1:*',
+            'http://[::1]:*',
+            *self.trusted_redirect_origins,
+        ]
 
-def _validate_https_url(value: str, *, root_only: bool) -> str:
+
+def _validate_https_url(
+    value: str,
+    *,
+    root_only: bool,
+    preserve_trailing_slash: bool = False,
+) -> str:
     parsed = parse.urlsplit(value)
     if (
         parsed.scheme != 'https'
@@ -200,7 +209,7 @@ def _validate_https_url(value: str, *, root_only: bool) -> str:
         parsed.port
     except ValueError as error:
         raise ValueError('OAuth URL contains an invalid port') from error
-    path = parsed.path.rstrip('/')
+    path = parsed.path if preserve_trailing_slash else parsed.path.rstrip('/')
     if root_only and path:
         raise ValueError('issuer_url must be an HTTPS origin without a path')
     return parse.urlunsplit((parsed.scheme, parsed.netloc, path, '', ''))

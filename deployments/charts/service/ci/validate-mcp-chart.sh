@@ -126,8 +126,8 @@ for forbidden in \
     'name: osmo-mcp-oauth' \
     'cluster: osmo-mcp-oauth' \
     'path: /.well-known/oauth-authorization-server' \
-    'path: /oauth/authorize' \
-    'path: /oauth/token'; do
+    'path: /authorize' \
+    'path: /token'; do
   if grep -F -- "$forbidden" "$RENDERED_MANIFEST" >/dev/null; then
     fail "direct MCP mode rendered OAuth broker configuration: $forbidden"
   fi
@@ -167,44 +167,75 @@ assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIG
 assert_broker_workload_rendered 'value: "https://trusted-client.example.com"'
 assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_REDIS_URL'
 assert_broker_workload_rendered 'value: "rediss://broker-redis.example.internal:6380/14"'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_TENANT_ID'
 assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE'
-assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_SIGNING_PRIVATE_JWK_FILE'
-if grep -F -- 'OSMO_MCP_AUTH_ALLOWED_UPSTREAM_ROLES' \
-    "$BROKER_WORKLOAD_MANIFEST" >/dev/null; then
-  fail 'broker workload still renders the removed upstream-role allowlist'
-fi
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_IDENTIFIER_URI'
+assert_broker_workload_rendered 'value: "https://osmo.example.com/mcp"'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_TOKEN_ISSUER'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_SIGNING_JWKS_FILE'
 assert_broker_workload_rendered 'path: /health/live'
 assert_broker_workload_rendered 'path: /health/ready'
 assert_broker_workload_rendered 'secretName: mcp-oauth-broker-secrets'
 assert_broker_workload_rendered 'name: osmo-mcp-oauth-allow-gateway-envoy'
-assert_broker_rendered '\"authorization_servers\":[\"https://osmo.example.com\"]'
-assert_broker_rendered '\"scopes_supported\":[\"mcp:access\"]'
+assert_broker_rendered '\"authorization_servers\":[\"https://osmo.example.com/\"]'
+assert_broker_rendered '\"scopes_supported\":[\"access_as_user\"]'
 assert_broker_rendered 'name: mcp-oauth-authorization-server-metadata'
 assert_broker_rendered 'path: /.well-known/oauth-authorization-server'
-assert_broker_rendered 'name: mcp-oauth-jwks'
-assert_broker_rendered 'path: /oauth/jwks.json'
-assert_broker_rendered 'name: mcp-oauth-authorize'
-assert_broker_rendered 'path: /oauth/authorize'
+assert_broker_rendered 'name: mcp-oauth-authorize-get'
+assert_broker_rendered 'name: mcp-oauth-authorize-post'
+assert_broker_rendered 'path: /authorize'
 assert_broker_rendered 'name: mcp-oauth-entra-callback'
 assert_broker_rendered 'path: /oauth/callback/entra'
 assert_broker_rendered 'name: mcp-oauth-register'
-assert_broker_rendered 'path: /oauth/register'
+assert_broker_rendered 'path: /register'
 assert_broker_rendered 'name: mcp-oauth-token'
-assert_broker_rendered 'path: /oauth/token'
-assert_broker_rendered 'name: mcp-oauth-revoke'
-assert_broker_rendered 'path: /oauth/revoke'
+assert_broker_rendered 'path: /token'
+assert_broker_rendered 'name: mcp-oauth-consent-get'
+assert_broker_rendered 'name: mcp-oauth-consent-post'
+assert_broker_rendered 'path: /consent'
 assert_broker_rendered 'name: mcp-oauth-token-options'
-assert_broker_rendered 'issuer: https://osmo.example.com'
+assert_broker_rendered 'issuer: https://osmo.example.com/'
 assert_broker_rendered 'audiences:'
 assert_broker_rendered '- https://osmo.example.com/mcp'
-assert_broker_rendered 'uri: https://osmo-mcp-oauth:8001/oauth/jwks.json'
+assert_broker_rendered 'local_jwks:'
+assert_broker_rendered 'filename: "/etc/osmo/mcp-auth/signing-jwks.json"'
+assert_broker_rendered 'name: mcp-oauth-signing-jwks'
+assert_broker_rendered 'mountPath: "/etc/osmo/mcp-auth/signing-jwks.json"'
+assert_broker_rendered 'subPath: signing-jwks.json'
+assert_broker_rendered 'secretName: mcp-oauth-broker-secrets'
 assert_broker_rendered 'cluster: osmo-mcp-oauth'
 assert_broker_rendered 'path: "%PATH(NQ:ORIG_OR_PATH)%"'
+assert_broker_rendered 'meta.verified_jwt.token_use ~= nil'
+assert_broker_rendered "[':status'] = '401'"
+assert_broker_rendered "'{\"error\":\"invalid_token\"}'"
+assert_broker_rendered "local required_scope = \"access_as_user\""
+assert_broker_rendered "[':status'] = '403'"
+assert_broker_rendered "'{\"error\":\"insufficient_scope\"}'"
+assert_broker_rendered 'if (meta.verified_jwt.iss == "https://osmo.example.com/" and type(claims.upstream_claims) == '\''table'\'') then'
+
+for forbidden in \
+    'path: /oauth/jwks.json' \
+    'path: /oauth/authorize' \
+    'path: /oauth/register' \
+    'path: /oauth/token' \
+    'path: /oauth/revoke' \
+    'remote_jwks:'; do
+  if grep -F -- "$forbidden" "$BROKER_RENDERED_MANIFEST" >/dev/null; then
+    fail "FastMCP broker rendered removed custom-OAuth configuration: $forbidden"
+  fi
+done
 
 if ! grep -A12 -F -- 'name: mcp-oauth-entra-callback' \
-    "$BROKER_RENDERED_MANIFEST" | grep -F -- 'timeout: 30s' >/dev/null; then
+    "$BROKER_RENDERED_MANIFEST" | grep -F -- 'timeout: 45s' >/dev/null; then
   fail 'broker callback route did not render its extended upstream timeout'
 fi
+
+if ! grep -A12 -F -- 'name: mcp-oauth-token' \
+    "$BROKER_RENDERED_MANIFEST" | grep -F -- 'timeout: 45s' >/dev/null; then
+  fail 'broker token route did not outlive the upstream OAuth timeout'
+fi
+
+assert_broker_rendered 'claims.preferred_username or claims.unique_name or claims.upn or claims.email'
 
 if grep -F -- 'path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"' \
     "$BROKER_RENDERED_MANIFEST" >/dev/null; then
@@ -216,7 +247,7 @@ if grep -F -- 'path: "%REQ_WITHOUT_QUERY(X-ENVOY-ORIGINAL-PATH?:PATH)%"' \
   fail 'Gateway access logs use the deprecated query-stripping formatter'
 fi
 
-if [[ $(grep -c -F -- 'exact: OPTIONS' "$BROKER_RENDERED_MANIFEST") -ne 7 ]]; then
+if [[ $(grep -c -F -- 'exact: OPTIONS' "$BROKER_RENDERED_MANIFEST") -ne 6 ]]; then
   fail 'broker did not render exactly one OPTIONS route per public OAuth path'
 fi
 
