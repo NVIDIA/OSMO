@@ -1221,6 +1221,40 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-review-api.yaml" "path: /health"
     require_not_contains "$TEST_DIRECTORY/osmo-review-api.yaml" "x-osmo-roles"
 
+    helm_template osmo-system-ca "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-review-values.yaml" \
+        --set externalDependencies.valkey.tls.enabled=true \
+        --set configuration.enabled=false \
+        >"$TEST_DIRECTORY/osmo-system-ca.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-system-ca.yaml" Deployment \
+        osmo-system-ca-api >"$TEST_DIRECTORY/osmo-api-system-ca.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-api-system-ca.yaml" \
+        "--redis_tls_enable"
+    require_not_contains "$TEST_DIRECTORY/osmo-api-system-ca.yaml" \
+        "name: SSL_CERT_FILE"
+    require_not_contains "$TEST_DIRECTORY/osmo-api-system-ca.yaml" \
+        "name: valkey-ca"
+    resource_document "$TEST_DIRECTORY/osmo-system-ca.yaml" Deployment \
+        osmo-system-ca-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/osmo-oauth2-proxy-system-ca.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-oauth2-proxy-system-ca.yaml" \
+        "--redis-connection-url=rediss://external-valkey:6379/0"
+    require_not_contains "$TEST_DIRECTORY/osmo-oauth2-proxy-system-ca.yaml" \
+        "name: SSL_CERT_FILE"
+    require_not_contains "$TEST_DIRECTORY/osmo-oauth2-proxy-system-ca.yaml" \
+        "name: valkey-ca"
+    resource_document "$TEST_DIRECTORY/osmo-system-ca.yaml" Deployment \
+        osmo-system-ca-gateway-ratelimit \
+        >"$TEST_DIRECTORY/osmo-ratelimit-system-ca.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-ratelimit-system-ca.yaml" \
+        'value: "true"'
+    require_not_contains "$TEST_DIRECTORY/osmo-ratelimit-system-ca.yaml" \
+        "name: SSL_CERT_FILE"
+    require_not_contains "$TEST_DIRECTORY/osmo-ratelimit-system-ca.yaml" \
+        "name: valkey-ca"
+
     helm_template osmo-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

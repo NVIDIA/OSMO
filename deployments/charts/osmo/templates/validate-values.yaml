@@ -173,6 +173,3 @@
 {{- if and .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
 {{- end -}}
-{{- if and .Values.externalDependencies.valkey.tls.enabled (not .Values.externalDependencies.valkey.tls.caExistingSecret) -}}
-{{- fail "externalDependencies.valkey.tls.caExistingSecret is required when TLS is enabled" -}}
-{{- end -}}

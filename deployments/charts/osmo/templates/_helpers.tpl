@@ -336,6 +336,13 @@ data:
 {{- end -}}
 {{- end -}}
 
+{{- define "osmo.externalDependencies.valkeyCustomCaEnabled" -}}
+{{- if and
+  (not .Values.embeddedDependencies.valkey.enabled)
+  .Values.externalDependencies.valkey.tls.enabled
+  .Values.externalDependencies.valkey.tls.caExistingSecret -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
 {{- define "osmo.valkey.secretName" -}}
 {{- if and .Values.embeddedDependencies.valkey.enabled .Values.secrets.valkey.generate -}}
 {{- include "osmo.valkey.generatedSecretName" . -}}
@@ -350,7 +357,7 @@ data:
   mountPath: /etc/osmo/ca/postgresql
   readOnly: true
 {{- end }}
-{{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
+{{- if eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true" }}
 - name: valkey-ca
   mountPath: /etc/osmo/ca/valkey
   readOnly: true
@@ -366,7 +373,7 @@ data:
     - key: {{ .Values.externalDependencies.postgresql.tls.caKey }}
       path: ca.crt
 {{- end }}
-{{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
+{{- if eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true" }}
 - name: valkey-ca
   secret:
     secretName: {{ .Values.externalDependencies.valkey.tls.caExistingSecret }}
@@ -395,7 +402,7 @@ data:
 - name: PGSSLROOTCERT
   value: /etc/osmo/ca/postgresql/ca.crt
 {{- end }}
-{{- if eq (include "osmo.valkey.tlsEnabled" .) "true" }}
+{{- if eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true" }}
 - name: SSL_CERT_FILE
   value: /etc/osmo/ca/valkey/ca-bundle.crt
 {{- end }}

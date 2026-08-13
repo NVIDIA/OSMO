@@ -90,10 +90,10 @@ externalDependencies:
       enabled: false
       caExistingSecret: ''
       caKey: ca.crt
-  # Valkey provides queues, caches, events, and distributed coordination.
-  # When TLS is enabled, caKey must contain a complete trust bundle (including
-  # public/system roots needed by other HTTPS clients), because Python Redis
-  # consumes it through SSL_CERT_FILE.
+  # Valkey provides queues, caches, events, and distributed coordination. TLS
+  # uses the system trust store unless caExistingSecret selects a custom bundle.
+  # When set, caKey must contain the complete trust bundle because clients use
+  # it through SSL_CERT_FILE.
   valkey:
     host: ''
     port: 6379

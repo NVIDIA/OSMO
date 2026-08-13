@@ -138,10 +138,12 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 
-For PostgreSQL or Valkey private CAs, enable TLS in the corresponding
-`externalDependencies` block and reference the CA Secret there. A Valkey
-`caKey` must contain the complete trust bundle; its default is
-`ca-bundle.crt`.
+For an external Valkey endpoint signed by a public CA, enable
+`externalDependencies.valkey.tls.enabled` and leave `caExistingSecret` empty to
+use the image's system trust store. For a private CA, set `caExistingSecret` and
+`caKey` in the same block. The selected key must contain the complete trust
+bundle because clients use it through `SSL_CERT_FILE`. PostgreSQL private CAs
+are also configured in its `externalDependencies` TLS block.
 
 ## Exposure
 
