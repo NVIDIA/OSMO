@@ -107,8 +107,11 @@ configure `externalDependencies.valkey` and
 
 ## Optional configuration
 
-- Configure component images and registry credentials under `global`,
-  `runtimeImage`, and each component's `image` block.
+- Configure the shared image registry under `global.imageRegistry`, OSMO-owned
+  pull credentials under `imagePullSecrets`, and component images under
+  `runtimeImage` and each component's `image` block. Configure dependency
+  images and pull credentials in their native values blocks; for example,
+  Valkey uses `valkey.image` and `valkey.imagePullSecrets`.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,
   `gateway`, and `podDefaults`.

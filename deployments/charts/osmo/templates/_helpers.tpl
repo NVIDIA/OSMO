@@ -113,11 +113,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "osmo.component.imagePullSecrets" -}}
-{{- with .Values.global.imagePullSecrets }}
+{{- with .Values.imagePullSecrets }}
 imagePullSecrets:
-{{- range . }}
-- name: {{ . }}
-{{- end }}
+{{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end -}}
 

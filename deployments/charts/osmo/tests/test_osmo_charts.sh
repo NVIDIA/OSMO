@@ -1541,7 +1541,7 @@ EOF
     helm_template image-mirror "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set global.imageRegistry=mirror.example.com \
-        --set global.imagePullSecrets[0]=mirror-secret \
+        --set imagePullSecrets[0].name=mirror-secret \
         >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
         "image: mirror.example.com/nvidia/osmo/service:6.3.1"
@@ -1561,20 +1561,50 @@ EOF
         --set-string externalDependencies.valkey.host= \
         --set secrets.valkey.generate=true \
         --set-string secrets.valkey.existingSecret= \
-        --set global.imagePullSecrets[0]=mirror-secret \
+        --set imagePullSecrets[0].name=osmo-mirror-secret \
+        --set valkey.imagePullSecrets[0]=valkey-mirror-secret \
         >"$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml"
     resource_document "$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml" \
         Deployment embedded-image-pull-secret-osmo-api \
         >"$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml"
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
-        "name: mirror-secret"
+        "name: osmo-mirror-secret"
+    require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
+        "name: valkey-mirror-secret"
     resource_document "$TEST_DIRECTORY/osmo-embedded-image-pull-secret.yaml" \
         Deployment embedded-image-pull-secret-valkey \
         >"$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml"
     require_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
-        "name: mirror-secret"
+        "name: valkey-mirror-secret"
     require_not_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
-        "map[name:mirror-secret]"
+        "name: osmo-mirror-secret"
+
+    if helm_template invalid-image-pull-secret-scalar "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set imagePullSecrets[0]=mirror-secret \
+        >"$TEST_DIRECTORY/invalid-image-pull-secret-scalar.out" 2>&1; then
+        fail "expected scalar imagePullSecrets entry to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-image-pull-secret-scalar.out" \
+        "imagePullSecrets.0"
+
+    if helm_template invalid-image-pull-secret-name "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set imagePullSecrets[0].unexpected=mirror-secret \
+        >"$TEST_DIRECTORY/invalid-image-pull-secret-name.out" 2>&1; then
+        fail "expected imagePullSecrets entry without name to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-image-pull-secret-name.out" \
+        "imagePullSecrets.0"
+
+    if helm_template invalid-global-image-pull-secret "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set global.imagePullSecrets[0]=legacy-secret \
+        >"$TEST_DIRECTORY/invalid-global-image-pull-secret.out" 2>&1; then
+        fail "expected global.imagePullSecrets to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-global-image-pull-secret.out" \
+        "global.imagePullSecrets"
 
     helm_template image-component "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

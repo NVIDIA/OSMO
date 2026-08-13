@@ -29,6 +29,9 @@ embeddedDependencies:
 # The dependency also supports fixed-primary replication for read scaling and
 # data redundancy, but it does not provide Sentinel or automatic promotion.
 valkey:
+  # Pull credential Secret names for Valkey pods. This dependency-native value
+  # uses strings rather than Kubernetes LocalObjectReference objects.
+  imagePullSecrets: []
   image:
     registry: docker.io
     repository: valkey/valkey
@@ -157,11 +160,14 @@ externalDependencies:
 nameOverride: ''
 fullnameOverride: ''
 
-# Global image registry and pull credential Secret names. A non-empty registry
-# overrides every component and runtime image registry for air-gapped mirrors.
+# A non-empty registry overrides every component and runtime image registry for
+# air-gapped mirrors.
 global:
   imageRegistry: ''
-  imagePullSecrets: []
+
+# Pull credential Secret references for OSMO-owned pods. Configure dependency
+# pull credentials in the dependency's native values block.
+imagePullSecrets: []
 
 # Runtime images referenced by submitted workflows.
 runtimeImage:

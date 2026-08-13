@@ -25,6 +25,7 @@
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "global": { "$ref": "#/definitions/global" },
+    "imagePullSecrets": { "$ref": "#/definitions/imagePullSecrets" },
     "runtimeImage": { "$ref": "#/definitions/runtimeImage" },
     "commonLabels": { "$ref": "#/definitions/stringMap" },
     "commonAnnotations": { "$ref": "#/definitions/stringMap" },
@@ -96,7 +97,7 @@
       }
     }
   },
-  "required": ["planes", "embeddedDependencies", "externalDependencies", "global", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "embeddedDependencies", "externalDependencies", "global", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
@@ -292,17 +293,20 @@
     "imagePullSecrets": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1 }
+        },
+        "required": ["name"]
       }
     },
     "global": {
       "type": "object",
       "properties": {
         "imageRegistry": { "type": "string" },
-        "imagePullSecrets": { "$ref": "#/definitions/imagePullSecrets" }
+        "imagePullSecrets": false
       },
-      "required": ["imageRegistry", "imagePullSecrets"]
+      "required": ["imageRegistry"]
     },
     "runtimeImage": {
       "type": "object",
