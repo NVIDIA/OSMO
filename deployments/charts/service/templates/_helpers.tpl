@@ -239,6 +239,7 @@ origin used for bearer relay is derived from this single source of truth.
 {{- if not (regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?/mcp$" $resourceUrl) -}}
 {{- fail "services.mcp.resourceUrl must be a valid HTTPS origin followed by the exact /mcp path" -}}
 {{- end -}}
+
 {{- $portSuffix := regexFind ":[0-9]+/mcp$" $resourceUrl -}}
 {{- if $portSuffix -}}
 {{- $port := trimSuffix "/mcp" (trimPrefix ":" $portSuffix) | int -}}
@@ -247,4 +248,28 @@ origin used for bearer relay is derived from this single source of truth.
 {{- end -}}
 {{- end -}}
 {{- $resourceUrl -}}
+{{- end -}}
+
+{{/*
+Validate and return the public MCP OAuth broker issuer. Keeping the issuer at
+the deployment origin gives MCP clients the standard RFC 8414 metadata path and
+lets the chart derive every public broker endpoint without another URL input.
+*/}}
+{{- define "osmo.mcp-oauth-issuer-url" -}}
+{{- $issuerUrl := required "services.mcp.oauthBroker.issuerUrl is required when the OAuth broker is enabled" .Values.services.mcp.oauthBroker.issuerUrl -}}
+{{- if not (regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?$" $issuerUrl) -}}
+{{- fail "services.mcp.oauthBroker.issuerUrl must be a valid HTTPS origin without a path" -}}
+{{- end -}}
+{{- $portSuffix := regexFind ":[0-9]+$" $issuerUrl -}}
+{{- if $portSuffix -}}
+{{- $port := trimPrefix ":" $portSuffix | int -}}
+{{- if or (lt $port 1) (gt $port 65535) -}}
+{{- fail "services.mcp.oauthBroker.issuerUrl port must be between 1 and 65535" -}}
+{{- end -}}
+{{- end -}}
+{{- $resourceUrl := include "osmo.mcp-resource-url" . -}}
+{{- if ne $issuerUrl (trimSuffix "/mcp" $resourceUrl) -}}
+{{- fail "services.mcp.oauthBroker.issuerUrl must equal services.mcp.resourceUrl without /mcp" -}}
+{{- end -}}
+{{- $issuerUrl -}}
 {{- end -}}

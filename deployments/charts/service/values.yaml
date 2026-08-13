@@ -166,6 +166,135 @@ services:
     ##
     allowedOrigins: []
 
+    ## FastMCP OIDC proxy for endpoint-only MCP client setup. When enabled,
+    ## RFC 9728 metadata advertises this proxy instead of the
+    ## authorizationServers/scopes above. FastMCP prefers Client ID Metadata
+    ## Documents (CIMD), retains Dynamic Client Registration (DCR) as a
+    ## compatibility fallback, and owns PKCE, upstream OIDC token exchange,
+    ## encrypted refresh storage, and short-lived Gateway tokens. Disabled by
+    ## default so direct-identity-provider deployments are unchanged.
+    ##
+    oauthBroker:
+      enabled: false
+
+      ## Public HTTPS origin used as the OAuth issuer. It must be the origin of
+      ## resourceUrl without /mcp, for example https://osmo.example.com.
+      ##
+      issuerUrl: ""
+
+      ## Full delegated scope URI advertised to MCP clients, requested from the
+      ## upstream OIDC provider, and required on broker-issued MCP tokens. For
+      ## Entra, this is typically <resourceUrl>/access_as_user.
+      ##
+      scope: ""
+
+      ## Public HTTPS redirect origins allowed for pre-registered web clients.
+      ## Native clients use dynamically allocated loopback redirects and need
+      ## no entries. Keep this empty unless a trusted web client is required.
+      ##
+      trustedHttpsRedirectOrigins: []
+
+      replicas: 1
+      serviceName: osmo-mcp-oauth
+      port: 8001
+
+      ## Upstream OpenID Connect provider. Register the fixed redirect URL
+      ## <issuerUrl>/auth/callback on this confidential application. The
+      ## access-token fields are explicit because an OIDC ID token and an API
+      ## access token can use different issuers and claim formats. The access
+      ## token audience must equal services.mcp.resourceUrl.
+      ##
+      oidc:
+        configUrl: ""
+        clientId: ""
+        clientSecretFile: /etc/osmo/mcp-auth/client-secret
+        accessTokenIssuer: ""
+        accessTokenAudience: ""
+        accessTokenJwksUrl: ""
+        accessTokenRequiredScope: access_as_user
+
+      ## Shared Redis holds dynamic clients, authorization transactions, and
+      ## refresh-token families. Empty serviceName/port values inherit the
+      ## chart's services.redis settings. Use a dedicated database and prefix.
+      ##
+      redis:
+        serviceName: ""
+        port: null
+        dbNumber: 0
+        tlsEnabled: true
+        passwordFile: ""
+        keyPrefix: osmo:mcp-fastmcp
+
+      ## Private single-key HS256 JWKS shared only with the Gateway. Never
+      ## expose this file as a public JWKS because it contains the signing key.
+      ##
+      signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
+
+      accessTokenTtlSeconds: 600
+      refreshTokenTtlSeconds: 28800
+
+      ## Optionally mount the broker credentials from one existing Kubernetes
+      ## Secret. The chart also mounts only its signingJwksKey into Gateway
+      ## Envoy at signingJwksFile. Leave name empty when both workloads receive
+      ## files through Vault injection or custom volume mounts.
+      ##
+      existingSecret:
+        name: ""
+        mountPath: /etc/osmo/mcp-auth
+        clientSecretKey: client-secret
+        signingJwksKey: signing-jwks
+        redisPasswordKey: redis-password
+
+      serviceAccountName: ""
+
+      extraPodLabels: {}
+      extraPodAnnotations: {}
+      extraEnv: []
+      extraVolumeMounts: []
+      extraVolumes: []
+
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        runAsNonRoot: true
+        runAsUser: 1001
+
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          memory: "256Mi"
+
+      livenessProbe:
+        httpGet:
+          port: http
+          path: /health/live
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          port: http
+          path: /health/ready
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 2
+      startupProbe:
+        httpGet:
+          port: http
+          path: /health/ready
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 24
+
+      nodeSelector: {}
+      tolerations: []
+
     ## Additional pod labels and annotations.
     ##
     extraPodLabels: {}
@@ -2434,6 +2563,7 @@ gateway:
       agent: ""
       logger: ""
       mcp: ""
+      mcpOauthBroker: ""
 
     ## Optional CA bundle for Envoy upstream validation. When set, Envoy
     ## validates upstream certs against ca.crt from this Secret. When empty,
