@@ -27,13 +27,15 @@ from typing import Any
 from typing import cast
 
 from cryptography.fernet import Fernet
-from fastmcp.server.auth.providers.azure import AzureProvider
+from fastmcp.server.auth.oidc_proxy import OIDCProxy
+from fastmcp.server.auth.providers.jwt import JWTVerifier
 import httpx
 from key_value.aio.protocols import AsyncKeyValue
 from key_value.aio.stores.redis import RedisStore
 from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 from key_value.aio.wrappers.prefix_collections import PrefixCollectionsWrapper
-from mcp.server.auth.provider import TokenError
+from mcp.server.auth.provider import AuthorizationCode, TokenError
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from redis import asyncio as redis_asyncio
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
@@ -48,10 +50,110 @@ from src.service.mcp_auth import config
 
 LOGGER = logging.getLogger(__name__)
 _SAFE_ROLE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$')
+_UPSTREAM_OIDC_SCOPES = ('openid', 'profile', 'email', 'offline_access')
 
 
-class OSMOAzureProvider(AzureProvider):
-    """Validate Entra before embedding identity consumed by Gateway RBAC."""
+class OSMOOIDCProxy(OIDCProxy):
+    """Adapt an OIDC provider to OSMO's MCP scope and identity contract."""
+
+    def __init__(
+        self,
+        *,
+        requested_scope: str,
+        access_token_jwks_url: str,
+        access_token_issuer: str,
+        access_token_audience: str,
+        access_token_required_scope: str,
+        http_client: httpx.AsyncClient,
+        **kwargs: Any,
+    ) -> None:
+        self._requested_scope = requested_scope
+        self._access_token_validator = JWTVerifier(
+            jwks_uri=access_token_jwks_url,
+            issuer=access_token_issuer,
+            audience=access_token_audience,
+            algorithm='RS256',
+            required_scopes=[access_token_required_scope],
+            http_client=http_client,
+        )
+        super().__init__(
+            token_verifier=self._access_token_validator,
+            enable_cimd=True,
+            **kwargs,
+        )
+        if self.oidc_config.jwks_uri is None or self.oidc_config.issuer is None:
+            raise ValueError('OIDC discovery must provide issuer and jwks_uri')
+        upstream_client_id = kwargs.get('client_id')
+        if not isinstance(upstream_client_id, str) or not upstream_client_id:
+            raise ValueError('OIDC client ID is required')
+        self._id_token_validator = JWTVerifier(
+            jwks_uri=str(self.oidc_config.jwks_uri),
+            issuer=str(self.oidc_config.issuer),
+            audience=upstream_client_id,
+            algorithm='RS256',
+            http_client=http_client,
+        )
+
+        # The upstream access token contains Entra's short `scp` value, while
+        # MCP clients must consistently see and request the full API scope URI.
+        self.required_scopes = [requested_scope]
+        self.update_default_scopes([requested_scope])
+
+    def _upstream_scopes(self) -> list[str]:
+        return [self._requested_scope, *_UPSTREAM_OIDC_SCOPES]
+
+    def _build_upstream_authorize_url(
+        self,
+        txn_id: str,
+        transaction: dict[str, Any],
+    ) -> str:
+        upstream_transaction = {
+            **transaction,
+            'scopes': self._upstream_scopes(),
+        }
+        return super()._build_upstream_authorize_url(
+            txn_id,
+            upstream_transaction,
+        )
+
+    def _prepare_scopes_for_token_exchange(self, scopes: list[str]) -> list[str]:
+        del scopes
+        return self._upstream_scopes()
+
+    def _prepare_scopes_for_upstream_refresh(self, scopes: list[str]) -> list[str]:
+        del scopes
+        return self._upstream_scopes()
+
+    def _translate_scopes_from_idp(self, scopes: list[str]) -> list[str]:
+        del scopes
+        # The separately verified access token is authoritative for the short
+        # `scp` grant. Keep FastMCP storage, tokens, and responses in the one
+        # full scope form MCP clients were told to request.
+        return [self._requested_scope]
+
+    async def exchange_authorization_code(
+        self,
+        client: OAuthClientInformationFull,
+        authorization_code: AuthorizationCode,
+    ) -> OAuthToken:
+        code_model = await self._code_store.get(key=authorization_code.code)
+        if code_model is None:
+            raise TokenError('invalid_grant', 'Authorization code not found')
+        await self._validate_initial_id_token(code_model.idp_tokens)
+        return await super().exchange_authorization_code(
+            client,
+            authorization_code,
+        )
+
+    async def _validate_initial_id_token(
+        self,
+        idp_tokens: dict[str, Any],
+    ) -> None:
+        id_token = idp_tokens.get('id_token')
+        if not isinstance(id_token, str) or not id_token:
+            raise TokenError('invalid_grant', 'Upstream ID token is missing')
+        if await self._id_token_validator.verify_token(id_token) is None:
+            raise TokenError('invalid_grant', 'Upstream ID token validation failed')
 
     async def _extract_upstream_claims(
         self,
@@ -61,7 +163,7 @@ class OSMOAzureProvider(AzureProvider):
         if not isinstance(access_token, str) or not access_token:
             raise TokenError('invalid_grant', 'Upstream access token is missing')
 
-        validated = await self._token_validator.verify_token(access_token)
+        validated = await self._access_token_validator.verify_token(access_token)
         if validated is None or not isinstance(validated.claims, dict):
             raise TokenError(
                 'invalid_grant',
@@ -71,7 +173,12 @@ class OSMOAzureProvider(AzureProvider):
         claims: dict[str, Any] = {}
         for name in ('preferred_username', 'unique_name', 'upn', 'email'):
             value = validated.claims.get(name)
-            if isinstance(value, str) and value and not _contains_control(value):
+            if (
+                isinstance(value, str)
+                and 0 < len(value) <= 320
+                and value == value.strip()
+                and not _contains_control(value)
+            ):
                 claims[name] = value
 
         roles = validated.claims.get('roles')
@@ -87,7 +194,7 @@ class OSMOAzureProvider(AzureProvider):
 
 def create_application(
     *,
-    auth_provider: AzureProvider,
+    auth_provider: OIDCProxy,
     readiness_check: Any | None = None,
 ) -> Starlette:
     """Create the public FastMCP OAuth proxy application."""
@@ -153,7 +260,7 @@ def create_application(
 
 
 def create_runtime_application(broker_config: config.OAuthBrokerConfig) -> Starlette:
-    """Create FastMCP Azure, encrypted Redis, and signing dependencies."""
+    """Create FastMCP OIDC, encrypted Redis, and signing dependencies."""
     redis_password = _read_optional_secret(broker_config.redis_password_file)
     redis_client = redis_asyncio.Redis.from_url(
         broker_config.redis_url,
@@ -182,32 +289,37 @@ def create_runtime_application(broker_config: config.OAuthBrokerConfig) -> Starl
         timeout=broker_config.upstream_timeout_seconds,
         follow_redirects=False,
     )
-    auth_provider = OSMOAzureProvider(
-        client_id=broker_config.entra_client_id,
+    auth_provider = OSMOOIDCProxy(
+        config_url=broker_config.oidc_config_url,
+        client_id=broker_config.oidc_client_id,
         client_secret=_read_required_secret(
-            broker_config.entra_client_secret_file,
-            'Entra client secret',
+            broker_config.oidc_client_secret_file,
+            'OIDC client secret',
         ),
-        tenant_id=broker_config.entra_tenant_id,
-        required_scopes=[broker_config.scope],
+        requested_scope=broker_config.scope,
+        access_token_jwks_url=broker_config.oidc_access_token_jwks_url,
+        access_token_issuer=broker_config.oidc_access_token_issuer,
+        access_token_audience=broker_config.oidc_access_token_audience,
+        access_token_required_scope=(
+            broker_config.oidc_access_token_required_scope
+        ),
         base_url=broker_config.issuer_url,
         resource_base_url=broker_config.issuer_url,
-        identifier_uri=broker_config.entra_identifier_uri,
         issuer_url=broker_config.issuer_url,
-        redirect_path='/oauth/callback/entra',
-        additional_authorize_scopes=['openid', 'profile', 'email'],
+        redirect_path='/auth/callback',
         allowed_client_redirect_uris=broker_config.allowed_client_redirect_uris,
         client_storage=encrypted_store,
         jwt_signing_key=signing_key,
+        token_endpoint_auth_method='client_secret_post',
         require_authorization_consent=True,
+        forward_resource=False,
         fallback_refresh_token_expiry_seconds=(
             broker_config.refresh_token_ttl_seconds
         ),
         fastmcp_access_token_expiry_seconds=(broker_config.access_token_ttl_seconds),
         token_expiry_threshold_seconds=30,
-        token_issuer=broker_config.entra_token_issuer,
+        timeout_seconds=broker_config.upstream_timeout_seconds,
         http_client=http_client,
-        enable_cimd=False,
     )
     application = create_application(
         auth_provider=auth_provider,
@@ -280,7 +392,7 @@ def _read_optional_secret(path: str | None) -> str | None:
 
 
 def main() -> None:
-    """Run FastMCP's Azure OAuth proxy with OSMO TLS and logging."""
+    """Run FastMCP's OIDC proxy with OSMO TLS and logging."""
     broker_config = config.OAuthBrokerConfig.load()
     logging_utils.init_logger('mcp-auth', broker_config)
     application = create_runtime_application(broker_config)

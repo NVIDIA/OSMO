@@ -101,6 +101,25 @@ destination, but it cannot validate external DNS.
 | `services.mcp.requestTimeoutSeconds` | Total timeout for each MCP-initiated Gateway request, from 1 through 60 seconds. | `10` |
 | `services.mcp.replicas` | Number of stateless MCP replicas. | `1` |
 | `services.mcp.extraEnv` | Additional non-managed environment variables. It cannot override MCP host, port, Gateway origin, or request timeout. | `[]` |
+| `services.mcp.oauthBroker.enabled` | Enable FastMCP's OIDC proxy for endpoint-only login. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
+| `services.mcp.oauthBroker.issuerUrl` | Public HTTPS OAuth issuer origin; must equal `resourceUrl` without `/mcp`. | `""` |
+| `services.mcp.oauthBroker.scope` | Full delegated scope URI advertised to MCP clients and requested upstream, normally `<resourceUrl>/access_as_user`. | `""` |
+| `services.mcp.oauthBroker.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
+| `services.mcp.oauthBroker.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
+| `services.mcp.oauthBroker.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
+| `services.mcp.oauthBroker.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
+| `services.mcp.oauthBroker.oidc.accessTokenAudience` | Exact OSMO MCP resource audience required on upstream API access tokens; must equal `resourceUrl`. | `""` |
+| `services.mcp.oauthBroker.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
+| `services.mcp.oauthBroker.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
+
+The broker follows OSMO's OIDC profile: a full delegated scope URI is requested
+from the upstream provider while its short suffix is enforced in the verified
+API access token. Register the single stable upstream redirect URI
+`<issuerUrl>/auth/callback`. MCP clients still configure only `resourceUrl`.
+CIMD-capable clients identify themselves with a hosted metadata document;
+older clients can use the broker's `/register` DCR endpoint. Both paths use
+authorization-code flow with PKCE and end in the same OSMO Gateway and semantic
+RBAC checks.
 
 Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
 only this release's Gateway Envoy pods, even when

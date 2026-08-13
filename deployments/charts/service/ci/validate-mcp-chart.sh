@@ -167,25 +167,34 @@ assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIG
 assert_broker_workload_rendered 'value: "https://trusted-client.example.com"'
 assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_REDIS_URL'
 assert_broker_workload_rendered 'value: "rediss://broker-redis.example.internal:6380/14"'
-assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_TENANT_ID'
-assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE'
-assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_IDENTIFIER_URI'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_SCOPE'
+assert_broker_workload_rendered 'value: "https://osmo.example.com/mcp/access_as_user"'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_OIDC_CONFIG_URL'
+assert_broker_workload_rendered 'value: "https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration"'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_OIDC_CLIENT_ID'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER'
+assert_broker_workload_rendered 'value: "https://sts.example.com/example-tenant/"'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE'
 assert_broker_workload_rendered 'value: "https://osmo.example.com/mcp"'
-assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_ENTRA_TOKEN_ISSUER'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL'
+assert_broker_workload_rendered 'value: "https://login.example.com/example-tenant/discovery/v2.0/keys"'
+assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE'
+assert_broker_workload_rendered 'value: "access_as_user"'
 assert_broker_workload_rendered 'name: OSMO_MCP_AUTH_SIGNING_JWKS_FILE'
 assert_broker_workload_rendered 'path: /health/live'
 assert_broker_workload_rendered 'path: /health/ready'
 assert_broker_workload_rendered 'secretName: mcp-oauth-broker-secrets'
 assert_broker_workload_rendered 'name: osmo-mcp-oauth-allow-gateway-envoy'
 assert_broker_rendered '\"authorization_servers\":[\"https://osmo.example.com/\"]'
-assert_broker_rendered '\"scopes_supported\":[\"access_as_user\"]'
+assert_broker_rendered '\"scopes_supported\":[\"https://osmo.example.com/mcp/access_as_user\"]'
 assert_broker_rendered 'name: mcp-oauth-authorization-server-metadata'
 assert_broker_rendered 'path: /.well-known/oauth-authorization-server'
 assert_broker_rendered 'name: mcp-oauth-authorize-get'
 assert_broker_rendered 'name: mcp-oauth-authorize-post'
 assert_broker_rendered 'path: /authorize'
-assert_broker_rendered 'name: mcp-oauth-entra-callback'
-assert_broker_rendered 'path: /oauth/callback/entra'
+assert_broker_rendered 'name: mcp-oauth-oidc-callback'
+assert_broker_rendered 'path: /auth/callback'
 assert_broker_rendered 'name: mcp-oauth-register'
 assert_broker_rendered 'path: /register'
 assert_broker_rendered 'name: mcp-oauth-token'
@@ -208,14 +217,16 @@ assert_broker_rendered 'path: "%PATH(NQ:ORIG_OR_PATH)%"'
 assert_broker_rendered 'meta.verified_jwt.token_use ~= nil'
 assert_broker_rendered "[':status'] = '401'"
 assert_broker_rendered "'{\"error\":\"invalid_token\"}'"
-assert_broker_rendered "local required_scope = \"access_as_user\""
+assert_broker_rendered "local required_scope = \"https://osmo.example.com/mcp/access_as_user\""
 assert_broker_rendered "[':status'] = '403'"
 assert_broker_rendered "'{\"error\":\"insufficient_scope\"}'"
 assert_broker_rendered 'if (meta.verified_jwt.iss == "https://osmo.example.com/" and type(claims.upstream_claims) == '\''table'\'') then'
 
 for forbidden in \
+    'name: OSMO_MCP_AUTH_ENTRA_' \
     'path: /oauth/jwks.json' \
     'path: /oauth/authorize' \
+    'path: /oauth/callback/entra' \
     'path: /oauth/register' \
     'path: /oauth/token' \
     'path: /oauth/revoke' \
@@ -225,7 +236,7 @@ for forbidden in \
   fi
 done
 
-if ! grep -A12 -F -- 'name: mcp-oauth-entra-callback' \
+if ! grep -A12 -F -- 'name: mcp-oauth-oidc-callback' \
     "$BROKER_RENDERED_MANIFEST" | grep -F -- 'timeout: 45s' >/dev/null; then
   fail 'broker callback route did not render its extended upstream timeout'
 fi
@@ -254,6 +265,11 @@ fi
 if grep -E -- "^[[:space:]]*prefix:[[:space:]]+/oauth[[:space:]]*$" \
     "$BROKER_RENDERED_MANIFEST" >/dev/null; then
   fail 'broker rendered a broad /oauth prefix route'
+fi
+
+if grep -E -- "^[[:space:]]*prefix:[[:space:]]+/auth[[:space:]]*$" \
+    "$BROKER_RENDERED_MANIFEST" >/dev/null; then
+  fail 'broker rendered a broad /auth prefix route'
 fi
 
 if grep -A12 -B2 -F 'kind: Secret' "$MCP_MANIFEST" | \
@@ -318,14 +334,39 @@ expect_broker_render_failure \
   --set 'services.mcp.oauthBroker.redis.port=0'
 
 expect_broker_render_failure \
+  'OIDC configuration with userinfo' \
+  'services.mcp.oauthBroker.oidc.configUrl must be an absolute HTTPS URL without query or fragment' \
+  --set 'services.mcp.oauthBroker.oidc.configUrl=https://user@login.example.com/.well-known/openid-configuration'
+
+expect_broker_render_failure \
+  'invalid OIDC JWKS port' \
+  'services.mcp.oauthBroker.oidc.accessTokenJwksUrl port must be between 1 and 65535' \
+  --set 'services.mcp.oauthBroker.oidc.accessTokenJwksUrl=https://login.example.com:65536/keys'
+
+expect_broker_render_failure \
+  'OIDC access-token audience with whitespace' \
+  'services.mcp.oauthBroker.oidc.accessTokenAudience must be one non-empty value without whitespace or control characters' \
+  --set-string 'services.mcp.oauthBroker.oidc.accessTokenAudience=api audience'
+
+expect_broker_render_failure \
+  'OIDC access-token audience mismatch' \
+  'services.mcp.oauthBroker.oidc.accessTokenAudience must equal services.mcp.resourceUrl' \
+  --set 'services.mcp.oauthBroker.oidc.accessTokenAudience=https://other.example.com/mcp'
+
+expect_broker_render_failure \
+  'OIDC full scope mismatch' \
+  'services.mcp.oauthBroker.scope must equal services.mcp.resourceUrl followed by oidc.accessTokenRequiredScope' \
+  --set 'services.mcp.oauthBroker.scope=https://other.example.com/access_as_user'
+
+expect_broker_render_failure \
   'untrusted redirect origin with a path' \
   'trustedHttpsRedirectOrigins entries must be exact HTTPS origins' \
   --set 'services.mcp.oauthBroker.trustedHttpsRedirectOrigins[0]=https://trusted.example.com/callback'
 
 expect_broker_render_failure \
-  'broad OAuth authentication bypass' \
+  'broad OIDC callback authentication bypass' \
   'overlaps a protected MCP path' \
-  --set 'gateway.envoy.extraSkipAuthPaths[0]=/oauth'
+  --set 'gateway.envoy.extraSkipAuthPaths[0]=/auth'
 
 expect_broker_render_failure \
   'broker managed issuer override' \

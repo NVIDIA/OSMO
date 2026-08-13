@@ -45,9 +45,9 @@ h11==0.16.0
 # Model Context Protocol
 mcp>=1.27,<2
 
-# Endpoint-only MCP OAuth. FastMCP's AzureProvider is used as a focused OAuth
-# proxy; these explicit server-import dependencies avoid upgrading OSMO's
-# existing Uvicorn/WebSocket runtime through the broad `server` extra.
+# Endpoint-only MCP OAuth. FastMCP's OIDCProxy is used as a focused OAuth proxy;
+# these explicit server-import dependencies avoid upgrading OSMO's existing
+# Uvicorn/WebSocket runtime through the broad `server` extra.
 fastmcp-slim[mcp]==3.4.7
 authlib>=1.6.11
 griffelib>=2.0.0

@@ -24,13 +24,16 @@ services:
     oauthBroker:
       enabled: true
       issuerUrl: https://osmo.example.com
+      scope: https://osmo.example.com/mcp/access_as_user
       trustedHttpsRedirectOrigins:
       - https://trusted-client.example.com
-      entra:
-        tenantId: example-tenant
+      oidc:
+        configUrl: https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration
         clientId: example-mcp-broker-client
-        identifierUri: https://osmo.example.com/mcp
-        tokenIssuer: https://login.microsoftonline.com/example-tenant/v2.0
+        accessTokenIssuer: https://sts.example.com/example-tenant/
+        accessTokenAudience: https://osmo.example.com/mcp
+        accessTokenJwksUrl: https://login.example.com/example-tenant/discovery/v2.0/keys
+        accessTokenRequiredScope: access_as_user
       redis:
         serviceName: broker-redis.example.internal
         port: 6380

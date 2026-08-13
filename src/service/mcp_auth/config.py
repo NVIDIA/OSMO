@@ -29,7 +29,7 @@ class OAuthBrokerConfig(
     static_config.StaticConfig,
     ssl_config.SSLConfig,
 ):
-    """Runtime configuration for FastMCP's Azure OAuth proxy."""
+    """Runtime configuration for FastMCP's OSMO OIDC profile."""
 
     model_config = pydantic.ConfigDict(hide_input_in_errors=True)
 
@@ -52,8 +52,8 @@ class OAuthBrokerConfig(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
     )
     scope: str = pydantic.Field(
-        default='access_as_user',
-        pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
+        description='Full OIDC API scope advertised to MCP clients.',
+        pattern=r'^https://[^\s]+$',
         json_schema_extra={'env': 'OSMO_MCP_AUTH_SCOPE'},
     )
     redis_url: str = pydantic.Field(
@@ -83,27 +83,40 @@ class OAuthBrokerConfig(
         le=30,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_REDIS_OPERATION_TIMEOUT_SECONDS'},
     )
-    entra_tenant_id: str = pydantic.Field(
-        min_length=1,
-        max_length=128,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_TENANT_ID'},
+    oidc_config_url: str = pydantic.Field(
+        description='Upstream OpenID Connect discovery document URL.',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CONFIG_URL'},
     )
-    entra_client_id: str = pydantic.Field(
+    oidc_client_id: str = pydantic.Field(
         min_length=1,
         max_length=256,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_CLIENT_ID'},
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CLIENT_ID'},
     )
-    entra_client_secret_file: str = pydantic.Field(
+    oidc_client_secret_file: str = pydantic.Field(
         min_length=1,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_CLIENT_SECRET_FILE'},
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE'},
     )
-    entra_identifier_uri: str = pydantic.Field(
-        description='Application ID URI that owns the delegated MCP scope.',
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_IDENTIFIER_URI'},
+    oidc_access_token_jwks_url: str = pydantic.Field(
+        description='JWKS used to verify upstream API access tokens.',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL'},
     )
-    entra_token_issuer: str = pydantic.Field(
-        description='Exact issuer expected in Entra access tokens.',
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENTRA_TOKEN_ISSUER'},
+    oidc_access_token_issuer: str = pydantic.Field(
+        description='Exact issuer expected in upstream API access tokens.',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER'},
+    )
+    oidc_access_token_audience: str = pydantic.Field(
+        min_length=1,
+        max_length=2048,
+        description='Exact audience expected in upstream API access tokens.',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE'},
+    )
+    oidc_access_token_required_scope: str = pydantic.Field(
+        default='access_as_user',
+        pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
+        description='Short scp value required in upstream API access tokens.',
+        json_schema_extra={
+            'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE',
+        },
     )
     signing_jwks_file: str = pydantic.Field(
         min_length=1,
@@ -140,20 +153,35 @@ class OAuthBrokerConfig(
     def _validate_urls(self) -> 'OAuthBrokerConfig':
         issuer = _validate_https_url(self.issuer_url, root_only=True)
         resource = _validate_https_url(self.resource_url, root_only=False)
-        identifier_uri = _validate_https_url(
-            self.entra_identifier_uri,
+        scope = _validate_https_url(
+            self.scope,
+            root_only=False,
+        )
+        config_url = _validate_https_url(self.oidc_config_url, root_only=False)
+        access_token_jwks_url = _validate_https_url(
+            self.oidc_access_token_jwks_url,
             root_only=False,
         )
         token_issuer = _validate_https_url(
-            self.entra_token_issuer,
+            self.oidc_access_token_issuer,
             root_only=False,
             preserve_trailing_slash=True,
         )
 
         if resource != f'{issuer}/mcp':
             raise ValueError('resource_url must be the issuer origin followed by /mcp')
-        if identifier_uri != resource:
-            raise ValueError('entra_identifier_uri must match resource_url')
+        if scope != f'{resource}/{self.oidc_access_token_required_scope}':
+            raise ValueError(
+                'scope must be resource_url followed by '
+                'oidc_access_token_required_scope'
+            )
+        if any(
+            character.isspace() or ord(character) < 32 or ord(character) == 127
+            for character in self.oidc_access_token_audience
+        ):
+            raise ValueError('oidc_access_token_audience must be one exact value')
+        if self.oidc_access_token_audience != resource:
+            raise ValueError('oidc_access_token_audience must match resource_url')
         parsed_redis = parse.urlsplit(self.redis_url)
         if parsed_redis.scheme not in {'redis', 'rediss'} or not parsed_redis.hostname:
             raise ValueError('redis_url must be an absolute redis:// or rediss:// URL')
@@ -165,8 +193,10 @@ class OAuthBrokerConfig(
 
         self.issuer_url = issuer
         self.resource_url = resource
-        self.entra_identifier_uri = identifier_uri
-        self.entra_token_issuer = token_issuer
+        self.scope = scope
+        self.oidc_config_url = config_url
+        self.oidc_access_token_jwks_url = access_token_jwks_url
+        self.oidc_access_token_issuer = token_issuer
         return self
 
     @property

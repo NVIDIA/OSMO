@@ -38,7 +38,7 @@ setting detects this rotation and triggers Envoy to reload.
       (dict "name" "mcp-oauth-authorization-server-metadata" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$" "method" "GET")
       (dict "name" "mcp-oauth-authorize-get" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "GET")
       (dict "name" "mcp-oauth-authorize-post" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "POST")
-      (dict "name" "mcp-oauth-entra-callback" "path" "/oauth/callback/entra" "pathRegex" "^/oauth/callback/entra([?].*)?$" "method" "GET" "timeout" "45s")
+      (dict "name" "mcp-oauth-oidc-callback" "path" "/auth/callback" "pathRegex" "^/auth/callback([?].*)?$" "method" "GET" "timeout" "45s")
       (dict "name" "mcp-oauth-register" "path" "/register" "pathRegex" "^/register([?].*)?$" "method" "POST")
       (dict "name" "mcp-oauth-token" "path" "/token" "pathRegex" "^/token([?].*)?$" "method" "POST" "timeout" "45s")
       (dict "name" "mcp-oauth-consent-get" "path" "/consent" "pathRegex" "^/consent([?].*)?$" "method" "GET")
@@ -47,7 +47,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpOauthBrokerOptionRoutes := list
       (dict "name" "mcp-oauth-authorization-server-metadata-options" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$")
       (dict "name" "mcp-oauth-authorize-options" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$")
-      (dict "name" "mcp-oauth-entra-callback-options" "path" "/oauth/callback/entra" "pathRegex" "^/oauth/callback/entra([?].*)?$" "timeout" "45s")
+      (dict "name" "mcp-oauth-oidc-callback-options" "path" "/auth/callback" "pathRegex" "^/auth/callback([?].*)?$" "timeout" "45s")
       (dict "name" "mcp-oauth-register-options" "path" "/register" "pathRegex" "^/register([?].*)?$")
       (dict "name" "mcp-oauth-token-options" "path" "/token" "pathRegex" "^/token([?].*)?$")
       (dict "name" "mcp-oauth-consent-options" "path" "/consent" "pathRegex" "^/consent([?].*)?$")

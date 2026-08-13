@@ -31,10 +31,11 @@ OSMO can expose MCP authentication in either of two deployment modes:
   administrator.
 - **Broker mode** enables the OSMO MCP OAuth broker. A client is configured
   with only the deployment's `/mcp` endpoint, discovers the broker through
-  standard OAuth metadata, registers its callback dynamically, and completes
-  the same deployment identity-provider login in a browser. The broker is an
-  authentication-edge service; it does not execute tools or replace OSMO
-  authorization.
+  standard OAuth metadata, and completes the same deployment identity-provider
+  login in a browser. FastMCP accepts a Client ID Metadata Document (CIMD) when
+  the client provides one and retains Dynamic Client Registration (DCR) for
+  older clients. The broker is an authentication-edge service; it does not
+  execute tools or replace OSMO authorization.
 
 Broker mode is feature-gated by `services.mcp.oauthBroker.enabled` and disabled
 by default. This preserves direct mode for existing deployments and provides a
@@ -122,7 +123,8 @@ When broker mode is enabled, the public flow is:
 ```text
 MCP client
   -> Gateway /mcp (401 with protected-resource metadata)
-  -> OSMO MCP OAuth broker discovery and dynamic client registration
+  -> OSMO MCP OAuth broker discovery
+  -> CIMD client identity, or DCR registration as a compatibility fallback
   -> deployment identity provider login in the user's browser
   -> broker authorization-code exchange with PKCE
   -> Gateway /mcp with an OSMO MCP resource token
@@ -138,34 +140,38 @@ codex mcp add osmo --url https://<osmo-host>/mcp
 codex mcp login osmo
 ```
 
-Clients that support OAuth discovery, Dynamic Client Registration, and PKCE
-S256 can use the same endpoint-only flow. Dynamic registration creates a
-short-lived public client record in OSMO; it does not create a new application
-in the upstream identity provider. The broker owns one administrator-managed
-upstream OAuth application and one stable callback URL.
+Clients that support OAuth discovery, CIMD, and PKCE S256 use their HTTPS
+metadata-document URL as a stable client ID. DCR-capable clients without CIMD
+support can use the same endpoint-only flow through `/register`. A DCR record
+is stored in OSMO; neither approach creates an application in the upstream
+identity provider. The broker owns one administrator-managed confidential
+upstream OIDC application and one stable `/auth/callback` redirect URL.
 
-FastMCP's Azure provider owns DCR, PKCE, consent, Entra exchange, and refresh.
-It issues a short-lived proxy token with the exact MCP audience and the single
-advertised `access_as_user` scope. The token contains the identity and roles
-from the cryptographically verified Entra access token under
+FastMCP's OIDC proxy owns CIMD, DCR fallback, PKCE, consent, upstream OIDC
+exchange, and refresh. It issues a short-lived proxy token with the exact MCP
+audience and the full advertised delegated scope. The OSMO adapter separately
+verifies the upstream API access token's signature, issuer, audience, and short
+`access_as_user` `scp` value before copying allowlisted identity and roles under
 `upstream_claims`; the Gateway reads those claims and applies the existing OSMO
-role model. Entra app-role definitions and assignments are therefore part of
-OSMO's authorization boundary and require the same review as direct OSMO role
-assignments. In the current bearer-relay architecture, the Gateway also accepts
-that token on the API pass made by the MCP process; a holder could therefore
-present it directly to API routes. Existing OSMO RBAC, API-specific actions,
-and pool scope still apply on every such request. Strict route-level audience
-isolation requires a later internal token-exchange/delegation design so MCP no
-longer relays the user's bearer.
+role model. For Entra deployments, Entra app-role definitions and assignments
+are therefore part of OSMO's authorization boundary and require the same review
+as direct OSMO role assignments. In the current bearer-relay architecture, the
+Gateway also accepts that token on the API pass made by the MCP process; a
+holder could therefore present it directly to API routes. Existing OSMO RBAC,
+API-specific actions, and pool scope still apply on every such request. Strict
+route-level audience isolation requires a later internal
+token-exchange/delegation design so MCP no longer relays the user's bearer.
 
 ### Deployment prerequisites
 
 Before enabling broker mode, an administrator must provide:
 
-- one confidential OAuth application in the deployment identity provider,
-  with the broker's exact public callback registered;
+- one confidential OIDC application in the deployment identity provider, with
+  the exact `<issuer-url>/auth/callback` redirect registered;
 - its client ID and client secret through the deployment's secret manager;
-- the delegated `<resource-url>/access_as_user` scope on that application;
+- the full delegated `<resource-url>/access_as_user` scope on that application;
+- OIDC discovery plus explicit issuer, audience, JWKS URL, and short
+  `access_as_user` scope requirements for upstream API access-token validation;
 - one private 256-bit HS256 key as a single-key JWKS mounted into both the
   broker and Gateway; this symmetric key must never be exposed publicly;
 - a shared Redis namespace for FastMCP's encrypted clients, authorization
@@ -183,7 +189,7 @@ GET  /.well-known/oauth-protected-resource/mcp
 GET  /.well-known/oauth-authorization-server
 GET  /authorize
 POST /authorize
-GET  /oauth/callback/entra
+GET  /auth/callback
 POST /register
 POST /token
 GET  /consent
@@ -203,13 +209,15 @@ services:
     oauthBroker:
       enabled: true
       issuerUrl: https://<osmo-host>
-      scope: access_as_user
-      entra:
-        tenantId: <tenant-id>
+      scope: https://<osmo-host>/mcp/access_as_user
+      oidc:
+        configUrl: https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration
         clientId: <broker-application-client-id>
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
-        identifierUri: https://<osmo-host>/mcp
-        tokenIssuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+        accessTokenIssuer: https://sts.windows.net/<tenant-id>/
+        accessTokenAudience: https://<osmo-host>/mcp
+        accessTokenJwksUrl: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
+        accessTokenRequiredScope: access_as_user
       signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
       redis:
         dbNumber: <dedicated-database-number>
@@ -224,20 +232,24 @@ executable. `/usr/bin/mcp` remains the MCP tool-service command.
 
 Readiness fails closed until the broker has loaded its signing key and can
 reach its state store. Liveness reports only process health. Operators should
-monitor registration, authorization, callback, token, refresh, consent, Redis,
-and upstream identity-provider outcomes without logging credential or identity
-payloads.
+monitor CIMD metadata-fetch failures, registration, authorization, callback,
+token, refresh, consent, Redis, and upstream identity-provider outcomes without
+logging credential or identity payloads. CIMD fetches are outbound requests to
+client-controlled URLs; retain FastMCP's validation and SSRF protections and do
+not add an unrestricted custom metadata-fetch path.
 
 ### Rollout and rollback
 
 The current feature gate deploys the broker, adds its Gateway trust and routes,
 and changes protected-resource metadata in one rollout. Use it first on a dev
-instance, verify broker readiness immediately, and run discovery, dynamic
-registration, login, refresh, restart recovery, and key-rotation tests from
-clean client profiles. The prototype uses one broker replica because FastMCP's
-refresh serialization is process-local. A separate deploy-only/advertise
-switch is a production-readiness follow-up for installations that require a
-shadow rollout.
+instance, verify broker readiness immediately, and run discovery, DCR fallback,
+CIMD, login, refresh, restart recovery, and key-rotation tests from clean client
+profiles. Confirm CIMD through
+`client_id_metadata_document_supported: true` in authorization-server metadata
+and DCR fallback through `registration_endpoint`. The prototype uses one broker
+replica because FastMCP's refresh serialization is process-local. A separate
+deploy-only/advertise switch is a production-readiness follow-up for
+installations that require a shadow rollout.
 During the rollback window the Gateway may accept both the broker issuer and the
 prior direct issuer, but metadata advertises only the selected mode.
 
