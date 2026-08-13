@@ -29,34 +29,6 @@ embeddedDependencies:
 # The dependency also supports fixed-primary replication for read scaling and
 # data redundancy, but it does not provide Sentinel or automatic promotion.
 valkey:
-  # Pull credential Secret names for Valkey pods. This dependency-native value
-  # uses strings rather than Kubernetes LocalObjectReference objects.
-  imagePullSecrets: []
-  image:
-    registry: docker.io
-    repository: valkey/valkey
-    pullPolicy: IfNotPresent
-    tag: "9.1.1"
-  serviceAccount:
-    create: true
-    automount: false
-  podSecurityContext:
-    fsGroup: 1000
-    runAsUser: 1000
-    runAsGroup: 1000
-    seccompProfile:
-      type: RuntimeDefault
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-      - ALL
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 1000
-  service:
-    type: ClusterIP
-    port: 6379
   networkPolicy:
     ingress:
     - from:
@@ -75,18 +47,11 @@ valkey:
     limits:
       cpu: 250m
       memory: 256Mi
-  startupProbe:
-    enabled: true
-  livenessProbe:
-    enabled: true
   readinessProbe:
     enabled: true
   dataStorage:
     enabled: true
     requestedSize: 8Gi
-    className: ''
-    accessModes:
-    - ReadWriteOnce
     keepPvc: true
   auth:
     enabled: true
@@ -95,7 +60,6 @@ valkey:
       default:
         permissions: "~* &* +@all"
         passwordKey: redis-password
-    aclConfig: ''
   valkeyConfig: |
     appendonly yes
     appendfsync everysec
@@ -103,22 +67,14 @@ valkey:
     maxmemory-policy noeviction
   deploymentStrategy: Recreate
   replica:
-    enabled: false
-    replicas: 2
-    replicationUser: default
     minReplicasToWrite: 1
-    minReplicasMaxLag: 10
     persistence:
       size: 8Gi
-      storageClass: ''
-      accessModes:
-      - ReadWriteOnce
     persistentVolumeClaimRetentionPolicy:
       whenDeleted: Retain
       whenScaled: Retain
   podDisruptionBudget:
     enabled: true
-    maxUnavailable: 1
 
 # Connection details for dependencies owned outside this release. The Valkey
 # endpoint is required only when embedded Valkey is disabled.
