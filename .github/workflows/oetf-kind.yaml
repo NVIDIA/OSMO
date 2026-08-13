@@ -15,6 +15,15 @@ on:
       - 'MODULE.bazel'
       - 'src/**'
       - '!src/scripts/testbot/**'
+      # This gate deploys OSMO and runs the `kind`-tagged suites from
+      # test/oetf. It builds //src/cli:cli plus the service and web-ui
+      # images, none of which depend on the py_test targets under
+      # src/**/tests — those are built and run by ci-internal/ci-public.
+      # So a test-only change (e.g. a testbot PR adding a tests/BUILD
+      # entry) already gets its coverage there and gains nothing from a
+      # 20-60 minute KIND deploy. A PR that also touches production code
+      # still matches on that file and runs normally.
+      - '!src/**/tests/**'
       - '.github/workflows/oetf-kind.yaml'
   workflow_dispatch: {}
 
