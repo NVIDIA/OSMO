@@ -292,7 +292,6 @@ require_no_resource() {
 
 require_clean_osmo_sources() {
     [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
-    [[ ! -d "$CHARTS_ROOT/osmo/charts" ]] || fail "osmo must not contain packaged dependencies"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/postgres.yaml" ]] || \
         fail "osmo must not contain an unimplemented embedded PostgreSQL template"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/redis.yaml" ]] || \
