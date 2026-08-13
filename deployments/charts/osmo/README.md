@@ -99,13 +99,11 @@ Valkey-backed OSMO operations are unavailable until it becomes Ready. Take a
 storage snapshot before upgrades and follow the CSI provider's guidance for
 volume expansion. Replication is available through
 `valkey.replica.enabled=true`, but the primary remains fixed and is not
-automatically failed over. Choose the topology before initial installation;
-changing between standalone and replication requires a planned data migration
-because the two modes use different PVCs. After arranging that migration, set
-`embeddedDependencies.valkey.topologyMigrationAcknowledged=true`. The safety
-check relies on live Kubernetes lookups, so inspect retained PVCs yourself when
-rendering offline or when Helm cannot list them. Use an external Valkey service
-for automatic primary promotion, multi-zone failover, managed backups, or TLS.
+automatically failed over. Standalone and replication use different persistent
+storage layouts. OSMO does not manage topology migrations, so review the
+[official Valkey chart documentation](https://github.com/valkey-io/valkey-helm/tree/main/valkey#deployment-modes)
+before changing `valkey.replica.enabled`. Use an external Valkey service for
+automatic primary promotion, multi-zone failover, managed backups, or TLS.
 
 To use external Valkey, keep `embeddedDependencies.valkey.enabled=false` and
 configure `externalDependencies.valkey` and

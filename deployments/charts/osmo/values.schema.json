@@ -16,7 +16,7 @@
       "type": "object",
       "properties": {
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
-        "valkey": { "$ref": "#/definitions/embeddedValkey" },
+        "valkey": { "$ref": "#/definitions/enabledBlock" },
         "objectStorage": { "$ref": "#/definitions/enabledBlock" },
         "kaiScheduler": { "$ref": "#/definitions/enabledBlock" }
       }
@@ -103,14 +103,6 @@
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
-    },
-    "embeddedValkey": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "topologyMigrationAcknowledged": { "type": "boolean" }
-      },
-      "required": ["enabled", "topologyMigrationAcknowledged"]
     },
     "stringMap": {
       "type": "object",

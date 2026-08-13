@@ -19,7 +19,6 @@ embeddedDependencies:
     enabled: false
   valkey:
     enabled: false
-    topologyMigrationAcknowledged: false
   objectStorage:
     enabled: false
   kaiScheduler:

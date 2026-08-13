@@ -67,23 +67,6 @@
 {{- if ne $passwordKey .Values.secrets.valkey.keys.password -}}
 {{- fail "valkey.auth.aclUsers.default.passwordKey must match secrets.valkey.keys.password" -}}
 {{- end -}}
-{{- $embeddedName := include "osmo.valkey.fullname" . -}}
-{{- $standalonePvcName := default $embeddedName .Values.valkey.dataStorage.persistentVolumeClaimName -}}
-{{- $standalonePvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace $standalonePvcName -}}
-{{- $replicaPvcPrefix := printf "valkey-data-%s-" $embeddedName -}}
-{{- $persistentVolumeClaims := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "" -}}
-{{- $hasReplicaPvc := false -}}
-{{- range (default list $persistentVolumeClaims.items) -}}
-{{- if hasPrefix $replicaPvcPrefix .metadata.name -}}
-{{- $hasReplicaPvc = true -}}
-{{- end -}}
-{{- end -}}
-{{- if and .Values.valkey.replica.enabled $standalonePvc (not .Values.embeddedDependencies.valkey.topologyMigrationAcknowledged) -}}
-{{- fail "changing embedded Valkey from standalone to replication requires a planned data migration" -}}
-{{- end -}}
-{{- if and (not .Values.valkey.replica.enabled) $hasReplicaPvc (not .Values.embeddedDependencies.valkey.topologyMigrationAcknowledged) -}}
-{{- fail "changing embedded Valkey from replication to standalone requires a planned data migration" -}}
-{{- end -}}
 {{- else if .Values.secrets.valkey.generate -}}
 {{- fail "secrets.valkey.generate is supported only when embedded Valkey is enabled" -}}
 {{- end -}}
