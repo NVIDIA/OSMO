@@ -24,58 +24,6 @@ embeddedDependencies:
   kaiScheduler:
     enabled: false
 
-# Official Valkey dependency configuration. These defaults provide an
-# authenticated, persistent standalone primary when embedded Valkey is enabled.
-# The dependency also supports fixed-primary replication for read scaling and
-# data redundancy, but it does not provide Sentinel or automatic promotion.
-valkey:
-  networkPolicy:
-    ingress:
-    - from:
-      - podSelector: {}
-  resources:
-    requests:
-      cpu: 500m
-      memory: 1Gi
-    limits:
-      cpu: 1
-      memory: 2Gi
-  initResources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 250m
-      memory: 256Mi
-  readinessProbe:
-    enabled: true
-  dataStorage:
-    enabled: true
-    requestedSize: 8Gi
-    keepPvc: true
-  auth:
-    enabled: true
-    usersExistingSecret: '{{ printf "%s-valkey-credentials" .Release.Name | trunc 63 | trimSuffix "-" }}'
-    aclUsers:
-      default:
-        permissions: "~* &* +@all"
-        passwordKey: redis-password
-  valkeyConfig: |
-    appendonly yes
-    appendfsync everysec
-    maxmemory 1gb
-    maxmemory-policy noeviction
-  deploymentStrategy: Recreate
-  replica:
-    minReplicasToWrite: 1
-    persistence:
-      size: 8Gi
-    persistentVolumeClaimRetentionPolicy:
-      whenDeleted: Retain
-      whenScaled: Retain
-  podDisruptionBudget:
-    enabled: true
-
 # Connection details for dependencies owned outside this release. The Valkey
 # endpoint is required only when embedded Valkey is disabled.
 externalDependencies:
@@ -1350,3 +1298,55 @@ configuration:
         default: {}
   backendTests: {}
   groupTemplates: {}
+
+# Official Valkey dependency configuration. These defaults provide an
+# authenticated, persistent standalone primary when embedded Valkey is enabled.
+# The dependency also supports fixed-primary replication for read scaling and
+# data redundancy, but it does not provide Sentinel or automatic promotion.
+valkey:
+  networkPolicy:
+    ingress:
+    - from:
+      - podSelector: {}
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  initResources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  readinessProbe:
+    enabled: true
+  dataStorage:
+    enabled: true
+    requestedSize: 8Gi
+    keepPvc: true
+  auth:
+    enabled: true
+    usersExistingSecret: '{{ printf "%s-valkey-credentials" .Release.Name | trunc 63 | trimSuffix "-" }}'
+    aclUsers:
+      default:
+        permissions: "~* &* +@all"
+        passwordKey: redis-password
+  valkeyConfig: |
+    appendonly yes
+    appendfsync everysec
+    maxmemory 1gb
+    maxmemory-policy noeviction
+  deploymentStrategy: Recreate
+  replica:
+    minReplicasToWrite: 1
+    persistence:
+      size: 8Gi
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+  podDisruptionBudget:
+    enabled: true
