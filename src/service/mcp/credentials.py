@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 from collections.abc import Mapping
 from typing import Annotated
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 import pydantic
 
 from src.service.mcp import tool_requests

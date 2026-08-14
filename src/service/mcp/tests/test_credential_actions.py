@@ -20,7 +20,7 @@ import unittest
 from unittest import mock
 
 import httpx
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 
 from src.service.mcp import credential_actions
 from src.service.mcp.tests import protocol_harness

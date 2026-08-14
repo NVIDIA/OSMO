@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import datetime
 from typing import Annotated, Literal
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 import pydantic
 
 from src.service.mcp import (

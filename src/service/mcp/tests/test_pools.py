@@ -20,7 +20,7 @@ import unittest
 from unittest import mock
 
 import httpx
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 
 from src.service.mcp import (
     pools,

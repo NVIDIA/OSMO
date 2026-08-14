@@ -20,7 +20,7 @@ import json
 import unittest
 from unittest import mock
 
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 
 from src.lib.utils import osmo_errors
 from src.service.mcp import (

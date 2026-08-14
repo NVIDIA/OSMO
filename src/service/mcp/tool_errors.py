@@ -20,7 +20,7 @@ import json
 import re
 import unicodedata
 
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 
 
 GENERIC_TOOL_ERROR = 'MCP tool failed.'
@@ -76,6 +76,8 @@ def uncertain_write_error(operation: str) -> PublicToolError:
 
 def from_fastmcp_error(error: ToolError) -> PublicToolError | None:
     """Recover an intentional public error from FastMCP's generic wrapper."""
+    if type(error) is PublicToolError:  # pylint: disable=unidiomatic-typecheck
+        return PublicToolError(str(error))
     cause = error.__cause__
     # Subclasses are not implicitly trusted to preserve the bounded message.
     if type(cause) is PublicToolError:  # pylint: disable=unidiomatic-typecheck

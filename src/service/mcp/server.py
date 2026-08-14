@@ -20,8 +20,9 @@ import asyncio
 from collections.abc import AsyncIterator
 import contextlib
 
+from fastmcp import FastMCP
+from fastmcp.server.auth import AuthProvider
 import httpx
-from mcp.server.fastmcp import FastMCP
 import pydantic
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -30,6 +31,7 @@ import uvicorn  # type: ignore
 
 from src.lib.utils import logging as logging_utils
 from src.service.mcp import (
+    auth,
     gateway,
     protocol,
     request_body,
@@ -43,6 +45,7 @@ class MCPServiceConfig(
     logging_utils.LoggingConfig,
     static_config.StaticConfig,
     ssl_config.SSLConfig,
+    auth.MCPAuthConfig,
 ):
     """Runtime configuration for the MCP service."""
 
@@ -74,15 +77,14 @@ class MCPServiceConfig(
         return self
 
 
-def create_mcp_server() -> FastMCP:
+def create_mcp_server(
+    auth_provider: AuthProvider | None = None,
+) -> FastMCP:
     """Create the stateless OSMO MCP protocol server."""
     server = protocol.OSMOFastMCP(
         name='OSMO MCP',
-        host='0.0.0.0',
-        port=8000,
-        streamable_http_path='/mcp',
-        stateless_http=True,
-        json_response=True,
+        auth=auth_provider,
+        mask_error_details=True,
     )
     tool_registry.register_tools(server)
 
@@ -103,7 +105,12 @@ def create_mcp_server() -> FastMCP:
 
 def create_application(protocol_server: FastMCP) -> Starlette:
     """Create the ASGI application for an MCP protocol server."""
-    application = protocol_server.streamable_http_app()
+    application = protocol_server.http_app(
+        path='/mcp',
+        transport='streamable-http',
+        stateless_http=True,
+        json_response=True,
+    )
     application.add_middleware(
         request_body.RequestBodyLimitMiddleware,
         path='/mcp',
@@ -113,10 +120,14 @@ def create_application(protocol_server: FastMCP) -> Starlette:
             request_body.MCP_REQUEST_BODY_TIMEOUT_SECONDS
         ),
     )
-    application.add_middleware(
-        request_context.RequestContextMiddleware,
-        path='/mcp',
-    )
+    if protocol_server.auth is None:
+        # Direct deployments still trust Gateway-injected identity headers and
+        # retain the original fail-before-body and header-stripping boundary.
+        # In OIDC mode FastMCP must receive Authorization itself.
+        application.add_middleware(
+            request_context.RequestContextMiddleware,
+            path='/mcp',
+        )
     return application
 
 
@@ -126,7 +137,14 @@ def create_runtime_application(
     http_transport: httpx.AsyncBaseTransport | None = None,
 ) -> Starlette:
     """Create the production application and process-lifetime Gateway client."""
-    protocol_server = create_mcp_server()
+    auth_runtime = (
+        auth.create_auth_runtime(config)
+        if config.enabled
+        else None
+    )
+    protocol_server = create_mcp_server(
+        auth_runtime.provider if auth_runtime is not None else None,
+    )
     application = create_application(protocol_server)
     protocol_lifespan = application.router.lifespan_context
 
@@ -145,6 +163,8 @@ def create_runtime_application(
                     yield
             finally:
                 del lifespan_application.state.mcp_app_context
+                if auth_runtime is not None:
+                    await auth_runtime.aclose()
 
     application.router.lifespan_context = application_lifespan
     return application
