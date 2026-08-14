@@ -273,6 +273,51 @@ expect_render_failure "$PROXY_VALUES_FILE" \
   --set 'services.mcp.oidcProxy.redis.port=0'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy Redis database below range' \
+  'services.mcp.oidcProxy.redis.dbNumber must be between 0 and 15' \
+  --set 'services.mcp.oidcProxy.redis.dbNumber=-1'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy Redis database above range' \
+  'services.mcp.oidcProxy.redis.dbNumber must be between 0 and 15' \
+  --set 'services.mcp.oidcProxy.redis.dbNumber=16'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'invalid OIDC proxy Redis key prefix' \
+  'services.mcp.oidcProxy.redis.keyPrefix contains unsupported characters' \
+  --set 'services.mcp.oidcProxy.redis.keyPrefix=invalid/prefix'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy access-token TTL below range' \
+  'services.mcp.oidcProxy.accessTokenTtlSeconds must be between 60 and 3600' \
+  --set 'services.mcp.oidcProxy.accessTokenTtlSeconds=59'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy access-token TTL above range' \
+  'services.mcp.oidcProxy.accessTokenTtlSeconds must be between 60 and 3600' \
+  --set 'services.mcp.oidcProxy.accessTokenTtlSeconds=3601'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy refresh-token TTL below range' \
+  'services.mcp.oidcProxy.refreshTokenTtlSeconds must be between 300 and 604800' \
+  --set 'services.mcp.oidcProxy.refreshTokenTtlSeconds=299'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy refresh-token TTL above range' \
+  'services.mcp.oidcProxy.refreshTokenTtlSeconds must be between 300 and 604800' \
+  --set 'services.mcp.oidcProxy.refreshTokenTtlSeconds=604801'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy upstream timeout below range' \
+  'services.mcp.oidcProxy.upstreamTimeoutSeconds must be between 1 and 60' \
+  --set 'services.mcp.oidcProxy.upstreamTimeoutSeconds=0'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC proxy upstream timeout above range' \
+  'services.mcp.oidcProxy.upstreamTimeoutSeconds must be between 1 and 60' \
+  --set 'services.mcp.oidcProxy.upstreamTimeoutSeconds=61'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC access-token audience mismatch' \
   'services.mcp.oidcProxy.oidc.accessTokenAudience must equal services.mcp.resourceUrl' \
   --set 'services.mcp.oidcProxy.oidc.accessTokenAudience=https://other.example.com/mcp'
@@ -281,6 +326,16 @@ expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC full scope mismatch' \
   'services.mcp.oidcProxy.scope must equal services.mcp.resourceUrl followed by oidc.accessTokenRequiredScope' \
   --set 'services.mcp.oidcProxy.scope=https://other.example.com/access_as_user'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'relative OIDC client-secret path' \
+  'services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path' \
+  --set 'services.mcp.oidcProxy.oidc.clientSecretFile=client-secret'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'relative Redis password path' \
+  'services.mcp.oidcProxy.redis.passwordFile must be an absolute path' \
+  --set 'services.mcp.oidcProxy.redis.passwordFile=redis-password'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC client-secret path outside the existing Secret mount' \

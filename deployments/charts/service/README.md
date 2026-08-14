@@ -106,6 +106,7 @@ destination, but it cannot validate external DNS.
 | `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
 | `services.mcp.oidcProxy.enabled` | Enable FastMCP's built-in OIDC proxy inside the existing MCP process. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
 | `services.mcp.oidcProxy.scope` | Full delegated scope URI advertised to MCP clients and requested upstream, normally `<resourceUrl>/access_as_user`. | `""` |
+| `services.mcp.oidcProxy.trustedHttpsRedirectOrigins` | Exact HTTPS origins allowed for pre-registered web-client redirects; native clients use loopback redirects. | `[]` |
 | `services.mcp.oidcProxy.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
 | `services.mcp.oidcProxy.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
 | `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
@@ -114,6 +115,9 @@ destination, but it cannot validate external DNS.
 | `services.mcp.oidcProxy.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
 | `services.mcp.oidcProxy.redis` | Redis connection used by FastMCP for registrations, authorization state, and encrypted upstream tokens; blank host/port inherit `services.redis`. | See `values.yaml` |
+| `services.mcp.oidcProxy.accessTokenTtlSeconds` | Lifetime of proxy access tokens, from 60 through 3600 seconds. | `600` |
+| `services.mcp.oidcProxy.refreshTokenTtlSeconds` | Lifetime of proxy refresh tokens, from 300 through 604800 seconds. | `28800` |
+| `services.mcp.oidcProxy.upstreamTimeoutSeconds` | Timeout for upstream OIDC requests, from 1 through 60 seconds. | `10` |
 | `services.mcp.oidcProxy.existingSecret` | Optional existing Secret holding the OIDC client secret and Redis password. The chart references it but never creates credential material. | See `values.yaml` |
 
 The in-process proxy follows OSMO's OIDC profile: a full delegated scope URI is requested
@@ -124,6 +128,12 @@ CIMD-capable clients identify themselves with a hosted metadata document;
 older clients can use FastMCP's `/register` DCR endpoint. Both paths use
 authorization-code flow with PKCE and end in the same OSMO Gateway and semantic
 RBAC checks.
+
+Before production exposure, add route-specific rate limits at the trusted
+ingress for the public authorization, callback, registration, and token
+endpoints. The chart does not choose a default shared bucket because one caller
+could otherwise exhaust it and block every user's login; deployments must
+select both the client-IP trust boundary and suitable limits.
 
 FastMCP deterministically derives its proxy-token signing key and the encrypted
 Redis-store key from the upstream OIDC client secret. Rotating that client
