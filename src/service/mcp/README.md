@@ -18,26 +18,47 @@
 
 # OSMO MCP service
 
-The self-hosted MCP service is a stateless, thin adapter over predefined OSMO
-REST APIs. It does not authenticate users itself. The deployment contract
-requires every MCP request and every resulting API request to pass through the
-same deployment's Gateway.
+The self-hosted MCP service is a thin adapter over predefined OSMO REST APIs.
+Every MCP request and every resulting API request enters through the same
+deployment's Gateway. Authentication can remain at the Gateway or run inside
+the existing MCP process through FastMCP's built-in `OIDCProxy`.
+
+OSMO can expose MCP authentication in either of two deployment modes:
+
+- **Direct identity-provider mode** retains the existing behavior. The Gateway
+  advertises the configured identity provider, and clients may need an OAuth
+  client ID, scopes, and callback configuration supplied by the deployment
+  administrator.
+- **OIDC proxy mode** passes an `OIDCProxy` as the existing FastMCP server's
+  `auth` argument. A client configures only `/mcp`, discovers FastMCP's OAuth
+  endpoints, and completes the deployment identity-provider login in a browser.
+  FastMCP supports Client ID Metadata Documents (CIMD) and retains Dynamic
+  Client Registration (DCR) for older clients. It authenticates MCP access but
+  does not replace OSMO's API-specific authorization.
+
+OIDC proxy mode is feature-gated by `services.mcp.oidcProxy.enabled` and
+disabled by default. No second executable, process, Service, or Deployment is
+created.
 
 ## Request flow and trust boundary
 
 ```text
-MCP client
-  -> Gateway (token validation + mcp:Access)
-  -> MCP (request-local token reference + fixed tool mapping)
-  -> same Gateway (second token validation + API-specific action)
-  -> OSMO API
+Direct mode:
+  MCP client -> Gateway JWT + mcp:Access -> MCP
+             -> same Gateway JWT + API action -> OSMO API
+
+OIDC proxy mode:
+  MCP client -> Gateway routing -> FastMCP OIDCProxy -> MCP
+             -> same Gateway with verified upstream token + API action
+             -> OSMO API
 ```
 
-The Gateway supplies one `Authorization: Bearer ...` header and trusted
-`x-osmo-user` identity to the MCP request. The MCP middleware validates the
-forwarded context, removes those headers from the downstream ASGI scope, and
-holds the exact authorization value only in request-local context. A tool must
-pass those credentials explicitly to `GatewayClient`; the shared HTTP client
+In direct mode, Gateway supplies the validated bearer and trusted user identity;
+the request-context middleware strips those headers from the downstream ASGI
+scope and retains one request-local credential. In OIDC proxy mode, FastMCP
+validates its resource token and `get_access_token()` exposes the verified
+upstream identity-provider bearer to the active tool request. A tool passes the
+selected credential explicitly to `GatewayClient`; the shared HTTP client
 contains no caller credentials.
 
 The relay boundary has these invariants:
@@ -49,14 +70,17 @@ The relay boundary has these invariants:
   by each tool and values are encoded from bounded typed inputs. Unknown tool
   arguments, alternate URLs, embedded queries or fragments, redirects, and
   path traversal fail closed.
-- The unchanged authorization value and optional request ID are the only
-  caller-derived headers forwarded on the second Gateway pass. MCP does not
+- The direct-mode bearer or OIDC proxy's verified upstream bearer, plus an
+  optional request ID, are the only caller-derived values forwarded on the
+  second Gateway pass. MCP does not
   copy `x-osmo-*`, cookies, proxy headers, or other inbound request headers.
   Request IDs that reuse a meaningful bearer-token substring are rejected
   before forwarding or telemetry.
-- MCP does not exchange, refresh, modify, cache, persist, log, or return the
-  bearer token. It clears request context and upstream cookies on completion,
-  failure, timeout, or cancellation.
+- The tool adapter does not independently exchange, refresh, modify, cache,
+  persist, log, or return bearer tokens. In OIDC proxy mode, FastMCP alone owns
+  upstream exchange, refresh, and encrypted Redis state. Tool request context
+  and upstream cookies are cleared on completion, failure, timeout, or
+  cancellation.
 - Tool arguments are rejected before execution if they contain the active
   authorization value or bearer token, preventing credential reflection into
   dynamic path or query values.
@@ -95,8 +119,150 @@ The relay boundary has these invariants:
   to a generic error without reflecting exception text.
 
 The Gateway, MCP process, receiving OSMO APIs, and applicable middleware are
-inside the bearer-token handling boundary. None of them may log or persist the
-authorization value.
+inside the bearer-token handling boundary. None may log the authorization
+value. The only intentional persistence is FastMCP's encrypted upstream-token
+state in Redis while OIDC proxy mode is enabled.
+
+## Endpoint-only OAuth
+
+When OIDC proxy mode is enabled, the public flow is:
+
+```text
+MCP client
+  -> Gateway /mcp (401 with protected-resource metadata)
+  -> FastMCP OAuth discovery in the existing MCP process
+  -> CIMD client identity, or DCR registration as a compatibility fallback
+  -> deployment identity provider login in the user's browser
+  -> FastMCP authorization-code exchange with PKCE
+  -> Gateway routes the FastMCP resource token to /mcp
+  -> FastMCP validates it and exposes the verified upstream access token
+  -> Gateway validates that upstream token on each /api tool request
+```
+
+The client still performs an interactive browser login, but it does not need a
+deployment-specific client ID, scope list, callback URL, or callback port. For
+example, a fresh Codex profile requires only:
+
+```bash
+codex mcp add osmo --url https://<osmo-host>/mcp
+codex mcp login osmo
+```
+
+Clients that support OAuth discovery, CIMD, and PKCE S256 use their HTTPS
+metadata-document URL as a stable client ID. DCR-capable clients without CIMD
+support can use the same endpoint-only flow through `/register`. A DCR record
+is stored in OSMO; neither approach creates an application in the upstream
+identity provider. The deployment owns one administrator-managed confidential
+upstream OIDC application and one stable `/auth/callback` redirect URL.
+
+FastMCP's OIDC proxy owns CIMD, DCR fallback, PKCE, consent, upstream OIDC
+exchange, refresh, proxy-token issuance, and encrypted state. OSMO supplies a
+built-in `JWTVerifier` for the upstream API token's RS256 signature, issuer,
+audience, and short `access_as_user` `scp` value. The full delegated scope URI
+is advertised to clients with `update_default_scopes()` and requested upstream
+alongside `openid profile email offline_access`.
+
+Gateway does not validate FastMCP's private proxy token. In this mode it routes
+the exact `/mcp`, metadata, authorization, callback, registration, token, and
+consent paths to the existing `osmo-mcp` cluster with Gateway JWT and ext-authz
+disabled only on those routes. FastMCP authenticates `/mcp`; each tool then
+relays the verified upstream access token to `/api`, where the existing Gateway
+identity-provider validation, OSMO roles, API actions, and pool scope still
+apply. The private FastMCP signing key is never mounted into Gateway.
+
+### Deployment prerequisites
+
+Before enabling OIDC proxy mode, an administrator must provide:
+
+- one confidential OIDC application in the deployment identity provider, with
+  the exact `https://<osmo-host>/auth/callback` redirect registered;
+- its client ID and client secret through the deployment's secret manager;
+- the full delegated `<resource-url>/access_as_user` scope on that application;
+- OIDC discovery plus explicit issuer, audience, JWKS URL, and short
+  `access_as_user` scope requirements for upstream API access-token validation;
+- one private 256-bit HS256 key as a single-key JWKS mounted only in the MCP
+  pod; this symmetric key must never be exposed publicly;
+- a shared Redis namespace for FastMCP's encrypted clients, authorization
+  transactions, upstream tokens, and refresh state;
+- an exact public MCP resource URL; the OAuth issuer is its origin; and
+- an existing Gateway identity-provider JWT provider and role mapping for the
+  verified upstream token relayed to `/api`.
+
+The public protocol surface is deliberately narrow:
+
+```text
+GET  /.well-known/oauth-protected-resource/mcp
+GET  /.well-known/oauth-authorization-server
+GET  /authorize
+POST /authorize
+GET  /auth/callback
+POST /register
+POST /token
+GET  /consent
+POST /consent
+```
+
+Only these exact OAuth paths and methods bypass the normal Gateway JWT and OSMO
+authorization filters. In OIDC proxy mode, exact `/mcp` also bypasses those
+Gateway filters because FastMCP authenticates it in-process. Neighboring paths
+remain protected. All resulting `/api` calls use normal Gateway authentication
+and authorization.
+
+A minimal values overlay selects OIDC proxy mode and its upstream provider;
+credentials remain file-mounted secrets:
+
+```yaml
+services:
+  mcp:
+    resourceUrl: https://<osmo-host>/mcp
+    replicas: 1
+    oidcProxy:
+      enabled: true
+      scope: https://<osmo-host>/mcp/access_as_user
+      oidc:
+        configUrl: https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration
+        clientId: <oidc-application-client-id>
+        clientSecretFile: /etc/osmo/mcp-auth/client-secret
+        accessTokenIssuer: https://sts.windows.net/<tenant-id>/
+        accessTokenAudience: https://<osmo-host>/mcp
+        accessTokenJwksUrl: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
+        accessTokenRequiredScope: access_as_user
+      signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
+      redis:
+        dbNumber: <dedicated-database-number>
+        keyPrefix: osmo:mcp-fastmcp
+```
+
+Do not place the upstream client secret, signing key, access token, refresh
+token, authorization code, or user session in Helm values, Git, or logs. The
+existing `/usr/bin/mcp` process loads `OIDCProxy` and the
+file-mounted secrets directly. Startup fails if required configuration or key
+material is missing; health probes report process health and do not perform an
+upstream OIDC or Redis transaction. Operators should
+monitor CIMD metadata-fetch failures, registration, authorization, callback,
+token, refresh, consent, Redis, and upstream identity-provider outcomes without
+logging credential or identity payloads. CIMD fetches are outbound requests to
+client-controlled URLs; retain FastMCP's validation and SSRF protections and do
+not add an unrestricted custom metadata-fetch path.
+
+### Rollout and rollback
+
+The feature gate updates the existing MCP Deployment, adds exact Gateway
+routes, and lets FastMCP serve protected-resource metadata in one rollout. Use
+it first on a dev instance and run discovery, DCR fallback, CIMD, login,
+access-token expiry, refresh, restart recovery, and key-rotation tests from
+clean client profiles. Confirm CIMD through
+`client_id_metadata_document_supported: true` in authorization-server metadata
+and DCR fallback through `registration_endpoint`. Keep `services.mcp.replicas`
+at `1` while using FastMCP 3.4.7 because refresh serialization is process-local.
+
+After changing an Entra app-role assignment, users should log out and
+authenticate again so the next token definitely contains the updated role set.
+
+To roll back, disable `services.mcp.oidcProxy.enabled`, restore the direct-mode
+`authorizationServers` and `scopes` values, and redeploy. Existing proxy tokens
+will no longer authenticate, so clients must log in again through the direct
+provider. The MCP tool catalog and API-specific authorization do not change.
 
 ## Available tools
 
@@ -205,6 +371,11 @@ projection, and handlers in the matching domain module. `tool_registry.py` is
 the single source of registration metadata used by both the server and
 catalog.
 
+Optional authentication lives in `auth.py`. It constructs FastMCP's built-in
+`OIDCProxy`, upstream `JWTVerifier`, encrypted Redis store, and signing key, then
+passes the provider as the `auth` argument to the same `OSMOFastMCP` instance.
+OSMO does not implement OAuth endpoints or run a second auth service.
+
 Do not import the CLI runtime. Extract only pure public helpers when behavior
 genuinely needs to match another OSMO surface.
 
@@ -234,17 +405,22 @@ Keep each new tool a narrow adapter:
 ## Local validation
 
 ```bash
-bazel test --test_output=errors //src/service/mcp/...
+bazel test --test_output=errors \
+  //src/service/mcp/...
 bazel build \
   //src/service/mcp:mcp_binary \
   //test/smoke:mcp-checks
+bazel build \
+  --platforms=//bzl/platforms:linux_x86_64 \
+  //src/service/mcp:mcp_image_x86_64
 bazel test //test/smoke:mcp-checks-pylint
 bash deployments/charts/service/ci/validate-mcp-chart.sh
 ```
 
-The chart validation covers MCP-disabled and MCP-enabled renders, the derived
-Gateway origin, OAuth metadata, probes, ingress isolation, absence of MCP
-credential material, and expected configuration failures.
+The chart validation covers MCP-disabled, direct-provider, and in-process OIDC
+proxy renders; the derived Gateway origin; exact OAuth routing; the `/mcp`
+filter boundary; secret mounts; ingress isolation; and expected configuration
+failures.
 
 ## Deployment validation
 
