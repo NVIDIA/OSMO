@@ -93,7 +93,6 @@ STORAGE_VALUES_FILE="${STORAGE_VALUES_FILE:-}"
 # Force-regenerate the master encryption key (MEK) ConfigMap. Default is to
 # preserve any existing one so encrypted DB data remains decryptable across
 # re-runs. Set to "true" only on a clean cluster + clean DB.
-RESET_MEK="${RESET_MEK:-false}"
 
 # Provider-specific settings. Idempotent under `source` — the wrapper
 # (deploy-osmo-minimal.sh) sets these before sourcing this file.
@@ -693,50 +692,44 @@ create_secrets() {
 
     # MEK (Master Encryption Key) — DO NOT regenerate on re-run. Any data
     # encrypted with the previous MEK becomes unreadable if we replace it.
-    # Generate only when the ConfigMap is missing, OR when RESET_MEK=true is
-    # set explicitly (use only on a clean DB — replacing the MEK against an
-    # existing DB silently breaks decryption of every encrypted field).
+    # Generate only when the Secret is missing. This script never replaces an
+    # existing MEK because doing so can orphan encrypted database fields.
     local mek_exists="false"
-    if $RUN_KUBECTL "get configmap mek-config -n $OSMO_NAMESPACE" &>/dev/null; then
+    if $RUN_KUBECTL "get secret osmo-mek -n $OSMO_NAMESPACE" &>/dev/null; then
         mek_exists="true"
     fi
 
-    if [[ "$mek_exists" == "true" && "$RESET_MEK" != "true" ]]; then
-        log_info "MEK ConfigMap already present in $OSMO_NAMESPACE — preserving (re-using existing key)"
-        log_info "  Pass RESET_MEK=true (or --reset-mek) to force a fresh key — DESTRUCTIVE if DB has encrypted data"
+    if [[ "$mek_exists" == "true" ]]; then
+        log_info "MEK Secret already present in $OSMO_NAMESPACE — preserving (re-using existing key)"
     else
-        if [[ "$RESET_MEK" == "true" ]]; then
-            log_warning "RESET_MEK=true — minting a fresh MEK. Data encrypted with any previous key will be unreadable."
-        else
-            # Refuse to mint a new MEK if the DB still has encrypted data from a
-            # previous install. $DB_TABLE_COUNT is populated by create_database.
-            if [[ "$DB_TABLE_COUNT" == "UNKNOWN" ]]; then
-                log_error "Could not verify whether '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST has existing data (db-ops probe failed or timed out)."
-                log_error "Refusing to mint a fresh MEK without confirmation — minting against a populated DB silently orphans encrypted columns."
-                log_error "Retry once Postgres connectivity is healthy, or pass RESET_MEK=true to acknowledge data loss and proceed."
-                exit 1
-            elif [[ -n "$DB_TABLE_COUNT" && "$DB_TABLE_COUNT" -gt 0 ]]; then
-                log_error "MEK ConfigMap 'mek-config' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has $DB_TABLE_COUNT user table(s)."
-                log_error "Generating a new MEK now would orphan every encrypted column (service_auth.private_key, workflow secrets, ...). To resolve:"
-                log_error "  - Restore the previous 'mek-config' ConfigMap from backup, OR"
-                log_error "  - Wipe the database before re-running:"
-                log_error "      psql -h $POSTGRES_HOST -U ${POSTGRES_USERNAME} -d postgres \\"
-                log_error "        -c 'DROP DATABASE IF EXISTS ${POSTGRES_DB_NAME:-osmo}; CREATE DATABASE ${POSTGRES_DB_NAME:-osmo};'"
-                log_error "  - Pass RESET_MEK=true to acknowledge data loss and proceed."
-                exit 1
-            fi
-            log_info "Generating Master Encryption Key (MEK) — first install"
+        # Refuse to mint a new MEK if the DB still has encrypted data from a
+        # previous install. $DB_TABLE_COUNT is populated by create_database.
+        if [[ "$DB_TABLE_COUNT" == "UNKNOWN" ]]; then
+            log_error "Could not verify whether '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST has existing data (db-ops probe failed or timed out)."
+            log_error "Refusing to mint a fresh MEK without confirmation — minting against a populated DB silently orphans encrypted columns."
+            log_error "Retry once Postgres connectivity is healthy or restore the previous 'osmo-mek' Secret."
+            exit 1
+        elif [[ -n "$DB_TABLE_COUNT" && "$DB_TABLE_COUNT" -gt 0 ]]; then
+            log_error "MEK Secret 'osmo-mek' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has $DB_TABLE_COUNT user table(s)."
+            log_error "Generating a new MEK now would orphan every encrypted column (service_auth.private_key, workflow secrets, ...). To resolve:"
+            log_error "  - Restore the previous 'osmo-mek' Secret from backup, OR"
+            log_error "  - Wipe the database before re-running:"
+            log_error "      psql -h $POSTGRES_HOST -U ${POSTGRES_USERNAME} -d postgres \\"
+            log_error "        -c 'DROP DATABASE IF EXISTS ${POSTGRES_DB_NAME:-osmo}; CREATE DATABASE ${POSTGRES_DB_NAME:-osmo};'"
+            exit 1
         fi
-        local random_key=$(openssl rand -base64 32 | tr -d '\n')
+        log_info "Generating Master Encryption Key (MEK) — first install"
+        local random_key=$(openssl rand 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=')
         local jwk_json="{\"k\":\"$random_key\",\"kid\":\"key1\",\"kty\":\"oct\"}"
         local encoded_jwk=$(echo -n "$jwk_json" | base64 | tr -d '\n')
 
         local mek_manifest="apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
-  name: mek-config
+  name: osmo-mek
   namespace: $OSMO_NAMESPACE
-data:
+type: Opaque
+stringData:
   mek.yaml: |
     currentMek: key1
     meks:

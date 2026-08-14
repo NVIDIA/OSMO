@@ -45,7 +45,9 @@ secrets:
   objectStorage:
     existingSecret: osmo-object-storage
   masterEncryptionKey:
-    existingSecret: osmo-master-encryption-key
+    existingSecret:
+      name: osmo-master-encryption-key
+      key: mek.yaml
 ```
 
 Install the chart by layering the environment values after the profile:
@@ -137,6 +139,53 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.valkey` | `redis-password` | Valkey clients |
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
+
+The MEK must come from the typed
+`secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Rotate it
+with two separate Secret updates: add the new JWK while leaving `currentMek`
+unchanged, verify every live pod's `MEK consumer status` log lists the new key,
+then change only `currentMek`. Per-Pod-UID state is also stored in
+`public.mek_consumer_status`, and a pod that skipped the projected PREPARE
+revision can activate only an exact fingerprint already registered by another
+consumer. Existing UEK key material is preserved
+while its wrapper is moved to the active MEK; direct-MEK dynamic-config
+ciphertext is re-encrypted in bounded, durably checkpointed background batches.
+Keep previous MEKs in the Secret.
+This release rejects MEK removal because it cannot yet prove retirement across
+all HA writers. OSMO does not mutate the Secret. Reconciliation progress and
+blockers appear in service logs as `MEK reconciliation status` records.
+
+For the first upgrade of an existing database to the MEK registry, stop every
+legacy control-plane writer before starting the new release. Scale the OSMO
+Deployments to zero, perform the Helm upgrade with
+`--set secrets.masterEncryptionKey.allowExistingCiphertextAdoption=true`, wait
+for all new Deployments to become ready, and immediately upgrade the value back
+to `false`. The flag is unnecessary on a fresh install and is rejected as an
+implicit migration: without it, first adoption fails when authenticated
+ciphertext already exists. During adoption PostgreSQL also fences UEK/config
+writes, so a legacy write already in flight is rolled back rather than landing
+after the authenticated scan.
+
+```bash
+set -euo pipefail
+MEK_SELECTOR='app.kubernetes.io/instance=<release>,app.kubernetes.io/component in (api,worker,router,logger,agent,delayed-job-monitor)'
+kubectl delete horizontalpodautoscaler -n <namespace> \
+  -l "$MEK_SELECTOR" --ignore-not-found
+kubectl scale deployment -n <namespace> \
+  -l "$MEK_SELECTOR" --replicas=0
+kubectl wait pod -n <namespace> -l "$MEK_SELECTOR" \
+  --for=delete --timeout=10m
+remaining=$(kubectl get pod -n <namespace> -l "$MEK_SELECTOR" \
+  --field-selector='status.phase!=Succeeded,status.phase!=Failed' -o name)
+test -z "$remaining"
+helm upgrade <release> deployments/charts/osmo -n <namespace> \
+  --reuse-values --wait \
+  --set secrets.masterEncryptionKey.allowExistingCiphertextAdoption=true
+# After every new Deployment is Ready:
+helm upgrade <release> deployments/charts/osmo -n <namespace> \
+  --reuse-values --wait \
+  --set secrets.masterEncryptionKey.allowExistingCiphertextAdoption=false
+```
 
 For an external Valkey endpoint signed by a public CA, enable
 `externalDependencies.valkey.tls.enabled` and leave `caExistingSecret` empty to

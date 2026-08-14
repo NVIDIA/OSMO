@@ -378,6 +378,48 @@ test_control_umbrella() {
     require_deployment "$rendered" "osmo-delayed-job-monitor"
     require_deployment "$rendered" "osmo-ui"
     require_deployment "$rendered" "osmo-gateway-envoy"
+    local mek_component
+    for mek_component in api worker router logger agent delayed-job-monitor; do
+        resource_document "$rendered" Deployment "osmo-$mek_component" \
+            >"$TEST_DIRECTORY/mek-$mek_component-deployment.yaml"
+        require_occurrences "$TEST_DIRECTORY/mek-$mek_component-deployment.yaml" \
+            'osmo.nvidia.com/mek-consumer: "true"' 2
+        require_contains "$TEST_DIRECTORY/mek-$mek_component-deployment.yaml" \
+            "app.kubernetes.io/instance: osmo"
+    done
+    resource_document "$rendered" Deployment osmo-ui \
+        >"$TEST_DIRECTORY/non-mek-ui-deployment.yaml"
+    require_not_contains "$TEST_DIRECTORY/non-mek-ui-deployment.yaml" \
+        "osmo.nvidia.com/mek-consumer"
+
+    helm_template mek-adoption-hpas "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.autoscaling.enabled=true \
+        --set services.worker.autoscaling.enabled=true \
+        --set services.router.autoscaling.enabled=true \
+        --set services.logger.autoscaling.enabled=true \
+        --set services.agent.autoscaling.enabled=true \
+        >"$TEST_DIRECTORY/mek-adoption-hpas.yaml"
+    for mek_component in api worker router logger agent; do
+        resource_document "$TEST_DIRECTORY/mek-adoption-hpas.yaml" \
+            HorizontalPodAutoscaler "mek-adoption-hpas-osmo-$mek_component" \
+            >"$TEST_DIRECTORY/mek-$mek_component-hpa.yaml"
+        require_contains "$TEST_DIRECTORY/mek-$mek_component-hpa.yaml" \
+            'osmo.nvidia.com/mek-consumer: "true"'
+        require_contains "$TEST_DIRECTORY/mek-$mek_component-hpa.yaml" \
+            "app.kubernetes.io/instance: mek-adoption-hpas"
+    done
+    require_contains "$CHARTS_ROOT/osmo/README.md" \
+        "app.kubernetes.io/instance=<release>,app.kubernetes.io/component in (api,worker,router,logger,agent,delayed-job-monitor)"
+    require_contains "$CHARTS_ROOT/osmo/README.md" \
+        'kubectl delete horizontalpodautoscaler'
+    require_contains "$CHARTS_ROOT/osmo/README.md" 'kubectl wait pod'
+    require_contains "$CHARTS_ROOT/osmo/README.md" 'set -euo pipefail'
+    require_contains "$CHARTS_ROOT/osmo/README.md" 'remaining=$(kubectl get pod'
+    if bash -c 'set -euo pipefail; kubectl() { return 1; }; remaining=$(kubectl get pod); test -z "$remaining"'; then
+        fail "MEK adoption runbook would ignore a kubectl get failure"
+    fi
     local hardened_component
     for hardened_component in \
         api worker router logger agent delayed-job-monitor ui gateway-envoy; do
@@ -434,8 +476,40 @@ test_control_umbrella() {
     require_contains "$rendered" "external-valkey"
     require_contains "$rendered" "name: external-postgresql-secret"
     require_contains "$rendered" "name: external-valkey-secret"
-    require_contains "$rendered" "secretName: external-object-storage-secret"
-    require_contains "$rendered" "secretName: external-master-encryption-key-secret"
+    require_contains "$rendered" 'secretName: "external-object-storage-secret"'
+    require_contains "$rendered" 'secretName: "external-master-encryption-key-secret"'
+    require_occurrences "$rendered" 'secretName: "external-master-encryption-key-secret"' 6
+    require_occurrences "$rendered" 'key: "keyring.yaml"' 6
+    require_occurrences "$rendered" 'mountPath: "/opt/osmo/mek"' 6
+    require_occurrences "$rendered" "name: OSMO_POD_UID" 6
+    require_occurrences "$rendered" "name: OSMO_MEK_CONSUMER" 6
+    require_occurrences "$rendered" "name: OSMO_ALLOW_EXISTING_MEK_ADOPTION" 6
+    require_not_contains "$rendered" "subPath: mek.yaml"
+
+    helm_template mek-string-sentinels "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.masterEncryptionKey.existingSecret.name=true \
+        --set-string secrets.masterEncryptionKey.existingSecret.key=null \
+        >"$TEST_DIRECTORY/mek-string-sentinels.yaml"
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
+        'secretName: "true"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" 'key: "null"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" 'path: "mek.yaml"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
+        'mountPath: "/opt/osmo/mek"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
+        '- "/opt/osmo/mek/mek.yaml"' 6
+
+    if helm_template invalid-mek-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.masterEncryptionKey.existingSecret=legacy-secret \
+        >"$TEST_DIRECTORY/invalid-mek-secret.out" 2>&1; then
+        fail "expected legacy scalar MEK existingSecret to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-mek-secret.out" \
+        "secrets.masterEncryptionKey.existingSecret"
     require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"

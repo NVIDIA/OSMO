@@ -19,6 +19,8 @@ metadata:
   name: {{ .Values.services.delayedJobMonitor.serviceName }}
   labels:
     app: {{ .Values.services.delayedJobMonitor.serviceName }}
+    osmo.nvidia.com/mek-consumer: "true"
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   replicas: {{ .Values.services.delayedJobMonitor.replicas }}
   selector:
@@ -28,6 +30,8 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.delayedJobMonitor.serviceName }}
+        osmo.nvidia.com/mek-consumer: "true"
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.delayedJobMonitor.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -88,10 +92,8 @@ spec:
         - {{ .Values.services.postgres.port | quote }}
         - --postgres_database_name
         - {{ .Values.services.postgres.db}}
-        {{- if .Values.services.configFile.enabled }}
         - --mek_file
-        - {{ .Values.services.configFile.path }}
-        {{- end}}
+        - {{ include "osmo.mek-file" . }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -109,6 +111,8 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
+        {{- include "osmo.mek-consumer-env" "delayed-job-monitor" | nindent 8 }}
+        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
@@ -128,14 +132,8 @@ spec:
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
 
-        {{- if or .Values.services.configFile.enabled .Values.services.delayedJobMonitor.extraVolumeMounts .Values.services.delayedJobMonitor.volumeMounts }}
         volumeMounts:
-        {{- end }}
-        {{- if .Values.services.configFile.enabled}}
-        - mountPath: {{ .Values.services.configFile.path }}
-          name: mek-volume
-          subPath: mek.yaml
-        {{- end }}
+        {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- include "osmo.extra-volume-mounts" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- if .Values.services.delayedJobMonitor.volumeMounts }}
         {{- toYaml .Values.services.delayedJobMonitor.volumeMounts | nindent 8 }}
@@ -160,15 +158,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.delayedJobMonitor | nindent 8 }}
-        {{- if .Values.services.configFile.enabled}}
-        - configMap:
-            defaultMode: 420
-            items:
-            - key: mek.yaml
-              path: mek.yaml
-            name: mek-config
-          name: mek-volume
-        {{- end}}
+        {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- if .Values.services.delayedJobMonitor.volumes }}
         {{- toYaml .Values.services.delayedJobMonitor.volumes | nindent 8 }}
         {{- end }}

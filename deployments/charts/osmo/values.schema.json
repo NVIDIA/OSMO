@@ -66,7 +66,7 @@
         "postgresql": { "$ref": "#/definitions/secretReference" },
         "valkey": { "$ref": "#/definitions/secretReference" },
         "objectStorage": { "$ref": "#/definitions/secretReference" },
-        "masterEncryptionKey": { "$ref": "#/definitions/secretReference" },
+        "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
         "defaultAdmin": { "$ref": "#/definitions/secretReference" }
       }
     },
@@ -916,6 +916,23 @@
         "username": { "type": "string" }
       },
       "required": ["generate", "existingSecret", "keys"]
+    },
+    "masterEncryptionKeyReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "key": { "type": "string", "minLength": 1 }
+          },
+          "required": ["name", "key"]
+        },
+        "allowExistingCiphertextAdoption": { "type": "boolean" }
+      },
+      "required": ["existingSecret", "allowExistingCiphertextAdoption"]
     }
   }
 }

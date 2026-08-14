@@ -85,7 +85,7 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.postgresql.generate .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if or .Values.secrets.postgresql.generate .Values.secrets.objectStorage.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
@@ -167,8 +167,11 @@
 {{- if not .Values.secrets.objectStorage.existingSecret -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
-{{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
+{{- if not .Values.secrets.masterEncryptionKey.existingSecret.name -}}
+{{- fail "secrets.masterEncryptionKey.existingSecret.name is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.secrets.masterEncryptionKey.existingSecret.key -}}
+{{- fail "secrets.masterEncryptionKey.existingSecret.key is required for the control plane" -}}
 {{- end -}}
 {{- if and .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}

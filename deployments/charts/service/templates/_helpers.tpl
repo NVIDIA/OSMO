@@ -177,6 +177,40 @@ must select exactly one source so chart-managed generation is always explicit.
 {{- printf "%s-backend-token-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
+{{/* Kubernetes Secret-only MEK projection shared by every database consumer. */}}
+{{- define "osmo.mek-file" -}}
+{{- "/opt/osmo/mek/mek.yaml" | quote -}}
+{{- end -}}
+
+{{- define "osmo.mek-volume-mount" -}}
+- name: mek-volume
+  mountPath: "/opt/osmo/mek"
+  readOnly: true
+{{- end -}}
+
+{{- define "osmo.mek-volume" -}}
+- name: mek-volume
+  secret:
+    secretName: {{ required "services.masterEncryptionKey.existingSecret.name is required" .Values.services.masterEncryptionKey.existingSecret.name | quote }}
+    items:
+    - key: {{ required "services.masterEncryptionKey.existingSecret.key is required" .Values.services.masterEncryptionKey.existingSecret.key | quote }}
+      path: "mek.yaml"
+{{- end -}}
+
+{{- define "osmo.mek-adoption-env" -}}
+- name: OSMO_ALLOW_EXISTING_MEK_ADOPTION
+  value: {{ .Values.services.masterEncryptionKey.allowExistingCiphertextAdoption | quote }}
+{{- end -}}
+
+{{- define "osmo.mek-consumer-env" -}}
+- name: OSMO_POD_UID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid
+- name: OSMO_MEK_CONSUMER
+  value: {{ . | quote }}
+{{- end -}}
+
 {{/*
 ConfigMap-mode mounts (shared by api-service, worker, agent, logger).
 All four services need the same configs ConfigMap and its referenced

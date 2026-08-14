@@ -268,7 +268,7 @@ data:
 {{- with .Values.secrets.objectStorage.existingSecret }}
 - name: object-storage-credentials
   secret:
-    secretName: {{ . }}
+    secretName: {{ . | quote }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -282,14 +282,31 @@ data:
 {{- end -}}
 
 {{- define "osmo.secrets.mekVolume" -}}
-{{- with .Values.secrets.masterEncryptionKey.existingSecret }}
+{{- with .Values.secrets.masterEncryptionKey.existingSecret.name }}
 - name: mek-volume
   secret:
-    secretName: {{ . }}
+    secretName: {{ . | quote }}
     items:
-    - key: {{ $.Values.secrets.masterEncryptionKey.keys.config }}
-      path: mek.yaml
+    - key: {{ required "secrets.masterEncryptionKey.existingSecret.key is required" $.Values.secrets.masterEncryptionKey.existingSecret.key | quote }}
+      path: "mek.yaml"
 {{- end }}
+{{- end -}}
+
+{{- define "osmo.secrets.mekFile" -}}/opt/osmo/mek/mek.yaml{{- end -}}
+{{- define "osmo.secrets.mekMountPath" -}}/opt/osmo/mek{{- end -}}
+
+{{- define "osmo.secrets.mekAdoptionEnv" -}}
+- name: OSMO_ALLOW_EXISTING_MEK_ADOPTION
+  value: {{ .Values.secrets.masterEncryptionKey.allowExistingCiphertextAdoption | quote }}
+{{- end -}}
+
+{{- define "osmo.secrets.mekConsumerEnv" -}}
+- name: OSMO_POD_UID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid
+- name: OSMO_MEK_CONSUMER
+  value: {{ . | quote }}
 {{- end -}}
 
 {{- define "osmo.valkey.fullname" -}}

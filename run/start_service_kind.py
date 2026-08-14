@@ -49,16 +49,17 @@ def _generate_mek() -> None:
 
     try:
         process = run_command_with_logging([
-            'kubectl', 'get', 'configmap', 'mek-config', '-n', 'osmo'
-        ], 'Checking for existing MEK ConfigMap')
+            'kubectl', 'get', 'secret', 'osmo-mek', '-n', 'osmo'
+        ], 'Checking for existing MEK Secret')
 
         if not process.has_failed():
-            logger.info('✅ MEK ConfigMap already exists, skipping generation')
+            logger.info('✅ MEK Secret already exists, skipping generation')
             return
 
         logger.info('🔑 Generating new Master Encryption Key (MEK)...')
 
-        random_key = base64.b64encode(secrets.token_bytes(32)).decode('utf-8')
+        random_key = base64.urlsafe_b64encode(
+            secrets.token_bytes(32)).decode('utf-8').rstrip('=')
 
         jwk_json = {
             'k': random_key,
@@ -69,12 +70,13 @@ def _generate_mek() -> None:
         encoded_jwk = base64.b64encode(
             json.dumps(jwk_json).encode('utf-8')).decode('utf-8')
 
-        configmap_yaml = f"""apiVersion: v1
-kind: ConfigMap
+        secret_yaml = f"""apiVersion: v1
+kind: Secret
 metadata:
-  name: mek-config
+  name: osmo-mek
   namespace: osmo
-data:
+type: Opaque
+stringData:
   mek.yaml: |
     # MEK generated {time.strftime('%Y-%m-%d %H:%M:%S')}
     currentMek: key1
@@ -83,24 +85,24 @@ data:
 """
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            temp_file.write(configmap_yaml)
+            temp_file.write(secret_yaml)
             temp_file_path = temp_file.name
 
         try:
             process = run_command_with_logging([
                 'kubectl', 'apply', '-f', temp_file_path
-            ], 'Creating MEK ConfigMap')
+            ], 'Creating MEK Secret')
 
             if not process.has_failed():
                 logger.info(
-                    '✅ MEK generated and ConfigMap created successfully in %.2fs',
+                    '✅ MEK generated and Secret created successfully in %.2fs',
                     process.get_elapsed_time())
             else:
-                logger.error('❌ Error creating MEK ConfigMap')
+                logger.error('❌ Error creating MEK Secret')
                 logger.error('   Check output files for details:')
                 logger.error('   - stdout: %s', process.stdout_file)
                 logger.error('   - stderr: %s', process.stderr_file)
-                raise RuntimeError('Error creating MEK ConfigMap')
+                raise RuntimeError('Error creating MEK Secret')
         finally:
             try:
                 os.unlink(temp_file_path)

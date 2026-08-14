@@ -111,6 +111,15 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
+  ## Master encryption key keyring. OSMO only reads this existing Secret; it
+  ## never creates, patches, or rotates it.
+  masterEncryptionKey:
+    existingSecret:
+      name: osmo-mek
+      key: mek.yaml
+    # Enable only for the first upgrade after every legacy OSMO writer is stopped.
+    allowExistingCiphertextAdoption: false
+
   ## External self-hosted MCP service configuration
   ##
   mcp:

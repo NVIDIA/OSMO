@@ -19,6 +19,8 @@ metadata:
   name: {{ .Values.services.worker.serviceName }}
   labels:
     app: {{ .Values.services.worker.serviceName }}
+    osmo.nvidia.com/mek-consumer: "true"
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   selector:
     matchLabels:
@@ -27,6 +29,8 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.worker.serviceName }}
+        osmo.nvidia.com/mek-consumer: "true"
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.worker.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -99,10 +103,8 @@ spec:
         - {{ .Values.services.postgres.port | quote }}
         - --postgres_database_name
         - {{ .Values.services.postgres.db}}
-        {{- if .Values.services.configFile.enabled }}
         - --mek_file
-        - {{ .Values.services.configFile.path }}
-        {{- end}}
+        - {{ include "osmo.mek-file" . }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -120,6 +122,8 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
+        {{- include "osmo.mek-consumer-env" "worker" | nindent 8 }}
+        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}
@@ -141,14 +145,8 @@ spec:
               name: redis-secret
               key: redis-password
         {{- end }}
-        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.worker.extraVolumeMounts }}
         volumeMounts:
-        {{- end }}
-        {{- if .Values.services.configFile.enabled}}
-        - mountPath: {{ .Values.services.configFile.path }}
-          name: mek-volume
-          subPath: mek.yaml
-        {{- end }}
+        {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- include "osmo.extra-volume-mounts" .Values.services.worker | nindent 8 }}
         resources:
@@ -174,15 +172,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.worker | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.worker | nindent 8 }}
-        {{- if .Values.services.configFile.enabled}}
-        - configMap:
-            defaultMode: 420
-            items:
-            - key: mek.yaml
-              path: mek.yaml
-            name: mek-config
-          name: mek-volume
-        {{- end}}
+        {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}
 
 ---
@@ -193,6 +183,8 @@ metadata:
   name: {{ .Values.services.worker.serviceName }}
   labels:
     app: {{ .Values.services.worker.serviceName }}
+    osmo.nvidia.com/mek-consumer: "true"
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
 spec:
   scaleTargetRef:

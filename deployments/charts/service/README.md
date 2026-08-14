@@ -22,7 +22,7 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 
 For a local deployment that previously used quick-start values, create the
 namespaces, `local-admin-password` and backend token Secrets, and the
-`mek-config` ConfigMap from
+`osmo-mek` Secret from
 [../README.md](../README.md), then install this chart first with
 `quick-start-values.yaml`. Install the `backend-operator` chart with its
 matching values file after the service release is available:
@@ -69,6 +69,9 @@ OSMO services write logs to standard streams for collection by the platform log 
 |-----------|-------------|---------|
 | `services.configFile.enabled` | Enable external configuration file loading | `false` |
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
+| `services.masterEncryptionKey.existingSecret.name` | Existing Kubernetes Secret containing the MEK keyring | `osmo-mek` |
+| `services.masterEncryptionKey.existingSecret.key` | Key containing the MEK YAML | `mek.yaml` |
+| `services.masterEncryptionKey.allowExistingCiphertextAdoption` | One-time acknowledgement after stopping every legacy writer during an existing-install upgrade | `false` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
 
@@ -436,7 +439,7 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
 | `services.router.extraArgs` | Additional command line arguments | `[]` |
 | `services.router.extraPodLabels` | Extra labels applied to the router pod | `{}` |
-| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod (e.g. vault-injector annotations) | `{}` |
+| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod | `{}` |
 | `services.router.extraEnvs` | Extra container env vars (list of `{name, value}` or `{name, valueFrom}`) | `[]` |
 | `services.router.extraPorts` | Extra named container ports | `[]` |
 | `services.router.extraVolumes` | Extra pod volumes | `[]` |
@@ -451,7 +454,57 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.startupProbe` | Startup probe configuration | See values.yaml |
 | `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
 
-The router reads the same `services.configFile.path` as the API service. When `services.configFile.enabled: false` (default), the router gets `--config <path>` as a CLI arg. The API service ignores `services.configFile.path` unless `services.configFile.enabled: true`, so setting just the path lets you point the router at a vault-injected config without affecting the API service.
+The router and all other control-plane database consumers read the MEK from
+`services.masterEncryptionKey`. The chart supports only an existing Kubernetes
+Secret for this keyring and does not render or inject MEK material.
+
+To rotate the MEK, update that Secret in two separate Kubernetes writes. First,
+add the new JWK to `meks` while leaving `currentMek` unchanged (prepare). Use
+`kubectl logs` on every live consumer and wait for its `MEK consumer status`
+record to list the new key in `loaded_kids`; the same state is durably recorded
+by Pod UID in `public.mek_consumer_status`. Then change only `currentMek`
+(activate). A pod whose projected volume skipped PREPARE accepts ACTIVATE only
+when the exact new key fingerprint was already registered by another consumer.
+OSMO preserves each UEK's key material and
+lazily rewraps its JWE under the active MEK; direct-MEK dynamic-config
+ciphertext is re-encrypted by a single database reconciler in bounded,
+durably checkpointed batches. Keep every previous
+MEK in the Secret. Removing a MEK is deliberately rejected because this release
+does not yet provide an HA-wide database write fence capable of proving safe
+retirement. Inspect `kubectl logs` for `MEK reconciliation status` records with
+per-key reference counts and blockers. OSMO never writes or rotates the Secret.
+
+For the first upgrade of an existing database to this registry, stop every
+legacy OSMO control-plane Deployment first. Start the new release once with
+`--set services.masterEncryptionKey.allowExistingCiphertextAdoption=true`, wait
+for every new Deployment to become ready, then immediately set the value back
+to `false`. Fresh installs do not need this acknowledgement. Existing
+ciphertext otherwise makes first adoption fail closed. PostgreSQL fences
+UEK/config writes across the adoption transaction, so an already in-flight
+legacy write is rolled back; the explicit scale-to-zero boundary prevents
+future writes from an old binary after the fence opens.
+
+```bash
+set -euo pipefail
+# If you overrode a services.*.serviceName value, replace its default below.
+MEK_SELECTOR='app in (osmo-service,osmo-worker,osmo-router,osmo-logger,osmo-agent,osmo-delayed-job-monitor)'
+kubectl delete horizontalpodautoscaler -n <namespace> \
+  -l "$MEK_SELECTOR" --ignore-not-found
+kubectl scale deployment -n <namespace> \
+  -l "$MEK_SELECTOR" --replicas=0
+kubectl wait pod -n <namespace> -l "$MEK_SELECTOR" \
+  --for=delete --timeout=10m
+remaining=$(kubectl get pod -n <namespace> -l "$MEK_SELECTOR" \
+  --field-selector='status.phase!=Succeeded,status.phase!=Failed' -o name)
+test -z "$remaining"
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.allowExistingCiphertextAdoption=true
+# After every new Deployment is Ready:
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.allowExistingCiphertextAdoption=false
+```
 
 ### Prometheus Metrics Settings
 

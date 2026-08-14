@@ -7,6 +7,30 @@ set -euo pipefail
 
 CHART_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
+resource_document() {
+    local rendered=$1
+    local kind=$2
+    local name=$3
+    awk -v kind="$kind" -v name="$name" '
+        function reset() { document = ""; document_kind = ""; document_name = ""; metadata = 0 }
+        function finish() {
+            if (document_kind == kind && document_name == name) printf "%s", document
+        }
+        BEGIN { reset() }
+        /^---[[:space:]]*$/ { finish(); reset(); next }
+        { document = document $0 ORS }
+        /^kind: / { document_kind = $0; sub(/^kind: /, "", document_kind); next }
+        /^metadata:$/ { metadata = 1; next }
+        metadata && /^  name: / {
+            document_name = $0
+            sub(/^  name: /, "", document_name)
+            gsub(/^"|"$/, "", document_name)
+            metadata = 0
+        }
+        END { finish() }
+    ' <<<"$rendered"
+}
+
 helm_args=(
     --namespace osmo
     --set 'services.backendApiTokens.enabled=true'
@@ -76,3 +100,74 @@ fi
 
 bash -n "$CHART_DIR/files/backend-token-bootstrap.sh"
 bash "$CHART_DIR/tests/backend-token-bootstrap-tests.sh"
+
+mek_render=$(helm template mek-test "$CHART_DIR" --namespace osmo \
+    --set 'services.masterEncryptionKey.existingSecret.name=customer-mek' \
+    --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml')
+if [[ $(grep -c -- '- --mek_file' <<<"$mek_render") -ne 6 ]]; then
+    echo 'Not every MEK consumer receives --mek_file' >&2
+    exit 1
+fi
+if [[ $(grep -c 'secretName: "customer-mek"' <<<"$mek_render") -ne 6 ]]; then
+    echo 'Not every MEK consumer mounts the existing Secret' >&2
+    exit 1
+fi
+if [[ $(grep -c -- '- "/opt/osmo/mek/mek.yaml"' <<<"$mek_render") -ne 6 ]] || \
+   [[ $(grep -c 'mountPath: "/opt/osmo/mek"' <<<"$mek_render") -ne 6 ]]; then
+    echo 'MEK consumers do not use the fixed chart-owned path' >&2
+    exit 1
+fi
+if [[ $(grep -c 'name: OSMO_POD_UID' <<<"$mek_render") -ne 6 ]] || \
+   [[ $(grep -c 'name: OSMO_MEK_CONSUMER' <<<"$mek_render") -ne 6 ]] || \
+   [[ $(grep -c 'name: OSMO_ALLOW_EXISTING_MEK_ADOPTION' <<<"$mek_render") -ne 6 ]]; then
+    echo 'Not every MEK consumer reports its projected keyring generation' >&2
+    exit 1
+fi
+if grep -q 'subPath:.*mek' <<<"$mek_render"; then
+    echo 'MEK is still mounted with subPath and cannot receive kubelet updates' >&2
+    exit 1
+fi
+if grep -q 'name: mek-config' <<<"$mek_render"; then
+    echo 'Legacy MEK ConfigMap support is still rendered' >&2
+    exit 1
+fi
+if grep -q 'vault.hashicorp.com' <<<"$mek_render"; then
+    echo 'Vault annotations are still rendered for the MEK' >&2
+    exit 1
+fi
+
+mek_deployments=(
+    osmo-service osmo-worker osmo-router osmo-logger osmo-agent
+    osmo-delayed-job-monitor
+)
+for deployment in "${mek_deployments[@]}"; do
+    document=$(resource_document "$mek_render" Deployment "$deployment")
+    if [[ $(grep -c 'osmo.nvidia.com/mek-consumer: "true"' <<<"$document") -ne 2 ]] ||
+       ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
+        echo "MEK adoption selector is incomplete on Deployment/$deployment" >&2
+        exit 1
+    fi
+done
+for hpa in osmo-service osmo-worker osmo-router osmo-logger osmo-agent; do
+    document=$(resource_document "$mek_render" HorizontalPodAutoscaler "$hpa")
+    if ! grep -q 'osmo.nvidia.com/mek-consumer: "true"' <<<"$document" ||
+       ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
+        echo "MEK adoption selector is incomplete on HorizontalPodAutoscaler/$hpa" >&2
+        exit 1
+    fi
+done
+ui_document=$(resource_document "$mek_render" Deployment osmo-ui)
+if grep -q 'osmo.nvidia.com/mek-consumer' <<<"$ui_document"; then
+    echo 'Non-MEK UI Deployment received the adoption selector' >&2
+    exit 1
+fi
+grep -q 'app in (osmo-service,osmo-worker,osmo-router,osmo-logger,osmo-agent,osmo-delayed-job-monitor)' \
+    "$CHART_DIR/README.md"
+grep -q 'kubectl delete horizontalpodautoscaler' "$CHART_DIR/README.md"
+grep -q 'kubectl wait pod' "$CHART_DIR/README.md"
+grep -q 'set -euo pipefail' "$CHART_DIR/README.md"
+grep -q 'remaining=$(kubectl get pod' "$CHART_DIR/README.md"
+if bash -c 'set -euo pipefail; kubectl() { return 1; }; remaining=$(kubectl get pod); test -z "$remaining"'; then
+    echo 'MEK adoption runbook would ignore a kubectl get failure' >&2
+    exit 1
+fi

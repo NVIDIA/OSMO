@@ -21,6 +21,7 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
+    osmo.nvidia.com/mek-consumer: "true"
   {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
     {{- . | nindent 4 }}
@@ -40,6 +41,7 @@ spec:
     metadata:
       labels:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
+        osmo.nvidia.com/mek-consumer: "true"
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
     spec:
@@ -97,9 +99,9 @@ spec:
         - {{ .Values.externalDependencies.postgresql.port | quote }}
         - --postgres_database_name
         - {{ .Values.externalDependencies.postgresql.database}}
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - --mek_file
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        - {{ include "osmo.secrets.mekFile" . | quote }}
         {{- end }}
         {{- if .Values.externalDependencies.postgresql.username }}
         - --postgres_user
@@ -150,6 +152,8 @@ spec:
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
         env:
+        {{- include "osmo.secrets.mekConsumerEnv" "api" | nindent 8 }}
+        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.api.disableTaskMetrics | quote }}
         {{- include "osmo.configuration.env" . | nindent 8 }}
@@ -171,10 +175,10 @@ spec:
         volumeMounts:
         - name: osmo-runtime-tmp
           mountPath: /tmp
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
-        - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
+        - mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
           name: mek-volume
-          subPath: mek.yaml
+          readOnly: true
         {{- end }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
@@ -236,6 +240,7 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
+    osmo.nvidia.com/mek-consumer: "true"
   {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
     {{- . | nindent 4 }}

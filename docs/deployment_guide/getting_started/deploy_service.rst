@@ -147,87 +147,29 @@ Create the workflow data credentials Secret (you can use the same bucket or a di
 
 Create the master encryption key (MEK) for database encryption:
 
-1. **Generate a new master encryption key**:
-
-   The MEK should be a JSON Web Key (JWK) with the following format:
-
-   .. code-block:: json
-
-      {"k":"<base64-encoded-32-byte-key>","kid":"key1","kty":"oct"}
-
-2. **Generate the key using OpenSSL**:
+1. **Generate a new master encryption key and create its Secret**:
 
    .. code-block:: bash
 
-      # Generate a 32-byte (256-bit) random key and base64 encode it
-      $ export RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
-
-      # Create the JWK format
-      $ export JWK_JSON="{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
-
-3. **Base64 encode the entire JWK**:
-
-   .. code-block:: bash
-
-      $ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
-      $ echo $ENCODED_JWK
-
-4. **Create the ConfigMap with your generated MEK**:
-
-   .. code-block:: bash
-
-      $ kubectl apply -f - <<EOF
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: mek-config
-        namespace: osmo
-      data:
-        mek.yaml: |
-          currentMek: key1
-          meks:
-            key1: $ENCODED_JWK
-      EOF
+      $ set -euo pipefail
+      $ MEK_FILE=$(mktemp)
+      $ chmod 600 "$MEK_FILE"
+      $ trap 'rm -f "$MEK_FILE"' EXIT
+      $ RANDOM_KEY=$(openssl rand 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+      $ ENCODED_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$RANDOM_KEY" | base64 | tr -d '\n')
+      $ printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$ENCODED_JWK" > "$MEK_FILE"
+      $ kubectl create secret generic osmo-mek --namespace osmo \
+          --from-file=mek.yaml="$MEK_FILE" --dry-run=client -o yaml | kubectl apply -f -
+      $ rm -f "$MEK_FILE" && trap - EXIT
+      $ unset RANDOM_KEY ENCODED_JWK
 
 .. warning::
    **Security Considerations**:
 
    - Store the original JWK securely as you'll need it for backups and recovery
    - Never commit the MEK to version control
-   - Use a secure key management system, such as Vault or secrets manager in production
+   - Restrict Kubernetes RBAC access to the Secret and back it up securely
    - The MEK is used to encrypt sensitive data in the database
-
-**Example MEK generation script**:
-
-.. code-block:: bash
-
-   #!/bin/bash
-   # Generate MEK for OSMO
-
-   # Generate random 32-byte key
-   $ export RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
-
-   # Create JWK
-   $ export JWK_JSON="{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
-
-   # Base64 encode the JWK
-   $ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
-   $ echo "Encoded JWK: $ENCODED_JWK"
-
-   # Create ConfigMap
-   $ kubectl apply -f - <<EOF
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: mek-config
-     namespace: osmo
-   data:
-     mek.yaml: |
-       currentMek: key1
-       meks:
-         key1: $ENCODED_JWK
-   EOF
-
 
 .. _configure_storage_access:
 .. _configure_data:

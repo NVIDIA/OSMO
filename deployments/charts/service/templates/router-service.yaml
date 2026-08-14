@@ -20,6 +20,8 @@ metadata:
   name: {{ .Values.services.router.serviceName }}
   labels:
     app: {{ .Values.services.router.serviceName }}
+    osmo.nvidia.com/mek-consumer: "true"
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   replicas: {{ .Values.services.router.scaling.minReplicas }}
   selector:
@@ -29,6 +31,8 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.router.serviceName }}
+        osmo.nvidia.com/mek-consumer: "true"
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.router.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -96,13 +100,8 @@ spec:
         - --postgres_user
         - {{ .Values.services.postgres.user }}
         {{- end }}
-        {{- if .Values.services.configFile.enabled }}
         - --mek_file
-        - {{ .Values.services.configFile.path }}
-        {{- else }}
-        - --config
-        - {{ .Values.services.configFile.path }}
-        {{- end }}
+        - {{ include "osmo.mek-file" . }}
         {{- if .Values.global.logs.enabled }}
         - --log_level
         - {{ .Values.global.logs.logLevel }}
@@ -118,6 +117,8 @@ spec:
         {{- end }}
         {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         env:
+        {{- include "osmo.mek-consumer-env" "router" | nindent 8 }}
+        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.targetSchema | default "public" }}
         {{- if .Values.services.postgres.password }}
@@ -159,16 +160,10 @@ spec:
           protocol: {{ .protocol | default "TCP" }}
         {{- end }}
         {{- end }}
-        {{- if or .Values.services.configFile.enabled .Values.services.router.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.router) }}
         volumeMounts:
-        {{- if .Values.services.configFile.enabled}}
-        - mountPath: {{ .Values.services.configFile.path }}
-          name: mek-volume
-          subPath: mek.yaml
-        {{- end }}
+        {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
-        {{- end }}
         {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         {{- end }}
         resources:
@@ -193,15 +188,7 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
-        {{- if .Values.services.configFile.enabled}}
-        - configMap:
-            defaultMode: 420
-            items:
-            - key: mek.yaml
-              path: mek.yaml
-            name: mek-config
-          name: mek-volume
-        {{- end}}
+        {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- with .Values.services.router.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -250,6 +237,8 @@ metadata:
   name: {{ .Values.services.router.serviceName }}
   labels:
     app: {{ .Values.services.router.serviceName }}
+    osmo.nvidia.com/mek-consumer: "true"
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
 spec:
   scaleTargetRef:

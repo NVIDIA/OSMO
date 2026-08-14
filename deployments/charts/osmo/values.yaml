@@ -184,11 +184,11 @@ secrets:
       credentials: object-storage.yaml
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
-    generate: false
-    existingSecret: ''
-    mountPath: /opt/osmo/config.yaml
-    keys:
-      config: mek.yaml
+    existingSecret:
+      name: ''
+      key: mek.yaml
+    # Enable only for the first upgrade after every legacy OSMO writer is stopped.
+    allowExistingCiphertextAdoption: false
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false
