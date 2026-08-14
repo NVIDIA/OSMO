@@ -92,6 +92,7 @@ exec'd
 executables
 exitActions
 extraArgs
+FastMCP
 filebrowser
 Filebrowser
 filesystem
@@ -296,6 +297,7 @@ stateful
 stderr
 stdin
 stdout
+Streamable
 sts
 subfolder
 subnet
@@ -342,6 +344,7 @@ uuid
 vace
 validator
 validators
+verifier
 vCPUs
 VNet
 Volce

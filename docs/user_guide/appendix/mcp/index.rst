@@ -45,6 +45,55 @@ MCP uses the signed-in user's existing OSMO access. Users have the same roles,
 accessible pools, and API permissions as when they use OSMO through the CLI.
 MCP does not grant additional access or elevate permissions.
 
+Authentication depends on the deployment mode:
+
+* In the recommended OIDC proxy mode, the user configures only the MCP URL.
+  FastMCP handles OAuth discovery, client identification with Client ID
+  Metadata Documents (CIMD) or registration with Dynamic Client Registration
+  (DCR), Proof Key for Code Exchange (PKCE), browser sign-in, token exchange,
+  and refresh inside the existing MCP process.
+* In direct identity-provider mode, the administrator can also require a public
+  client ID, scopes, and callback configuration. Gateway requires
+  ``mcp:Access`` before forwarding MCP protocol requests in this mode.
+
+In either mode, successful login does not authorize every tool. Each tool's
+OSMO API request is checked separately. Workflow operations are authorized
+against the owning or target pool, so a user can connect to MCP and inspect a
+profile while still being unable to submit to a restricted pool.
+
+Common permission requirements are summarized below. The receiving OSMO API
+remains authoritative.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 68
+
+   * - Tool area
+     - Typical OSMO actions
+   * - Health and profile
+     - ``profile:Read`` for health and profile inspection;
+       ``profile:Update`` for supported profile changes.
+   * - Pools and resources
+     - ``profile:Read`` plus ``pool:List`` for pool search, or
+       ``profile:Read`` plus ``resources:Read`` for resource inspection.
+   * - Workflow inspection
+     - ``profile:Read`` plus ``workflow:List`` for lists, and
+       ``workflow:Read`` for workflow details, logs, events, and
+       specifications.
+   * - Workflow actions
+     - Pool-scoped ``workflow:Create`` for validation and submission;
+       omitting the pool also requires ``profile:Read``. Cancellation requires
+       ``workflow:Cancel``. Restart also reads the source workflow and creates
+       a workflow in the target pool.
+   * - Applications
+     - ``app:Read`` for inspection; ``app:Create`` for create and rename;
+       ``app:Update`` for update; and ``app:Delete`` for deletion. Application
+       submission requires ``app:Read`` plus pool-scoped ``workflow:Create``,
+       and also ``profile:Read`` when the pool is omitted.
+   * - Credentials
+     - ``credentials:Read`` for metadata and ``credentials:Delete`` for
+       deletion. MCP never returns secret payloads.
+
 MCP and the OSMO Agent Skill
 ============================
 
@@ -125,10 +174,11 @@ MCP deliberately exposes a smaller surface than the CLI:
   the result uncertain, inspect OSMO state before retrying.
 * Workflow validation is not completely side-effect free: a failed validation
   can create a ``FAILED_SUBMISSION`` record.
-* MCP does not return or log credential payloads or submitted specifications.
-  However, the calling client can retain those arguments in its transcript or
-  logs. Reference OSMO credentials instead of embedding secrets in workflow or
-  application YAML.
+* Credential tools never accept or return secret payloads. Mutation responses
+  do not echo newly submitted specifications, and MCP does not log them. Read
+  tools can return bounded, redacted stored specifications. The calling client
+  can retain mutation arguments in its transcript or logs, so reference OSMO
+  credentials instead of embedding secrets in workflow or application YAML.
 * Application descriptions can appear in service access logs and must not
   contain secrets.
 * Workflow label overrides can appear in service access logs and must not
@@ -139,7 +189,8 @@ Capabilities Not Exposed
 
 The self-hosted MCP does not expose:
 
-* CLI login, logout, or access-token management;
+* OSMO CLI login, logout, or OSMO access-token management as MCP tools (the
+  calling client can still manage its own MCP OAuth session);
 * credential creation or replacement;
 * local file expansion or data upload and download;
 * workflow exec, port forwarding, or rsync;
