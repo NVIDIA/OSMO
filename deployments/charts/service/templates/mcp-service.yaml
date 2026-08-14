@@ -135,6 +135,13 @@
 {{- fail "services.mcp.oidcProxy.existingSecret.mountPath must be an absolute path" }}
 {{- end }}
 {{- $clientSecretKey := required "services.mcp.oidcProxy.existingSecret.clientSecretKey is required" $oidcProxy.existingSecret.clientSecretKey }}
+{{- $normalizedMountPath := trimSuffix "/" $mountPath }}
+{{- if ne $oidcClientSecretFile (printf "%s/client-secret" $normalizedMountPath) }}
+{{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be <existingSecret.mountPath>/client-secret" }}
+{{- end }}
+{{- if and $oidcProxy.redis.passwordFile (ne $oidcProxy.redis.passwordFile (printf "%s/redis-password" $normalizedMountPath)) }}
+{{- fail "services.mcp.oidcProxy.redis.passwordFile must be <existingSecret.mountPath>/redis-password" }}
+{{- end }}
 {{- if and $oidcProxy.redis.passwordFile (not $oidcProxy.existingSecret.redisPasswordKey) }}
 {{- fail "services.mcp.oidcProxy.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
 {{- end }}

@@ -238,8 +238,12 @@ assert_route_contains "$PROXY_RENDERED_MANIFEST" osmo-mcp 'envoy.filters.http.jw
 assert_route_contains "$PROXY_RENDERED_MANIFEST" osmo-mcp 'envoy.filters.http.ext_authz:'
 assert_file_omits "$PROXY_RENDERED_MANIFEST" '\"authorization_servers\"'
 
-if grep -A12 -B2 -F 'kind: Secret' "$PROXY_MCP_MANIFEST" | \
-    grep -i -F 'mcp' >/dev/null; then
+if awk -v secret_name='mcp-oidc-proxy-secrets' '
+    $0 == "kind: Secret" { in_secret = 1; next }
+    $0 == "---" { in_secret = 0 }
+    in_secret && $1 == "name:" && $2 == secret_name { found = 1 }
+    END { exit !found }
+  ' "$PROXY_RENDERED_MANIFEST"; then
   fail 'OIDC proxy mode rendered credential material into a Secret'
 fi
 
@@ -277,6 +281,16 @@ expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC full scope mismatch' \
   'services.mcp.oidcProxy.scope must equal services.mcp.resourceUrl followed by oidc.accessTokenRequiredScope' \
   --set 'services.mcp.oidcProxy.scope=https://other.example.com/access_as_user'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'OIDC client-secret path outside the existing Secret mount' \
+  'services.mcp.oidcProxy.oidc.clientSecretFile must be <existingSecret.mountPath>/client-secret' \
+  --set 'services.mcp.oidcProxy.oidc.clientSecretFile=/other/client-secret'
+
+expect_render_failure "$PROXY_VALUES_FILE" \
+  'Redis password path outside the existing Secret mount' \
+  'services.mcp.oidcProxy.redis.passwordFile must be <existingSecret.mountPath>/redis-password' \
+  --set 'services.mcp.oidcProxy.redis.passwordFile=/other/redis-password'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'untrusted redirect origin with a path' \
