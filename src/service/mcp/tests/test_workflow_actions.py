@@ -20,7 +20,7 @@ import json
 import unittest
 
 import httpx
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 
 from src.service.mcp import workflow_actions
 from src.service.mcp.tests import protocol_harness

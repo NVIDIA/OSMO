@@ -381,11 +381,11 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         tool_registry.register_tools(mcp_server)
 
         self.assertEqual(
-            mcp_server.add_tool.call_count,
+            mcp_server.tool.call_count,
             len(_EXPECTED_SPECS),
         )
         for call, (function, name, title, description) in zip(
-            mcp_server.add_tool.call_args_list,
+            mcp_server.tool.call_args_list,
             _EXPECTED_SPECS,
             strict=True,
         ):
@@ -393,7 +393,6 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(call.kwargs['name'], name)
             self.assertEqual(call.kwargs['title'], title)
             self.assertEqual(call.kwargs['description'], description)
-            self.assertTrue(call.kwargs['structured_output'])
             annotations = call.kwargs['annotations']
             is_write = name in _WRITE_TOOL_NAMES
             is_destructive = name in _DESTRUCTIVE_TOOL_NAMES
@@ -440,16 +439,16 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
                 tool.annotations.openWorldHint,
                 tool.name in _OPEN_WORLD_TOOL_NAMES,
             )
-            self._assert_recursively_closed(tool.inputSchema, tool.name)
-            self.assertIsNotNone(tool.outputSchema)
-            assert tool.outputSchema is not None
-            self._assert_recursively_closed(tool.outputSchema, tool.name)
+            self._assert_recursively_closed(tool.parameters, tool.name)
+            self.assertIsNotNone(tool.output_schema)
+            assert tool.output_schema is not None
+            self._assert_recursively_closed(tool.output_schema, tool.name)
 
             self.assertEqual(
-                tool.inputSchema.get('required', []),
+                tool.parameters.get('required', []),
                 _EXPECTED_REQUIRED_FIELDS[tool.name],
             )
-            properties = tool.inputSchema['properties']
+            properties = tool.parameters['properties']
             for field, expected_default in _EXPECTED_DEFAULTS.get(
                 tool.name,
                 {},
@@ -467,7 +466,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
             'osmo_list_workflows',
             'osmo_list_apps',
         ):
-            properties = tools_by_name[tool_name].inputSchema['properties']
+            properties = tools_by_name[tool_name].parameters['properties']
             self.assertEqual(properties['limit']['minimum'], 1)
             self.assertEqual(
                 properties['limit']['maximum'],
@@ -477,7 +476,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
         log_properties = tools_by_name[
             'osmo_get_workflow_logs'
-        ].inputSchema['properties']
+        ].parameters['properties']
         self.assertEqual(log_properties['last_n_lines']['anyOf'][0]['minimum'], 1)
         self.assertEqual(
             log_properties['last_n_lines']['anyOf'][0]['maximum'],
@@ -526,7 +525,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
                 names={'osmo_unknown'},
             )
 
-        mcp_server.add_tool.assert_not_called()
+        mcp_server.tool.assert_not_called()
 
     def _assert_recursively_closed(
         self,

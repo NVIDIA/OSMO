@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 
 from src.service.mcp import tool_requests, tool_validation
 

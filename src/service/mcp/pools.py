@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 
 from src.service.mcp import access_scope, tool_requests, tool_validation
 from src.service.mcp.pool_models import (

@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 from typing import Literal
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 import pydantic
 
 from src.service.mcp import access_scope

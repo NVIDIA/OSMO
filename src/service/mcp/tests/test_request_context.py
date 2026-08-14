@@ -19,11 +19,50 @@ SPDX-License-Identifier: Apache-2.0
 import asyncio
 import json
 import unittest
+from unittest import mock
 
+from fastmcp.server.auth import AccessToken
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src.service.mcp import request_context
+
+
+class OIDCRequestCredentialsTest(unittest.TestCase):
+    def test_verified_upstream_token_is_relayed_to_gateway(self) -> None:
+        access_token = AccessToken(
+            token='verified-entra-token-value',
+            client_id='codex-client',
+            scopes=['access_as_user'],
+            claims={'preferred_username': 'alice@example.com'},
+        )
+        request = Request({
+            'type': 'http',
+            'method': 'POST',
+            'path': '/mcp',
+            'headers': [(b'x-request-id', b'oidc-request-123')],
+        })
+        with (
+            mock.patch.object(
+                request_context,
+                'get_access_token',
+                return_value=access_token,
+            ),
+            mock.patch.object(
+                request_context,
+                'get_http_request',
+                return_value=request,
+            ),
+        ):
+            credentials = request_context.get_request_credentials()
+
+        self.assertEqual(
+            credentials.authorization_header,
+            'Bearer verified-entra-token-value',
+        )
+        self.assertEqual(credentials.user_name, 'alice@example.com')
+        self.assertEqual(credentials.request_id, 'oidc-request-123')
 
 
 class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):

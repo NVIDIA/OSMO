@@ -82,14 +82,14 @@ class ProtocolHarness:
         """Build one isolated selected-tool protocol application."""
         mcp_server = protocol.OSMOFastMCP(
             name='OSMO MCP protocol test',
-            host='0.0.0.0',
-            port=8000,
-            streamable_http_path='/mcp',
+        )
+        tool_registry.register_tools(mcp_server, names=self.tool_names)
+        application = mcp_server.http_app(
+            path='/mcp',
+            transport='streamable-http',
             stateless_http=True,
             json_response=True,
         )
-        tool_registry.register_tools(mcp_server, names=self.tool_names)
-        application = mcp_server.streamable_http_app()
         application.add_middleware(
             request_context.RequestContextMiddleware,
             path='/mcp',

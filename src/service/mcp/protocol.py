@@ -21,10 +21,8 @@ import json
 import time
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
-from mcp.types import ContentBlock
-from mcp.types import Tool as MCPTool
+from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError, ValidationError
 import pydantic
 
 from src.service.mcp import request_context, telemetry, tool_errors
@@ -36,17 +34,35 @@ _MAX_SERIALIZED_TOOL_RESULT_BYTES = 512 * 1024
 class OSMOFastMCP(FastMCP):
     """FastMCP server with fail-closed, non-reflective tool validation."""
 
-    async def list_tools(self) -> list[MCPTool]:
-        tools = await super().list_tools()
-        for tool in tools:
-            tool.inputSchema['additionalProperties'] = False
-        return tools
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # MCP SDK schema validation reflects rejected input values in its error
+        # text. Let FunctionTool validate inside call_tool so this boundary can
+        # replace all validation detail with a fixed public message.
+        kwargs['strict_input_validation'] = False
+        kwargs.setdefault('mask_error_details', True)
+        super().__init__(*args, **kwargs)
 
     async def call_tool(
         self,
         name: str,
-        arguments: dict[str, Any],
-    ) -> Sequence[ContentBlock] | dict[str, Any]:
+        arguments: dict[str, Any] | None = None,
+        *,
+        version: Any = None,
+        run_middleware: bool = True,
+        task_meta: Any = None,
+    ) -> Any:
+        if run_middleware:
+            # FastMCP middleware re-enters self.call_tool(..., False). Run the
+            # OSMO boundary only on that inner invocation to avoid duplicate
+            # telemetry and credential checks.
+            return await super().call_tool(
+                name,
+                arguments,
+                version=version,
+                run_middleware=True,
+                task_meta=task_meta,
+            )
+
         start_time = time.monotonic()
         telemetry_tool_name = 'unknown'
         request_id: str | None = None
@@ -55,9 +71,12 @@ class OSMOFastMCP(FastMCP):
             request_id = (
                 request_context.get_request_credentials().request_id
             )
+            arguments = arguments or {}
             tools_by_name = {
                 tool.name: tool
-                for tool in await super().list_tools()
+                for tool in await super().list_tools(
+                    run_middleware=False,
+                )
             }
             tool = tools_by_name.get(name)
             if tool is None:
@@ -65,7 +84,7 @@ class OSMOFastMCP(FastMCP):
                 raise tool_errors.PublicToolError('Unknown MCP tool.')
             telemetry_tool_name = tool.name
 
-            allowed_arguments = set(tool.inputSchema.get('properties', {}))
+            allowed_arguments = set(tool.parameters.get('properties', {}))
             if not arguments.keys() <= allowed_arguments:
                 outcome = 'validation_error'
                 raise tool_errors.PublicToolError(
@@ -82,7 +101,18 @@ class OSMOFastMCP(FastMCP):
                         'MCP tool arguments are invalid.'
                     )
                 try:
-                    result = await super().call_tool(name, arguments)
+                    result = await super().call_tool(
+                        name,
+                        arguments,
+                        version=version,
+                        run_middleware=False,
+                        task_meta=task_meta,
+                    )
+                except ValidationError:
+                    outcome = 'validation_error'
+                    raise tool_errors.PublicToolError(
+                        'MCP tool validation failed.'
+                    ) from None
                 except ToolError as error:
                     if isinstance(error.__cause__, pydantic.ValidationError):
                         outcome = 'validation_error'

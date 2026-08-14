@@ -23,7 +23,7 @@ import unittest
 from unittest import mock
 
 import httpx
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 import pydantic
 
 from src.lib.utils import login
@@ -49,14 +49,14 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
     ) -> httpx.Response:
         mcp_server = protocol.OSMOFastMCP(
             name='OSMO public exception boundary test',
-            host='0.0.0.0',
-            port=8000,
-            streamable_http_path='/mcp',
+        )
+        mcp_server.tool(function, name='boundary_test_tool')
+        application = mcp_server.http_app(
+            path='/mcp',
+            transport='streamable-http',
             stateless_http=True,
             json_response=True,
         )
-        mcp_server.add_tool(function, name='boundary_test_tool')
-        application = mcp_server.streamable_http_app()
         application.add_middleware(
             request_context.RequestContextMiddleware,
             path='/mcp',
@@ -258,7 +258,7 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
             self.fail('tool must not execute without a request context')
 
         mcp_server = protocol.OSMOFastMCP(name='context boundary test')
-        mcp_server.add_tool(unused_tool, name='context_test_tool')
+        mcp_server.tool(unused_tool, name='context_test_tool')
 
         with (
             self.assertLogs(

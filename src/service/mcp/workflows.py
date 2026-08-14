@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import re
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 
 import src.lib.utils.workflow_labels as shared_labels
 from src.service.mcp import (

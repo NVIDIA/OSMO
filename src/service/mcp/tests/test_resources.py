@@ -20,7 +20,7 @@ import unittest
 from unittest import mock
 
 import httpx
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 
 from src.lib.utils import resource_quantities
 from src.service.mcp import (
@@ -530,14 +530,8 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             messages.append(result['content'][0]['text'])
 
         self.assertEqual(messages, [
-            (
-                'Error executing tool osmo_get_resource: '
-                'The requested node is not available.'
-            ),
-            (
-                'Error executing tool osmo_get_resource: '
-                'The requested node is not available.'
-            ),
+            'The requested node is not available.',
+            'The requested node is not available.',
         ])
 
     async def test_protocol_rejects_boolean_pagination_before_transport(self) -> None:
