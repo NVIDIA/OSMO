@@ -30,10 +30,35 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $envoy := $gw.envoy }}
 {{- $mcp := .Values.services.mcp }}
 {{- $mcpEnabled := $mcp.enabled | default false }}
+{{- $mcpOidcProxy := $mcp.oidcProxy }}
+{{- if and ($mcpOidcProxy.enabled | default false) (not $mcpEnabled) }}
+{{- fail "services.mcp.oidcProxy.enabled requires services.mcp.enabled=true" }}
+{{- end }}
+{{- $mcpOidcProxyEnabled := and $mcpEnabled ($mcpOidcProxy.enabled | default false) }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
+{{- $mcpOidcProxyRoutes := list
+      (dict "name" "mcp-oauth-authorization-server-metadata" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$" "method" "GET")
+      (dict "name" "mcp-oauth-authorize-get" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "GET")
+      (dict "name" "mcp-oauth-authorize-post" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "POST")
+      (dict "name" "mcp-oauth-oidc-callback" "path" "/auth/callback" "pathRegex" "^/auth/callback([?].*)?$" "method" "GET" "timeout" "45s")
+      (dict "name" "mcp-oauth-register" "path" "/register" "pathRegex" "^/register([?].*)?$" "method" "POST")
+      (dict "name" "mcp-oauth-token" "path" "/token" "pathRegex" "^/token([?].*)?$" "method" "POST" "timeout" "45s")
+      (dict "name" "mcp-oauth-consent-get" "path" "/consent" "pathRegex" "^/consent([?].*)?$" "method" "GET")
+      (dict "name" "mcp-oauth-consent-post" "path" "/consent" "pathRegex" "^/consent([?].*)?$" "method" "POST")
+    }}
+{{- $mcpOidcProxyOptionRoutes := list
+      (dict "name" "mcp-oauth-authorization-server-metadata-options" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$")
+      (dict "name" "mcp-oauth-authorize-options" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$")
+      (dict "name" "mcp-oauth-oidc-callback-options" "path" "/auth/callback" "pathRegex" "^/auth/callback([?].*)?$" "timeout" "45s")
+      (dict "name" "mcp-oauth-register-options" "path" "/register" "pathRegex" "^/register([?].*)?$")
+      (dict "name" "mcp-oauth-token-options" "path" "/token" "pathRegex" "^/token([?].*)?$")
+      (dict "name" "mcp-oauth-consent-options" "path" "/consent" "pathRegex" "^/consent([?].*)?$")
+    }}
 {{- $mcpResourceUrl := "" }}
 {{- $mcpMetadataUrl := "" }}
+{{- $mcpAuthorizationServers := $mcp.authorizationServers }}
+{{- $mcpScopes := $mcp.scopes }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
@@ -46,10 +71,8 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if not $gw.authz.enabled }}
 {{- fail "services.mcp.enabled requires gateway.authz.enabled=true" }}
 {{- end }}
-{{- if not $envoy.jwt.providers }}
-{{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
-{{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp-resource-url" . }}
+{{- if not $mcpOidcProxyEnabled }}
 {{- if not (kindIs "slice" $mcp.authorizationServers) }}
 {{- fail "services.mcp.authorizationServers must be a list" }}
 {{- end }}
@@ -70,6 +93,10 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.scopes entries must not be empty" }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- if not $envoy.jwt.providers }}
+{{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
+{{- end }}
 {{- $mcpServiceName := required "services.mcp.serviceName is required when MCP is enabled" $mcp.serviceName }}
 {{- $mcpImageName := required "services.mcp.imageName is required when MCP is enabled" $mcp.imageName }}
 {{- if or (lt (int $mcp.port) 1) (gt (int $mcp.port) 65535) }}
@@ -86,7 +113,15 @@ setting detects this rotation and triggers Envoy to reload.
 {{- range $skipPath := $skipAuthPaths }}
 {{- $overlapsMcpPath := or (hasPrefix $skipPath $mcpPath) (hasPrefix $mcpPath $skipPath) }}
 {{- $overlapsMcpMetadataPath := or (hasPrefix $skipPath $mcpMetadataPath) (hasPrefix $mcpMetadataPath $skipPath) }}
-{{- if or $overlapsMcpPath $overlapsMcpMetadataPath }}
+{{- $overlapsMcpOidcProxyPath := false }}
+{{- if $mcpOidcProxyEnabled }}
+{{- range $route := $mcpOidcProxyRoutes }}
+{{- if or (hasPrefix $skipPath $route.path) (hasPrefix $route.path $skipPath) }}
+{{- $overlapsMcpOidcProxyPath = true }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if or $overlapsMcpPath $overlapsMcpMetadataPath $overlapsMcpOidcProxyPath }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
 {{- end }}
@@ -171,7 +206,9 @@ data:
                   json_format:
                     start_time: "%START_TIME%"
                     method: "%REQ(:METHOD)%"
-                    path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                    # Never persist query parameters. OAuth callbacks carry
+                    # short-lived authorization codes and state in the query.
+                    path: "%PATH(NQ:ORIG_OR_PATH)%"
                     protocol: "%PROTOCOL%"
                     response_code: "%RESPONSE_CODE%"
                     response_code_details: "%RESPONSE_CODE_DETAILS%"
@@ -285,9 +322,8 @@ data:
                 {{- end }}
 
                 {{- if $mcpEnabled }}
-                # RFC 9728 metadata is the only public MCP route. Keep the
-                # method and path exact so no neighboring path or write method
-                # inherits the authentication bypass.
+                # Keep the public protected-resource route exact so no
+                # neighboring path or write method inherits the bypass.
                 - name: mcp-protected-resource-metadata
                   match:
                     path: {{ $mcpMetadataPath }}
@@ -295,10 +331,16 @@ data:
                     - name: ":method"
                       string_match:
                         exact: GET
+                  {{- if $mcpOidcProxyEnabled }}
+                  route:
+                    cluster: osmo-mcp
+                    timeout: 15s
+                  {{- else }}
                   direct_response:
                     status: 200
                     body:
-                      inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcp.authorizationServers "bearer_methods_supported" (list "header") "scopes_supported" $mcp.scopes | toJson | quote }}
+                      inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcpAuthorizationServers "bearer_methods_supported" (list "header") "scopes_supported" $mcpScopes | toJson | quote }}
+                  {{- end }}
                   response_headers_to_add:
                   - header:
                       key: content-type
@@ -318,15 +360,67 @@ data:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
 
-                # Streamable HTTP uses the same exact endpoint for its
-                # supported methods. Authentication and semantic authorization
-                # remain enabled on this route.
+                {{- if $mcpOidcProxyEnabled }}
+                # FastMCP owns this complete public OAuth surface in the same
+                # process as /mcp. Every route remains method/path exact.
+                {{- range $route := $mcpOidcProxyRoutes }}
+                - name: {{ $route.name }}
+                  match:
+                    path: {{ $route.path }}
+                    headers:
+                    - name: ":method"
+                      string_match:
+                        exact: {{ $route.method }}
+                  route:
+                    cluster: osmo-mcp
+                    timeout: {{ default "15s" $route.timeout }}
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                {{- end }}
+                {{- range $route := $mcpOidcProxyOptionRoutes }}
+                - name: {{ $route.name }}
+                  match:
+                    path: {{ $route.path }}
+                    headers:
+                    - name: ":method"
+                      string_match:
+                        exact: OPTIONS
+                  route:
+                    cluster: osmo-mcp
+                    timeout: {{ default "15s" $route.timeout }}
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                {{- end }}
+                {{- end }}
+
+                # In direct mode Gateway validates and authorizes /mcp. With
+                # the in-process proxy enabled, FastMCP validates its own token
+                # and relays the verified upstream token to protected /api.
                 - name: osmo-mcp
                   match:
                     path: {{ $mcpPath }}
                   route:
                     cluster: osmo-mcp
                     timeout: 0s
+                  {{- if $mcpOidcProxyEnabled }}
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                  {{- end }}
                 {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}
@@ -651,6 +745,54 @@ data:
                                       header_name: ":method"
                                   value_match:
                                     exact: "GET"
+                          {{- if $mcpOidcProxyEnabled }}
+                          # Skip the browser-session proxy only for the exact
+                          # method/path pairs owned by FastMCP's OIDC proxy.
+                          {{- range $route := $mcpOidcProxyRoutes }}
+                          - and_matcher:
+                              predicate:
+                              - single_predicate:
+                                  input:
+                                    name: request-headers
+                                    typed_config:
+                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                      header_name: ":path"
+                                  value_match:
+                                    safe_regex:
+                                      google_re2: {}
+                                      regex: {{ $route.pathRegex | quote }}
+                              - single_predicate:
+                                  input:
+                                    name: request-headers
+                                    typed_config:
+                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                      header_name: ":method"
+                                  value_match:
+                                    exact: {{ $route.method | quote }}
+                          {{- end }}
+                          {{- range $route := $mcpOidcProxyOptionRoutes }}
+                          - and_matcher:
+                              predicate:
+                              - single_predicate:
+                                  input:
+                                    name: request-headers
+                                    typed_config:
+                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                      header_name: ":path"
+                                  value_match:
+                                    safe_regex:
+                                      google_re2: {}
+                                      regex: {{ $route.pathRegex | quote }}
+                              - single_predicate:
+                                  input:
+                                    name: request-headers
+                                    typed_config:
+                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                      header_name: ":method"
+                                  value_match:
+                                    exact: "OPTIONS"
+                          {{- end }}
+                          {{- end }}
                           {{- end }}
                           {{- if $authnSkipPaths }}
                           - single_predicate:
@@ -777,7 +919,13 @@ data:
                       end
                       local roles = meta.verified_jwt.roles
                       if (roles ~= nil and type(roles) == 'table') then
-                        request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                        local safe_roles = {}
+                        for _, role in ipairs(roles) do
+                          if (type(role) == 'string' and #role <= 256 and not string.find(role, '[,%c]')) then
+                            table.insert(safe_roles, role)
+                          end
+                        end
+                        request_handle:headers():replace('x-osmo-roles', table.concat(safe_roles, ','))
                       end
                       if (meta.verified_jwt.osmo_token_name ~= nil) then
                         request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))

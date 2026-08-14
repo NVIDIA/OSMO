@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Synthetic values used only to validate FastMCP's in-process OIDC proxy.
+services:
+  mcp:
+    enabled: true
+    resourceUrl: https://osmo.example.com/mcp
+    allowedOrigins:
+    - http://localhost:6274
+    oidcProxy:
+      enabled: true
+      scope: https://osmo.example.com/mcp/access_as_user
+      trustedHttpsRedirectOrigins:
+      - https://trusted-client.example.com
+      oidc:
+        configUrl: https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration
+        clientId: example-mcp-proxy-client
+        accessTokenIssuer: https://sts.example.com/example-tenant/
+        accessTokenAudience: https://osmo.example.com/mcp
+        accessTokenJwksUrl: https://login.example.com/example-tenant/discovery/v2.0/keys
+        accessTokenRequiredScope: access_as_user
+      redis:
+        serviceName: proxy-redis.example.internal
+        port: 6380
+        dbNumber: 14
+        tlsEnabled: true
+        passwordFile: /etc/osmo/mcp-auth/redis-password
+        keyPrefix: test:mcp-auth
+      existingSecret:
+        name: mcp-oidc-proxy-secrets
+
+gateway:
+  networkPolicies:
+    enabled: false
+  envoy:
+    jwt:
+      providers:
+      - issuer: https://sts.example.com/example-tenant/
+        audience: https://osmo.example.com/mcp
+        jwks_uri: https://login.example.com/example-tenant/discovery/v2.0/keys
+        cluster: idp
+        user_claim: preferred_username

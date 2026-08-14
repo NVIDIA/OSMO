@@ -116,11 +116,12 @@ services:
   mcp:
     ## Enable the MCP workload and its gateway routes. Disabled by default.
     ## When enabled, the chart always renders an ingress NetworkPolicy for
-    ## MCP because only Gateway-authenticated requests may reach the service.
+    ## MCP because only this deployment's Gateway may reach the service.
     ##
     enabled: false
 
-    ## Number of MCP replicas.
+    ## Number of MCP replicas. Keep this at 1 while oidcProxy is enabled;
+    ## FastMCP 3.4.7 serializes refreshes within one process.
     ##
     replicas: 1
 
@@ -166,6 +167,68 @@ services:
     ##
     allowedOrigins: []
 
+    ## Built-in FastMCP OIDC proxy for endpoint-only client setup. This runs
+    ## inside the existing MCP process and publishes OAuth metadata, CIMD/DCR,
+    ## PKCE, callback, and token endpoints on the same public origin. The MCP
+    ## process validates its proxy token, then relays the verified upstream
+    ## identity-provider access token to the OSMO Gateway for normal RBAC.
+    ##
+    oidcProxy:
+      enabled: false
+
+      ## Full delegated scope URI advertised to MCP clients and requested from
+      ## the upstream provider, normally <resourceUrl>/access_as_user.
+      ##
+      scope: ""
+
+      ## Public HTTPS redirect origins allowed for pre-registered web clients.
+      ## Native clients use dynamically allocated loopback redirects.
+      ##
+      trustedHttpsRedirectOrigins: []
+
+      ## Upstream OpenID Connect provider. Register the fixed redirect URL
+      ## <resourceUrl origin>/auth/callback on this confidential application.
+      ##
+      oidc:
+        configUrl: ""
+        clientId: ""
+        clientSecretFile: /etc/osmo/mcp-auth/client-secret
+        accessTokenIssuer: ""
+        accessTokenAudience: ""
+        accessTokenJwksUrl: ""
+        accessTokenRequiredScope: access_as_user
+
+      ## Redis stores proxy registrations, authorization state, and encrypted
+      ## upstream tokens. Empty serviceName/port inherit services.redis.
+      ##
+      redis:
+        serviceName: ""
+        port: null
+        dbNumber: 0
+        tlsEnabled: true
+        passwordFile: ""
+        keyPrefix: osmo:mcp-fastmcp
+        connectTimeoutSeconds: 3
+        operationTimeoutSeconds: 5
+
+      ## Private single-key HS256 JWKS used only by the MCP process.
+      ##
+      signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
+
+      accessTokenTtlSeconds: 600
+      refreshTokenTtlSeconds: 28800
+      upstreamTimeoutSeconds: 10
+
+      ## Optionally mount all proxy credentials from an existing Secret.
+      ## Leave name empty when Vault injection or extra volumes provide them.
+      ##
+      existingSecret:
+        name: ""
+        mountPath: /etc/osmo/mcp-auth
+        clientSecretKey: client-secret
+        signingJwksKey: signing-jwks
+        redisPasswordKey: redis-password
+
     ## Additional pod labels and annotations.
     ##
     extraPodLabels: {}
@@ -174,6 +237,12 @@ services:
     ## Additional environment variables for the MCP container.
     ##
     extraEnv: []
+
+    ## Additional volume mounts and volumes for the MCP container and pod.
+    ## These can provide Vault-injected OIDC proxy credentials.
+    ##
+    extraVolumeMounts: []
+    extraVolumes: []
 
     ## Service account name. Empty uses global.serviceAccountName.
     ##
