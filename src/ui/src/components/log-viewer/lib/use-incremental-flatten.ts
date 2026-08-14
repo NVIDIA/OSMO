@@ -72,11 +72,57 @@ export function getDateKey(date: Date): string {
 
 /** State for tracking previous entries and cached flatten result */
 interface PrevEntriesState {
-  firstEntryId: string | undefined;
-  length: number;
+  entries: LogEntry[];
+  resetKey: string;
   resetCount: number;
   lastFlattenedResult: FlattenResultInternal;
   lastDateKey: string | null;
+}
+
+export type EntriesChangeType = "unchanged" | "append" | "replace";
+
+/**
+ * Classify an entry update without scanning the full prefix on streaming appends.
+ * The previous tail must remain at the same prefix boundary; expanding a filtered
+ * subsequence therefore becomes a replacement instead of a false append.
+ */
+export function classifyEntriesChange(
+  previousEntries: LogEntry[],
+  entries: LogEntry[],
+  previousResetKey: string,
+  resetKey: string,
+): EntriesChangeType {
+  if (resetKey !== previousResetKey) {
+    return "replace";
+  }
+
+  if (entries === previousEntries) {
+    return "unchanged";
+  }
+
+  if (entries.length === previousEntries.length) {
+    if (entries.length === 0) return "unchanged";
+
+    // The log stream is immutable: existing entry objects are preserved for
+    // appends/caps, while reconnect replacements create new boundary objects.
+    // Query replacements are distinguished by resetKey. Checking boundaries
+    // keeps filtered no-match stream updates O(1) instead of rescanning up to
+    // 100K entries on every RAF batch.
+    if (entries[0] === previousEntries[0] && entries[entries.length - 1] === previousEntries[entries.length - 1]) {
+      return "unchanged";
+    }
+  }
+
+  if (
+    previousEntries.length > 0 &&
+    entries.length > previousEntries.length &&
+    entries[0] === previousEntries[0] &&
+    entries[previousEntries.length - 1] === previousEntries[previousEntries.length - 1]
+  ) {
+    return "append";
+  }
+
+  return "replace";
 }
 
 /**
@@ -85,28 +131,26 @@ interface PrevEntriesState {
  * Optimized for streaming: detects appends and only processes new entries (O(k))
  * instead of re-flattening the entire array (O(n)).
  *
- * The hook detects reset scenarios (when the first entry changes) and
- * increments resetCount accordingly. This helps consumers know when
- * to invalidate caches like virtualizer measurements.
+ * The hook detects reset scenarios from the query generation or replaced
+ * entries and increments resetCount accordingly. This helps consumers know
+ * when to invalidate caches like virtualizer measurements.
  *
  * @param entries - Log entries array
+ * @param resetKey - Stable identity for the filters and time range producing entries
  * @returns Flattened items and separator metadata
  */
-export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
+export function useIncrementalFlatten(entries: LogEntry[], resetKey: string): FlattenResult {
   // Track previous entries state and cached flattened result
   const [prevState, setPrevState] = useState<PrevEntriesState>({
-    firstEntryId: undefined,
-    length: 0,
+    entries: [],
+    resetKey: "",
     resetCount: 0,
     lastFlattenedResult: { items: [], separators: [] },
     lastDateKey: null,
   });
 
   // Extract current state
-  const entriesLength = entries.length;
-  const firstEntryId = entries[0]?.id;
-
-  // Detect if this is a reset (first entry changed) vs append or no-change
+  // Detect if this is a reset (filter/replacement) vs append or no-change.
   // Use the "updating state during render" pattern recommended by React
   let resetCount = prevState.resetCount;
   let newState = prevState;
@@ -117,13 +161,14 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
   // CRITICAL: Must handle the empty-to-empty case (both length 0). Without this,
   // fullFlatten([]) creates a new object every render, the reference check on line 154
   // always triggers setPrevState, and React hits "Too many re-renders."
-  const isNoChange = entriesLength === prevState.length && firstEntryId === prevState.firstEntryId;
-  const isAppend = entriesLength > prevState.length && firstEntryId === prevState.firstEntryId && prevState.length > 0;
+  const changeType = classifyEntriesChange(prevState.entries, entries, prevState.resetKey, resetKey);
+  const isNoChange = changeType === "unchanged";
+  const isAppend = changeType === "append";
   // A reset is anything that's not an append or no-change (filter applied, entries replaced, etc.).
   // The old condition only checked firstEntryId changes, missing the case where a filter keeps
   // the same first entry but reduces the count — leaving measurementsCache stale and causing
   // incorrect separator positions (hidden separators creating visual gaps).
-  const isReset = !isNoChange && !isAppend && prevState.length > 0;
+  const isReset = changeType === "replace" && prevState.entries.length > 0;
 
   if (isReset) {
     resetCount = prevState.resetCount + 1;
@@ -136,7 +181,7 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
     flattenedResult = prevState.lastFlattenedResult;
   } else if (isAppend) {
     // Append path: only flatten new entries (O(k) where k = new entries)
-    const newEntries = entries.slice(prevState.length);
+    const newEntries = entries.slice(prevState.entries.length);
     flattenedResult = appendFlatten(prevState.lastFlattenedResult, newEntries, prevState.lastDateKey);
   } else {
     // Reset path or initial: full flatten (O(n))
@@ -150,15 +195,10 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
       : null;
 
   // Update state if anything changed
-  if (
-    firstEntryId !== prevState.firstEntryId ||
-    entriesLength !== prevState.length ||
-    resetCount !== prevState.resetCount ||
-    flattenedResult !== prevState.lastFlattenedResult
-  ) {
+  if (!isNoChange) {
     newState = {
-      firstEntryId,
-      length: entriesLength,
+      entries,
+      resetKey,
       resetCount,
       lastFlattenedResult: flattenedResult,
       lastDateKey,

@@ -42,6 +42,7 @@ import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
  */
 
 const CT_JSON = "application/json";
+const WRAPPED_LOG_SUFFIX = " wrapped-log-segment".repeat(24);
 
 function createWorkflowForLogs(name: string) {
   const now = new Date();
@@ -109,6 +110,25 @@ function createWorkflowForLogs(name: string) {
     app_version: null,
     plugins: { rsync: false },
   };
+}
+
+function createLogsWithSearchContext(): string {
+  return Array.from({ length: 60 }, (_, index) => {
+    const minute = String(index).padStart(2, "0");
+    const message =
+      index === 0
+        ? "needle first match"
+        : index === 2
+          ? "context immediately before target"
+          : index === 3
+            ? `needle selected target${WRAPPED_LOG_SUFFIX}`
+            : index === 4
+              ? "context immediately after target"
+              : index >= 6
+                ? `needle filler match ${index}`
+                : `ordinary log line ${index}`;
+    return `2026/01/15 10:${minute}:00 [train-task] ${message}`;
+  }).join("\n");
 }
 
 test.describe("Log Viewer Content Page", () => {
@@ -237,5 +257,94 @@ test.describe("Log Viewer Content Page", () => {
 
     // ASSERT — workflow name appears somewhere on the page (breadcrumb or title)
     await expect(page.getByText(wfName).first()).toBeVisible();
+  });
+
+  test("shows the selected search result in its surrounding log context", async ({ page }) => {
+    const contextWfName = "log-viewer-show-context-wf";
+    const data = createWorkflowForLogs(contextWfName);
+    await page.route(`**/api/workflow/${contextWfName}*`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: CT_JSON,
+        body: JSON.stringify(data),
+      }),
+    );
+    await page.route(`**/api/workflow/${contextWfName}/logs*`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/plain",
+        body: createLogsWithSearchContext(),
+      }),
+    );
+
+    await page.goto(`/log-viewer?workflow=${contextWfName}&f=source:user`);
+    await page.waitForLoadState("networkidle");
+
+    const searchInput = page.getByRole("combobox", { name: /search and filter/i });
+    await searchInput.fill("needle");
+    await searchInput.press("Enter");
+
+    await expect.poll(() => new URL(page.url()).searchParams.getAll("f")).toEqual(["source:user", "text:needle"]);
+    const firstMatch = page.getByText("needle first match", { exact: true });
+    const selectedTarget = page.getByText(/^needle selected target/);
+    const contextBeforeTarget = page.getByText(/^context immediately before target/);
+    const contextAfterTarget = page.getByText(/^context immediately after target/);
+    await expect(firstMatch).toBeVisible();
+    await expect(selectedTarget).toBeVisible();
+    await expect(contextBeforeTarget).not.toBeVisible();
+    await expect(contextAfterTarget).not.toBeVisible();
+
+    // Enable wrapping after filtering so the tall measurement exists only at
+    // the target's search-result index, not its later full-list index.
+    await page.getByRole("button", { name: "Enable line wrap" }).click();
+    await expect(page.getByRole("button", { name: "Disable line wrap" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // A keyboard-only user can focus a result and open the same action.
+    const keyboardTarget = page.getByRole("row").filter({ hasText: "needle selected target" });
+    // Seed a real dynamic-height measurement before the row moves to a new index.
+    // This also guards against the test passing with a single-line fixture.
+    await expect.poll(async () => (await keyboardTarget.boundingBox())?.height ?? 0).toBeGreaterThan(64);
+    await keyboardTarget.focus();
+    await expect(keyboardTarget).toBeFocused();
+    await keyboardTarget.press("Shift+F10");
+    await expect(page.getByRole("menuitem", { name: "Show in context" })).toBeEnabled();
+    await page.keyboard.press("Escape");
+
+    // Keep the first result selected to prove the action targets the right-clicked row.
+    await firstMatch.click();
+    await selectedTarget.click({ button: "right" });
+    const showInContext = page.getByRole("menuitem", { name: "Show in context" });
+    await expect(showInContext).toBeVisible();
+    await showInContext.click();
+
+    // The text search is removed while the structured source filter is preserved.
+    await expect.poll(() => new URL(page.url()).searchParams.getAll("f")).toEqual(["source:user"]);
+    await expect(page.getByText("source: user", { exact: true })).toBeVisible();
+
+    const contextTarget = page.getByRole("row").filter({ hasText: "needle selected target" });
+    await expect(contextTarget).toBeVisible();
+    await expect(contextTarget).toHaveAttribute("aria-current", "true");
+    await expect(contextBeforeTarget).toBeVisible();
+    await expect(contextAfterTarget).toBeVisible();
+
+    // The next absolute row must start below the unchanged wrapped target.
+    // Index-keyed measurement caches position it inside the target instead.
+    const contextAfterRow = page.getByRole("row").filter({ hasText: "context immediately after target" });
+    await expect
+      .poll(async () => {
+        const [targetBox, nextBox] = await Promise.all([
+          contextTarget.boundingBox(),
+          contextAfterRow.boundingBox(),
+        ]);
+        if (!targetBox || !nextBox) return Number.NEGATIVE_INFINITY;
+        return nextBox.y - (targetBox.y + targetBox.height);
+      })
+      .toBeGreaterThanOrEqual(-0.5);
+
+    await contextTarget.click({ button: "right" });
+    await expect(page.getByRole("menuitem", { name: "Show in context" })).toHaveCount(0);
   });
 });

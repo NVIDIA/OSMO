@@ -63,6 +63,8 @@ export interface LogListHandle {
 export interface LogListProps {
   /** Log entries to display */
   entries: LogEntry[];
+  /** Stable key for the filters/time range that produced `entries`. */
+  entriesResetKey: string;
   /** Additional CSS classes */
   className?: string;
   /**
@@ -82,6 +84,16 @@ export interface LogListProps {
    * Used when scoped to a single task where the tag is redundant.
    */
   hideTask?: boolean;
+  /** Entry with the persistent context highlight. */
+  contextTargetId?: string | null;
+  /** One-shot request to center an entry after the expanded list is ready. */
+  revealEntryId?: string | null;
+  /** Acknowledge that a reveal request has been handled. */
+  onEntryRevealed?: (entryId: string) => void;
+  /** Whether the current entries are text-search results. */
+  canShowInContext?: boolean;
+  /** Show the selected search-result entry in the regular log view. */
+  onShowInContext?: (entryId: string) => void;
 }
 
 // =============================================================================
@@ -168,12 +180,26 @@ function findEntryId(element: Element | null): string | null {
 // =============================================================================
 
 const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInner(
-  { entries, className, isPinnedToBottom = false, onScrollAwayFromBottom, isStale = false, hideTask = false },
+  {
+    entries,
+    entriesResetKey,
+    className,
+    isPinnedToBottom = false,
+    onScrollAwayFromBottom,
+    isStale = false,
+    hideTask = false,
+    contextTargetId,
+    revealEntryId,
+    onEntryRevealed,
+    canShowInContext = false,
+    onShowInContext,
+  },
   ref,
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
   const { clipboard } = useServices();
   const copyShortcut = useFormattedHotkey("mod+c");
+  const [contextMenuEntryId, setContextMenuEntryId] = useState<string | null>(null);
 
   // Track programmatic scrolls to avoid unpinning during auto-scroll
   const isAutoScrollingRef = useRef(false);
@@ -201,7 +227,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 
   // Flatten entries with date separators using incremental algorithm
   // O(k) for streaming appends where k = new entries, O(n) for full replacement
-  const { items: flatItems, separators, resetCount } = useIncrementalFlatten(entries);
+  const { items: flatItems, separators, resetCount } = useIncrementalFlatten(entries, entriesResetKey);
 
   // Keep flatItems in a ref to allow stable estimateSize callback
   // This prevents virtualizer from resetting on every flatItems change
@@ -218,11 +244,25 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
     return item.type === "separator" ? DATE_SEPARATOR_HEIGHT : ROW_HEIGHT_ESTIMATE;
   }, []);
 
+  // TanStack Virtual caches measured heights by item key. Entries can move to
+  // different indices when a filtered result is expanded back into the full
+  // log, so index-based keys would attach a wrapped row's height to the wrong
+  // item. Keep the virtualizer and React keyed to the same logical identity.
+  const getItemKey = useCallback(
+    (index: number) => {
+      const item = flatItems[index];
+      if (!item) return index;
+      return item.type === "separator" ? `separator:${item.dateKey}` : `entry:${item.entry.id}`;
+    },
+    [flatItems],
+  );
+
   // Single virtualizer for entire list
   const virtualizer = useVirtualizerCompat({
     count: flatItems.length,
     getScrollElement: useCallback(() => parentRef.current, []),
     estimateSize,
+    getItemKey,
     overscan: OVERSCAN_COUNT,
   });
 
@@ -238,6 +278,31 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
       parentRef.current.scrollTop = 0;
     }
   }, [resetCount]);
+
+  const revealEntryIndex = useMemo(() => {
+    if (!revealEntryId) return -1;
+    return flatItems.findIndex((item) => item.type === "entry" && item.entry.id === revealEntryId);
+  }, [flatItems, revealEntryId]);
+
+  // A context transition replaces the filtered list. Run after the reset-to-top
+  // effect so the selected line wins once the full list is ready, then acknowledge
+  // the one-shot request so streaming appends do not keep re-centering the viewer.
+  useLayoutEffect(() => {
+    if (!revealEntryId || revealEntryIndex === -1) return;
+
+    isAutoScrollingRef.current = true;
+    virtualizer.scrollToIndex(revealEntryIndex, { align: "center" });
+
+    const timer = setTimeout(() => {
+      isAutoScrollingRef.current = false;
+      onEntryRevealed?.(revealEntryId);
+    }, 150);
+
+    return () => {
+      clearTimeout(timer);
+      isAutoScrollingRef.current = false;
+    };
+  }, [onEntryRevealed, revealEntryId, revealEntryIndex, virtualizer]);
 
   // Expose scrollToBottom and focus methods via ref
   useImperativeHandle(
@@ -321,9 +386,14 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (e.button !== 0) return;
       // elementFromPoint resolves the actual element even after pointer capture
       const id = findEntryId(document.elementFromPoint(e.clientX, e.clientY));
+      // Radix opens touch/pen context menus from a long press, which may not
+      // emit a browser contextmenu event. Capture that row on pointerdown too.
+      if (e.pointerType !== "mouse" || e.button === 2) {
+        setContextMenuEntryId(id);
+      }
+      if (e.button !== 0) return;
       if (!id) {
         setSelection(null);
         anchorIdxRef.current = { idx: -1, epoch: resetCount };
@@ -362,6 +432,20 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
     if (e.button !== 0) return;
     (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
   }, []);
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const pointerTargetId = e.target instanceof Element ? findEntryId(e.target) : null;
+      const keyboardTargetId = effectiveSelection ? entries[effectiveSelection.focusIdx]?.id : null;
+      setContextMenuEntryId(pointerTargetId ?? keyboardTargetId ?? null);
+    },
+    [effectiveSelection, entries],
+  );
+
+  const handleShowInContext = useCallback(() => {
+    if (!contextMenuEntryId) return;
+    onShowInContext?.(contextMenuEntryId);
+  }, [contextMenuEntryId, onShowInContext]);
 
   // Refs so the global keydown handler always reads fresh values without
   // being recreated on every selection/entries change (avoids add/remove churn).
@@ -497,6 +581,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onContextMenuCapture={handleContextMenu}
         >
           {/* CSS sticky header - simple date display, swaps instantly */}
           {showStickyHeader && <StickyHeader date={currentDate} />}
@@ -522,10 +607,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 
                 return (
                   <div
-                    // Use dateKey + index to ensure unique keys across filter changes.
-                    // Without the index, React may reuse DOM elements when the same date
-                    // appears in different positions, causing phantom separator artifacts.
-                    key={`${item.dateKey}-${item.index}`}
+                    key={virtualRow.key}
                     data-index={virtualRow.index}
                     ref={virtualizer.measureElement}
                     className="bg-card absolute top-0 left-0 w-full"
@@ -549,7 +631,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 
               return (
                 <div
-                  key={item.entry.id}
+                  key={virtualRow.key}
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
                   className="absolute top-0 left-0 w-full"
@@ -563,6 +645,8 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
                     wrapLines={wrapLines}
                     showTask={showTask}
                     isSelected={isSelected}
+                    isContextTarget={item.entry.id === contextTargetId}
+                    isKeyboardActionable={canShowInContext}
                     isExpanded={expandedIds.has(item.entry.id)}
                     onToggleExpand={handleToggleExpand}
                   />
@@ -574,6 +658,14 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
       </ContextMenuTrigger>
 
       <ContextMenuContent>
+        {canShowInContext && onShowInContext && (
+          <ContextMenuItem
+            onSelect={handleShowInContext}
+            disabled={!contextMenuEntryId}
+          >
+            Show in context
+          </ContextMenuItem>
+        )}
         <ContextMenuItem
           onClick={copySelection}
           disabled={!effectiveSelection}

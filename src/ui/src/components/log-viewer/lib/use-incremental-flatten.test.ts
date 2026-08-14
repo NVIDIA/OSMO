@@ -15,7 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { getDateKey, fullFlatten, appendFlatten } from "@/components/log-viewer/lib/use-incremental-flatten";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  appendFlatten,
+  classifyEntriesChange,
+  fullFlatten,
+  getDateKey,
+  useIncrementalFlatten,
+} from "@/components/log-viewer/lib/use-incremental-flatten";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 
 /**
@@ -45,6 +53,98 @@ function createMockEntry(id: string, timestamp: Date): LogEntry {
 function localDate(year: number, month: number, day: number, hour = 12): Date {
   return new Date(year, month - 1, day, hour, 0, 0);
 }
+
+describe("classifyEntriesChange", () => {
+  const timestamp = localDate(2024, 1, 15);
+
+  it("recognizes a streaming append that preserves the previous prefix", () => {
+    const first = createMockEntry("first", timestamp);
+    const target = createMockEntry("target", timestamp);
+    const after = createMockEntry("after", timestamp);
+
+    expect(classifyEntriesChange([first, target], [first, target, after], "all", "all")).toBe("append");
+  });
+
+  it("treats search-result expansion with the same first entry as a replacement", () => {
+    const first = createMockEntry("first", timestamp);
+    const beforeTarget = createMockEntry("before-target", timestamp);
+    const target = createMockEntry("target", timestamp);
+    const afterTarget = createMockEntry("after-target", timestamp);
+
+    expect(classifyEntriesChange([first, target], [first, beforeTarget, target, afterTarget], "search", "all")).toBe(
+      "replace",
+    );
+  });
+
+  it("detects an equal-length replacement when its boundary entries change", () => {
+    const first = createMockEntry("first", timestamp);
+    const oldMiddle = createMockEntry("old-middle", timestamp);
+    const newMiddle = createMockEntry("new-middle", timestamp);
+    const oldLast = createMockEntry("old-last", timestamp);
+    const newLast = createMockEntry("new-last", timestamp);
+
+    expect(classifyEntriesChange([first, oldMiddle, oldLast], [first, newMiddle, newLast], "all", "all")).toBe(
+      "replace",
+    );
+  });
+
+  it("forces a replacement when a new query preserves the old prefix boundary", () => {
+    const first = createMockEntry("first", timestamp);
+    const oldMiddle = createMockEntry("old-middle", timestamp);
+    const newMiddle = createMockEntry("new-middle", timestamp);
+    const oldLast = createMockEntry("old-last", timestamp);
+    const appended = createMockEntry("appended", timestamp);
+
+    expect(
+      classifyEntriesChange([first, oldMiddle, oldLast], [first, newMiddle, oldLast, appended], "text:old", "text:new"),
+    ).toBe("replace");
+  });
+
+  it("recognizes the same entries array without scanning it", () => {
+    const entries = [createMockEntry("first", timestamp)];
+
+    expect(classifyEntriesChange(entries, entries, "all", "all")).toBe("unchanged");
+  });
+});
+
+describe("useIncrementalFlatten", () => {
+  it("replaces expanded search results once, then appends without another reset", () => {
+    const timestamp = localDate(2024, 1, 15);
+    const first = createMockEntry("first", timestamp);
+    const before = createMockEntry("before", timestamp);
+    const target = createMockEntry("target", timestamp);
+    const after = createMockEntry("after", timestamp);
+    const appended = createMockEntry("appended", timestamp);
+    let latest: ReturnType<typeof useIncrementalFlatten> | undefined;
+
+    function Probe({ entries, resetKey }: { entries: LogEntry[]; resetKey: string }) {
+      latest = useIncrementalFlatten(entries, resetKey);
+      return null;
+    }
+
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const entryIds = () => latest?.items.flatMap((item) => (item.type === "entry" ? [item.entry.id] : [])) ?? [];
+
+    try {
+      act(() => root.render(createElement(Probe, { entries: [first, target], resetKey: "search" })));
+      expect(entryIds()).toEqual(["first", "target"]);
+      expect(latest?.resetCount).toBe(0);
+
+      act(() => root.render(createElement(Probe, { entries: [first, before, target, after], resetKey: "context" })));
+      expect(entryIds()).toEqual(["first", "before", "target", "after"]);
+      expect(latest?.resetCount).toBe(1);
+
+      act(() =>
+        root.render(createElement(Probe, { entries: [first, before, target, after, appended], resetKey: "context" })),
+      );
+      expect(entryIds()).toEqual(["first", "before", "target", "after", "appended"]);
+      expect(latest?.resetCount).toBe(1);
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+});
 
 // =============================================================================
 // getDateKey Tests

@@ -41,6 +41,7 @@ import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
 import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "@/components/log-viewer/lib/constants";
 import { DEFAULT_HEIGHT } from "@/components/log-viewer/lib/timeline-constants";
+import { getContextFilterChips, hasTextSearch } from "@/components/log-viewer/lib/show-in-context";
 import type {
   LogViewerDataProps,
   LogViewerFilterProps,
@@ -264,6 +265,9 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
 
   // Local pin state (ephemeral UI state, not persisted)
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(false);
+  // The context target is intentionally ephemeral rather than URL-synced.
+  const [contextTargetId, setContextTargetId] = useState<string | null>(null);
+  const [pendingRevealEntryId, setPendingRevealEntryId] = useState<string | null>(null);
 
   // Wrap toggle handlers with View Transitions for smooth visual updates
   const toggleWrapLines = useCallback(() => {
@@ -281,8 +285,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
     };
   }, [reset]);
 
-  // Handle filter chip changes with View Transition for smooth visual updates
-  const handleFilterChipsChange = useCallback(
+  const applyFilterChips = useCallback(
     (newChips: SearchChip[]) => {
       // Use View Transition API for smooth crossfade when available
       // Falls back to immediate update if not supported
@@ -295,12 +298,63 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
     [onFilterChipsChange],
   );
 
-  // Use deferred value to prevent blocking UI during streaming updates
-  // React 19 will keep showing previous results while computing new ones
-  const deferredEntries = useDeferredValue(filteredEntries);
+  // Normal filter edits start a new result set and clear any prior context target.
+  const handleFilterChipsChange = useCallback(
+    (newChips: SearchChip[]) => {
+      setContextTargetId(null);
+      setPendingRevealEntryId(null);
+      applyFilterChips(newChips);
+    },
+    [applyFilterChips],
+  );
+
+  const handleShowInContext = useCallback(
+    (entryId: string) => {
+      setContextTargetId(entryId);
+      setPendingRevealEntryId(entryId);
+      setIsPinnedToBottom(false);
+      applyFilterChips(getContextFilterChips(filterChips));
+      announcer.announce("Showing log line in context", "polite");
+    },
+    [announcer, applyFilterChips, filterChips],
+  );
+
+  const handleEntryRevealed = useCallback((entryId: string) => {
+    setPendingRevealEntryId((pendingEntryId) => (pendingEntryId === entryId ? null : pendingEntryId));
+  }, []);
+
+  // Defer entries and their query generation together. LogList uses the key to
+  // distinguish a filter replacement from an append without scanning the full
+  // existing log prefix on every streaming update.
+  const filterStartTimeMs = timeline?.filterStartTime?.getTime() ?? null;
+  const filterEndTimeMs = timeline?.filterEndTime?.getTime() ?? null;
+  const entriesResetKey = useMemo(
+    () =>
+      JSON.stringify({
+        scope,
+        chips: filterChips.map(({ field, value }) => [field, value]),
+        start: filterStartTimeMs,
+        end: filterEndTimeMs,
+      }),
+    [filterChips, filterStartTimeMs, filterEndTimeMs, scope],
+  );
+  const isTextSearchActive = hasTextSearch(filterChips);
+  const filteredView = useMemo(
+    () => ({ entries: filteredEntries, isTextSearch: isTextSearchActive, resetKey: entriesResetKey }),
+    [entriesResetKey, filteredEntries, isTextSearchActive],
+  );
+  const deferredView = useDeferredValue(filteredView);
+  const deferredEntries = deferredView.entries;
 
   // Track if we're showing stale data (deferred value hasn't caught up)
-  const isStale = deferredEntries !== filteredEntries || isFetching;
+  const isStale = deferredView !== filteredView || isFetching;
+  const isCurrentDeferredQuery = deferredView.resetKey === entriesResetKey;
+  // URL back/forward can replace chips without going through FilterBar's
+  // callback. Never expose the regular-view highlight in search results.
+  const visibleContextTargetId =
+    !isTextSearchActive && !deferredView.isTextSearch && isCurrentDeferredQuery ? contextTargetId : null;
+  const revealEntryId = visibleContextTargetId ? pendingRevealEntryId : null;
+  const canShowInContext = isTextSearchActive && deferredView.isTextSearch && isCurrentDeferredQuery;
 
   // Handle histogram bucket click - jump to that time
   const handleBucketClick = useCallback(
@@ -665,10 +719,16 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
         <LogList
           ref={logListRef}
           entries={deferredEntries}
+          entriesResetKey={deferredView.resetKey}
           isPinnedToBottom={isPinnedToBottom}
           onScrollAwayFromBottom={handleScrollAwayFromBottom}
           isStale={isStale}
           hideTask={scope === "task"}
+          contextTargetId={visibleContextTargetId}
+          revealEntryId={revealEntryId}
+          onEntryRevealed={handleEntryRevealed}
+          canShowInContext={canShowInContext}
+          onShowInContext={handleShowInContext}
         />
       </div>
     </div>

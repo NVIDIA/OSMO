@@ -35,6 +35,10 @@ export interface LogEntryRowProps {
   showTask: boolean;
   /** Whether this row is part of the active selection */
   isSelected?: boolean;
+  /** Whether this row is the line currently shown in context */
+  isContextTarget?: boolean;
+  /** Whether the row should be reachable for keyboard context-menu actions */
+  isKeyboardActionable?: boolean;
   /** Whether this row is individually expanded (only relevant when wrapLines is off) */
   isExpanded?: boolean;
   /** Callback to toggle expansion for this row */
@@ -54,6 +58,8 @@ function LogEntryRowInner({
   wrapLines,
   showTask,
   isSelected = false,
+  isContextTarget = false,
+  isKeyboardActionable = false,
   isExpanded = false,
   onToggleExpand,
   style,
@@ -98,10 +104,17 @@ function LogEntryRowInner({
   return (
     <div
       role="row"
+      tabIndex={isKeyboardActionable ? 0 : undefined}
       data-entry-id={entry.id}
+      data-context-target={isContextTarget || undefined}
+      aria-current={isContextTarget || undefined}
       className={cn(
         "group relative px-3 py-0.5",
-        isSelected ? "bg-primary/10 hover:bg-primary/20" : "hover:bg-muted/50",
+        isContextTarget
+          ? "border-l-nvidia bg-nvidia-bg dark:bg-nvidia-bg-dark border-l-2 hover:brightness-95"
+          : isSelected
+            ? "bg-primary/10 hover:bg-primary/20"
+            : "hover:bg-muted/50",
         "transition-colors duration-75",
         "select-none",
         "focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-inset",
