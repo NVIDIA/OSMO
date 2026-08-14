@@ -1237,6 +1237,33 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-profile.yaml" \
         "name: embedded-profile-postgresql-app"
 
+    helm_template combined-embedded "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set-string externalDependencies.valkey.host= \
+        --set secrets.valkey.generate=true \
+        --set-string secrets.valkey.existingSecret= \
+        >"$TEST_DIRECTORY/osmo-combined-embedded.yaml"
+    require_resource "$TEST_DIRECTORY/osmo-combined-embedded.yaml" Cluster \
+        combined-embedded-postgresql
+    require_deployment "$TEST_DIRECTORY/osmo-combined-embedded.yaml" \
+        combined-embedded-valkey
+    require_resource "$TEST_DIRECTORY/osmo-combined-embedded.yaml" Secret \
+        combined-embedded-valkey-credentials
+    resource_document "$TEST_DIRECTORY/osmo-combined-embedded.yaml" Deployment \
+        combined-embedded-osmo-api \
+        >"$TEST_DIRECTORY/osmo-combined-embedded-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
+        "- combined-embedded-postgresql-rw"
+    require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
+        "- combined-embedded-valkey"
+    require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
+        "name: combined-embedded-postgresql-app"
+    require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
+        "name: combined-embedded-valkey-credentials"
+
     helm_template embedded-existing "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
