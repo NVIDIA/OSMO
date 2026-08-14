@@ -290,14 +290,27 @@ require_no_resource() {
     fi
 }
 
+require_downloaded_dependencies_untracked() {
+    local repository_root
+    local tracked_archives
+
+    if ! repository_root=$(git -C "$CHARTS_ROOT/osmo" rev-parse --show-toplevel 2>/dev/null); then
+        return
+    fi
+
+    tracked_archives=$(git -C "$repository_root" ls-files -- \
+        'deployments/charts/osmo/charts/*.tgz')
+    [[ -z "$tracked_archives" ]] || \
+        fail "downloaded Helm dependency archives must not be tracked: $tracked_archives"
+}
+
 require_clean_osmo_sources() {
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: cluster"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.8.0"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
         "condition: embeddedDependencies.postgresql.enabled"
     [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
-    [[ ! -e "$CHARTS_ROOT/osmo/charts/cluster-0.8.0.tgz" ]] || \
-        fail "osmo must not check in the CloudNativePG cluster archive"
+    require_downloaded_dependencies_untracked
     [[ ! -e "$CHARTS_ROOT/osmo/templates/postgres.yaml" ]] || \
         fail "osmo must not contain an unimplemented embedded PostgreSQL template"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/redis.yaml" ]] || \
@@ -348,7 +361,8 @@ test_control_umbrella() {
     local rendered="$TEST_DIRECTORY/osmo.yaml"
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
-    if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null; then
+    if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
+        ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null; then
         helm dependency build "$charts_copy/osmo" >/dev/null
     fi
 

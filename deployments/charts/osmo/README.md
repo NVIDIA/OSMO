@@ -32,11 +32,20 @@ helm upgrade --install osmo-cnpg cnpg/cloudnative-pg \
   --wait
 ```
 
-The OSMO chart vendors the official CloudNativePG `cluster` chart at version
-`0.8.0`, which creates a `Cluster` custom resource. It does not install or
-upgrade the operator. The default PostgreSQL 16 image is obtained from the
-CloudNativePG project on GHCR. Confirm that the operator and database images
-are mirrored or pullable in restricted environments.
+The OSMO chart declares the official CloudNativePG `cluster` chart at version
+`0.8.0`, which creates a `Cluster` custom resource. Published OSMO chart
+packages include that dependency. The source repository stores `Chart.lock`
+for reproducible dependency resolution but does not store downloaded chart
+archives. Build them before installing directly from a source checkout:
+
+```bash
+helm dependency build deployments/charts/osmo
+```
+
+The OSMO chart does not install or upgrade the operator. The default PostgreSQL
+16 image is obtained from the CloudNativePG project on GHCR. Confirm that the
+operator and database images are mirrored or pullable in restricted
+environments.
 
 The embedded-mode preflight checks the discovered CNPG API. For offline render
 validation, supply that capability explicitly (this Helm version does not
