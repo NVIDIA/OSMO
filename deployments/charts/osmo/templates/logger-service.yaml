@@ -96,16 +96,16 @@ spec:
         - "true"
         {{- end}}
         - --postgres_host
-        - {{ include "osmo.v1.postgresql-host" . }}
+        - {{ include "osmo.postgresql.host" . }}
         - --postgres_port
-        - {{ include "osmo.v1.postgresql-port" . | quote }}
+        - {{ include "osmo.postgresql.port" . | quote }}
         - --postgres_database_name
-        - {{ include "osmo.v1.postgresql-database" . }}
+        - {{ include "osmo.postgresql.database" . }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
         - --mek_file
         - {{ .Values.secrets.masterEncryptionKey.mountPath }}
         {{- end}}
-        {{- with (include "osmo.v1.postgresql-username" .) }}
+        {{- with (include "osmo.postgresql.username" .) }}
         - --postgres_user
         - {{ . }}
         {{- end }}

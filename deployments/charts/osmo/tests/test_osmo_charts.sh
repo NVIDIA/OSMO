@@ -1132,6 +1132,54 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-replicated-valkey-init.yaml" \
         "min-replicas-to-write 1"
 
+    cat >"$charts_copy/osmo/templates/postgresql-helper-contract.yaml" <<'EOF'
+{{- if .Values.embeddedDependencies.postgresql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-postgresql-helper-contract
+data:
+  clusterName: {{ include "osmo.postgresql.clusterName" . | quote }}
+  host: {{ include "osmo.postgresql.host" . | quote }}
+  port: {{ include "osmo.postgresql.port" . | quote }}
+  database: {{ include "osmo.postgresql.database" . | quote }}
+  username: {{ include "osmo.postgresql.username" . | quote }}
+  secretName: {{ include "osmo.postgresql.secretName" . | quote }}
+  passwordKey: {{ include "osmo.postgresql.passwordKey" . | quote }}
+  tlsEnabled: {{ include "osmo.postgresql.tlsEnabled" . | quote }}
+  caSecretName: {{ include "osmo.postgresql.caSecretName" . | quote }}
+  caKey: {{ include "osmo.postgresql.caKey" . | quote }}
+  connectionCaEnabled: {{ include "osmo.externalDependencies.connectionCaEnabled" . | quote }}
+{{- end }}
+EOF
+    helm_template embedded-helper-contract "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml"
+    rm "$charts_copy/osmo/templates/postgresql-helper-contract.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'clusterName: "embedded-helper-contract-postgresql"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'host: "embedded-helper-contract-postgresql-rw"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'port: "5432"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'database: "osmo"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'username: "osmo"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'secretName: "embedded-helper-contract-postgresql-app"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'passwordKey: "password"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'tlsEnabled: "true"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'caSecretName: "embedded-helper-contract-postgresql-ca"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'caKey: "ca.crt"'
+    require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
+        'connectionCaEnabled: "true"'
+
     helm_template embedded-osmo "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \

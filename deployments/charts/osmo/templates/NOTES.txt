@@ -7,9 +7,9 @@
 
 Embedded PostgreSQL is managed by CloudNativePG:
 
-  Cluster: {{ include "osmo.v1.postgresql-cluster-name" . }}
-  Read/write service: {{ include "osmo.v1.postgresql-host" . }}
-  Application Secret: {{ include "osmo.v1.postgresql-secret-name" . }}
+  Cluster: {{ include "osmo.postgresql.clusterName" . }}
+  Read/write service: {{ include "osmo.postgresql.host" . }}
+  Application Secret: {{ include "osmo.postgresql.secretName" . }}
 
 Check database readiness with:
 
@@ -17,5 +17,5 @@ Check database readiness with:
 {{- else }}
 
 OSMO is configured to use external PostgreSQL at
-{{ include "osmo.v1.postgresql-host" . }}:{{ include "osmo.v1.postgresql-port" . }}.
+{{ include "osmo.postgresql.host" . }}:{{ include "osmo.postgresql.port" . }}.
 {{- end }}

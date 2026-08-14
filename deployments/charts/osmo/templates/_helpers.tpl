@@ -304,7 +304,7 @@ data:
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-cluster-name" -}}
+{{- define "osmo.postgresql.clusterName" -}}
 {{- if .Values.postgresql.fullnameOverride -}}
 {{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -364,62 +364,62 @@ data:
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-host" -}}
+{{- define "osmo.postgresql.host" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
-{{- printf "%s-rw" (include "osmo.v1.postgresql-cluster-name" .) -}}
+{{- printf "%s-rw" (include "osmo.postgresql.clusterName" .) -}}
 {{- else -}}
 {{- .Values.externalDependencies.postgresql.host -}}
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-port" -}}
+{{- define "osmo.postgresql.port" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}5432{{- else -}}{{ .Values.externalDependencies.postgresql.port }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-database" -}}
+{{- define "osmo.postgresql.database" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}{{ .Values.postgresql.cluster.initdb.database }}{{- else -}}{{ .Values.externalDependencies.postgresql.database }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-username" -}}
+{{- define "osmo.postgresql.username" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}{{ .Values.postgresql.cluster.initdb.owner }}{{- else -}}{{ .Values.externalDependencies.postgresql.username }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-secret-name" -}}
+{{- define "osmo.postgresql.secretName" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
 {{- $existingSecret := dig "cluster" "initdb" "secret" "name" "" .Values.postgresql -}}
-{{- $existingSecret | default (printf "%s-app" (include "osmo.v1.postgresql-cluster-name" .)) -}}
+{{- $existingSecret | default (printf "%s-app" (include "osmo.postgresql.clusterName" .)) -}}
 {{- else -}}
 {{- .Values.secrets.postgresql.existingSecret -}}
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-password-key" -}}
+{{- define "osmo.postgresql.passwordKey" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}password{{- else -}}{{ .Values.secrets.postgresql.keys.password }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-tls-enabled" -}}
+{{- define "osmo.postgresql.tlsEnabled" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}true{{- else -}}{{ .Values.externalDependencies.postgresql.tls.enabled }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-ca-secret-name" -}}
+{{- define "osmo.postgresql.caSecretName" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
 {{- $serverCASecret := dig "cluster" "certificates" "serverCASecret" "" .Values.postgresql -}}
-{{- $serverCASecret | default (printf "%s-ca" (include "osmo.v1.postgresql-cluster-name" .)) -}}
+{{- $serverCASecret | default (printf "%s-ca" (include "osmo.postgresql.clusterName" .)) -}}
 {{- else -}}
 {{- .Values.externalDependencies.postgresql.tls.caExistingSecret -}}
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.postgresql-ca-key" -}}
+{{- define "osmo.postgresql.caKey" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}ca.crt{{- else -}}{{ .Values.externalDependencies.postgresql.tls.caKey }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.v1.connection-ca-enabled" -}}
-{{- if or (eq (include "osmo.v1.postgresql-tls-enabled" .) "true") (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
+{{- define "osmo.externalDependencies.connectionCaEnabled" -}}
+{{- if or (eq (include "osmo.postgresql.tlsEnabled" .) "true") (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}
-{{- if eq (include "osmo.v1.postgresql-tls-enabled" .) "true" }}
+{{- if eq (include "osmo.postgresql.tlsEnabled" .) "true" }}
 - name: postgresql-ca
   mountPath: /etc/osmo/ca/postgresql
   readOnly: true
@@ -432,12 +432,12 @@ data:
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumes" -}}
-{{- if eq (include "osmo.v1.postgresql-tls-enabled" .) "true" }}
+{{- if eq (include "osmo.postgresql.tlsEnabled" .) "true" }}
 - name: postgresql-ca
   secret:
-    secretName: {{ include "osmo.v1.postgresql-ca-secret-name" . }}
+    secretName: {{ include "osmo.postgresql.caSecretName" . }}
     items:
-    - key: {{ include "osmo.v1.postgresql-ca-key" . }}
+    - key: {{ include "osmo.postgresql.caKey" . }}
       path: ca.crt
 {{- end }}
 {{- if eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true" }}
@@ -451,12 +451,12 @@ data:
 {{- end -}}
 
 {{- define "osmo.externalDependencies.connectionSecretEnv" -}}
-{{- with (include "osmo.v1.postgresql-secret-name" .) }}
+{{- with (include "osmo.postgresql.secretName" .) }}
 - name: OSMO_POSTGRES_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ . }}
-      key: {{ include "osmo.v1.postgresql-password-key" $ }}
+      key: {{ include "osmo.postgresql.passwordKey" $ }}
 {{- end }}
 {{- with (include "osmo.valkey.secretName" .) }}
 - name: OSMO_REDIS_PASSWORD
@@ -465,7 +465,7 @@ data:
       name: {{ . }}
       key: {{ $.Values.secrets.valkey.keys.password }}
 {{- end }}
-{{- if eq (include "osmo.v1.postgresql-tls-enabled" .) "true" }}
+{{- if eq (include "osmo.postgresql.tlsEnabled" .) "true" }}
 - name: PGSSLMODE
   value: verify-full
 - name: PGSSLROOTCERT
