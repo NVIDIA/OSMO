@@ -27,7 +27,16 @@ oetf_scenario_test(
 oetf_scenario_test(
     name = "router-connectivity",
     test_dir = "router_connectivity",
+    test_filter = "RouterConnectivity.test_router_connectivity",
     tags = ["router", "positive", "kind"],
+)
+
+# Separate until the UDP CLI path has also been qualified against KIND.
+oetf_scenario_test(
+    name = "udp-port-forwarding",
+    test_dir = "router_connectivity",
+    test_filter = "RouterConnectivity.test_udp_port_forwarding",
+    tags = ["router", "portforward", "udp", "positive"],
 )
 
 # --- Plain workflow scenarios (no in-task code) ---

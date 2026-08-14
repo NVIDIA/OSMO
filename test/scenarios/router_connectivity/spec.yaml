@@ -10,13 +10,13 @@
 
 # Router Connectivity Test
 #
-# Validates the OSMO router can proxy exec/port-forward/rsync to a live task:
+# Validates the OSMO router can proxy exec and TCP/UDP port-forwarding to a live task:
 #   - INSIDE (task.py): writes a sentinel file to /workspace, starts a simple
-#     HTTP server on port 8080, sleeps to keep the task alive while the
-#     external runner exercises the router.
+#     HTTP server on TCP port 8080 and a UDP echo server on port 8081, then
+#     sleeps to keep the task alive while the external runner exercises the router.
 #   - OUTSIDE (test_runner.py): waits for the task to be RUNNING, then
-#     shells out to the osmo CLI to exec, port-forward, and rsync. Cancels
-#     the workflow after the three probes complete (pass or fail).
+#     shells out to the osmo CLI to exec and port-forward. Cancels the
+#     workflow after the probes complete (pass or fail).
 #
 # Expected outcome: "failed" — the workflow ends in FAILED_CANCELED, which
 # the builder's expect_failed() / handle.expect_outcome("failed") accepts.

@@ -16,14 +16,17 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 import unittest
 
 from test.oetf.models import WorkflowServerStatus
-from test.oetf.runner_fixture import RunnerFixture, curl_until
+from test.oetf.runner_fixture import RunnerFixture, curl_until, udp_round_trip_until
 
-# Kept in sync with staging/scenarios/router_connectivity/task.py.
+# Kept in sync with test/scenarios/router_connectivity/task.py.
 SENTINEL_CONTENT = "OETF_ROUTER_SENTINEL_c5b41e"
 SENTINEL_FILE = "sentinel.txt"
 TASK_NAME = "router-target"
 IN_TASK_HTTP_PORT = 8080
 LOCAL_HTTP_PORT = 18080
+IN_TASK_UDP_PORT = 8081
+LOCAL_UDP_PORT = 18081
+UDP_SENTINEL = b"OETF_UDP_PORT_FORWARD_SENTINEL_9e57ac"
 IN_TASK_WORKSPACE = "/workspace"
 
 
@@ -65,6 +68,28 @@ class RouterConnectivity(RunnerFixture):
         # Specifically FAILED_CANCELED, not the `failed` union — a regression
         # where the workflow ends as plain FAILED (e.g., a router fault
         # unrelated to cancellation) would otherwise silently pass.
+        self.assertEqual(handle.status, WorkflowServerStatus.FAILED_CANCELED)
+
+    def test_udp_port_forwarding(self):
+        """UDP traffic reaches the task and its response returns to the caller."""
+        self.login_cli()
+        handle = self.workflow("spec.yaml").submit()
+        try:
+            handle.wait_for_task_checkpoint(
+                "udp_listening", task_name=TASK_NAME,
+            )
+            with handle.cli_port_forward(
+                TASK_NAME, LOCAL_UDP_PORT, IN_TASK_UDP_PORT, udp=True,
+            ):
+                udp_round_trip_until(
+                    "127.0.0.1",
+                    LOCAL_UDP_PORT,
+                    UDP_SENTINEL,
+                    deadline_seconds=30,
+                )
+        finally:
+            handle.cancel()
+
         self.assertEqual(handle.status, WorkflowServerStatus.FAILED_CANCELED)
 
 

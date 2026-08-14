@@ -17,6 +17,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 from unittest.mock import MagicMock
 
 import yaml
@@ -31,6 +32,7 @@ from test.oetf.runner_fixture import (
     _inject_task_files,
     _iter_checkpoints,
     _runfiles_repo_root_for,
+    udp_round_trip_until,
 )
 
 
@@ -396,6 +398,56 @@ class WaitForTaskCheckpointTest(unittest.TestCase):
         )
         with self.assertRaises(TypeError):
             handle.wait_for_task_checkpoint("ready")  # type: ignore[call-arg]
+
+
+class UdpRoundTripUntilTest(unittest.TestCase):
+
+    def test_retries_until_exact_payload_is_echoed(self):
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.recvfrom.side_effect = [
+            (b"wrong payload", ("127.0.0.1", 18081)),
+            (b"sentinel", ("127.0.0.1", 18081)),
+        ]
+
+        with mock.patch(
+            "test.oetf.runner_fixture.socket.socket", return_value=client,
+        ):
+            udp_round_trip_until(
+                "127.0.0.1", 18081, b"sentinel", deadline_seconds=5,
+            )
+
+        self.assertEqual(client.sendto.call_count, 2)
+
+
+class CliPortForwardTest(unittest.TestCase):
+
+    def test_udp_port_forward_appends_udp_flag_and_stops_process(self):
+        fixture = MagicMock()
+        handle = WorkflowHandle(
+            fixture=fixture, workflow_id="wf-test-1", timeout_seconds=60,
+        )
+        process = MagicMock()
+
+        with mock.patch(
+            "test.oetf.runner_fixture.resolve_osmo_cli", return_value="/bin/osmo",
+        ), mock.patch(
+            "test.oetf.runner_fixture.subprocess.Popen", return_value=process,
+        ) as popen:
+            with handle.cli_port_forward("task-a", 18081, 8081, udp=True):
+                pass
+
+        argv = popen.call_args.args[0]
+        self.assertEqual(
+            argv,
+            [
+                "/bin/osmo", "workflow", "port-forward", "wf-test-1", "task-a",
+                "--port", "18081:8081", "--udp",
+            ],
+        )
+        process.terminate.assert_called_once_with()
+        process.stdout.close.assert_called_once_with()
+        process.stderr.close.assert_called_once_with()
 
 
 class TestRunnerFixtureDefaults(unittest.TestCase):

@@ -30,6 +30,7 @@ import pty
 import re
 import select
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -181,6 +182,30 @@ def curl_until(url: str, match: str, deadline_seconds: int) -> None:
     raise RuntimeError(
         f"curl {url} never returned {match!r} within {deadline_seconds}s "
         f"(last: {last_error})"
+    )
+
+
+def udp_round_trip_until(
+    host: str, port: int, payload: bytes, deadline_seconds: int,
+) -> None:
+    """Send a UDP datagram until the endpoint echoes the exact payload."""
+    deadline = time.monotonic() + deadline_seconds
+    last_error = "not attempted"
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            client.settimeout(min(1.0, max(remaining, 0.1)))
+            try:
+                client.sendto(payload, (host, port))
+                response, _ = client.recvfrom(max(4096, len(payload)))
+                if response == payload:
+                    return
+                last_error = f"received unexpected payload {response!r}"
+            except OSError as error:
+                last_error = f"{type(error).__name__}: {error}"
+    raise RuntimeError(
+        f"UDP endpoint {host}:{port} never echoed {payload!r} within "
+        f"{deadline_seconds}s (last: {last_error})"
     )
 
 
@@ -1078,14 +1103,16 @@ class WorkflowHandle:
 
     @contextlib.contextmanager
     def cli_port_forward(
-        self, task_name: str, local_port: int, remote_port: int,
+        self, task_name: str, local_port: int, remote_port: int, *, udp: bool = False,
     ) -> Iterator[int]:
-        """Background-spawn `osmo workflow port-forward` for the duration of the block."""
+        """Run TCP or UDP `osmo workflow port-forward` for the duration of the block."""
         cli = resolve_osmo_cli(self._fixture.config)
         argv = [
             cli, "workflow", "port-forward", self.workflow_id, task_name,
             "--port", f"{local_port}:{remote_port}",
         ]
+        if udp:
+            argv.append("--udp")
         process = subprocess.Popen(  # pylint: disable=consider-using-with
             argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
@@ -1098,6 +1125,9 @@ class WorkflowHandle:
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=5)
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
 
     # --- Lazy accessors ---
 

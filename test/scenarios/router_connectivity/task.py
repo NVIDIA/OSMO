@@ -26,6 +26,7 @@ from task_fixture import TaskFixture
 OETF_ROUTER_SENTINEL_CONTENT = "OETF_ROUTER_SENTINEL_c5b41e"
 OETF_ROUTER_SENTINEL_FILE = "sentinel.txt"
 OETF_ROUTER_HTTP_PORT = 8080
+OETF_ROUTER_UDP_PORT = 8081
 OETF_ROUTER_KEEPALIVE_SECONDS = 200
 OETF_ROUTER_WORKSPACE_DIR = "/workspace"
 
@@ -33,10 +34,11 @@ OETF_ROUTER_WORKSPACE_DIR = "/workspace"
 class RouterProbe(TaskFixture):
     """Writes a sentinel, serves it over HTTP, and keeps the task alive.
 
-    Emits two checkpoints so the external test_runner can sync before
+    Emits checkpoints so the external test_runner can sync before
     exec/port-forward probes:
       - "sentinel_written": sentinel file exists on disk (runner can `cat`).
       - "http_listening":   HTTP server bound (runner can port-forward + curl).
+      - "udp_listening":    UDP echo server bound (runner can verify a round trip).
     """
 
     def run_checks(self):
@@ -71,6 +73,21 @@ class RouterProbe(TaskFixture):
                 f"failed to bind {OETF_ROUTER_WORKSPACE_DIR}",
             )
 
+        if _start_udp_echo_server(OETF_ROUTER_UDP_PORT):
+            self.record_pass(
+                f"udp:listen:{OETF_ROUTER_UDP_PORT}",
+                "echo server ready",
+            )
+            self.checkpoint(
+                "udp_listening", message=f"port={OETF_ROUTER_UDP_PORT}",
+            )
+        else:
+            self.record_fail(
+                f"udp:listen:{OETF_ROUTER_UDP_PORT}",
+                "failed to bind UDP echo server",
+            )
+            return
+
         # Keep task alive for external runner to exec/port-forward into.
         print(
             f"[OETF-ROUTER] probe ready; sleeping {OETF_ROUTER_KEEPALIVE_SECONDS}s",
@@ -99,6 +116,24 @@ def _start_http_server(serve_dir: str, port: int) -> bool:
         return False
 
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    return True
+
+
+def _start_udp_echo_server(port: int) -> bool:
+    """Start a UDP echo server in a background daemon thread."""
+    class _EchoHandler(socketserver.BaseRequestHandler):
+        def handle(self):
+            data, server_socket = self.request
+            server_socket.sendto(data, self.client_address)
+
+    try:
+        server = socketserver.ThreadingUDPServer(("0.0.0.0", port), _EchoHandler)
+    except OSError as error:
+        print(f"[OETF-ROUTER] UDP bind({port}) failed: {error}", flush=True)
+        return False
+
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return True
 

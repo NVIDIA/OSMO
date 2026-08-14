@@ -612,7 +612,7 @@ if __name__ == "__main__":
 ```python
 # test/scenarios/router_connectivity/test_runner.py
 import unittest
-from test.oetf.runner_fixture import RunnerFixture
+from test.oetf.runner_fixture import RunnerFixture, udp_round_trip_until
 
 # Kept in sync with task.py — the two files run on different machines
 # (task.py in-container, test_runner.py on the caller) so they can't share
@@ -639,6 +639,14 @@ class RouterConnectivity(RunnerFixture):
         with handle.cli_port_forward("router-target", 18080, 8080):
             # ... curl through the forward ...
             pass
+
+        # UDP uses the same checkpoint-gated context manager. Require an
+        # exact echoed datagram so a merely-running CLI cannot pass.
+        handle.wait_for_task_checkpoint("udp_listening", task_name="router-target")
+        with handle.cli_port_forward("router-target", 18081, 8081, udp=True):
+            udp_round_trip_until(
+                "127.0.0.1", 18081, b"udp-sentinel", deadline_seconds=30,
+            )
 
         handle.cancel()
         handle.expect_outcome("failed")
@@ -709,7 +717,7 @@ different name than you waited on.
 `wait_for_task_checkpoint` / `wait_for_any_task_checkpoints` /
 `wait_for_all_task_checkpoints`, `wait_for_terminal`, `cli_exec`
 (PTY-attached `osmo workflow exec`), `cli_port_forward` (context manager
-around `osmo workflow port-forward`), `cancel`, `expect_outcome`, plus
+around TCP or UDP `osmo workflow port-forward`), `cancel`, `expect_outcome`, plus
 lazy `status` / `tasks` / `logs` properties and
 `assert_in_task_checks_passed` / `assert_all_task_checks_passed`.
 
