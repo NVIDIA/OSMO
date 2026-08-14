@@ -127,7 +127,7 @@ class RequestContextMiddleware:
 
 
 def get_request_credentials() -> RequestCredentials:
-    """Return credentials for the active MCP request."""
+    """Return credentials from the active request's configured trust boundary."""
     access_token = get_access_token()
     if access_token is not None:
         return _credentials_from_access_token(access_token)
@@ -135,18 +135,6 @@ def get_request_credentials() -> RequestCredentials:
     request_state = _request_state.get()
     if request_state is not None and request_state.credentials is not None:
         return request_state.credentials
-
-    # Direct mode is retained for deployments where the Gateway authenticates
-    # /mcp before forwarding it to this process. Read the untouched ASGI header
-    # list so duplicate security-sensitive headers still fail closed.
-    try:
-        request = get_http_request()
-    except RuntimeError:
-        request = None
-    if request is not None:
-        credentials = _parse_credentials(request.scope.get('headers', []))
-        if credentials is not None:
-            return credentials
 
     raise RequestContextUnavailable(
         'MCP request credentials are unavailable.')
@@ -222,21 +210,13 @@ def _credentials_from_access_token(
         ]
     except RuntimeError:
         raw_request_ids = []
-    if len(raw_request_ids) > 1:
+    request_id_is_valid, request_id = _parse_request_id(
+        raw_request_ids,
+        authorization_header,
+    )
+    if not request_id_is_valid:
         raise RequestContextUnavailable(
             'MCP request credentials are unavailable.')
-    if raw_request_ids:
-        if len(raw_request_ids[0]) > MAX_REQUEST_ID_HEADER_BYTES:
-            raise RequestContextUnavailable(
-                'MCP request credentials are unavailable.')
-        request_id = _decode_ascii(raw_request_ids[0])
-        if (
-            request_id is None
-            or _REQUEST_ID.fullmatch(request_id) is None
-            or request_id_overlaps_bearer(authorization_header, request_id)
-        ):
-            raise RequestContextUnavailable(
-                'MCP request credentials are unavailable.')
 
     return RequestCredentials(
         authorization_header=authorization_header,
@@ -286,13 +266,8 @@ def _parse_credentials(
     if (
         len(authorization_values) != 1
         or len(user_values) != 1
-        or len(request_id_values) > 1
         or len(authorization_values[0]) > MAX_AUTHORIZATION_HEADER_BYTES
         or len(user_values[0]) > MAX_USER_HEADER_BYTES
-        or (
-            request_id_values
-            and len(request_id_values[0]) > MAX_REQUEST_ID_HEADER_BYTES
-        )
     ):
         return None
 
@@ -306,24 +281,43 @@ def _parse_credentials(
     ):
         return None
 
-    request_id: str | None = None
-    if request_id_values:
-        request_id = _decode_ascii(request_id_values[0])
-        if (
-            request_id is None
-            or _REQUEST_ID.fullmatch(request_id) is None
-            or request_id_overlaps_bearer(
-                authorization_header,
-                request_id,
-            )
-        ):
-            return None
+    request_id_is_valid, request_id = _parse_request_id(
+        request_id_values,
+        authorization_header,
+    )
+    if not request_id_is_valid:
+        return None
 
     return RequestCredentials(
         authorization_header=authorization_header,
         user_name=user_name,
         request_id=request_id,
     )
+
+
+def _parse_request_id(
+    raw_values: list[bytes],
+    authorization_header: str,
+) -> tuple[bool, str | None]:
+    if (
+        len(raw_values) > 1
+        or (
+            raw_values
+            and len(raw_values[0]) > MAX_REQUEST_ID_HEADER_BYTES
+        )
+    ):
+        return False, None
+    if not raw_values:
+        return True, None
+
+    request_id = _decode_ascii(raw_values[0])
+    if (
+        request_id is None
+        or _REQUEST_ID.fullmatch(request_id) is None
+        or request_id_overlaps_bearer(authorization_header, request_id)
+    ):
+        return False, None
+    return True, request_id
 
 
 def _is_supported_authorization_header(value: str) -> bool:

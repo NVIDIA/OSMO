@@ -139,7 +139,7 @@ def create_runtime_application(
     """Create the production application and process-lifetime Gateway client."""
     auth_runtime = (
         auth.create_auth_runtime(config)
-        if config.enabled
+        if config.auth_enabled
         else None
     )
     protocol_server = create_mcp_server(

@@ -16,8 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import base64
-import json
 import tempfile
 import time
 from typing import Any
@@ -35,14 +33,14 @@ from src.service.mcp import auth, server
 
 class MCPAuthConfigTest(unittest.TestCase):
     def test_auth_is_disabled_without_any_oidc_configuration(self) -> None:
-        self.assertFalse(auth.MCPAuthConfig().enabled)
+        self.assertFalse(auth.MCPAuthConfig().auth_enabled)
 
     def test_enabled_auth_requires_complete_configuration(self) -> None:
         with self.assertRaisesRegex(
             pydantic.ValidationError,
             'Enabled MCP auth is missing',
         ):
-            auth.MCPAuthConfig(enabled=True)
+            auth.MCPAuthConfig(auth_enabled=True)
 
     def test_enabled_auth_normalizes_and_validates_scope_contract(self) -> None:
         config = _config()
@@ -51,30 +49,40 @@ class MCPAuthConfigTest(unittest.TestCase):
             config.allowed_client_redirect_uris,
             ['http://localhost:*', 'http://127.0.0.1:*', 'http://[::1]:*'],
         )
-        with self.assertRaisesRegex(pydantic.ValidationError, 'scope must be'):
-            _config(scope='https://osmo.example/mcp/wrong')
+        with self.assertRaisesRegex(
+            pydantic.ValidationError,
+            'auth_scope must be',
+        ):
+            _config(auth_scope='https://osmo.example/mcp/wrong')
 
         service_config = server.MCPServiceConfig(
             gateway_url='https://gateway.example',
             **config.model_dump(),
         )
-        self.assertTrue(service_config.enabled)
-        self.assertEqual(service_config.scope, config.scope)
+        self.assertTrue(service_config.auth_enabled)
+        self.assertEqual(service_config.auth_scope, config.auth_scope)
+
+    def test_auth_field_renames_preserve_environment_contract(self) -> None:
+        self.assertEqual(
+            auth.MCPAuthConfig.model_fields['auth_enabled'].json_schema_extra,
+            {'env': 'OSMO_MCP_AUTH_ENABLED'},
+        )
+        self.assertEqual(
+            auth.MCPAuthConfig.model_fields['auth_scope'].json_schema_extra,
+            {'env': 'OSMO_MCP_AUTH_SCOPE'},
+        )
 
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
     async def test_factory_uses_plain_oidc_proxy_and_split_scope_contract(self) -> None:
-        signing_key = b's' * 32
-        with (
-            _secret_file('client-secret') as client_secret_file,
-            _jwks_file(signing_key) as signing_jwks_file,
-        ):
+        with _secret_file('client-secret') as client_secret_file:
             config = _config(
                 oidc_client_secret_file=client_secret_file,
-                signing_jwks_file=signing_jwks_file,
             )
-            redis_client = mock.Mock()
-            redis_client.aclose = mock.AsyncMock()
+            redis_client = mock.create_autospec(
+                auth.redis_asyncio.Redis,
+                instance=True,
+            )
             oidc_configuration = OIDCConfiguration(
                 issuer='https://login.example/tenant/v2.0',
                 authorization_endpoint=(
@@ -103,8 +111,11 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 mock.patch.object(
                     auth,
                     'FernetEncryptionWrapper',
-                    side_effect=lambda key_value, fernet: key_value,
-                ),
+                    side_effect=(
+                        lambda key_value, fernet, raise_on_decryption_error:
+                        key_value
+                    ),
+                ) as encryption_wrapper,
                 mock.patch.object(
                     OIDCProxy,
                     'get_oidc_configuration',
@@ -116,6 +127,13 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
             try:
                 provider = runtime.provider
                 self.assertIs(type(provider), OIDCProxy)
+                self.assertEqual(
+                    provider._jwt_signing_key,  # pylint: disable=protected-access
+                    auth.derive_jwt_key(
+                        high_entropy_material='client-secret',
+                        salt='fastmcp-jwt-signing-key',
+                    ),
+                )
                 self.assertEqual(provider.required_scopes, ['access_as_user'])
                 self.assertEqual(
                     provider._token_validator.required_scopes,  # pylint: disable=protected-access
@@ -141,6 +159,11 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 # would pass the keyword twice on its refresh path.
                 self.assertEqual(provider._extra_token_params, {})  # pylint: disable=protected-access
                 self.assertFalse(provider._forward_resource)  # pylint: disable=protected-access
+                self.assertFalse(
+                    encryption_wrapper.call_args.kwargs[
+                        'raise_on_decryption_error'
+                    ]
+                )
 
                 application = server.create_application(
                     server.create_mcp_server(provider)
@@ -252,24 +275,52 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 await runtime.aclose()
             redis_client.aclose.assert_awaited_once()
 
-    def test_signing_jwks_requires_one_256_bit_symmetric_key(self) -> None:
-        signing_key = b'k' * 32
-        with _jwks_file(signing_key) as path:
-            self.assertEqual(
-                auth._read_signing_jwks(path),  # pylint: disable=protected-access
-                signing_key,
-            )
-        with _secret_file(json.dumps({'keys': [{'kty': 'RSA', 'k': 'bad'}]})) as path:
-            with self.assertRaisesRegex(ValueError, 'symmetric JWK'):
-                auth._read_signing_jwks(path)  # pylint: disable=protected-access
+    async def test_close_releases_redis_when_http_close_fails(self) -> None:
+        provider = mock.create_autospec(OIDCProxy, instance=True)
+        redis_client = mock.create_autospec(
+            auth.redis_asyncio.Redis,
+            instance=True,
+        )
+        http_client = mock.create_autospec(httpx.AsyncClient, instance=True)
+        http_client.aclose.side_effect = RuntimeError('HTTP close failed')
+        runtime = auth.MCPAuthRuntime(provider, redis_client, http_client)
+
+        with self.assertRaisesRegex(RuntimeError, 'HTTP close failed'):
+            await runtime.aclose()
+
+        http_client.aclose.assert_awaited_once_with()
+        redis_client.aclose.assert_awaited_once_with()
+
+    def test_storage_key_matches_fastmcp_default_and_is_deterministic(self) -> None:
+        first = auth._storage_encryption_key(  # pylint: disable=protected-access
+            'client-secret',
+        )
+        second = auth._storage_encryption_key(  # pylint: disable=protected-access
+            'client-secret',
+        )
+        different = auth._storage_encryption_key(  # pylint: disable=protected-access
+            'rotated-client-secret',
+        )
+        signing_key = auth.derive_jwt_key(
+            high_entropy_material='client-secret',
+            salt='fastmcp-jwt-signing-key',
+        )
+        expected = auth.derive_jwt_key(
+            high_entropy_material=signing_key.decode('ascii'),
+            salt='fastmcp-storage-encryption-key',
+        )
+
+        self.assertEqual(first, expected)
+        self.assertEqual(first, second)
+        self.assertNotEqual(first, different)
 
 
 def _config(**overrides: object) -> auth.MCPAuthConfig:
     values: dict[str, object] = {
-        'enabled': True,
+        'auth_enabled': True,
         'issuer_url': 'https://osmo.example/',
         'resource_url': 'https://osmo.example/mcp',
-        'scope': 'https://osmo.example/mcp/access_as_user',
+        'auth_scope': 'https://osmo.example/mcp/access_as_user',
         'redis_url': 'rediss://redis.example:6379/7',
         'oidc_config_url': (
             'https://login.example/tenant/.well-known/openid-configuration'
@@ -279,7 +330,6 @@ def _config(**overrides: object) -> auth.MCPAuthConfig:
         'oidc_access_token_jwks_url': 'https://sts.example/tenant/keys',
         'oidc_access_token_issuer': 'https://sts.example/tenant/',
         'oidc_access_token_audience': 'https://osmo.example/mcp',
-        'signing_jwks_file': '/signing-key',
     }
     values.update(overrides)
     return auth.MCPAuthConfig(**values)
@@ -308,18 +358,6 @@ class _TemporaryFile:
 
 def _secret_file(content: str) -> _TemporaryFile:
     return _TemporaryFile(content)
-
-
-def _jwks_file(signing_key: bytes) -> _TemporaryFile:
-    encoded = base64.urlsafe_b64encode(signing_key).rstrip(b'=').decode()
-    return _TemporaryFile(json.dumps({
-        'keys': [{
-            'kty': 'oct',
-            'alg': 'HS256',
-            'use': 'sig',
-            'k': encoded,
-        }],
-    }))
 
 
 if __name__ == '__main__':

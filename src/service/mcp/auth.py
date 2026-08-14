@@ -16,14 +16,12 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import base64
 import dataclasses
-import hashlib
-import json
-from typing import Any, cast
+from typing import cast
 from urllib import parse
 
 from cryptography.fernet import Fernet
+from fastmcp.server.auth.jwt_issuer import derive_jwt_key
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 import httpx
@@ -42,7 +40,7 @@ class MCPAuthConfig(pydantic.BaseModel):
 
     model_config = pydantic.ConfigDict(hide_input_in_errors=True)
 
-    enabled: bool = pydantic.Field(
+    auth_enabled: bool = pydantic.Field(
         default=False,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_ENABLED'},
     )
@@ -54,7 +52,7 @@ class MCPAuthConfig(pydantic.BaseModel):
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
     )
-    scope: str | None = pydantic.Field(
+    auth_scope: str | None = pydantic.Field(
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_SCOPE'},
     )
@@ -102,10 +100,6 @@ class MCPAuthConfig(pydantic.BaseModel):
             'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE',
         },
     )
-    signing_jwks_file: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_SIGNING_JWKS_FILE'},
-    )
     trusted_https_redirect_origins: str = pydantic.Field(
         default='',
         json_schema_extra={
@@ -144,15 +138,15 @@ class MCPAuthConfig(pydantic.BaseModel):
     )
 
     @pydantic.model_validator(mode='after')
-    def _validate_enabled_config(self) -> 'MCPAuthConfig':
-        if not self.enabled:
+    def _validate_auth_config(self) -> 'MCPAuthConfig':
+        if not self.auth_enabled:
             return self
         required = {
             name: getattr(self, name)
             for name in (
                 'issuer_url',
                 'resource_url',
-                'scope',
+                'auth_scope',
                 'redis_url',
                 'oidc_config_url',
                 'oidc_client_id',
@@ -160,7 +154,6 @@ class MCPAuthConfig(pydantic.BaseModel):
                 'oidc_access_token_jwks_url',
                 'oidc_access_token_issuer',
                 'oidc_access_token_audience',
-                'signing_jwks_file',
             )
         }
         missing = sorted(name for name, value in required.items() if not value)
@@ -171,16 +164,18 @@ class MCPAuthConfig(pydantic.BaseModel):
 
         issuer = _https_url(cast(str, self.issuer_url), root_only=True)
         resource = _https_url(cast(str, self.resource_url))
-        scope = _https_url(cast(str, self.scope))
+        scope = _https_url(cast(str, self.auth_scope))
         if resource != f'{issuer}/mcp':
             raise ValueError('resource_url must be issuer_url followed by /mcp')
         if scope != f'{resource}/{self.oidc_access_token_required_scope}':
-            raise ValueError('scope must be resource_url followed by the token scope')
+            raise ValueError(
+                'auth_scope must be resource_url followed by the token scope'
+            )
         if self.oidc_access_token_audience != resource:
             raise ValueError('oidc_access_token_audience must match resource_url')
         self.issuer_url = issuer
         self.resource_url = resource
-        self.scope = scope
+        self.auth_scope = scope
         self.oidc_config_url = _https_url(cast(str, self.oidc_config_url))
         self.oidc_access_token_jwks_url = _https_url(
             cast(str, self.oidc_access_token_jwks_url)
@@ -222,19 +217,25 @@ class MCPAuthRuntime:
     """Resources owned by FastMCP's built-in OIDC proxy."""
 
     provider: OIDCProxy
-    redis_client: Any
+    redis_client: redis_asyncio.Redis
     http_client: httpx.AsyncClient
 
     async def aclose(self) -> None:
-        await self.http_client.aclose()
-        await cast(Any, self.redis_client).aclose()
+        try:
+            await self.http_client.aclose()
+        finally:
+            await self.redis_client.aclose()
 
 
 def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     """Configure FastMCP's OIDCProxy; no OSMO OAuth endpoints are implemented."""
-    if not config.enabled:
+    if not config.auth_enabled:
         raise ValueError('MCP auth is disabled')
 
+    client_secret = _read_required_secret(
+        cast(str, config.oidc_client_secret_file),
+        'OIDC client secret',
+    )
     redis_client = redis_asyncio.Redis.from_url(
         cast(str, config.redis_url),
         password=_read_optional_secret(config.redis_password_file),
@@ -246,10 +247,10 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         key_value=RedisStore(client=redis_client),
         prefix=config.redis_key_prefix,
     )
-    signing_key = _read_signing_jwks(cast(str, config.signing_jwks_file))
     encrypted_store: AsyncKeyValue = FernetEncryptionWrapper(
         key_value=namespaced_store,
-        fernet=Fernet(base64.urlsafe_b64encode(_storage_key(signing_key))),
+        fernet=Fernet(_storage_encryption_key(client_secret)),
+        raise_on_decryption_error=False,
     )
     http_client = httpx.AsyncClient(
         timeout=config.upstream_timeout_seconds,
@@ -263,15 +264,12 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         required_scopes=[config.oidc_access_token_required_scope],
         http_client=http_client,
     )
-    requested_scope = cast(str, config.scope)
+    requested_scope = cast(str, config.auth_scope)
     upstream_scope = ' '.join((requested_scope, *_UPSTREAM_OIDC_SCOPES))
     provider = OIDCProxy(
         config_url=cast(str, config.oidc_config_url),
         client_id=cast(str, config.oidc_client_id),
-        client_secret=_read_required_secret(
-            cast(str, config.oidc_client_secret_file),
-            'OIDC client secret',
-        ),
+        client_secret=client_secret,
         token_verifier=verifier,
         base_url=cast(str, config.issuer_url),
         resource_base_url=cast(str, config.issuer_url),
@@ -279,7 +277,6 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         redirect_path='/auth/callback',
         allowed_client_redirect_uris=config.allowed_client_redirect_uris,
         client_storage=encrypted_store,
-        jwt_signing_key=signing_key,
         token_endpoint_auth_method='client_secret_post',
         require_authorization_consent=True,
         forward_resource=False,
@@ -296,29 +293,16 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     return MCPAuthRuntime(provider, redis_client, http_client)
 
 
-def _read_signing_jwks(path: str) -> bytes:
-    with open(path, encoding='utf-8') as jwks_file:
-        document = json.load(jwks_file)
-    keys = document.get('keys') if isinstance(document, dict) else None
-    if not isinstance(keys, list) or len(keys) != 1 or not isinstance(keys[0], dict):
-        raise ValueError('FastMCP signing JWKS must contain exactly one key')
-    key = keys[0]
-    encoded = key.get('k')
-    if key.get('kty') != 'oct' or not isinstance(encoded, str):
-        raise ValueError('FastMCP signing key must be one symmetric JWK')
-    if key.get('alg') not in {None, 'HS256'} or key.get('use') not in {None, 'sig'}:
-        raise ValueError('FastMCP signing key must be an HS256 signing key')
-    try:
-        decoded = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
-    except (TypeError, ValueError) as error:
-        raise ValueError('FastMCP signing key must be base64url') from error
-    if len(decoded) != 32:
-        raise ValueError('FastMCP signing key must contain exactly 256 bits')
-    return decoded
-
-
-def _storage_key(signing_key: bytes) -> bytes:
-    return hashlib.sha256(b'osmo-fastmcp-storage-v1\0' + signing_key).digest()
+def _storage_encryption_key(client_secret: str) -> bytes:
+    """Mirror FastMCP's default signing and storage key derivation."""
+    signing_key = derive_jwt_key(
+        high_entropy_material=client_secret,
+        salt='fastmcp-jwt-signing-key',
+    )
+    return derive_jwt_key(
+        high_entropy_material=signing_key.decode('ascii'),
+        salt='fastmcp-storage-encryption-key',
+    )
 
 
 def _read_required_secret(path: str, name: str) -> str:
@@ -341,7 +325,7 @@ def _https_url(
 ) -> str:
     parsed = parse.urlsplit(value)
     try:
-        parsed.port
+        _ = parsed.port
     except ValueError as error:
         raise ValueError('OAuth URL contains an invalid port') from error
     if (

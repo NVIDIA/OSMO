@@ -40,6 +40,7 @@ osmo_py_library(
         requirement("starlette"),
         "//src/lib/utils:login",
         "//src/service/mcp:gateway",
+        "//src/service/mcp:mcp_service_lib",
         "//src/service/mcp:protocol",
         "//src/service/mcp:request_context",
         "//src/service/mcp:tool_registry",

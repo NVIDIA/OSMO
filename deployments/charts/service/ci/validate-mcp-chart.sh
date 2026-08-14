@@ -175,7 +175,6 @@ for expected in \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE' \
-    'name: OSMO_MCP_AUTH_SIGNING_JWKS_FILE' \
     'name: OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS' \
     'secretName: mcp-oidc-proxy-secrets'; do
   assert_file_contains "$PROXY_MCP_MANIFEST" "$expected"
@@ -228,6 +227,8 @@ for forbidden in \
     '- mcp-auth' \
     'local_jwks:' \
     'mcp-oauth-signing-jwks' \
+    'OSMO_MCP_AUTH_SIGNING_JWKS_FILE' \
+    'signing-jwks.json' \
     'upstream_claims' \
     'meta.verified_jwt.token_use'; do
   assert_file_omits "$PROXY_RENDERED_MANIFEST" "$forbidden"

@@ -168,7 +168,8 @@ consent paths to the existing `osmo-mcp` cluster with Gateway JWT and ext-authz
 disabled only on those routes. FastMCP authenticates `/mcp`; each tool then
 relays the verified upstream access token to `/api`, where the existing Gateway
 identity-provider validation, OSMO roles, API actions, and pool scope still
-apply. The private FastMCP signing key is never mounted into Gateway.
+apply. FastMCP derives its private proxy-token signing key from the upstream
+OIDC client secret; no proxy signing key is mounted into Gateway.
 
 ### Deployment prerequisites
 
@@ -180,8 +181,6 @@ Before enabling OIDC proxy mode, an administrator must provide:
 - the full delegated `<resource-url>/access_as_user` scope on that application;
 - OIDC discovery plus explicit issuer, audience, JWKS URL, and short
   `access_as_user` scope requirements for upstream API access-token validation;
-- one private 256-bit HS256 key as a single-key JWKS mounted only in the MCP
-  pod; this symmetric key must never be exposed publicly;
 - a shared Redis namespace for FastMCP's encrypted clients, authorization
   transactions, upstream tokens, and refresh state;
 - an exact public MCP resource URL; the OAuth issuer is its origin; and
@@ -227,14 +226,13 @@ services:
         accessTokenAudience: https://<osmo-host>/mcp
         accessTokenJwksUrl: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
         accessTokenRequiredScope: access_as_user
-      signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
       redis:
         dbNumber: <dedicated-database-number>
         keyPrefix: osmo:mcp-fastmcp
 ```
 
-Do not place the upstream client secret, signing key, access token, refresh
-token, authorization code, or user session in Helm values, Git, or logs. The
+Do not place the upstream client secret, access token, refresh token,
+authorization code, or user session in Helm values, Git, or logs. The
 existing `/usr/bin/mcp` process loads `OIDCProxy` and the
 file-mounted secrets directly. Startup fails if required configuration or key
 material is missing; health probes report process health and do not perform an
@@ -244,6 +242,13 @@ token, refresh, consent, Redis, and upstream identity-provider outcomes without
 logging credential or identity payloads. CIMD fetches are outbound requests to
 client-controlled URLs; retain FastMCP's validation and SSRF protections and do
 not add an unrestricted custom metadata-fetch path.
+
+FastMCP deterministically derives the proxy-token signing key from the upstream
+OIDC client secret. OSMO mirrors FastMCP's derivation for the encrypted Redis
+store, so all replicas and restarts using the same client secret share stable
+keys. Rotating the client secret invalidates outstanding proxy tokens; encrypted
+entries from the old key are treated as cache misses, so clients must sign in
+again after the rotation.
 
 ### Rollout and rollback
 
@@ -372,8 +377,9 @@ the single source of registration metadata used by both the server and
 catalog.
 
 Optional authentication lives in `auth.py`. It constructs FastMCP's built-in
-`OIDCProxy`, upstream `JWTVerifier`, encrypted Redis store, and signing key, then
-passes the provider as the `auth` argument to the same `OSMOFastMCP` instance.
+`OIDCProxy`, upstream `JWTVerifier`, and encrypted Redis store, then passes the
+provider as the `auth` argument to the same `OSMOFastMCP` instance. FastMCP
+derives its signing key from the existing upstream OIDC client secret.
 OSMO does not implement OAuth endpoints or run a second auth service.
 
 Do not import the CLI runtime. Extract only pure public helpers when behavior

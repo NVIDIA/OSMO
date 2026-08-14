@@ -41,7 +41,11 @@ class OIDCRequestCredentialsTest(unittest.TestCase):
             'type': 'http',
             'method': 'POST',
             'path': '/mcp',
-            'headers': [(b'x-request-id', b'oidc-request-123')],
+            'headers': [
+                (b'authorization', b'Bearer client-supplied-token'),
+                (b'x-osmo-user', b'mallory@example.com'),
+                (b'x-request-id', b'oidc-request-123'),
+            ],
         })
         with (
             mock.patch.object(
@@ -63,6 +67,77 @@ class OIDCRequestCredentialsTest(unittest.TestCase):
         )
         self.assertEqual(credentials.user_name, 'alice@example.com')
         self.assertEqual(credentials.request_id, 'oidc-request-123')
+
+    def test_unverified_request_headers_are_not_credentials(self) -> None:
+        request = Request({
+            'type': 'http',
+            'method': 'POST',
+            'path': '/mcp',
+            'headers': [
+                (b'authorization', b'Bearer client-supplied-token'),
+                (b'x-osmo-user', b'mallory@example.com'),
+            ],
+        })
+        with (
+            mock.patch.object(
+                request_context,
+                'get_access_token',
+                return_value=None,
+            ),
+            mock.patch.object(
+                request_context,
+                'get_http_request',
+                return_value=request,
+            ),
+            self.assertRaisesRegex(
+                request_context.RequestContextUnavailable,
+                'credentials are unavailable',
+            ),
+        ):
+            request_context.get_request_credentials()
+
+    def test_verified_token_rejects_invalid_request_ids(self) -> None:
+        access_token = AccessToken(
+            token='verified-entra-token-value',
+            client_id='codex-client',
+            scopes=['access_as_user'],
+            claims={'preferred_username': 'alice@example.com'},
+        )
+        invalid_headers = (
+            [(b'x-request-id', b'')],
+            [(b'x-request-id', b'invalid/request')],
+            [
+                (b'x-request-id', b'first-request'),
+                (b'X-Request-ID', b'second-request'),
+            ],
+            [(b'x-request-id', b'verified-entra-token-value')],
+        )
+
+        for headers in invalid_headers:
+            with self.subTest(headers=headers):
+                request = Request({
+                    'type': 'http',
+                    'method': 'POST',
+                    'path': '/mcp',
+                    'headers': headers,
+                })
+                with (
+                    mock.patch.object(
+                        request_context,
+                        'get_access_token',
+                        return_value=access_token,
+                    ),
+                    mock.patch.object(
+                        request_context,
+                        'get_http_request',
+                        return_value=request,
+                    ),
+                    self.assertRaisesRegex(
+                        request_context.RequestContextUnavailable,
+                        'credentials are unavailable',
+                    ),
+                ):
+                    request_context.get_request_credentials()
 
 
 class RequestContextMiddlewareTest(unittest.IsolatedAsyncioTestCase):

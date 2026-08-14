@@ -114,8 +114,7 @@ destination, but it cannot validate external DNS.
 | `services.mcp.oidcProxy.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
 | `services.mcp.oidcProxy.redis` | Redis connection used by FastMCP for registrations, authorization state, and encrypted upstream tokens; blank host/port inherit `services.redis`. | See `values.yaml` |
-| `services.mcp.oidcProxy.signingJwksFile` | Private single-key HS256 JWKS mounted only in the MCP pod. | `/etc/osmo/mcp-auth/signing-jwks.json` |
-| `services.mcp.oidcProxy.existingSecret` | Optional existing Secret holding the OIDC client secret, signing JWKS, and Redis password. The chart references it but never creates credential material. | See `values.yaml` |
+| `services.mcp.oidcProxy.existingSecret` | Optional existing Secret holding the OIDC client secret and Redis password. The chart references it but never creates credential material. | See `values.yaml` |
 
 The in-process proxy follows OSMO's OIDC profile: a full delegated scope URI is requested
 from the upstream provider while its short suffix is enforced in the verified
@@ -125,6 +124,12 @@ CIMD-capable clients identify themselves with a hosted metadata document;
 older clients can use FastMCP's `/register` DCR endpoint. Both paths use
 authorization-code flow with PKCE and end in the same OSMO Gateway and semantic
 RBAC checks.
+
+FastMCP deterministically derives its proxy-token signing key and the encrypted
+Redis-store key from the upstream OIDC client secret. Rotating that client
+secret therefore invalidates existing proxy tokens; encrypted entries from the
+old key are treated as cache misses, so clients must sign in again after a
+rotation.
 
 Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
 only this release's Gateway Envoy pods, even when

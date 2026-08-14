@@ -47,7 +47,7 @@ from src.service.mcp import (
 
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
-    def test_create_application_uses_protocol_server(self) -> None:
+    def test_create_application_direct_mode_uses_header_middleware(self) -> None:
         application = mock.Mock()
         protocol_server = mock.Mock()
         protocol_server.auth = None
@@ -75,6 +75,27 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             mock.call(
                 request_context.RequestContextMiddleware,
                 path='/mcp',
+            ),
+        ])
+
+    def test_create_application_oidc_mode_skips_header_middleware(self) -> None:
+        application = mock.Mock()
+        protocol_server = mock.Mock()
+        protocol_server.auth = mock.sentinel.auth_provider
+        protocol_server.http_app.return_value = application
+
+        self.assertIs(server.create_application(protocol_server), application)
+        self.assertEqual(application.add_middleware.call_args_list, [
+            mock.call(
+                request_body.RequestBodyLimitMiddleware,
+                path='/mcp',
+                max_body_bytes=request_body.MAX_MCP_REQUEST_BODY_BYTES,
+                max_concurrent_requests=(
+                    request_body.MAX_CONCURRENT_MCP_REQUESTS
+                ),
+                body_timeout_seconds=(
+                    request_body.MCP_REQUEST_BODY_TIMEOUT_SECONDS
+                ),
             ),
         ])
 

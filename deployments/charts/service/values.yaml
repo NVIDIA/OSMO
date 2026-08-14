@@ -211,10 +211,6 @@ services:
         connectTimeoutSeconds: 3
         operationTimeoutSeconds: 5
 
-      ## Private single-key HS256 JWKS used only by the MCP process.
-      ##
-      signingJwksFile: /etc/osmo/mcp-auth/signing-jwks.json
-
       accessTokenTtlSeconds: 600
       refreshTokenTtlSeconds: 28800
       upstreamTimeoutSeconds: 10
@@ -226,7 +222,6 @@ services:
         name: ""
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
-        signingJwksKey: signing-jwks
         redisPasswordKey: redis-password
 
     ## Additional pod labels and annotations.

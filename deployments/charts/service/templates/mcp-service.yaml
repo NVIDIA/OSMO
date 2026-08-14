@@ -33,7 +33,6 @@
 {{- $oidcAccessTokenAudience := "" }}
 {{- $oidcAccessTokenJwksUrl := "" }}
 {{- $oidcAccessTokenRequiredScope := "" }}
-{{- $signingJwksFile := "" }}
 {{- $redisKeyPrefix := "" }}
 {{- $redisUrl := "" }}
 {{- if $oidcProxyEnabled }}
@@ -94,12 +93,8 @@
 {{- end }}
 {{- end }}
 {{- end }}
-{{- $signingJwksFile = required "services.mcp.oidcProxy.signingJwksFile is required when the OIDC proxy is enabled" $oidcProxy.signingJwksFile }}
 {{- if not (hasPrefix "/" $oidcClientSecretFile) }}
 {{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path" }}
-{{- end }}
-{{- if not (hasPrefix "/" $signingJwksFile) }}
-{{- fail "services.mcp.oidcProxy.signingJwksFile must be an absolute path" }}
 {{- end }}
 {{- $redisHost := $oidcProxy.redis.serviceName | default .Values.services.redis.serviceName | required "services.mcp.oidcProxy.redis.serviceName or services.redis.serviceName is required" }}
 {{- $redisPort := .Values.services.redis.port }}
@@ -140,7 +135,6 @@
 {{- fail "services.mcp.oidcProxy.existingSecret.mountPath must be an absolute path" }}
 {{- end }}
 {{- $clientSecretKey := required "services.mcp.oidcProxy.existingSecret.clientSecretKey is required" $oidcProxy.existingSecret.clientSecretKey }}
-{{- $signingKey := required "services.mcp.oidcProxy.existingSecret.signingJwksKey is required" $oidcProxy.existingSecret.signingJwksKey }}
 {{- if and $oidcProxy.redis.passwordFile (not $oidcProxy.existingSecret.redisPasswordKey) }}
 {{- fail "services.mcp.oidcProxy.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
 {{- end }}
@@ -170,7 +164,6 @@
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE"
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL"
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE"
-      "OSMO_MCP_AUTH_SIGNING_JWKS_FILE"
       "OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS"
       "OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
       "OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS"
@@ -281,8 +274,6 @@ spec:
           value: {{ $oidcAccessTokenJwksUrl | quote }}
         - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE
           value: {{ $oidcAccessTokenRequiredScope | quote }}
-        - name: OSMO_MCP_AUTH_SIGNING_JWKS_FILE
-          value: {{ $signingJwksFile | quote }}
         - name: OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS
           value: {{ $oidcProxy.accessTokenTtlSeconds | int | quote }}
         - name: OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS
@@ -324,8 +315,6 @@ spec:
           items:
           - key: {{ $oidcProxy.existingSecret.clientSecretKey }}
             path: client-secret
-          - key: {{ $oidcProxy.existingSecret.signingJwksKey }}
-            path: signing-jwks.json
           {{- if $oidcProxy.redis.passwordFile }}
           - key: {{ $oidcProxy.existingSecret.redisPasswordKey }}
             path: redis-password
