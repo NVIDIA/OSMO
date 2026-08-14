@@ -14,41 +14,43 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Synthetic values used only to validate the optional MCP OAuth broker surface.
+# Synthetic values used only to validate FastMCP's in-process OIDC proxy.
 services:
   mcp:
     enabled: true
     resourceUrl: https://osmo.example.com/mcp
     allowedOrigins:
     - http://localhost:6274
-    oauthBroker:
+    oidcProxy:
       enabled: true
-      issuerUrl: https://osmo.example.com
       scope: https://osmo.example.com/mcp/access_as_user
       trustedHttpsRedirectOrigins:
       - https://trusted-client.example.com
       oidc:
         configUrl: https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration
-        clientId: example-mcp-broker-client
+        clientId: example-mcp-proxy-client
         accessTokenIssuer: https://sts.example.com/example-tenant/
         accessTokenAudience: https://osmo.example.com/mcp
         accessTokenJwksUrl: https://login.example.com/example-tenant/discovery/v2.0/keys
         accessTokenRequiredScope: access_as_user
       redis:
-        serviceName: broker-redis.example.internal
+        serviceName: proxy-redis.example.internal
         port: 6380
         dbNumber: 14
         tlsEnabled: true
         passwordFile: /etc/osmo/mcp-auth/redis-password
         keyPrefix: test:mcp-auth
       existingSecret:
-        name: mcp-oauth-broker-secrets
+        name: mcp-oidc-proxy-secrets
 
 gateway:
-  # The broker-generated provider is sufficient for MCP; no direct provider is
-  # needed in this validation fixture.
   networkPolicies:
     enabled: false
   envoy:
     jwt:
-      providers: []
+      providers:
+      - issuer: https://sts.example.com/example-tenant/
+        audience: https://osmo.example.com/mcp
+        jwks_uri: https://login.example.com/example-tenant/discovery/v2.0/keys
+        cluster: idp
+        user_claim: preferred_username

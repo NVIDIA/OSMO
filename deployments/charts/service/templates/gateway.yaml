@@ -17,13 +17,6 @@
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- $envoyHostname := $gw.envoy.hostname | default .Values.global.hostname }}
-{{- $mcpOauthBroker := .Values.services.mcp.oauthBroker }}
-{{- $mcpOauthBrokerSecret := $mcpOauthBroker.existingSecret }}
-{{- $mountMcpOauthSigningSecret := and
-      (.Values.services.mcp.enabled | default false)
-      ($mcpOauthBroker.enabled | default false)
-      $mcpOauthBrokerSecret.name
-    }}
 
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
@@ -101,12 +94,6 @@ spec:
             mountPath: /etc/ssl/envoy-certs
             readOnly: true
           {{- end }}
-          {{- if $mountMcpOauthSigningSecret }}
-          - name: mcp-oauth-signing-jwks
-            mountPath: {{ $mcpOauthBroker.signingJwksFile | quote }}
-            subPath: signing-jwks.json
-            readOnly: true
-          {{- end }}
           {{- with $gw.envoy.extraVolumeMounts }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
@@ -140,14 +127,6 @@ spec:
         - name: ssl-cert
           secret:
             secretName: {{ $gw.envoy.ssl.secretName | default "envoy-ssl-cert" }}
-        {{- end }}
-        {{- if $mountMcpOauthSigningSecret }}
-        - name: mcp-oauth-signing-jwks
-          secret:
-            secretName: {{ $mcpOauthBrokerSecret.name }}
-            items:
-            - key: {{ $mcpOauthBrokerSecret.signingJwksKey }}
-              path: signing-jwks.json
         {{- end }}
         {{- with $gw.envoy.extraVolumes }}
         {{- toYaml . | nindent 8 }}

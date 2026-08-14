@@ -30,11 +30,14 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $envoy := $gw.envoy }}
 {{- $mcp := .Values.services.mcp }}
 {{- $mcpEnabled := $mcp.enabled | default false }}
-{{- $mcpOauthBroker := $mcp.oauthBroker }}
-{{- $mcpOauthBrokerEnabled := and $mcpEnabled ($mcpOauthBroker.enabled | default false) }}
+{{- $mcpOidcProxy := $mcp.oidcProxy }}
+{{- if and ($mcpOidcProxy.enabled | default false) (not $mcpEnabled) }}
+{{- fail "services.mcp.oidcProxy.enabled requires services.mcp.enabled=true" }}
+{{- end }}
+{{- $mcpOidcProxyEnabled := and $mcpEnabled ($mcpOidcProxy.enabled | default false) }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
-{{- $mcpOauthBrokerRoutes := list
+{{- $mcpOidcProxyRoutes := list
       (dict "name" "mcp-oauth-authorization-server-metadata" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$" "method" "GET")
       (dict "name" "mcp-oauth-authorize-get" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "GET")
       (dict "name" "mcp-oauth-authorize-post" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$" "method" "POST")
@@ -44,7 +47,7 @@ setting detects this rotation and triggers Envoy to reload.
       (dict "name" "mcp-oauth-consent-get" "path" "/consent" "pathRegex" "^/consent([?].*)?$" "method" "GET")
       (dict "name" "mcp-oauth-consent-post" "path" "/consent" "pathRegex" "^/consent([?].*)?$" "method" "POST")
     }}
-{{- $mcpOauthBrokerOptionRoutes := list
+{{- $mcpOidcProxyOptionRoutes := list
       (dict "name" "mcp-oauth-authorization-server-metadata-options" "path" "/.well-known/oauth-authorization-server" "pathRegex" "^/[.]well-known/oauth-authorization-server([?].*)?$")
       (dict "name" "mcp-oauth-authorize-options" "path" "/authorize" "pathRegex" "^/authorize([?].*)?$")
       (dict "name" "mcp-oauth-oidc-callback-options" "path" "/auth/callback" "pathRegex" "^/auth/callback([?].*)?$" "timeout" "45s")
@@ -56,8 +59,6 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpMetadataUrl := "" }}
 {{- $mcpAuthorizationServers := $mcp.authorizationServers }}
 {{- $mcpScopes := $mcp.scopes }}
-{{- $mcpOauthIssuerUrl := "" }}
-{{- $jwtProviders := default (list) $envoy.jwt.providers }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
@@ -71,16 +72,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.enabled requires gateway.authz.enabled=true" }}
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp-resource-url" . }}
-{{- if $mcpOauthBrokerEnabled }}
-{{- $mcpOauthIssuerUrl = printf "%s/" (include "osmo.mcp-oauth-issuer-url" .) }}
-{{- $mcpAuthorizationServers = list $mcpOauthIssuerUrl }}
-{{- $mcpScopes = list $mcpOauthBroker.scope }}
-{{- /* Broker tokens remain a global provider because the MCP service relays
-       the user's same bearer token through Gateway to /api routes. Semantic
-       OSMO RBAC still applies there. Moving this to an MCP-only provider
-       requires token exchange/internal delegation in the MCP service. */}}
-{{- $jwtProviders = append $jwtProviders (dict "issuer" $mcpOauthIssuerUrl "audience" $mcpResourceUrl "local_jwks_file" $mcpOauthBroker.signingJwksFile "nested_upstream_claims" true) }}
-{{- else }}
+{{- if not $mcpOidcProxyEnabled }}
 {{- if not (kindIs "slice" $mcp.authorizationServers) }}
 {{- fail "services.mcp.authorizationServers must be a list" }}
 {{- end }}
@@ -90,11 +82,10 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if not (kindIs "slice" $mcp.scopes) }}
 {{- fail "services.mcp.scopes must be a list" }}
 {{- end }}
-{{- end }}
-{{- if eq (len $mcpScopes) 0 }}
+{{- if eq (len $mcp.scopes) 0 }}
 {{- fail "services.mcp.scopes must contain at least one scope when MCP is enabled" }}
 {{- end }}
-{{- range $scope := $mcpScopes }}
+{{- range $scope := $mcp.scopes }}
 {{- if not (kindIs "string" $scope) }}
 {{- fail "services.mcp.scopes entries must be strings" }}
 {{- end }}
@@ -102,7 +93,8 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.scopes entries must not be empty" }}
 {{- end }}
 {{- end }}
-{{- if eq (len $jwtProviders) 0 }}
+{{- end }}
+{{- if not $envoy.jwt.providers }}
 {{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
 {{- end }}
 {{- $mcpServiceName := required "services.mcp.serviceName is required when MCP is enabled" $mcp.serviceName }}
@@ -121,15 +113,15 @@ setting detects this rotation and triggers Envoy to reload.
 {{- range $skipPath := $skipAuthPaths }}
 {{- $overlapsMcpPath := or (hasPrefix $skipPath $mcpPath) (hasPrefix $mcpPath $skipPath) }}
 {{- $overlapsMcpMetadataPath := or (hasPrefix $skipPath $mcpMetadataPath) (hasPrefix $mcpMetadataPath $skipPath) }}
-{{- $overlapsMcpOauthBrokerPath := false }}
-{{- if $mcpOauthBrokerEnabled }}
-{{- range $route := $mcpOauthBrokerRoutes }}
+{{- $overlapsMcpOidcProxyPath := false }}
+{{- if $mcpOidcProxyEnabled }}
+{{- range $route := $mcpOidcProxyRoutes }}
 {{- if or (hasPrefix $skipPath $route.path) (hasPrefix $route.path $skipPath) }}
-{{- $overlapsMcpOauthBrokerPath = true }}
+{{- $overlapsMcpOidcProxyPath = true }}
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if or $overlapsMcpPath $overlapsMcpMetadataPath $overlapsMcpOauthBrokerPath }}
+{{- if or $overlapsMcpPath $overlapsMcpMetadataPath $overlapsMcpOidcProxyPath }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
 {{- end }}
@@ -256,7 +248,7 @@ data:
               # identity/context headers. Minimal/demo deployments with no
               # auth source keep their legacy client-header behavior.
               internal_only_headers:
-              {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $jwtProviders }}
+              {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $envoy.jwt.providers }}
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-token-name
@@ -330,9 +322,8 @@ data:
                 {{- end }}
 
                 {{- if $mcpEnabled }}
-                # RFC 9728 metadata is the only public MCP route. Keep the
-                # method and path exact so no neighboring path or write method
-                # inherits the authentication bypass.
+                # Keep the public protected-resource route exact so no
+                # neighboring path or write method inherits the bypass.
                 - name: mcp-protected-resource-metadata
                   match:
                     path: {{ $mcpMetadataPath }}
@@ -340,10 +331,16 @@ data:
                     - name: ":method"
                       string_match:
                         exact: GET
+                  {{- if $mcpOidcProxyEnabled }}
+                  route:
+                    cluster: osmo-mcp
+                    timeout: 15s
+                  {{- else }}
                   direct_response:
                     status: 200
                     body:
                       inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcpAuthorizationServers "bearer_methods_supported" (list "header") "scopes_supported" $mcpScopes | toJson | quote }}
+                  {{- end }}
                   response_headers_to_add:
                   - header:
                       key: content-type
@@ -363,11 +360,10 @@ data:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
 
-                {{- if $mcpOauthBrokerEnabled }}
-                # These are the complete public OAuth surface. Every route has
-                # an exact path and method; neighboring /oauth paths continue
-                # through normal Gateway authentication and authorization.
-                {{- range $route := $mcpOauthBrokerRoutes }}
+                {{- if $mcpOidcProxyEnabled }}
+                # FastMCP owns this complete public OAuth surface in the same
+                # process as /mcp. Every route remains method/path exact.
+                {{- range $route := $mcpOidcProxyRoutes }}
                 - name: {{ $route.name }}
                   match:
                     path: {{ $route.path }}
@@ -376,7 +372,7 @@ data:
                       string_match:
                         exact: {{ $route.method }}
                   route:
-                    cluster: osmo-mcp-oauth
+                    cluster: osmo-mcp
                     timeout: {{ default "15s" $route.timeout }}
                   typed_per_filter_config:
                     envoy.filters.http.jwt_authn:
@@ -386,7 +382,7 @@ data:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
                 {{- end }}
-                {{- range $route := $mcpOauthBrokerOptionRoutes }}
+                {{- range $route := $mcpOidcProxyOptionRoutes }}
                 - name: {{ $route.name }}
                   match:
                     path: {{ $route.path }}
@@ -395,7 +391,7 @@ data:
                       string_match:
                         exact: OPTIONS
                   route:
-                    cluster: osmo-mcp-oauth
+                    cluster: osmo-mcp
                     timeout: {{ default "15s" $route.timeout }}
                   typed_per_filter_config:
                     envoy.filters.http.jwt_authn:
@@ -407,15 +403,24 @@ data:
                 {{- end }}
                 {{- end }}
 
-                # Streamable HTTP uses the same exact endpoint for its
-                # supported methods. Authentication and semantic authorization
-                # remain enabled on this route.
+                # In direct mode Gateway validates and authorizes /mcp. With
+                # the in-process proxy enabled, FastMCP validates its own token
+                # and relays the verified upstream token to protected /api.
                 - name: osmo-mcp
                   match:
                     path: {{ $mcpPath }}
                   route:
                     cluster: osmo-mcp
                     timeout: 0s
+                  {{- if $mcpOidcProxyEnabled }}
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                  {{- end }}
                 {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}
@@ -740,10 +745,10 @@ data:
                                       header_name: ":method"
                                   value_match:
                                     exact: "GET"
-                          {{- if $mcpOauthBrokerEnabled }}
+                          {{- if $mcpOidcProxyEnabled }}
                           # Skip the browser-session proxy only for the exact
-                          # method/path pairs owned by the MCP OAuth broker.
-                          {{- range $route := $mcpOauthBrokerRoutes }}
+                          # method/path pairs owned by FastMCP's OIDC proxy.
+                          {{- range $route := $mcpOidcProxyRoutes }}
                           - and_matcher:
                               predicate:
                               - single_predicate:
@@ -765,7 +770,7 @@ data:
                                   value_match:
                                     exact: {{ $route.method | quote }}
                           {{- end }}
-                          {{- range $route := $mcpOauthBrokerOptionRoutes }}
+                          {{- range $route := $mcpOidcProxyOptionRoutes }}
                           - and_matcher:
                               predicate:
                               - single_predicate:
@@ -837,12 +842,12 @@ data:
                     failure_mode_allow: false
             {{- end }}
 
-            {{- if $jwtProviders }}
+            {{- if $envoy.jwt.providers }}
             - name: envoy.filters.http.jwt_authn
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
                 providers:
-                  {{- range $i, $provider := $jwtProviders }}
+                  {{- range $i, $provider := $envoy.jwt.providers }}
                   provider_{{$i}}:
                     issuer: {{ $provider.issuer }}
                     audiences:
@@ -853,12 +858,6 @@ data:
                     - name: authorization
                       value_prefix: "Bearer "
                     - name: x-osmo-auth
-                    {{- if hasKey $provider "local_jwks_file" }}
-                    # FastMCP uses HS256. This private local JWKS contains the
-                    # shared secret and must never be published over HTTP.
-                    local_jwks:
-                      filename: {{ $provider.local_jwks_file | quote }}
-                    {{- else }}
                     remote_jwks:
                       http_uri:
                         uri: {{ $provider.jwks_uri }}
@@ -873,12 +872,9 @@ data:
                         retry_back_off:
                           base_interval: 0.01s
                           max_interval: 3s
-                    {{- end }}
-                    {{- if hasKey $provider "user_claim" }}
                     claim_to_headers:
                     - claim_name: {{$provider.user_claim}}
                       header_name: {{$envoy.jwt.user_header}}
-                    {{- end }}
                   {{- end }}
                 rules:
                   {{- if $skipAuthPaths }}
@@ -900,12 +896,12 @@ data:
                   - match:
                       prefix: /
                     requires:
-                      {{- if eq (len $jwtProviders) 1 }}
+                      {{- if eq (len $envoy.jwt.providers) 1 }}
                       provider_name: provider_0
                       {{- else }}
                       requires_any:
                         requirements:
-                        {{- range $i, $provider := $jwtProviders }}
+                        {{- range $i, $provider := $envoy.jwt.providers }}
                         - provider_name: provider_{{$i}}
                         {{- end}}
                       {{- end }}
@@ -921,50 +917,7 @@ data:
                       if (meta == nil or meta.verified_jwt == nil) then
                         return
                       end
-                      {{- if $mcpOauthBrokerEnabled }}
-                      -- FastMCP signs access and refresh JWTs with the same
-                      -- issuer, audience, and key. Its access tokens omit
-                      -- token_use; refresh tokens set token_use=refresh.
-                      -- Envoy validates only JWT cryptography, so reject the
-                      -- refresh form before it can become a bearer token.
-                      if (meta.verified_jwt.iss == {{ $mcpOauthIssuerUrl | quote }} and meta.verified_jwt.token_use ~= nil) then
-                        request_handle:respond(
-                          {[':status'] = '401', ['content-type'] = 'application/json', ['cache-control'] = 'no-store'},
-                          '{"error":"invalid_token"}'
-                        )
-                        return
-                      end
-                      if (meta.verified_jwt.iss == {{ $mcpOauthIssuerUrl | quote }}) then
-                        local required_scope = {{ $mcpOauthBroker.scope | quote }}
-                        local has_required_scope = false
-                        if (type(meta.verified_jwt.scope) == 'string') then
-                          for token_scope in string.gmatch(meta.verified_jwt.scope, '%S+') do
-                            if (token_scope == required_scope) then
-                              has_required_scope = true
-                              break
-                            end
-                          end
-                        end
-                        if (not has_required_scope) then
-                          request_handle:respond(
-                            {[':status'] = '403', ['content-type'] = 'application/json', ['cache-control'] = 'no-store'},
-                            '{"error":"insufficient_scope"}'
-                          )
-                          return
-                        end
-                      end
-                      {{- end }}
-                      local claims = meta.verified_jwt
-                      {{- if $mcpOauthBrokerEnabled }}
-                      if (meta.verified_jwt.iss == {{ $mcpOauthIssuerUrl | quote }} and type(claims.upstream_claims) == 'table') then
-                        claims = claims.upstream_claims
-                        local username = claims.preferred_username or claims.unique_name or claims.upn or claims.email
-                        if (username ~= nil) then
-                          request_handle:headers():replace({{ $envoy.jwt.user_header | quote }}, tostring(username))
-                        end
-                      end
-                      {{- end }}
-                      local roles = claims.roles
+                      local roles = meta.verified_jwt.roles
                       if (roles ~= nil and type(roles) == 'table') then
                         local safe_roles = {}
                         for _, role in ipairs(roles) do
@@ -1266,50 +1219,6 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $mcp.serviceName }}
-          common_tls_context:
-            tls_params:
-              tls_minimum_protocol_version: TLSv1_2
-              tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.caSecret }}
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-            {{- end }}
-      {{- end }}
-    {{- end }}
-
-    {{- if $mcpOauthBrokerEnabled }}
-    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
-      name: osmo-mcp-oauth
-      connect_timeout: 3s
-      type: STRICT_DNS
-      dns_lookup_family: V4_ONLY
-      lb_policy: ROUND_ROBIN
-      {{- if $envoy.maxRequests }}
-      circuit_breakers:
-        thresholds:
-        - priority: DEFAULT
-          max_requests: {{ $envoy.maxRequests }}
-      {{- end }}
-      load_assignment:
-        cluster_name: osmo-mcp-oauth
-        endpoints:
-        - lb_endpoints:
-          - endpoint:
-              address:
-                socket_address:
-                  address: {{ $mcpOauthBroker.serviceName }}
-                  port_value: {{ $mcpOauthBroker.port }}
-      {{- if $gw.tls.enabled }}
-      transport_socket:
-        name: envoy.transport_sockets.tls
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          sni: {{ $mcpOauthBroker.serviceName }}
           common_tls_context:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2

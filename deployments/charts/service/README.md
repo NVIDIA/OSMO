@@ -75,10 +75,11 @@ OSMO services write logs to standard streams for collection by the platform log 
 ### Self-hosted MCP service
 
 The optional MCP workload exposes predefined OSMO operations to compatible
-native or desktop MCP clients. The Gateway authenticates and authorizes every
-`/mcp` request, and the MCP service relays the unchanged caller bearer through
-the same Gateway for each mapped OSMO API request. The second Gateway pass
-applies the API-specific action; `mcp:Access` alone grants no API permission.
+native or desktop MCP clients. In direct-provider mode, the Gateway validates
+the bearer on `/mcp`. With `oidcProxy.enabled`, FastMCP validates its own proxy
+token and relays the verified upstream access token through the same Gateway
+for each mapped OSMO API request. That API request still passes the deployment's
+normal identity-provider validation and semantic RBAC.
 
 `services.mcp.resourceUrl` is the single source of truth for the public MCP
 resource and the outbound Gateway origin. It must be an externally reachable
@@ -95,36 +96,42 @@ destination, but it cannot validate external DNS.
 | `services.mcp.imageName` | MCP image repository name. | `mcp` |
 | `services.mcp.imageTag` | Per-MCP image tag override; falls back to `global.osmoImageTag` when empty. | `""` |
 | `services.mcp.resourceUrl` | Canonical public HTTPS MCP URL ending in exact `/mcp`; also determines the fixed outbound Gateway origin. | `""` |
-| `services.mcp.authorizationServers` | OAuth/OIDC issuer identifiers advertised in protected-resource metadata. At least one is required when enabled. | `[]` |
-| `services.mcp.scopes` | OAuth scopes advertised in protected-resource metadata. | `[]` |
+| `services.mcp.authorizationServers` | OAuth/OIDC issuers advertised in direct-provider mode; ignored when `oidcProxy.enabled` is true. | `[]` |
+| `services.mcp.scopes` | OAuth scopes advertised in direct-provider mode; ignored when `oidcProxy.enabled` is true. | `[]` |
 | `services.mcp.allowedOrigins` | Exact browser origins permitted on `/mcp`; native clients normally omit `Origin`. | `[]` |
 | `services.mcp.requestTimeoutSeconds` | Total timeout for each MCP-initiated Gateway request, from 1 through 60 seconds. | `10` |
-| `services.mcp.replicas` | Number of stateless MCP replicas. | `1` |
+| `services.mcp.replicas` | Number of MCP replicas. Must remain `1` with `oidcProxy.enabled` because FastMCP 3.4.7 refresh serialization is process-local. | `1` |
 | `services.mcp.extraEnv` | Additional non-managed environment variables. It cannot override MCP host, port, Gateway origin, or request timeout. | `[]` |
-| `services.mcp.oauthBroker.enabled` | Enable FastMCP's OIDC proxy for endpoint-only login. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
-| `services.mcp.oauthBroker.issuerUrl` | Public HTTPS OAuth issuer origin; must equal `resourceUrl` without `/mcp`. | `""` |
-| `services.mcp.oauthBroker.scope` | Full delegated scope URI advertised to MCP clients and requested upstream, normally `<resourceUrl>/access_as_user`. | `""` |
-| `services.mcp.oauthBroker.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
-| `services.mcp.oauthBroker.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
-| `services.mcp.oauthBroker.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
-| `services.mcp.oauthBroker.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
-| `services.mcp.oauthBroker.oidc.accessTokenAudience` | Exact OSMO MCP resource audience required on upstream API access tokens; must equal `resourceUrl`. | `""` |
-| `services.mcp.oauthBroker.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
-| `services.mcp.oauthBroker.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
+| `services.mcp.extraVolumeMounts` | Additional MCP container volume mounts, including Vault-injected credential files. | `[]` |
+| `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
+| `services.mcp.oidcProxy.enabled` | Enable FastMCP's built-in OIDC proxy inside the existing MCP process. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
+| `services.mcp.oidcProxy.scope` | Full delegated scope URI advertised to MCP clients and requested upstream, normally `<resourceUrl>/access_as_user`. | `""` |
+| `services.mcp.oidcProxy.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
+| `services.mcp.oidcProxy.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
+| `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
+| `services.mcp.oidcProxy.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
+| `services.mcp.oidcProxy.oidc.accessTokenAudience` | Exact OSMO MCP resource audience required on upstream API access tokens; must equal `resourceUrl`. | `""` |
+| `services.mcp.oidcProxy.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
+| `services.mcp.oidcProxy.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
+| `services.mcp.oidcProxy.redis` | Redis connection used by FastMCP for registrations, authorization state, and encrypted upstream tokens; blank host/port inherit `services.redis`. | See `values.yaml` |
+| `services.mcp.oidcProxy.signingJwksFile` | Private single-key HS256 JWKS mounted only in the MCP pod. | `/etc/osmo/mcp-auth/signing-jwks.json` |
+| `services.mcp.oidcProxy.existingSecret` | Optional existing Secret holding the OIDC client secret, signing JWKS, and Redis password. The chart references it but never creates credential material. | See `values.yaml` |
 
-The broker follows OSMO's OIDC profile: a full delegated scope URI is requested
+The in-process proxy follows OSMO's OIDC profile: a full delegated scope URI is requested
 from the upstream provider while its short suffix is enforced in the verified
 API access token. Register the single stable upstream redirect URI
-`<issuerUrl>/auth/callback`. MCP clients still configure only `resourceUrl`.
+`<resourceUrl origin>/auth/callback`. MCP clients still configure only `resourceUrl`.
 CIMD-capable clients identify themselves with a hosted metadata document;
-older clients can use the broker's `/register` DCR endpoint. Both paths use
+older clients can use FastMCP's `/register` DCR endpoint. Both paths use
 authorization-code flow with PKCE and end in the same OSMO Gateway and semantic
 RBAC checks.
 
 Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
 only this release's Gateway Envoy pods, even when
 `gateway.networkPolicies.enabled` is false for other upstreams. This is
-required because MCP trusts the identity context created by Gateway.
+required because direct-provider mode trusts the identity context created by
+Gateway, while OIDC-proxy mode accepts traffic only through the same public
+Gateway boundary.
 NetworkPolicies require enforcement by the cluster CNI and are additive, so
 operators must also ensure no other policy grants MCP ingress. The pod does
 not mount a service-account token, and the chart creates no MCP credential
