@@ -203,6 +203,9 @@ def udp_round_trip_until(
                 last_error = f"received unexpected payload {response!r}"
             except OSError as error:
                 last_error = f"{type(error).__name__}: {error}"
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(0.1, remaining))
     raise RuntimeError(
         f"UDP endpoint {host}:{port} never echoed {payload!r} within "
         f"{deadline_seconds}s (last: {last_error})"

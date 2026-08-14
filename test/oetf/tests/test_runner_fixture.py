@@ -407,17 +407,21 @@ class UdpRoundTripUntilTest(unittest.TestCase):
         client.__enter__.return_value = client
         client.recvfrom.side_effect = [
             (b"wrong payload", ("127.0.0.1", 18081)),
+            OSError("temporary failure"),
             (b"sentinel", ("127.0.0.1", 18081)),
         ]
 
         with mock.patch(
             "test.oetf.runner_fixture.socket.socket", return_value=client,
-        ):
+        ), mock.patch(
+            "test.oetf.runner_fixture.time.sleep",
+        ) as sleep:
             udp_round_trip_until(
                 "127.0.0.1", 18081, b"sentinel", deadline_seconds=5,
             )
 
-        self.assertEqual(client.sendto.call_count, 2)
+        self.assertEqual(client.sendto.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [mock.call(0.1), mock.call(0.1)])
 
 
 class CliPortForwardTest(unittest.TestCase):
