@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 from collections.abc import Callable, Collection
 import dataclasses
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from src.service.mcp import (
@@ -347,11 +347,10 @@ def register_tools(
 ) -> None:
     """Register the selected external tools without wrapping their functions."""
     for spec in select_tool_specs(names):
-        server.add_tool(
+        server.tool(
             spec.function,
             name=spec.name,
             title=spec.title,
             description=spec.description,
             annotations=spec.annotations,
-            structured_output=True,
         )

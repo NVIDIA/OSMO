@@ -114,7 +114,7 @@ bash deployments/charts/service/tests/render-tests.sh
 | `service/agent/` | Backend cluster integration via WebSocket. Receives node/pod/event/heartbeat streams from K8s clusters. |
 | `service/logger/` | Receives structured logs from osmo-ctrl containers. Persists task metrics to PostgreSQL. Distributed barriers via Redis. |
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
-| `service/mcp/` | Serves the stateless Streamable HTTP MCP endpoint for external OSMO clients. |
+| `service/mcp/` | Serves the Streamable HTTP MCP endpoint and optionally attaches FastMCP's built-in OIDC proxy for endpoint-only client authentication. |
 
 ### Deployment Charts (`deployments/charts/`)
 

@@ -23,11 +23,57 @@ load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
+    name = "fastmcp_runtime",
+    deps = [
+        requirement("authlib"),
+        requirement("cryptography"),
+        requirement("fastmcp-slim"),
+        requirement("griffelib"),
+        requirement("httpx"),
+        requirement("joserfc"),
+        requirement("jsonref"),
+        requirement("mcp"),
+        requirement("packaging"),
+        requirement("py-key-value-aio"),
+        requirement("pydantic"),
+        requirement("python-multipart"),
+        requirement("redis"),
+        requirement("starlette"),
+        requirement("uncalled-for"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "request_context",
     srcs = ["request_context.py"],
     deps = [
+        ":fastmcp_runtime",
         requirement("starlette"),
         "//src/lib/utils:login",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "auth",
+    srcs = ["auth.py"],
+    deps = [
+        requirement("authlib"),
+        requirement("cryptography"),
+        ":fastmcp_runtime",
+        requirement("griffelib"),
+        requirement("httpx"),
+        requirement("joserfc"),
+        requirement("jsonref"),
+        requirement("mcp"),
+        requirement("packaging"),
+        requirement("py-key-value-aio"),
+        requirement("pydantic"),
+        requirement("python-multipart"),
+        requirement("redis"),
+        requirement("starlette"),
+        requirement("uncalled-for"),
     ],
     visibility = ["//visibility:public"],
 )
@@ -66,7 +112,7 @@ osmo_py_library(
     name = "tool_errors",
     srcs = ["tool_errors.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
     ],
     visibility = ["//visibility:public"],
 )
@@ -94,7 +140,7 @@ osmo_py_library(
     name = "tool_requests",
     srcs = ["tool_requests.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         requirement("starlette"),
         ":gateway",
@@ -109,7 +155,7 @@ osmo_py_library(
     name = "access_scope",
     srcs = ["access_scope.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":tool_requests",
         ":tool_validation",
     ],
@@ -196,7 +242,7 @@ osmo_py_library(
     name = "profile_tools",
     srcs = ["profile.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         ":access_scope",
         ":tool_errors",
@@ -210,7 +256,7 @@ osmo_py_library(
     name = "health_tools",
     srcs = ["health.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         ":access_scope",
     ],
@@ -221,7 +267,7 @@ osmo_py_library(
     name = "pool_tools",
     srcs = ["pools.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":access_scope",
         ":pool_models",
         ":tool_errors",
@@ -235,7 +281,7 @@ osmo_py_library(
     name = "resource_tools",
     srcs = ["resources.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         ":access_scope",
         ":resource_models",
@@ -251,7 +297,7 @@ osmo_py_library(
     name = "workflow_tools",
     srcs = ["workflows.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":access_scope",
         ":gateway",
         ":tool_errors",
@@ -267,7 +313,7 @@ osmo_py_library(
     name = "workflow_submission",
     srcs = ["workflow_submission.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":access_scope",
         ":gateway",
         ":tool_errors",
@@ -285,7 +331,7 @@ osmo_py_library(
     name = "workflow_action_tools",
     srcs = ["workflow_actions.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":gateway",
         ":tool_errors",
         ":tool_requests",
@@ -302,7 +348,7 @@ osmo_py_library(
     name = "app_tools",
     srcs = ["apps.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":app_models",
         ":tool_errors",
         ":tool_requests",
@@ -315,7 +361,7 @@ osmo_py_library(
     name = "app_action_tools",
     srcs = ["app_actions.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         ":app_action_models",
         ":app_models",
@@ -331,7 +377,7 @@ osmo_py_library(
     name = "app_submission_tools",
     srcs = ["app_submission.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":app_action_models",
         ":app_models",
         ":app_tools",
@@ -348,7 +394,7 @@ osmo_py_library(
     name = "credential_tools",
     srcs = ["credentials.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         ":tool_errors",
         ":tool_requests",
@@ -360,7 +406,7 @@ osmo_py_library(
     name = "credential_action_tools",
     srcs = ["credential_actions.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         ":credential_action_models",
         ":tool_errors",
         ":tool_requests",
@@ -373,6 +419,7 @@ osmo_py_library(
     name = "tool_registry",
     srcs = ["tool_registry.py"],
     deps = [
+        ":fastmcp_runtime",
         requirement("mcp"),
         ":app_action_tools",
         ":app_submission_tools",
@@ -393,7 +440,7 @@ osmo_py_library(
     name = "protocol",
     srcs = ["protocol.py"],
     deps = [
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         ":request_context",
         ":telemetry",
@@ -407,10 +454,11 @@ osmo_py_library(
     srcs = ["server.py"],
     deps = [
         requirement("httpx"),
-        requirement("mcp"),
+        ":fastmcp_runtime",
         requirement("pydantic"),
         requirement("starlette"),
         requirement("uvicorn"),
+        ":auth",
         ":gateway",
         ":protocol",
         ":request_body",

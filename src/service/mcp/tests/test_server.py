@@ -28,7 +28,7 @@ import unittest
 from unittest import mock
 
 import httpx
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError
 from mcp.types import LATEST_PROTOCOL_VERSION
 import pydantic
 from starlette.applications import Starlette
@@ -50,10 +50,16 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
     def test_create_application_uses_protocol_server(self) -> None:
         application = mock.Mock()
         protocol_server = mock.Mock()
-        protocol_server.streamable_http_app.return_value = application
+        protocol_server.auth = None
+        protocol_server.http_app.return_value = application
 
         self.assertIs(server.create_application(protocol_server), application)
-        protocol_server.streamable_http_app.assert_called_once_with()
+        protocol_server.http_app.assert_called_once_with(
+            path='/mcp',
+            transport='streamable-http',
+            stateless_http=True,
+            json_response=True,
+        )
         self.assertEqual(application.add_middleware.call_args_list, [
             mock.call(
                 request_body.RequestBodyLimitMiddleware,
@@ -394,9 +400,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_initialize_and_tool_catalog(self) -> None:
         mcp_server = server.create_mcp_server()
-        self.assertTrue(mcp_server.settings.stateless_http)
-        self.assertTrue(mcp_server.settings.json_response)
-        self.assertEqual(mcp_server.settings.streamable_http_path, '/mcp')
+        self.assertFalse(mcp_server.strict_input_validation)
+        self.assertIsNone(mcp_server.auth)
 
         application = server.create_application(mcp_server)
         headers = {

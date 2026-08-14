@@ -20,7 +20,8 @@ import dataclasses
 import json
 from typing import Literal, TypeAlias
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
+from fastmcp.server.dependencies import get_http_request
 import pydantic
 from starlette.requests import Request
 
@@ -195,9 +196,10 @@ async def request_active_profile(context: Context) -> ActiveProfile:
 
 def get_app_context(context: Context) -> gateway.AppContext:
     """Resolve process-lifetime dependencies from a real MCP HTTP request."""
+    del context
     try:
-        request = context.request_context.request
-    except ValueError:
+        request = get_http_request()
+    except RuntimeError:
         raise tool_errors.PublicToolError(
             'MCP runtime context is unavailable.'
         ) from None
