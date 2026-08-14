@@ -777,7 +777,13 @@ data:
                       end
                       local roles = meta.verified_jwt.roles
                       if (roles ~= nil and type(roles) == 'table') then
-                        request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                        local safe_roles = {}
+                        for _, role in ipairs(roles) do
+                          if (type(role) == 'string' and #role <= 256 and not string.find(role, '[,%c]')) then
+                            table.insert(safe_roles, role)
+                          end
+                        end
+                        request_handle:headers():replace('x-osmo-roles', table.concat(safe_roles, ','))
                       end
                       if (meta.verified_jwt.osmo_token_name ~= nil) then
                         request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))

@@ -103,6 +103,9 @@ assert_rendered '\"authorization_servers\":[\"https://issuer.example.com\"]'
 assert_rendered '\"bearer_methods_supported\":[\"header\"]'
 assert_rendered '\"resource\":\"https://osmo.example.com/mcp\"'
 assert_rendered '\"scopes_supported\":[\"mcp:Access\"]'
+assert_rendered 'local safe_roles = {}'
+assert_rendered "not string.find(role, '[,%c]')"
+assert_rendered "table.concat(safe_roles, ',')"
 assert_env_value 'OSMO_GATEWAY_URL' 'https://osmo.example.com'
 assert_env_value 'OSMO_MCP_REQUEST_TIMEOUT_SECONDS' '10'
 
