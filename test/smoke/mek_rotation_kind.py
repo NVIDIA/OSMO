@@ -22,14 +22,25 @@ class MekRotationKind(SmokeFixture):
     namespace = os.environ.get("OSMO_NAMESPACE", "osmo")
     timeout_seconds = 300
 
-    def _kubectl(self, *args, input_text=None):
+    def _kubectl(self, *args, input_text=None, namespace=None):
+        target_namespace = self.namespace if namespace is None else namespace
+        command = ["kubectl"]
+        if target_namespace:
+            command.extend(["--namespace", target_namespace])
+        command.extend(args)
         result = subprocess.run(
-            ["kubectl", "--namespace", self.namespace, *args],
+            command,
             input=input_text,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
         )
+        if result.returncode:
+            command_text = " ".join(command)
+            raise RuntimeError(
+                f"{command_text} failed with exit code "
+                f"{result.returncode}: {result.stderr.strip()}"
+            )
         return result.stdout
 
     def _json(self, *args):
@@ -108,30 +119,32 @@ class MekRotationKind(SmokeFixture):
 
     def test_failed_bootstrap_revokes_privilege_and_keeps_diagnostics(self):
         release_name = f"mek-hook-{secrets.token_hex(4)}"
+        test_namespace = f"{release_name}-test"
         hook_name = f"{release_name}-mek-bootstrap"
         diagnostic_name = f"{hook_name}-diagnostic"
         missing_secret = f"{release_name}-missing"
-        install = subprocess.run(
-            [
-                "helm", "install", release_name, self._service_chart_path(),
-                "--namespace", self.namespace,
-                "--timeout", "30s",
-                "--set", "services.masterEncryptionKey.bootstrap.enabled=true",
-                "--set", (
-                    "services.masterEncryptionKey.existingSecret.name="
-                    f"{missing_secret}"
-                ),
-                "--set", (
-                    "services.masterEncryptionKey.bootstrap.image="
-                    "invalid.invalid/osmo/mek-bootstrap:never"
-                ),
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        self._kubectl("create", "namespace", test_namespace, namespace="")
 
         try:
+            install = subprocess.run(
+                [
+                    "helm", "install", release_name, self._service_chart_path(),
+                    "--namespace", test_namespace,
+                    "--timeout", "30s",
+                    "--set", "services.masterEncryptionKey.bootstrap.enabled=true",
+                    "--set", (
+                        "services.masterEncryptionKey.existingSecret.name="
+                        f"{missing_secret}"
+                    ),
+                    "--set", (
+                        "services.masterEncryptionKey.bootstrap.image="
+                        "invalid.invalid/osmo/mek-bootstrap:never"
+                    ),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
             self.assertNotEqual(
                 install.returncode,
                 0,
@@ -140,7 +153,7 @@ class MekRotationKind(SmokeFixture):
             for resource in ("rolebinding", "role", "serviceaccount", "job"):
                 retained = subprocess.run(
                     [
-                        "kubectl", "--namespace", self.namespace,
+                        "kubectl", "--namespace", test_namespace,
                         "get", resource, hook_name,
                     ],
                     check=False,
@@ -154,14 +167,16 @@ class MekRotationKind(SmokeFixture):
                 )
             self.assertIn(
                 "privileged resources were removed",
-                self._json("get", "configmap", diagnostic_name)["data"][
-                    "recovery"],
+                json.loads(self._kubectl(
+                    "get", "configmap", diagnostic_name, "-o", "json",
+                    namespace=test_namespace,
+                ))["data"]["recovery"],
             )
         finally:
             subprocess.run(
                 [
                     "helm", "uninstall", release_name,
-                    "--namespace", self.namespace,
+                    "--namespace", test_namespace,
                     "--ignore-not-found",
                 ],
                 check=False,
@@ -169,8 +184,9 @@ class MekRotationKind(SmokeFixture):
                 text=True,
             )
             self._kubectl(
-                "delete", "configmap", diagnostic_name,
+                "delete", "namespace", test_namespace,
                 "--ignore-not-found=true", "--wait=true",
+                namespace="",
             )
 
     def test_projected_secret_ha_rotation_and_rewrap(self):

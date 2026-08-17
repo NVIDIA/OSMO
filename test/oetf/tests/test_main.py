@@ -113,5 +113,96 @@ class MainResultContractTest(unittest.TestCase):
         self.assertIn("RESULT: PASS", output)
 
 
+class BuildBazelCommandTest(unittest.TestCase):
+    """Environment-specific host resources are passed into Bazel tests."""
+
+    @staticmethod
+    def _args(env: str) -> argparse.Namespace:
+        return argparse.Namespace(
+            bazel_arg=[],
+            env=env,
+            jobs=1,
+            name="",
+            tags="",
+            target_pattern=[],
+        )
+
+    @staticmethod
+    def _env() -> dict[str, str]:
+        return {
+            "auth_method": "token",
+            "auth_token": "test-token",
+            "auth_username": "test-user",
+            "exclude_tags": "",
+            "local_osmo": "",
+            "pool": "default",
+            "url": "https://kind.example",
+        }
+
+    @mock.patch.object(
+        oetf_main,
+        "_resolve_targets_via_query",
+        return_value=["//test/smoke:mek-rotation-kind"],
+    )
+    def test_kind_passes_explicit_kubeconfig_into_bazel(self, resolve_mock):
+        self.assertIsNotNone(resolve_mock)
+        with mock.patch.dict(
+            oetf_main.os.environ,
+            {"KUBECONFIG": "/runner/kind-kubeconfig"},
+            clear=True,
+        ):
+            command = oetf_main.build_bazel_command(
+                self._args("kind"), self._env(), "/tmp/bep.json",
+            )
+
+        self.assertIn(
+            "--test_env=KUBECONFIG=/runner/kind-kubeconfig",
+            command,
+        )
+
+    @mock.patch.object(
+        oetf_main,
+        "_resolve_targets_via_query",
+        return_value=["//test/smoke:mek-rotation-kind"],
+    )
+    def test_kind_passes_default_home_kubeconfig_into_bazel(self, resolve_mock):
+        self.assertIsNotNone(resolve_mock)
+        with mock.patch.dict(oetf_main.os.environ, {}, clear=True), \
+             mock.patch.object(
+                 oetf_main.Path,
+                 "home",
+                 return_value=oetf_main.Path("/runner"),
+             ):
+            command = oetf_main.build_bazel_command(
+                self._args("kind"), self._env(), "/tmp/bep.json",
+            )
+
+        self.assertIn(
+            "--test_env=KUBECONFIG=/runner/.kube/config",
+            command,
+        )
+
+    @mock.patch.object(
+        oetf_main,
+        "_resolve_targets_via_query",
+        return_value=["//test/smoke:profile-round-trip"],
+    )
+    def test_non_kind_does_not_pass_kubeconfig(self, resolve_mock):
+        self.assertIsNotNone(resolve_mock)
+        with mock.patch.dict(
+            oetf_main.os.environ,
+            {"KUBECONFIG": "/runner/unrelated-kubeconfig"},
+            clear=True,
+        ):
+            command = oetf_main.build_bazel_command(
+                self._args("staging"), self._env(), "/tmp/bep.json",
+            )
+
+        self.assertFalse(any(
+            argument.startswith("--test_env=KUBECONFIG=")
+            for argument in command
+        ))
+
+
 if __name__ == "__main__":
     unittest.main()
