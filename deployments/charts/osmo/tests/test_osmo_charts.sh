@@ -2073,7 +2073,8 @@ EOF
         >"$TEST_DIRECTORY/embedded-backups.out" 2>&1; then
         fail "expected the deferred embedded backup surface to fail"
     fi
-    require_contains "$TEST_DIRECTORY/embedded-backups.out" "OSMO-6609"
+    require_contains "$TEST_DIRECTORY/embedded-backups.out" \
+        "embedded backup and restore are not supported"
 
     if helm_template invalid-postgresql-instances "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \

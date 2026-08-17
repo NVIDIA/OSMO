@@ -81,8 +81,7 @@ for additional `postgresql` values.
   major version for rolling updates; major-version changes require a separate
   data-migration plan.
 - **Backup and restore:** PVCs survive Pod replacement but are not backups.
-  Embedded backup/restore is deferred to
-  [OSMO-6609](https://jirasw.nvidia.com/browse/OSMO-6609); use an external
+  Embedded backup/restore is not currently supported; use an external
   PostgreSQL service when a tested backup and restore path is required.
 
 For resource-constrained development, explicitly relax the production settings:

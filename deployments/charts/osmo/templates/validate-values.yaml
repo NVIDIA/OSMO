@@ -47,7 +47,7 @@
 {{- fail "secrets.postgresql.keys.username and keys.password must be username and password for a CNPG existing Secret" -}}
 {{- end -}}
 {{- if .Values.postgresql.backups.enabled -}}
-{{- fail "postgresql.backups.enabled: embedded backup and restore will be added in OSMO-6609" -}}
+{{- fail "postgresql.backups.enabled: embedded backup and restore are not supported" -}}
 {{- end -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
