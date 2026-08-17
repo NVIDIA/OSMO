@@ -112,11 +112,18 @@ services:
     path: /opt/osmo/config.yaml
 
   ## Master encryption key keyring. OSMO only reads this existing Secret; it
-  ## never creates, patches, or rotates it.
+  ## never patches or rotates it. For disposable test installations only, the
+  ## opt-in bootstrap hook can create the Secret once inside Kubernetes.
   masterEncryptionKey:
     existingSecret:
       name: osmo-mek
       key: mek.yaml
+    bootstrap:
+      # Disabled by default. When enabled, a pre-install hook creates the
+      # existingSecret only when it is absent; upgrades never regenerate it.
+      enabled: false
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
     # Enable only for the first upgrade after every legacy OSMO writer is stopped.
     allowExistingCiphertextAdoption: false
 

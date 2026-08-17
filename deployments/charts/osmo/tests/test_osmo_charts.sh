@@ -485,6 +485,47 @@ test_control_umbrella() {
     require_occurrences "$rendered" "name: OSMO_MEK_CONSUMER" 6
     require_occurrences "$rendered" "name: OSMO_ALLOW_EXISTING_MEK_ADOPTION" 6
     require_not_contains "$rendered" "subPath: mek.yaml"
+    require_not_contains "$rendered" "app.kubernetes.io/component: mek-bootstrap"
+
+    helm_template bootstrap-osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        >"$TEST_DIRECTORY/mek-bootstrap.yaml"
+    resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" Job \
+        bootstrap-osmo-mek-bootstrap \
+        >"$TEST_DIRECTORY/mek-bootstrap-job.yaml"
+    resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" Role \
+        bootstrap-osmo-mek-bootstrap \
+        >"$TEST_DIRECTORY/mek-bootstrap-role.yaml"
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
+        'image: "alpine/kubectl:1.33.4"'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
+        '--from-file="$secret_key=$temporary_directory/mek.yaml"'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
+        '- "external-master-encryption-key-secret"'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" '- "keyring.yaml"'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" \
+        'resourceNames: ["external-master-encryption-key-secret"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["get"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["create"]'
+
+    helm_template bootstrap-osmo-upgrade "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        >"$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml"
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
+        '--fail-if-missing'
+    require_occurrences "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
+        'hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed' 3
+    resource_document "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" Job \
+        bootstrap-osmo-upgrade-mek-bootstrap \
+        >"$TEST_DIRECTORY/mek-bootstrap-upgrade-job.yaml"
+    require_not_contains "$TEST_DIRECTORY/mek-bootstrap-upgrade-job.yaml" \
+        'hook-failed'
+    bash -n "$charts_copy/osmo/files/mek-bootstrap.sh"
 
     helm_template mek-string-sentinels "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -510,6 +551,15 @@ test_control_umbrella() {
     fi
     require_schema_path "$TEST_DIRECTORY/invalid-mek-secret.out" \
         "secrets.masterEncryptionKey.existingSecret"
+    if helm_template invalid-mek-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.masterEncryptionKey.bootstrap.imagePullPolicy=Sometimes \
+        >"$TEST_DIRECTORY/invalid-mek-bootstrap.out" 2>&1; then
+        fail "expected invalid MEK bootstrap imagePullPolicy to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-mek-bootstrap.out" \
+        "secrets.masterEncryptionKey.bootstrap.imagePullPolicy"
     require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"

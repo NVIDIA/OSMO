@@ -101,6 +101,55 @@ fi
 bash -n "$CHART_DIR/files/backend-token-bootstrap.sh"
 bash "$CHART_DIR/tests/backend-token-bootstrap-tests.sh"
 
+mek_bootstrap_render=$(helm template mek-bootstrap "$CHART_DIR" --namespace osmo \
+    --set 'services.masterEncryptionKey.bootstrap.enabled=true' \
+    --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
+    --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml')
+mek_bootstrap_job=$(resource_document "$mek_bootstrap_render" Job \
+    mek-bootstrap-mek-bootstrap)
+mek_bootstrap_role=$(resource_document "$mek_bootstrap_render" Role \
+    mek-bootstrap-mek-bootstrap)
+grep -q 'image: "alpine/kubectl:1.33.4"' <<<"$mek_bootstrap_job"
+grep -q -- '--from-file="$secret_key=$temporary_directory/mek.yaml"' \
+    <<<"$mek_bootstrap_job"
+grep -q -- '- "test-mek"' <<<"$mek_bootstrap_job"
+grep -q -- '- "keyring.yaml"' <<<"$mek_bootstrap_job"
+grep -q 'resourceNames: \["test-mek"\]' <<<"$mek_bootstrap_role"
+grep -q 'verbs: \["get"\]' <<<"$mek_bootstrap_role"
+grep -q 'verbs: \["create"\]' <<<"$mek_bootstrap_role"
+if grep -q '^kind: Secret$' <<<"$mek_bootstrap_render"; then
+    echo 'MEK bootstrap rendered Secret material into Helm release state' >&2
+    exit 1
+fi
+
+mek_bootstrap_upgrade_render=$(helm template mek-bootstrap-upgrade "$CHART_DIR" \
+    --namespace osmo --is-upgrade \
+    --set 'services.masterEncryptionKey.bootstrap.enabled=true')
+grep -q -- '--fail-if-missing' <<<"$mek_bootstrap_upgrade_render"
+if [[ $(grep -c 'hook-failed' <<<"$mek_bootstrap_upgrade_render") -ne 3 ]]; then
+    echo 'MEK bootstrap RBAC hooks do not clean up after failure' >&2
+    exit 1
+fi
+if resource_document "$mek_bootstrap_upgrade_render" Job \
+        mek-bootstrap-upgrade-mek-bootstrap | grep -q 'hook-failed'; then
+    echo 'Failed MEK bootstrap Job would be deleted before diagnosis' >&2
+    exit 1
+fi
+
+if helm template mek-bootstrap-disabled "$CHART_DIR" --namespace osmo \
+        | grep -q 'app.kubernetes.io/component: mek-bootstrap'; then
+    echo 'MEK bootstrap hook rendered while disabled' >&2
+    exit 1
+fi
+
+quick_start_render=$(helm template quick-start "$CHART_DIR" --namespace osmo \
+    -f "$CHART_DIR/quick-start-values.yaml")
+resource_document "$quick_start_render" Job quick-start-mek-bootstrap \
+    >/dev/null
+
+bash -n "$CHART_DIR/files/mek-bootstrap.sh"
+bash "$CHART_DIR/tests/mek-bootstrap-tests.sh"
+
 mek_render=$(helm template mek-test "$CHART_DIR" --namespace osmo \
     --set 'services.masterEncryptionKey.existingSecret.name=customer-mek' \
     --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml')

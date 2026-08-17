@@ -32,9 +32,9 @@ The former quick-start values are preserved as chart-specific values files:
 - `service/quick-start-values.yaml`
 - `backend-operator/quick-start-values.yaml`
 
-Create the namespaces, the local admin password Secret, and the MEK Secret
-used by the service pods. The service quick-start values create the shared
-backend bootstrap Secret through the chart-managed development mode:
+Create the namespaces and the local admin password Secret. The service
+quick-start values create both the MEK Secret and the shared backend bootstrap
+Secret inside Kubernetes through chart-managed test modes:
 
 ```bash
 kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
@@ -44,22 +44,6 @@ kubectl create secret generic local-admin-password \
   --namespace osmo \
   --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
-
-if ! kubectl get secret osmo-mek --namespace osmo >/dev/null 2>&1; then
-  set -euo pipefail
-  MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr '+/' '-_' | tr -d '\n=')
-  MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
-  MEK_FILE=$(mktemp)
-  chmod 600 "$MEK_FILE"
-  trap 'rm -f "$MEK_FILE"' EXIT
-  printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
-  kubectl create secret generic osmo-mek \
-    --namespace osmo \
-    --from-file=mek.yaml="$MEK_FILE" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  rm -f "$MEK_FILE" && trap - EXIT
-  unset MEK_KEY MEK_JWK
-fi
 ```
 
 Install the service chart:

@@ -102,7 +102,8 @@ For users who already have Kubernetes infrastructure and want to deploy OSMO dir
 > - Redis secrets (`redis-secret` with Redis password)
 > - For production or multi-cluster installs, a backend bootstrap token Secret
 >   copied to the control and compute clusters
-> - MEK Secret (`osmo-mek`, containing `mek.yaml`)
+> - For production, a MEK Secret (`osmo-mek`, containing `mek.yaml`); the
+>   disposable quick-start can generate it inside Kubernetes
 > - The PostgreSQL database itself
 >
 > **Recommended:** Use the deployment script which handles all prerequisites.
@@ -132,22 +133,6 @@ kubectl create secret generic local-admin-password \
   --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-if ! kubectl get secret osmo-mek --namespace osmo >/dev/null 2>&1; then
-  set -euo pipefail
-  MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr '+/' '-_' | tr -d '\n=')
-  MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
-  MEK_FILE=$(mktemp)
-  chmod 600 "$MEK_FILE"
-  trap 'rm -f "$MEK_FILE"' EXIT
-  printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
-  kubectl create secret generic osmo-mek \
-    --namespace osmo \
-    --from-file=mek.yaml="$MEK_FILE" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  rm -f "$MEK_FILE" && trap - EXIT
-  unset MEK_KEY MEK_JWK
-fi
-
 helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
 helm repo update osmo
 
@@ -162,10 +147,10 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
   --wait
 ```
 
-For the local quick-start only, the service values generate
-`backend-operator-token` during the first Helm install. Because the backend
-operator is installed in the same namespace, it consumes that Secret directly;
-no pre-created backend Secret is required.
+For the local quick-start only, the service values generate `osmo-mek` and
+`backend-operator-token` during the first Helm install. Both are generated
+inside Kubernetes and preserved across upgrades; no pre-created MEK or backend
+Secret is required. Production values keep both bootstrap modes disabled.
 
 After installing the CLI and logging in, set the demo pool and LocalStack data credential:
 

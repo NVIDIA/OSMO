@@ -71,6 +71,8 @@ OSMO services write logs to standard streams for collection by the platform log 
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
 | `services.masterEncryptionKey.existingSecret.name` | Existing Kubernetes Secret containing the MEK keyring | `osmo-mek` |
 | `services.masterEncryptionKey.existingSecret.key` | Key containing the MEK YAML | `mek.yaml` |
+| `services.masterEncryptionKey.bootstrap.enabled` | Create a missing MEK Secret inside Kubernetes for disposable test installs | `false` |
+| `services.masterEncryptionKey.bootstrap.image` | kubectl image used by the short-lived bootstrap hook | `alpine/kubectl:1.33.4` |
 | `services.masterEncryptionKey.allowExistingCiphertextAdoption` | One-time acknowledgement after stopping every legacy writer during an existing-install upgrade | `false` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
@@ -454,9 +456,19 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.startupProbe` | Startup probe configuration | See values.yaml |
 | `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
 
-The router and all other control-plane database consumers read the MEK from
-`services.masterEncryptionKey`. The chart supports only an existing Kubernetes
-Secret for this keyring and does not render or inject MEK material.
+The router and all other control-plane database consumers read the MEK through
+the typed `services.masterEncryptionKey.existingSecret` reference. Production
+installs should create and manage that Secret outside Helm.
+
+For a disposable test install, set
+`services.masterEncryptionKey.bootstrap.enabled=true`. A pre-install hook uses
+the configured kubectl image and a short-lived, namespace-scoped ServiceAccount
+to generate the initial 256-bit key inside Kubernetes and create the named
+Secret only when it is absent. MEK material is never rendered into Helm output
+or stored in Helm release state. The hook preserves an existing Secret, and a
+pre-upgrade hook fails if the Secret was deleted instead of silently generating
+a new key that cannot decrypt the database. The Secret persists after uninstall
+and must be deleted explicitly when the disposable environment is removed.
 
 To rotate the MEK, update that Secret in two separate Kubernetes writes. First,
 add the new JWK to `meks` while leaving `currentMek` unchanged (prepare). Use
@@ -472,7 +484,8 @@ durably checkpointed batches. Keep every previous
 MEK in the Secret. Removing a MEK is deliberately rejected because this release
 does not yet provide an HA-wide database write fence capable of proving safe
 retirement. Inspect `kubectl logs` for `MEK reconciliation status` records with
-per-key reference counts and blockers. OSMO never writes or rotates the Secret.
+per-key reference counts and blockers. OSMO never writes or rotates the Secret
+after bootstrap.
 
 For the first upgrade of an existing database to this registry, stop every
 legacy OSMO control-plane Deployment first. Start the new release once with

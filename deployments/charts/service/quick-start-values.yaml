@@ -27,6 +27,10 @@ global:
     node_group: service
 
 services:
+  masterEncryptionKey:
+    bootstrap:
+      enabled: true
+
   configFile:
     enabled: true
 

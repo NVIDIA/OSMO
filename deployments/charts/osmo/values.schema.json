@@ -930,9 +930,22 @@
           },
           "required": ["name", "key"]
         },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "image": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          },
+          "required": ["enabled", "image", "imagePullPolicy"]
+        },
         "allowExistingCiphertextAdoption": { "type": "boolean" }
       },
-      "required": ["existingSecret", "allowExistingCiphertextAdoption"]
+      "required": ["existingSecret", "bootstrap", "allowExistingCiphertextAdoption"]
     }
   }
 }
