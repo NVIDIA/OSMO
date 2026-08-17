@@ -247,12 +247,13 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   // TanStack Virtual caches measured heights by item key. Entries can move to
   // different indices when a filtered result is expanded back into the full
   // log, so index-based keys would attach a wrapped row's height to the wrong
-  // item. Keep the virtualizer and React keyed to the same logical identity.
+  // item. Separators have fixed height, so include their group index to keep
+  // repeated date groups unique.
   const getItemKey = useCallback(
     (index: number) => {
       const item = flatItems[index];
       if (!item) return index;
-      return item.type === "separator" ? `separator:${item.dateKey}` : `entry:${item.entry.id}`;
+      return item.type === "separator" ? `separator:${item.dateKey}:${item.index}` : `entry:${item.entry.id}`;
     },
     [flatItems],
   );

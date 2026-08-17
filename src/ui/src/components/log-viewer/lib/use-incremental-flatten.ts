@@ -85,6 +85,10 @@ export type EntriesChangeType = "unchanged" | "append" | "replace";
  * Classify an entry update without scanning the full prefix on streaming appends.
  * The previous tail must remain at the same prefix boundary; expanding a filtered
  * subsequence therefore becomes a replacement instead of a false append.
+ *
+ * While resetKey is unchanged, entries must be immutable and order-preserving;
+ * producers may only append entries and/or evict a prefix. Any other replacement
+ * must change resetKey.
  */
 export function classifyEntriesChange(
   previousEntries: LogEntry[],
