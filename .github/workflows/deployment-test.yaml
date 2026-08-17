@@ -62,7 +62,13 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
     paths:
+      - '.bazelrc'
+      - '.bazelversion'
       - '.github/workflows/deployment-test.yaml'
+      - 'BUILD'
+      - 'MODULE.bazel'
+      - 'MODULE.bazel.lock'
+      - 'bzl/**'
       - 'ci/deployment-test/**'
       - 'deployments/charts/backend-operator/**'
       - 'deployments/charts/service/**'
