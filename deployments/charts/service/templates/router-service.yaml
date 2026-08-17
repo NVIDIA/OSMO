@@ -20,7 +20,6 @@ metadata:
   name: {{ .Values.services.router.serviceName }}
   labels:
     app: {{ .Values.services.router.serviceName }}
-    osmo.nvidia.com/mek-consumer: "true"
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   replicas: {{ .Values.services.router.scaling.minReplicas }}
@@ -31,7 +30,6 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.router.serviceName }}
-        osmo.nvidia.com/mek-consumer: "true"
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.router.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
@@ -237,7 +235,6 @@ metadata:
   name: {{ .Values.services.router.serviceName }}
   labels:
     app: {{ .Values.services.router.serviceName }}
-    osmo.nvidia.com/mek-consumer: "true"
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
 spec:

@@ -220,23 +220,20 @@ mek_deployments=(
 )
 for deployment in "${mek_deployments[@]}"; do
     document=$(resource_document "$mek_render" Deployment "$deployment")
-    if [[ $(grep -c 'osmo.nvidia.com/mek-consumer: "true"' <<<"$document") -ne 2 ]] ||
-       ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
+    if ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
         echo "MEK adoption selector is incomplete on Deployment/$deployment" >&2
         exit 1
     fi
 done
 for hpa in osmo-service osmo-worker osmo-router osmo-logger osmo-agent; do
     document=$(resource_document "$mek_render" HorizontalPodAutoscaler "$hpa")
-    if ! grep -q 'osmo.nvidia.com/mek-consumer: "true"' <<<"$document" ||
-       ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
+    if ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
         echo "MEK adoption selector is incomplete on HorizontalPodAutoscaler/$hpa" >&2
         exit 1
     fi
 done
-ui_document=$(resource_document "$mek_render" Deployment osmo-ui)
-if grep -q 'osmo.nvidia.com/mek-consumer' <<<"$ui_document"; then
-    echo 'Non-MEK UI Deployment received the adoption selector' >&2
+if grep -q 'osmo.nvidia.com/mek-consumer' <<<"$mek_render"; then
+    echo 'Product chart rendered the KIND-only MEK consumer label' >&2
     exit 1
 fi
 grep -q 'app in (osmo-service,osmo-worker,osmo-router,osmo-logger,osmo-agent,osmo-delayed-job-monitor)' \

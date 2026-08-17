@@ -416,15 +416,10 @@ test_control_umbrella() {
     for mek_component in api worker router logger agent delayed-job-monitor; do
         resource_document "$rendered" Deployment "osmo-$mek_component" \
             >"$TEST_DIRECTORY/mek-$mek_component-deployment.yaml"
-        require_occurrences "$TEST_DIRECTORY/mek-$mek_component-deployment.yaml" \
-            'osmo.nvidia.com/mek-consumer: "true"' 2
         require_contains "$TEST_DIRECTORY/mek-$mek_component-deployment.yaml" \
             "app.kubernetes.io/instance: osmo"
     done
-    resource_document "$rendered" Deployment osmo-ui \
-        >"$TEST_DIRECTORY/non-mek-ui-deployment.yaml"
-    require_not_contains "$TEST_DIRECTORY/non-mek-ui-deployment.yaml" \
-        "osmo.nvidia.com/mek-consumer"
+    require_not_contains "$rendered" "osmo.nvidia.com/mek-consumer"
 
     helm_template mek-adoption-hpas "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -439,8 +434,6 @@ test_control_umbrella() {
         resource_document "$TEST_DIRECTORY/mek-adoption-hpas.yaml" \
             HorizontalPodAutoscaler "mek-adoption-hpas-osmo-$mek_component" \
             >"$TEST_DIRECTORY/mek-$mek_component-hpa.yaml"
-        require_contains "$TEST_DIRECTORY/mek-$mek_component-hpa.yaml" \
-            'osmo.nvidia.com/mek-consumer: "true"'
         require_contains "$TEST_DIRECTORY/mek-$mek_component-hpa.yaml" \
             "app.kubernetes.io/instance: mek-adoption-hpas"
     done

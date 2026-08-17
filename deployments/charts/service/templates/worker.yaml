@@ -19,7 +19,6 @@ metadata:
   name: {{ .Values.services.worker.serviceName }}
   labels:
     app: {{ .Values.services.worker.serviceName }}
-    osmo.nvidia.com/mek-consumer: "true"
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   selector:
@@ -29,7 +28,6 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.worker.serviceName }}
-        osmo.nvidia.com/mek-consumer: "true"
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.worker.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
@@ -183,7 +181,6 @@ metadata:
   name: {{ .Values.services.worker.serviceName }}
   labels:
     app: {{ .Values.services.worker.serviceName }}
-    osmo.nvidia.com/mek-consumer: "true"
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
 spec:

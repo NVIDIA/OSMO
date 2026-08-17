@@ -19,7 +19,6 @@ metadata:
   name: {{ .Values.services.delayedJobMonitor.serviceName }}
   labels:
     app: {{ .Values.services.delayedJobMonitor.serviceName }}
-    osmo.nvidia.com/mek-consumer: "true"
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   replicas: {{ .Values.services.delayedJobMonitor.replicas }}
@@ -30,7 +29,6 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.delayedJobMonitor.serviceName }}
-        osmo.nvidia.com/mek-consumer: "true"
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.delayedJobMonitor.extraPodLabels }}
         {{- toYaml . | nindent 8 }}

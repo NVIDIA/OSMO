@@ -24,7 +24,6 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
-    osmo.nvidia.com/mek-consumer: "true"
   {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
     {{- . | nindent 4 }}
@@ -44,7 +43,6 @@ spec:
     metadata:
       labels:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.logger "componentName" "logger") | nindent 8 }}
-        osmo.nvidia.com/mek-consumer: "true"
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.logger) | nindent 8 }}
     spec:
@@ -243,7 +241,6 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
-    osmo.nvidia.com/mek-consumer: "true"
   {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
     {{- . | nindent 4 }}

@@ -569,6 +569,18 @@ class KindAdapter:
             "--set", "service.services.agent.resources.requests.memory=1Gi",
             "--set", "service.services.agent.resources.limits.memory=1Gi",
         ]
+        # The MEK rotation smoke test discovers only its six participating
+        # pods through this test-scoped label. Keep it out of product chart
+        # defaults and inject it only into KIND's pod-label extension points.
+        for component in (
+            "service", "worker", "router", "logger", "agent",
+            "delayedJobMonitor",
+        ):
+            args += [
+                "--set-string",
+                "service.services."
+                f"{component}.extraPodLabels.osmo\\.nvidia\\.com/mek-consumer=true",
+            ]
         if self.chart_version:
             args += ["--version", self.chart_version]
         if self.image_location:
