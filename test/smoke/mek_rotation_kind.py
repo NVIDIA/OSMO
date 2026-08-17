@@ -49,6 +49,10 @@ class MekRotationKind(SmokeFixture):
     def _mek_consumers(self):
         consumers = {}
         for pod in self._json("get", "pods")["items"]:
+            if pod["metadata"].get("labels", {}).get(
+                "osmo.nvidia.com/mek-consumer"
+            ) != "true":
+                continue
             ready = any(
                 condition["type"] == "Ready" and condition["status"] == "True"
                 for condition in pod.get("status", {}).get("conditions", [])
@@ -201,15 +205,19 @@ class MekRotationKind(SmokeFixture):
         self._kubectl("scale", "deployment", api_deployment, "--replicas=2")
         self._kubectl(
             "rollout", "status", "deployment", api_deployment, "--timeout=5m")
-        consumers = self._wait(
+        self._wait(
             "at least two ready MEK consumers",
             lambda: (current if len(current := self._mek_consumers()) >= 2 else None),
         )
-        pod = self._json("get", "pod", next(iter(consumers)))
-        mek_volume = next(
-            volume["secret"] for volume in pod["spec"]["volumes"]
+        deployment = self._json("get", "deployment", api_deployment)
+        mek_volumes = [
+            volume
+            for volume in deployment["spec"]["template"]["spec"]["volumes"]
             if volume["name"] == "mek-volume"
-        )
+        ]
+        self.assertEqual(len(mek_volumes), 1, "expected one API MEK volume")
+        self.assertIn("secret", mek_volumes[0], "MEK must use a Secret volume")
+        mek_volume = mek_volumes[0]["secret"]
         secret_name = mek_volume["secretName"]
         secret_key = mek_volume["items"][0]["key"]
         secret = self._json("get", "secret", secret_name)
