@@ -38,11 +38,16 @@ data:
     {{- if $cfg.workflow }}
     workflow:
       {{- $workflow := deepCopy $cfg.workflow }}
-      {{- $storage := .Values.externalDependencies.objectStorage }}
       {{- $secret := .Values.secrets.objectStorage }}
-      {{- $_ := set $workflow "workflow_data" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/workflows" $storage.buckets.workflows) "override_url" $storage.endpoint "region" $storage.region)) }}
-      {{- $_ := set $workflow "workflow_log" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/logs" $storage.buckets.logs) "override_url" $storage.endpoint "region" $storage.region)) }}
-      {{- $_ := set $workflow "workflow_app" (dict "credential" (dict "secretName" $secret.existingSecret "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/apps" $storage.buckets.apps) "override_url" $storage.endpoint "region" $storage.region)) }}
+      {{- $secretName := include "osmo.objectStorage.secretName" . }}
+      {{- $endpoint := include "osmo.objectStorage.endpoint" . }}
+      {{- $region := include "osmo.objectStorage.region" . }}
+      {{- $workflowBucket := include "osmo.objectStorage.bucket" (dict "root" . "name" "workflows") }}
+      {{- $logBucket := include "osmo.objectStorage.bucket" (dict "root" . "name" "logs") }}
+      {{- $appBucket := include "osmo.objectStorage.bucket" (dict "root" . "name" "apps") }}
+      {{- $_ := set $workflow "workflow_data" (dict "credential" (dict "secretName" $secretName "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/workflows" $workflowBucket) "override_url" $endpoint "region" $region)) }}
+      {{- $_ := set $workflow "workflow_log" (dict "credential" (dict "secretName" $secretName "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/logs" $logBucket) "override_url" $endpoint "region" $region)) }}
+      {{- $_ := set $workflow "workflow_app" (dict "credential" (dict "secretName" $secretName "secretKey" $secret.keys.credentials "endpoint" (printf "s3://%s/apps" $appBucket) "override_url" $endpoint "region" $region)) }}
       {{- toYaml $workflow | nindent 6 }}
     {{- end }}
     {{- if $cfg.pools }}

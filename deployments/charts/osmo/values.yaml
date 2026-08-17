@@ -22,6 +22,11 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
+    region: us-east-1
+    buckets:
+      workflows: osmo-workflows
+      logs: osmo-logs
+      apps: osmo-apps
   kaiScheduler:
     enabled: false
 
@@ -1397,3 +1402,64 @@ valkey:
       whenScaled: Retain
   podDisruptionBudget:
     enabled: true
+
+# Official RustFS dependency configuration. These defaults provide a hardened,
+# persistent standalone server when embedded object storage is enabled.
+rustfs:
+  replicaCount: 1
+  mode:
+    standalone:
+      enabled: true
+      strategy:
+        type: Recreate
+    distributed:
+      enabled: false
+  secret:
+    existingSecret: osmo-rustfs-credentials
+    allowInsecureDefaults: false
+    rustfs:
+      access_key: ""
+      secret_key: ""
+  ingress:
+    enabled: false
+  gatewayApi:
+    enabled: false
+  serviceAccount:
+    create: true
+    automount: false
+  image:
+    rustfs:
+      repository: rustfs/rustfs
+      tag: "1.0.0-rc.2@sha256:7d6d361c49c08d427250fb59aae5d78df83d644c3405d9ccf4b21cda0b0692d0"
+    initImage:
+      repository: busybox
+      tag: "stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+  config:
+    rustfs:
+      console_enable: "false"
+      obs_environment: production
+      obs_log_directory: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  podSecurityContext:
+    fsGroup: 10001
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+  storageclass:
+    name: ""
+    dataStorageSize: 10Gi

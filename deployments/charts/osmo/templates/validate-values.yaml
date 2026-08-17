@@ -50,7 +50,76 @@
 {{- end -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
-{{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
+{{- $externalBuckets := .Values.externalDependencies.objectStorage.buckets -}}
+{{- $embeddedBuckets := .Values.embeddedDependencies.objectStorage.buckets -}}
+{{- if .Values.externalDependencies.objectStorage.endpoint -}}
+{{- fail "externalDependencies.objectStorage.endpoint must be empty when embedded object storage is enabled" -}}
+{{- end -}}
+{{- if $externalBuckets.workflows -}}
+{{- fail "externalDependencies.objectStorage.buckets.workflows must be empty when embedded object storage is enabled" -}}
+{{- end -}}
+{{- if $externalBuckets.logs -}}
+{{- fail "externalDependencies.objectStorage.buckets.logs must be empty when embedded object storage is enabled" -}}
+{{- end -}}
+{{- if $externalBuckets.apps -}}
+{{- fail "externalDependencies.objectStorage.buckets.apps must be empty when embedded object storage is enabled" -}}
+{{- end -}}
+{{- if and .Values.secrets.objectStorage.generate .Values.secrets.objectStorage.existingSecret -}}
+{{- fail "secrets.objectStorage.generate and existingSecret are mutually exclusive" -}}
+{{- end -}}
+{{- if and (not .Values.secrets.objectStorage.generate) (not .Values.secrets.objectStorage.existingSecret) -}}
+{{- fail "embedded object storage requires generated or existing credentials" -}}
+{{- end -}}
+{{- if not .Values.rustfs.secret.existingSecret -}}
+{{- fail "rustfs.secret.existingSecret is required for embedded object storage" -}}
+{{- end -}}
+{{- if and
+  (not .Values.secrets.objectStorage.generate)
+  (ne .Values.rustfs.secret.existingSecret .Values.secrets.objectStorage.existingSecret) -}}
+{{- fail "rustfs.secret.existingSecret must match the effective object-storage Secret" -}}
+{{- end -}}
+{{- if or .Values.rustfs.secret.rustfs.access_key .Values.rustfs.secret.rustfs.secret_key -}}
+{{- fail "inline RustFS credentials are not supported; use the effective object-storage Secret" -}}
+{{- end -}}
+{{- if .Values.rustfs.secret.allowInsecureDefaults -}}
+{{- fail "rustfs.secret.allowInsecureDefaults must be false for embedded object storage" -}}
+{{- end -}}
+{{- if eq .Values.rustfs.mode.standalone.enabled .Values.rustfs.mode.distributed.enabled -}}
+{{- fail "exactly one RustFS topology mode must be enabled" -}}
+{{- end -}}
+{{- if ne (int .Values.rustfs.service.endpoint.port) 9000 -}}
+{{- fail "embedded RustFS requires endpoint service port 9000" -}}
+{{- end -}}
+{{- if .Values.rustfs.ingress.enabled -}}
+{{- fail "rustfs.ingress.enabled must be false for embedded object storage" -}}
+{{- end -}}
+{{- if .Values.rustfs.gatewayApi.enabled -}}
+{{- fail "rustfs.gatewayApi.enabled must be false for embedded object storage" -}}
+{{- end -}}
+{{- if not .Values.embeddedDependencies.objectStorage.region -}}
+{{- fail "embeddedDependencies.objectStorage.region is required when embedded object storage is enabled" -}}
+{{- end -}}
+{{- if or (not $embeddedBuckets.workflows) (not $embeddedBuckets.logs) (not $embeddedBuckets.apps) -}}
+{{- fail "embedded object-storage bucket names must be non-empty" -}}
+{{- end -}}
+{{- if or
+  (eq $embeddedBuckets.workflows $embeddedBuckets.logs)
+  (eq $embeddedBuckets.workflows $embeddedBuckets.apps)
+  (eq $embeddedBuckets.logs $embeddedBuckets.apps) -}}
+{{- fail "embedded object-storage bucket names must be unique" -}}
+{{- end -}}
+{{- range $bucket := list $embeddedBuckets.workflows $embeddedBuckets.logs $embeddedBuckets.apps -}}
+{{- if or
+  (not (regexMatch "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$" $bucket))
+  (contains ".." $bucket)
+  (contains ".-" $bucket)
+  (contains "-." $bucket)
+  (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$" $bucket) -}}
+{{- fail "embedded object-storage bucket names must use valid S3 syntax" -}}
+{{- end -}}
+{{- end -}}
+{{- else if .Values.secrets.objectStorage.generate -}}
+{{- fail "secrets.objectStorage.generate is supported only when embedded object storage is enabled" -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.kaiScheduler.enabled -}}
 {{- fail "embeddedDependencies.kaiScheduler.enabled: embedded KAI Scheduler is not implemented" -}}
@@ -125,7 +194,7 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if or .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
@@ -186,16 +255,16 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.externalDependencies.valkey.host) -}}
 {{- fail "externalDependencies.valkey.host is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.endpoint -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.endpoint) -}}
 {{- fail "externalDependencies.objectStorage.endpoint is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.buckets.workflows -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.workflows) -}}
 {{- fail "externalDependencies.objectStorage.buckets.workflows is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.buckets.logs -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.logs) -}}
 {{- fail "externalDependencies.objectStorage.buckets.logs is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.externalDependencies.objectStorage.buckets.apps -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.apps) -}}
 {{- fail "externalDependencies.objectStorage.buckets.apps is required for the control plane" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.secrets.postgresql.existingSecret) -}}
@@ -204,7 +273,7 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.secrets.valkey.existingSecret) -}}
 {{- fail "secrets.valkey.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.objectStorage.existingSecret -}}
+{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.secrets.objectStorage.existingSecret) -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
 {{- end -}}
 {{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}

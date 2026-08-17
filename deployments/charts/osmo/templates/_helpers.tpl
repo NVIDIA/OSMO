@@ -252,7 +252,7 @@ data:
 - name: configs
   mountPath: /etc/osmo/configs
   readOnly: true
-{{- with .Values.secrets.objectStorage.existingSecret }}
+{{- with (include "osmo.objectStorage.secretName" .) }}
 - name: object-storage-credentials
   mountPath: /etc/osmo/secrets/{{ . }}
   readOnly: true
@@ -265,7 +265,7 @@ data:
 - name: configs
   configMap:
     name: {{ include "osmo.api.fullname" . }}-config
-{{- with .Values.secrets.objectStorage.existingSecret }}
+{{- with (include "osmo.objectStorage.secretName" .) }}
 - name: object-storage-credentials
   secret:
     secretName: {{ . }}
@@ -319,6 +319,50 @@ data:
 
 {{- define "osmo.valkey.generatedSecretName" -}}
 {{- printf "%s-valkey-credentials" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "osmo.rustfs.fullname" -}}
+{{- $name := default "rustfs" (dig "nameOverride" "" .Values.rustfs) -}}
+{{- $fullnameOverride := dig "fullnameOverride" "" .Values.rustfs -}}
+{{- if $fullnameOverride -}}
+{{- $fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.endpoint" -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- printf "http://%s-svc:9000" (include "osmo.rustfs.fullname" .) -}}
+{{- else -}}
+{{- .Values.externalDependencies.objectStorage.endpoint -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.region" -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- .Values.embeddedDependencies.objectStorage.region -}}
+{{- else -}}
+{{- .Values.externalDependencies.objectStorage.region -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.bucket" -}}
+{{- if .root.Values.embeddedDependencies.objectStorage.enabled -}}
+{{- get .root.Values.embeddedDependencies.objectStorage.buckets .name -}}
+{{- else -}}
+{{- get .root.Values.externalDependencies.objectStorage.buckets .name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.secretName" -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- .Values.rustfs.secret.existingSecret -}}
+{{- else -}}
+{{- .Values.secrets.objectStorage.existingSecret -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "osmo.valkey.host" -}}
