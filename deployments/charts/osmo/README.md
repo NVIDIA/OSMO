@@ -15,16 +15,12 @@ to an external Valkey service. Object storage and the remaining Kubernetes
 Secrets are externally managed. Compute-plane workloads and the other embedded
 dependencies remain future work.
 
-## CloudNativePG prerequisite
+## Embedded PostgreSQL
 
-Embedded PostgreSQL requires the official CloudNativePG operator and CRDs.
-Install the pinned, Apache-2.0 CloudNativePG operator chart `0.29.0`
-(CloudNativePG `1.30.0`) once per Kubernetes cluster before installing OSMO.
-The operator watches OSMO namespaces but has a separate Helm lifecycle:
+Embedded PostgreSQL requires CloudNativePG chart `0.29.0` (operator `1.30.0`):
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo update cnpg
 helm upgrade --install osmo-cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
@@ -32,73 +28,28 @@ helm upgrade --install osmo-cnpg cnpg/cloudnative-pg \
   --wait
 ```
 
-The OSMO chart declares the official CloudNativePG `cluster` chart at version
-`0.8.0`, which creates a `Cluster` custom resource. Published OSMO chart
-packages include that dependency. The source repository stores `Chart.lock`
-for reproducible dependency resolution but does not store downloaded chart
-archives. Build them before installing directly from a source checkout:
-
-```bash
-helm dependency build deployments/charts/osmo
-```
-
-The OSMO chart does not install or upgrade the operator. The default PostgreSQL
-16 image is obtained from the CloudNativePG project on GHCR. Confirm that the
-operator and database images are mirrored or pullable in restricted
-environments.
-
-The embedded-mode preflight checks the discovered CNPG API. For offline render
-validation, supply that capability explicitly (this Helm version does not
-provide the equivalent flag on `helm lint`):
-
-```bash
-helm template osmo deployments/charts/osmo \
-  --api-versions postgresql.cnpg.io/v1 \
-  -f deployments/charts/osmo/profiles/split-plane-control.yaml \
-  -f <embedded-environment-values.yaml>
-```
-
-## Installation with embedded PostgreSQL
-
-Enable the dependency in the same environment values file used for OSMO:
+Add the following PostgreSQL settings to the environment values used with the
+`split-plane-control` profile:
 
 ```yaml
 embeddedDependencies:
   postgresql:
     enabled: true
 
-externalUrl: https://osmo.example.com
-
 externalDependencies:
   postgresql:
     host: ''
-  valkey:
-    host: valkey.example.com
-    port: 6379
-    database: 0
-  objectStorage:
-    endpoint: https://s3.example.com
-    region: us-east-1
-    buckets:
-      workflows: osmo-workflows
-      logs: osmo-logs
-      apps: osmo-apps
 
 secrets:
   postgresql:
     generate: true
     existingSecret: ''
-  valkey:
-    existingSecret: osmo-valkey
-  objectStorage:
-    existingSecret: osmo-object-storage
-  masterEncryptionKey:
-    existingSecret: osmo-master-encryption-key
 ```
 
-Install OSMO after the operator is Ready:
+Install the chart after the operator is Ready:
 
 ```bash
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -108,79 +59,33 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 25m
 ```
 
-The production defaults create three PostgreSQL 16 instances. Each instance
-has its own 20 Gi `ReadWriteOnce` PVC, using the cluster's default StorageClass,
-and requests and limits one CPU and 2 Gi memory for Guaranteed QoS. Override
-`postgresql.cluster.storage.storageClass` when the default class is not the
-durable storage class intended for database data. Separate WAL storage is
-available through `postgresql.cluster.walStorage`, but is disabled by default.
+The defaults create three PostgreSQL 16 instances with one 20 Gi
+`ReadWriteOnce` PVC per instance, required hostname anti-affinity, a
+PodDisruptionBudget, and synchronous replication to one standby. A generated
+application Secret is wired into every OSMO PostgreSQL client automatically.
+Set `postgresql.cluster.storage.storageClass` when the cluster default is not
+the desired durable StorageClass. See the
+[CloudNativePG cluster chart](https://github.com/cloudnative-pg/charts/tree/main/charts/cluster)
+for additional `postgresql` values.
 
-OSMO connects only to the stable `<release>-postgresql-rw` service. CNPG
-creates the application credential Secret (normally
-`<release>-postgresql-app`) and CA Secret, and OSMO uses certificate
-verification for every database connection. The generated database and owner
-are both `osmo` by default. Embedded PostgreSQL must remain in the OSMO release
-namespace. When `postgresql.cluster.certificates.serverCASecret` supplies a
-custom CNPG server CA, OSMO mounts `ca.crt` from that Secret automatically.
+### PostgreSQL operations
 
-## High availability and operations
+- **Health and failure recovery:** Check `kubectl --namespace osmo get
+  clusters.postgresql.cnpg.io,pods,pvc,pdb`. CloudNativePG promotes a healthy
+  standby after primary failure; wait for the cluster to return to three Ready
+  instances before considering recovery complete.
+- **Scaling:** Change `postgresql.cluster.instances` and run `helm upgrade`.
+  Ensure enough topology domains exist for required anti-affinity before
+  scaling up, and verify replication health before scaling down.
+- **Upgrades:** Upgrade through `helm upgrade`. Keep PostgreSQL on the configured
+  major version for rolling updates; major-version changes require a separate
+  data-migration plan.
+- **Backup and restore:** PVCs survive Pod replacement but are not backups.
+  Embedded backup/restore is deferred to
+  [OSMO-6609](https://jirasw.nvidia.com/browse/OSMO-6609); use an external
+  PostgreSQL service when a tested backup and restore path is required.
 
-The production defaults require instances to run on different
-`kubernetes.io/hostname` values, enable a PodDisruptionBudget, and require
-quorum-based synchronous replication with `ANY 1`: a commit must be
-acknowledged by one standby. At least three schedulable nodes are therefore
-required for the default cluster. CNPG performs automatic failover and uses an
-unsupervised switchover when updating the primary. Loss of the primary should
-promote a healthy standby; loss of enough instances to satisfy the synchronous
-requirement intentionally stops writes rather than acknowledging data that has
-not reached a standby.
-
-Inspect the cluster and its persistent storage with:
-
-```bash
-kubectl --namespace osmo get clusters.postgresql.cnpg.io,pods,pvc,pdb
-kubectl --namespace osmo describe cluster osmo-postgresql
-```
-
-To exercise recovery in a non-production environment, record the current
-primary, delete that Pod, and wait for the cluster to report three Ready
-instances again:
-
-```bash
-primary=$(kubectl --namespace osmo get cluster osmo-postgresql \
-  -o jsonpath='{.status.currentPrimary}')
-kubectl --namespace osmo delete pod "$primary" \
-  --grace-period=0 --force --wait=false
-kubectl --namespace osmo wait cluster/osmo-postgresql \
-  --for=jsonpath='{.status.phase}'='Cluster in healthy state' \
-  --timeout=10m
-```
-
-The forced deletion deliberately simulates abrupt instance failure and should
-never be used as a routine restart procedure.
-
-Scale by changing `postgresql.cluster.instances` and running `helm upgrade`.
-Add nodes/topology domains before scaling up so anti-affinity can place the new
-instances. Before scaling down, verify replication health and confirm that the
-PVCs selected for removal contain no uniquely required data.
-
-Routine image changes within the configured PostgreSQL major version roll
-through replicas and finish with a primary switchover. Upgrade the
-CloudNativePG operator using its own pinned Helm release, review its supported
-upgrade path, and wait for it to become Ready before upgrading OSMO. A
-PostgreSQL major-version change is a data migration, not a routine image
-upgrade; create and validate a migration/recovery plan first.
-
-PVCs preserve data across Pod replacement. They are not backups, and deleting
-the CNPG `Cluster` (including through `helm uninstall`) can delete its owned
-PVCs. Embedded backup, restore, and point-in-time recovery configuration is
-deliberately rejected in this chart and is tracked by
-[OSMO-6609](https://jirasw.nvidia.com/browse/OSMO-6609). Do not use embedded
-PostgreSQL for production data until an independent, tested backup and restore
-procedure is in place.
-
-For resource-constrained development only, a single instance can be rendered
-by explicitly relaxing durability and disabling the PDB:
+For resource-constrained development, explicitly relax the production settings:
 
 ```yaml
 postgresql:
@@ -192,8 +97,6 @@ postgresql:
         number: 0
         dataDurability: preferred
 ```
-
-This is not a highly available or production-ready configuration.
 
 ## Install the control plane with external PostgreSQL
 
@@ -246,10 +149,6 @@ helm upgrade --install osmo deployments/charts/osmo \
   --wait \
   --timeout 25m
 ```
-
-The dependency build is only needed for a source checkout. Packaged charts
-include the official Valkey chart version `0.11.0` and CloudNativePG cluster
-chart version `0.8.0`.
 
 ## Embedded Valkey
 
@@ -325,10 +224,8 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 
-For an existing embedded PostgreSQL credential, CNPG requires a
-`kubernetes.io/basic-auth` Secret with `username` and `password` keys. The
-username must match `postgresql.cluster.initdb.owner`. Set both OSMO references
-to the same Secret:
+To use an existing credential Secret, provide a `kubernetes.io/basic-auth`
+Secret whose `username` matches `postgresql.cluster.initdb.owner`, then set:
 
 ```yaml
 secrets:
@@ -347,13 +244,11 @@ postgresql:
         name: osmo-postgresql-credentials
 ```
 
-Except for the generated CNPG application credentials, the chart only reads
-operator-owned Secrets. It does not mutate or delete external Secrets. When an
-external PostgreSQL or Valkey service uses a private CA, enable TLS in the
-matching `externalDependencies` block and reference the CA Secret there. The
-Valkey `caKey` must hold a complete PEM trust bundle, including the public or
-system roots used by other HTTPS endpoints; OSMO's Python services consume that
-bundle through `SSL_CERT_FILE`. The default Valkey key is `ca-bundle.crt`.
+When an external PostgreSQL or Valkey service uses a private CA, enable TLS in
+the matching `externalDependencies` block and reference the CA Secret there.
+The Valkey `caKey` must hold a complete PEM trust bundle, including the public
+or system roots used by other HTTPS endpoints; OSMO's Python services consume
+that bundle through `SSL_CERT_FILE`. The default Valkey key is `ca-bundle.crt`.
 
 For an external Valkey endpoint signed by a public CA, leave
 `caExistingSecret` empty to use the image's system trust store.
