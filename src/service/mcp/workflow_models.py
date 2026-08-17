@@ -280,7 +280,6 @@ class TaskSummary(ClosedToolModel):
     start_time: str | None = None
     end_time: str | None = None
     duration: float | None = None
-    overview: str | None = None
 
 
 class WorkflowTask(ClosedToolModel):

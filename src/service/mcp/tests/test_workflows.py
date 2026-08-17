@@ -408,9 +408,9 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             'start_time': '2026-08-17T12:00:00Z',
             'end_time': None,
             'duration': 120.0,
-            'overview': 'https://osmo.test/workflows/wf-2',
         })
         self.assertNotIn('logs', structured['tasks'][0])
+        self.assertNotIn('overview', structured['tasks'][0])
         self.assertEqual(
             captured_requests[0].url.params.multi_items(),
             [
