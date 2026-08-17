@@ -239,7 +239,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(task_properties['node']['minItems'], 1)
         self.assertEqual(
             tools['osmo_list_tasks']['inputSchema']['required'],
-            ['node', 'status'],
+            ['node'],
         )
         task_schema = json.dumps(task_properties)
         for value in ('PROCESSING', 'SCHEDULING', 'RUNNING', 'FAILED_UPSTREAM'):
@@ -404,11 +404,11 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             [
                 ('nodes', 'node-1'),
                 ('nodes', 'node-2'),
-                ('statuses', 'FAILED'),
-                ('statuses', 'RUNNING'),
                 ('limit', '2'),
                 ('offset', '3'),
                 ('order', 'DESC'),
+                ('statuses', 'FAILED'),
+                ('statuses', 'RUNNING'),
                 ('priority', 'HIGH'),
                 ('priority', 'LOW'),
                 ('all_users', 'true'),
@@ -417,7 +417,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_task_list_requires_status_filter(self) -> None:
+    async def test_task_list_omits_status_filter_when_unspecified(self) -> None:
         captured_requests: list[httpx.Request] = []
 
         async def handler(request: httpx.Request) -> httpx.Response:
@@ -428,7 +428,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             response = await _call_tool(
                 client,
                 'osmo_list_tasks',
-                {'node': ['node-1'], 'status': ['RUNNING']},
+                {'node': ['node-1']},
             )
 
         self.assertFalse(response.json()['result']['isError'])
@@ -436,7 +436,6 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             captured_requests[0].url.params.multi_items(),
             [
                 ('nodes', 'node-1'),
-                ('statuses', 'RUNNING'),
                 ('limit', '51'),
                 ('offset', '0'),
                 ('order', 'DESC'),

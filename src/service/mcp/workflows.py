@@ -247,7 +247,7 @@ async def osmo_list_workflows(
 async def osmo_list_tasks(
     context: Context,
     node: QueryTextList,
-    status: TaskStatuses,
+    status: TaskStatuses | None = None,
     priority: WorkflowPriorities | None = None,
     all_users: bool = False,
     limit: TaskPageLimit = 50,
@@ -266,21 +266,22 @@ async def osmo_list_tasks(
         max_value_bytes=_MAX_QUERY_TEXT_BYTES,
         deduplicate=True,
     )
-    statuses = tool_validation.validate_query_values(
-        status,
-        field='status',
-        max_count=_MAX_QUERY_VALUES,
-        max_value_bytes=_MAX_QUERY_TEXT_BYTES,
-    )
-    if any(value not in _TASK_STATUSES for value in statuses):
-        raise tool_errors.PublicToolError('Invalid task status.')
     query: dict[str, gateway.QueryValue] = {
         'nodes': nodes,
-        'statuses': statuses,
         'limit': limit + 1,
         'offset': offset,
         'order': 'DESC',
     }
+    if status is not None:
+        statuses = tool_validation.validate_query_values(
+            status,
+            field='status',
+            max_count=_MAX_QUERY_VALUES,
+            max_value_bytes=_MAX_QUERY_TEXT_BYTES,
+        )
+        if any(value not in _TASK_STATUSES for value in statuses):
+            raise tool_errors.PublicToolError('Invalid task status.')
+        query['statuses'] = statuses
     if priority is not None:
         priorities = tool_validation.validate_query_values(
             priority,

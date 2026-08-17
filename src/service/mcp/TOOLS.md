@@ -32,7 +32,7 @@ RBAC.
 | Pools | `osmo_search_pools` | Accessible pools only; local text search and bounded output preserve shared node-set capacity | `GET /api/profile/settings`, `GET /api/pool_quota` |
 | Resources | `osmo_list_resources`, `osmo_get_resource` | Profile-selected accessible pools; normalized CLI-compatible capacity/used/free quantities; local bounded output and uniform node not-found behavior | `GET /api/profile/settings`, `GET /api/resources`, `GET /api/resources/{node_name}` |
 | Workflows | `osmo_list_workflows`, `osmo_get_workflow`, `osmo_get_workflow_logs`, `osmo_get_workflow_events`, `osmo_get_workflow_spec` | Active user's workflows in token-accessible pools; label filters, projected labels, and bounded/redacted policy warnings; canonical workflow IDs; compact status and marked bounded text | `GET /api/workflow...` |
-| Tasks | `osmo_list_tasks` | Node-targeted task ownership lookup with explicit status filters and bounded output | `GET /api/task` |
+| Tasks | `osmo_list_tasks` | Node-targeted task ownership lookup with optional status filters and bounded output | `GET /api/task` |
 | Applications | `osmo_list_apps`, `osmo_get_app`, `osmo_get_app_spec` | Active user's apps by default; app specs resolve a concrete newest READY version from bounded history when omitted, and return marked bounded text | `GET /api/app...` |
 | Credential metadata | `osmo_list_credentials` | Names and types only; never profiles or credential payloads | `GET /api/credentials` |
 
