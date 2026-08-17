@@ -17,6 +17,25 @@ An HTTPRoute attaches to an existing Gateway named in httproute.parentRefs;
 this chart does not create a Gateway or GatewayClass.
 {{ end }}
 
+{{- if .Values.embeddedDependencies.objectStorage.enabled }}
+
+Embedded RustFS endpoint:
+
+  {{ include "osmo.objectStorage.endpoint" . }}
+
+Credential Secret:
+
+  {{ include "osmo.objectStorage.secretName" . }}
+
+RustFS PersistentVolumeClaims are retained. Back up the object data and
+credential Secret together; restore the matching credential Secret before
+reinstalling or recovering retained storage.
+
+To inspect RustFS and bucket-bootstrap readiness, run:
+
+  kubectl get deployment,statefulset,pod,pvc,job --namespace {{ .Release.Namespace }}
+{{- end }}
+
 To test a ClusterIP gateway locally, run:
 
   kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "osmo.gateway.fullname" . }} 8080:{{ .Values.gateway.envoy.service.port }}

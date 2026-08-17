@@ -178,8 +178,8 @@ monitoring:
 # References to Kubernetes Secrets. Inline credentials are not accepted.
 # Embedded PostgreSQL credentials are owned by
 # postgresql.cluster.initdb.secret.name. These Secret settings are external-only
-# for PostgreSQL. Generated credentials are supported by embedded Valkey; other
-# `generate` switches must remain false.
+# for PostgreSQL. Retained generated credentials are supported by embedded
+# Valkey and embedded object storage; other credential sources remain external.
 secrets:
   # Credentials for external PostgreSQL. Embedded PostgreSQL credentials are
   # created by CloudNativePG or configured with

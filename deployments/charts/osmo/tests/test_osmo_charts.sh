@@ -494,6 +494,20 @@ test_control_umbrella() {
     require_contains "$rendered" "secretName: external-object-storage-secret"
     require_contains "$rendered" "secretName: external-master-encryption-key-secret"
     require_contains "$rendered" "https://s3.external.example.com"
+    resource_document "$rendered" ConfigMap osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-external-object-storage-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
+        "override_url: https://s3.external.example.com"
+    require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
+        "region: us-east-1"
+    require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
+        "endpoint: s3://osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
+        "endpoint: s3://osmo-logs/logs"
+    require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
+        "endpoint: s3://osmo-apps/apps"
+    require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
+        "secretKey: object-storage.yaml"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
@@ -1127,6 +1141,93 @@ EOF
         Secret existing-rustfs-secret
     require_contains "$TEST_DIRECTORY/osmo-embedded-object-storage-existing.yaml" \
         "secretName: existing-rustfs-secret"
+
+    helm_template embedded-object-storage-ha "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/embedded-rustfs-ha-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml"
+    require_no_deployment \
+        "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        embedded-object-storage-ha-rustfs
+    require_no_resource "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        PersistentVolumeClaim embedded-object-storage-ha-rustfs-data
+    require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        StatefulSet embedded-object-storage-ha-rustfs
+    require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        PodDisruptionBudget embedded-object-storage-ha-rustfs
+    require_no_resource "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        Secret osmo-rustfs-credentials
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        StatefulSet embedded-object-storage-ha-rustfs \
+        >"$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "replicas: 4"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "requiredDuringSchedulingIgnoredDuringExecution:"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "topologyKey: kubernetes.io/hostname"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "name: data"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        'accessModes: ["ReadWriteOnce"]'
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "storageClassName: standard"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "storage: 100Gi"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "name: RUSTFS_LOCAL_ENDPOINT_HOST"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "cpu: 500m"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "memory: 1Gi"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-statefulset.yaml" \
+        "memory: 2Gi"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        PodDisruptionBudget embedded-object-storage-ha-rustfs \
+        >"$TEST_DIRECTORY/osmo-rustfs-ha-pdb.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-pdb.yaml" \
+        "maxUnavailable: 1"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        ConfigMap embedded-object-storage-ha-rustfs-config \
+        >"$TEST_DIRECTORY/osmo-rustfs-ha-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-config.yaml" \
+        'RUSTFS_STORAGE_CLASS_STANDARD: "EC:2"'
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-config.yaml" \
+        'rustfs-{0...3}.embedded-object-storage-ha-rustfs-headless.default.svc.cluster.local:9000/data'
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        ConfigMap embedded-object-storage-ha-osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
+        "override_url: http://embedded-object-storage-ha-rustfs-svc:9000"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
+        "endpoint: s3://osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
+        "endpoint: s3://osmo-logs/logs"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
+        "endpoint: s3://osmo-apps/apps"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
+        "secretName: osmo-rustfs-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
+        "secretKey: object-storage.yaml"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        Job embedded-object-storage-ha-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
+        'value: "http://embedded-object-storage-ha-rustfs-svc:9000"'
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
+        "name: OSMO_WORKFLOW_BUCKET"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
+        "name: OSMO_LOG_BUCKET"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
+        "name: OSMO_APP_BUCKET"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
+        "name: osmo-rustfs-credentials"
 
     local conflicting_external_object_storage_value
     local conflicting_external_object_storage_message
@@ -2735,6 +2836,26 @@ EOF
         "curl http://127.0.0.1:8080/api/version"
     require_not_contains "$TEST_DIRECTORY/osmo-http-notes-configmap.yaml" \
         "--insecure"
+
+    helm_template notes-embedded-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/embedded-rustfs-ha-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-embedded-notes.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-notes.yaml" ConfigMap \
+        rendered-notes >"$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
+        "http://notes-embedded-release-rustfs-svc:9000"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
+        "osmo-rustfs-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
+        "PersistentVolumeClaims are retained"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
+        "restore the matching credential Secret"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
+        "kubectl get deployment,statefulset,pod,pvc,job"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
+        "service/notes-embedded-release-osmo-gateway 8080:80"
 
 }
 

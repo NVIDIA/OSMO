@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Distributed RustFS operations example. Supply osmo-rustfs-credentials before
+# installing; see README.md for the required RustFS and OSMO credential keys.
+embeddedDependencies:
+  objectStorage:
+    enabled: true
+    region: us-east-1
+    buckets:
+      workflows: osmo-workflows
+      logs: osmo-logs
+      apps: osmo-apps
+
+externalDependencies:
+  objectStorage:
+    endpoint: ''
+    buckets:
+      workflows: ''
+      logs: ''
+      apps: ''
+
+secrets:
+  objectStorage:
+    generate: false
+    existingSecret: osmo-rustfs-credentials
+
+rustfs:
+  replicaCount: 4
+  drivesPerNode: 1
+  localEndpointHost:
+    autoInject: true
+  mode:
+    standalone:
+      enabled: false
+    distributed:
+      enabled: true
+  secret:
+    existingSecret: osmo-rustfs-credentials
+  config:
+    rustfs:
+      ec:
+        storage_class_standard: EC:2
+  affinity:
+    podAntiAffinity:
+      enabled: true
+      topologyKey: kubernetes.io/hostname
+  pdb:
+    create: true
+    maxUnavailable: 1
+  storageclass:
+    name: standard
+    dataStorageSize: 100Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
