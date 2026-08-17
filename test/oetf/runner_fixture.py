@@ -1123,7 +1123,7 @@ class WorkflowHandle:
         # response (ChunkedEncodingError), producing a partial/empty fetch.
         # Caching an empty result would permanently hide logs that arrive later.
         if not self._logs_cache:
-            self._logs_cache = self._fetch_logs()
+            self._logs_cache = self._fetch_logs(raise_on_error=True)
         return self._logs_cache or ""
 
     # --- In-task check integration (for scenarios that inject task.py) ---
@@ -1141,7 +1141,7 @@ class WorkflowHandle:
         `assert_all_task_checks_passed(task_names=[...])`.
         """
         logs = self._fetch_logs(
-            task_name=task_name, regexes=[CHECK_RESULTS_REGEX],
+            task_name=task_name, regexes=[CHECK_RESULTS_REGEX], raise_on_error=True,
         )
         if not logs:
             self._fixture.fail(
@@ -1170,7 +1170,7 @@ class WorkflowHandle:
         missing: List[str] = []
         for task in task_names:
             logs = self._fetch_logs(
-                task_name=task, regexes=[CHECK_RESULTS_REGEX],
+                task_name=task, regexes=[CHECK_RESULTS_REGEX], raise_on_error=True,
             )
             results = _parse_check_results(logs) if logs else None
             if not results or not results.get("checks"):
@@ -1256,6 +1256,7 @@ class WorkflowHandle:
         task_name: Optional[str] = None,
         regexes: Optional[List[str]] = None,
         last_n_lines: int = 500,
+        raise_on_error: bool = False,
     ) -> str:
         """Fetch a fresh copy of the workflow's logs (bypassing the `logs`
         property cache).
@@ -1271,6 +1272,14 @@ class WorkflowHandle:
             the caller cares about" (e.g. `[CHECKPOINT_PREFIX]` for sync
             markers — drops 99%+ of noise in active workflows).
 
+        ``raise_on_error`` distinguishes a failed request from a successful
+        response containing no log lines. Polling callers retain best-effort
+        behavior by default; assertion-style callers enable strict behavior.
+
+        Strict reads retry one request or incomplete-stream error after two
+        seconds, allowing a supervised local port-forward to recover without
+        hiding a persistent transport failure.
+
         Uses STREAMING mode because the server streams logs via chunked
         transfer and PLAIN_TEXT's `response.text` doesn't consume it
         reliably (observed empty strings while logs were clearly being
@@ -1281,34 +1290,65 @@ class WorkflowHandle:
             params["task_name"] = task_name
         if regexes:
             params["regexes"] = regexes
-        try:
-            response = self._fixture.service_client.request(
-                method=RequestMethod.GET,
-                endpoint=f"api/workflow/{self.workflow_id}/logs",
-                mode=ResponseMode.STREAMING,
-                params=params,
+        request_attempts = 2 if raise_on_error else 1
+        last_error: Optional[Exception] = None
+        for attempt in range(1, request_attempts + 1):
+            response = None
+            lines: List[str] = []
+            attempt_error: Optional[Exception] = None
+            try:
+                response = self._fixture.service_client.request(
+                    method=RequestMethod.GET,
+                    endpoint=f"api/workflow/{self.workflow_id}/logs",
+                    mode=ResponseMode.STREAMING,
+                    params=params,
+                )
+            except Exception as error:  # pylint: disable=broad-except
+                attempt_error = error
+            else:
+                if response is None:
+                    attempt_error = RuntimeError("service returned no response")
+                else:
+                    try:
+                        for line in response.iter_lines():
+                            if isinstance(line, bytes):
+                                lines.append(
+                                    line.decode("utf-8", errors="replace")
+                                )
+                            elif line:
+                                lines.append(line)
+                    except requests.exceptions.RequestException as error:
+                        attempt_error = error
+                        if not raise_on_error:
+                            logger.warning(
+                                "logs stream ended early; returning %d partial lines",
+                                len(lines),
+                            )
+                            return "\n".join(lines)
+                    finally:
+                        response.close()
+                    if attempt_error is None:
+                        return "\n".join(lines)
+
+            last_error = attempt_error
+            logger.warning(
+                "logs fetch error (attempt %d/%d): %s",
+                attempt, request_attempts, attempt_error,
             )
-        except Exception as error:  # pylint: disable=broad-except
-            logger.warning("logs fetch error: %s", error)
-            return ""
-        if response is None:
-            return ""
-        # Collect lines eagerly — the server often terminates the chunked
-        # stream mid-response with `ChunkedEncodingError: Response ended
-        # prematurely`. Keep whatever we got before the drop; the CLI does
-        # the same (see external/src/cli/workflow.py:_workflow_logs).
-        lines: List[str] = []
-        try:
-            for line in response.iter_lines():
-                if isinstance(line, bytes):
-                    lines.append(line.decode("utf-8", errors="replace"))
-                elif line:
-                    lines.append(line)
-        except requests.exceptions.ChunkedEncodingError:
-            pass
-        finally:
-            response.close()
-        return "\n".join(lines)
+            if not raise_on_error:
+                return ""
+            if attempt < request_attempts:
+                time.sleep(2)
+
+        if last_error is not None:
+            raise RuntimeError(
+                f"Failed to fetch logs for workflow {self._id_with_url()}: "
+                f"{last_error}"
+            ) from last_error
+        raise RuntimeError(
+            f"Failed to fetch logs for workflow {self._id_with_url()}: "
+            "unknown error"
+        )
 
     def _terminal_status_or_none(self) -> Optional[str]:
         """Return the current status string if the workflow is terminal,

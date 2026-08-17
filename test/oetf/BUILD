@@ -138,6 +138,11 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "ci_summary",
+    srcs = ["ci_summary.py"],
+)
+
+osmo_py_library(
     name = "reporter",
     srcs = ["reporter.py"],
 )

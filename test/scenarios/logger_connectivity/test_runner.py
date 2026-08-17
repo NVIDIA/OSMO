@@ -31,8 +31,9 @@ class LoggerConnectivity(RunnerFixture):
 
         self.assertIn(
             "OETF_LOGGER_PROBE", handle.logs,
-            "Log marker 'OETF_LOGGER_PROBE' not found in logs — the probe ran "
-            "but its output never surfaced via the logs API. Log pipeline "
+            "The logs API request succeeded, but log marker "
+            "'OETF_LOGGER_PROBE' was not found. The probe ran, but its output "
+            "never surfaced via the logs API. Log pipeline "
             "(ctrl → logger → DB → API) may be broken.",
         )
 
