@@ -18,10 +18,11 @@ SPDX-License-Identifier: Apache-2.0
 
 import tempfile
 import time
-from typing import Any
+from typing import Any, cast
 import unittest
 from unittest import mock
 
+from fastmcp.server.auth import AccessToken
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration, OIDCProxy
 from fastmcp.server.auth.oauth_proxy.models import UpstreamTokenSet
 import httpx
@@ -70,6 +71,36 @@ class MCPAuthConfigTest(unittest.TestCase):
         self.assertEqual(
             auth.MCPAuthConfig.model_fields['auth_scope'].json_schema_extra,
             {'env': 'OSMO_MCP_AUTH_SCOPE'},
+        )
+        self.assertEqual(
+            auth.MCPAuthConfig.model_fields[
+                'osmo_jwt_required_role'
+            ].json_schema_extra,
+            {'env': 'OSMO_MCP_AUTH_OSMO_JWT_REQUIRED_ROLE'},
+        )
+
+    def test_trusted_osmo_jwt_requires_auth_jwks_and_role(self) -> None:
+        with self.assertRaisesRegex(
+            pydantic.ValidationError,
+            'requires MCP auth',
+        ):
+            auth.MCPAuthConfig(osmo_jwt_enabled=True)
+        with self.assertRaisesRegex(
+            pydantic.ValidationError,
+            'requires a JWKS URL and dedicated OSMO role name',
+        ):
+            _config(osmo_jwt_enabled=True)
+
+        config = _config(
+            osmo_jwt_enabled=True,
+            osmo_jwt_jwks_url=(
+                'http://osmo-service.default.svc.cluster.local/api/auth/keys/'
+            ),
+            osmo_jwt_required_role='osmo-nvaf-staging-task-list',
+        )
+        self.assertEqual(
+            config.osmo_jwt_jwks_url,
+            'http://osmo-service.default.svc.cluster.local/api/auth/keys',
         )
 
 
@@ -125,7 +156,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 runtime = auth.create_auth_runtime(config)
 
             try:
-                provider = runtime.provider
+                provider = cast(OIDCProxy, runtime.provider)
                 self.assertIs(type(provider), OIDCProxy)
                 self.assertEqual(
                     provider._jwt_signing_key,  # pylint: disable=protected-access
@@ -290,6 +321,124 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
         http_client.aclose.assert_awaited_once_with()
         redis_client.aclose.assert_awaited_once_with()
+
+    async def test_factory_adds_dedicated_osmo_jwt_verifier(self) -> None:
+        with _secret_file('client-secret') as client_secret_file:
+            config = _config(
+                oidc_client_secret_file=client_secret_file,
+                osmo_jwt_enabled=True,
+                osmo_jwt_jwks_url=(
+                    'http://osmo-service.default.svc.cluster.local/'
+                    'api/auth/keys'
+                ),
+                osmo_jwt_required_role='osmo-nvaf-staging-task-list',
+            )
+            redis_client = mock.create_autospec(
+                auth.redis_asyncio.Redis,
+                instance=True,
+            )
+            oidc_proxy = mock.create_autospec(OIDCProxy, instance=True)
+            with (
+                mock.patch.object(
+                    auth.redis_asyncio.Redis,
+                    'from_url',
+                    return_value=redis_client,
+                ),
+                mock.patch.object(auth, 'RedisStore', return_value=MemoryStore()),
+                mock.patch.object(
+                    auth,
+                    'PrefixCollectionsWrapper',
+                    side_effect=lambda key_value, prefix: key_value,
+                ),
+                mock.patch.object(
+                    auth,
+                    'FernetEncryptionWrapper',
+                    side_effect=(
+                        lambda key_value, fernet, raise_on_decryption_error:
+                        key_value
+                    ),
+                ),
+                mock.patch.object(auth, 'OIDCProxy', return_value=oidc_proxy),
+            ):
+                runtime = auth.create_auth_runtime(config)
+
+            try:
+                provider = cast(
+                    auth.OIDCProxyWithOSMOJWTVerifier,
+                    runtime.provider,
+                )
+                self.assertIsInstance(
+                    provider,
+                    auth.OIDCProxyWithOSMOJWTVerifier,
+                )
+                self.assertEqual(
+                    provider._osmo_jwt_verifier.jwks_uri,  # pylint: disable=protected-access
+                    'http://osmo-service.default.svc.cluster.local/'
+                    'api/auth/keys',
+                )
+                self.assertEqual(
+                    provider._required_role,  # pylint: disable=protected-access
+                    'osmo-nvaf-staging-task-list',
+                )
+            finally:
+                await runtime.aclose()
+
+    async def test_osmo_jwt_requires_the_dedicated_role_name(self) -> None:
+        oidc_proxy = mock.create_autospec(OIDCProxy, instance=True)
+        oidc_proxy.verify_token = mock.AsyncMock(return_value=None)
+        osmo_jwt_verifier = mock.create_autospec(
+            auth.JWTVerifier,
+            instance=True,
+        )
+        provider = auth.OIDCProxyWithOSMOJWTVerifier(
+            oidc_proxy,
+            osmo_jwt_verifier,
+            'osmo-nvaf-staging-task-list',
+        )
+
+        osmo_jwt_verifier.verify_token = mock.AsyncMock(
+            return_value=AccessToken(
+                token='osmo.jwt.admin',
+                client_id='current-adapter-identity',
+                scopes=[],
+                claims={'roles': ['osmo-admin']},
+            ),
+        )
+        self.assertIsNone(await provider.verify_token('osmo.jwt.admin'))
+
+        allowed = AccessToken(
+            token='osmo.jwt.reader',
+            client_id='dedicated-adapter-identity',
+            scopes=[],
+            claims={'roles': ['osmo-nvaf-staging-task-list']},
+        )
+        osmo_jwt_verifier.verify_token.return_value = allowed
+        self.assertIs(
+            await provider.verify_token('osmo.jwt.reader'),
+            allowed,
+        )
+
+    async def test_oidc_proxy_token_does_not_use_osmo_fallback(self) -> None:
+        oidc_proxy = mock.create_autospec(OIDCProxy, instance=True)
+        oidc_token = AccessToken(
+            token='fastmcp.oidc.token',
+            client_id='native-client',
+            scopes=[],
+            claims={'upstream_claims': {'preferred_username': 'alice'}},
+        )
+        oidc_proxy.verify_token = mock.AsyncMock(return_value=oidc_token)
+        osmo_jwt_verifier = mock.create_autospec(
+            auth.JWTVerifier,
+            instance=True,
+        )
+        provider = auth.OIDCProxyWithOSMOJWTVerifier(
+            oidc_proxy,
+            osmo_jwt_verifier,
+            'osmo-nvaf-staging-task-list',
+        )
+
+        self.assertIs(await provider.verify_token('fastmcp.oidc.token'), oidc_token)
+        osmo_jwt_verifier.verify_token.assert_not_awaited()
 
     def test_storage_key_matches_fastmcp_default_and_is_deterministic(self) -> None:
         first = auth._storage_encryption_key(  # pylint: disable=protected-access

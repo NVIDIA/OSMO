@@ -21,6 +21,7 @@ from typing import cast
 from urllib import parse
 
 from cryptography.fernet import Fernet
+from fastmcp.server.auth import AccessToken, AuthProvider
 from fastmcp.server.auth.jwt_issuer import derive_jwt_key
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.auth.providers.jwt import JWTVerifier
@@ -31,6 +32,7 @@ from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 from key_value.aio.wrappers.prefix_collections import PrefixCollectionsWrapper
 import pydantic
 from redis import asyncio as redis_asyncio
+from starlette.routing import Route
 
 _UPSTREAM_OIDC_SCOPES = ('openid', 'profile', 'email', 'offline_access')
 
@@ -100,6 +102,31 @@ class MCPAuthConfig(pydantic.BaseModel):
             'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE',
         },
     )
+    osmo_jwt_enabled: bool = pydantic.Field(
+        default=False,
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OSMO_JWT_ENABLED'},
+    )
+    osmo_jwt_jwks_url: str | None = pydantic.Field(
+        default=None,
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OSMO_JWT_JWKS_URL'},
+    )
+    osmo_jwt_issuer: str = pydantic.Field(
+        default='osmo',
+        pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OSMO_JWT_ISSUER'},
+    )
+    osmo_jwt_audience: str = pydantic.Field(
+        default='osmo',
+        pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OSMO_JWT_AUDIENCE'},
+    )
+    osmo_jwt_required_role: str | None = pydantic.Field(
+        default=None,
+        pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
+        json_schema_extra={
+            'env': 'OSMO_MCP_AUTH_OSMO_JWT_REQUIRED_ROLE',
+        },
+    )
     trusted_https_redirect_origins: str = pydantic.Field(
         default='',
         json_schema_extra={
@@ -140,6 +167,10 @@ class MCPAuthConfig(pydantic.BaseModel):
     @pydantic.model_validator(mode='after')
     def _validate_auth_config(self) -> 'MCPAuthConfig':
         if not self.auth_enabled:
+            if self.osmo_jwt_enabled:
+                raise ValueError(
+                    'Trusted OSMO JWT validation requires MCP auth.'
+                )
             return self
         required = {
             name: getattr(self, name)
@@ -184,6 +215,18 @@ class MCPAuthConfig(pydantic.BaseModel):
             cast(str, self.oidc_access_token_issuer),
             preserve_trailing_slash=True,
         )
+        if self.osmo_jwt_enabled:
+            if (
+                not self.osmo_jwt_jwks_url
+                or not self.osmo_jwt_required_role
+            ):
+                raise ValueError(
+                    'Enabled trusted OSMO JWT validation requires a JWKS URL '
+                    'and dedicated OSMO role name.'
+                )
+            self.osmo_jwt_jwks_url = _http_url(
+                self.osmo_jwt_jwks_url,
+            )
         redis_url = parse.urlsplit(cast(str, self.redis_url))
         if redis_url.scheme not in {'redis', 'rediss'} or not redis_url.hostname:
             raise ValueError('redis_url must be an absolute Redis URL')
@@ -216,7 +259,7 @@ class MCPAuthConfig(pydantic.BaseModel):
 class MCPAuthRuntime:
     """Resources owned by FastMCP's built-in OIDC proxy."""
 
-    provider: OIDCProxy
+    provider: AuthProvider
     redis_client: redis_asyncio.Redis
     http_client: httpx.AsyncClient
 
@@ -225,6 +268,41 @@ class MCPAuthRuntime:
             await self.http_client.aclose()
         finally:
             await self.redis_client.aclose()
+
+
+class OIDCProxyWithOSMOJWTVerifier(AuthProvider):
+    """Keep OIDC proxy clients working while admitting one OSMO role."""
+
+    def __init__(
+        self,
+        oidc_proxy: OIDCProxy,
+        osmo_jwt_verifier: JWTVerifier,
+        required_role: str,
+    ) -> None:
+        super().__init__()
+        self._oidc_proxy = oidc_proxy
+        self._osmo_jwt_verifier = osmo_jwt_verifier
+        self._required_role = required_role
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        oidc_access_token = await self._oidc_proxy.verify_token(token)
+        if oidc_access_token is not None:
+            return oidc_access_token
+
+        osmo_access_token = await self._osmo_jwt_verifier.verify_token(token)
+        if osmo_access_token is None:
+            return None
+        roles = osmo_access_token.claims.get('roles')
+        if not isinstance(roles, list) or self._required_role not in roles:
+            return None
+        return osmo_access_token
+
+    def set_mcp_path(self, mcp_path: str | None) -> None:
+        super().set_mcp_path(mcp_path)
+        self._oidc_proxy.set_mcp_path(mcp_path)
+
+    def get_routes(self, mcp_path: str | None = None) -> list[Route]:
+        return self._oidc_proxy.get_routes(mcp_path)
 
 
 def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
@@ -266,7 +344,7 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     )
     requested_scope = cast(str, config.auth_scope)
     upstream_scope = ' '.join((requested_scope, *_UPSTREAM_OIDC_SCOPES))
-    provider = OIDCProxy(
+    oidc_proxy = OIDCProxy(
         config_url=cast(str, config.oidc_config_url),
         client_id=cast(str, config.oidc_client_id),
         client_secret=client_secret,
@@ -289,7 +367,20 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     )
     # Entra returns the short `scp` claim that the verifier enforces, while MCP
     # clients must discover and request the full API scope URI.
-    provider.update_default_scopes([requested_scope])
+    oidc_proxy.update_default_scopes([requested_scope])
+    provider: AuthProvider = oidc_proxy
+    if config.osmo_jwt_enabled:
+        provider = OIDCProxyWithOSMOJWTVerifier(
+            oidc_proxy,
+            JWTVerifier(
+                jwks_uri=cast(str, config.osmo_jwt_jwks_url),
+                issuer=config.osmo_jwt_issuer,
+                audience=config.osmo_jwt_audience,
+                algorithm='RS256',
+                http_client=http_client,
+            ),
+            cast(str, config.osmo_jwt_required_role),
+        )
     return MCPAuthRuntime(provider, redis_client, http_client)
 
 
@@ -341,3 +432,27 @@ def _https_url(
     if root_only and path:
         raise ValueError('OAuth issuer and redirect origins must be origins')
     return parse.urlunsplit((parsed.scheme, parsed.netloc, path, '', ''))
+
+
+def _http_url(value: str) -> str:
+    parsed = parse.urlsplit(value)
+    try:
+        _ = parsed.port
+    except ValueError as error:
+        raise ValueError('OSMO JWT JWKS URL contains an invalid port') from error
+    if (
+        parsed.scheme not in {'http', 'https'}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError('OSMO JWT JWKS URL must be an absolute HTTP(S) URL')
+    return parse.urlunsplit((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path.rstrip('/'),
+        '',
+        '',
+    ))
