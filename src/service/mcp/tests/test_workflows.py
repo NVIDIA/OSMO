@@ -237,6 +237,10 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(task_properties['limit']['maximum'], 50)
         self.assertEqual(task_properties['offset']['minimum'], 0)
         self.assertEqual(task_properties['node']['minItems'], 1)
+        self.assertEqual(
+            tools['osmo_list_tasks']['inputSchema']['required'],
+            ['node', 'status'],
+        )
         task_schema = json.dumps(task_properties)
         for value in ('PROCESSING', 'SCHEDULING', 'RUNNING', 'FAILED_UPSTREAM'):
             self.assertIn(value, task_schema)
@@ -413,7 +417,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_task_list_defaults_to_active_statuses(self) -> None:
+    async def test_task_list_requires_status_filter(self) -> None:
         captured_requests: list[httpx.Request] = []
 
         async def handler(request: httpx.Request) -> httpx.Response:
@@ -424,7 +428,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             response = await _call_tool(
                 client,
                 'osmo_list_tasks',
-                {'node': ['node-1']},
+                {'node': ['node-1'], 'status': ['RUNNING']},
             )
 
         self.assertFalse(response.json()['result']['isError'])
@@ -432,9 +436,6 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             captured_requests[0].url.params.multi_items(),
             [
                 ('nodes', 'node-1'),
-                ('statuses', 'PROCESSING'),
-                ('statuses', 'SCHEDULING'),
-                ('statuses', 'INITIALIZING'),
                 ('statuses', 'RUNNING'),
                 ('limit', '51'),
                 ('offset', '0'),
@@ -455,7 +456,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             response = await _call_tool(
                 client,
                 'osmo_list_tasks',
-                {'node': ['node-1']},
+                {'node': ['node-1'], 'status': ['RUNNING']},
             )
 
         result = response.json()['result']
@@ -709,15 +710,26 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ('osmo_list_workflows', {'no_labels': ['Bad Prefix/team']}),
             ('osmo_list_workflows', {'pool': ['p' * 500] * 40}),
             ('osmo_list_tasks', {}),
-            ('osmo_list_tasks', {'node': []}),
-            ('osmo_list_tasks', {'node': ['node-1'], 'limit': 0}),
-            ('osmo_list_tasks', {'node': ['node-1'], 'limit': 51}),
-            ('osmo_list_tasks', {'node': ['node-1'], 'offset': -1}),
+            ('osmo_list_tasks', {'node': [], 'status': ['RUNNING']}),
+            ('osmo_list_tasks', {
+                'node': ['node-1'], 'status': ['RUNNING'], 'limit': 0,
+            }),
+            ('osmo_list_tasks', {
+                'node': ['node-1'], 'status': ['RUNNING'], 'limit': 51,
+            }),
+            ('osmo_list_tasks', {
+                'node': ['node-1'], 'status': ['RUNNING'], 'offset': -1,
+            }),
             ('osmo_list_tasks', {'node': ['node-1'], 'status': []}),
             ('osmo_list_tasks', {'node': ['node-1'], 'status': ['INVALID']}),
-            ('osmo_list_tasks', {'node': ['node-1'], 'priority': []}),
-            ('osmo_list_tasks', {'node': ['node-1'], 'priority': ['INVALID']}),
-            ('osmo_list_tasks', {'node': ['n' * 513]}),
+            ('osmo_list_tasks', {
+                'node': ['node-1'], 'status': ['RUNNING'], 'priority': [],
+            }),
+            ('osmo_list_tasks', {
+                'node': ['node-1'], 'status': ['RUNNING'],
+                'priority': ['INVALID'],
+            }),
+            ('osmo_list_tasks', {'node': ['n' * 513], 'status': ['RUNNING']}),
             (
                 'osmo_get_workflow_logs',
                 {'workflow_id': 'wf-1', 'error_logs': True},
@@ -813,7 +825,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         response = await invoke(
             malformed_page_handler,
             'osmo_list_tasks',
-            {'node': ['node-1']},
+            {'node': ['node-1'], 'status': ['RUNNING']},
         )
         self.assertTrue(response.json()['result']['isError'])
         self.assertIn('invalid response', response.text)

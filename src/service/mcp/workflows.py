@@ -112,12 +112,6 @@ _TASKS_PATH = '/api/task'
 _MAX_JSON_RESPONSE_BYTES = 1024 * 1024
 _MAX_TEXT_RESPONSE_BYTES = 32 * 1024
 _MAX_QUERY_BYTES = 16 * 1024
-_ACTIVE_TASK_STATUSES = (
-    'PROCESSING',
-    'SCHEDULING',
-    'INITIALIZING',
-    'RUNNING',
-)
 
 
 async def osmo_list_workflows(
@@ -253,13 +247,13 @@ async def osmo_list_workflows(
 async def osmo_list_tasks(
     context: Context,
     node: QueryTextList,
-    status: TaskStatuses | None = None,
+    status: TaskStatuses,
     priority: WorkflowPriorities | None = None,
     all_users: bool = False,
     limit: TaskPageLimit = 50,
     offset: PageOffset = 0,
 ) -> ListTasksResult:
-    """List active tasks on named nodes across the caller's accessible pools."""
+    """List matching tasks on named nodes across the caller's accessible pools."""
     tool_validation.validate_page(
         limit,
         offset,
@@ -272,16 +266,14 @@ async def osmo_list_tasks(
         max_value_bytes=_MAX_QUERY_TEXT_BYTES,
         deduplicate=True,
     )
-    statuses = list(_ACTIVE_TASK_STATUSES)
-    if status is not None:
-        statuses = tool_validation.validate_query_values(
-            status,
-            field='status',
-            max_count=_MAX_QUERY_VALUES,
-            max_value_bytes=_MAX_QUERY_TEXT_BYTES,
-        )
-        if any(value not in _TASK_STATUSES for value in statuses):
-            raise tool_errors.PublicToolError('Invalid task status.')
+    statuses = tool_validation.validate_query_values(
+        status,
+        field='status',
+        max_count=_MAX_QUERY_VALUES,
+        max_value_bytes=_MAX_QUERY_TEXT_BYTES,
+    )
+    if any(value not in _TASK_STATUSES for value in statuses):
+        raise tool_errors.PublicToolError('Invalid task status.')
     query: dict[str, gateway.QueryValue] = {
         'nodes': nodes,
         'statuses': statuses,

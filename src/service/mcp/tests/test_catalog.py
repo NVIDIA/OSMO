@@ -93,7 +93,7 @@ _EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
         workflows.osmo_list_tasks,
         'osmo_list_tasks',
         'List OSMO tasks',
-        'List active tasks on explicitly named nodes across the caller\'s '
+        'List explicitly filtered tasks on named nodes across the caller\'s '
         'accessible pools, including task status, workflow, and owner.',
     ),
     (
@@ -234,7 +234,7 @@ _EXPECTED_REQUIRED_FIELDS = {
     'osmo_list_resources': [],
     'osmo_get_resource': ['node_name'],
     'osmo_list_workflows': [],
-    'osmo_list_tasks': ['node'],
+    'osmo_list_tasks': ['node', 'status'],
     'osmo_get_workflow': ['workflow_id'],
     'osmo_get_workflow_logs': ['workflow_id'],
     'osmo_get_workflow_events': ['workflow_id'],
@@ -279,7 +279,6 @@ _EXPECTED_DEFAULTS: dict[str, dict[str, object]] = {
         'offset': 0,
     },
     'osmo_list_tasks': {
-        'status': None,
         'priority': None,
         'all_users': False,
         'limit': 50,
