@@ -267,14 +267,14 @@ class WorkflowSummary(ClosedToolModel):
 
 
 class TaskSummary(ClosedToolModel):
-    """Stable task placement and ownership fields for node triage."""
+    """Stable task placement and ownership fields."""
 
     user: str
     workflow_id: str
     task_name: str
     retry_id: int
-    status: TaskStatus
-    priority: WorkflowPriority
+    status: str
+    priority: str
     pool: str | None = None
     node: str | None = None
     start_time: str | None = None

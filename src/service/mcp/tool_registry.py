@@ -147,7 +147,9 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         title='List OSMO tasks',
         description=(
             'List tasks on explicitly named nodes across the caller\'s '
-            'accessible pools, including task status, workflow, and owner.'
+            'accessible pools, including task status, workflow, and owner. '
+            'Defaults to the active user\'s tasks; set all_users=true to '
+            'include tasks owned by other users.'
         ),
     ),
     ToolSpec(

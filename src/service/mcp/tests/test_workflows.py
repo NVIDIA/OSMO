@@ -436,7 +436,11 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             captured_requests.append(request)
             return httpx.Response(200, json={'tasks': [
                 {**_TASK_SUMMARY, 'status': 'SUBMITTING'},
-                {**_TASK_SUMMARY, 'status': 'RESCHEDULED'},
+                {
+                    **_TASK_SUMMARY,
+                    'status': 'FUTURE_TASK_STATUS',
+                    'priority': 'URGENT',
+                },
             ]})
 
         async with _mcp_client(handler) as client:
@@ -452,7 +456,14 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                 task['status']
                 for task in response.json()['result']['structuredContent']['tasks']
             ],
-            ['SUBMITTING', 'RESCHEDULED'],
+            ['SUBMITTING', 'FUTURE_TASK_STATUS'],
+        )
+        self.assertEqual(
+            [
+                task['priority']
+                for task in response.json()['result']['structuredContent']['tasks']
+            ],
+            ['HIGH', 'URGENT'],
         )
         self.assertEqual(
             captured_requests[0].url.params.multi_items(),
@@ -465,6 +476,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                 ('pools', 'pool-b'),
             ],
         )
+        self.assertNotIn('all_users', captured_requests[0].url.params)
 
     async def test_task_list_with_no_accessible_pools_returns_empty_page(self) -> None:
         captured_requests: list[httpx.Request] = []
