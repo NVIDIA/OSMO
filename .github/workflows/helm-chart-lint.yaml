@@ -102,6 +102,9 @@ jobs:
           CHART: ${{ matrix.chart }}
         run: |
           echo "Building dependencies for: $CHART"
+          if [ "$CHART" = "osmo" ]; then
+            helm repo add cnpg https://cloudnative-pg.github.io/charts
+          fi
           helm dependency build "deployments/charts/$CHART" || true
           # Show what was fetched
           if [ -d "deployments/charts/$CHART/charts" ]; then
