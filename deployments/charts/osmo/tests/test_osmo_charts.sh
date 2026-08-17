@@ -509,6 +509,12 @@ test_control_umbrella() {
         'resourceNames: ["external-master-encryption-key-secret"]'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["get"]'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["create"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" \
+        'resources: ["rolebindings"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" \
+        'resourceNames: ["bootstrap-osmo-mek-bootstrap"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["delete"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" '--rbac-name'
 
     helm_template bootstrap-osmo-upgrade "$charts_copy/osmo" \
         --is-upgrade \

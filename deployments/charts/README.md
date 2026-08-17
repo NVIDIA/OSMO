@@ -98,6 +98,11 @@ LocalStack with an external S3, Azure Blob, or BYO storage backend, run
 `deployments/scripts/configure-storage.sh` before the service Helm install and
 pass its generated values file after your base values file.
 
+MEK bootstrap is safe only for this disposable flow's new, empty PostgreSQL
+data. A Helm reinstall or a different release name can still target retained
+data; restore its original MEK Secret rather than asking the hook to generate a
+new key.
+
 These values assume the OSMO images are pullable without a registry Secret. If
 your registry requires credentials, create a Kubernetes image pull Secret and
 pass `--set global.imagePullSecret=<secret-name>` to both chart installs.

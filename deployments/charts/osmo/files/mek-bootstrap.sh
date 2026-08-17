@@ -9,12 +9,46 @@ set -o pipefail
 fail_if_missing=false
 namespace=""
 release_name=""
+rbac_name=""
 secret_name=""
 secret_key=""
+temporary_directory=""
 
 log_error() {
     printf 'ERROR %s\n' "$*" >&2
 }
+
+cleanup() {
+    status=$?
+    trap - EXIT INT TERM
+    if [ -n "$temporary_directory" ]; then
+        rm -rf "$temporary_directory"
+    fi
+
+    if [ -n "$namespace" ] && [ -n "$rbac_name" ]; then
+        revoked=false
+        attempt=1
+        while [ "$attempt" -le 5 ]; do
+            if kubectl delete rolebinding "$rbac_name" \
+                    --namespace "$namespace" \
+                    --ignore-not-found=true \
+                    --wait=false >/dev/null; then
+                revoked=true
+                break
+            fi
+            attempt=$((attempt + 1))
+            sleep 1
+        done
+        if [ "$revoked" != true ]; then
+            log_error "Unable to revoke bootstrap RoleBinding $rbac_name"
+            status=1
+        fi
+    fi
+    exit "$status"
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 read_secret_name() {
     kubectl get secret "$secret_name" \
@@ -36,7 +70,6 @@ validate_secret() {
     fi
 
     temporary_directory=$(mktemp -d)
-    trap 'rm -rf "$temporary_directory"' EXIT INT TERM
     if ! printf '%s' "$encoded_keyring" \
             | base64 -d > "$temporary_directory/keyring"; then
         log_error "MEK Secret $secret_name key $secret_key is invalid"
@@ -47,12 +80,11 @@ validate_secret() {
         return 1
     fi
     rm -rf "$temporary_directory"
-    trap - EXIT INT TERM
+    temporary_directory=""
 }
 
 create_secret() {
     temporary_directory=$(mktemp -d)
-    trap 'rm -rf "$temporary_directory"' EXIT INT TERM
 
     mek_key=$(head -c 32 /dev/urandom \
         | base64 \
@@ -79,13 +111,13 @@ create_secret() {
             -o yaml \
         | kubectl create -f - >/dev/null; then
         rm -rf "$temporary_directory"
-        trap - EXIT INT TERM
+        temporary_directory=""
         printf 'INFO Created MEK Secret %s\n' "$secret_name"
         return
     fi
 
     rm -rf "$temporary_directory"
-    trap - EXIT INT TERM
+    temporary_directory=""
     existing_name=$(read_secret_name) || {
         log_error "Unable to verify MEK Secret $secret_name after create failure"
         return 1
@@ -122,7 +154,7 @@ while [ "$#" -gt 0 ]; do
             fail_if_missing=true
             shift
             ;;
-        --namespace|--release-name|--secret-name|--secret-key)
+        --namespace|--release-name|--rbac-name|--secret-name|--secret-key)
             if [ "$#" -lt 2 ]; then
                 log_error "Missing value for $1"
                 exit 2
@@ -132,6 +164,7 @@ while [ "$#" -gt 0 ]; do
             case "$option" in
                 --namespace) namespace="$value" ;;
                 --release-name) release_name="$value" ;;
+                --rbac-name) rbac_name="$value" ;;
                 --secret-name) secret_name="$value" ;;
                 --secret-key) secret_key="$value" ;;
             esac
@@ -144,9 +177,9 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-if [ -z "$namespace" ] || [ -z "$release_name" ] \
+if [ -z "$namespace" ] || [ -z "$release_name" ] || [ -z "$rbac_name" ] \
         || [ -z "$secret_name" ] || [ -z "$secret_key" ]; then
-    log_error 'Namespace, release name, Secret name, and Secret key are required'
+    log_error 'Namespace, release name, RBAC name, Secret name, and Secret key are required'
     exit 2
 fi
 

@@ -1,7 +1,35 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-{{- if .Values.services.masterEncryptionKey.bootstrap.enabled }}
+{{- $bootstrap := .Values.services.masterEncryptionKey.bootstrap }}
+{{- if not (kindIs "map" $bootstrap) }}
+{{- fail "services.masterEncryptionKey.bootstrap must be an object" }}
+{{- end }}
+{{- if not (hasKey $bootstrap "enabled") }}
+{{- fail "services.masterEncryptionKey.bootstrap.enabled is required" }}
+{{- end }}
+{{- if not (kindIs "bool" (get $bootstrap "enabled")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.enabled must be a boolean" }}
+{{- end }}
+{{- if not (hasKey $bootstrap "image") }}
+{{- fail "services.masterEncryptionKey.bootstrap.image is required" }}
+{{- end }}
+{{- if not (kindIs "string" (get $bootstrap "image")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.image must be a string" }}
+{{- end }}
+{{- if eq (trim (get $bootstrap "image")) "" }}
+{{- fail "services.masterEncryptionKey.bootstrap.image must not be empty" }}
+{{- end }}
+{{- if not (hasKey $bootstrap "imagePullPolicy") }}
+{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy is required" }}
+{{- end }}
+{{- if not (kindIs "string" (get $bootstrap "imagePullPolicy")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy must be a string" }}
+{{- end }}
+{{- if not (has (get $bootstrap "imagePullPolicy") (list "Always" "IfNotPresent" "Never")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy must be Always, IfNotPresent, or Never" }}
+{{- end }}
+{{- if (get $bootstrap "enabled") }}
 {{- $bootstrapName := printf "%s-mek-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- $secretName := required "services.masterEncryptionKey.existingSecret.name is required" .Values.services.masterEncryptionKey.existingSecret.name }}
 {{- $secretKey := required "services.masterEncryptionKey.existingSecret.key is required" .Values.services.masterEncryptionKey.existingSecret.key }}
@@ -32,6 +60,10 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["create"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings"]
+  resourceNames: [{{ $bootstrapName | quote }}]
+  verbs: ["delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -81,8 +113,8 @@ spec:
         {{- toYaml .Values.services.service.tolerations | nindent 8 }}
       containers:
       - name: mek-bootstrap
-        image: {{ .Values.services.masterEncryptionKey.bootstrap.image | quote }}
-        imagePullPolicy: {{ .Values.services.masterEncryptionKey.bootstrap.imagePullPolicy }}
+        image: {{ get $bootstrap "image" | quote }}
+        imagePullPolicy: {{ get $bootstrap "imagePullPolicy" | quote }}
         command: ["/bin/ash"]
         args:
         - -c
@@ -93,6 +125,8 @@ spec:
         - {{ .Release.Namespace | quote }}
         - --release-name
         - {{ .Release.Name | quote }}
+        - --rbac-name
+        - {{ $bootstrapName | quote }}
         - --secret-name
         - {{ $secretName | quote }}
         - --secret-key

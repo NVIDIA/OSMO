@@ -70,6 +70,11 @@ if [ "$1" = create ] && [ "$2" = -f ]; then
     exit 0
 fi
 
+if [ "$1" = delete ] && [ "$2" = rolebinding ]; then
+    printf '%s' "$3" > "$FAKE_STATE_DIRECTORY/revoked-rolebinding"
+    exit 0
+fi
+
 printf 'Unexpected fake kubectl command: %s\n' "$*" >&2
 exit 1
 FAKE_KUBECTL
@@ -82,6 +87,7 @@ run_bootstrap() {
     bash "$BOOTSTRAP_SCRIPT" \
         --namespace osmo \
         --release-name test-release \
+        --rbac-name test-release-mek-bootstrap \
         --secret-name test-mek \
         --secret-key mek.yaml \
         "$@"
@@ -120,6 +126,11 @@ if output=$(run_bootstrap --fail-if-missing \
 fi
 if [[ "$output" != *'missing during upgrade'* ]]; then
     echo 'Missing-upgrade failure did not explain the recovery action' >&2
+    exit 1
+fi
+if [[ $(cat "$FAKE_STATE_DIRECTORY/revoked-rolebinding") != \
+        test-release-mek-bootstrap ]]; then
+    echo 'Failed bootstrap did not revoke its RoleBinding' >&2
     exit 1
 fi
 

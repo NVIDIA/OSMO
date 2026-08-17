@@ -20,12 +20,13 @@
 
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
-For a local deployment that previously used quick-start values, create the
-namespaces, `local-admin-password` and backend token Secrets, and the
-`osmo-mek` Secret from
-[../README.md](../README.md), then install this chart first with
-`quick-start-values.yaml`. Install the `backend-operator` chart with its
-matching values file after the service release is available:
+For a disposable local deployment, create the namespaces and the
+`local-admin-password` Secret from [../README.md](../README.md), then install
+this chart with `quick-start-values.yaml`. Those values opt into Kubernetes
+Jobs that create the initial MEK Secret and shared backend token Secret without
+putting their material in Helm output or release state. Install the
+`backend-operator` chart with its matching values file after the service
+release is available:
 
 ```bash
 helm upgrade --install osmo osmo/service \
@@ -35,6 +36,11 @@ helm upgrade --install osmo osmo/service \
 ```
 
 See [../README.md](../README.md) for the full two-chart flow.
+
+The MEK bootstrap mode is only safe with a new, empty database. A Helm install
+or a new release name can still point at retained PostgreSQL data; in that case,
+restore or supply the MEK that encrypted that data instead of enabling
+bootstrap.
 
 ## Values
 
@@ -71,7 +77,7 @@ OSMO services write logs to standard streams for collection by the platform log 
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
 | `services.masterEncryptionKey.existingSecret.name` | Existing Kubernetes Secret containing the MEK keyring | `osmo-mek` |
 | `services.masterEncryptionKey.existingSecret.key` | Key containing the MEK YAML | `mek.yaml` |
-| `services.masterEncryptionKey.bootstrap.enabled` | Create a missing MEK Secret inside Kubernetes for disposable test installs | `false` |
+| `services.masterEncryptionKey.bootstrap.enabled` | Create a missing MEK Secret inside Kubernetes for disposable test installs with a new, empty database | `false` |
 | `services.masterEncryptionKey.bootstrap.image` | kubectl image used by the short-lived bootstrap hook | `alpine/kubectl:1.33.4` |
 | `services.masterEncryptionKey.allowExistingCiphertextAdoption` | One-time acknowledgement after stopping every legacy writer during an existing-install upgrade | `false` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |

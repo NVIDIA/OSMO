@@ -117,6 +117,11 @@ grep -q -- '- "keyring.yaml"' <<<"$mek_bootstrap_job"
 grep -q 'resourceNames: \["test-mek"\]' <<<"$mek_bootstrap_role"
 grep -q 'verbs: \["get"\]' <<<"$mek_bootstrap_role"
 grep -q 'verbs: \["create"\]' <<<"$mek_bootstrap_role"
+grep -q 'resources: \["rolebindings"\]' <<<"$mek_bootstrap_role"
+grep -q 'resourceNames: \["mek-bootstrap-mek-bootstrap"\]' \
+    <<<"$mek_bootstrap_role"
+grep -q 'verbs: \["delete"\]' <<<"$mek_bootstrap_role"
+grep -q -- '- --rbac-name' <<<"$mek_bootstrap_job"
 if grep -q '^kind: Secret$' <<<"$mek_bootstrap_render"; then
     echo 'MEK bootstrap rendered Secret material into Helm release state' >&2
     exit 1
@@ -141,6 +146,29 @@ if helm template mek-bootstrap-disabled "$CHART_DIR" --namespace osmo \
     echo 'MEK bootstrap hook rendered while disabled' >&2
     exit 1
 fi
+
+assert_invalid_mek_bootstrap_value() {
+    local description=$1
+    shift
+    if helm template invalid-mek-bootstrap "$CHART_DIR" --namespace osmo \
+            "$@" >/dev/null 2>&1; then
+        echo "Invalid MEK bootstrap $description was accepted" >&2
+        exit 1
+    fi
+}
+
+assert_invalid_mek_bootstrap_value object \
+    --set-string 'services.masterEncryptionKey.bootstrap=invalid'
+assert_invalid_mek_bootstrap_value enabled-type \
+    --set-string 'services.masterEncryptionKey.bootstrap.enabled=false'
+assert_invalid_mek_bootstrap_value image-type \
+    --set 'services.masterEncryptionKey.bootstrap.image=123'
+assert_invalid_mek_bootstrap_value empty-image \
+    --set-string 'services.masterEncryptionKey.bootstrap.image='
+assert_invalid_mek_bootstrap_value image-pull-policy-type \
+    --set 'services.masterEncryptionKey.bootstrap.imagePullPolicy=123'
+assert_invalid_mek_bootstrap_value image-pull-policy-value \
+    --set-string 'services.masterEncryptionKey.bootstrap.imagePullPolicy=Sometimes'
 
 quick_start_render=$(helm template quick-start "$CHART_DIR" --namespace osmo \
     -f "$CHART_DIR/quick-start-values.yaml")

@@ -143,12 +143,16 @@ may reference a separate Secret. The defaults expect these keys:
 The MEK is mounted through the typed
 `secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Production
 installs should create and manage that Secret outside Helm. For a disposable
-test install, set `secrets.masterEncryptionKey.bootstrap.enabled=true`; a
+test install backed by a new, empty database, set
+`secrets.masterEncryptionKey.bootstrap.enabled=true`; a
 pre-install hook generates the initial 256-bit key inside Kubernetes and creates
 the named Secret only when it is absent. It never renders key material into
 Helm output or release state, preserves an existing Secret, and fails an
 upgrade if the Secret was deleted rather than generating an incompatible key.
-The bootstrap Secret persists after uninstall and requires explicit cleanup.
+The bootstrap Secret persists after uninstall and requires explicit cleanup. A
+Helm install or different release name can still point at retained database
+data. In that case, restore the MEK that encrypted the data; do not enable
+bootstrap to generate a replacement.
 
 Rotate the Secret with two separate updates: add the new JWK while leaving `currentMek`
 unchanged, verify every live pod's `MEK consumer status` log lists the new key,
