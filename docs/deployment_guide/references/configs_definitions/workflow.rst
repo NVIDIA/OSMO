@@ -341,8 +341,8 @@ all keep the bare ``team`` key. Users neither type nor query the prefix.
    * - ``pod_label_prefix``
      - String
      - Prepended to each workflow label key on task pods only. Empty disables
-       the behavior. Rejected at configuration time if it contains whitespace
-       or exceeds 253 characters.
+       the behavior. Rejected at configuration time if it contains a space,
+       tab, or line break, or exceeds 253 characters.
      - ``""``
 
 The prefix is treated as an opaque string rather than an assumed DNS prefix:
