@@ -6,6 +6,13 @@
 {{- if not .Values.planes.control.enabled -}}
 {{- fail "planes.control.enabled: this chart version requires the control plane" -}}
 {{- end -}}
+{{- $objectStorageCredentialsKey := .Values.secrets.objectStorage.keys.credentials -}}
+{{- if or
+  (not $objectStorageCredentialsKey)
+  (gt (len $objectStorageCredentialsKey) 253)
+  (not (regexMatch "^[A-Za-z0-9._-]+$" $objectStorageCredentialsKey)) -}}
+{{- fail "secrets.objectStorage.keys.credentials must be a non-empty valid Kubernetes Secret data key" -}}
+{{- end -}}
 {{- if and .Values.embeddedDependencies.postgresql.enabled (not (.Capabilities.APIVersions.Has "postgresql.cnpg.io/v1")) -}}
 {{- fail "embeddedDependencies.postgresql.enabled: install a compatible CloudNativePG operator before enabling embedded PostgreSQL" -}}
 {{- end -}}
@@ -66,6 +73,9 @@
 {{- end -}}
 {{- if and .Values.secrets.objectStorage.generate .Values.secrets.objectStorage.existingSecret -}}
 {{- fail "secrets.objectStorage.generate and existingSecret are mutually exclusive" -}}
+{{- end -}}
+{{- if has $objectStorageCredentialsKey (list "RUSTFS_ACCESS_KEY" "RUSTFS_SECRET_KEY") -}}
+{{- fail "secrets.objectStorage.keys.credentials must not use a reserved RustFS key name" -}}
 {{- end -}}
 {{- if and (not .Values.secrets.objectStorage.generate) (not .Values.secrets.objectStorage.existingSecret) -}}
 {{- fail "embedded object storage requires generated or existing credentials" -}}

@@ -1084,6 +1084,30 @@ EOF
     require_contains "$TEST_DIRECTORY/duplicate-object-storage-credentials.out" \
         "generate and existingSecret are mutually exclusive"
 
+    local invalid_object_storage_credentials_key
+    local invalid_object_storage_credentials_key_message
+    while IFS='|' read -r invalid_object_storage_credentials_key \
+        invalid_object_storage_credentials_key_message; do
+        if helm_template invalid-object-storage-credentials-key \
+            "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            "${embedded_object_storage_settings[@]}" \
+            --set-string "$invalid_object_storage_credentials_key" \
+            >"$TEST_DIRECTORY/invalid-object-storage-credentials-key.out" \
+            2>&1; then
+            fail "expected invalid object-storage credentials key to fail"
+        fi
+        require_contains \
+            "$TEST_DIRECTORY/invalid-object-storage-credentials-key.out" \
+            "$invalid_object_storage_credentials_key_message"
+    done <<'EOF'
+secrets.objectStorage.keys.credentials=|must be a non-empty valid Kubernetes Secret data key
+secrets.objectStorage.keys.credentials=object/storage.yaml|must be a non-empty valid Kubernetes Secret data key
+secrets.objectStorage.keys.credentials=RUSTFS_ACCESS_KEY|must not use a reserved RustFS key name
+secrets.objectStorage.keys.credentials=RUSTFS_SECRET_KEY|must not use a reserved RustFS key name
+EOF
+
     if helm_template missing-object-storage-credentials "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
