@@ -153,6 +153,9 @@ The bootstrap Secret persists after uninstall and requires explicit cleanup. A
 Helm install or different release name can still point at retained database
 data. In that case, restore the MEK that encrypted the data; do not enable
 bootstrap to generate a replacement.
+If the bootstrap workload cannot start or complete, Helm removes the complete
+privileged hook resource set. A sanitized recovery ConfigMap remains for
+diagnosis and is removed automatically after a successful retry.
 
 Rotate the Secret with two separate updates: add the new JWK while leaving `currentMek`
 unchanged, verify every live pod's `MEK consumer status` log lists the new key,

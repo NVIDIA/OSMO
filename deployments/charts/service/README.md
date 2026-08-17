@@ -42,6 +42,10 @@ or a new release name can still point at retained PostgreSQL data; in that case,
 restore or supply the MEK that encrypted that data instead of enabling
 bootstrap.
 
+If the bootstrap workload cannot start or complete, Helm removes the complete
+privileged hook resource set. A sanitized recovery ConfigMap remains for
+diagnosis and is removed automatically after a successful retry.
+
 ## Values
 
 > **Hostname configuration.** Three template fields read the external hostname for this deployment: `services.service.hostname` (API service `--service_hostname`), `services.router.hostname` (router `--hostname` for session-key extraction from `Host:` headers), and `gateway.envoy.hostname` (Ingress / TLS / OAuth2 redirect). Each one falls back to `global.hostname` when empty, so the recommended pattern is **set `global.hostname` once** at the top level and leave the per-component fields blank. Per-component fields still take precedence on the (rare) deployments that need a different value.

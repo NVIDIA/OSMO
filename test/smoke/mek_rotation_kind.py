@@ -109,73 +109,68 @@ class MekRotationKind(SmokeFixture):
     def test_failed_bootstrap_revokes_privilege_and_keeps_diagnostics(self):
         release_name = f"mek-hook-{secrets.token_hex(4)}"
         hook_name = f"{release_name}-mek-bootstrap"
+        diagnostic_name = f"{hook_name}-diagnostic"
         missing_secret = f"{release_name}-missing"
-        rendered = subprocess.run(
+        install = subprocess.run(
             [
-                "helm", "template", release_name, self._service_chart_path(),
+                "helm", "install", release_name, self._service_chart_path(),
                 "--namespace", self.namespace,
-                "--is-upgrade",
+                "--timeout", "30s",
                 "--set", "services.masterEncryptionKey.bootstrap.enabled=true",
                 "--set", (
                     "services.masterEncryptionKey.existingSecret.name="
                     f"{missing_secret}"
                 ),
+                "--set", (
+                    "services.masterEncryptionKey.bootstrap.image="
+                    "invalid.invalid/osmo/mek-bootstrap:never"
+                ),
             ],
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
-        ).stdout
-        hook_resources = [
-            document
-            for document in yaml.safe_load_all(rendered)
-            if document
-            and document.get("metadata", {}).get("name") == hook_name
-            and document.get("kind") in {
-                "ServiceAccount", "Role", "RoleBinding", "Job",
-            }
-        ]
-        self.assertEqual(len(hook_resources), 4)
-        hook_resources.sort(key=lambda resource: resource["kind"] == "Job")
+        )
 
         try:
-            self._kubectl(
-                "apply", "-f", "-",
-                input_text=yaml.safe_dump_all(hook_resources),
+            self.assertNotEqual(
+                install.returncode,
+                0,
+                "invalid bootstrap image unexpectedly completed Helm install",
             )
-            self._kubectl(
-                "wait", "--for=condition=failed", f"job/{hook_name}",
-                "--timeout=2m",
+            for resource in ("rolebinding", "role", "serviceaccount", "job"):
+                retained = subprocess.run(
+                    [
+                        "kubectl", "--namespace", self.namespace,
+                        "get", resource, hook_name,
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(
+                    retained.returncode,
+                    0,
+                    f"failed bootstrap retained hook {resource}/{hook_name}",
+                )
+            self.assertIn(
+                "privileged resources were removed",
+                self._json("get", "configmap", diagnostic_name)["data"][
+                    "recovery"],
             )
-
-            rolebinding = subprocess.run(
+        finally:
+            subprocess.run(
                 [
-                    "kubectl", "--namespace", self.namespace,
-                    "get", "rolebinding", hook_name,
+                    "helm", "uninstall", release_name,
+                    "--namespace", self.namespace,
+                    "--ignore-not-found",
                 ],
                 check=False,
                 capture_output=True,
                 text=True,
             )
-            self.assertNotEqual(
-                rolebinding.returncode,
-                0,
-                "failed bootstrap retained its privileged RoleBinding",
-            )
-            failed_job = self._json("get", "job", hook_name)
-            self.assertTrue(any(
-                condition.get("type") == "Failed"
-                and condition.get("status") == "True"
-                for condition in failed_job.get("status", {}).get(
-                    "conditions", [])
-            ))
-            self.assertIn(
-                "missing during upgrade",
-                self._kubectl("logs", f"job/{hook_name}"),
-            )
-        finally:
             self._kubectl(
-                "delete", "job,role,rolebinding,serviceaccount",
-                hook_name, "--ignore-not-found=true", "--wait=true",
+                "delete", "configmap", diagnostic_name,
+                "--ignore-not-found=true", "--wait=true",
             )
 
     def test_projected_secret_ha_rotation_and_rewrap(self):

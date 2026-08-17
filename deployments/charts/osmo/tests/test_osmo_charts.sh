@@ -492,29 +492,27 @@ test_control_umbrella() {
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set secrets.masterEncryptionKey.bootstrap.enabled=true \
         >"$TEST_DIRECTORY/mek-bootstrap.yaml"
-    resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" Job \
+    resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" List \
         bootstrap-osmo-mek-bootstrap \
-        >"$TEST_DIRECTORY/mek-bootstrap-job.yaml"
-    resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" Role \
-        bootstrap-osmo-mek-bootstrap \
-        >"$TEST_DIRECTORY/mek-bootstrap-role.yaml"
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
+        >"$TEST_DIRECTORY/mek-bootstrap-list.yaml"
+    resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" ConfigMap \
+        bootstrap-osmo-mek-bootstrap-diagnostic \
+        >"$TEST_DIRECTORY/mek-bootstrap-diagnostic.yaml"
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
         'image: "alpine/kubectl:1.33.4"'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
         '--from-file="$secret_key=$temporary_directory/mek.yaml"'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
         '- "external-master-encryption-key-secret"'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" '- "keyring.yaml"'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" \
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" '- "keyring.yaml"'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
         'resourceNames: ["external-master-encryption-key-secret"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["get"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["create"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" \
-        'resources: ["rolebindings"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" \
-        'resourceNames: ["bootstrap-osmo-mek-bootstrap"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-role.yaml" 'verbs: ["delete"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" '--rbac-name'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'verbs: ["get"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'verbs: ["create"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'kind: Job'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'kind: RoleBinding'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-diagnostic.yaml" \
+        'privileged resources were removed'
 
     helm_template bootstrap-osmo-upgrade "$charts_copy/osmo" \
         --is-upgrade \
@@ -525,11 +523,11 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
         '--fail-if-missing'
     require_occurrences "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
-        'hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed' 3
-    resource_document "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" Job \
-        bootstrap-osmo-upgrade-mek-bootstrap \
-        >"$TEST_DIRECTORY/mek-bootstrap-upgrade-job.yaml"
-    require_not_contains "$TEST_DIRECTORY/mek-bootstrap-upgrade-job.yaml" \
+        'hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed' 1
+    resource_document "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" ConfigMap \
+        bootstrap-osmo-upgrade-mek-bootstrap-diagnostic \
+        >"$TEST_DIRECTORY/mek-bootstrap-upgrade-diagnostic.yaml"
+    require_not_contains "$TEST_DIRECTORY/mek-bootstrap-upgrade-diagnostic.yaml" \
         'hook-failed'
     bash -n "$charts_copy/osmo/files/mek-bootstrap.sh"
 

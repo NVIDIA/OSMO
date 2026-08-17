@@ -52,5 +52,7 @@ oetf_smoke_test(
     src = "mek_rotation_kind.py",
     data = ["//deployments/charts:service"],
     extra_deps = [requirement("pyyaml")],
+    size = "large",
     tags = ["database", "kind"],
+    timeout = "long",
 )

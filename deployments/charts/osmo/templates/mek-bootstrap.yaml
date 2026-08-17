@@ -3,127 +3,129 @@
 
 {{- if .Values.secrets.masterEncryptionKey.bootstrap.enabled }}
 {{- $bootstrapName := printf "%s-mek-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- $diagnosticName := printf "%s-diagnostic" $bootstrapName | trunc 63 | trimSuffix "-" }}
 {{- $secretName := required "secrets.masterEncryptionKey.existingSecret.name is required" .Values.secrets.masterEncryptionKey.existingSecret.name }}
 {{- $secretKey := required "secrets.masterEncryptionKey.existingSecret.key is required" .Values.secrets.masterEncryptionKey.existingSecret.key }}
 apiVersion: v1
-kind: ServiceAccount
+kind: ConfigMap
 metadata:
-  name: {{ $bootstrapName }}
+  name: {{ $diagnosticName }}
   namespace: {{ .Release.Namespace }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-30"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ $bootstrapName }}
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-30"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
-rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  resourceNames: [{{ $secretName | quote }}]
-  verbs: ["get"]
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["create"]
-- apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["rolebindings"]
-  resourceNames: [{{ $bootstrapName | quote }}]
-  verbs: ["delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ $bootstrapName }}
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-30"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
-subjects:
-- kind: ServiceAccount
-  name: {{ $bootstrapName }}
-  namespace: {{ .Release.Namespace }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ $bootstrapName }}
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: {{ $bootstrapName }}
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-20"
+    helm.sh/hook-weight: "-31"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
-spec:
-  backoffLimit: 0
-  template:
-    metadata:
-      labels:
-        {{- include "osmo.component.standardLabels" (dict "root" . "component" "mek-bootstrap") | nindent 8 }}
-    spec:
-      restartPolicy: Never
-      serviceAccountName: {{ $bootstrapName }}
-      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
-      nodeSelector:
-        {{- toYaml .Values.podDefaults.nodeSelector | nindent 8 }}
-      tolerations:
-        {{- toYaml .Values.podDefaults.tolerations | nindent 8 }}
-      containers:
-      - name: mek-bootstrap
-        image: {{ .Values.secrets.masterEncryptionKey.bootstrap.image | quote }}
-        imagePullPolicy: {{ .Values.secrets.masterEncryptionKey.bootstrap.imagePullPolicy | quote }}
-        command: ["/bin/ash"]
-        args:
-        - -c
-        - |
-{{ .Files.Get "files/mek-bootstrap.sh" | nindent 10 }}
-        - mek-bootstrap
-        - --namespace
-        - {{ .Release.Namespace | quote }}
-        - --release-name
-        - {{ .Release.Name | quote }}
-        - --rbac-name
-        - {{ $bootstrapName | quote }}
-        - --secret-name
-        - {{ $secretName | quote }}
-        - --secret-key
-        - {{ $secretKey | quote }}
-        {{- if .Release.IsUpgrade }}
-        - --fail-if-missing
-        {{- end }}
-        env:
-        - name: HOME
-          value: /tmp
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 1001
-          seccompProfile:
-            type: RuntimeDefault
-        volumeMounts:
+data:
+  recovery: |
+    The MEK bootstrap did not complete. Its privileged resources were removed.
+    Review the Helm error and namespace Events for the underlying failure.
+    For an existing database, restore the MEK Secret that encrypted its data.
+    Never generate a replacement MEK for retained encrypted data.
+---
+apiVersion: v1
+kind: List
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-30"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
+items:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  spec:
+    backoffLimit: 0
+    template:
+      metadata:
+        labels:
+          {{- include "osmo.component.standardLabels" (dict "root" . "component" "mek-bootstrap") | nindent 10 }}
+      spec:
+        restartPolicy: Never
+        serviceAccountName: {{ $bootstrapName }}
+        {{- include "osmo.component.imagePullSecrets" . | nindent 8 }}
+        nodeSelector:
+          {{- toYaml .Values.podDefaults.nodeSelector | nindent 10 }}
+        tolerations:
+          {{- toYaml .Values.podDefaults.tolerations | nindent 10 }}
+        containers:
+        - name: mek-bootstrap
+          image: {{ .Values.secrets.masterEncryptionKey.bootstrap.image | quote }}
+          imagePullPolicy: {{ .Values.secrets.masterEncryptionKey.bootstrap.imagePullPolicy | quote }}
+          command: ["/bin/ash"]
+          args:
+          - -c
+          - |
+{{ .Files.Get "files/mek-bootstrap.sh" | nindent 12 }}
+          - mek-bootstrap
+          - --namespace
+          - {{ .Release.Namespace | quote }}
+          - --release-name
+          - {{ .Release.Name | quote }}
+          - --secret-name
+          - {{ $secretName | quote }}
+          - --secret-key
+          - {{ $secretKey | quote }}
+          {{- if .Release.IsUpgrade }}
+          - --fail-if-missing
+          {{- end }}
+          env:
+          - name: HOME
+            value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+          - name: bootstrap-tmp
+            mountPath: /tmp
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+        volumes:
         - name: bootstrap-tmp
-          mountPath: /tmp
-        resources:
-          requests:
-            cpu: 10m
-            memory: 32Mi
-          limits:
-            cpu: 100m
-            memory: 128Mi
-      volumes:
-      - name: bootstrap-tmp
-        emptyDir: {}
+          emptyDir: {}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  subjects:
+  - kind: ServiceAccount
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: {{ $bootstrapName }}
 {{- end }}
