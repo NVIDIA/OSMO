@@ -26,6 +26,9 @@ import {
 } from "@/components/log-viewer/lib/use-incremental-flatten";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 
+// React's concurrent act() requires an explicit test-environment opt-in.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 /**
  * Create a mock log entry for testing.
  */

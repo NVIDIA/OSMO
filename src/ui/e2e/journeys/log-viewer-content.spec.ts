@@ -43,6 +43,12 @@ import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
 
 const CT_JSON = "application/json";
 const WRAPPED_LOG_SUFFIX = " wrapped-log-segment".repeat(24);
+const SEARCH_CONTEXT_MESSAGE_BY_INDEX = new Map<number, string>([
+  [0, "needle first match"],
+  [2, "context immediately before target"],
+  [3, `needle selected target${WRAPPED_LOG_SUFFIX}`],
+  [4, "context immediately after target"],
+]);
 
 function createWorkflowForLogs(name: string) {
   const now = new Date();
@@ -116,17 +122,8 @@ function createLogsWithSearchContext(): string {
   return Array.from({ length: 60 }, (_, index) => {
     const minute = String(index).padStart(2, "0");
     const message =
-      index === 0
-        ? "needle first match"
-        : index === 2
-          ? "context immediately before target"
-          : index === 3
-            ? `needle selected target${WRAPPED_LOG_SUFFIX}`
-            : index === 4
-              ? "context immediately after target"
-              : index >= 6
-                ? `needle filler match ${index}`
-                : `ordinary log line ${index}`;
+      SEARCH_CONTEXT_MESSAGE_BY_INDEX.get(index) ??
+      (index >= 6 ? `needle filler match ${index}` : `ordinary log line ${index}`);
     return `2026/01/15 10:${minute}:00 [train-task] ${message}`;
   }).join("\n");
 }

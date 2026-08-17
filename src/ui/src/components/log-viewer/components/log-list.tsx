@@ -289,7 +289,12 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   // effect so the selected line wins once the full list is ready, then acknowledge
   // the one-shot request so streaming appends do not keep re-centering the viewer.
   useLayoutEffect(() => {
-    if (!revealEntryId || revealEntryIndex === -1) return;
+    if (!revealEntryId) return;
+
+    if (revealEntryIndex === -1) {
+      onEntryRevealed?.(revealEntryId);
+      return;
+    }
 
     isAutoScrollingRef.current = true;
     virtualizer.scrollToIndex(revealEntryIndex, { align: "center" });
