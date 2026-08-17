@@ -91,8 +91,11 @@ class MekRotationKind(SmokeFixture):
         matches = [
             deployment["metadata"]["name"]
             for deployment in self._json("get", "deployments")["items"]
-            if deployment["metadata"].get("labels", {}).get(
-                "app.kubernetes.io/component") == "api"
+            if any(
+                container.get("command") == ["service"]
+                for container in deployment["spec"]["template"]["spec"][
+                    "containers"]
+            )
         ]
         self.assertEqual(len(matches), 1, f"expected one API deployment, found {matches}")
         return matches[0]
