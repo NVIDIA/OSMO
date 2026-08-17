@@ -2090,6 +2090,18 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-backups.out" \
         "embedded backup and restore are not supported"
 
+    if helm_template embedded-wal-archiver "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.cluster.plugins[0].name=test-wal-archiver \
+        --set postgresql.cluster.plugins[0].enabled=true \
+        --set postgresql.cluster.plugins[0].isWALArchiver=true \
+        >"$TEST_DIRECTORY/embedded-wal-archiver.out" 2>&1; then
+        fail "expected an enabled embedded WAL archiver plugin to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-wal-archiver.out" \
+        "postgresql.cluster.plugins: embedded WAL archiver plugins are not supported"
+
     if helm_template invalid-postgresql-instances "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \

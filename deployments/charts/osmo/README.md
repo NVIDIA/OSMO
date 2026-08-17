@@ -66,7 +66,7 @@ Leaving `postgresql.cluster.initdb.secret.name` empty lets CloudNativePG create
 `<cluster>-app`.
 Set `postgresql.cluster.storage.storageClass` when the cluster default is not
 the desired durable StorageClass. See the
-[CloudNativePG cluster chart](https://github.com/cloudnative-pg/charts/tree/main/charts/cluster)
+[CloudNativePG cluster chart](https://github.com/cloudnative-pg/charts/tree/cluster-v0.8.0/charts/cluster)
 for additional `postgresql` values.
 
 For resource-constrained development, explicitly relax the production settings:

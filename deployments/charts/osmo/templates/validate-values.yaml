@@ -43,6 +43,11 @@
 {{- if .Values.postgresql.backups.enabled -}}
 {{- fail "postgresql.backups.enabled: embedded backup and restore are not supported" -}}
 {{- end -}}
+{{- range $plugin := .Values.postgresql.cluster.plugins -}}
+{{- if and (dig "enabled" false $plugin) (dig "isWALArchiver" false $plugin) -}}
+{{- fail "postgresql.cluster.plugins: embedded WAL archiver plugins are not supported" -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- fail "embeddedDependencies.objectStorage.enabled: embedded object storage is not implemented" -}}
