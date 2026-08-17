@@ -164,8 +164,8 @@ spec:
         {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         {{- end }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.router.resources | nindent 10 }}
 

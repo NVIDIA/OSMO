@@ -152,7 +152,10 @@ bash "$CHART_DIR/tests/mek-bootstrap-tests.sh"
 
 mek_render=$(helm template mek-test "$CHART_DIR" --namespace osmo \
     --set 'services.masterEncryptionKey.existingSecret.name=customer-mek' \
-    --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml')
+    --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml' \
+    --set 'services.router.extraVolumeMounts[0].name=router-extra' \
+    --set 'services.router.extraVolumeMounts[0].mountPath=/tmp/router-extra')
+grep -q 'mountPath: /tmp/router-extra' <<<"$mek_render"
 if [[ $(grep -c -- '- --mek_file' <<<"$mek_render") -ne 6 ]]; then
     echo 'Not every MEK consumer receives --mek_file' >&2
     exit 1
