@@ -731,11 +731,6 @@ class TestUpdateCommand(ConfigCommandTestCase):
         self.assertEqual(self.request_calls[1].args,
                          (client.RequestMethod.POST, 'api/configs/backend/my-backend'))
 
-    # SUSPECTED BUG: src/cli/config.py:_run_update_command — the POST branch calls
-    # diff.keys() without checking for None, so updating a BACKEND config with an
-    # unchanged file raises AttributeError instead of printing the same
-    # "No changes were made to the config." message the PATCH and PUT branches print.
-    @unittest.skip('source bug — see comment above')
     def test_update_named_backend_with_no_changes_reports_no_changes(self):
         self.service_client.request.return_value = {
             'backends': [{'name': 'my-backend', 'network': {'host': 'a'}}]
