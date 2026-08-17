@@ -18,9 +18,9 @@ name: Deployment Test (Azure)
 #   - `workflow_dispatch` — once this file lands on the default branch, the
 #     "Run workflow" button in Actions becomes available for all three modes.
 #   - `pull_request` — auto-runs `init-only` on every push that touches the
-#     workflow, the wrapper script, or the Azure terraform module. The two
-#     heavier modes are gated behind PR labels (see below) so they don't burn
-#     Azure quota on every push.
+#     deployment workflow, source images, scripts, split charts, values, or
+#     Azure terraform module. The two heavier modes are gated behind PR labels
+#     (see below) so they don't burn Azure quota on every push.
 #
 # PR-label trigger (works pre-merge when the dispatcher isn't registered yet):
 #   - `ci:azure-deployment` → full-deployment fires on the next PR push
@@ -31,9 +31,9 @@ name: Deployment Test (Azure)
 #   - Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
 #     is UTC, doesn't adjust for DST). github.event_name='schedule' runs
 #     build-images + full-deployment end-to-end on main, the same path
-#     the PR-label gate exercises. Schedule events fire only from the
-#     repo's default branch (main) — they don't run for forks or
-#     feature branches.
+#     the PR-label gate exercises. Images, scripts, and split charts all come
+#     from the tested checkout. Schedule events fire only from the repo's
+#     default branch (main) — they don't run for forks or feature branches.
 #
 # Slack notification (failure-only, schedule-only):
 #   - notify-slack-on-azure-deployment-test-failure posts to the channel
@@ -63,8 +63,13 @@ on:
     types: [opened, synchronize, reopened, labeled]
     paths:
       - '.github/workflows/deployment-test.yaml'
-      - 'deployments/scripts/run-deployment-test.sh'
+      - 'ci/deployment-test/**'
+      - 'deployments/charts/backend-operator/**'
+      - 'deployments/charts/service/**'
+      - 'deployments/scripts/**'
       - 'deployments/terraform/azure/**'
+      - 'deployments/values/**'
+      - 'src/**'
   schedule:
     # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
     # is UTC, doesn't track DST). Schedule fires only on main, not on
@@ -88,7 +93,7 @@ jobs:
   # azurerm provider plugin from the Terraform Registry (HTTPS, no Azure
   # API call). terraform validate + fmt are purely local.
   init-only:
-    if: >
+    if: >-
       ${{ github.event_name == 'pull_request'
           || github.event.inputs.mode == 'init-only' }}
     runs-on: ubuntu-latest
@@ -172,7 +177,7 @@ jobs:
   # separate them from dev's `YYYY.MM.DD.hash.stgN` tags. Cleanup uses
   # the tag prefix.
   build-images:
-    if: >
+    if: >-
       ${{ github.event_name == 'schedule'
           || github.event.inputs.mode == 'full-deployment'
           || (github.event_name == 'pull_request'
@@ -726,7 +731,11 @@ jobs:
               | kubectl apply -f -
           done
 
-      - name: deploy OSMO (chart install + verify-hello)
+      # Package the split charts from this checkout into a temporary Helm repo.
+      # deploy-k8s.sh keeps using its normal repository interface, but every
+      # artifact under test now comes from the same source SHA. This gate always
+      # provisions public AKS, so Helm runs on this runner and can reach loopback.
+      - name: deploy OSMO with HEAD charts (chart install + verify-hello)
         id: deploy_osmo
         env:
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -739,11 +748,61 @@ jobs:
           # dynamically-created workflow task pods get a docker-registry
           # secret they can use to pull init-container/client from nvcr.io.
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          OSMO_HELM_REPO_NAME: osmo-head
+          OSMO_HELM_REPO_URL: http://127.0.0.1:8879
           SKIP_OETF: "1"
           SKIP_TEARDOWN: "1"
         run: |
-          set -o pipefail
-          echo "::notice::deploy stage starting — chart install + verify-hello, expected ~5–15 min"
+          set -euo pipefail
+
+          chart_repo_dir="$RUNNER_TEMP/osmo-head-helm-repo"
+          mkdir -p "$chart_repo_dir"
+
+          service_version="$(helm show chart deployments/charts/service \
+            | awk '$1 == "version:" { print $2; exit }')"
+          operator_version="$(helm show chart deployments/charts/backend-operator \
+            | awk '$1 == "version:" { print $2; exit }')"
+          if [[ -z "$service_version" || -z "$operator_version" \
+                || "$service_version" != "$operator_version" ]]; then
+            echo "::error::service ($service_version) and backend-operator ($operator_version) chart versions must match because deploy-k8s.sh uses one OSMO_CHART_VERSION"
+            exit 1
+          fi
+
+          helm lint deployments/charts/service
+          helm lint deployments/charts/backend-operator
+          helm package deployments/charts/service --destination "$chart_repo_dir"
+          helm package deployments/charts/backend-operator --destination "$chart_repo_dir"
+          helm repo index "$chart_repo_dir"
+
+          python3 -m http.server 8879 \
+            --bind 127.0.0.1 \
+            --directory "$chart_repo_dir" \
+            >"$RUNNER_TEMP/osmo-head-helm-repo.log" 2>&1 &
+          chart_repo_pid=$!
+          trap 'kill "$chart_repo_pid" 2>/dev/null || true' EXIT
+
+          chart_repo_ready=""
+          for _ in {1..10}; do
+            if curl -fsS "$OSMO_HELM_REPO_URL/index.yaml" >/dev/null 2>&1; then
+              chart_repo_ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ -z "$chart_repo_ready" ]]; then
+            cat "$RUNNER_TEMP/osmo-head-helm-repo.log"
+            echo "::error::HEAD chart repository did not become ready"
+            exit 1
+          fi
+
+          # Pre-add without credentials so deploy-k8s.sh preserves this exact
+          # local repo instead of forwarding NGC credentials to loopback.
+          helm repo add "$OSMO_HELM_REPO_NAME" "$OSMO_HELM_REPO_URL"
+          helm show chart "$OSMO_HELM_REPO_NAME/service" --version "$service_version" >/dev/null
+          helm show chart "$OSMO_HELM_REPO_NAME/backend-operator" --version "$operator_version" >/dev/null
+          export OSMO_CHART_VERSION="$service_version"
+          echo "chart_version=$OSMO_CHART_VERSION" >> "$GITHUB_OUTPUT"
+          echo "::notice::deploy stage starting with HEAD charts $OSMO_CHART_VERSION — expected ~5–15 min"
           mkdir -p "$RUN_DIR"
           bash deployments/scripts/run-deployment-test.sh --provider azure
           echo "▶ $(date -u +%H:%M:%S) deploy stage done"
@@ -755,10 +814,14 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
         run: |
           set +e
-          chart_version="$(helm list -n osmo --output json 2>/dev/null \
+          service_chart="$(helm list -n osmo-minimal --output json 2>/dev/null \
                           | python3 -c 'import json,sys; rs=json.load(sys.stdin); print(rs[0].get("chart","-") if rs else "-")' 2>/dev/null || echo "-")"
-          pod_summary="$(kubectl get pods -n osmo --no-headers 2>/dev/null \
-                         | awk '{print $3}' | sort | uniq -c | awk '{printf "%s×%s ", $1, $2}' || echo "-")"
+          operator_chart="$(helm list -n osmo-operator --output json 2>/dev/null \
+                           | python3 -c 'import json,sys; rs=json.load(sys.stdin); print(rs[0].get("chart","-") if rs else "-")' 2>/dev/null || echo "-")"
+          chart_version="HEAD ${{ steps.deploy_osmo.outputs.chart_version || '-' }} (installed: $service_chart, $operator_chart) from ${{ github.sha }}"
+          pod_summary="$(kubectl get pods --all-namespaces --no-headers 2>/dev/null \
+                         | awk '$1 == "osmo-minimal" || $1 == "osmo-operator" {print $4}' \
+                         | sort | uniq -c | awk '{printf "%s×%s ", $1, $2}' || echo "-")"
           icon='✅'; verify_text='passed'
           if [ "${{ steps.deploy_osmo.outcome }}" != "success" ]; then icon='❌'; verify_text='failed (see step logs)'; fi
           {
@@ -1196,7 +1259,7 @@ jobs:
     # always() so this evaluates even when an upstream `needs:` failed.
     # Fires only on scheduled-run failures — PR-label and workflow_dispatch
     # runs surface their own status interactively.
-    if: >
+    if: >-
       ${{ always()
           && github.event_name == 'schedule'
           && (needs.build-images.result == 'failure'
