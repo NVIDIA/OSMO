@@ -98,9 +98,9 @@ run_bootstrap() {
         AWS_ACCESS_KEY_ID=test-access-key \
         AWS_SECRET_ACCESS_KEY=test-secret-key \
         AWS_DEFAULT_REGION=us-east-1 \
-        OSMO_WORKFLOW_BUCKET=existing-workflows \
-        OSMO_LOG_BUCKET=missing-logs \
-        OSMO_APP_BUCKET=missing-apps \
+        OSMO_WORKFLOW_BUCKET="${3:-existing-workflows}" \
+        OSMO_LOG_BUCKET="${4:-missing-logs}" \
+        OSMO_APP_BUCKET="${5:-missing-apps}" \
         OSMO_STORAGE_BOOTSTRAP_ATTEMPTS="${2:-3}" \
         "$BOOTSTRAP_SCRIPT"
 }
@@ -130,6 +130,16 @@ require_call_count "s3api create-bucket --bucket missing-logs" 1
 require_call_count "s3api create-bucket --bucket missing-apps" 1
 
 : >"$FAKE_AWS_STATE/calls"
+printf '%s\n' existing-workflows >"$FAKE_AWS_STATE/buckets"
+run_bootstrap 0 3 existing-workflows shared-bucket shared-bucket
+require_call_count "s3api head-bucket --bucket existing-workflows" 1
+require_call_count "s3api head-bucket --bucket shared-bucket" 1
+require_call_count "s3api create-bucket --bucket shared-bucket" 1
+
+: >"$FAKE_AWS_STATE/calls"
+printf '%s\n' existing-workflows >"$FAKE_AWS_STATE/buckets"
+printf '%s\n' missing-logs >>"$FAKE_AWS_STATE/buckets"
+printf '%s\n' missing-apps >>"$FAKE_AWS_STATE/buckets"
 run_bootstrap 0 3
 require_call_count "s3api head-bucket --bucket existing-workflows" 1
 require_call_count "s3api head-bucket --bucket missing-logs" 1

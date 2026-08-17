@@ -991,8 +991,12 @@ EOF
         "name: OSMO_STORAGE_BOOTSTRAP_ATTEMPTS"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "automountServiceAccountToken: false"
+    require_not_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "serviceAccountName:"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "mountPath: /tmp"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "type: RuntimeDefault"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "runAsUser: 10001"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
@@ -1003,6 +1007,16 @@ EOF
         "allowPrivilegeEscalation: false"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "- ALL"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "resources:"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "cpu: 10m"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "memory: 32Mi"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "cpu: 100m"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "memory: 128Mi"
 
     resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         Deployment embedded-object-storage-rustfs \
