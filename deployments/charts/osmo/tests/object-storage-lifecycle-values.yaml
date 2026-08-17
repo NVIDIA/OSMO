@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+configuration:
+  enabled: false
+
+services:
+  mcp:
+    enabled: false
+  ui:
+    enabled: false
+  delayedJobMonitor:
+    enabled: false
+  worker:
+    enabled: false
+  api:
+    enabled: false
+  router:
+    enabled: false
+  logger:
+    enabled: false
+  agent:
+    enabled: false
+
+gateway:
+  envoy:
+    enabled: false
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
+  rateLimit:
+    enabled: false
+
+embeddedDependencies:
+  objectStorage:
+    enabled: true
+
+externalDependencies:
+  objectStorage:
+    endpoint: ''
+    buckets:
+      workflows: ''
+      logs: ''
+      apps: ''
+
+secrets:
+  objectStorage:
+    generate: true
+    existingSecret: ''

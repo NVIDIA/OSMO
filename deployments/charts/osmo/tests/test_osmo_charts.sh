@@ -382,6 +382,20 @@ test_control_umbrella() {
         ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
         helm dependency build "$charts_copy/osmo" >/dev/null
     fi
+    local rustfs_archive_verifier="$charts_copy/osmo/tests/verify_rustfs_chart_archive.sh"
+    local rustfs_archive="$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz"
+    [[ -f "$rustfs_archive_verifier" ]] || \
+        fail "RustFS chart archive verifier is required"
+    bash "$rustfs_archive_verifier" "$rustfs_archive" >/dev/null
+    local altered_rustfs_archive="$TEST_DIRECTORY/altered-rustfs-1.0.0-rc.2.tgz"
+    cp "$rustfs_archive" "$altered_rustfs_archive"
+    printf 'altered archive\n' >>"$altered_rustfs_archive"
+    if bash "$rustfs_archive_verifier" "$altered_rustfs_archive" \
+        >"$TEST_DIRECTORY/altered-rustfs-archive.out" 2>&1; then
+        fail "expected an altered RustFS chart archive to fail digest verification"
+    fi
+    require_contains "$TEST_DIRECTORY/altered-rustfs-archive.out" \
+        "RustFS chart archive SHA-256 mismatch: expected c26cb094bc9735d01548ee540d018c1d88e2038bfd27ddc330770f5d525e63eb"
 
     if ! helm lint "$charts_copy/osmo" >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
         cat "$TEST_DIRECTORY/osmo-lint.out" >&2
@@ -996,6 +1010,8 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "name: AWS_DEFAULT_REGION"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        'value: "us-east-1"'
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "name: OSMO_WORKFLOW_BUCKET"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "name: OSMO_LOG_BUCKET"
@@ -1060,6 +1076,12 @@ EOF
         "busybox:stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
 
     resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
+        ConfigMap embedded-object-storage-rustfs-config \
+        >"$TEST_DIRECTORY/osmo-rustfs-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-config.yaml" \
+        'RUSTFS_REGION: "us-east-1"'
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         ServiceAccount embedded-object-storage-rustfs \
         >"$TEST_DIRECTORY/osmo-rustfs-service-account.yaml"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-service-account.yaml" \
@@ -1088,6 +1110,8 @@ EOF
         "secretName: osmo-rustfs-credentials"
     require_contains "$TEST_DIRECTORY/osmo-embedded-object-storage-config.yaml" \
         "secretKey: object-storage.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-object-storage-config.yaml" \
+        "region: us-east-1"
     local object_storage_consumer
     for object_storage_consumer in api worker logger agent; do
         resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
@@ -1106,6 +1130,32 @@ EOF
         "kind: Gateway"
     require_not_contains "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         "kind: HTTPRoute"
+    require_not_contains "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
+        "kind: HTTPProxy"
+
+    helm_template embedded-non-default-region "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        "${embedded_object_storage_settings[@]}" \
+        --set-string embeddedDependencies.objectStorage.region=us-west-2 \
+        --set-string rustfs.config.rustfs.region=us-west-2 \
+        >"$TEST_DIRECTORY/osmo-embedded-non-default-region.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-non-default-region.yaml" \
+        ConfigMap embedded-non-default-region-rustfs-config \
+        >"$TEST_DIRECTORY/osmo-rustfs-non-default-region-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-rustfs-non-default-region-config.yaml" \
+        'RUSTFS_REGION: "us-west-2"'
+    resource_document "$TEST_DIRECTORY/osmo-embedded-non-default-region.yaml" \
+        ConfigMap embedded-non-default-region-osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-non-default-region-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-non-default-region-config.yaml" \
+        "region: us-west-2"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-non-default-region.yaml" \
+        Job embedded-non-default-region-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-non-default-region-bootstrap-job.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/osmo-non-default-region-bootstrap-job.yaml" \
+        'value: "us-west-2"'
 
     helm_template embedded-object-storage-custom-key "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1228,6 +1278,19 @@ EOF
         "name: OSMO_APP_BUCKET"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
         "name: osmo-rustfs-credentials"
+
+    if helm_template mismatched-embedded-object-storage-region \
+        "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        "${embedded_object_storage_settings[@]}" \
+        --set-string embeddedDependencies.objectStorage.region=us-west-2 \
+        >"$TEST_DIRECTORY/mismatched-embedded-object-storage-region.out" 2>&1; then
+        fail "expected mismatched embedded object-storage regions to fail"
+    fi
+    require_contains \
+        "$TEST_DIRECTORY/mismatched-embedded-object-storage-region.out" \
+        "embeddedDependencies.objectStorage.region must match rustfs.config.rustfs.region"
 
     local conflicting_external_object_storage_value
     local conflicting_external_object_storage_message
@@ -1356,6 +1419,124 @@ EOF
     require_contains "$TEST_DIRECTORY/neither-rustfs-topology.out" \
         "exactly one RustFS topology mode must be enabled"
 
+    local longest_legal_helm_release
+    longest_legal_helm_release=$(printf 'r%.0s' {1..53})
+    if helm_template "$longest_legal_helm_release" "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        "${embedded_object_storage_settings[@]}" \
+        >"$TEST_DIRECTORY/standalone-rustfs-name-overflow.out" 2>&1; then
+        fail "expected an overlong standalone RustFS Service name to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/standalone-rustfs-name-overflow.out" \
+        "standalone embedded RustFS fullname must be at most 59 characters"
+
+    local distributed_rustfs_name_overflow_release
+    distributed_rustfs_name_overflow_release=$(printf 'd%.0s' {1..48})
+    if helm_template "$distributed_rustfs_name_overflow_release" \
+        "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        "${embedded_object_storage_settings[@]}" \
+        --set rustfs.mode.standalone.enabled=false \
+        --set rustfs.mode.distributed.enabled=true \
+        --set rustfs.replicaCount=2 \
+        >"$TEST_DIRECTORY/distributed-rustfs-name-overflow.out" 2>&1; then
+        fail "expected an overlong distributed RustFS headless Service name to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/distributed-rustfs-name-overflow.out" \
+        "distributed embedded RustFS fullname must be at most 54 characters"
+
+    local standalone_rustfs_name_boundary_release
+    local standalone_rustfs_name_boundary_fullname
+    standalone_rustfs_name_boundary_release=$(printf 's%.0s' {1..52})
+    standalone_rustfs_name_boundary_fullname="${standalone_rustfs_name_boundary_release}-rustfs"
+    helm_template "$standalone_rustfs_name_boundary_release" \
+        "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        "${embedded_object_storage_settings[@]}" \
+        >"$TEST_DIRECTORY/standalone-rustfs-name-boundary.yaml"
+    require_resource "$TEST_DIRECTORY/standalone-rustfs-name-boundary.yaml" \
+        Service "${standalone_rustfs_name_boundary_fullname}-svc"
+
+    local distributed_rustfs_name_boundary_release
+    local distributed_rustfs_name_boundary_fullname
+    distributed_rustfs_name_boundary_release=$(printf 'd%.0s' {1..47})
+    distributed_rustfs_name_boundary_fullname="${distributed_rustfs_name_boundary_release}-rustfs"
+    helm_template "$distributed_rustfs_name_boundary_release" \
+        "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        "${embedded_object_storage_settings[@]}" \
+        --set rustfs.mode.standalone.enabled=false \
+        --set rustfs.mode.distributed.enabled=true \
+        --set rustfs.replicaCount=2 \
+        >"$TEST_DIRECTORY/distributed-rustfs-name-boundary.yaml"
+    require_resource "$TEST_DIRECTORY/distributed-rustfs-name-boundary.yaml" \
+        Service "${distributed_rustfs_name_boundary_fullname}-headless"
+
+    local rustfs_topology
+    local rustfs_name_override
+    local rustfs_name_boundary_length
+    local rustfs_name_overflow_length
+    local rustfs_name_error
+    while IFS='|' read -r rustfs_topology rustfs_name_override \
+        rustfs_name_boundary_length rustfs_name_overflow_length rustfs_name_error; do
+        local rustfs_name_boundary_value
+        local rustfs_name_boundary_effective
+        local rustfs_service_suffix
+        local rustfs_topology_settings=()
+        printf -v rustfs_name_boundary_value '%*s' \
+            "$rustfs_name_boundary_length" ''
+        rustfs_name_boundary_value=${rustfs_name_boundary_value// /x}
+        rustfs_name_boundary_effective=$rustfs_name_boundary_value
+        rustfs_service_suffix=svc
+        if [[ "$rustfs_name_override" == nameOverride ]]; then
+            rustfs_name_boundary_effective="n-$rustfs_name_boundary_value"
+        fi
+        if [[ "$rustfs_topology" == distributed ]]; then
+            rustfs_service_suffix=headless
+            rustfs_topology_settings=(
+                --set rustfs.mode.standalone.enabled=false
+                --set rustfs.mode.distributed.enabled=true
+                --set rustfs.replicaCount=2
+            )
+        fi
+        helm_template n "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            "${embedded_object_storage_settings[@]}" \
+            "${rustfs_topology_settings[@]}" \
+            --set-string "rustfs.$rustfs_name_override=$rustfs_name_boundary_value" \
+            >"$TEST_DIRECTORY/$rustfs_topology-$rustfs_name_override-boundary.yaml"
+        require_resource \
+            "$TEST_DIRECTORY/$rustfs_topology-$rustfs_name_override-boundary.yaml" \
+            Service "${rustfs_name_boundary_effective}-${rustfs_service_suffix}"
+
+        local rustfs_name_overflow_value
+        printf -v rustfs_name_overflow_value '%*s' \
+            "$rustfs_name_overflow_length" ''
+        rustfs_name_overflow_value=${rustfs_name_overflow_value// /x}
+        if helm_template n "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            "${embedded_object_storage_settings[@]}" \
+            "${rustfs_topology_settings[@]}" \
+            --set-string "rustfs.$rustfs_name_override=$rustfs_name_overflow_value" \
+            >"$TEST_DIRECTORY/$rustfs_topology-$rustfs_name_override-overflow.out" 2>&1; then
+            fail "expected overlong $rustfs_topology rustfs.$rustfs_name_override to fail"
+        fi
+        require_contains \
+            "$TEST_DIRECTORY/$rustfs_topology-$rustfs_name_override-overflow.out" \
+            "$rustfs_name_error"
+    done <<'EOF'
+standalone|fullnameOverride|59|60|standalone embedded RustFS fullname must be at most 59 characters
+standalone|nameOverride|57|58|standalone embedded RustFS fullname must be at most 59 characters
+distributed|fullnameOverride|54|55|distributed embedded RustFS fullname must be at most 54 characters
+distributed|nameOverride|52|53|distributed embedded RustFS fullname must be at most 54 characters
+EOF
+
     if helm_template unsupported-rustfs-port "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -1382,7 +1563,14 @@ EOF
             "$exposed_rustfs_message"
     done <<'EOF'
 rustfs.ingress.enabled=true|rustfs.ingress.enabled must be false
+rustfs.ingress.className=contour|rustfs.ingress.className must not be contour
 rustfs.gatewayApi.enabled=true|rustfs.gatewayApi.enabled must be false
+rustfs.mtls.enabled=true|rustfs.mtls.enabled must be false
+rustfs.service.type=NodePort|rustfs.service.type must be ClusterIP
+rustfs.service.externalIPs[0]=192.0.2.10|rustfs.service.externalIPs must be empty
+rustfs.service.loadBalancerIP=192.0.2.10|rustfs.service.loadBalancerIP must be empty
+rustfs.service.loadBalancerClass=example.com/lb|rustfs.service.loadBalancerClass must be empty
+rustfs.service.loadBalancerSourceRanges[0]=192.0.2.0/24|rustfs.service.loadBalancerSourceRanges must be empty
 EOF
 
     local invalid_embedded_bucket_value

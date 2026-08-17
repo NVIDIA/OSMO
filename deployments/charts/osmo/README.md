@@ -223,6 +223,40 @@ keys, retains it on uninstall, and reuses it on upgrades. Generated credentials
 are visible to users who can read the Secret or Helm release history. Restrict
 both and use `--hide-secret` when previewing an install or upgrade.
 
+The default `osmo-rustfs-credentials` name is fixed and namespace-scoped, not
+derived from the Helm release. Only one embedded RustFS release in a namespace
+may use that default. For each additional release, choose a unique name and use
+it consistently. Generated mode must keep the parent existing-Secret field
+empty; for a release named `osmo-a`, use:
+
+```yaml
+secrets:
+  objectStorage:
+    generate: true
+    existingSecret: ''
+
+rustfs:
+  secret:
+    existingSecret: osmo-a-rustfs-credentials
+```
+
+For an operator-owned Secret, use the same unique name in both interfaces:
+
+```yaml
+secrets:
+  objectStorage:
+    generate: false
+    existingSecret: osmo-a-rustfs-credentials
+
+rustfs:
+  secret:
+    existingSecret: osmo-a-rustfs-credentials
+```
+
+Using the fixed default for two releases in one namespace causes Kubernetes
+resource ownership and credential collisions. The chart rejects mismatched
+names in existing-Secret mode.
+
 For GitOps, recovery, and the distributed example, create the Secret first.
 `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` must exactly match the values in
 `object-storage.yaml`:
@@ -273,6 +307,21 @@ creates the configured workflow, log, and app buckets if they are absent. It
 does not recreate an existing bucket or delete objects. Bucket names and the
 region are injected into OSMO configuration together with the internal RustFS
 Service endpoint and `object-storage.yaml` Secret key.
+
+The OSMO client region and RustFS server region must be identical. The defaults
+set both to `us-east-1`. For a non-default region, override both values; the
+chart rejects a mismatch before install or upgrade:
+
+```yaml
+embeddedDependencies:
+  objectStorage:
+    region: us-west-2
+
+rustfs:
+  config:
+    rustfs:
+      region: us-west-2
+```
 
 ### Standalone and distributed topology
 
@@ -365,6 +414,21 @@ Keep the RustFS tag in `tag@sha256` form when mirroring because the upstream
 chart has no first-class image digest fields. Override the bootstrap image with
 `embeddedDependencies.objectStorage.bootstrap.image`, also using a digest.
 
+### RustFS compared with SeaweedFS
+
+This RustFS option and the SeaweedFS design evaluated in OSMO PR 1304 solve the
+same embedded S3 need with materially different operational tradeoffs:
+
+| Dimension | RustFS alternative | SeaweedFS design |
+| --- | --- | --- |
+| Runtime architecture | One RustFS server role provides the S3 API and storage in both standalone and distributed topologies. | Separate master, volume, filer, and S3 roles add independently scalable controls but more services and failure paths; the evaluated design also uses an external filer metadata database. |
+| Credentials and buckets | One retained Secret is consumed directly by RustFS and OSMO; an unprivileged AWS CLI hook creates three named buckets. | The evaluated design has source and derived credential Secrets, a privileged synchronization Job, and dependency-specific bucket/key coupling. |
+| Maturity | RustFS and its chart are `1.0.0-rc.2`; distributed mode is labelled testing, the chart is unsigned, and upgrade/failure evidence is limited. | SeaweedFS `4.41` is a stable release from a longer-lived project with richer topology controls and a broader operational history. |
+| Operational choice | Smaller component and credential footprint, at the cost of higher prerelease and recovery risk. | More moving parts and metadata dependencies, in exchange for more established topology and recovery tooling. |
+
+Neither erasure coding nor replication replaces an independent backup. The
+comparison does not establish WDP-01 approval for either implementation.
+
 ### RustFS provenance and licensing
 
 - The dependency chart and release are `1.0.0-rc.2`. The fetched chart archive
@@ -380,9 +444,48 @@ chart has no first-class image digest fields. Override the bootstrap image with
   includes amd64 and arm64 images, and has attestations. OSMO uses the
   chart-compatible `1.0.0-rc.2@sha256:...` tag value because neither the chart
   nor its image values expose a first-class digest field.
-- The init image is BusyBox, licensed GPL-2.0. Distributing or mirroring it
-  carries the corresponding GPL source-availability obligations; retain the
-  license notices and provide corresponding source as required.
+- The bucket hook uses Amazon's AWS CLI `2.31.13` image, based on Amazon Linux
+  2023, pinned at
+  `sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a`.
+  That manifest contains `linux/amd64` and `linux/arm64` images. The
+  [`aws/aws-cli`](https://github.com/aws/aws-cli/tree/v2) source is
+  Apache-2.0 licensed; preserve the licenses for the Amazon Linux base and
+  bundled packages when distributing or mirroring the container. This image
+  runs only the post-install/post-upgrade S3 bucket bootstrap script.
+- The RustFS init container uses the Docker Official BusyBox `stable` image,
+  pinned at
+  `sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662`.
+  Its manifest includes `linux/amd64` and `linux/arm64/v8` images and identifies
+  [`docker-library/busybox`](https://github.com/docker-library/busybox) as its
+  build source. BusyBox is GPL-2.0-only; distributing or mirroring it carries
+  the corresponding source-availability obligations. The init container only
+  prepares the RustFS data and optional log directories before the server
+  starts.
+
+### Focused generated-Secret lifecycle test
+
+The offline render suite cannot exercise Helm's server-side `lookup`. A focused
+test installs the production chart into a task-scoped namespace on an existing
+local kind cluster named `osmo`. It uses `--no-hooks`, tests standalone and
+distributed retained state, and removes only its two releases and namespace.
+It refuses ambient or non-`kind-osmo` kubeconfigs.
+
+Requirements are `kind`, `kubectl`, and Helm, the local `osmo` kind cluster,
+and network access for `helm dependency build`. Run exactly:
+
+```bash
+helm dependency build deployments/charts/osmo
+bash deployments/charts/osmo/tests/verify_rustfs_chart_archive.sh
+rustfs_lifecycle_kubeconfig=$(mktemp)
+trap 'rm -f "$rustfs_lifecycle_kubeconfig"' EXIT
+kind get kubeconfig --name osmo >"$rustfs_lifecycle_kubeconfig"
+bash deployments/charts/osmo/tests/test_object_storage_secret_lifecycle.sh \
+  "$rustfs_lifecycle_kubeconfig"
+```
+
+The test verifies that an upgrade preserves generated data, missing and empty
+retained keys stop an upgrade, and a deleted generated Secret is not recreated
+while a Deployment, StatefulSet, or PVC survives.
 
 ### External S3 fallback
 

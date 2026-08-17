@@ -22,6 +22,8 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
+    # Must match rustfs.config.rustfs.region when enabled. Override both values
+    # together for a non-default region.
     region: us-east-1
     buckets:
       workflows: osmo-workflows

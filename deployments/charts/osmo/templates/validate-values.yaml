@@ -97,17 +97,48 @@
 {{- if eq .Values.rustfs.mode.standalone.enabled .Values.rustfs.mode.distributed.enabled -}}
 {{- fail "exactly one RustFS topology mode must be enabled" -}}
 {{- end -}}
+{{- $rustfsFullname := include "osmo.rustfs.fullname" . -}}
+{{- if and .Values.rustfs.mode.standalone.enabled (gt (len $rustfsFullname) 59) -}}
+{{- fail "standalone embedded RustFS fullname must be at most 59 characters so the -svc Service name is valid; shorten the release name or rustfs.fullnameOverride" -}}
+{{- end -}}
+{{- if and .Values.rustfs.mode.distributed.enabled (gt (len $rustfsFullname) 54) -}}
+{{- fail "distributed embedded RustFS fullname must be at most 54 characters so the -headless Service name is valid; shorten the release name or rustfs.fullnameOverride" -}}
+{{- end -}}
 {{- if ne (int .Values.rustfs.service.endpoint.port) 9000 -}}
 {{- fail "embedded RustFS requires endpoint service port 9000" -}}
 {{- end -}}
 {{- if .Values.rustfs.ingress.enabled -}}
 {{- fail "rustfs.ingress.enabled must be false for embedded object storage" -}}
 {{- end -}}
+{{- if eq .Values.rustfs.ingress.className "contour" -}}
+{{- fail "rustfs.ingress.className must not be contour because the upstream chart exposes an HTTPProxy even when ingress is disabled" -}}
+{{- end -}}
 {{- if .Values.rustfs.gatewayApi.enabled -}}
 {{- fail "rustfs.gatewayApi.enabled must be false for embedded object storage" -}}
 {{- end -}}
+{{- if .Values.rustfs.mtls.enabled -}}
+{{- fail "rustfs.mtls.enabled must be false because OSMO uses the embedded RustFS HTTP endpoint" -}}
+{{- end -}}
+{{- if ne .Values.rustfs.service.type "ClusterIP" -}}
+{{- fail "rustfs.service.type must be ClusterIP for embedded object storage" -}}
+{{- end -}}
+{{- if .Values.rustfs.service.externalIPs -}}
+{{- fail "rustfs.service.externalIPs must be empty for embedded object storage" -}}
+{{- end -}}
+{{- if .Values.rustfs.service.loadBalancerIP -}}
+{{- fail "rustfs.service.loadBalancerIP must be empty for embedded object storage" -}}
+{{- end -}}
+{{- if .Values.rustfs.service.loadBalancerClass -}}
+{{- fail "rustfs.service.loadBalancerClass must be empty for embedded object storage" -}}
+{{- end -}}
+{{- if .Values.rustfs.service.loadBalancerSourceRanges -}}
+{{- fail "rustfs.service.loadBalancerSourceRanges must be empty for embedded object storage" -}}
+{{- end -}}
 {{- if not .Values.embeddedDependencies.objectStorage.region -}}
 {{- fail "embeddedDependencies.objectStorage.region is required when embedded object storage is enabled" -}}
+{{- end -}}
+{{- if ne .Values.embeddedDependencies.objectStorage.region .Values.rustfs.config.rustfs.region -}}
+{{- fail "embeddedDependencies.objectStorage.region must match rustfs.config.rustfs.region; set both values to the same region" -}}
 {{- end -}}
 {{- if or (not $embeddedBuckets.workflows) (not $embeddedBuckets.logs) (not $embeddedBuckets.apps) -}}
 {{- fail "embedded object-storage bucket names must be non-empty" -}}

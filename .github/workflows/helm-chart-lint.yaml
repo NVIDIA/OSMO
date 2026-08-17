@@ -107,6 +107,9 @@ jobs:
             helm repo add rustfs https://charts.rustfs.com
           fi
           helm dependency build "deployments/charts/$CHART"
+          if [ "$CHART" = "osmo" ]; then
+            bash deployments/charts/osmo/tests/verify_rustfs_chart_archive.sh
+          fi
           # Show what was fetched
           if [ -d "deployments/charts/$CHART/charts" ]; then
             echo "Dependencies fetched:"
