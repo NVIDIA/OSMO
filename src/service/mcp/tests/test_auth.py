@@ -371,8 +371,12 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     provider,
                     auth.OIDCProxyWithOSMOJWTVerifier,
                 )
+                osmo_verifier = cast(
+                    auth.OSMOJWTVerifier,
+                    provider._osmo_jwt_verifier,  # pylint: disable=protected-access
+                )
                 self.assertEqual(
-                    provider._osmo_jwt_verifier.jwks_uri,  # pylint: disable=protected-access
+                    osmo_verifier._jwks_uri,  # pylint: disable=protected-access
                     'http://osmo-service.default.svc.cluster.local/'
                     'api/auth/keys',
                 )
@@ -382,6 +386,41 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 )
             finally:
                 await runtime.aclose()
+
+    async def test_osmo_jwt_verifier_accepts_a_jwks_key_without_a_kid(self) -> None:
+        class Claims(dict):
+            def validate(self) -> None:
+                return None
+
+        claims = Claims({
+            'iss': 'osmo-production',
+            'aud': 'osmo-production',
+            'roles': ['osmo-admin'],
+            'unique_name': 'nvaf-osmo-mcp',
+        })
+        response = mock.Mock()
+        response.json.return_value = {'keys': [{'kty': 'RSA', 'kid': 'current'}]}
+        http_client = mock.create_autospec(httpx.AsyncClient, instance=True)
+        http_client.get = mock.AsyncMock(return_value=response)
+        jwt_codec = mock.Mock()
+        jwt_codec.decode.return_value = claims
+        with (
+            mock.patch.object(auth, 'JsonWebToken', return_value=jwt_codec),
+            mock.patch.object(auth.JsonWebKey, 'import_key', return_value=mock.sentinel.key),
+        ):
+            verifier = auth.OSMOJWTVerifier(
+                'https://osmo.example/api/auth/keys',
+                'osmo-production',
+                'osmo-production',
+                http_client,
+            )
+            verified = await verifier.verify_token('osmo.jwt.without.kid')
+
+        self.assertIsNotNone(verified)
+        assert verified is not None
+        self.assertEqual(verified.client_id, 'nvaf-osmo-mcp')
+        self.assertEqual(verified.claims['roles'], ['osmo-admin'])
+        jwt_codec.decode.assert_called_once()
 
     async def test_osmo_jwt_requires_the_dedicated_role_name(self) -> None:
         oidc_proxy = mock.create_autospec(OIDCProxy, instance=True)

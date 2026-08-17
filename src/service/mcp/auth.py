@@ -17,9 +17,10 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import dataclasses
-from typing import cast
+from typing import Protocol, cast
 from urllib import parse
 
+from authlib.jose import JsonWebKey, JsonWebToken
 from cryptography.fernet import Fernet
 from fastmcp.server.auth import AccessToken, AuthProvider
 from fastmcp.server.auth.jwt_issuer import derive_jwt_key
@@ -35,6 +36,72 @@ from redis import asyncio as redis_asyncio
 from starlette.routing import Route
 
 _UPSTREAM_OIDC_SCOPES = ('openid', 'profile', 'email', 'offline_access')
+
+
+class TokenVerifier(Protocol):
+    """The minimal verifier contract shared by OIDC and OSMO JWTs."""
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        """Return the verified token, or None when it is not accepted."""
+
+
+class OSMOJWTVerifier:
+    """Verify OSMO-issued JWTs against the configured JWKS.
+
+    OSMO access-token exchanges currently produce an RS256 JWT without a
+    ``kid`` header.  Generic JWKS clients cannot select a key in that form,
+    so try the bounded trusted key set directly while still requiring the
+    configured issuer and audience.
+    """
+
+    def __init__(
+        self,
+        jwks_uri: str,
+        issuer: str,
+        audience: str,
+        http_client: httpx.AsyncClient,
+    ) -> None:
+        self._jwks_uri = jwks_uri
+        self._issuer = issuer
+        self._audience = audience
+        self._http_client = http_client
+        self._jwt = JsonWebToken(['RS256'])
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        try:
+            response = await self._http_client.get(self._jwks_uri)
+            response.raise_for_status()
+            keys = response.json().get('keys')
+            if not isinstance(keys, list):
+                return None
+            for key_data in keys:
+                if not isinstance(key_data, dict):
+                    continue
+                try:
+                    claims = self._jwt.decode(
+                        token,
+                        JsonWebKey.import_key(key_data),
+                        claims_options={
+                            'iss': {'essential': True, 'value': self._issuer},
+                            'aud': {'essential': True, 'value': self._audience},
+                        },
+                    )
+                    claims.validate()
+                except Exception:  # A different trusted JWKS key may verify it.
+                    continue
+                claims_dict = dict(claims)
+                client_id = claims_dict.get('unique_name', 'osmo-service-token')
+                if not isinstance(client_id, str):
+                    return None
+                return AccessToken(
+                    token=token,
+                    client_id=client_id,
+                    scopes=[],
+                    claims=claims_dict,
+                )
+        except (httpx.HTTPError, ValueError, TypeError):
+            return None
+        return None
 
 
 class MCPAuthConfig(pydantic.BaseModel):
@@ -276,7 +343,7 @@ class OIDCProxyWithOSMOJWTVerifier(AuthProvider):
     def __init__(
         self,
         oidc_proxy: OIDCProxy,
-        osmo_jwt_verifier: JWTVerifier,
+        osmo_jwt_verifier: TokenVerifier,
         required_role: str,
     ) -> None:
         super().__init__()
@@ -372,11 +439,10 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     if config.osmo_jwt_enabled:
         provider = OIDCProxyWithOSMOJWTVerifier(
             oidc_proxy,
-            JWTVerifier(
+            OSMOJWTVerifier(
                 jwks_uri=cast(str, config.osmo_jwt_jwks_url),
                 issuer=config.osmo_jwt_issuer,
                 audience=config.osmo_jwt_audience,
-                algorithm='RS256',
                 http_client=http_client,
             ),
             cast(str, config.osmo_jwt_required_role),
