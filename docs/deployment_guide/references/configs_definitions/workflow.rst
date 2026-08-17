@@ -249,6 +249,10 @@ Workflow Labels
 ===============
 
 Workflow labels are optional and format-checked even when no label is required.
+See :ref:`workflow_spec_labels` for how users set labels in a workflow
+specification, and :ref:`workflow_submission` for the CLI flags and list
+filters.
+
 The default configuration applies no label policies:
 
 .. code-block:: yaml
@@ -326,9 +330,9 @@ stamped onto task pods, and nowhere else:
        enforcement: warn
 
 A workflow submitted with ``team: robotics`` then carries
-``example.com/team=robotics`` on its pods. The stored specification, workflow
-API, list filters, CLI, and the metric attributes below keep the bare ``team``
-key, so users never type or query the prefix.
+``example.com/team=robotics`` on its pods. Everywhere else keeps the bare
+``team`` key: the stored specification, the workflow API, list filters, the
+CLI, and the metric attributes below. Users never type or query the prefix.
 
 .. list-table::
    :header-rows: 1
@@ -345,12 +349,18 @@ key, so users never type or query the prefix.
        break, or exceeds 253 characters.
      - ``""``
 
-The prefix is an opaque string, not an assumed DNS prefix: it is joined to the
-key, and the merged key is validated as a Kubernetes label key during
-submission, in the same check as the policy above. A key that already carries
-its own ``/`` prefix therefore forms an invalid two-slash key and is rejected,
-naming the key, the prefix, and the result. Since the store keeps bare keys,
-stamping a pod again on restart or retry yields the same key.
+The prefix is an opaque string, not an assumed DNS prefix. It is joined to the
+label key, and the result is validated as a Kubernetes label key in the same
+submission check as the policy above.
+
+This matters when a key already contains a ``/``. With
+``pod_label_prefix: example.com/``, the key ``team.example.com/role`` merges to
+``example.com/team.example.com/role``. That key has two slashes, so it is not a
+valid Kubernetes label key and the submission is rejected. The error reports the
+original key, the configured prefix, and the merged key.
+
+Restart and retry stamp pods from the stored labels, which keep their bare keys,
+so a pod always receives the same prefixed key.
 
 Set this when task pods share a cluster with unrelated workloads: pod labels
 are exported by key name, so a short key such as ``team`` can match an
