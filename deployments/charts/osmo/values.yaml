@@ -1307,6 +1307,7 @@ configuration:
 # CloudNativePG cluster chart values. These settings are used only when
 # embeddedDependencies.postgresql.enabled is true.
 postgresql:
+  nameOverride: pg
   type: postgresql
   version:
     postgresql: "16"

@@ -1166,9 +1166,9 @@ EOF
         >"$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml"
     rm "$charts_copy/osmo/templates/postgresql-helper-contract.yaml"
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
-        'clusterName: "embedded-helper-contract-postgresql"'
+        'clusterName: "embedded-helper-contract-pg"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
-        'host: "embedded-helper-contract-postgresql-rw"'
+        'host: "embedded-helper-contract-pg-rw"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'port: "5432"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
@@ -1176,17 +1176,42 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'username: "osmo"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
-        'secretName: "embedded-helper-contract-postgresql-app"'
+        'secretName: "embedded-helper-contract-pg-app"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'passwordKey: "password"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'sslMode: "verify-full"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
-        'caSecretName: "embedded-helper-contract-postgresql-ca"'
+        'caSecretName: "embedded-helper-contract-pg-ca"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'caKey: "ca.crt"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'connectionCaEnabled: "true"'
+
+    local long_release
+    long_release=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    helm_template "$long_release" "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-long-release.yaml"
+    require_resource "$TEST_DIRECTORY/osmo-long-release.yaml" Cluster \
+        "$long_release-pg"
+    resource_document "$TEST_DIRECTORY/osmo-long-release.yaml" Deployment \
+        "$long_release-osmo-api" >"$TEST_DIRECTORY/osmo-long-release-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-long-release-api.yaml" \
+        "$long_release-pg-rw"
+
+    local long_override
+    long_override=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    if helm_template embedded-name-too-long "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set "postgresql.fullnameOverride=$long_override" \
+        >"$TEST_DIRECTORY/osmo-long-override.out" 2>&1; then
+        fail "expected an embedded PostgreSQL cluster name over 60 characters to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/osmo-long-override.out" \
+        "embedded PostgreSQL cluster name must be at most 60 characters"
 
     helm_template embedded-osmo "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -1210,7 +1235,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "cpu: \"1\""
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "memory: 2Gi"
     resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" Cluster \
-        embedded-osmo-postgresql >"$TEST_DIRECTORY/osmo-embedded-postgresql.yaml"
+        embedded-osmo-pg >"$TEST_DIRECTORY/osmo-embedded-postgresql.yaml"
     require_contains "$TEST_DIRECTORY/osmo-embedded-postgresql.yaml" "bootstrap:"
     require_contains "$TEST_DIRECTORY/osmo-embedded-postgresql.yaml" "initdb:"
     require_not_contains "$TEST_DIRECTORY/osmo-embedded-postgresql.yaml" "secret:"
@@ -1221,11 +1246,11 @@ EOF
             "embedded-osmo-$embedded_deployment" \
             >"$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
-            "embedded-osmo-postgresql-rw"
+            "embedded-osmo-pg-rw"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
             "name: OSMO_POSTGRES_PASSWORD"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
-            "name: embedded-osmo-postgresql-app"
+            "name: embedded-osmo-pg-app"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
             "key: password"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
@@ -1235,7 +1260,7 @@ EOF
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
             "name: PGSSLROOTCERT"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
-            "secretName: embedded-osmo-postgresql-ca"
+            "secretName: embedded-osmo-pg-ca"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
             "/etc/osmo/ca/postgresql/ca.crt"
     done
@@ -1250,7 +1275,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-profile.yaml" \
         "kind: Cluster"
     require_contains "$TEST_DIRECTORY/osmo-embedded-profile.yaml" \
-        "name: embedded-profile-postgresql-app"
+        "name: embedded-profile-pg-app"
 
     helm_template combined-embedded "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -1262,7 +1287,7 @@ EOF
         --set-string secrets.valkey.existingSecret= \
         >"$TEST_DIRECTORY/osmo-combined-embedded.yaml"
     require_resource "$TEST_DIRECTORY/osmo-combined-embedded.yaml" Cluster \
-        combined-embedded-postgresql
+        combined-embedded-pg
     require_deployment "$TEST_DIRECTORY/osmo-combined-embedded.yaml" \
         combined-embedded-valkey
     require_resource "$TEST_DIRECTORY/osmo-combined-embedded.yaml" Secret \
@@ -1271,11 +1296,11 @@ EOF
         combined-embedded-osmo-api \
         >"$TEST_DIRECTORY/osmo-combined-embedded-api.yaml"
     require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
-        "- combined-embedded-postgresql-rw"
+        "- combined-embedded-pg-rw"
     require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
         "- combined-embedded-valkey"
     require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
-        "name: combined-embedded-postgresql-app"
+        "name: combined-embedded-pg-app"
     require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
         "name: combined-embedded-valkey-credentials"
 
@@ -1285,7 +1310,7 @@ EOF
         --set postgresql.cluster.initdb.secret.name=embedded-postgresql-credentials \
         >"$TEST_DIRECTORY/osmo-embedded-existing.yaml"
     resource_document "$TEST_DIRECTORY/osmo-embedded-existing.yaml" Cluster \
-        embedded-existing-postgresql >"$TEST_DIRECTORY/osmo-embedded-existing-postgresql.yaml"
+        embedded-existing-pg >"$TEST_DIRECTORY/osmo-embedded-existing-postgresql.yaml"
     require_contains "$TEST_DIRECTORY/osmo-embedded-existing-postgresql.yaml" \
         "name: embedded-postgresql-credentials"
     resource_document "$TEST_DIRECTORY/osmo-embedded-existing.yaml" Deployment \
@@ -1301,7 +1326,7 @@ EOF
         >"$TEST_DIRECTORY/osmo-embedded-scaled.yaml"
     require_contains "$TEST_DIRECTORY/osmo-embedded-scaled.yaml" "instances: 5"
     require_contains "$TEST_DIRECTORY/osmo-embedded-scaled.yaml" \
-        "embedded-scaled-postgresql-rw"
+        "embedded-scaled-pg-rw"
 
     helm_template embedded-named "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -1342,7 +1367,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
         "secretName: custom-server-ca"
     require_not_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
-        "secretName: embedded-custom-ca-postgresql-ca"
+        "secretName: embedded-custom-ca-pg-ca"
 
     helm_template embedded-dev "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \

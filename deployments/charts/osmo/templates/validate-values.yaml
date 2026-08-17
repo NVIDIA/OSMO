@@ -14,6 +14,10 @@
 {{- $dataDurability := dig "cluster" "postgresql" "synchronous" "dataDurability" "" .Values.postgresql -}}
 {{- $serverTLSSecret := dig "cluster" "certificates" "serverTLSSecret" "" .Values.postgresql -}}
 {{- $serverCASecret := dig "cluster" "certificates" "serverCASecret" "" .Values.postgresql -}}
+{{- $clusterName := include "osmo.postgresql.clusterName" . -}}
+{{- if gt (len $clusterName) 60 -}}
+{{- fail "embedded PostgreSQL cluster name must be at most 60 characters so the CloudNativePG -rw Service name is valid" -}}
+{{- end -}}
 {{- if .Values.postgresql.namespaceOverride -}}
 {{- fail "postgresql.namespaceOverride must be empty because embedded PostgreSQL and OSMO must share a namespace" -}}
 {{- end -}}
