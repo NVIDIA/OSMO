@@ -5,5 +5,8 @@ dependencies:
 - name: cluster
   repository: https://cloudnative-pg.github.io/charts
   version: 0.8.0
-digest: sha256:833a704e62d5ef4e34f9a33c45932d84ba53f1a370f504bd45daf112ef71282f
-generated: "2026-08-14T15:30:28.185960161-04:00"
+- name: rustfs
+  repository: https://charts.rustfs.com
+  version: 1.0.0-rc.2
+digest: sha256:2a8b5fda3ed074ef65431be8f9a7dfa5a16dcb0c413b642feca4cda6d69e86f5
+generated: "2026-08-17T16:01:07.925530044-04:00"

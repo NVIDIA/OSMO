@@ -104,8 +104,9 @@ jobs:
           echo "Building dependencies for: $CHART"
           if [ "$CHART" = "osmo" ]; then
             helm repo add cnpg https://cloudnative-pg.github.io/charts
+            helm repo add rustfs https://charts.rustfs.com
           fi
-          helm dependency build "deployments/charts/$CHART" || true
+          helm dependency build "deployments/charts/$CHART"
           # Show what was fetched
           if [ -d "deployments/charts/$CHART/charts" ]; then
             echo "Dependencies fetched:"

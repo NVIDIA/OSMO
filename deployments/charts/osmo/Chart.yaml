@@ -27,3 +27,7 @@ dependencies:
   version: 0.8.0
   repository: https://cloudnative-pg.github.io/charts
   condition: embeddedDependencies.postgresql.enabled
+- name: rustfs
+  version: "1.0.0-rc.2"
+  repository: https://charts.rustfs.com
+  condition: embeddedDependencies.objectStorage.enabled

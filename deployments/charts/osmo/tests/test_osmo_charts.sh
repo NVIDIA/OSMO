@@ -309,6 +309,10 @@ require_clean_osmo_sources() {
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.8.0"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
         "condition: embeddedDependencies.postgresql.enabled"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: rustfs"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" 'version: "1.0.0-rc.2"'
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
+        "condition: embeddedDependencies.objectStorage.enabled"
     [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
     require_downloaded_dependencies_untracked
     [[ ! -e "$CHARTS_ROOT/osmo/templates/postgres.yaml" ]] || \
@@ -362,7 +366,8 @@ test_control_umbrella() {
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
     if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
-        ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null; then
+        ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null || \
+        ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
         helm dependency build "$charts_copy/osmo" >/dev/null
     fi
 
@@ -384,6 +389,12 @@ test_control_umbrella() {
         ! grep -Fq "osmo/charts/cluster-0.8.0.tgz" \
         "$TEST_DIRECTORY/osmo-package.txt"; then
         fail "packaged OSMO chart does not contain CloudNativePG cluster 0.8.0"
+    fi
+    if ! grep -Fq "osmo/charts/rustfs/Chart.yaml" \
+        "$TEST_DIRECTORY/osmo-package.txt" && \
+        ! grep -Fq "osmo/charts/rustfs-1.0.0-rc.2.tgz" \
+        "$TEST_DIRECTORY/osmo-package.txt"; then
+        fail "packaged OSMO chart does not contain RustFS 1.0.0-rc.2"
     fi
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
