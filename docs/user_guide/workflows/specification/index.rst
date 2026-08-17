@@ -95,11 +95,10 @@ Your administrator may configure particular keys in ``off``, ``warn``, or
 administrator is rolling out a requirement. Use :ref:`workflow_submission` to
 validate and override labels without editing a shared specification.
 
-An administrator may also configure a prefix that is added to label keys on
-task pods, so a pod can show ``example.com/team`` where the specification said
-``team``. Only the pod is affected: the stored specification, the workflow
-detail view, and the label filters described in :ref:`workflow_submission` all
-use the key exactly as written here.
+An administrator may also configure a prefix added to label keys on task pods,
+so a pod can show ``example.com/team`` where the specification said ``team``.
+Only the pod is affected; stored labels, the detail view, and the filters in
+:ref:`workflow_submission` use the key as written here.
 
 .. _workflow_spec_task:
 

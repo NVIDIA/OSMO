@@ -73,7 +73,7 @@ Top-Level Configuration
    * - ``labels_config``
      - `Workflow Labels`_
      - Workflow-label policies, accepted values, staged enforcement, and the
-       optional prefix applied to label keys on task pods.
+       optional pod-label prefix.
      - ``policy: []``
    * - ``max_num_tasks``
      - Integer
@@ -314,8 +314,8 @@ edit is rejected and the previous valid snapshot remains active.
 Prefixing Pod Labels
 --------------------
 
-``pod_label_prefix`` is prepended to every workflow label key at the moment the
-labels are stamped onto task pods, and nowhere else:
+``pod_label_prefix`` is prepended to every workflow label key when labels are
+stamped onto task pods, and nowhere else:
 
 .. code-block:: yaml
 
@@ -325,10 +325,10 @@ labels are stamped onto task pods, and nowhere else:
      - key: team
        enforcement: warn
 
-With the setting above, a workflow submitted with ``team: robotics`` carries
-``example.com/team=robotics`` on its pods, while the stored specification, the
-workflow API, list filters, the CLI, and the metric attributes described below
-all keep the bare ``team`` key. Users neither type nor query the prefix.
+A workflow submitted with ``team: robotics`` then carries
+``example.com/team=robotics`` on its pods. The stored specification, workflow
+API, list filters, CLI, and the metric attributes below keep the bare ``team``
+key, so users never type or query the prefix.
 
 .. list-table::
    :header-rows: 1
@@ -341,23 +341,20 @@ all keep the bare ``team`` key. Users neither type nor query the prefix.
    * - ``pod_label_prefix``
      - String
      - Prepended to each workflow label key on task pods only. Empty disables
-       the behavior. Rejected at configuration time if it contains a space,
-       tab, or line break, or exceeds 253 characters.
+       it. Rejected at configuration time if it contains a space, tab, or line
+       break, or exceeds 253 characters.
      - ``""``
 
-The prefix is treated as an opaque string rather than an assumed DNS prefix:
-the key and prefix are concatenated first, and the merged key is then validated
-as a Kubernetes label key during submission, in the same admission check as the
-policy above. A user key that already carries its own ``/`` prefix therefore
-produces an invalid two-slash key and is rejected with an error naming the
-original key, the configured prefix, and the resulting key. Because the store
-keeps bare keys, stamping the pod again on restart or retry produces the same
-prefixed key.
+The prefix is an opaque string, not an assumed DNS prefix: it is joined to the
+key, and the merged key is validated as a Kubernetes label key during
+submission, in the same check as the policy above. A key that already carries
+its own ``/`` prefix therefore forms an invalid two-slash key and is rejected,
+naming the key, the prefix, and the result. Since the store keeps bare keys,
+stamping a pod again on restart or retry yields the same key.
 
-Set this when task pods share a cluster with unrelated workloads. Pod labels
-are exported by key name, so a short key such as ``team`` risks matching an
-identically named label on an unrelated pod; a prefixed key keeps that
-selection precise.
+Set this when task pods share a cluster with unrelated workloads: pod labels
+are exported by key name, so a short key such as ``team`` can match an
+identically named label on another pod.
 
 Only configured policy keys become workflow-label dimensions on
 ``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
