@@ -921,7 +921,6 @@
     "postgresqlSecretReference": {
       "type": "object",
       "properties": {
-        "generate": { "type": "boolean" },
         "existingSecret": { "type": "string" },
         "keys": {
           "type": "object",

@@ -1201,6 +1201,11 @@ EOF
         "podAntiAffinityType: required"
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "cpu: \"1\""
     require_contains "$TEST_DIRECTORY/osmo-embedded.yaml" "memory: 2Gi"
+    resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" Cluster \
+        embedded-osmo-postgresql >"$TEST_DIRECTORY/osmo-embedded-postgresql.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-postgresql.yaml" "bootstrap:"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-postgresql.yaml" "initdb:"
+    require_not_contains "$TEST_DIRECTORY/osmo-embedded-postgresql.yaml" "secret:"
 
     local embedded_deployment
     for embedded_deployment in agent api delayed-job-monitor gateway-authz logger router worker; do
@@ -1269,16 +1274,17 @@ EOF
     helm_template embedded-existing "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
-        --set secrets.postgresql.generate=false \
-        --set secrets.postgresql.existingSecret=embedded-postgresql-credentials \
-        --set secrets.postgresql.keys.username=username \
-        --set secrets.postgresql.keys.password=password \
         --set postgresql.cluster.initdb.secret.name=embedded-postgresql-credentials \
         >"$TEST_DIRECTORY/osmo-embedded-existing.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-embedded-existing.yaml" \
+    resource_document "$TEST_DIRECTORY/osmo-embedded-existing.yaml" Cluster \
+        embedded-existing-postgresql >"$TEST_DIRECTORY/osmo-embedded-existing-postgresql.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-existing-postgresql.yaml" \
         "name: embedded-postgresql-credentials"
-    require_contains "$TEST_DIRECTORY/osmo-embedded-existing.yaml" "key: password"
-    require_contains "$TEST_DIRECTORY/osmo-embedded-existing.yaml" "owner: osmo"
+    resource_document "$TEST_DIRECTORY/osmo-embedded-existing.yaml" Deployment \
+        embedded-existing-osmo-api >"$TEST_DIRECTORY/osmo-embedded-existing-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-existing-api.yaml" \
+        "name: embedded-postgresql-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-existing-api.yaml" "key: password"
 
     helm_template embedded-scaled "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -2025,42 +2031,17 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-too-small.out" \
         "required synchronous replication needs at least 2 instances"
 
-    if helm_template embedded-both-secrets "$charts_copy/osmo" \
+    if helm_template embedded-external-secret "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
-        --set secrets.postgresql.generate=true \
-        --set secrets.postgresql.existingSecret=embedded-postgresql-credentials \
-        --set postgresql.cluster.initdb.secret.name=embedded-postgresql-credentials \
-        >"$TEST_DIRECTORY/embedded-both-secrets.out" 2>&1; then
-        fail "expected generated and existing embedded credentials to fail"
+        --set secrets.postgresql.existingSecret=external-only-secret \
+        >"$TEST_DIRECTORY/embedded-external-secret.out" 2>&1; then
+        fail "expected external PostgreSQL Secret to fail in embedded mode"
     fi
-    require_contains "$TEST_DIRECTORY/embedded-both-secrets.out" \
-        "generate and existingSecret are mutually exclusive"
-
-    if helm_template embedded-secret-mismatch "$charts_copy/osmo" \
-        --api-versions postgresql.cnpg.io/v1 \
-        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
-        --set secrets.postgresql.generate=false \
-        --set secrets.postgresql.existingSecret=osmo-postgresql-credentials \
-        --set postgresql.cluster.initdb.secret.name=different-credentials \
-        >"$TEST_DIRECTORY/embedded-secret-mismatch.out" 2>&1; then
-        fail "expected mismatched embedded credential Secret names to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/embedded-secret-mismatch.out" \
-        "must match postgresql.cluster.initdb.secret.name"
-
-    if helm_template embedded-secret-keys "$charts_copy/osmo" \
-        --api-versions postgresql.cnpg.io/v1 \
-        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
-        --set secrets.postgresql.generate=false \
-        --set secrets.postgresql.existingSecret=osmo-postgresql-credentials \
-        --set postgresql.cluster.initdb.secret.name=osmo-postgresql-credentials \
-        --set secrets.postgresql.keys.username=db-user \
-        >"$TEST_DIRECTORY/embedded-secret-keys.out" 2>&1; then
-        fail "expected non-CNPG embedded credential keys to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/embedded-secret-keys.out" \
-        "keys.username and keys.password must be username and password"
+    require_contains "$TEST_DIRECTORY/embedded-external-secret.out" \
+        "secrets.postgresql.existingSecret must be empty when embedded PostgreSQL is enabled"
+    require_contains "$TEST_DIRECTORY/embedded-external-secret.out" \
+        "postgresql.cluster.initdb.secret.name"
 
     if helm_template embedded-backups "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -2085,16 +2066,6 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/invalid-postgresql-instances.out" "instances"
     require_contains "$TEST_DIRECTORY/invalid-postgresql-instances.out" "integer"
-
-    if helm_template unsupported-generated-secret "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.postgresql.generate=true \
-        >"$TEST_DIRECTORY/unsupported-generated-secret.out" 2>&1; then
-        fail "expected secrets.postgresql.generate=true to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/unsupported-generated-secret.out" \
-        "generated Secrets are not implemented"
 
     if helm_template unsupported-legacy-values "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

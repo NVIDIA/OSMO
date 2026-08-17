@@ -10,7 +10,6 @@
 {{- fail "embeddedDependencies.postgresql.enabled: install a compatible CloudNativePG operator before enabling embedded PostgreSQL" -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
-{{- $initdbSecretName := dig "cluster" "initdb" "secret" "name" "" .Values.postgresql -}}
 {{- $synchronousInstances := int (dig "cluster" "postgresql" "synchronous" "number" 0 .Values.postgresql) -}}
 {{- $dataDurability := dig "cluster" "postgresql" "synchronous" "dataDurability" "" .Values.postgresql -}}
 {{- $serverTLSSecret := dig "cluster" "certificates" "serverTLSSecret" "" .Values.postgresql -}}
@@ -34,17 +33,8 @@
     (le (int .Values.postgresql.cluster.instances) $synchronousInstances)) -}}
 {{- fail "postgresql.cluster: required synchronous replication needs at least 2 instances and more instances than synchronous standbys" -}}
 {{- end -}}
-{{- if and .Values.secrets.postgresql.generate (or .Values.secrets.postgresql.existingSecret $initdbSecretName) -}}
-{{- fail "secrets.postgresql: generate and existingSecret are mutually exclusive in embedded mode" -}}
-{{- end -}}
-{{- if and (not .Values.secrets.postgresql.generate) (not .Values.secrets.postgresql.existingSecret) -}}
-{{- fail "secrets.postgresql.existingSecret is required when embedded credential generation is disabled" -}}
-{{- end -}}
-{{- if and (not .Values.secrets.postgresql.generate) (ne .Values.secrets.postgresql.existingSecret $initdbSecretName) -}}
-{{- fail "secrets.postgresql.existingSecret must match postgresql.cluster.initdb.secret.name in embedded mode" -}}
-{{- end -}}
-{{- if and (not .Values.secrets.postgresql.generate) (or (ne .Values.secrets.postgresql.keys.username "username") (ne .Values.secrets.postgresql.keys.password "password")) -}}
-{{- fail "secrets.postgresql.keys.username and keys.password must be username and password for a CNPG existing Secret" -}}
+{{- if .Values.secrets.postgresql.existingSecret -}}
+{{- fail "secrets.postgresql.existingSecret must be empty when embedded PostgreSQL is enabled; use postgresql.cluster.initdb.secret.name for an existing Secret" -}}
 {{- end -}}
 {{- if .Values.postgresql.backups.enabled -}}
 {{- fail "postgresql.backups.enabled: embedded backup and restore are not supported" -}}
@@ -126,7 +116,7 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or (and .Values.secrets.postgresql.generate (not .Values.embeddedDependencies.postgresql.enabled)) .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if or .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list

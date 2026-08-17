@@ -24,7 +24,6 @@ externalDependencies:
 
 secrets:
   postgresql:
-    generate: true
     existingSecret: ''
   valkey:
     existingSecret: external-control-secrets

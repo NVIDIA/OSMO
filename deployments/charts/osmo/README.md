@@ -42,7 +42,6 @@ externalDependencies:
 
 secrets:
   postgresql:
-    generate: true
     existingSecret: ''
 ```
 
@@ -63,6 +62,8 @@ The defaults create three PostgreSQL 16 instances with one 20 Gi
 `ReadWriteOnce` PVC per instance, required hostname anti-affinity, a
 PodDisruptionBudget, and synchronous replication to one standby. A generated
 application Secret is wired into every OSMO PostgreSQL client automatically.
+Leaving `postgresql.cluster.initdb.secret.name` empty lets CloudNativePG create
+`<cluster>-app`.
 Set `postgresql.cluster.storage.storageClass` when the cluster default is not
 the desired durable StorageClass. See the
 [CloudNativePG cluster chart](https://github.com/cloudnative-pg/charts/tree/main/charts/cluster)
@@ -125,7 +126,6 @@ externalDependencies:
 
 secrets:
   postgresql:
-    generate: false
     existingSecret: osmo-postgresql
   valkey:
     existingSecret: osmo-valkey
@@ -223,22 +223,14 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 
-To use an existing credential Secret, provide a `kubernetes.io/basic-auth`
-Secret whose `username` matches `postgresql.cluster.initdb.owner`, then set:
+To use an existing embedded PostgreSQL credential Secret, provide a
+`kubernetes.io/basic-auth` Secret whose `username` matches
+`postgresql.cluster.initdb.owner`, then set:
 
 ```yaml
-secrets:
-  postgresql:
-    generate: false
-    existingSecret: osmo-postgresql-credentials
-    keys:
-      username: username
-      password: password
 postgresql:
   cluster:
     initdb:
-      database: osmo
-      owner: osmo
       secret:
         name: osmo-postgresql-credentials
 ```
