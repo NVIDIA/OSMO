@@ -27,6 +27,17 @@ embeddedDependencies:
       workflows: osmo-workflows
       logs: osmo-logs
       apps: osmo-apps
+    bootstrap:
+      image: amazon/aws-cli:2.31.13@sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a
+      attempts: 30
+      backoffLimit: 3
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
   kaiScheduler:
     enabled: false
 

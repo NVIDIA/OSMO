@@ -1,0 +1,98 @@
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled }}
+{{- $bootstrapName := printf "%s-object-storage-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- $secretName := include "osmo.objectStorage.secretName" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" .) | nindent 4 }}
+data:
+  object-storage-bootstrap.sh: |-
+{{ .Files.Get "files/object-storage-bootstrap.sh" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict "helm.sh/hook" "post-install,post-upgrade" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.embeddedDependencies.objectStorage.bootstrap.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.component.selectorLabels" (dict "root" . "component" "object-storage-bootstrap") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: object-storage-bootstrap
+        image: {{ .Values.embeddedDependencies.objectStorage.bootstrap.image | quote }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - /scripts/object-storage-bootstrap.sh
+        env:
+        - name: HOME
+          value: /tmp
+        - name: AWS_ENDPOINT_URL
+          value: {{ include "osmo.objectStorage.endpoint" . | quote }}
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secretName }}
+              key: RUSTFS_ACCESS_KEY
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secretName }}
+              key: RUSTFS_SECRET_KEY
+        - name: AWS_DEFAULT_REGION
+          value: {{ include "osmo.objectStorage.region" . | quote }}
+        - name: OSMO_WORKFLOW_BUCKET
+          value: {{ include "osmo.objectStorage.bucket" (dict "root" . "name" "workflows") | quote }}
+        - name: OSMO_LOG_BUCKET
+          value: {{ include "osmo.objectStorage.bucket" (dict "root" . "name" "logs") | quote }}
+        - name: OSMO_APP_BUCKET
+          value: {{ include "osmo.objectStorage.bucket" (dict "root" . "name" "apps") | quote }}
+        - name: OSMO_STORAGE_BOOTSTRAP_ATTEMPTS
+          value: {{ .Values.embeddedDependencies.objectStorage.bootstrap.attempts | quote }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+        volumeMounts:
+        - name: bootstrap-script
+          mountPath: /scripts
+          readOnly: true
+        - name: bootstrap-tmp
+          mountPath: /tmp
+        resources:
+          {{- toYaml .Values.embeddedDependencies.objectStorage.bootstrap.resources | nindent 10 }}
+      volumes:
+      - name: bootstrap-script
+        configMap:
+          name: {{ $bootstrapName }}
+          defaultMode: 0555
+      - name: bootstrap-tmp
+        emptyDir: {}
+{{- end }}

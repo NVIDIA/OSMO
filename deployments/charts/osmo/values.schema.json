@@ -119,9 +119,19 @@
             "apps": { "type": "string" }
           },
           "required": ["workflows", "logs", "apps"]
+        },
+        "bootstrap": {
+          "type": "object",
+          "properties": {
+            "image": { "type": "string", "minLength": 1 },
+            "attempts": { "type": "integer", "minimum": 1 },
+            "backoffLimit": { "type": "integer", "minimum": 0 },
+            "resources": { "type": "object" }
+          },
+          "required": ["image", "attempts", "backoffLimit", "resources"]
         }
       },
-      "required": ["enabled", "region", "buckets"]
+      "required": ["enabled", "region", "buckets", "bootstrap"]
     },
     "stringMap": {
       "type": "object",

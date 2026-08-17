@@ -880,6 +880,8 @@ EOF
         >"$TEST_DIRECTORY/osmo-ui.yaml"
     require_contains "$TEST_DIRECTORY/osmo-ui.yaml" \
         "serviceAccountName: default"
+    require_no_resource "$rendered" ConfigMap "osmo-object-storage-bootstrap"
+    require_no_resource "$rendered" Job "osmo-object-storage-bootstrap"
 
     local embedded_object_storage_settings=(
         --set embeddedDependencies.objectStorage.enabled=true
@@ -905,6 +907,10 @@ EOF
         PersistentVolumeClaim embedded-object-storage-rustfs-data
     require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" Secret \
         osmo-rustfs-credentials
+    require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" ConfigMap \
+        embedded-object-storage-osmo-object-storage-bootstrap
+    require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" Job \
+        embedded-object-storage-osmo-object-storage-bootstrap
     require_occurrences "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         "kind: Secret" 1
 
@@ -941,6 +947,62 @@ EOF
         fail "expected OSMO credentials to use the generated RustFS secret key"
     [[ "$rustfs_credentials" == *"addressing_style: path"* ]] || \
         fail "expected generated OSMO credentials to use path-style addressing"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
+        ConfigMap embedded-object-storage-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-object-storage-bootstrap-configmap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-configmap.yaml" \
+        "object-storage-bootstrap.sh:"
+
+    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
+        Job embedded-object-storage-osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "helm.sh/hook: post-install,post-upgrade"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "backoffLimit: 3"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "amazon/aws-cli:2.31.13@sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: AWS_ACCESS_KEY_ID"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: AWS_SECRET_ACCESS_KEY"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: osmo-rustfs-credentials"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "key: RUSTFS_ACCESS_KEY"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "key: RUSTFS_SECRET_KEY"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: AWS_ENDPOINT_URL"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        'value: "http://embedded-object-storage-rustfs-svc:9000"'
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: AWS_DEFAULT_REGION"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: OSMO_WORKFLOW_BUCKET"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: OSMO_LOG_BUCKET"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: OSMO_APP_BUCKET"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "name: OSMO_STORAGE_BOOTSTRAP_ATTEMPTS"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "automountServiceAccountToken: false"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "mountPath: /tmp"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "runAsUser: 10001"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "runAsNonRoot: true"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "readOnlyRootFilesystem: true"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "allowPrivilegeEscalation: false"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "- ALL"
 
     resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         Deployment embedded-object-storage-rustfs \
