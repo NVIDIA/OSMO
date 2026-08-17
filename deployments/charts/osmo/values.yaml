@@ -204,12 +204,12 @@ monitoring:
 # Generated credentials are supported by embedded PostgreSQL and embedded
 # Valkey; other `generate` switches must remain false.
 secrets:
-  # Embedded PostgreSQL generates a CNPG application Secret by default. For an
+  # Embedded PostgreSQL can use a CNPG-generated application Secret. For an
   # existing embedded Secret, use the CNPG keys `username` and `password` and
   # set postgresql.cluster.initdb.secret.name to the same Secret name. External
   # PostgreSQL requires generate=false and uses keys.password.
   postgresql:
-    generate: true
+    generate: false
     existingSecret: ''
     keys:
       username: username

@@ -1336,6 +1336,10 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-dev.yaml" "instances: 1"
     require_contains "$TEST_DIRECTORY/osmo-embedded-dev.yaml" \
         "dataDurability: preferred"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-dev.yaml" \
+        "enablePDB: false"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-dev.yaml" \
+        "number: 0"
 
     resource_document "$rendered" Deployment osmo-agent \
         >"$TEST_DIRECTORY/osmo-agent.yaml"
@@ -1973,6 +1977,8 @@ EOF
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.instances=1 \
+        --set postgresql.cluster.postgresql.synchronous.number=0 \
+        --set postgresql.cluster.postgresql.synchronous.dataDurability=required \
         >"$TEST_DIRECTORY/embedded-too-small.out" 2>&1; then
         fail "expected required synchronous replication with one instance to fail"
     fi
@@ -1982,6 +1988,7 @@ EOF
     if helm_template embedded-both-secrets "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set secrets.postgresql.generate=true \
         --set secrets.postgresql.existingSecret=embedded-postgresql-credentials \
         --set postgresql.cluster.initdb.secret.name=embedded-postgresql-credentials \
         >"$TEST_DIRECTORY/embedded-both-secrets.out" 2>&1; then

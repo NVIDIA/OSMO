@@ -19,7 +19,11 @@
 {{- if .Values.externalDependencies.postgresql.host -}}
 {{- fail "externalDependencies.postgresql.host must be empty when embedded PostgreSQL is enabled" -}}
 {{- end -}}
-{{- if and (eq $dataDurability "required") (le (int .Values.postgresql.cluster.instances) $synchronousInstances) -}}
+{{- if and
+  (eq $dataDurability "required")
+  (or
+    (lt (int .Values.postgresql.cluster.instances) 2)
+    (le (int .Values.postgresql.cluster.instances) $synchronousInstances)) -}}
 {{- fail "postgresql.cluster: required synchronous replication needs at least 2 instances and more instances than synchronous standbys" -}}
 {{- end -}}
 {{- if and .Values.secrets.postgresql.generate (or .Values.secrets.postgresql.existingSecret $initdbSecretName) -}}
