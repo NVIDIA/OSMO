@@ -25,47 +25,6 @@ embeddedDependencies:
   kaiScheduler:
     enabled: false
 
-# CloudNativePG cluster chart values. These settings are used only when
-# embeddedDependencies.postgresql.enabled is true.
-postgresql:
-  type: postgresql
-  version:
-    postgresql: "16"
-  mode: standalone
-  cluster:
-    instances: 3
-    storage:
-      size: 20Gi
-      storageClass: ''
-    walStorage:
-      enabled: false
-      size: 5Gi
-      storageClass: ''
-    resources:
-      requests:
-        cpu: "1"
-        memory: 2Gi
-      limits:
-        cpu: "1"
-        memory: 2Gi
-    primaryUpdateMethod: switchover
-    primaryUpdateStrategy: unsupervised
-    affinity:
-      topologyKey: kubernetes.io/hostname
-      podAntiAffinityType: required
-    enableSuperuserAccess: false
-    enablePDB: true
-    postgresql:
-      synchronous:
-        method: any
-        number: 1
-        dataDurability: required
-    initdb:
-      database: osmo
-      owner: osmo
-  backups:
-    enabled: false
-
 # Connection details for dependencies owned outside this release. Each
 # endpoint is required only when its embedded dependency is disabled.
 externalDependencies:
@@ -1344,6 +1303,47 @@ configuration:
         default: {}
   backendTests: {}
   groupTemplates: {}
+
+# CloudNativePG cluster chart values. These settings are used only when
+# embeddedDependencies.postgresql.enabled is true.
+postgresql:
+  type: postgresql
+  version:
+    postgresql: "16"
+  mode: standalone
+  cluster:
+    instances: 3
+    storage:
+      size: 20Gi
+      storageClass: ''
+    walStorage:
+      enabled: false
+      size: 5Gi
+      storageClass: ''
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    primaryUpdateMethod: switchover
+    primaryUpdateStrategy: unsupervised
+    affinity:
+      topologyKey: kubernetes.io/hostname
+      podAntiAffinityType: required
+    enableSuperuserAccess: false
+    enablePDB: true
+    postgresql:
+      synchronous:
+        method: any
+        number: 1
+        dataDurability: required
+    initdb:
+      database: osmo
+      owner: osmo
+  backups:
+    enabled: false
 
 # Official Valkey dependency configuration. These defaults provide an
 # authenticated, persistent standalone primary when embedded Valkey is enabled.

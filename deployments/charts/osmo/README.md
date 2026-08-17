@@ -69,22 +69,6 @@ the desired durable StorageClass. See the
 [CloudNativePG cluster chart](https://github.com/cloudnative-pg/charts/tree/main/charts/cluster)
 for additional `postgresql` values.
 
-### PostgreSQL operations
-
-- **Health and failure recovery:** Check `kubectl --namespace osmo get
-  clusters.postgresql.cnpg.io,pods,pvc,pdb`. CloudNativePG promotes a healthy
-  standby after primary failure; wait for the cluster to return to three Ready
-  instances before considering recovery complete.
-- **Scaling:** Change `postgresql.cluster.instances` and run `helm upgrade`.
-  Ensure enough topology domains exist for required anti-affinity before
-  scaling up, and verify replication health before scaling down.
-- **Upgrades:** Upgrade through `helm upgrade`. Keep PostgreSQL on the configured
-  major version for rolling updates; major-version changes require a separate
-  data-migration plan.
-- **Backup and restore:** PVCs survive Pod replacement but are not backups.
-  Embedded backup/restore is not currently supported; use an external
-  PostgreSQL service when a tested backup and restore path is required.
-
 For resource-constrained development, explicitly relax the production settings:
 
 ```yaml
