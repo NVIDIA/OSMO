@@ -100,6 +100,10 @@ _PARITY_CONTRACTS = {
         _SEMANTIC_PROJECTION,
         'osmo workflow list --format-type json',
     ),
+    'osmo_list_tasks': _ParityContract(
+        _SEMANTIC_PROJECTION,
+        'osmo task list --node <node> --format-type json',
+    ),
     'osmo_get_workflow': _ParityContract(
         _SEMANTIC_PROJECTION,
         'osmo workflow query <workflow-id> --format-type json',
@@ -235,7 +239,7 @@ class ToolParityManifestTest(unittest.TestCase):
     def test_manifest_exactly_covers_the_tool_catalog(self) -> None:
         catalog_names = {spec.name for spec in tool_registry.TOOL_SPECS}
 
-        self.assertEqual(len(catalog_names), 25)
+        self.assertEqual(len(catalog_names), 26)
         _assert_complete_parity_contract(
             catalog_names,
             _PARITY_CONTRACTS,

@@ -33,6 +33,7 @@ _BEARER_SECRET = 'workflow-tool-bearer-secret'
 _HARNESS = protocol_harness.ProtocolHarness(
     tool_names=(
         'osmo_list_workflows',
+        'osmo_list_tasks',
         'osmo_get_workflow',
         'osmo_get_workflow_logs',
         'osmo_get_workflow_events',
@@ -75,6 +76,29 @@ _SUMMARY = {
         'project': 'sim_alpha',
         'team': 'robotics',
     },
+}
+_TASK_SUMMARY = {
+    'user': 'bob@example.com',
+    'workflow_id': 'wf-2',
+    'workflow_uuid': '33333333-3333-3333-3333-333333333333',
+    'task_name': 'trainer',
+    'retry_id': 1,
+    'pool': 'pool-b',
+    'node': 'node-1',
+    'start_time': '2026-08-17T12:00:00Z',
+    'end_time': None,
+    'duration': 120.0,
+    'status': 'RUNNING',
+    'overview': 'https://osmo.test/workflows/wf-2',
+    'logs': 'https://osmo.test/api/workflow/wf-2/logs',
+    'error_logs': None,
+    'grafana_url': None,
+    'dashboard_url': None,
+    'storage': 20.0,
+    'cpu': 8,
+    'memory': 64.0,
+    'gpu': 4,
+    'priority': 'HIGH',
 }
 _DETAIL: dict[str, object] = {
     'name': 'wf-1',
@@ -207,6 +231,15 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             list_properties['no_labels']['anyOf'][0]['maxItems'],
             50,
         )
+        task_properties = tools['osmo_list_tasks']['inputSchema']['properties']
+        self.assertEqual(task_properties['limit']['default'], 50)
+        self.assertEqual(task_properties['limit']['minimum'], 1)
+        self.assertEqual(task_properties['limit']['maximum'], 50)
+        self.assertEqual(task_properties['offset']['minimum'], 0)
+        self.assertEqual(task_properties['node']['minItems'], 1)
+        task_schema = json.dumps(task_properties)
+        for value in ('PROCESSING', 'SCHEDULING', 'RUNNING', 'FAILED_UPSTREAM'):
+            self.assertIn(value, task_schema)
         list_schema = json.dumps(list_properties)
         for value in ('RUNNING', 'FAILED_PREEMPTED', 'HIGH', 'NORMAL', 'LOW'):
             self.assertIn(value, list_schema)
@@ -322,6 +355,119 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ('pools', 'pool-b'),
         ])
         self.assertNotIn('all_pools', request.url.params)
+
+    async def test_task_list_maps_node_filters_and_projects_owner_fields(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json={
+                'tasks': [_TASK_SUMMARY, {**_TASK_SUMMARY, 'workflow_id': 'wf-3'}],
+            })
+
+        async with _mcp_client(handler) as client:
+            response = await _call_tool(client, 'osmo_list_tasks', {
+                'node': ['node-1', 'node-2'],
+                'status': ['FAILED', 'RUNNING'],
+                'priority': ['HIGH', 'LOW'],
+                'all_users': True,
+                'limit': 1,
+                'offset': 3,
+            })
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'])
+        structured = result['structuredContent']
+        self.assertEqual(structured['count'], 1)
+        self.assertTrue(structured['more_entries'])
+        self.assertEqual(structured['tasks'][0], {
+            'user': 'bob@example.com',
+            'workflow_id': 'wf-2',
+            'task_name': 'trainer',
+            'retry_id': 1,
+            'status': 'RUNNING',
+            'priority': 'HIGH',
+            'pool': 'pool-b',
+            'node': 'node-1',
+            'start_time': '2026-08-17T12:00:00Z',
+            'end_time': None,
+            'duration': 120.0,
+            'overview': 'https://osmo.test/workflows/wf-2',
+        })
+        self.assertNotIn('logs', structured['tasks'][0])
+        self.assertEqual(
+            captured_requests[0].url.params.multi_items(),
+            [
+                ('nodes', 'node-1'),
+                ('nodes', 'node-2'),
+                ('statuses', 'FAILED'),
+                ('statuses', 'RUNNING'),
+                ('limit', '2'),
+                ('offset', '3'),
+                ('order', 'DESC'),
+                ('priority', 'HIGH'),
+                ('priority', 'LOW'),
+                ('all_users', 'true'),
+                ('pools', 'pool-a'),
+                ('pools', 'pool-b'),
+            ],
+        )
+
+    async def test_task_list_defaults_to_active_statuses(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json={'tasks': [_TASK_SUMMARY]})
+
+        async with _mcp_client(handler) as client:
+            response = await _call_tool(
+                client,
+                'osmo_list_tasks',
+                {'node': ['node-1']},
+            )
+
+        self.assertFalse(response.json()['result']['isError'])
+        self.assertEqual(
+            captured_requests[0].url.params.multi_items(),
+            [
+                ('nodes', 'node-1'),
+                ('statuses', 'PROCESSING'),
+                ('statuses', 'SCHEDULING'),
+                ('statuses', 'INITIALIZING'),
+                ('statuses', 'RUNNING'),
+                ('limit', '51'),
+                ('offset', '0'),
+                ('order', 'DESC'),
+                ('pools', 'pool-a'),
+                ('pools', 'pool-b'),
+            ],
+        )
+
+    async def test_task_list_with_no_accessible_pools_returns_empty_page(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, json={'tasks': []})
+
+        async with _mcp_client(handler, accessible_pools=[]) as client:
+            response = await _call_tool(
+                client,
+                'osmo_list_tasks',
+                {'node': ['node-1']},
+            )
+
+        result = response.json()['result']
+        self.assertFalse(result['isError'])
+        self.assertEqual(result['structuredContent'], {
+            'tasks': [],
+            'count': 0,
+            'more_entries': False,
+            'offset': 0,
+            'limit': 50,
+        })
+        self.assertEqual(captured_requests, [])
 
     async def test_list_rejects_inaccessible_pool_before_workflow_relay(self) -> None:
         captured_requests: list[httpx.Request] = []
@@ -562,6 +708,16 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ('osmo_list_workflows', {'no_labels': []}),
             ('osmo_list_workflows', {'no_labels': ['Bad Prefix/team']}),
             ('osmo_list_workflows', {'pool': ['p' * 500] * 40}),
+            ('osmo_list_tasks', {}),
+            ('osmo_list_tasks', {'node': []}),
+            ('osmo_list_tasks', {'node': ['node-1'], 'limit': 0}),
+            ('osmo_list_tasks', {'node': ['node-1'], 'limit': 51}),
+            ('osmo_list_tasks', {'node': ['node-1'], 'offset': -1}),
+            ('osmo_list_tasks', {'node': ['node-1'], 'status': []}),
+            ('osmo_list_tasks', {'node': ['node-1'], 'status': ['INVALID']}),
+            ('osmo_list_tasks', {'node': ['node-1'], 'priority': []}),
+            ('osmo_list_tasks', {'node': ['node-1'], 'priority': ['INVALID']}),
+            ('osmo_list_tasks', {'node': ['n' * 513]}),
             (
                 'osmo_get_workflow_logs',
                 {'workflow_id': 'wf-1', 'error_logs': True},
@@ -650,6 +806,14 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             malformed_page_handler,
             'osmo_list_workflows',
             {},
+        )
+        self.assertTrue(response.json()['result']['isError'])
+        self.assertIn('invalid response', response.text)
+
+        response = await invoke(
+            malformed_page_handler,
+            'osmo_list_tasks',
+            {'node': ['node-1']},
         )
         self.assertTrue(response.json()['result']['isError'])
         self.assertIn('invalid response', response.text)
@@ -748,6 +912,12 @@ class WorkflowValidationUnitTest(unittest.IsolatedAsyncioTestCase):
             await workflows.osmo_list_workflows(
                 None,  # type: ignore[arg-type]
                 limit=True,  # type: ignore[arg-type]
+            )
+        with self.assertRaises(ToolError):
+            await workflows.osmo_list_tasks(
+                None,  # type: ignore[arg-type]
+                ['node-1'],
+                status=['INVALID'],  # type: ignore[list-item]
             )
 
 

@@ -142,6 +142,15 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         ),
     ),
     ToolSpec(
+        function=workflows.osmo_list_tasks,
+        name='osmo_list_tasks',
+        title='List OSMO tasks',
+        description=(
+            'List active tasks on explicitly named nodes across the caller\'s '
+            'accessible pools, including task status, workflow, and owner.'
+        ),
+    ),
+    ToolSpec(
         function=workflows.osmo_get_workflow,
         name='osmo_get_workflow',
         title='Get OSMO workflow',

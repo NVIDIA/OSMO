@@ -38,12 +38,17 @@ from src.service.mcp.workflow_models import (
     WORKFLOW_STATUSES as _WORKFLOW_STATUSES,
     GetWorkflowResult,
     LastNLines,
+    ListTasksResult,
     ListWorkflowsResult,
     PageLimit,
     PageOffset,
     QueryText,
     QueryTextList,
     RetryId,
+    TASK_STATUSES as _TASK_STATUSES,
+    TaskPageLimit,
+    TaskStatuses,
+    TaskSummary,
     WorkflowDetail,
     WorkflowEventsResult,
     WorkflowGroup,
@@ -61,18 +66,23 @@ from src.service.mcp.workflow_models import (
     WorkflowTask,
     _UpstreamWorkflowDetail,
     _UpstreamWorkflowPage,
+    _UpstreamTaskPage,
 )
 
 
 __all__ = (
     'GetWorkflowResult',
     'LastNLines',
+    'ListTasksResult',
     'ListWorkflowsResult',
     'PageLimit',
     'PageOffset',
     'QueryText',
     'QueryTextList',
     'RetryId',
+    'TaskPageLimit',
+    'TaskStatuses',
+    'TaskSummary',
     'WorkflowDetail',
     'WorkflowEventsResult',
     'WorkflowGroup',
@@ -92,14 +102,22 @@ __all__ = (
     'osmo_get_workflow_events',
     'osmo_get_workflow_logs',
     'osmo_get_workflow_spec',
+    'osmo_list_tasks',
     'osmo_list_workflows',
 )
 
 
 _WORKFLOWS_PATH = '/api/workflow'
+_TASKS_PATH = '/api/task'
 _MAX_JSON_RESPONSE_BYTES = 1024 * 1024
 _MAX_TEXT_RESPONSE_BYTES = 32 * 1024
 _MAX_QUERY_BYTES = 16 * 1024
+_ACTIVE_TASK_STATUSES = (
+    'PROCESSING',
+    'SCHEDULING',
+    'INITIALIZING',
+    'RUNNING',
+)
 
 
 async def osmo_list_workflows(
@@ -227,6 +245,99 @@ async def osmo_list_workflows(
         workflows=summaries,
         count=len(summaries),
         more_entries=page.more_entries,
+        offset=offset,
+        limit=limit,
+    )
+
+
+async def osmo_list_tasks(
+    context: Context,
+    node: QueryTextList,
+    status: TaskStatuses | None = None,
+    priority: WorkflowPriorities | None = None,
+    all_users: bool = False,
+    limit: TaskPageLimit = 50,
+    offset: PageOffset = 0,
+) -> ListTasksResult:
+    """List active tasks on named nodes across the caller's accessible pools."""
+    tool_validation.validate_page(
+        limit,
+        offset,
+        maximum_limit=50,
+    )
+    nodes = tool_validation.validate_query_values(
+        node,
+        field='node',
+        max_count=_MAX_QUERY_VALUES,
+        max_value_bytes=_MAX_QUERY_TEXT_BYTES,
+        deduplicate=True,
+    )
+    statuses = list(_ACTIVE_TASK_STATUSES)
+    if status is not None:
+        statuses = tool_validation.validate_query_values(
+            status,
+            field='status',
+            max_count=_MAX_QUERY_VALUES,
+            max_value_bytes=_MAX_QUERY_TEXT_BYTES,
+        )
+        if any(value not in _TASK_STATUSES for value in statuses):
+            raise tool_errors.PublicToolError('Invalid task status.')
+    query: dict[str, gateway.QueryValue] = {
+        'nodes': nodes,
+        'statuses': statuses,
+        'limit': limit + 1,
+        'offset': offset,
+        'order': 'DESC',
+    }
+    if priority is not None:
+        priorities = tool_validation.validate_query_values(
+            priority,
+            field='priority',
+            max_count=_MAX_QUERY_VALUES,
+            max_value_bytes=_MAX_QUERY_TEXT_BYTES,
+        )
+        if any(value not in _WORKFLOW_PRIORITIES for value in priorities):
+            raise tool_errors.PublicToolError('Invalid workflow priority.')
+        query['priority'] = priorities
+    if all_users:
+        query['all_users'] = True
+
+    scope = await access_scope.request_access_scope(context)
+    selected_pools = list(scope.pools)
+    if not selected_pools:
+        return ListTasksResult(
+            tasks=[],
+            count=0,
+            more_entries=False,
+            offset=offset,
+            limit=limit,
+        )
+    query['pools'] = selected_pools
+    tool_validation.validate_query_size(
+        query,
+        operation='Task query',
+        max_bytes=_MAX_QUERY_BYTES,
+    )
+    response = await tool_requests.request_json_object(
+        context,
+        path=_TASKS_PATH,
+        operation='list tasks',
+        max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
+        query=query,
+    )
+    page = tool_validation.validate_response(
+        _UpstreamTaskPage,
+        response,
+        operation='list tasks',
+    )
+    tasks = page.tasks[:limit]
+    return ListTasksResult(
+        tasks=[
+            TaskSummary.model_validate(task.model_dump(), strict=True)
+            for task in tasks
+        ],
+        count=len(tasks),
+        more_entries=len(page.tasks) > limit,
         offset=offset,
         limit=limit,
     )

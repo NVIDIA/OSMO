@@ -29,12 +29,17 @@ from src.service.mcp.tool_models import ClosedToolModel, PageLimit, PageOffset
 __all__ = (
     'GetWorkflowResult',
     'LastNLines',
+    'ListTasksResult',
     'ListWorkflowsResult',
     'PageLimit',
     'PageOffset',
     'QueryText',
     'QueryTextList',
     'RetryId',
+    'TaskPageLimit',
+    'TaskStatus',
+    'TaskStatuses',
+    'TaskSummary',
     'WorkflowDetail',
     'WorkflowEventsResult',
     'WorkflowGroup',
@@ -80,6 +85,10 @@ def _safe_workflow_warning(value: str) -> str:
 
 
 WorkflowPageLimit = Annotated[
+    int,
+    pydantic.Field(strict=True, ge=1, le=50),
+]
+TaskPageLimit = Annotated[
     int,
     pydantic.Field(strict=True, ge=1, le=50),
 ]
@@ -209,6 +218,34 @@ WORKFLOW_STATUSES = frozenset(
 )
 WORKFLOW_PRIORITIES = frozenset(('HIGH', 'NORMAL', 'LOW'))
 
+TaskStatus = Literal[
+    'WAITING',
+    'PROCESSING',
+    'SCHEDULING',
+    'INITIALIZING',
+    'RUNNING',
+    'FAILED',
+    'COMPLETED',
+    'FAILED_EXEC_TIMEOUT',
+    'FAILED_START_ERROR',
+    'FAILED_START_TIMEOUT',
+    'FAILED_SERVER_ERROR',
+    'FAILED_BACKEND_ERROR',
+    'FAILED_QUEUE_TIMEOUT',
+    'FAILED_IMAGE_PULL',
+    'FAILED_UPSTREAM',
+    'FAILED_EVICTED',
+    'FAILED_PREEMPTED',
+    'FAILED_CANCELED',
+]
+TaskStatuses = Annotated[
+    list[TaskStatus],
+    pydantic.Field(min_length=1, max_length=MAX_QUERY_VALUES),
+]
+TASK_STATUSES = frozenset(
+    pydantic.TypeAdapter(TaskStatus).json_schema()['enum']
+)
+
 
 class WorkflowSummary(ClosedToolModel):
     """Stable, non-secret fields from one workflow-list entry."""
@@ -225,6 +262,23 @@ class WorkflowSummary(ClosedToolModel):
     app_owner: str | None = None
     app_name: str | None = None
     app_version: int | None = None
+
+
+class TaskSummary(ClosedToolModel):
+    """Stable task placement and ownership fields for node triage."""
+
+    user: str
+    workflow_id: str
+    task_name: str
+    retry_id: int
+    status: TaskStatus
+    priority: WorkflowPriority
+    pool: str | None = None
+    node: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    duration: float | None = None
+    overview: str | None = None
 
 
 class WorkflowTask(ClosedToolModel):
@@ -282,6 +336,10 @@ class _UpstreamWorkflowSummary(WorkflowSummary):
     model_config = pydantic.ConfigDict(extra='ignore')
 
 
+class _UpstreamTaskSummary(TaskSummary):
+    model_config = pydantic.ConfigDict(extra='ignore')
+
+
 class _UpstreamWorkflowTask(WorkflowTask):
     model_config = pydantic.ConfigDict(extra='ignore')
 
@@ -303,8 +361,20 @@ class _UpstreamWorkflowPage(ClosedToolModel):
     more_entries: bool
 
 
+class _UpstreamTaskPage(ClosedToolModel):
+    tasks: list[_UpstreamTaskSummary]
+
+
 class ListWorkflowsResult(ClosedToolModel):
     workflows: list[WorkflowSummary]
+    count: int
+    more_entries: bool
+    offset: int
+    limit: int
+
+
+class ListTasksResult(ClosedToolModel):
+    tasks: list[TaskSummary]
     count: int
     more_entries: bool
     offset: int
