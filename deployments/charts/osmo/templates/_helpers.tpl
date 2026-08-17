@@ -397,8 +397,12 @@ data:
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}password{{- else -}}{{ .Values.secrets.postgresql.keys.password }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.postgresql.tlsEnabled" -}}
-{{- if .Values.embeddedDependencies.postgresql.enabled -}}true{{- else -}}{{ .Values.externalDependencies.postgresql.tls.enabled }}{{- end -}}
+{{- define "osmo.postgresql.sslMode" -}}
+{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled -}}
+verify-full
+{{- else -}}
+disable
+{{- end -}}
 {{- end -}}
 
 {{- define "osmo.postgresql.caSecretName" -}}
@@ -415,11 +419,14 @@ data:
 {{- end -}}
 
 {{- define "osmo.externalDependencies.connectionCaEnabled" -}}
-{{- if or (eq (include "osmo.postgresql.tlsEnabled" .) "true") (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
+{{- if or
+  .Values.embeddedDependencies.postgresql.enabled
+  .Values.externalDependencies.postgresql.tls.enabled
+  (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}
-{{- if eq (include "osmo.postgresql.tlsEnabled" .) "true" }}
+{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
 - name: postgresql-ca
   mountPath: /etc/osmo/ca/postgresql
   readOnly: true
@@ -432,7 +439,7 @@ data:
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumes" -}}
-{{- if eq (include "osmo.postgresql.tlsEnabled" .) "true" }}
+{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
 - name: postgresql-ca
   secret:
     secretName: {{ include "osmo.postgresql.caSecretName" . }}
@@ -465,7 +472,7 @@ data:
       name: {{ . }}
       key: {{ $.Values.secrets.valkey.keys.password }}
 {{- end }}
-{{- if eq (include "osmo.postgresql.tlsEnabled" .) "true" }}
+{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
 - name: PGSSLMODE
   value: verify-full
 - name: PGSSLROOTCERT

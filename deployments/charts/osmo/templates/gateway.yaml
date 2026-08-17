@@ -540,7 +540,7 @@ spec:
           - "--postgres-port={{ include "osmo.postgresql.port" . }}"
           - "--postgres-database={{ include "osmo.postgresql.database" . }}"
           - "--postgres-user={{ include "osmo.postgresql.username" . }}"
-          - "--postgres-ssl-mode={{ ternary "verify-full" "disable" (eq (include "osmo.postgresql.tlsEnabled" .) "true") }}"
+          - "--postgres-ssl-mode={{ include "osmo.postgresql.sslMode" . }}"
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
           - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"

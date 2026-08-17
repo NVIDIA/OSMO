@@ -1146,7 +1146,7 @@ data:
   username: {{ include "osmo.postgresql.username" . | quote }}
   secretName: {{ include "osmo.postgresql.secretName" . | quote }}
   passwordKey: {{ include "osmo.postgresql.passwordKey" . | quote }}
-  tlsEnabled: {{ include "osmo.postgresql.tlsEnabled" . | quote }}
+  sslMode: {{ include "osmo.postgresql.sslMode" . | quote }}
   caSecretName: {{ include "osmo.postgresql.caSecretName" . | quote }}
   caKey: {{ include "osmo.postgresql.caKey" . | quote }}
   connectionCaEnabled: {{ include "osmo.externalDependencies.connectionCaEnabled" . | quote }}
@@ -1172,7 +1172,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'passwordKey: "password"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
-        'tlsEnabled: "true"'
+        'sslMode: "verify-full"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
         'caSecretName: "embedded-helper-contract-postgresql-ca"'
     require_contains "$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml" \
@@ -1219,6 +1219,8 @@ EOF
             "name: PGSSLMODE"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
             "value: verify-full"
+        require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
+            "name: PGSSLROOTCERT"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
             "secretName: embedded-osmo-postgresql-ca"
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
