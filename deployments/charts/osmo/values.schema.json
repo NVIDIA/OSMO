@@ -22,6 +22,7 @@
       }
     },
     "valkey": { "type": "object" },
+    "postgresql": { "type": "object" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
@@ -63,7 +64,7 @@
     "secrets": {
       "type": "object",
       "properties": {
-        "postgresql": { "$ref": "#/definitions/secretReference" },
+        "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
         "valkey": { "$ref": "#/definitions/secretReference" },
         "objectStorage": { "$ref": "#/definitions/secretReference" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
@@ -946,6 +947,19 @@
         "allowExistingCiphertextAdoption": { "type": "boolean" }
       },
       "required": ["existingSecret", "bootstrap", "allowExistingCiphertextAdoption"]
+    },
+    "postgresqlSecretReference": {
+      "type": "object",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "properties": {
+            "username": { "type": "string", "minLength": 1 },
+            "password": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
     }
   }
 }

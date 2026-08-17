@@ -1,14 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+embeddedDependencies:
+  postgresql:
+    enabled: true
+
 externalUrl: http://osmo-gateway
 
 externalDependencies:
   postgresql:
-    host: external-postgresql
-    port: 5432
-    database: osmo
-    username: postgres
+    host: ''
   valkey:
     host: external-valkey
     port: 6379
@@ -23,21 +24,17 @@ externalDependencies:
 
 secrets:
   postgresql:
-    existingSecret: external-postgresql-secret
-    keys:
-      password: external-db-password
+    existingSecret: ''
   valkey:
-    existingSecret: external-valkey-secret
+    existingSecret: external-control-secrets
   objectStorage:
-    existingSecret: external-object-storage-secret
+    existingSecret: external-control-secrets
   masterEncryptionKey:
     existingSecret:
-      name: external-master-encryption-key-secret
-      key: keyring.yaml
+      name: external-control-secrets
+      key: mek.yaml
 
 services:
   api:
     image:
       repository: nvidia/osmo/service
-  mcp:
-    enabled: false

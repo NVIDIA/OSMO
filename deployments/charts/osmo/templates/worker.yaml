@@ -96,18 +96,18 @@ spec:
         - "true"
         {{- end}}
         - --postgres_host
-        - {{ .Values.externalDependencies.postgresql.host }}
+        - {{ include "osmo.postgresql.host" . }}
         - --postgres_port
-        - {{ .Values.externalDependencies.postgresql.port | quote }}
+        - {{ include "osmo.postgresql.port" . | quote }}
         - --postgres_database_name
-        - {{ .Values.externalDependencies.postgresql.database}}
+        - {{ include "osmo.postgresql.database" . }}
         {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - --mek_file
         - {{ include "osmo.secrets.mekFile" . | quote }}
         {{- end}}
-        {{- if .Values.externalDependencies.postgresql.username }}
+        {{- with (include "osmo.postgresql.username" .) }}
         - --postgres_user
-        - {{ .Values.externalDependencies.postgresql.username }}
+        - {{ . }}
         {{- end }}
         {{- if .Values.logging.enabled }}
         - --log_level

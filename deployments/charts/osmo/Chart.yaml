@@ -22,3 +22,8 @@ dependencies:
   version: 0.11.0
   repository: oci://ghcr.io/valkey-io/valkey-helm
   condition: embeddedDependencies.valkey.enabled
+- name: cluster
+  alias: postgresql
+  version: 0.8.0
+  repository: https://cloudnative-pg.github.io/charts
+  condition: embeddedDependencies.postgresql.enabled

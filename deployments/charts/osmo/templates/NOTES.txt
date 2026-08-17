@@ -2,3 +2,20 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 
 {{ include "osmo.notes" . }}
+
+{{- if .Values.embeddedDependencies.postgresql.enabled }}
+
+Embedded PostgreSQL is managed by CloudNativePG:
+
+  Cluster: {{ include "osmo.postgresql.clusterName" . }}
+  Read/write service: {{ include "osmo.postgresql.host" . }}
+  Application Secret: {{ include "osmo.postgresql.secretName" . }}
+
+Check database readiness with:
+
+  kubectl --namespace {{ .Release.Namespace }} get clusters.postgresql.cnpg.io,pods,pvc
+{{- else }}
+
+OSMO is configured to use external PostgreSQL at
+{{ include "osmo.postgresql.host" . }}:{{ include "osmo.postgresql.port" . }}.
+{{- end }}

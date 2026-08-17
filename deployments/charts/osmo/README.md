@@ -7,11 +7,82 @@ SPDX-License-Identifier: Apache-2.0
 
 The `osmo` chart is the unified OSMO deployment entry point.
 
-The chart currently deploys the OSMO control-plane services and gateway, with
-an optional embedded Valkey dependency. Compute-plane workloads and other
-dependencies will be added in future work.
+The supported `split-plane-control` profile installs the API, UI, router,
+worker, logger, agent, delayed-job monitor, and standalone OSMO gateway. It
+can create a persistent PostgreSQL cluster through CloudNativePG or connect to
+an external PostgreSQL service, and it can deploy embedded Valkey or connect
+to an external Valkey service. Object storage and the remaining Kubernetes
+Secrets are externally managed. Compute-plane workloads and the other embedded
+dependencies remain future work.
 
-## Install the control plane
+## Embedded PostgreSQL
+
+Embedded PostgreSQL requires CloudNativePG chart `0.29.0` (operator `1.30.0`):
+
+```bash
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm upgrade --install osmo-cnpg cnpg/cloudnative-pg \
+  --version 0.29.0 \
+  --namespace cnpg-system \
+  --create-namespace \
+  --wait
+```
+
+Add the following PostgreSQL settings to the environment values used with the
+`split-plane-control` profile:
+
+```yaml
+embeddedDependencies:
+  postgresql:
+    enabled: true
+
+externalDependencies:
+  postgresql:
+    host: ''
+
+secrets:
+  postgresql:
+    existingSecret: ''
+```
+
+Install the chart after the operator is Ready:
+
+```bash
+helm dependency build deployments/charts/osmo
+helm upgrade --install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --create-namespace \
+  -f deployments/charts/osmo/profiles/split-plane-control.yaml \
+  -f <environment-values.yaml> \
+  --wait \
+  --timeout 25m
+```
+
+The defaults create three PostgreSQL 16 instances with one 20 Gi
+`ReadWriteOnce` PVC per instance, required hostname anti-affinity, a
+PodDisruptionBudget, and synchronous replication to one standby. A generated
+application Secret is wired into every OSMO PostgreSQL client automatically.
+Leaving `postgresql.cluster.initdb.secret.name` empty lets CloudNativePG create
+`<cluster>-app`.
+Set `postgresql.cluster.storage.storageClass` when the cluster default is not
+the desired durable StorageClass. See the
+[CloudNativePG cluster chart](https://github.com/cloudnative-pg/charts/tree/cluster-v0.8.0/charts/cluster)
+for additional `postgresql` values.
+
+For resource-constrained development, explicitly relax the production settings:
+
+```yaml
+postgresql:
+  cluster:
+    instances: 1
+    enablePDB: false
+    postgresql:
+      synchronous:
+        number: 0
+        dataDurability: preferred
+```
+
+## Install the control plane with external PostgreSQL
 
 Create an environment values file containing the external endpoints and
 Secret references:
@@ -50,7 +121,8 @@ secrets:
       key: mek.yaml
 ```
 
-Install the chart by layering the environment values after the profile:
+Keep `embeddedDependencies.postgresql.enabled: false` (the default), then
+install the chart by layering the environment values after the profile:
 
 ```bash
 helm dependency build deployments/charts/osmo
@@ -62,9 +134,6 @@ helm upgrade --install osmo deployments/charts/osmo \
   --wait \
   --timeout 25m
 ```
-
-The dependency build is only needed for a source checkout. Packaged charts
-include the official `valkey/valkey` chart version `0.11.0`.
 
 ## Embedded Valkey
 
@@ -135,10 +204,22 @@ may reference a separate Secret. The defaults expect these keys:
 
 | Values block | Default key | Consumer |
 | --- | --- | --- |
-| `secrets.postgresql` | `db-password` | PostgreSQL clients |
+| `secrets.postgresql` (external) | `db-password` | PostgreSQL clients |
 | `secrets.valkey` | `redis-password` | Valkey clients |
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
+
+To use an existing embedded PostgreSQL credential Secret, provide a
+`kubernetes.io/basic-auth` Secret whose `username` matches
+`postgresql.cluster.initdb.owner`, then set:
+
+```yaml
+postgresql:
+  cluster:
+    initdb:
+      secret:
+        name: osmo-postgresql-credentials
+```
 
 The MEK is mounted through the typed
 `secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Production

@@ -536,11 +536,11 @@ spec:
           {{- if .Values.configuration.enabled }}
           - "--roles-file=/etc/osmo/configs/config.yaml"
           {{- else }}
-          - "--postgres-host={{ .Values.externalDependencies.postgresql.host }}"
-          - "--postgres-port={{ .Values.externalDependencies.postgresql.port }}"
-          - "--postgres-database={{ .Values.externalDependencies.postgresql.database }}"
-          - "--postgres-user={{ .Values.externalDependencies.postgresql.username }}"
-          - "--postgres-ssl-mode={{ ternary "verify-full" "disable" .Values.externalDependencies.postgresql.tls.enabled }}"
+          - "--postgres-host={{ include "osmo.postgresql.host" . }}"
+          - "--postgres-port={{ include "osmo.postgresql.port" . }}"
+          - "--postgres-database={{ include "osmo.postgresql.database" . }}"
+          - "--postgres-user={{ include "osmo.postgresql.username" . }}"
+          - "--postgres-ssl-mode={{ include "osmo.postgresql.sslMode" . }}"
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
           - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"
@@ -553,7 +553,7 @@ spec:
         env:
           {{- include "osmo.component.extraEnv" $gw.authz | nindent 10 }}
           {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 10 }}
-        {{- if or .Values.configuration.enabled $gw.authz.extraVolumeMounts .Values.externalDependencies.postgresql.tls.enabled (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") }}
+        {{- if or .Values.configuration.enabled $gw.authz.extraVolumeMounts (eq (include "osmo.externalDependencies.connectionCaEnabled" .) "true") }}
         volumeMounts:
           {{- if .Values.configuration.enabled }}
           - name: configs
