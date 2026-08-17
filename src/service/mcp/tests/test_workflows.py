@@ -242,7 +242,14 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             ['node'],
         )
         task_schema = json.dumps(task_properties)
-        for value in ('PROCESSING', 'SCHEDULING', 'RUNNING', 'FAILED_UPSTREAM'):
+        for value in (
+            'SUBMITTING',
+            'PROCESSING',
+            'SCHEDULING',
+            'RUNNING',
+            'RESCHEDULED',
+            'FAILED_UPSTREAM',
+        ):
             self.assertIn(value, task_schema)
         list_schema = json.dumps(list_properties)
         for value in ('RUNNING', 'FAILED_PREEMPTED', 'HIGH', 'NORMAL', 'LOW'):
@@ -365,14 +372,19 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             captured_requests.append(request)
-            return httpx.Response(200, json={
-                'tasks': [_TASK_SUMMARY, {**_TASK_SUMMARY, 'workflow_id': 'wf-3'}],
-            })
+            return httpx.Response(200, json={'tasks': [
+                {**_TASK_SUMMARY, 'status': 'SUBMITTING'},
+                {
+                    **_TASK_SUMMARY,
+                    'workflow_id': 'wf-3',
+                    'status': 'RESCHEDULED',
+                },
+            ]})
 
         async with _mcp_client(handler) as client:
             response = await _call_tool(client, 'osmo_list_tasks', {
                 'node': ['node-1', 'node-2'],
-                'status': ['FAILED', 'RUNNING'],
+                'status': ['SUBMITTING', 'RESCHEDULED'],
                 'priority': ['HIGH', 'LOW'],
                 'all_users': True,
                 'limit': 1,
@@ -389,7 +401,7 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             'workflow_id': 'wf-2',
             'task_name': 'trainer',
             'retry_id': 1,
-            'status': 'RUNNING',
+            'status': 'SUBMITTING',
             'priority': 'HIGH',
             'pool': 'pool-b',
             'node': 'node-1',
@@ -407,8 +419,8 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                 ('limit', '2'),
                 ('offset', '3'),
                 ('order', 'DESC'),
-                ('statuses', 'FAILED'),
-                ('statuses', 'RUNNING'),
+                ('statuses', 'SUBMITTING'),
+                ('statuses', 'RESCHEDULED'),
                 ('priority', 'HIGH'),
                 ('priority', 'LOW'),
                 ('all_users', 'true'),
@@ -422,7 +434,10 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             captured_requests.append(request)
-            return httpx.Response(200, json={'tasks': [_TASK_SUMMARY]})
+            return httpx.Response(200, json={'tasks': [
+                {**_TASK_SUMMARY, 'status': 'SUBMITTING'},
+                {**_TASK_SUMMARY, 'status': 'RESCHEDULED'},
+            ]})
 
         async with _mcp_client(handler) as client:
             response = await _call_tool(
@@ -432,6 +447,13 @@ class WorkflowToolProtocolTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertFalse(response.json()['result']['isError'])
+        self.assertEqual(
+            [
+                task['status']
+                for task in response.json()['result']['structuredContent']['tasks']
+            ],
+            ['SUBMITTING', 'RESCHEDULED'],
+        )
         self.assertEqual(
             captured_requests[0].url.params.multi_items(),
             [

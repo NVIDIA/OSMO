@@ -219,6 +219,7 @@ WORKFLOW_STATUSES = frozenset(
 WORKFLOW_PRIORITIES = frozenset(('HIGH', 'NORMAL', 'LOW'))
 
 TaskStatus = Literal[
+    'SUBMITTING',
     'WAITING',
     'PROCESSING',
     'SCHEDULING',
@@ -226,6 +227,7 @@ TaskStatus = Literal[
     'RUNNING',
     'FAILED',
     'COMPLETED',
+    'RESCHEDULED',
     'FAILED_EXEC_TIMEOUT',
     'FAILED_START_ERROR',
     'FAILED_START_TIMEOUT',
