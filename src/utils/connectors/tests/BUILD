@@ -113,6 +113,7 @@ py_test(
     deps = [
         requirement("jwcrypto"),
         requirement("psycopg2-binary"),
+        "//src/lib/utils:osmo_errors",
         "//src/utils/connectors:connectors",
         "//src/utils/secret_manager",
     ],

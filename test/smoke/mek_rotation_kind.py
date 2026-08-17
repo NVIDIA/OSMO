@@ -64,9 +64,10 @@ class MekRotationKind(SmokeFixture):
                     consumers[pod["metadata"]["name"]] = container["name"]
         return consumers
 
-    def _consumer_logs(self):
+    def _consumer_logs(self, since="15m"):
         return {
-            pod: self._kubectl("logs", pod, "--container", container)
+            pod: self._kubectl(
+                "logs", pod, "--container", container, f"--since={since}")
             for pod, container in self._mek_consumers().items()
         }
 
@@ -75,7 +76,7 @@ class MekRotationKind(SmokeFixture):
         last_value = None
         while time.monotonic() < deadline:
             last_value = predicate()
-            if last_value:
+            if last_value is not None:
                 return last_value
             time.sleep(2)
         self.fail(f"timed out waiting for {description}; last observation: {last_value!r}")
@@ -103,6 +104,13 @@ class MekRotationKind(SmokeFixture):
         ]
         self.assertEqual(len(matches), 1, f"expected one API deployment, found {matches}")
         return matches[0]
+
+    def _restore_replicas(self, deployment, replicas):
+        self._kubectl("scale", "deployment", deployment, f"--replicas={replicas}")
+        self._kubectl("rollout", "status", "deployment", deployment, "--timeout=5m")
+
+    def _delete_credential(self, credential_name):
+        self.http("DELETE", f"/api/credentials/{credential_name}").expect_ok()
 
     @staticmethod
     def _reference_counts(logs, key_id):
@@ -197,11 +205,16 @@ class MekRotationKind(SmokeFixture):
             )
 
     def test_projected_secret_ha_rotation_and_rewrap(self):
-        self.http("POST", "/api/credentials/kind-mek-test").payload({
+        credential_name = f"kind-mek-{secrets.token_hex(6)}"
+        self.http("POST", f"/api/credentials/{credential_name}").payload({
             "generic_credential": {"credential": {"rotation_probe": "present"}}
         }).expect_ok()
+        self.addCleanup(self._delete_credential, credential_name)
 
         api_deployment = self._api_deployment()
+        deployment = self._json("get", "deployment", api_deployment)
+        original_replicas = deployment["spec"].get("replicas", 1)
+        self.addCleanup(self._restore_replicas, api_deployment, original_replicas)
         self._kubectl("scale", "deployment", api_deployment, "--replicas=2")
         self._kubectl(
             "rollout", "status", "deployment", api_deployment, "--timeout=5m")
@@ -221,9 +234,15 @@ class MekRotationKind(SmokeFixture):
         secret_name = mek_volume["secretName"]
         secret_key = mek_volume["items"][0]["key"]
         secret = self._json("get", "secret", secret_name)
-        original = base64.b64decode(secret["data"][secret_key]).decode("utf-8")
-        keyring = yaml.safe_load(original)
+        keyring_contents = base64.b64decode(
+            secret["data"][secret_key]).decode("utf-8")
+        keyring = yaml.safe_load(keyring_contents)
         old_key_id = keyring["currentMek"]
+
+        safe_keyring_contents = [keyring_contents]
+        self.addCleanup(
+            lambda: self._apply_keyring(
+                secret_name, secret_key, safe_keyring_contents[0]))
 
         uek_references = self._wait(
             "the credential seed to create an authenticated UEK wrapper",
@@ -270,7 +289,9 @@ class MekRotationKind(SmokeFixture):
         keyring["meks"][new_key_id] = base64.b64encode(
             json.dumps(new_jwk, separators=(",", ":")).encode("utf-8")
         ).decode("ascii")
-        self._apply_keyring(secret_name, secret_key, yaml.safe_dump(keyring, sort_keys=False))
+        prepared_keyring = yaml.safe_dump(keyring, sort_keys=False)
+        self._apply_keyring(secret_name, secret_key, prepared_keyring)
+        safe_keyring_contents[0] = prepared_keyring
         self._kubectl("scale", "deployment", api_deployment, "--replicas=1")
         self._kubectl(
             "rollout", "status", "deployment", api_deployment, "--timeout=5m")
@@ -285,7 +306,9 @@ class MekRotationKind(SmokeFixture):
         )
 
         keyring["currentMek"] = new_key_id
-        self._apply_keyring(secret_name, secret_key, yaml.safe_dump(keyring, sort_keys=False))
+        activated_keyring = yaml.safe_dump(keyring, sort_keys=False)
+        self._apply_keyring(secret_name, secret_key, activated_keyring)
+        safe_keyring_contents[0] = activated_keyring
         self._kubectl("scale", "deployment", api_deployment, "--replicas=2")
         self._kubectl(
             "rollout", "status", "deployment", api_deployment, "--timeout=5m")

@@ -14,9 +14,12 @@ resource_document() {
     awk -v kind="$kind" -v name="$name" '
         function reset() { document = ""; document_kind = ""; document_name = ""; metadata = 0 }
         function finish() {
-            if (document_kind == kind && document_name == name) printf "%s", document
+            if (document_kind == kind && document_name == name) {
+                printf "%s", document
+                found = 1
+            }
         }
-        BEGIN { reset() }
+        BEGIN { found = 0; reset() }
         /^---[[:space:]]*$/ { finish(); reset(); next }
         { document = document $0 ORS }
         /^kind: / { document_kind = $0; sub(/^kind: /, "", document_kind); next }
@@ -27,7 +30,7 @@ resource_document() {
             gsub(/^"|"$/, "", document_name)
             metadata = 0
         }
-        END { finish() }
+        END { finish(); if (!found) exit 1 }
     ' <<<"$rendered"
 }
 
@@ -115,12 +118,25 @@ grep -q -- '--from-file="$secret_key=$temporary_directory/mek.yaml"' \
 grep -q -- '- "test-mek"' <<<"$mek_bootstrap_list"
 grep -q -- '- "keyring.yaml"' <<<"$mek_bootstrap_list"
 grep -q 'resourceNames: \["test-mek"\]' <<<"$mek_bootstrap_list"
-grep -q 'verbs: \["get"\]' <<<"$mek_bootstrap_list"
-grep -q 'verbs: \["create"\]' <<<"$mek_bootstrap_list"
+grep -q 'verbs: \["get", "patch"\]' <<<"$mek_bootstrap_list"
+if grep -q 'verbs: .*"create"' <<<"$mek_bootstrap_list"; then
+    echo 'MEK bootstrap can create arbitrary Secrets' >&2
+    exit 1
+fi
 grep -q 'kind: Job' <<<"$mek_bootstrap_list"
 grep -q 'kind: RoleBinding' <<<"$mek_bootstrap_list"
+role_binding_line=$(grep -n 'kind: RoleBinding' <<<"$mek_bootstrap_list" \
+    | cut -d: -f1)
+job_line=$(grep -n 'kind: Job' <<<"$mek_bootstrap_list" | cut -d: -f1)
+if [[ "$role_binding_line" -ge "$job_line" ]]; then
+    echo 'MEK bootstrap RoleBinding must precede the Job' >&2
+    exit 1
+fi
 grep -q 'privileged resources were removed' <<<"$mek_bootstrap_diagnostic"
-if grep -q '^kind: Secret$' <<<"$mek_bootstrap_render"; then
+mek_bootstrap_placeholder=$(resource_document "$mek_bootstrap_render" Secret test-mek)
+grep -q 'osmo.nvidia.com/mek-bootstrap-placeholder: "true"' \
+    <<<"$mek_bootstrap_placeholder"
+if grep -qE '^(data|stringData):' <<<"$mek_bootstrap_placeholder"; then
     echo 'MEK bootstrap rendered Secret material into Helm release state' >&2
     exit 1
 fi
@@ -136,6 +152,10 @@ fi
 if resource_document "$mek_bootstrap_upgrade_render" ConfigMap \
         mek-bootstrap-upgrade-mek-bootstrap-diagnostic | grep -q 'hook-failed'; then
     echo 'MEK bootstrap failure diagnostic would be deleted' >&2
+    exit 1
+fi
+if [[ $(grep -c 'mek-bootstrap-placeholder' <<<"$mek_bootstrap_upgrade_render") -ne 1 ]]; then
+    echo 'MEK bootstrap rendered a placeholder Secret during upgrade' >&2
     exit 1
 fi
 

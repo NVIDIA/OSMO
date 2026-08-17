@@ -63,7 +63,7 @@ validate_secret() {
     trap - EXIT INT TERM
 }
 
-create_secret() {
+initialize_secret() {
     temporary_directory=$(mktemp -d)
     trap 'rm -rf "$temporary_directory"' EXIT INT TERM
 
@@ -82,34 +82,28 @@ create_secret() {
             --namespace "$namespace" \
             --from-file="$secret_key=$temporary_directory/mek.yaml" \
             --dry-run=client \
-            -o yaml \
+            -o json \
         | kubectl label --local -f - \
             app.kubernetes.io/managed-by=osmo-mek-bootstrap \
             "app.kubernetes.io/instance=$release_name" \
-            -o yaml \
+            -o json \
         | kubectl annotate --local -f - \
             osmo.nvidia.com/credential-source=helm-test-bootstrap \
-            -o yaml \
-        | kubectl create -f - >/dev/null; then
+            -o json > "$temporary_directory/patch.json" \
+        && kubectl patch secret "$secret_name" \
+            --namespace "$namespace" \
+            --type=merge \
+            --patch-file "$temporary_directory/patch.json" >/dev/null; then
         rm -rf "$temporary_directory"
         trap - EXIT INT TERM
-        printf 'INFO Created MEK Secret %s\n' "$secret_name"
+        printf 'INFO Initialized MEK Secret %s\n' "$secret_name"
         return
     fi
 
     rm -rf "$temporary_directory"
     trap - EXIT INT TERM
-    existing_name=$(read_secret_name) || {
-        log_error "Unable to verify MEK Secret $secret_name after create failure"
-        return 1
-    }
-    if [ -z "$existing_name" ]; then
-        log_error "Unable to create MEK Secret $secret_name"
-        return 1
-    fi
-    validate_secret
-    printf 'INFO MEK Secret %s was created concurrently; preserving it\n' \
-        "$secret_name"
+    log_error "Unable to initialize MEK Secret $secret_name"
+    return 1
 }
 
 ensure_secret() {
@@ -118,15 +112,28 @@ ensure_secret() {
         return 1
     }
     if [ -n "$existing_name" ]; then
-        validate_secret
-        printf 'INFO MEK Secret %s already exists; preserving it\n' "$secret_name"
-        return
+        if validate_secret; then
+            printf 'INFO MEK Secret %s already exists; preserving it\n' "$secret_name"
+            return
+        fi
+        placeholder=$(kubectl get secret "$secret_name" \
+            --namespace "$namespace" \
+            -o go-template='{{index .metadata.annotations "osmo.nvidia.com/mek-bootstrap-placeholder"}}') || {
+            log_error "Unable to inspect MEK Secret $secret_name"
+            return 1
+        }
+        if [ "$fail_if_missing" = false ] && [ "$placeholder" = true ]; then
+            initialize_secret
+            return
+        fi
+        return 1
     fi
     if [ "$fail_if_missing" = true ]; then
         log_error "MEK Secret $secret_name is missing during upgrade; restore it instead of generating a new encryption key"
         return 1
     fi
-    create_secret
+    log_error "MEK bootstrap placeholder $secret_name is missing during install"
+    return 1
 }
 
 while [ "$#" -gt 0 ]; do

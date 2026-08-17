@@ -148,6 +148,10 @@ class SecretManager:
             add_user (Callable[[str, Dict], None]): A function to insert new uek.
                 `add_user(uid, {'current': current_kid, current_kid: encrypted_key})` will be
                 called to add new uek.
+            prepare_meks (Callable[[Mapping[str, str]], bool] | None): Atomically validate and
+                register the complete mounted MEK fingerprint map during PREPARE.
+            can_activate_mek (Callable[[Mapping[str, str], str], bool] | None): Validate that the
+                complete mounted fingerprint map and selected current MEK are durably prepared.
             alg (str, optional): Cryptographic algorithm used to encrypt or determine the value of
                 the content encryption key. Defaults to 'A256GCMKW'.
             enc (str, optional): Content encryption algorithm used to encrypt plain text.
@@ -478,7 +482,6 @@ class SecretManager:
                 raise osmo_errors.OSMONotFoundError(f"Cannot find mek whose kid is {kid}.")
             return self.meks[kid]
 
-    @_with_keyring_lock
     def get_uek(self, uid: str, kid: str = "") -> Tuple[jwk.JWK, bool]:
         """Returns user key according to kid and uid. Returns master key if uid is empty.
         Returns current user key if kid is empty"""
@@ -501,8 +504,15 @@ class SecretManager:
 
         except Exception as exc:
             raise osmo_errors.OSMOError(f"Cannot find user key for user {uid}.") from exc
-        # Get MEK
-        mek = self.get_mek(mek_kid)
+        # Snapshot immutable keys while locked; database callbacks and crypto run outside it.
+        with self._keyring_lock:
+            self.reload_if_changed(retry_pending=False)
+            if mek_kid not in self._keyring.meks:
+                raise osmo_errors.OSMONotFoundError(
+                    f"Cannot find mek whose kid is {mek_kid}.")
+            mek = self._keyring.meks[mek_kid]
+            current_mek_id = self._keyring.current_mek_id
+            current_mek = self._keyring.meks[current_mek_id]
         jwetoken.decrypt(mek)
 
         jwk_json = jwetoken.payload.decode("utf-8")
@@ -513,12 +523,11 @@ class SecretManager:
             )
 
         # Re-encrypt uek if not using the latest MEK
-        if mek_kid != self.current_mek_id:
+        if mek_kid != current_mek_id:
             new_jwe = jwe.JWE(
                 jwetoken.payload,
-                json_encode({"alg": self.alg, "enc": self.enc, "kid": self.current_mek_id}),
+                json_encode({"alg": self.alg, "enc": self.enc, "kid": current_mek_id}),
             )
-            current_mek = self.get_mek()
             new_jwe.add_recipient(current_mek)
             updated = self.write_uek(uid, kid, new_jwe.serialize(True), uek_jwe)
             if not updated:
@@ -530,11 +539,15 @@ class SecretManager:
                     replacement_jwe.deserialize(replacement)
                     replacement_mek_id = self._validate_jwe_header(
                         replacement_jwe.jose_header)
-                    if replacement_mek_id != self.current_mek_id:
+                    with self._keyring_lock:
+                        self.reload_if_changed(retry_pending=False)
+                        replacement_current_id = self._keyring.current_mek_id
+                        replacement_mek = self._keyring.meks.get(replacement_mek_id)
+                    if replacement_mek_id != replacement_current_id or replacement_mek is None:
                         raise osmo_errors.OSMOError(
                             f"Concurrent UEK update for user {uid} did not use the current MEK."
                         )
-                    replacement_jwe.decrypt(self.get_mek(replacement_mek_id))
+                    replacement_jwe.decrypt(replacement_mek)
                     replacement_key = jwk.JWK.from_json(
                         replacement_jwe.payload.decode("utf-8"))
                     if (
@@ -606,7 +619,6 @@ class SecretManager:
         ) as error:
             raise osmo_errors.OSMOError("Persisted UEK wrapper failed authentication.") from error
 
-    @_with_keyring_lock
     def add_new_user(self, uid: str):
         """Add uek for a new user"""
         with self._keyring_lock:
@@ -622,24 +634,20 @@ class SecretManager:
             jwetoken.add_recipient(mek)
 
             ueks = {"current": uek.key_id, uek.key_id: jwetoken.serialize(True)}
-            self.add_user(uid, ueks)
+        self.add_user(uid, ueks)
 
-    @_with_keyring_lock
     def encrypt(self, plain_text: str, uid: str) -> Encrypted:
         """Encrypts the plain_text using current user key. Use the master key if uid is empty."""
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            uek, _ = self.get_uek(uid)
-            jwetoken = jwe.JWE(
-                plain_text.encode("utf-8"),
-                json_encode({"alg": self.alg, "enc": self.enc, "kid": uek.key_id}),
-            )
+        uek, _ = self.get_uek(uid)
+        jwetoken = jwe.JWE(
+            plain_text.encode("utf-8"),
+            json_encode({"alg": self.alg, "enc": self.enc, "kid": uek.key_id}),
+        )
 
-            jwetoken.add_recipient(uek)
-            enc = Encrypted(jwetoken.serialize(True))
-            return enc
+        jwetoken.add_recipient(uek)
+        enc = Encrypted(jwetoken.serialize(True))
+        return enc
 
-    @_with_keyring_lock
     def decrypt(self, enc: Encrypted, uid: str, update_secret: Callable[[str], None]) -> Decrypted:
         """Decrypts a given encrypted secret `enc`. If the user secret is not current, run command
         `cmd` to update the re-encrypted secret.
@@ -652,23 +660,21 @@ class SecretManager:
         Returns:
             Decrpted: Decrypted secret
         """
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            jwetoken = jwe.JWE()
-            jwetoken.deserialize(enc.value)
-            kid = self._validate_jwe_header(jwetoken.jose_header)
-            uek, is_current = self.get_uek(uid, kid)
-            jwetoken.decrypt(uek)
-            decrypted = jwetoken.payload.decode("utf-8")
+        jwetoken = jwe.JWE()
+        jwetoken.deserialize(enc.value)
+        kid = self._validate_jwe_header(jwetoken.jose_header)
+        uek, is_current = self.get_uek(uid, kid)
+        jwetoken.decrypt(uek)
+        decrypted = jwetoken.payload.decode("utf-8")
 
-            if not is_current:
-                current_uek, _ = self.get_uek(uid)
-                new_jwe = jwe.JWE(
-                    decrypted.encode("utf-8"),
-                    json_encode({"alg": self.alg, "enc": self.enc, "kid": current_uek.key_id}),
-                )
-                new_jwe.add_recipient(current_uek)
-                re_encrypted = new_jwe.serialize(True)
-                update_secret(re_encrypted)
+        if not is_current:
+            current_uek, _ = self.get_uek(uid)
+            new_jwe = jwe.JWE(
+                decrypted.encode("utf-8"),
+                json_encode({"alg": self.alg, "enc": self.enc, "kid": current_uek.key_id}),
+            )
+            new_jwe.add_recipient(current_uek)
+            re_encrypted = new_jwe.serialize(True)
+            update_secret(re_encrypted)
 
-            return Decrypted(decrypted)
+        return Decrypted(decrypted)

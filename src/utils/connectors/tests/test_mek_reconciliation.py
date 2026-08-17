@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import ast
 import inspect
 import json
+import threading
 import unittest
 from unittest import mock
 
@@ -35,6 +35,8 @@ def _connector():
     database.secret_manager.current_mek_id = "new"
     database.secret_manager.generation = "generation"
     database.secret_manager.meks = {"old": object(), "new": object()}
+    database._mek_reconciler_stop = threading.Event()
+    database.execute_commit_commands = mock.Mock()
     return database
 
 
@@ -104,6 +106,30 @@ class TestMekReconciliation(unittest.TestCase):
             database, "_scan_mek_references", return_value=({}, [])
         ), self.assertRaisesRegex(osmo_errors.OSMOError, "different initial MEK keyring"):
             database._init_mek_key_registry()
+
+        database.execute_commit_commands.assert_called_once()
+
+    def test_committed_adoption_fence_is_released_before_local_mount_rejection(self):
+        database = _connector()
+        database.secret_manager.key_fingerprints.return_value = {
+            "new": "wrong-local-fingerprint",
+        }
+        database.execute_fetch_command = mock.Mock(side_effect=[
+            [{"kid": "new", "fingerprint": "canonical-fingerprint", "state": "current"}],
+            [{
+                "generation": "generation",
+                "current_kid": "new",
+                "loaded_kids": ["new"],
+                "ready": False,
+            }],
+        ])
+
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "does not match"):
+            database._init_mek_key_registry()
+
+        database.execute_commit_commands.assert_called_once()
+        commands = database.execute_commit_commands.call_args.args[0]
+        self.assertTrue(any("writes_allowed = TRUE" in command for command, _ in commands))
 
     def test_scan_authenticates_uek_and_registered_config_secrets(self):
         database = _connector()
@@ -289,6 +315,47 @@ class TestMekReconciliation(unittest.TestCase):
         self.assertTrue(database._rewrap_ueks())
         database.execute_fetch_command.assert_not_called()
 
+    def test_uek_rewrap_records_bad_row_and_advances_cursor(self):
+        database = _connector()
+        rows = [{"uid": "bad-user", "key": "bad-key"}]
+        database._mek_progress = mock.Mock(return_value=("", "", False, 7))
+        database._update_mek_progress = mock.Mock(return_value=True)
+        database._record_mek_blocker = mock.Mock()
+        database.execute_fetch_command = mock.Mock(return_value=rows)
+        database.secret_manager.get_uek.side_effect = osmo_errors.OSMOError("bad wrapper")
+
+        self.assertTrue(database._rewrap_ueks())
+
+        database._record_mek_blocker.assert_called_once_with(
+            "A persisted UEK wrapper failed authentication; inspect service logs.")
+        database._update_mek_progress.assert_called_once_with(
+            "ueks", "bad-user", "bad-key", True, 7)
+
+    def test_config_rewrap_records_bad_ciphertext_without_stalling(self):
+        database = _connector()
+        database._record_mek_blocker = mock.Mock()
+        with mock.patch.object(database, "_jwe_header", side_effect=ValueError("malformed")):
+            replacement, changed = database._rewrap_config_value("a.b.c.d.e")
+
+        self.assertEqual(replacement, "a.b.c.d.e")
+        self.assertFalse(changed)
+        database._record_mek_blocker.assert_called_once_with(
+            "A persisted config ciphertext is malformed; inspect service logs.")
+
+    def test_scan_status_persists_only_redacted_blocker_summary(self):
+        database = _connector()
+        database.execute_commit_command = mock.Mock()
+
+        database._record_mek_scan(
+            {"old": 1, "new": 0}, ["configs/WORKFLOW/private-user-path: failed"])
+
+        status_args = database.execute_commit_command.call_args_list[0].args[1]
+        self.assertEqual(
+            status_args[-1],
+            "1 ciphertext authentication blocker(s); inspect service logs.",
+        )
+        self.assertNotIn("private-user-path", status_args[-1])
+
     def test_reconciliation_waits_for_every_live_consumer_to_activate(self):
         database = _connector()
         database.execute_fetch_command = mock.Mock(return_value=[
@@ -308,6 +375,27 @@ class TestMekReconciliation(unittest.TestCase):
         database.execute_fetch_command.return_value[1].update(
             generation="generation", current_kid="new", loaded_kids=["old", "new"])
         self.assertTrue(database._all_live_mek_consumers_current())
+
+    def test_close_waits_for_reconciler_before_closing_pool(self):
+        database = _connector()
+        events = []
+        database._mek_reconciler_thread = mock.Mock()
+        database._mek_reconciler_thread.join.side_effect = lambda: events.append("joined")
+        database._pool_lock = threading.Lock()
+        database._pool = mock.Mock()
+        database._pool.closeall.side_effect = lambda: events.append("closed")
+
+        database.close()
+
+        self.assertEqual(events, ["joined", "closed"])
+        database._mek_reconciler_thread.join.assert_called_once_with()
+
+    def test_reconciler_is_limited_to_long_lived_control_plane_consumers(self):
+        self.assertEqual(
+            connectors.MEK_RECONCILER_CONSUMERS,
+            frozenset({"agent", "api", "delayed-job-monitor", "logger", "router", "worker"}),
+        )
+        self.assertNotIn("unknown", connectors.MEK_RECONCILER_CONSUMERS)
 
     def test_direct_mek_encrypt_call_sites_are_registry_backed(self):
         class DirectMekCallVisitor(ast.NodeVisitor):

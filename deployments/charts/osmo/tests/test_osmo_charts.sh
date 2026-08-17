@@ -129,6 +129,7 @@ resource_document() {
         in_metadata && /^  name: / && document_name == "" {
             document_name = $0
             sub(/^  name: /, "", document_name)
+            gsub(/^"|"$/, "", document_name)
             next
         }
         in_metadata && /^[^ ]/ {
@@ -525,6 +526,15 @@ test_control_umbrella() {
     resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" ConfigMap \
         bootstrap-osmo-mek-bootstrap-diagnostic \
         >"$TEST_DIRECTORY/mek-bootstrap-diagnostic.yaml"
+    resource_document "$TEST_DIRECTORY/mek-bootstrap.yaml" Secret \
+        external-master-encryption-key-secret \
+        >"$TEST_DIRECTORY/mek-bootstrap-placeholder.yaml"
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-placeholder.yaml" \
+        'osmo.nvidia.com/mek-bootstrap-placeholder: "true"'
+    if grep -Eq '^(data|stringData):' \
+            "$TEST_DIRECTORY/mek-bootstrap-placeholder.yaml"; then
+        fail 'MEK bootstrap placeholder must not contain key material'
+    fi
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
         'image: "alpine/kubectl:1.33.4"'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
@@ -534,10 +544,21 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" '- "keyring.yaml"'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
         'resourceNames: ["external-master-encryption-key-secret"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'verbs: ["get"]'
-    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'verbs: ["create"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
+        'verbs: ["get", "patch"]'
+    require_not_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" '"create"'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'kind: Job'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'kind: RoleBinding'
+    local role_binding_line
+    local job_line
+    role_binding_line=$(grep -n 'kind: RoleBinding' \
+        "$TEST_DIRECTORY/mek-bootstrap-list.yaml" | cut -d: -f1)
+    job_line=$(grep -n 'kind: Job' "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
+        | cut -d: -f1)
+    if [[ "$role_binding_line" -ge "$job_line" ]]; then
+        log_error 'MEK bootstrap RoleBinding must precede the Job'
+        return 1
+    fi
     require_contains "$TEST_DIRECTORY/mek-bootstrap-diagnostic.yaml" \
         'privileged resources were removed'
 
@@ -551,6 +572,8 @@ test_control_umbrella() {
         '--fail-if-missing'
     require_occurrences "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
         'hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed' 1
+    require_occurrences "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
+        'mek-bootstrap-placeholder' 1
     resource_document "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" ConfigMap \
         bootstrap-osmo-upgrade-mek-bootstrap-diagnostic \
         >"$TEST_DIRECTORY/mek-bootstrap-upgrade-diagnostic.yaml"

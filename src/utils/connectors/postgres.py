@@ -77,6 +77,9 @@ MEK_PERSISTENCE_REGISTRY = {
 }
 MEK_RECONCILE_BATCH_SIZE = 100
 MEK_MAX_CONFIG_ROWS = 1000
+MEK_RECONCILER_CONSUMERS = frozenset({
+    'agent', 'api', 'delayed-job-monitor', 'logger', 'router', 'worker',
+})
 
 
 class ConfigHistoryType(enum.Enum):
@@ -456,9 +459,10 @@ class PostgresConnector:
             logging.debug('Switching to pgroll schema: %s', self.config.schema_version)
             self.connect()
 
-        self._mek_reconciler_thread = threading.Thread(
-            target=self._run_mek_reconciler, name='mek-reconciler', daemon=True)
-        self._mek_reconciler_thread.start()
+        if self._mek_consumer_name in MEK_RECONCILER_CONSUMERS:
+            self._mek_reconciler_thread = threading.Thread(
+                target=self._run_mek_reconciler, name='mek-reconciler', daemon=True)
+            self._mek_reconciler_thread.start()
 
         # Register cleanup on exit
         atexit.register(self.close)
@@ -468,7 +472,7 @@ class PostgresConnector:
         self._mek_reconciler_stop.set()
         if (self._mek_reconciler_thread is not None and
                 self._mek_reconciler_thread is not threading.current_thread()):
-            self._mek_reconciler_thread.join(timeout=5)
+            self._mek_reconciler_thread.join()
         with self._pool_lock:
             if self._pool is not None:
                 try:
@@ -1620,6 +1624,18 @@ class PostgresConnector:
         ):
             raise osmo_errors.OSMOError(
                 'MEK canonical adoption and fingerprint registry are inconsistent.')
+        # The durable canonical bundle is complete. Release a fence left by a process that
+        # crashed after adoption, even if this process subsequently rejects its local mount.
+        self.execute_commit_commands([
+            ('''
+                UPDATE public.mek_keyring_adoption SET ready = TRUE
+                WHERE singleton AND NOT ready;
+            ''', ()),
+            ('''
+                UPDATE public.mek_write_epoch SET writes_allowed = TRUE
+                WHERE singleton;
+            ''', ()),
+        ])
         if observed_empty_registry:
             if (
                 adoption['generation'] != self.secret_manager.generation
@@ -1668,16 +1684,6 @@ class PostgresConnector:
             UPDATE public.mek_key_registry SET state = 'prepared'
             WHERE state = 'current' AND kid <> %s;
         ''', (self.secret_manager.current_mek_id,))
-        self.execute_commit_commands([
-            ('''
-                UPDATE public.mek_keyring_adoption SET ready = TRUE
-                WHERE singleton AND NOT ready;
-            ''', ()),
-            ('''
-                UPDATE public.mek_write_epoch SET writes_allowed = TRUE
-                WHERE singleton;
-            ''', ()),
-        ])
 
     def _adopt_initial_mek_keyring(
             self, fingerprints: Mapping[str, str], current_key_id: str,
@@ -1823,9 +1829,11 @@ class PostgresConnector:
 
     def _scan_mek_references(self) -> Tuple[Dict[str, int], List[str]]:
         counts = {key_id: 0 for key_id in self.secret_manager.meks}
-        blockers = []
+        blockers: List[str] = []
         cursor_uid, cursor_key = '', ''
         while True:
+            if self._mek_reconciler_stop.is_set():
+                return counts, blockers
             uek_rows = self.execute_fetch_command('''
                 SELECT uid, entry.key AS key, entry.value AS value
                 FROM ueks CROSS JOIN LATERAL each(keys) AS entry
@@ -1849,6 +1857,8 @@ class PostgresConnector:
         config_rows: List[Dict[str, Any]] = []
         cursor_type, cursor_key = '', ''
         while len(config_rows) <= MEK_MAX_CONFIG_ROWS:
+            if self._mek_reconciler_stop.is_set():
+                return counts, blockers
             batch = self.execute_fetch_command('''
                 SELECT key, type, value FROM configs
                 WHERE (type, key) > (%s, %s)
@@ -1994,25 +2004,34 @@ class PostgresConnector:
             LIMIT %s;
         ''', (cursor_uid, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
         for row in rows:
-            self.secret_manager.get_uek(row['uid'], row['key'])
+            try:
+                self.secret_manager.get_uek(row['uid'], row['key'])
+            except osmo_errors.OSMOError:
+                logging.error(
+                    'UEK rewrap authentication failed for uid=%s slot=%s; '
+                    'continuing the batch.', row['uid'], row['key'])
+                self._record_mek_blocker(
+                    'A persisted UEK wrapper failed authentication; inspect service logs.')
         if rows:
             cursor_uid, cursor_key = rows[-1]['uid'], rows[-1]['key']
         reached_end = len(rows) < MEK_RECONCILE_BATCH_SIZE
         return self._update_mek_progress(
             'ueks', cursor_uid, cursor_key, reached_end, start_write_epoch)
 
-    def _rewrap_config_value(self, value: Any) -> Tuple[Any, bool]:
+    def _rewrap_config_value(self, value: Any, path: str = '') -> Tuple[Any, bool]:
         changed = False
         if isinstance(value, dict):
             result = {}
             for key, child in value.items():
-                result[key], child_changed = self._rewrap_config_value(child)
+                child_path = f'{path}.{key}' if path else str(key)
+                result[key], child_changed = self._rewrap_config_value(child, child_path)
                 changed = changed or child_changed
             return result, changed
         if isinstance(value, list):
             result_list = []
-            for child in value:
-                result, child_changed = self._rewrap_config_value(child)
+            for index, child in enumerate(value):
+                result, child_changed = self._rewrap_config_value(
+                    child, f'{path}[{index}]')
                 result_list.append(result)
                 changed = changed or child_changed
             return result_list, changed
@@ -2020,12 +2039,24 @@ class PostgresConnector:
             return value, False
         try:
             header = self._jwe_header(value)
-        except JWException:
+        except (JWException, ValueError, TypeError):
+            logging.error(
+                'Config MEK rewrap found a malformed compact JWE at %s; '
+                'continuing the batch.', path)
+            self._record_mek_blocker(
+                'A persisted config ciphertext is malformed; inspect service logs.')
             return value, False
         if header is None or header.get('kid') not in self.secret_manager.meks:
             return value, False
         replacements: List[str] = []
-        self.secret_manager.decrypt(Encrypted(value), '', replacements.append)
+        try:
+            self.secret_manager.decrypt(Encrypted(value), '', replacements.append)
+        except (JWException, osmo_errors.OSMOError, UnicodeError, ValueError, TypeError):
+            logging.error(
+                'Config MEK rewrap authentication failed at %s; continuing the batch.', path)
+            self._record_mek_blocker(
+                'A persisted config ciphertext failed authentication; inspect service logs.')
+            return value, False
         return (replacements[0], True) if replacements else (value, False)
 
     def _rewrap_configs(self) -> bool:
@@ -2047,7 +2078,8 @@ class PostgresConnector:
                 except (json.JSONDecodeError, TypeError):
                     parsed = original
                     encoded_as_json = False
-                replacement, changed = self._rewrap_config_value(parsed)
+                replacement, changed = self._rewrap_config_value(
+                    parsed, f"{row['type']}/{row['key']}")
                 if not changed:
                     break
                 serialized = json.dumps(replacement) if encoded_as_json else replacement
@@ -2079,7 +2111,11 @@ class PostgresConnector:
     def _record_mek_scan(self, counts: Dict[str, int], blockers: List[str]) -> None:
         current_key_id = self.secret_manager.current_mek_id
         generation = self.secret_manager.generation
-        blocker = '; '.join(blockers[:10])
+        for blocker_detail in blockers:
+            logging.error('MEK inventory blocker: %s', blocker_detail)
+        blocker = (
+            f'{len(blockers)} ciphertext authentication blocker(s); inspect service logs.'
+            if blockers else '')
         command = '''
             INSERT INTO public.mek_rewrap_status (
                 singleton, generation, current_kid, persistence_registry_version,
@@ -3513,7 +3549,7 @@ class DynamicConfig(ExtraArgBaseModel):
             elif isinstance(encrypted_data, list):
                 for index in range(len(encrypted_data)):
                     decrypted, new_encrypted = _decrypt(
-                        result_data[index], result_data[index], top_level_key)
+                        result_data[index], encrypted_data[index], top_level_key)
                     result_data[index] = decrypted
                     if new_encrypted is not None:
                         encrypted_data[index] = new_encrypted
@@ -3570,8 +3606,7 @@ class DynamicConfig(ExtraArgBaseModel):
                     'Concurrent config update deferred MEK rewrap for %s/%s.',
                     dynamic_config.get_type().value, key)
                 postgres._record_mek_blocker(  # pylint: disable=protected-access
-                    f'Concurrent config update deferred MEK rewrap for '
-                    f'{dynamic_config.get_type().value}/{key}.')
+                    'A concurrent config update deferred MEK rewrap; inspect service logs.')
         return dynamic_config
 
     def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,
@@ -3585,7 +3620,7 @@ class DynamicConfig(ExtraArgBaseModel):
                 else:
                     config_dict[key] = self.serialize_helper(value, postgres)
             elif isinstance(value_for_typecheck, list):
-                serialized_values = []
+                serialized_values: List[Any] = []
                 for item in value_for_typecheck:
                     if isinstance(item, dict):
                         serialized_values.append(self.serialize_helper(item, postgres))

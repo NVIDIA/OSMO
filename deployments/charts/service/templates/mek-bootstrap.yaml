@@ -34,6 +34,7 @@
 {{- $diagnosticName := printf "%s-diagnostic" $bootstrapName | trunc 63 | trimSuffix "-" }}
 {{- $secretName := required "services.masterEncryptionKey.existingSecret.name is required" .Values.services.masterEncryptionKey.existingSecret.name }}
 {{- $secretKey := required "services.masterEncryptionKey.existingSecret.key is required" .Values.services.masterEncryptionKey.existingSecret.key }}
+{{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -50,6 +51,20 @@ data:
     For an existing database, restore the MEK Secret that encrypted its data.
     Never generate a replacement MEK for retained encrypted data.
 ---
+{{- if and .Release.IsInstall (not $existingSecret) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName | quote }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-30"
+    helm.sh/resource-policy: keep
+    osmo.nvidia.com/mek-bootstrap-placeholder: "true"
+type: Opaque
+---
+{{- end }}
 apiVersion: v1
 kind: List
 metadata:
@@ -57,7 +72,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-30"
+    helm.sh/hook-weight: "-29"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
 items:
 - apiVersion: v1
@@ -74,10 +89,20 @@ items:
   - apiGroups: [""]
     resources: ["secrets"]
     resourceNames: [{{ $secretName | quote }}]
-    verbs: ["get"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["create"]
+    verbs: ["get", "patch"]
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  subjects:
+  - kind: ServiceAccount
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: {{ $bootstrapName }}
 - apiVersion: batch/v1
   kind: Job
   metadata:
@@ -146,17 +171,4 @@ items:
         volumes:
         - name: bootstrap-tmp
           emptyDir: {}
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: RoleBinding
-  metadata:
-    name: {{ $bootstrapName }}
-    namespace: {{ .Release.Namespace }}
-  subjects:
-  - kind: ServiceAccount
-    name: {{ $bootstrapName }}
-    namespace: {{ .Release.Namespace }}
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: Role
-    name: {{ $bootstrapName }}
 {{- end }}

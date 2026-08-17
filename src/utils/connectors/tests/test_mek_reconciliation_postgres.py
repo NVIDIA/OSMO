@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -142,6 +141,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         self.database._mek_consumer_id = "integration-pod"
         self.database._mek_consumer_name = "integration"
         self.database._last_logged_mek_generation = ""
+        self.database._mek_reconciler_stop = threading.Event()
         for command in (
             "CREATE EXTENSION IF NOT EXISTS hstore;",
             "DROP TABLE IF EXISTS public.mek_consumer_status, "
@@ -209,6 +209,12 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         assert self.database._pool is not None
         self.database._pool.closeall()
 
+    def _complete_rewrap(self, callback, label):
+        for _ in range(20):
+            if callback():
+                return
+        self.fail(f"{label} did not complete within 20 bounded batches")
+
     def test_historical_adoption_rotation_rewrap_resume_and_leadership(self):
         self.database.secret_manager.add_new_user("user")
         user_key_id = self.database.read_current_kid("user")
@@ -257,10 +263,8 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         _write_keyring(self.keyring_path, "new", {"old": self.old_mek, "new": self.new_mek})
         self.assertTrue(self.database.secret_manager.reload_if_changed())
         self.database._init_mek_key_registry()
-        while not self.database._rewrap_ueks():
-            pass
-        while not self.database._rewrap_configs():
-            pass
+        self._complete_rewrap(self.database._rewrap_ueks, "UEK rewrap")
+        self._complete_rewrap(self.database._rewrap_configs, "config rewrap")
         counts, blockers = self.database._scan_mek_references()
         self.assertEqual(blockers, [])
         self.assertEqual(counts["old"], 0)
@@ -314,19 +318,50 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             (user_key_id, old_wrapper),
         )
         self.assertFalse(self.database._rewrap_ueks())
-        while not self.database._rewrap_ueks():
-            pass
+        self._complete_rewrap(self.database._rewrap_ueks, "lagging UEK rewrap")
 
         # A lagging write after completion also reopens the same generation.
         self.database.execute_commit_command(
             "UPDATE ueks SET keys = keys || hstore(%s, %s) WHERE uid = 'user';",
             (user_key_id, old_wrapper),
         )
-        while not self.database._rewrap_ueks():
-            pass
+        self._complete_rewrap(self.database._rewrap_ueks, "completed UEK rewrap")
         wrapper = self.database.read_uek("user", user_key_id)
         token.deserialize(wrapper)
         self.assertEqual(token.jose_header["kid"], "new")
+
+    def test_committed_adoption_fence_self_heals_before_bad_mount_is_rejected(self):
+        self.database._init_mek_key_registry()
+        self.database.execute_commit_commands([
+            ("UPDATE public.mek_keyring_adoption SET ready = FALSE;", ()),
+            ("UPDATE public.mek_write_epoch SET writes_allowed = FALSE;", ()),
+        ])
+        original_manager = self.database.secret_manager
+        bad_path = Path(self.temporary_directory.name) / "mek-bad-mount.yaml"
+        different_old = jwk.JWK.generate(kty="oct", size=256, kid="old")
+        _write_keyring(bad_path, "old", {"old": different_old})
+        self.database.secret_manager = SecretManager(
+            str(bad_path),
+            self.database.read_uek,
+            self.database.write_uek,
+            self.database.read_current_kid,
+            self.database.add_user,
+            prepare_meks=self.database.prepare_meks,
+            can_activate_mek=self.database.can_activate_mek,
+        )
+        try:
+            with self.assertRaisesRegex(osmo_errors.OSMOError, "does not match"):
+                self.database._init_mek_key_registry()
+        finally:
+            self.database.secret_manager = original_manager
+
+        state = self.database.execute_fetch_command(
+            "SELECT a.ready, e.writes_allowed FROM public.mek_keyring_adoption a "
+            "CROSS JOIN public.mek_write_epoch e WHERE a.singleton AND e.singleton;",
+            (),
+            return_raw=True,
+        )[0]
+        self.assertEqual(state, {"ready": True, "writes_allowed": True})
 
     def test_atomic_concurrent_registration_rejects_divergent_fingerprint(self):
         self.database._init_mek_key_registry()

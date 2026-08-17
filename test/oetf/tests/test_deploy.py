@@ -10,6 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 # Unit tests for oetf.deploy.base + oetf.deploy.kind_adapter + oetf.breadcrumb.
 
+import contextlib
 import dataclasses
 import json
 import os
@@ -190,13 +191,22 @@ class TestKindAdapter(unittest.TestCase):
                 capture_idx[0] += 1
             return _FakeCompleted(returncode=code, stdout=stdout)
 
-        return KindAdapter(
+        adapter = KindAdapter(
             image_tag="ci-123",
             subprocess_runner=fake_run,
             url_opener=_always_ok_opener,
             mode=mode,
             build_local=build_local,
-        ), calls
+        )
+        if build_local:
+            @contextlib.contextmanager
+            def fake_chart_ref():
+                yield "/tmp/local-quick-start"
+
+            adapter._quick_start_chart_ref = (  # type: ignore[method-assign]  # pylint: disable=protected-access
+                fake_chart_ref
+            )
+        return adapter, calls
 
     def test_deploy_creates_cluster_then_helm_installs(self):
         adapter, calls = self._adapter(capture_stdouts=["", "", ""])
@@ -422,7 +432,11 @@ class TestKindAdapter(unittest.TestCase):
              "-n", "osmo", "--timeout=10m"),
             cmds,
         )
-        osmo_helm_args = next(cmd for cmd in cmds if "osmo/quick-start" in cmd)
+        osmo_helm_args = next(cmd for cmd in cmds if "/tmp/local-quick-start" in cmd)
+        self.assertIn(
+            "service.services.masterEncryptionKey.bootstrap.enabled=true",
+            osmo_helm_args,
+        )
         self.assertIn(
             "service.services.mcp.imagePullPolicy=IfNotPresent",
             osmo_helm_args,

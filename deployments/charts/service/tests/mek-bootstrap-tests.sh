@@ -20,7 +20,7 @@ printf '%s\n' "$*" >> "$FAKE_STATE_DIRECTORY/commands"
 
 if [ "$1" = get ]; then
     secret_name="$3"
-    if [ ! -f "$FAKE_STATE_DIRECTORY/$secret_name.mek" ]; then
+    if [ ! -f "$FAKE_STATE_DIRECTORY/$secret_name.exists" ]; then
         case "$*" in
             *--ignore-not-found=true*) exit 0 ;;
             *) exit 1 ;;
@@ -28,7 +28,16 @@ if [ "$1" = get ]; then
     fi
     case "$*" in
         *metadata.name*) printf '%s' "$secret_name" ;;
-        *'.data '*) base64 < "$FAKE_STATE_DIRECTORY/$secret_name.mek" | tr -d '\n' ;;
+        *'.data '*)
+            if [ -f "$FAKE_STATE_DIRECTORY/$secret_name.mek" ]; then
+                base64 < "$FAKE_STATE_DIRECTORY/$secret_name.mek" | tr -d '\n'
+            fi
+            ;;
+        *mek-bootstrap-placeholder*)
+            if [ -f "$FAKE_STATE_DIRECTORY/$secret_name.placeholder" ]; then
+                printf true
+            fi
+            ;;
     esac
     exit 0
 fi
@@ -42,12 +51,8 @@ if [ "$1" = create ] && [ "$2" = secret ]; then
     done
     cp "$source_path" "$FAKE_STATE_DIRECTORY/pending-mek"
     printf '%s' "$secret_name" > "$FAKE_STATE_DIRECTORY/pending-name"
-    printf '%s\n' \
-        'apiVersion: v1' \
-        'kind: Secret' \
-        'metadata:' \
-        "  name: $secret_name" \
-        'type: Opaque'
+    printf '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"%s"}}\n' \
+        "$secret_name"
     exit 0
 fi
 
@@ -56,17 +61,14 @@ if { [ "$1" = label ] || [ "$1" = annotate ]; } && [ "$2" = --local ]; then
     exit 0
 fi
 
-if [ "$1" = create ] && [ "$2" = -f ]; then
-    cat >/dev/null
+if [ "$1" = patch ] && [ "$2" = secret ]; then
     secret_name=$(cat "$FAKE_STATE_DIRECTORY/pending-name")
-    if [ "${FAKE_CREATE_FAILURE:-false}" = true ]; then
+    if [ "${FAKE_PATCH_FAILURE:-false}" = true ]; then
         exit 1
     fi
     cp "$FAKE_STATE_DIRECTORY/pending-mek" \
         "$FAKE_STATE_DIRECTORY/$secret_name.mek"
-    if [ "${FAKE_CREATE_RACE:-false}" = true ]; then
-        exit 1
-    fi
+    touch "$FAKE_STATE_DIRECTORY/$secret_name.exists"
     exit 0
 fi
 
@@ -87,6 +89,8 @@ run_bootstrap() {
         "$@"
 }
 
+touch "$FAKE_STATE_DIRECTORY/test-mek.exists"
+touch "$FAKE_STATE_DIRECTORY/test-mek.placeholder"
 output=$(run_bootstrap)
 generated_file="$FAKE_STATE_DIRECTORY/test-mek.mek"
 grep -qx 'currentMek: key1' "$generated_file"
@@ -123,6 +127,7 @@ if [[ "$output" != *'missing during upgrade'* ]]; then
     exit 1
 fi
 : > "$FAKE_STATE_DIRECTORY/empty-mek.mek"
+touch "$FAKE_STATE_DIRECTORY/empty-mek.exists"
 if output=$(run_bootstrap --secret-name empty-mek 2>&1); then
     echo 'Empty MEK Secret key was accepted' >&2
     exit 1
@@ -132,22 +137,30 @@ if [[ "$output" != *'is missing key mek.yaml'* ]]; then
     exit 1
 fi
 
-export FAKE_CREATE_RACE=true
-output=$(run_bootstrap --secret-name raced-mek)
-unset FAKE_CREATE_RACE
-if [[ "$output" != *'created concurrently; preserving it'* ]]; then
-    echo 'Concurrent MEK Secret creation was not reconciled' >&2
+if output=$(run_bootstrap --secret-name absent-mek 2>&1); then
+    echo 'Bootstrap unexpectedly initialized an absent non-placeholder Secret' >&2
+    exit 1
+fi
+if [[ "$output" != *'placeholder absent-mek is missing during install'* ]]; then
+    echo 'Missing-placeholder failure did not identify the affected Secret' >&2
     exit 1
 fi
 
-export FAKE_CREATE_FAILURE=true
+touch "$FAKE_STATE_DIRECTORY/failed-mek.exists"
+touch "$FAKE_STATE_DIRECTORY/failed-mek.placeholder"
+export FAKE_PATCH_FAILURE=true
 if output=$(run_bootstrap --secret-name failed-mek 2>&1); then
-    echo 'Bootstrap unexpectedly ignored a MEK Secret create failure' >&2
+    echo 'Bootstrap unexpectedly ignored a MEK Secret patch failure' >&2
     exit 1
 fi
-unset FAKE_CREATE_FAILURE
-if [[ "$output" != *'Unable to create MEK Secret failed-mek'* ]]; then
-    echo 'Create failure did not identify the affected MEK Secret' >&2
+unset FAKE_PATCH_FAILURE
+if [[ "$output" != *'Unable to initialize MEK Secret failed-mek'* ]]; then
+    echo 'Patch failure did not identify the affected MEK Secret' >&2
+    exit 1
+fi
+
+if grep -qE '^create -f| create secret.*[^-]$' "$FAKE_STATE_DIRECTORY/commands"; then
+    echo 'Bootstrap attempted a server-side Secret create' >&2
     exit 1
 fi
 

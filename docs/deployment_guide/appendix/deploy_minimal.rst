@@ -127,7 +127,7 @@ Create the master encryption key (MEK) for database encryption:
      $ ENCODED_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$RANDOM_KEY" | base64 | tr -d '\n')
      $ printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$ENCODED_JWK" > "$MEK_FILE"
      $ kubectl create secret generic osmo-mek --namespace osmo-minimal \
-         --from-file=mek.yaml="$MEK_FILE" --dry-run=client -o yaml | kubectl apply -f -
+         --from-file=mek.yaml="$MEK_FILE"
      $ rm -f "$MEK_FILE" && trap - EXIT
      $ unset RANDOM_KEY ENCODED_JWK
 
@@ -138,6 +138,10 @@ Create the master encryption key (MEK) for database encryption:
   - Never commit the MEK to version control
   - Restrict Kubernetes RBAC access to the Secret and back it up securely
   - The MEK is used to encrypt sensitive data in the database
+
+  This create-only command intentionally fails if ``osmo-mek`` already exists.
+  For an installation with retained database data, restore the original MEK
+  Secret; never overwrite it or generate a replacement.
 
 Step 4: Configure PostgreSQL
 ============================

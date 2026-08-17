@@ -22,6 +22,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import threading
 import time
 import traceback
 import unittest
@@ -157,6 +158,59 @@ class TestSecretManagerRotation(unittest.TestCase):
             assert store.users["user"][user_key_id] != old_wrapper
             assert _jwe_kid(store.users["user"][user_key_id]) == "new"
 
+    def test_persistence_callbacks_run_outside_keyring_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            keyring_path = Path(directory) / "mek.yaml"
+            old_mek = _make_mek("old")
+            new_mek = _make_mek("new")
+            store = SecretStore()
+            _write_keyring(keyring_path, "old", {"old": old_mek})
+            manager = _manager(keyring_path, store)
+
+            def assert_lock_available():
+                acquired = threading.Event()
+
+                def acquire():
+                    with manager._keyring_lock:  # pylint: disable=protected-access
+                        acquired.set()
+
+                thread = threading.Thread(target=acquire)
+                thread.start()
+                self.assertTrue(acquired.wait(1), "persistence callback ran under keyring lock")
+                thread.join()
+
+            original_add_user = manager.add_user
+
+            def add_user(user_id, keys):
+                assert_lock_available()
+                original_add_user(user_id, keys)
+
+            manager.add_user = add_user
+            manager.add_new_user("user")
+            direct_encrypted = manager.encrypt("secret", "")
+
+            _write_keyring(keyring_path, "old", {"old": old_mek, "new": new_mek})
+            self.assertTrue(manager.reload_if_changed())
+            _write_keyring(keyring_path, "new", {"old": old_mek, "new": new_mek})
+            self.assertTrue(manager.reload_if_changed())
+            original_write_uek = manager.write_uek
+
+            def write_uek(user_id, key_id, new_value, old_value):
+                assert_lock_available()
+                return original_write_uek(user_id, key_id, new_value, old_value)
+
+            manager.write_uek = write_uek
+            manager.get_uek("user")
+
+            replacements = []
+
+            def update_secret(value):
+                assert_lock_available()
+                replacements.append(value)
+
+            manager.decrypt(direct_encrypted, "", update_secret)
+            self.assertEqual(len(replacements), 1)
+
     def test_add_and_activate_is_rejected_and_last_known_good_is_retained(self):
         with tempfile.TemporaryDirectory() as directory:
             keyring_path = Path(directory) / "mek.yaml"
@@ -165,7 +219,8 @@ class TestSecretManagerRotation(unittest.TestCase):
             store = SecretStore()
             _write_keyring(keyring_path, "old", {"old": old_mek})
             manager = _manager(
-                keyring_path, store, can_activate=lambda _key_id, _fingerprint: False)
+                keyring_path, store,
+                can_activate=lambda _fingerprints, _current_key_id: False)
 
             _write_keyring(keyring_path, "new", {"old": old_mek, "new": new_mek})
             assert not manager.reload_if_changed()
