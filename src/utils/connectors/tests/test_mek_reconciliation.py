@@ -171,6 +171,55 @@ class TestMekReconciliation(unittest.TestCase):
         self.assertEqual(len(blockers), 2)
         self.assertTrue(all("authentication failed" in blocker for blocker in blockers))
 
+    def test_unregistered_plaintext_config_type_is_ignored(self):
+        database = _connector()
+        database.execute_fetch_command = mock.Mock(
+            side_effect=[
+                [],
+                [{"key": "default_bucket", "type": "DATASET", "value": "sandbox"}],
+            ]
+        )
+
+        counts, blockers = database._scan_mek_references()
+
+        self.assertEqual(counts, {"old": 0, "new": 0})
+        self.assertEqual(blockers, [])
+
+    def test_unregistered_config_type_with_compact_jwe_is_a_blocker(self):
+        database = _connector()
+        database.execute_fetch_command = mock.Mock(
+            side_effect=[
+                [],
+                [{"key": "legacy", "type": "DATASET", "value": '"compact-jwe"'}],
+            ]
+        )
+
+        with mock.patch.object(
+            database, "_walk_jwe_values", return_value=iter([("legacy.secret", "compact-jwe")])
+        ):
+            _, blockers = database._scan_mek_references()
+
+        self.assertEqual(
+            blockers,
+            ["configs/DATASET/legacy.secret: unregistered compact JWE"],
+        )
+
+    def test_unregistered_config_type_with_malformed_compact_jwe_is_a_blocker(self):
+        database = _connector()
+        database.execute_fetch_command = mock.Mock(
+            side_effect=[
+                [],
+                [{"key": "legacy", "type": "DATASET", "value": '"a.b.c.d.e"'}],
+            ]
+        )
+
+        _, blockers = database._scan_mek_references()
+
+        self.assertEqual(
+            blockers,
+            ["configs/DATASET/legacy: malformed compact JWE"],
+        )
+
     def test_adoption_without_fingerprint_registry_is_corruption(self):
         database = _connector()
         database.secret_manager.key_fingerprints.return_value = {"new": "fingerprint-new"}

@@ -1883,7 +1883,14 @@ class PostgresConnector:
         for config_type, config_values in rows_by_type.items():
             model_class = config_models.get(config_type)
             if model_class is None:
-                blockers.append(f'configs/{config_type}: unregistered config type')
+                for config_key, raw_value in raw_by_type[config_type].items():
+                    try:
+                        for path, _ in self._walk_jwe_values(raw_value, config_key):
+                            blockers.append(
+                                f'configs/{config_type}/{path}: unregistered compact JWE')
+                    except (JWException, ValueError, TypeError):
+                        blockers.append(
+                            f'configs/{config_type}/{config_key}: malformed compact JWE')
                 continue
             unknown_keys = set(config_values) - set(model_class.model_fields)
             if unknown_keys:
