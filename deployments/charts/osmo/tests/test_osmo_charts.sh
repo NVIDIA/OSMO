@@ -395,6 +395,14 @@ test_control_umbrella() {
         >"$rendered"
 
     require_deployment "$rendered" "osmo-api"
+    resource_document "$rendered" Deployment osmo-api \
+        >"$TEST_DIRECTORY/osmo-api-external-postgresql.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-api-external-postgresql.yaml" \
+        "name: OSMO_POSTGRES_PASSWORD"
+    require_contains "$TEST_DIRECTORY/osmo-api-external-postgresql.yaml" \
+        "name: external-postgresql-secret"
+    require_contains "$TEST_DIRECTORY/osmo-api-external-postgresql.yaml" \
+        "key: external-db-password"
     require_no_deployment "$rendered" "osmo-service"
     require_not_contains "$rendered" "name: osmo-service"
     require_deployment "$rendered" "osmo-worker"

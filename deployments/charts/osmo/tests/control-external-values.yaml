@@ -24,6 +24,8 @@ externalDependencies:
 secrets:
   postgresql:
     existingSecret: external-postgresql-secret
+    keys:
+      password: external-db-password
   valkey:
     existingSecret: external-valkey-secret
   objectStorage:
