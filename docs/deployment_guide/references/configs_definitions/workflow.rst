@@ -349,18 +349,10 @@ CLI, and the metric attributes below. Users never type or query the prefix.
        break, or exceeds 253 characters.
      - ``""``
 
-The prefix is an opaque string, not an assumed DNS prefix. It is joined to the
-label key, and the result is validated as a Kubernetes label key in the same
-submission check as the policy above.
-
-This matters when a key already contains a ``/``. With
-``pod_label_prefix: example.com/``, the key ``team.example.com/role`` merges to
-``example.com/team.example.com/role``. That key has two slashes, so it is not a
-valid Kubernetes label key and the submission is rejected. The error reports the
-original key, the configured prefix, and the merged key.
-
-Restart and retry stamp pods from the stored labels, which keep their bare keys,
-so a pod always receives the same prefixed key.
+The prefix is an opaque string, not an assumed DNS prefix: it is joined to the
+label key, and the merged key is validated as a Kubernetes label key at
+submission, in the same check as the policy above. An invalid merged key is
+rejected with an error reporting the original key, the prefix, and the result.
 
 Set this when task pods share a cluster with unrelated workloads: pod labels
 are exported by key name, so a short key such as ``team`` can match an
