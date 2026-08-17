@@ -13,11 +13,19 @@
 {{- $initdbSecretName := dig "cluster" "initdb" "secret" "name" "" .Values.postgresql -}}
 {{- $synchronousInstances := int (dig "cluster" "postgresql" "synchronous" "number" 0 .Values.postgresql) -}}
 {{- $dataDurability := dig "cluster" "postgresql" "synchronous" "dataDurability" "" .Values.postgresql -}}
+{{- $serverTLSSecret := dig "cluster" "certificates" "serverTLSSecret" "" .Values.postgresql -}}
+{{- $serverCASecret := dig "cluster" "certificates" "serverCASecret" "" .Values.postgresql -}}
 {{- if .Values.postgresql.namespaceOverride -}}
 {{- fail "postgresql.namespaceOverride must be empty because embedded PostgreSQL and OSMO must share a namespace" -}}
 {{- end -}}
 {{- if .Values.externalDependencies.postgresql.host -}}
 {{- fail "externalDependencies.postgresql.host must be empty when embedded PostgreSQL is enabled" -}}
+{{- end -}}
+{{- if ne .Values.postgresql.mode "standalone" -}}
+{{- fail "postgresql.mode: standalone is the only supported embedded mode" -}}
+{{- end -}}
+{{- if and $serverTLSSecret (not $serverCASecret) -}}
+{{- fail "postgresql.cluster.certificates.serverCASecret is required when serverTLSSecret is set" -}}
 {{- end -}}
 {{- if and
   (eq $dataDurability "required")

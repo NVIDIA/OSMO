@@ -1319,9 +1319,12 @@ EOF
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.certificates.serverCASecret=custom-server-ca \
+        --set postgresql.cluster.certificates.serverTLSSecret=custom-server-tls \
         >"$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml"
     require_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
         "serverCASecret: custom-server-ca"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
+        "serverTLSSecret: custom-server-tls"
     require_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
         "secretName: custom-server-ca"
     require_not_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
@@ -1974,6 +1977,41 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/embedded-other-namespace.out" \
         "postgresql.namespaceOverride must be empty"
+
+    if helm_template embedded-postgresql-recovery "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.mode=recovery \
+        >"$TEST_DIRECTORY/embedded-postgresql-recovery.out" 2>&1; then
+        fail "expected embedded PostgreSQL recovery mode to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-postgresql-recovery.out" \
+        "postgresql.mode"
+    require_contains "$TEST_DIRECTORY/embedded-postgresql-recovery.out" \
+        "standalone"
+
+    if helm_template embedded-postgresql-replica "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.mode=replica \
+        --set postgresql.replica.bootstrap.source=pg_basebackup \
+        >"$TEST_DIRECTORY/embedded-postgresql-replica.out" 2>&1; then
+        fail "expected embedded PostgreSQL replica mode to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-postgresql-replica.out" \
+        "postgresql.mode"
+    require_contains "$TEST_DIRECTORY/embedded-postgresql-replica.out" \
+        "standalone"
+
+    if helm_template embedded-postgresql-server-tls-only "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        --set postgresql.cluster.certificates.serverTLSSecret=custom-server-tls \
+        >"$TEST_DIRECTORY/embedded-postgresql-server-tls-only.out" 2>&1; then
+        fail "expected embedded PostgreSQL server TLS without a CA Secret to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-postgresql-server-tls-only.out" \
+        "serverCASecret is required"
 
     if helm_template embedded-too-small "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
