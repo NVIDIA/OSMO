@@ -17,12 +17,12 @@ name: Deployment Test (Azure)
 # Triggers:
 #   - `workflow_dispatch` — once this file lands on the default branch, the
 #     "Run workflow" button in Actions becomes available for all three modes.
-#   - `pull_request` — does nothing automatically. Adding the label below
-#     explicitly starts the validation and full deployment lane.
+#   - `pull_request` — auto-runs only the cheap `init-only` validation when a
+#     relevant PR is opened or updated. It never starts cloud provisioning.
 #
 # PR-label trigger (works pre-merge when the dispatcher isn't registered yet):
 #   - `ci:azure-deployment` → init-only + full-deployment start immediately.
-#     To test a later commit, remove and re-add the label; pushes do not rerun it.
+#     Later pushes rerun only init-only; remove and re-add the label for full E2E.
 # auth-check is workflow_dispatch only — it's a developer-driven smoke for
 # the OIDC chain, not something we want to run automatically per PR.
 #
@@ -60,17 +60,39 @@ on:
           - full-deployment
   pull_request:
     branches: [main]
-    types: [labeled]
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - '.bazelrc'
+      - '.bazelversion'
+      - '.github/workflows/deployment-test.yaml'
+      - 'BUILD'
+      - 'MODULE.bazel'
+      - 'MODULE.bazel.lock'
+      - 'bzl/**'
+      - 'ci/deployment-test/**'
+      - 'deployments/charts/backend-operator/**'
+      - 'deployments/charts/service/**'
+      - 'deployments/scripts/**'
+      - 'deployments/terraform/azure/**'
+      - 'deployments/values/**'
+      - 'src/**'
   schedule:
     # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
     # is UTC, doesn't track DST). Schedule fires only on main, not on
     # feature branches.
     - cron: '0 0 * * *'
 
-# All full runs share one resource group. Queue overlaps rather than cancelling
-# a run during apply/destroy and risking leaked or cross-deleted resources.
+# Full runs share one resource group, so they use one concurrency group. Cheap
+# validation runs get a unique group and never queue behind cloud provisioning.
 concurrency:
-  group: deployment-test-azure
+  group: >-
+    ${{ (github.event_name == 'schedule'
+          || github.event.inputs.mode == 'full-deployment'
+          || (github.event_name == 'pull_request'
+              && github.event.action == 'labeled'
+              && github.event.label.name == 'ci:azure-deployment'))
+        && 'deployment-test-azure'
+        || format('deployment-test-azure-{0}', github.run_id) }}
   cancel-in-progress: false
 
 # OIDC federation to Azure — no static secrets in this workflow.
@@ -91,10 +113,8 @@ jobs:
   # API call). terraform validate + fmt are purely local.
   init-only:
     if: >-
-      ${{ github.event.inputs.mode == 'init-only'
-          || (github.event_name == 'pull_request'
-              && github.event.action == 'labeled'
-              && github.event.label.name == 'ci:azure-deployment') }}
+      ${{ github.event_name == 'pull_request'
+          || github.event.inputs.mode == 'init-only' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
