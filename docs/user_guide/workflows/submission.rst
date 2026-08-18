@@ -223,18 +223,16 @@ or a missing key:
    $ osmo workflow list --label 'team=robotics_(a|b)'
    $ osmo workflow list --no-label team
 
-Label selectors are case-sensitive. In a glob selector, ``*`` matches zero or
-more characters; every other character, including ``_``, is literal. A
-parenthesized ``|`` group can appear within a selector and matches any one of
-its alternatives. Alternatives can contain ``*`` wildcards. Groups are flat
-(not nested), each group must contain at least two non-empty alternatives,
-and the alternatives in a selector may multiply out to at most 32
-combinations. Quote pattern selectors so the shell does not interpret them.
+Label selectors are case-sensitive. ``*`` matches zero or more characters;
+every other character, including ``_``, is literal. A parenthesized ``|`` group
+matches any one of its alternatives, which can themselves contain ``*``. Groups
+cannot nest, each needs at least two alternatives, and one selector can expand
+to at most 32 combinations. Quote selectors so the shell does not interpret
+them.
 
-Repeated ``--label`` filters are combined with AND, so every supplied
-selector must match. Alternatives within one selector are combined with OR. Pattern syntax
-applies only to workflow list filters; submission and validation labels must
-still contain exact Kubernetes label values.
+Repeated ``--label`` filters combine with AND; alternatives within one selector
+combine with OR. Pattern syntax applies only to list filters: submission and
+validation still require exact Kubernetes label values.
 
 Dry Run Validation
 ~~~~~~~~~~~~~~~~~~

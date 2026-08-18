@@ -248,10 +248,11 @@ Workflow Information
 Workflow Labels
 ===============
 
-Workflow labels are optional and format-checked even when no label is required.
-See :ref:`workflow_spec_labels` for how users set labels in a workflow
-specification, and :ref:`workflow_submission` for the CLI flags and list
-filters.
+Label syntax is checked on every submission, even when no policy is
+configured. Policies add requirements on top: which keys must be present and
+which values are accepted. See :ref:`workflow_spec_labels` for how users set
+labels in a workflow specification, and :ref:`workflow_submission` for the CLI
+flags and list filters.
 
 The default configuration applies no label policies:
 
@@ -301,19 +302,16 @@ key from ``policy`` to disable both warnings and enforcement for that key:
      - ``"off"``
 
 The same policy applies to new submissions, resubmission by ID, restart, and
-validation-only requests. An ``enforcement: enforce`` rejection creates
-neither a workflow row nor a stored specification. Submit responses carry
-warnings from that admission check. Warnings are not stored with the
-workflow: detail responses recompute warn-mode violations from the stored
-labels and the current configuration, so displayed warnings track policy
-changes even for completed workflows.
+validation-only requests. An ``enforce`` rejection creates neither a workflow
+row nor a stored specification. Warnings are recomputed from the stored labels
+and the current policy, so a workflow always shows the warnings its policy
+would produce today, including after it completes.
 
-To roll back enforcement immediately, use ``enforcement: warn``. To disable both
-warnings and enforcement, use ``enforcement: "off"`` (quoted: unquoted YAML
-``off`` parses as boolean false) or remove the policy entry.
-Existing and in-flight workflows are not modified, although their detail-page
-warnings always reflect the current warn policy. In ConfigMap mode, an invalid
-edit is rejected and the previous valid snapshot remains active.
+Changing a policy leaves existing and in-flight workflows untouched. To roll
+back enforcement, use ``enforcement: warn``; to disable it entirely, use
+``enforcement: "off"`` (quoted, because unquoted YAML ``off`` parses as boolean
+false) or remove the entry. In ConfigMap mode, an invalid edit is rejected and
+the previous valid snapshot stays active.
 
 Prefixing Pod Labels
 --------------------
@@ -358,15 +356,17 @@ Set this when task pods share a cluster with unrelated workloads: pod labels
 are exported by key name, so a short key such as ``team`` can match an
 identically named label on another pod.
 
+Label Metrics
+-------------
+
 Only configured policy keys become workflow-label dimensions on
 ``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
 and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
 ``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
 ``project`` is exported as ``workflow_label_project``. Values in the configured
 allow-list are exported verbatim; a present value outside that list is clamped
-to ``<other>``, and a missing key is reported as ``<missing>``. Angle
-brackets are not valid in label values, so the sentinels never collide with
-real values. An empty allow-list exports every present value as ``<other>``.
+to ``<other>``, and a missing key is reported as ``<missing>``. An empty
+allow-list exports every present value as ``<other>``.
 This keeps the number of series bounded to the allow-list plus two sentinels
 per key.
 
