@@ -114,14 +114,15 @@ class MekRotationKind(SmokeFixture):
 
     def _postgres_scalar(self, query, variables=None):
         command = [
-            "exec", "deployment/postgres", "--",
+            "exec", "-i", "deployment/postgres", "--",
             "psql", "--username=postgres", "--dbname=osmo",
-            "--tuples-only", "--no-align",
+            "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1",
         ]
         for name, value in (variables or {}).items():
             command.extend(["--set", f"{name}={value}"])
-        command.extend(["--command", query])
-        return self._kubectl(*command).strip()
+        # psql only performs variable interpolation for input read by its
+        # main loop, not SQL supplied with --command.
+        return self._kubectl(*command, input_text=f"{query}\n").strip()
 
     def _restore_workflow_alerts(self, raw_value):
         encoded = base64.b64encode(raw_value.encode("utf-8")).decode("ascii")
