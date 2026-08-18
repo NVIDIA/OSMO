@@ -112,6 +112,58 @@ class MekRotationKind(SmokeFixture):
     def _delete_credential(self, credential_name):
         self.http("DELETE", f"/api/credentials/{credential_name}").expect_ok()
 
+    def _postgres_scalar(self, query, variables=None):
+        command = [
+            "exec", "deployment/postgres", "--",
+            "psql", "--username=postgres", "--dbname=osmo",
+            "--tuples-only", "--no-align",
+        ]
+        for name, value in (variables or {}).items():
+            command.extend(["--set", f"{name}={value}"])
+        command.extend(["--command", query])
+        return self._kubectl(*command).strip()
+
+    def _restore_workflow_alerts(self, raw_value):
+        encoded = base64.b64encode(raw_value.encode("utf-8")).decode("ascii")
+        statement = (
+            "UPDATE configs SET value = "
+            f"convert_from(decode('{encoded}', 'base64'), 'UTF8') "
+            "WHERE key = 'workflow_alerts' AND type = 'WORKFLOW';\n"
+        )
+        self._kubectl(
+            "exec", "-i", "deployment/postgres", "--",
+            "psql", "--username=postgres", "--dbname=osmo",
+            input_text=statement,
+        )
+
+    @staticmethod
+    def _jwe_kid(value):
+        protected = value.split(".", maxsplit=1)[0]
+        protected += "=" * (-len(protected) % 4)
+        return json.loads(base64.urlsafe_b64decode(protected))["kid"]
+
+    def _workflow_alerts_raw(self):
+        return self._postgres_scalar(
+            "SELECT value FROM configs "
+            "WHERE key = 'workflow_alerts' AND type = 'WORKFLOW';"
+        )
+
+    def _workflow_alerts_mek_id(self, raw_value=None):
+        raw_value = raw_value or self._workflow_alerts_raw()
+        if not raw_value:
+            return None
+        slack_token = json.loads(raw_value).get("slack_token", "")
+        return self._jwe_kid(slack_token) if slack_token else None
+
+    def _credential_uek_wrapper_mek_id(self, credential_name):
+        wrapper = self._postgres_scalar(
+            "SELECT u.keys -> (u.keys -> 'current') "
+            "FROM ueks u JOIN credential c ON c.user_name = u.uid "
+            "WHERE c.cred_name = :'credential_name' LIMIT 1;",
+            {"credential_name": credential_name},
+        )
+        return self._jwe_kid(wrapper) if wrapper else None
+
     @staticmethod
     def _reference_counts(logs, key_id):
         counts = []
@@ -239,15 +291,26 @@ class MekRotationKind(SmokeFixture):
         keyring = yaml.safe_load(keyring_contents)
         old_key_id = keyring["currentMek"]
 
+        original_workflow_alerts = self._workflow_alerts_raw()
+        self.assertTrue(
+            original_workflow_alerts,
+            "quick-start must initialize the workflow_alerts config row",
+        )
+        self.addCleanup(
+            self._restore_workflow_alerts, original_workflow_alerts,
+        )
         safe_keyring_contents = [keyring_contents]
         self.addCleanup(
             lambda: self._apply_keyring(
                 secret_name, secret_key, safe_keyring_contents[0]))
 
-        uek_references = self._wait(
+        self._wait(
             "the credential seed to create an authenticated UEK wrapper",
-            lambda: (max(counts) if (counts := self._reference_counts(
-                self._consumer_logs(), old_key_id)) and max(counts) >= 1 else None),
+            lambda: (
+                old_key_id
+                if self._credential_uek_wrapper_mek_id(credential_name) == old_key_id
+                else None
+            ),
         )
         self.http("PATCH", "/api/configs/workflow").payload({
             "configs_dict": {
@@ -257,16 +320,32 @@ class MekRotationKind(SmokeFixture):
             },
             "description": "OETF MEK direct-config rewrap seed",
         }).expect_ok()
-        old_references = self._wait(
-            "the direct-config seed to add an authenticated old-MEK reference",
-            lambda: (max(counts) if (counts := self._reference_counts(
-                self._consumer_logs(), old_key_id))
-                    and max(counts) >= uek_references + 1 else None),
+        seeded_workflow_alerts = [""]
+
+        def direct_config_seeded():
+            current = self._workflow_alerts_raw()
+            if (
+                current != original_workflow_alerts
+                and self._workflow_alerts_mek_id(current) == old_key_id
+            ):
+                seeded_workflow_alerts[0] = current
+                return old_key_id
+            return None
+
+        self._wait(
+            "the API seed to persist an authenticated direct-MEK config",
+            direct_config_seeded,
         )
-        # The API-created credential proves the UEK domain is non-vacuous. The
-        # subsequent workflow SecretStr PATCH must independently increase the
-        # authenticated reference count, proving the direct-MEK config domain.
-        self.assertGreaterEqual(old_references, uek_references + 1)
+        # Verify the two ciphertext domains directly. Aggregate reference
+        # counts cannot distinguish a UEK wrapper from a direct-MEK config,
+        # and replacing an existing SecretStr correctly leaves that count
+        # unchanged.
+        self.assertEqual(
+            self._credential_uek_wrapper_mek_id(credential_name), old_key_id,
+        )
+        self.assertEqual(
+            self._workflow_alerts_mek_id(seeded_workflow_alerts[0]), old_key_id,
+        )
 
         self._apply_keyring(secret_name, secret_key, "not: an-osmo-keyring\n")
         self._wait(
@@ -326,6 +405,22 @@ class MekRotationKind(SmokeFixture):
                 self._consumer_logs(), old_key_id) else None),
         )
         self.assertEqual(new_references, 0)
+        self._wait(
+            "the credential UEK wrapper to be rewrapped by the new MEK",
+            lambda: (
+                new_key_id
+                if self._credential_uek_wrapper_mek_id(credential_name) == new_key_id
+                else None
+            ),
+        )
+        self._wait(
+            "the direct-MEK workflow config to be rewrapped by the new MEK",
+            lambda: (
+                new_key_id
+                if self._workflow_alerts_mek_id() == new_key_id
+                else None
+            ),
+        )
 
 
 if __name__ == "__main__":
