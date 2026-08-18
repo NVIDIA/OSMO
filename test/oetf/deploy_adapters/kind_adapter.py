@@ -518,10 +518,12 @@ class KindAdapter:
             self._run(pull_args, "Downloading quick-start chart for local substitution")
 
             chart_directory = os.path.join(directory, "quick-start")
-            self._run(
-                ["helm", "dependency", "update", chart_directory],
-                "Downloading quick-start chart dependencies",
-            )
+            # ``helm pull`` downloads the packaged chart, including every
+            # dependency under ``charts/``. Do not run ``helm dependency
+            # update`` here: the released Chart.lock can reference private
+            # staging repositories that public CI cannot authenticate to, and
+            # updating would also move dependencies away from the exact
+            # versions carried by the published quick-start artifact.
             dependency_directory = os.path.join(chart_directory, "charts")
             released_service = os.path.join(dependency_directory, "service")
             if os.path.isdir(released_service):

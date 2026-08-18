@@ -472,6 +472,54 @@ class TestKindAdapter(unittest.TestCase):
             f"expected no rollout restart on first deploy, got: {rollout_calls}",
         )
 
+    def test_local_chart_substitution_keeps_packaged_dependencies_offline(self):
+        """The pulled quick-start artifact is complete; never update its dependencies."""
+        calls: List[List[str]] = []
+        with tempfile.TemporaryDirectory() as source_directory:
+            local_service = os.path.join(source_directory, "service")
+            os.makedirs(local_service)
+            with open(
+                os.path.join(local_service, "Chart.yaml"), "w", encoding="utf-8",
+            ) as chart_file:
+                chart_file.write("apiVersion: v2\nname: service\nversion: 1.0.0\n")
+
+            def fake_run(args, **_kwargs):
+                calls.append(args)
+                if args[:2] == ["helm", "pull"]:
+                    untar_directory = args[args.index("--untardir") + 1]
+                    chart_directory = os.path.join(untar_directory, "quick-start")
+                    os.makedirs(os.path.join(chart_directory, "charts"))
+                    os.makedirs(os.path.join(chart_directory, "templates"))
+                    with open(
+                        os.path.join(chart_directory, "charts", "service-1.2.1.tgz"),
+                        "w", encoding="utf-8",
+                    ) as archive:
+                        archive.write("released service")
+                    with open(
+                        os.path.join(chart_directory, "templates", "mek-configmap.yaml"),
+                        "w", encoding="utf-8",
+                    ) as template:
+                        template.write("legacy MEK")
+                return _FakeCompleted()
+
+            adapter = KindAdapter(build_local=True, subprocess_runner=fake_run)
+            with unittest.mock.patch(
+                "test.oetf.deploy_adapters.kind_adapter._local_service_chart_path",
+                return_value=local_service,
+            ):
+                with adapter._quick_start_chart_ref() as chart_ref:  # pylint: disable=protected-access
+                    self.assertTrue(os.path.isdir(os.path.join(chart_ref, "charts", "service")))
+                    self.assertFalse(os.path.exists(
+                        os.path.join(chart_ref, "charts", "service-1.2.1.tgz"),
+                    ))
+                    self.assertFalse(os.path.exists(
+                        os.path.join(chart_ref, "templates", "mek-configmap.yaml"),
+                    ))
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][:2], ["helm", "pull"])
+        self.assertNotIn("dependency", calls[0])
+
     def test_redeploy_without_build_local_does_not_rollout_restart(self):
         """Cluster pre-exists but build_local=False → no rollout restart (chart-default deploy)."""
         adapter, calls = self._adapter(
