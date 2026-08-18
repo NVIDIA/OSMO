@@ -15,8 +15,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Local-development values preserved from the former quick-start install path.
-# Install after the service chart creates backend-operator-token through its
-# chart-managed backend credential mode.
+# Install after creating backend-operator-token with kubectl as documented in
+# ../README.md.
 
 global:
   osmoImageLocation: nvcr.io/nvidia/osmo

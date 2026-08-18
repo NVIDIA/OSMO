@@ -271,6 +271,9 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" $gw.oauth2Proxy "componentName" "gateway-oauth2-proxy") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
+        osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
+        osmo.nvidia.com/oauth-client-secret-rollout: {{ .Values.secrets.oauthClientSecret.rolloutNonce | quote }}
+        osmo.nvidia.com/oauth-cookie-secret-rollout: {{ .Values.secrets.oauthCookieSecret.rolloutNonce | quote }}
     spec:
       automountServiceAccountToken: {{ $gw.oauth2Proxy.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -295,12 +298,8 @@ spec:
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" $gw.oauth2Proxy) | nindent 10 }}
         args:
-          {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
           - --client-secret-file=/etc/oauth2-proxy/client-secret
           - --cookie-secret-file=/etc/oauth2-proxy/cookie-secret
-          {{- else }}
-          - --config={{ $gw.oauth2Proxy.secretPaths.cookieSecret }}
-          {{- end }}
           - --http-address=0.0.0.0:{{ $gw.oauth2Proxy.httpPort }}
           - --metrics-address=0.0.0.0:{{ $gw.oauth2Proxy.metricsPort }}
           - --reverse-proxy=true
@@ -365,11 +364,14 @@ spec:
         resources:
           {{- toYaml $gw.oauth2Proxy.resources | nindent 10 }}
         volumeMounts:
-          {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
-          - name: oauth2-proxy-secrets
-            mountPath: /etc/oauth2-proxy
+          - name: oauth-client-secret
+            mountPath: /etc/oauth2-proxy/client-secret
+            subPath: client-secret
             readOnly: true
-          {{- end }}
+          - name: oauth-cookie-secret
+            mountPath: /etc/oauth2-proxy/cookie-secret
+            subPath: cookie-secret
+            readOnly: true
           {{- if and $gw.oauth2Proxy.redisSessionStore (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") }}
           - name: valkey-ca
             mountPath: /etc/osmo/ca/valkey
@@ -379,16 +381,18 @@ spec:
             {{- toYaml . | nindent 10 }}
           {{- end }}
       volumes:
-        {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
-        - name: oauth2-proxy-secrets
+        - name: oauth-client-secret
           secret:
-            secretName: {{ $gw.oauth2Proxy.secretName | default "oauth2-proxy-secrets" }}
+            secretName: {{ .Values.secrets.oauthClientSecret.existingSecret | quote }}
             items:
-            - key: {{ $gw.oauth2Proxy.clientSecretKey | default "client_secret" }}
+            - key: {{ .Values.secrets.oauthClientSecret.keys.value | quote }}
               path: client-secret
-            - key: {{ $gw.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
+        - name: oauth-cookie-secret
+          secret:
+            secretName: {{ .Values.secrets.oauthCookieSecret.existingSecret | quote }}
+            items:
+            - key: {{ .Values.secrets.oauthCookieSecret.keys.value | quote }}
               path: cookie-secret
-        {{- end }}
         {{- if and $gw.oauth2Proxy.redisSessionStore (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") }}
         - name: valkey-ca
           secret:
@@ -508,6 +512,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" $gw.authz "componentName" "gateway-authz") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.authz) | nindent 8 }}
+        osmo.nvidia.com/postgresql-secret-rollout: {{ .Values.secrets.postgresql.rolloutNonce | quote }}
     spec:
       automountServiceAccountToken: {{ $gw.authz.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -706,6 +711,7 @@ spec:
       annotations:
         checksum/ratelimit-config: {{ $gw.rateLimit.config | toYaml | sha256sum }}
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.rateLimit) | nindent 8 }}
+        osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
     spec:
       automountServiceAccountToken: {{ $gw.rateLimit.serviceAccount.automountServiceAccountToken }}
       securityContext:

@@ -45,6 +45,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.logger "componentName" "logger") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.logger) | nindent 8 }}
+        {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.logger.serviceAccount.automountServiceAccountToken }}
       securityContext:

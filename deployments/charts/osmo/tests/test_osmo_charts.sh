@@ -614,6 +614,8 @@ test_control_umbrella() {
     fi
     require_schema_path "$TEST_DIRECTORY/invalid-mek-bootstrap.out" \
         "secrets.masterEncryptionKey.bootstrap.imagePullPolicy"
+    require_contains "$rendered" 'key: "object-storage.yaml"'
+    require_not_contains "$rendered" "kind: Secret"
     require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"
@@ -820,6 +822,8 @@ test_control_umbrella() {
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string externalUrl=https://osmo.example.com:8443/osmo/ \
         --set gateway.oauth2Proxy.enabled=true \
+        --set secrets.oauthClientSecret.existingSecret=oauth-client \
+        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-external-url.yaml"
     resource_document "$TEST_DIRECTORY/osmo-external-url.yaml" Deployment \
         external-url-release-osmo-gateway-oauth2-proxy \
@@ -832,6 +836,8 @@ test_control_umbrella() {
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string externalUrl=http://osmo.example.com:65535/base/ \
         --set gateway.oauth2Proxy.enabled=true \
+        --set secrets.oauthClientSecret.existingSecret=oauth-client \
+        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-external-http-url.yaml"
     resource_document "$TEST_DIRECTORY/osmo-external-http-url.yaml" Deployment \
         external-http-url-release-osmo-gateway-oauth2-proxy \
@@ -1529,6 +1535,78 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-dev.yaml" \
         "number: 0"
 
+    helm_template secret-rollout "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.postgresql.rolloutNonce=postgres-v2 \
+        --set secrets.valkey.rolloutNonce=valkey-v2 \
+        --set secrets.objectStorage.rolloutNonce=storage-v2 \
+        --set secrets.defaultAdmin.rolloutNonce=admin-v2 \
+        >"$TEST_DIRECTORY/osmo-secret-rollout.yaml"
+    require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
+        'osmo.nvidia.com/postgresql-secret-rollout: "postgres-v2"' 6
+    require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
+        'osmo.nvidia.com/valkey-secret-rollout: "valkey-v2"' 6
+    require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
+        'osmo.nvidia.com/object-storage-secret-rollout: "storage-v2"' 6
+    require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
+        'osmo.nvidia.com/default-admin-secret-rollout: "admin-v2"' 1
+    require_not_contains "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
+        "osmo.nvidia.com/mek-secret-rollout"
+
+    helm_template oauth-secret-rollout "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set secrets.oauthClientSecret.existingSecret=oauth-client \
+        --set secrets.oauthClientSecret.rolloutNonce=client-v2 \
+        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
+        --set secrets.oauthCookieSecret.rolloutNonce=cookie-v2 \
+        >"$TEST_DIRECTORY/osmo-oauth-secret-rollout.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-oauth-secret-rollout.yaml" Deployment \
+        oauth-secret-rollout-osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/osmo-oauth-secret-rollout-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-oauth-secret-rollout-deployment.yaml" \
+        'osmo.nvidia.com/oauth-client-secret-rollout: "client-v2"'
+    require_contains "$TEST_DIRECTORY/osmo-oauth-secret-rollout-deployment.yaml" \
+        'osmo.nvidia.com/oauth-cookie-secret-rollout: "cookie-v2"'
+    require_not_contains "$TEST_DIRECTORY/osmo-oauth-secret-rollout-deployment.yaml" \
+        "osmo.nvidia.com/mek-secret-rollout"
+
+    helm_template backend-token-existing "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.backendApiTokens.enabled=true \
+        --set services.backendApiTokens.rolloutNonce=backend-v2 \
+        --set services.backendApiTokens.credentials[0].name=default \
+        --set services.backendApiTokens.credentials[0].existingSecret.name=backend-token \
+        >"$TEST_DIRECTORY/osmo-backend-token-existing.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-backend-token-existing.yaml" Deployment \
+        backend-token-existing-osmo-api \
+        >"$TEST_DIRECTORY/osmo-backend-token-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-backend-token-api.yaml" \
+        "--backend_token_directory"
+    require_contains "$TEST_DIRECTORY/osmo-backend-token-api.yaml" \
+        "/etc/osmo/backend-tokens/default"
+    require_contains "$TEST_DIRECTORY/osmo-backend-token-api.yaml" \
+        'secretName: "backend-token"'
+    require_contains "$TEST_DIRECTORY/osmo-backend-token-api.yaml" \
+        'osmo.nvidia.com/backend-token-rollout: "backend-v2"'
+    require_not_contains "$TEST_DIRECTORY/osmo-backend-token-existing.yaml" \
+        "backend-token-bootstrap"
+    require_not_contains "$TEST_DIRECTORY/osmo-backend-token-existing.yaml" \
+        'resources: ["secrets"]'
+
+    if helm_template unsupported-managed-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.backendApiTokens.enabled=true \
+        --set services.backendApiTokens.credentials[0].name=development \
+        --set services.backendApiTokens.credentials[0].managedSecret.name=backend-token-dev \
+        >"$TEST_DIRECTORY/unsupported-managed-secret.out" 2>&1; then
+        fail "expected chart-managed backend Secret configuration to fail"
+    fi
+
     resource_document "$rendered" Deployment osmo-agent \
         >"$TEST_DIRECTORY/osmo-agent.yaml"
     require_occurrences "$TEST_DIRECTORY/osmo-agent.yaml" "        ports:" 1
@@ -1613,6 +1691,41 @@ EOF
         "name: OAUTH2_PROXY_REDIS_PASSWORD"
     require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
         "key: redis-password"
+    require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
+        'secretName: "oauth-client"'
+    require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
+        'secretName: "oauth-cookie"'
+    require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
+        'key: "client_secret"'
+    require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
+        'key: "cookie_secret"'
+    require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
+        "mountPath: /etc/oauth2-proxy/client-secret"
+    require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
+        "mountPath: /etc/oauth2-proxy/cookie-secret"
+
+    helm_template quoted-secret-scalars "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set-string secrets.objectStorage.keys.credentials=null \
+        --set-string secrets.oauthClientSecret.existingSecret=true \
+        --set-string secrets.oauthClientSecret.keys.value=false \
+        --set-string secrets.oauthCookieSecret.existingSecret=null \
+        --set-string secrets.oauthCookieSecret.keys.value=true \
+        >"$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml" \
+        'secretName: "true"'
+    require_contains "$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml" \
+        'secretName: "null"'
+    require_contains "$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml" \
+        'key: "false"'
+    require_contains "$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml" \
+        'key: "true"'
+    require_contains "$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml" \
+        'key: "null"'
+    require_contains "$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml" \
+        'path: "null"'
     resource_document "$TEST_DIRECTORY/osmo-review.yaml" Deployment \
         review-release-osmo-gateway-ratelimit \
         >"$TEST_DIRECTORY/osmo-review-ratelimit.yaml"
@@ -1825,6 +1938,8 @@ EOF
     helm_template workload-policy "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-workload-policy-values.yaml" \
+        --set secrets.oauthClientSecret.existingSecret=oauth-client \
+        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-workload-policy.yaml"
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" Deployment \
         workload-policy-osmo-api \
@@ -1988,6 +2103,8 @@ EOF
 
     helm_template image-defaults "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.oauthClientSecret.existingSecret=oauth-client \
+        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-image-defaults.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
         "image: nvcr.io/nvidia/osmo/service:6.3.1"
@@ -2012,6 +2129,8 @@ EOF
 
     helm_template image-mirror "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.oauthClientSecret.existingSecret=oauth-client \
+        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         --set imageRegistry=mirror.example.com \
         --set imagePullSecrets[0].name=mirror-secret \
         >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
@@ -2255,6 +2374,47 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/invalid-postgresql-instances.out" "instances"
     require_contains "$TEST_DIRECTORY/invalid-postgresql-instances.out" "integer"
+
+    if helm_template unsupported-generated-oauth-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.oauthClientSecret.generate=true \
+        >"$TEST_DIRECTORY/unsupported-generated-oauth-secret.out" 2>&1; then
+        fail "expected secrets.oauthClientSecret.generate=true to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsupported-generated-oauth-secret.out" \
+        "generated Secrets are not implemented"
+
+    if helm_template missing-oauth-client-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set-string secrets.oauthClientSecret.existingSecret= \
+        --set-string secrets.oauthCookieSecret.existingSecret= \
+        >"$TEST_DIRECTORY/missing-oauth-client-secret.out" 2>&1; then
+        fail "expected an enabled OAuth2 proxy without credential Secrets to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/missing-oauth-client-secret.out" \
+        "secrets.oauthClientSecret.existingSecret is required when the OAuth2 proxy is enabled"
+
+    if helm_template legacy-oauth-secret-values "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.secretName=legacy-oauth \
+        >"$TEST_DIRECTORY/legacy-oauth-secret-values.out" 2>&1; then
+        fail "expected legacy OAuth Secret values to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/legacy-oauth-secret-values.out" \
+        "gateway.oauth2Proxy legacy Secret values are not supported"
+
+    if helm_template untyped-postgresql-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.postgresql.inlinePassword=do-not-render \
+        >"$TEST_DIRECTORY/untyped-postgresql-secret.out" 2>&1; then
+        fail "expected an inline PostgreSQL password field to fail schema validation"
+    fi
+    require_not_contains "$TEST_DIRECTORY/untyped-postgresql-secret.out" "do-not-render"
 
     if helm_template unsupported-legacy-values "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

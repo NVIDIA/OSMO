@@ -96,9 +96,10 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 
 Backend bootstrap authentication is implemented by
 `auth/backend_secret_auth.py`, which maps mounted Kubernetes Secret tokens to
-the fixed `osmo-backend` identity. The service Helm chart creates managed
-development credentials with a short-lived kubectl hook without rendering token
-material in Helm output. Changes to this authentication path must run:
+the fixed `osmo-backend` identity. Helm only mounts operator-owned credentials;
+development workflows provision them with `kubectl`, while production uses the
+approved external-secret integration. Changes to this authentication path must
+run:
 
 ```bash
 bazel test //src/service/core/auth/tests:test_backend_secret_auth

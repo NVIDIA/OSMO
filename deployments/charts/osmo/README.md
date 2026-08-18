@@ -121,8 +121,21 @@ secrets:
       key: mek.yaml
 ```
 
-Keep `embeddedDependencies.postgresql.enabled: false` (the default), then
-install the chart by layering the environment values after the profile:
+Create the referenced Secrets in the release namespace using your normal
+Kubernetes secret-management workflow. You can verify that all expected Secret
+objects exist without reading their values:
+
+```bash
+kubectl --namespace osmo get secret \
+  osmo-postgresql \
+  osmo-valkey \
+  osmo-object-storage \
+  osmo-master-encryption-key
+```
+
+Keep `embeddedDependencies.postgresql.enabled: false` (the default). Once the
+Secrets exist, install the chart by layering the environment values after the
+control-plane profile:
 
 ```bash
 helm dependency build deployments/charts/osmo
@@ -180,6 +193,9 @@ To use external Valkey, keep `embeddedDependencies.valkey.enabled=false` and
 configure `externalDependencies.valkey` and
 `secrets.valkey.existingSecret` as shown in the installation example.
 
+If you enable `gateway.oauth2Proxy`, also create and reference the OAuth client
+and cookie Secrets described under [Secrets](#secrets).
+
 ## Optional configuration
 
 - Configure the OSMO image registry under `imageRegistry`, pull credentials
@@ -208,6 +224,9 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.valkey` | `redis-password` | Valkey clients |
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
+| `secrets.defaultAdmin` | `password` | Optional administrator bootstrap |
+| `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
+| `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy session-cookie encryption |
 
 To use an existing embedded PostgreSQL credential Secret, provide a
 `kubernetes.io/basic-auth` Secret whose `username` matches
@@ -289,6 +308,72 @@ use the image's system trust store. For a private CA, set `caExistingSecret` and
 `caKey` in the same block. The selected key must contain the complete trust
 bundle because clients use it through `SSL_CERT_FILE`. PostgreSQL private CAs
 are also configured in its `externalDependencies` TLS block.
+
+Each credential configured in existing-Secret mode has its own Secret name and
+key, so operators can co-locate credentials or manage and rotate them
+independently. The chart only reads those operator-owned Secrets and never
+creates or modifies their credential data.
+For credential blocks that expose `rolloutNonce`, set it to a new non-secret
+value after an external Secret is rotated so consuming pods restart and read
+the new value.
+
+### Upgrading OAuth Secret values
+
+Before upgrading a release that configured OAuth credentials under
+`gateway.oauth2Proxy`, move the non-secret Secret references into the typed
+contracts. If both values are keys in the same existing Secret, reference that
+Secret from both blocks:
+
+```yaml
+secrets:
+  oauthClientSecret:
+    existingSecret: oauth2-proxy-secrets
+    keys:
+      value: client_secret
+  oauthCookieSecret:
+    existingSecret: oauth2-proxy-secrets
+    keys:
+      value: cookie_secret
+```
+
+Map the former `secretName`, `clientSecretKey`, and `cookieSecretKey` values to
+the fields above, then remove those legacy fields and `useKubernetesSecrets`
+from `gateway.oauth2Proxy`. If the old deployment read credentials from custom
+`secretPaths`, create a Kubernetes Secret containing those values before the
+upgrade and reference it through the typed blocks. The chart does not copy or
+generate OAuth credential data.
+
+## Backend API tokens
+
+PR #1275's backend authentication mounts one directory per credential into the
+API service. Production environments must reference an operator-owned Secret:
+
+```yaml
+services:
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: default
+      existingSecret:
+        name: osmo-backend-token-default
+```
+
+Each Secret must contain a 43- or 64-character URL-safe token under `token`.
+During rotation it may also retain the prior value under `previous-token`.
+After an external rotation, change `rolloutNonce` to restart the API service.
+
+Create the Secret before installing the chart. If your secret-management
+integration already materializes it, no bootstrap command is needed. To create
+it from a protected file with `kubectl`:
+
+```bash
+kubectl create secret generic osmo-backend-token-default \
+  --namespace osmo \
+  --from-file=token=/secure/path/backend-token
+```
+
+The file must contain a 43- or 64-character URL-safe token. The value is never
+placed in Helm values or command arguments.
 
 ## Exposure
 

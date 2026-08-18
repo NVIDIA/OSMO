@@ -125,7 +125,7 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.objectStorage.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if or .Values.secrets.objectStorage.generate .Values.secrets.defaultAdmin.generate .Values.secrets.oauthClientSecret.generate .Values.secrets.oauthCookieSecret.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
@@ -180,6 +180,9 @@
 {{- if hasKey .Values "components" -}}
 {{- fail "components is not a supported value; configure services and gateway" -}}
 {{- end -}}
+{{- if or (hasKey .Values.gateway.oauth2Proxy "useKubernetesSecrets") (hasKey .Values.gateway.oauth2Proxy "secretName") (hasKey .Values.gateway.oauth2Proxy "clientSecretKey") (hasKey .Values.gateway.oauth2Proxy "cookieSecretKey") (hasKey .Values.gateway.oauth2Proxy "secretPaths") -}}
+{{- fail "gateway.oauth2Proxy legacy Secret values are not supported; configure secrets.oauthClientSecret and secrets.oauthCookieSecret" -}}
+{{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.externalDependencies.postgresql.host) -}}
 {{- fail "externalDependencies.postgresql.host is required for the control plane" -}}
 {{- end -}}
@@ -212,6 +215,12 @@
 {{- end -}}
 {{- if not .Values.secrets.masterEncryptionKey.existingSecret.key -}}
 {{- fail "secrets.masterEncryptionKey.existingSecret.key is required for the control plane" -}}
+{{- end -}}
+{{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthClientSecret.existingSecret) -}}
+{{- fail "secrets.oauthClientSecret.existingSecret is required when the OAuth2 proxy is enabled" -}}
+{{- end -}}
+{{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthCookieSecret.existingSecret) -}}
+{{- fail "secrets.oauthCookieSecret.existingSecret is required when the OAuth2 proxy is enabled" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}

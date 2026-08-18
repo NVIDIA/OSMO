@@ -269,6 +269,9 @@ data:
 - name: object-storage-credentials
   secret:
     secretName: {{ . | quote }}
+    items:
+    - key: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
+      path: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -440,6 +443,16 @@ disable
   .Values.embeddedDependencies.postgresql.enabled
   .Values.externalDependencies.postgresql.tls.enabled
   (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "osmo.secrets.rolloutAnnotations" -}}
+osmo.nvidia.com/postgresql-secret-rollout: {{ .Values.secrets.postgresql.rolloutNonce | quote }}
+osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
+osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.rolloutNonce | quote }}
+{{- end -}}
+
+{{- define "osmo.backendApiToken.secretName" -}}
+{{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}

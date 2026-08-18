@@ -15,6 +15,25 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.api.enabled }}
 {{- $name := include "osmo.api.fullname" . }}
+{{- if .Values.services.backendApiTokens.enabled }}
+{{- if not .Values.services.backendApiTokens.credentials }}
+{{- fail "services.backendApiTokens.credentials must not be empty when backend API tokens are enabled" }}
+{{- end }}
+{{- $credentialNames := dict }}
+{{- $secretNames := dict }}
+{{- range .Values.services.backendApiTokens.credentials }}
+{{- $credentialName := required "backend API token credential name is required" .name }}
+{{- if hasKey $credentialNames $credentialName }}
+{{- fail (printf "duplicate backend API token credential name %q" $credentialName) }}
+{{- end }}
+{{- $_ := set $credentialNames $credentialName true }}
+{{- $secretName := include "osmo.backendApiToken.secretName" . }}
+{{- if hasKey $secretNames $secretName }}
+{{- fail (printf "duplicate backend API token Secret name %q" $secretName) }}
+{{- end }}
+{{- $_ := set $secretNames $secretName true }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,6 +61,11 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
+        osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        osmo.nvidia.com/backend-token-rollout: {{ .Values.services.backendApiTokens.rolloutNonce | quote }}
+        {{- end }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -144,6 +168,10 @@ spec:
         - --default_admin_username
         - {{ .Values.secrets.defaultAdmin.username | quote }}
         {{- end }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        - --backend_token_directory
+        - /etc/osmo/backend-tokens
+        {{- end }}
         {{- include "osmo.configuration.args" . | nindent 8 }}
         {{- range $arg := .Values.services.api.extraArgs }}
         - {{ $arg | quote }}
@@ -179,6 +207,13 @@ spec:
           readOnly: true
         {{- end }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        {{- range .Values.services.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
+          mountPath: /etc/osmo/backend-tokens/{{ .name }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.api | nindent 8 }}
         {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
@@ -207,6 +242,13 @@ spec:
         {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        {{- range .Values.services.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
+          secret:
+            secretName: {{ include "osmo.backendApiToken.secretName" . | quote }}
+        {{- end }}
+        {{- end }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 ---
 

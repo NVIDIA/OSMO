@@ -71,7 +71,7 @@ services:
     enabled: true
     credentials:
     - name: default
-      managedSecret:
+      existingSecret:
         name: backend-operator-token
 
   configs:

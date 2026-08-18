@@ -65,16 +65,19 @@
       "type": "object",
       "properties": {
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
-        "valkey": { "$ref": "#/definitions/secretReference" },
-        "objectStorage": { "$ref": "#/definitions/secretReference" },
+        "valkey": { "$ref": "#/definitions/passwordSecretReference" },
+        "objectStorage": { "$ref": "#/definitions/objectStorageSecretReference" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
-        "defaultAdmin": { "$ref": "#/definitions/secretReference" }
+        "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
+        "oauthClientSecret": { "$ref": "#/definitions/valueSecretReference" },
+        "oauthCookieSecret": { "$ref": "#/definitions/valueSecretReference" }
       }
     },
     "configuration": { "type": "object" },
     "services": {
       "type": "object",
       "properties": {
+        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "api": { "$ref": "#/definitions/apiComponent" },
         "ui": { "$ref": "#/definitions/uiComponent" },
         "router": { "$ref": "#/definitions/routerComponent" },
@@ -950,16 +953,113 @@
     },
     "postgresqlSecretReference": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
         "keys": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "username": { "type": "string", "minLength": 1 },
             "password": { "type": "string", "minLength": 1 }
+          },
+          "required": ["username", "password"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "keys"]
+    },
+    "backendApiTokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "rolloutNonce": { "type": "string" },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 49, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+              "existingSecret": { "$ref": "#/definitions/namedSecretSource" }
+            },
+            "required": ["name", "existingSecret"]
           }
         }
-      }
+      },
+      "required": ["enabled", "rolloutNonce", "credentials"]
+    },
+    "namedSecretSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string", "minLength": 1 } },
+      "required": ["name"]
+    },
+    "passwordSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "password": { "type": "string", "minLength": 1 } },
+          "required": ["password"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+    },
+    "valueSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "value": { "type": "string", "minLength": 1 } },
+          "required": ["value"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+    },
+    "objectStorageSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "credentials": { "type": "string", "minLength": 1 } },
+          "required": ["credentials"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+    },
+    "adminSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "username": { "type": "string", "minLength": 1 },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "password": { "type": "string", "minLength": 1 } },
+          "required": ["password"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "username", "keys"]
     }
   }
 }

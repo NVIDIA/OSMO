@@ -170,6 +170,7 @@ secrets:
   # postgresql.cluster.initdb.secret.name.
   postgresql:
     existingSecret: ''
+    rolloutNonce: ''
     keys:
       username: username
       password: db-password
@@ -179,12 +180,14 @@ secrets:
   valkey:
     generate: false
     existingSecret: ''
+    rolloutNonce: ''
     keys:
       password: redis-password
   # Storage SDK configuration file mounted for all three object-storage uses.
   objectStorage:
     generate: false
     existingSecret: ''
+    rolloutNonce: ''
     keys:
       credentials: object-storage.yaml
   # Master encryption key configuration mounted into OSMO services.
@@ -204,9 +207,25 @@ secrets:
   defaultAdmin:
     generate: false
     existingSecret: ''
+    rolloutNonce: ''
     username: admin
     keys:
       password: password
+  # OAuth client Secret consumed only when the OAuth2 proxy is enabled.
+  oauthClientSecret:
+    generate: false
+    existingSecret: oauth2-proxy-secrets
+    rolloutNonce: ''
+    keys:
+      value: client_secret
+  # OAuth cookie encryption Secret. This may be owned and rotated separately
+  # from the OAuth client Secret.
+  oauthCookieSecret:
+    generate: false
+    existingSecret: oauth2-proxy-secrets
+    rolloutNonce: ''
+    keys:
+      value: cookie_secret
 
 
 # Control-plane application services. Each service owns its image, scaling,
@@ -214,6 +233,16 @@ secrets:
 # commands, ports, Service names, and required connection arguments remain
 # chart-managed implementation details.
 services:
+  # Operator-owned credentials used by backend operators to authenticate to
+  # the API. Create these Secrets before installing or upgrading the chart.
+  backendApiTokens:
+    enabled: false
+    rolloutNonce: ''
+    credentials: []
+    # - name: default
+    #   existingSecret:
+    #     name: osmo-backend-token-default
+
   # Optional Model Context Protocol endpoint exposed through the gateway.
   mcp:
     enabled: false
@@ -908,8 +937,8 @@ gateway:
       host: ''
       port: 8000
 
-  # Optional OIDC login/session proxy. The split-plane control profile keeps
-  # it disabled unless an identity provider and existing Secret are supplied.
+  # Optional OIDC login/session proxy. Enable it only after configuring an
+  # identity provider and the required existing Secrets.
   oauth2Proxy:
     enabled: true
     autoscaling:
@@ -939,13 +968,6 @@ gateway:
     scope: openid email profile
     passAccessToken: false
     redisSessionStore: true
-    useKubernetesSecrets: false
-    secretName: oauth2-proxy-secrets
-    clientSecretKey: client_secret
-    cookieSecretKey: cookie_secret
-    secretPaths:
-      clientSecret: /etc/oauth2-proxy/client-secret
-      cookieSecret: /etc/oauth2-proxy/cookie-secret
     extraArgs: []
     resources:
       requests:

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
+{{ include "osmo.backend-api-tokens.validate" .Values.services.backendApiTokens }}
 {{ if .Values.services.backendApiTokens.enabled }}
 {{ if not .Values.services.backendApiTokens.credentials }}
 {{ fail "services.backendApiTokens.credentials must not be empty when backend API tokens are enabled" }}
@@ -22,15 +23,15 @@
 {{ range .Values.services.backendApiTokens.credentials }}
 {{ $credentialName := required "backend API token credential name is required" .name }}
 {{ if or (gt (len $credentialName) 49) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) }}
-{{ fail (printf "invalid backend API token credential name %q" $credentialName) }}
+{{ fail "backend API token credential name is invalid" }}
 {{ end }}
 {{ if hasKey $credentialNames $credentialName }}
-{{ fail (printf "duplicate backend API token credential name %q" $credentialName) }}
+{{ fail "backend API token credential names must be unique" }}
 {{ end }}
 {{ $_ := set $credentialNames $credentialName true }}
 {{ $secretName := include "osmo.backend-api-token-secret-name" . }}
 {{ if hasKey $secretNames $secretName }}
-{{ fail (printf "duplicate backend API token Secret name %q" $secretName) }}
+{{ fail "backend API token Secret names must be unique" }}
 {{ end }}
 {{ $_ := set $secretNames $secretName true }}
 {{ end }}
