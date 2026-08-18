@@ -443,18 +443,14 @@ class TestKindAdapter(unittest.TestCase):
             f"expected MCP pull policy override, got: {osmo_helm_args}",
         )
         # Build-local helm overrides include UI's pull policy (UI now built locally).
-        helm_args_concat = " ".join(
-            arg for cmd in cmds for arg in cmd
-            if isinstance(arg, str) and arg.startswith("web-ui.")
-        )
         self.assertIn(
-            "web-ui.services.ui.imagePullPolicy=IfNotPresent",
-            helm_args_concat,
-            f"expected web-ui pull policy override, got: {helm_args_concat}",
+            "service.services.ui.imagePullPolicy=IfNotPresent",
+            osmo_helm_args,
+            f"expected web-ui pull policy override, got: {osmo_helm_args}",
         )
         self.assertNotIn(
-            "web-ui.services.ui.replicas=0",
-            helm_args_concat,
+            "service.services.ui.replicas=0",
+            osmo_helm_args,
             "build-local should NO LONGER scale UI to 0; we build it locally now",
         )
 
@@ -491,6 +487,24 @@ class TestKindAdapter(unittest.TestCase):
                     os.makedirs(os.path.join(chart_directory, "charts"))
                     os.makedirs(os.path.join(chart_directory, "templates"))
                     with open(
+                        os.path.join(chart_directory, "Chart.yaml"),
+                        "w", encoding="utf-8",
+                    ) as chart:
+                        chart.write(
+                            "apiVersion: v2\nname: quick-start\nversion: 1.2.1\n"
+                            "dependencies:\n"
+                            "- name: service\n  version: 1.2.1\n"
+                            "- name: router\n  version: 1.2.1\n"
+                            "- name: web-ui\n  version: 1.2.1\n"
+                        )
+                    with open(
+                        os.path.join(chart_directory, "Chart.lock"),
+                        "w", encoding="utf-8",
+                    ) as lock:
+                        lock.write("digest: stale-after-substitution\n")
+                    os.makedirs(os.path.join(chart_directory, "charts", "router"))
+                    os.makedirs(os.path.join(chart_directory, "charts", "web-ui"))
+                    with open(
                         os.path.join(chart_directory, "charts", "service-1.2.1.tgz"),
                         "w", encoding="utf-8",
                     ) as archive:
@@ -515,6 +529,22 @@ class TestKindAdapter(unittest.TestCase):
                     self.assertFalse(os.path.exists(
                         os.path.join(chart_ref, "templates", "mek-configmap.yaml"),
                     ))
+                    self.assertFalse(os.path.exists(
+                        os.path.join(chart_ref, "charts", "router"),
+                    ))
+                    self.assertFalse(os.path.exists(
+                        os.path.join(chart_ref, "charts", "web-ui"),
+                    ))
+                    self.assertFalse(os.path.exists(
+                        os.path.join(chart_ref, "Chart.lock"),
+                    ))
+                    with open(
+                        os.path.join(chart_ref, "Chart.yaml"), encoding="utf-8",
+                    ) as chart:
+                        chart_text = chart.read()
+                    self.assertIn("name: service", chart_text)
+                    self.assertNotIn("name: router", chart_text)
+                    self.assertNotIn("name: web-ui", chart_text)
 
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][:2], ["helm", "pull"])

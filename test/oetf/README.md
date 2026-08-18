@@ -963,7 +963,7 @@ The adapter pins no chart version by default — it uses the latest from
 the helm repo. Pass `--chart-version <X.Y.Z>` to lock to a specific
 chart release (CI does this). Forward-compatibility relies on the
 override keys (`global.osmoImageTag`, `ingress-nginx.controller.nodeSelector.*`,
-`web-ui.services.ui.imagePullPolicy`) staying stable across chart releases.
+`service.services.ui.imagePullPolicy`) staying stable across chart releases.
 
 
 ### Prereqs (one-time)

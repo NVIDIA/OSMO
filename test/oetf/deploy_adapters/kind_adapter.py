@@ -42,6 +42,8 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
+import yaml
+
 from test.oetf import local_images
 from test.oetf.deploy_adapters.base import DeployParams
 from test.oetf.environments import resolve_environment
@@ -91,11 +93,11 @@ _BUILD_LOCAL_SERVICES = (
     ("service", "service"),
     ("service", "delayedJobMonitor"),
     ("service", "logger"),
+    ("service", "router"),
+    ("service", "ui"),
     ("service", "worker"),
-    ("router", "service"),
     ("backend-operator", "backendListener"),
     ("backend-operator", "backendWorker"),
-    ("web-ui", "ui"),
 )
 _BUILD_LOCAL_PULL_POLICY_OVERRIDES = tuple(
     f"{chart}.services.{svc}.imagePullPolicy=IfNotPresent"
@@ -149,6 +151,44 @@ def _local_service_chart_path() -> str:
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
         "deployments", "charts", "service",
     ))
+
+
+def _remove_superseded_quick_start_dependencies(chart_directory: str) -> None:
+    """Remove subcharts now owned by the maintained service chart.
+
+    quick-start 1.2.1 predates the router/UI consolidation and bundles those
+    as independent subcharts. The current service chart renders both, so
+    retaining the old dependencies creates duplicate Kubernetes resources.
+    This is a temporary-copy edit only; the published artifact is untouched.
+    """
+    superseded = {"router", "web-ui"}
+    chart_path = os.path.join(chart_directory, "Chart.yaml")
+    with open(chart_path, "r", encoding="utf-8") as chart_file:
+        chart = yaml.safe_load(chart_file)
+    dependencies = chart.get("dependencies", [])
+    chart["dependencies"] = [
+        dependency for dependency in dependencies
+        if dependency.get("name") not in superseded
+    ]
+    with open(chart_path, "w", encoding="utf-8") as chart_file:
+        yaml.safe_dump(chart, chart_file, sort_keys=False)
+
+    dependency_directory = os.path.join(chart_directory, "charts")
+    for dependency_name in superseded:
+        unpacked = os.path.join(dependency_directory, dependency_name)
+        if os.path.isdir(unpacked):
+            shutil.rmtree(unpacked)
+        for archive in glob.glob(
+            os.path.join(dependency_directory, f"{dependency_name}-*.tgz"),
+        ):
+            os.unlink(archive)
+
+    # Chart.lock describes the original dependency list. Helm install does
+    # not need it, and retaining a stale lock invites a future accidental
+    # dependency update to restore the superseded charts.
+    lock_path = os.path.join(chart_directory, "Chart.lock")
+    if os.path.isfile(lock_path):
+        os.unlink(lock_path)
 
 
 @dataclasses.dataclass
@@ -524,6 +564,7 @@ class KindAdapter:
             # staging repositories that public CI cannot authenticate to, and
             # updating would also move dependencies away from the exact
             # versions carried by the published quick-start artifact.
+            _remove_superseded_quick_start_dependencies(chart_directory)
             dependency_directory = os.path.join(chart_directory, "charts")
             released_service = os.path.join(dependency_directory, "service")
             if os.path.isdir(released_service):
