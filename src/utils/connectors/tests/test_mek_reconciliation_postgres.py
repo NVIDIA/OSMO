@@ -77,6 +77,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             raise unittest.SkipTest("PostgreSQL server binaries are not installed")
 
         cls.temporary_directory = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temporary_directory.cleanup)
         root = Path(cls.temporary_directory.name)
         cls.data_directory = root / "data"
         cls.socket_directory = root / "socket"
@@ -102,6 +103,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        cls.addClassCleanup(cls._stop_postgres)
         deadline = time.monotonic() + 10
         while True:
             try:
@@ -120,10 +122,10 @@ class TestMekReconciliationPostgres(unittest.TestCase):
                 time.sleep(0.05)
 
     @classmethod
-    def tearDownClass(cls):
-        cls.postgres_process.terminate()
-        cls.postgres_process.wait(timeout=10)
-        cls.temporary_directory.cleanup()
+    def _stop_postgres(cls):
+        if cls.postgres_process.poll() is None:
+            cls.postgres_process.terminate()
+            cls.postgres_process.wait(timeout=10)
 
     def setUp(self):
         self.database = object.__new__(connectors.PostgresConnector)
@@ -150,45 +152,9 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             "CREATE TABLE users (id TEXT PRIMARY KEY);",
             "CREATE TABLE ueks (uid TEXT REFERENCES users(id), keys HSTORE, PRIMARY KEY(uid));",
             "CREATE TABLE configs (key TEXT, type TEXT, value TEXT, PRIMARY KEY(key, type));",
-            "CREATE TABLE public.mek_key_registry ("
-            "kid TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, "
-            "state TEXT NOT NULL CHECK (state IN ('prepared','current')), "
-            "remaining_references INTEGER, last_scan_started_at TIMESTAMPTZ, "
-            "last_scan_completed_at TIMESTAMPTZ, first_seen_at TIMESTAMPTZ DEFAULT NOW());",
-            "CREATE TABLE public.mek_keyring_adoption ("
-            "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), generation TEXT NOT NULL, "
-            "current_kid TEXT NOT NULL, loaded_kids TEXT[] NOT NULL, "
-            "ready BOOLEAN NOT NULL DEFAULT FALSE, adopted_at TIMESTAMPTZ DEFAULT NOW());",
-            "CREATE TABLE public.mek_rewrap_status ("
-            "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), "
-            "generation TEXT NOT NULL, current_kid TEXT NOT NULL, "
-            "persistence_registry_version INTEGER NOT NULL DEFAULT 1, "
-            "last_started_at TIMESTAMPTZ, last_completed_at TIMESTAMPTZ, "
-            "blocker TEXT NOT NULL DEFAULT '');",
-            "CREATE TABLE public.mek_write_epoch ("
-            "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), epoch BIGINT NOT NULL, "
-            "writes_allowed BOOLEAN NOT NULL DEFAULT TRUE);",
-            "INSERT INTO public.mek_write_epoch(singleton, epoch, writes_allowed) "
-            "VALUES(TRUE, 0, TRUE);",
-            "CREATE TABLE public.mek_rewrap_progress ("
-            "resource TEXT PRIMARY KEY, generation TEXT NOT NULL, "
-            "cursor_primary TEXT NOT NULL DEFAULT '', cursor_secondary TEXT NOT NULL DEFAULT '', "
-            "completed BOOLEAN NOT NULL DEFAULT FALSE, start_write_epoch BIGINT NOT NULL DEFAULT 0, "
-            "updated_at TIMESTAMPTZ DEFAULT NOW());",
-            "CREATE TABLE public.mek_consumer_status ("
-            "consumer_id TEXT PRIMARY KEY, consumer_name TEXT NOT NULL, generation TEXT NOT NULL, "
-            "current_kid TEXT NOT NULL, loaded_kids TEXT[] NOT NULL, "
-            "last_seen_at TIMESTAMPTZ DEFAULT NOW());",
-            "CREATE OR REPLACE FUNCTION public.bump_mek_write_epoch() RETURNS trigger "
-            "LANGUAGE plpgsql AS $$ BEGIN UPDATE public.mek_write_epoch SET epoch = epoch + 1 "
-            "WHERE singleton AND writes_allowed; IF NOT FOUND THEN RAISE EXCEPTION "
-            "'MEK registry adoption write fence is active'; END IF; RETURN NULL; END; $$;",
-            "CREATE TRIGGER bump_mek_write_epoch AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE "
-            "ON ueks FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();",
-            "CREATE TRIGGER bump_mek_write_epoch AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE "
-            "ON configs FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();",
         ):
             self.database.execute_commit_command(command, ())
+        self.database._init_mek_tables()
         self.database.execute_commit_command("INSERT INTO users(id) VALUES ('user');", ())
 
         self.keyring_path = Path(self.temporary_directory.name) / "mek-integration.yaml"

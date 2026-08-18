@@ -314,6 +314,21 @@ create_database() {
     # so the db-ops pod can't connect; skip and let the chart handle it.
     if [[ "${OSMO_IN_CLUSTER_DB:-false}" == "true" ]]; then
         log_info "In-cluster DB mode — skipping pre-install database create (chart handles it)"
+        # A first install has no persistent database volume yet, so it is safe
+        # to initialize the MEK before Helm creates PostgreSQL. If a PVC is
+        # already present, fail closed when the MEK is missing because the
+        # unavailable database may contain ciphertext from an older install.
+        local existing_pvcs
+        if existing_pvcs=$($RUN_KUBECTL \
+                "get pvc --namespace $OSMO_NAMESPACE -o name" 2>/dev/null); then
+            if [[ -z "$existing_pvcs" ]]; then
+                DB_TABLE_COUNT="0"
+            else
+                DB_TABLE_COUNT="UNKNOWN"
+            fi
+        else
+            DB_TABLE_COUNT="UNKNOWN"
+        fi
         return
     fi
 

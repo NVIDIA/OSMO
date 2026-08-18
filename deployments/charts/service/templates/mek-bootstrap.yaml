@@ -110,6 +110,7 @@ items:
     namespace: {{ .Release.Namespace }}
   spec:
     backoffLimit: 0
+    activeDeadlineSeconds: 120
     template:
       metadata:
         labels:
@@ -158,6 +159,8 @@ items:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
           - name: bootstrap-tmp
             mountPath: /tmp

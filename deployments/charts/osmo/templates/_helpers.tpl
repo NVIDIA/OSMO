@@ -295,8 +295,8 @@ data:
 {{- end }}
 {{- end -}}
 
-{{- define "osmo.secrets.mekFile" -}}/opt/osmo/mek/mek.yaml{{- end -}}
 {{- define "osmo.secrets.mekMountPath" -}}/opt/osmo/mek{{- end -}}
+{{- define "osmo.secrets.mekFile" -}}{{ include "osmo.secrets.mekMountPath" . }}/mek.yaml{{- end -}}
 
 {{- define "osmo.secrets.mekAdoptionEnv" -}}
 - name: OSMO_ALLOW_EXISTING_MEK_ADOPTION
@@ -381,6 +381,15 @@ data:
 {{- include "osmo.valkey.generatedSecretName" . -}}
 {{- else -}}
 {{- .Values.secrets.valkey.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Effective OAuth cookie Secret. Generated mode owns a stable release name. */}}
+{{- define "osmo.oauthCookie.secretName" -}}
+{{- if .Values.secrets.oauthCookieSecret.generate -}}
+{{- printf "%s-oauth-cookie" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- required "secrets.oauthCookieSecret.existingSecret is required" .Values.secrets.oauthCookieSecret.existingSecret -}}
 {{- end -}}
 {{- end -}}
 

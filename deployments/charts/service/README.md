@@ -117,14 +117,18 @@ destination, but it cannot validate external DNS.
 | `services.mcp.requestTimeoutSeconds` | Total timeout for each MCP-initiated Gateway request, from 1 through 60 seconds. | `10` |
 | `services.mcp.replicas` | Number of MCP replicas. Must remain `1` with `oidcProxy.enabled` because FastMCP 3.4.7 refresh serialization is process-local. | `1` |
 | `services.mcp.extraEnv` | Additional non-managed environment variables. It cannot override MCP host, port, Gateway origin, or request timeout. | `[]` |
-| `services.mcp.extraVolumeMounts` | Additional MCP container volume mounts, including Vault-injected credential files. | `[]` |
+| `services.mcp.extraVolumeMounts` | Additional non-credential MCP container volume mounts. | `[]` |
 | `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
 | `services.mcp.oidcProxy.enabled` | Enable FastMCP's built-in OIDC proxy inside the existing MCP process. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
 | `services.mcp.oidcProxy.scope` | Full delegated scope URI advertised to MCP clients and requested upstream, normally `<resourceUrl>/access_as_user`. | `""` |
 | `services.mcp.oidcProxy.trustedHttpsRedirectOrigins` | Exact HTTPS origins allowed for pre-registered web-client redirects; native clients use loopback redirects. | `[]` |
 | `services.mcp.oidcProxy.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
 | `services.mcp.oidcProxy.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
-| `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
+| `services.mcp.oidcProxy.credentials.clientSecret.existingSecret` | Existing Secret name/key for the upstream OIDC client secret. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.redisPassword.existingSecret` | Optional existing Secret name/key for Redis AUTH. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.storageEncryptionKey.existingSecret` | Existing Secret name/key for FastMCP Redis encryption; configure with the signing key. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.jwtSigningKey.existingSecret` | Existing Secret name/key for FastMCP token signing; configure with the storage key. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.rolloutNonce` | Non-secret value changed after an external credential rotation. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenAudience` | Exact OSMO MCP resource audience required on upstream API access tokens; must equal `resourceUrl`. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
@@ -133,7 +137,7 @@ destination, but it cannot validate external DNS.
 | `services.mcp.oidcProxy.accessTokenTtlSeconds` | Lifetime of proxy access tokens, from 60 through 3600 seconds. | `600` |
 | `services.mcp.oidcProxy.refreshTokenTtlSeconds` | Lifetime of proxy refresh tokens, from 300 through 604800 seconds. | `28800` |
 | `services.mcp.oidcProxy.upstreamTimeoutSeconds` | Timeout for upstream OIDC requests, from 1 through 60 seconds. | `10` |
-| `services.mcp.oidcProxy.existingSecret` | Optional existing Secret holding the OIDC client secret and Redis password. The chart references it but never creates credential material. | See `values.yaml` |
+| `services.mcp.oidcProxy.existingSecret` | Legacy single-Secret mapping; migrate to `credentials`. | See `values.yaml` |
 
 The in-process proxy follows OSMO's OIDC profile: a full delegated scope URI is requested
 from the upstream provider while its short suffix is enforced in the verified
@@ -150,11 +154,12 @@ endpoints. The chart does not choose a default shared bucket because one caller
 could otherwise exhaust it and block every user's login; deployments must
 select both the client-IP trust boundary and suitable limits.
 
-FastMCP deterministically derives its proxy-token signing key and the encrypted
-Redis-store key from the upstream OIDC client secret. Rotating that client
-secret therefore invalidates existing proxy tokens; encrypted entries from the
-old key are treated as cache misses, so clients must sign in again after a
-rotation.
+New installations should give FastMCP independent storage-encryption and JWT
+signing keys. Existing installations retain the exact historical derivation
+until both explicit keys are configured, so a staged migration does not lose
+encrypted Redis state. See
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#mcp-oidc-proxy-credentials)
+for the migration and rotation contract.
 
 Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
 only this release's Gateway Envoy pods, even when
@@ -633,7 +638,16 @@ When enabled, the gateway exposes `/signout` and redirects it to `/oauth2/sign_o
 | `gateway.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
 | `gateway.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
 | `gateway.oauth2Proxy.redisSessionStore` | Use Redis for session store | `true` |
+| `gateway.oauth2Proxy.clientSecret.existingSecret` | Existing Secret name/key for identity-provider client authentication. | See `values.yaml` |
+| `gateway.oauth2Proxy.cookieSecret.generate` | Generate a stable retained cookie Secret for disposable development installs. | `false` |
+| `gateway.oauth2Proxy.cookieSecret.existingSecret` | Existing Secret name/key for session-cookie encryption. | See `values.yaml` |
+| `gateway.oauth2Proxy.cookieSecret.rolloutNonce` | Non-secret value changed after an external cookie rotation. | `""` |
 | `gateway.oauth2Proxy.extraEnv` | Extra environment variables for the oauth2-proxy container (e.g. `OAUTH2_PROXY_REDIS_PASSWORD` from a Secret ref when Redis requires AUTH) | `[]` |
+
+The client secret is always operator-owned. The cookie secret may be generated
+inside Kubernetes for a disposable install or supplied as an existing Secret.
+For the no-mixed-replica cookie rotation procedure, see
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#oauth2-proxy-credentials).
 
 #### Gateway Authz
 
@@ -669,21 +683,36 @@ The chart does not create Redis credentials. Secret controllers such as External
 
 Traffic between the Envoy gateway and the upstream services (`osmo-service`, `osmo-router`, `osmo-agent`, `osmo-logger`, and the optional `osmo-mcp`) is encrypted by default. The UI intentionally stays on plain HTTP behind NetworkPolicy — Next.js does not natively serve TLS.
 
-**Default — encryption without validation.** Each upstream service mints its own ephemeral self-signed cert in-process at startup (ECDSA P-256, ~1ms) and loads it into uvicorn's SSLContext via `--ssl_self_signed true`. Envoy connects with TLS but does *not* validate the cert. The wire is encrypted; identity verification is delegated to NetworkPolicy + Kubernetes RBAC. No CA management, no Secrets, no rotation — cert lifecycle is tied to process lifecycle.
+**Generated development mode.** A scoped bootstrap Job maintains one retained
+private CA, a trust bundle, and stable service certificate Secrets inside the
+cluster. Private-key bytes never enter Helm state. Envoy validates every
+upstream against that CA, and services no longer mint process-local ephemeral
+certificates.
 
-**Externally-provisioned certs.** Point `gateway.tls.upstreamCerts.<service>` at an existing `kubernetes.io/tls` Secret containing `tls.crt` + `tls.key`. That Secret is mounted at `/etc/osmo/tls` and uvicorn loads it instead of self-signing. To make Envoy validate against a CA, set `gateway.tls.caSecret` to a Secret containing `ca.crt`. The chart does not create these Secrets — provision them however suits your environment (cert-manager, Vault CSI, sealed-secrets, manual `kubectl create secret tls`, etc.). The two knobs are independent: you can use external certs without validation, or validation alone (rarely useful), but typical "real" TLS sets both.
+**Operator-provisioned production mode.** Disable generated mode, set
+`gateway.tls.caSecret` to an existing Secret containing `ca.crt`, and point
+every enabled `gateway.tls.upstreamCerts.<service>` value at an existing
+`kubernetes.io/tls` Secret. cert-manager or another Secret controller owns
+those resources; OSMO only mounts them.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `gateway.tls.enabled` | Encrypt gateway → upstream traffic. | `true` |
-| `gateway.tls.upstreamCerts.service` | Existing `kubernetes.io/tls` Secret for `osmo-service`. Empty string ⇒ self-signed. | `""` |
+| `gateway.tls.rolloutNonce` | Non-secret trigger after operator-owned CA or leaf Secrets change. | `""` |
+| `gateway.tls.generated.enabled` | Maintain stable development CA and leaf Secrets inside Kubernetes. | `true` |
+| `gateway.tls.generated.leafRotationNonce` | Non-secret trigger for a generated leaf rotation. | `""` |
+| `gateway.tls.generated.caRotation` | Explicit `stable`, `prepare`, `activate`, or `retire` generated-CA rotation state. | See `values.yaml` |
+| `gateway.tls.upstreamCerts.service` | Existing `kubernetes.io/tls` Secret for `osmo-service`; required in production mode. | `""` |
 | `gateway.tls.upstreamCerts.router` | Same, for `osmo-router`. | `""` |
 | `gateway.tls.upstreamCerts.agent` | Same, for `osmo-agent`. | `""` |
 | `gateway.tls.upstreamCerts.logger` | Same, for `osmo-logger`. | `""` |
 | `gateway.tls.upstreamCerts.mcp` | Same, for the optional `osmo-mcp`. | `""` |
-| `gateway.tls.caSecret` | Existing Secret containing `ca.crt`. When set, Envoy validates upstreams against this CA; when empty, TLS is encryption-only. | `""` |
+| `gateway.tls.caSecret` | Existing Secret containing `ca.crt`; required in production mode. | `""` |
 
-NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect at L3/L4; TLS encrypts the bytes at L7. Run them together for defense in depth.
+NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect
+at L3/L4; TLS authenticates and encrypts at L7. The generated leaf and staged
+dual-trust CA rotation procedures are documented in
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#internal-gateway-tls).
 
 ### Extensibility
 

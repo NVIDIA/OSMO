@@ -132,6 +132,11 @@ kubectl create secret generic local-admin-password \
   --namespace osmo \
   --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
+BACKEND_TOKEN=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
+kubectl create secret generic backend-operator-token \
+  --namespace osmo \
+  --from-literal=token="$BACKEND_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
 helm repo update osmo
@@ -147,10 +152,10 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
   --wait
 ```
 
-For the local quick-start only, the service values generate `osmo-mek` and
-`backend-operator-token` during the first Helm install. Both are generated
-inside Kubernetes and preserved across upgrades; no pre-created MEK or backend
-Secret is required. Production values keep both bootstrap modes disabled.
+For the local quick-start only, the service chart generates `osmo-mek` during
+the first Helm install. The backend token remains operator-owned and must exist
+before Helm runs, as shown above. Both Secrets must be preserved across
+upgrades. Production values keep MEK bootstrap disabled.
 
 After installing the CLI and logging in, set the demo pool and LocalStack data credential:
 

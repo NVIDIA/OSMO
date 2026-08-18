@@ -43,8 +43,10 @@ existing_render=$(helm template existing-test "$CHART_DIR" "${helm_args[@]}" \
     --set 'services.backendApiTokens.credentials[0].name=default' \
     --set 'services.backendApiTokens.credentials[0].existingSecret.name=existing-token')
 grep -q 'secretName: "existing-token"' <<<"$existing_render"
-if grep -qE 'backend-token-bootstrap|^kind: Secret$|resources: \["secrets"\]' \
-        <<<"$existing_render"; then
+if grep -qE 'backend-token-bootstrap|resourceNames: \["existing-token"\]' \
+        <<<"$existing_render" \
+        || resource_document "$existing_render" Secret existing-token \
+            >/dev/null 2>&1; then
     echo 'Consumer-only backend credential rendered a Secret mutator' >&2
     exit 1
 fi
@@ -161,8 +163,11 @@ fi
 mek_bootstrap_upgrade_render=$(helm template mek-bootstrap-upgrade "$CHART_DIR" \
     --namespace osmo --is-upgrade \
     --set 'services.masterEncryptionKey.bootstrap.enabled=true')
+mek_bootstrap_upgrade_list=$(resource_document "$mek_bootstrap_upgrade_render" \
+    List mek-bootstrap-upgrade-mek-bootstrap)
 grep -q -- '--fail-if-missing' <<<"$mek_bootstrap_upgrade_render"
-if [[ $(grep -c 'hook-failed' <<<"$mek_bootstrap_upgrade_render") -ne 1 ]]; then
+grep -q 'activeDeadlineSeconds: 120' <<<"$mek_bootstrap_upgrade_list"
+if [[ $(grep -c 'hook-failed' <<<"$mek_bootstrap_upgrade_list") -ne 1 ]]; then
     echo 'MEK bootstrap resource List does not clean up after failure' >&2
     exit 1
 fi
@@ -172,7 +177,7 @@ if resource_document "$mek_bootstrap_upgrade_render" ConfigMap \
     exit 1
 fi
 if [[ $(grep -c 'mek-bootstrap-placeholder' <<<"$mek_bootstrap_upgrade_render") -ne 1 ]]; then
-    echo 'MEK bootstrap rendered a placeholder Secret during upgrade' >&2
+    echo 'MEK bootstrap upgrade render must reference the placeholder annotation exactly once' >&2
     exit 1
 fi
 
@@ -210,8 +215,187 @@ quick_start_render=$(helm template quick-start "$CHART_DIR" --namespace osmo \
 resource_document "$quick_start_render" List quick-start-mek-bootstrap \
     >/dev/null
 
+tls_generated_render=$(helm template tls-generated "$CHART_DIR" --namespace osmo)
+tls_bootstrap_list=$(resource_document "$tls_generated_render" List \
+    tls-generated-internal-tls-bootstrap)
+grep -q 'command:' <<<"$tls_bootstrap_list"
+grep -q 'command: \["internal-tls-bootstrap"\]' <<<"$tls_bootstrap_list"
+grep -q 'verbs: \["get", "update"\]' <<<"$tls_bootstrap_list"
+grep -q 'resourceNames:' <<<"$tls_bootstrap_list"
+grep -q 'activeDeadlineSeconds: 300' <<<"$tls_bootstrap_list"
+grep -q 'ttlSecondsAfterFinished: 300' <<<"$tls_bootstrap_list"
+if [[ $(grep -c -- '--consumer-deployment' <<<"$tls_bootstrap_list") -ne 5 ]]; then
+    echo 'Generated TLS hook does not verify every consumer Deployment' >&2
+    exit 1
+fi
+if grep -q -- '--ssl_self_signed' <<<"$tls_generated_render"; then
+    echo 'Generated internal TLS still uses process-local certificates' >&2
+    exit 1
+fi
+for tls_secret in \
+        tls-generated-internal-tls-ca \
+        tls-generated-internal-tls-trust \
+        tls-generated-internal-tls-service \
+        tls-generated-internal-tls-router \
+        tls-generated-internal-tls-agent \
+        tls-generated-internal-tls-logger; do
+    placeholder=$(resource_document "$tls_generated_render" Secret "$tls_secret")
+    if grep -qE '^(data|stringData):' <<<"$placeholder"; then
+        echo "Generated TLS placeholder $tls_secret contains key material" >&2
+        exit 1
+    fi
+    grep -q '^type: Opaque$' <<<"$placeholder"
+done
+for upstream_identity in \
+        osmo-service osmo-router-headless osmo-agent osmo-logger-headless; do
+    grep -q 'match_typed_subject_alt_names:' <<<"$tls_generated_render"
+    grep -q "exact: \"$upstream_identity\"" <<<"$tls_generated_render"
+done
+
+tls_existing_render=$(helm template tls-existing "$CHART_DIR" --namespace osmo \
+    --set gateway.tls.generated.enabled=false \
+    --set gateway.tls.caSecret=operator-trust \
+    --set gateway.tls.upstreamCerts.service=operator-api-tls \
+    --set gateway.tls.upstreamCerts.router=operator-router-tls \
+    --set gateway.tls.upstreamCerts.agent=operator-agent-tls \
+    --set gateway.tls.upstreamCerts.logger=operator-logger-tls)
+grep -q 'secretName: "operator-trust"' <<<"$tls_existing_render"
+grep -q 'secretName: "operator-api-tls"' <<<"$tls_existing_render"
+if resource_document "$tls_existing_render" List \
+        tls-existing-internal-tls-bootstrap >/dev/null 2>&1; then
+    echo 'Existing internal TLS mode rendered a Secret mutator' >&2
+    exit 1
+fi
+
+if helm template invalid-tls "$CHART_DIR" \
+        --set gateway.tls.caSecret=mixed-trust >/dev/null 2>&1; then
+    echo 'Mixed generated and existing internal TLS configuration was accepted' >&2
+    exit 1
+fi
+if helm template invalid-tls-rotation "$CHART_DIR" \
+        --set gateway.tls.generated.caRotation.phase=prepare \
+        >/dev/null 2>&1; then
+    echo 'CA prepare without a rotation id was accepted' >&2
+    exit 1
+fi
+if helm template unfrozen-tls-rotation "$CHART_DIR" \
+        --set-string gateway.tls.generated.caRotation.id=ca-test \
+        --set gateway.tls.generated.caRotation.phase=prepare \
+        >/dev/null 2>&1; then
+    echo 'CA prepare without frozen consumer HPAs was accepted' >&2
+    exit 1
+fi
+tls_frozen_render=$(helm template frozen-tls-rotation "$CHART_DIR" \
+    --set-string gateway.tls.generated.caRotation.id=ca-test \
+    --set gateway.tls.generated.caRotation.phase=prepare \
+    --set gateway.tls.generated.caRotation.freezeHpas=true)
+for hpa in osmo-service osmo-router osmo-agent osmo-logger osmo-gateway-envoy; do
+    hpa_document=$(resource_document "$tls_frozen_render" \
+        HorizontalPodAutoscaler "$hpa")
+    minimum=$(awk '$1 == "minReplicas:" { print $2 }' <<<"$hpa_document")
+    maximum=$(awk '$1 == "maxReplicas:" { print $2 }' <<<"$hpa_document")
+    if [[ -z "$minimum" || "$minimum" != "$maximum" ]]; then
+        echo "CA rotation did not freeze HorizontalPodAutoscaler/$hpa" >&2
+        exit 1
+    fi
+done
+
+oauth_generated_render=$(helm template oauth-generated "$CHART_DIR" \
+    --namespace osmo \
+    --set gateway.oauth2Proxy.cookieSecret.generate=true \
+    --set gateway.oauth2Proxy.clientSecret.existingSecret.name=oauth-client \
+    --set-string gateway.oauth2Proxy.secretName=)
+oauth_cookie_placeholder=$(resource_document "$oauth_generated_render" Secret \
+    oauth-generated-oauth-cookie)
+if grep -qE '^(data|stringData):' <<<"$oauth_cookie_placeholder"; then
+    echo 'Generated OAuth cookie placeholder contains secret material' >&2
+    exit 1
+fi
+resource_document "$oauth_generated_render" List \
+    oauth-generated-oauth-cookie-bootstrap >/dev/null
+grep -q 'secretName: "oauth-generated-oauth-cookie"' \
+    <<<"$oauth_generated_render"
+if helm template invalid-oauth-path "$CHART_DIR" \
+        --set gateway.oauth2Proxy.useKubernetesSecrets=false \
+        >/dev/null 2>&1; then
+    echo 'Legacy OAuth file/Vault mode was accepted' >&2
+    exit 1
+fi
+
+assert_typed_secret_value_rejected() {
+    local description=$1
+    local expected=$2
+    shift 2
+    local output
+    if output=$(helm template invalid-secret-contract "$CHART_DIR" "$@" 2>&1); then
+        echo "Invalid $description was accepted" >&2
+        exit 1
+    fi
+    grep -q "$expected" <<<"$output"
+    if grep -q 'DO_NOT_LEAK' <<<"$output"; then
+        echo "Invalid $description leaked its sentinel" >&2
+        exit 1
+    fi
+}
+
+assert_typed_secret_value_rejected cookie-generate-type \
+    'cookieSecret.generate must be a boolean' \
+    --set-string gateway.oauth2Proxy.cookieSecret.generate=false
+assert_typed_secret_value_rejected oauth-kubernetes-mode-type \
+    'useKubernetesSecrets must be a boolean' \
+    --set-string gateway.oauth2Proxy.useKubernetesSecrets=false
+assert_typed_secret_value_rejected tls-generated-type \
+    'tls.generated.enabled must be a boolean' \
+    --set-string gateway.tls.generated.enabled=false
+assert_typed_secret_value_rejected cookie-rollout-type \
+    'cookieSecret.rolloutNonce must be a string' \
+    --set-string gateway.oauth2Proxy.cookieSecret.rolloutNonce.token=DO_NOT_LEAK
+assert_typed_secret_value_rejected tls-unknown-inline-field \
+    'tls.generated contains unsupported fields' \
+    --set-string gateway.tls.generated.inlinePrivateKey=DO_NOT_LEAK
+assert_typed_secret_value_rejected oauth-existing-secret-type \
+    'clientSecret.existingSecret must be an object' \
+    --set-string gateway.oauth2Proxy.clientSecret.existingSecret=DO_NOT_LEAK
+assert_typed_secret_value_rejected mcp-rollout-type \
+    'credentials.rolloutNonce must be a string' \
+    --set-string services.mcp.oidcProxy.credentials.rolloutNonce.token=DO_NOT_LEAK
+for legacy_oauth_scalar in \
+        secretName clientSecretKey cookieSecretKey; do
+    assert_typed_secret_value_rejected "legacy-oauth-$legacy_oauth_scalar" \
+        "gateway.oauth2Proxy.$legacy_oauth_scalar must be a string" \
+        --set-string \
+        "gateway.oauth2Proxy.$legacy_oauth_scalar.token=DO_NOT_LEAK"
+done
+assert_typed_secret_value_rejected legacy-oauth-paths-object \
+    'gateway.oauth2Proxy.secretPaths must be an object' \
+    --set-string gateway.oauth2Proxy.secretPaths=DO_NOT_LEAK
+for legacy_oauth_path in clientSecret cookieSecret; do
+    assert_typed_secret_value_rejected "legacy-oauth-path-$legacy_oauth_path" \
+        "gateway.oauth2Proxy.secretPaths.$legacy_oauth_path must be a string" \
+        --set-string \
+        "gateway.oauth2Proxy.secretPaths.$legacy_oauth_path.token=DO_NOT_LEAK"
+done
+assert_typed_secret_value_rejected legacy-mcp-secret-object \
+    'services.mcp.oidcProxy.existingSecret must be an object' \
+    --set-string services.mcp.oidcProxy.existingSecret=DO_NOT_LEAK
+for legacy_mcp_scalar in \
+        name mountPath clientSecretKey redisPasswordKey; do
+    assert_typed_secret_value_rejected "legacy-mcp-$legacy_mcp_scalar" \
+        "services.mcp.oidcProxy.existingSecret.$legacy_mcp_scalar must be a string" \
+        --set-string \
+        "services.mcp.oidcProxy.existingSecret.$legacy_mcp_scalar.token=DO_NOT_LEAK"
+done
+assert_typed_secret_value_rejected legacy-mcp-client-path \
+    'services.mcp.oidcProxy.oidc.clientSecretFile must be a string' \
+    --set-string services.mcp.oidcProxy.oidc.clientSecretFile.token=DO_NOT_LEAK
+assert_typed_secret_value_rejected legacy-mcp-redis-path \
+    'services.mcp.oidcProxy.redis.passwordFile must be a string' \
+    --set-string services.mcp.oidcProxy.redis.passwordFile.token=DO_NOT_LEAK
+
 bash -n "$CHART_DIR/files/mek-bootstrap.sh"
 bash "$CHART_DIR/tests/mek-bootstrap-tests.sh"
+bash -n "$CHART_DIR/files/oauth-cookie-bootstrap.sh"
+bash "$CHART_DIR/tests/oauth-cookie-bootstrap-tests.sh"
 
 mek_render=$(helm template mek-test "$CHART_DIR" --namespace osmo \
     --set 'services.masterEncryptionKey.existingSecret.name=customer-mek' \
@@ -279,6 +463,9 @@ grep -q 'kubectl delete horizontalpodautoscaler' "$CHART_DIR/README.md"
 grep -q 'kubectl wait pod' "$CHART_DIR/README.md"
 grep -q 'set -euo pipefail' "$CHART_DIR/README.md"
 grep -q 'remaining=$(kubectl get pod' "$CHART_DIR/README.md"
+grep -q 'chart_kind=service' "$CHART_DIR/../SECRET_ROTATION.md"
+grep -q 'osmo-service osmo-router osmo-agent osmo-logger osmo-gateway-envoy' \
+    "$CHART_DIR/../SECRET_ROTATION.md"
 if bash -c 'set -euo pipefail; kubectl() { return 1; }; remaining=$(kubectl get pod); test -z "$remaining"'; then
     echo 'MEK adoption runbook would ignore a kubectl get failure' >&2
     exit 1

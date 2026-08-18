@@ -677,7 +677,7 @@ class TestKindAdapter(unittest.TestCase):
                         )
                         self.assertEqual(
                             service_values["services"]["backendApiTokens"]
-                            ["credentials"][0]["managedSecret"]["name"],
+                            ["credentials"][0]["existingSecret"]["name"],
                             "backend-operator-token",
                         )
                         backend_values = values["backend-operator"]

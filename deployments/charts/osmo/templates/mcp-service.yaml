@@ -51,6 +51,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" $mcp "componentName" "mcp") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $mcp) | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ $mcp.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -76,7 +77,7 @@ spec:
         - mcp
         {{- if .Values.gateway.tls.enabled }}
         args:
-        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 8 }}
         {{- end }}
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" $mcp) | nindent 10 }}
@@ -98,9 +99,9 @@ spec:
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
-        {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
+        {{- if .Values.gateway.tls.enabled }}
         volumeMounts:
-        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 8 }}
         {{- end }}
         livenessProbe:
           {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.livenessProbe "context" .) | nindent 10 }}
@@ -108,9 +109,9 @@ spec:
           {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
         startupProbe:
           {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
-      {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
+      {{- if .Values.gateway.tls.enabled }}
       volumes:
-      {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 6 }}
+      {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 6 }}
       {{- end }}
 
 ---

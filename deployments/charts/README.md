@@ -60,7 +60,7 @@ validate_backend_token_file() {
   LC_ALL=C tr -d 'A-Za-z0-9_-' < "$token_file" > "$BACKEND_INVALID_TOKEN_FILE"
   if { [ "$token_length" -ne 43 ] && [ "$token_length" -ne 64 ]; } || \
       [ -s "$BACKEND_INVALID_TOKEN_FILE" ]; then
-    echo "Secret backend-operator-token key $token_key is not a valid backend token." >&2
+    echo "Secret backend-operator-token key $token_key must be 43 or 64 URL-safe base64 characters." >&2
     return 1
   fi
 }

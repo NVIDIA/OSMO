@@ -21,6 +21,7 @@ import contextlib
 import copy
 import datetime
 import enum
+import hashlib
 import json
 import logging
 import math
@@ -77,6 +78,8 @@ MEK_PERSISTENCE_REGISTRY = {
 }
 MEK_RECONCILE_BATCH_SIZE = 100
 MEK_MAX_CONFIG_ROWS = 1000
+MEK_RECONCILER_STATEMENT_TIMEOUT_MS = 10000
+MEK_RECONCILER_SHUTDOWN_TIMEOUT_SECONDS = 15
 MEK_RECONCILER_CONSUMERS = frozenset({
     'agent', 'api', 'delayed-job-monitor', 'logger', 'router', 'worker',
 })
@@ -405,10 +408,17 @@ class PostgresConnector:
         try:
             connection.rollback()
             connection.set_session(autocommit=True)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT set_config('statement_timeout', %s, FALSE);",
+                    (str(MEK_RECONCILER_STATEMENT_TIMEOUT_MS),),
+                )
             yield connection
         finally:
             try:
                 connection.rollback()
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT set_config('statement_timeout', '0', FALSE);")
                 connection.set_session(autocommit=False)
                 pool.putconn(connection)
             except Exception:  # pylint: disable=broad-except
@@ -472,7 +482,12 @@ class PostgresConnector:
         self._mek_reconciler_stop.set()
         if (self._mek_reconciler_thread is not None and
                 self._mek_reconciler_thread is not threading.current_thread()):
-            self._mek_reconciler_thread.join()
+            self._mek_reconciler_thread.join(
+                timeout=MEK_RECONCILER_SHUTDOWN_TIMEOUT_SECONDS)
+            if self._mek_reconciler_thread.is_alive():
+                logging.warning(
+                    'MEK reconciler did not stop within %s seconds; closing the pool.',
+                    MEK_RECONCILER_SHUTDOWN_TIMEOUT_SECONDS)
         with self._pool_lock:
             if self._pool is not None:
                 try:
@@ -682,6 +697,7 @@ class PostgresConnector:
             raise osmo_errors.OSMODatabaseError('Configs are not found.')
 
         result_dicts = {}
+        raw_values = {}
         primative_types = {str, int, float, pydantic.SecretStr}
 
         config_class: Type[DynamicConfig]
@@ -697,12 +713,13 @@ class PostgresConnector:
         for model in result:
             if model.key not in hints:
                 continue
+            raw_values[model.key] = model.value
             item_type = hints[model.key]
             if item_type in primative_types:
                 result_dicts[model.key] = model.value
             else:
                 result_dicts[model.key] = json.loads(model.value)
-        return config_class.deserialize(result_dicts, self)
+        return config_class.deserialize(result_dicts, self, raw_values=raw_values)
 
     def _get_configs_from_snapshot(self, config_type: ConfigType,
                                    snapshot: dict):
@@ -781,6 +798,121 @@ class PostgresConnector:
         """ Set the default config value for the given key. """
         cmd = 'INSERT INTO configs (key, value, type) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING;'
         return self.execute_commit_command(cmd, (str(key), str(value), config_type.value))
+
+    def _init_mek_tables(self) -> None:
+        """Initialize the production MEK coordination schema."""
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_key_registry (
+                kid TEXT PRIMARY KEY,
+                fingerprint TEXT NOT NULL,
+                state TEXT NOT NULL CHECK (state IN ('prepared', 'current')),
+                remaining_references INTEGER,
+                last_scan_started_at TIMESTAMPTZ,
+                last_scan_completed_at TIMESTAMPTZ,
+                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_key_registry
+            ADD COLUMN IF NOT EXISTS remaining_references INTEGER;
+        ''', ())
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_keyring_adoption (
+                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+                generation TEXT NOT NULL,
+                current_kid TEXT NOT NULL,
+                loaded_kids TEXT[] NOT NULL,
+                ready BOOLEAN NOT NULL DEFAULT FALSE,
+                adopted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_keyring_adoption
+            ADD COLUMN IF NOT EXISTS ready BOOLEAN NOT NULL DEFAULT FALSE;
+        ''', ())
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_rewrap_status (
+                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+                generation TEXT NOT NULL,
+                current_kid TEXT NOT NULL,
+                persistence_registry_version INTEGER NOT NULL DEFAULT 1,
+                last_started_at TIMESTAMPTZ,
+                last_completed_at TIMESTAMPTZ,
+                blocker TEXT NOT NULL DEFAULT ''
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_rewrap_status
+            ADD COLUMN IF NOT EXISTS persistence_registry_version INTEGER NOT NULL DEFAULT 1;
+        ''', ())
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_write_epoch (
+                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+                epoch BIGINT NOT NULL DEFAULT 0,
+                writes_allowed BOOLEAN NOT NULL DEFAULT TRUE
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_write_epoch
+            ADD COLUMN IF NOT EXISTS writes_allowed BOOLEAN NOT NULL DEFAULT TRUE;
+        ''', ())
+        self.execute_commit_command('''
+            INSERT INTO public.mek_write_epoch (singleton, epoch)
+            VALUES (TRUE, 0) ON CONFLICT (singleton) DO NOTHING;
+        ''', ())
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_rewrap_progress (
+                resource TEXT PRIMARY KEY,
+                generation TEXT NOT NULL,
+                cursor_primary TEXT NOT NULL DEFAULT '',
+                cursor_secondary TEXT NOT NULL DEFAULT '',
+                completed BOOLEAN NOT NULL DEFAULT FALSE,
+                start_write_epoch BIGINT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_rewrap_progress
+            ADD COLUMN IF NOT EXISTS start_write_epoch BIGINT NOT NULL DEFAULT 0;
+        ''', ())
+        self.execute_commit_command('''
+            CREATE OR REPLACE FUNCTION public.bump_mek_write_epoch()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                UPDATE public.mek_write_epoch SET epoch = epoch + 1
+                WHERE singleton AND writes_allowed;
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION 'MEK registry adoption write fence is active';
+                END IF;
+                RETURN NULL;
+            END;
+            $$;
+        ''', ())
+        self.execute_commit_commands([
+            ('SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B45,)),
+            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON ueks;', ()),
+            ('''
+                CREATE TRIGGER bump_mek_write_epoch
+                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON ueks
+                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
+            ''', ()),
+            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON configs;', ()),
+            ('''
+                CREATE TRIGGER bump_mek_write_epoch
+                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON configs
+                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
+            ''', ()),
+        ])
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_consumer_status (
+                consumer_id TEXT PRIMARY KEY,
+                consumer_name TEXT NOT NULL,
+                generation TEXT NOT NULL,
+                current_kid TEXT NOT NULL,
+                loaded_kids TEXT[] NOT NULL,
+                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        ''', ())
 
     def _init_tables(self):
         """ Initializes tables if not exist. """
@@ -1216,126 +1348,7 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS public.mek_key_registry (
-                kid TEXT PRIMARY KEY,
-                fingerprint TEXT NOT NULL,
-                state TEXT NOT NULL CHECK (state IN ('prepared', 'current')),
-                remaining_references INTEGER,
-                last_scan_started_at TIMESTAMPTZ,
-                last_scan_completed_at TIMESTAMPTZ,
-                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-        self.execute_commit_command('''
-            ALTER TABLE public.mek_key_registry
-            ADD COLUMN IF NOT EXISTS remaining_references INTEGER;
-        ''', ())
-
-        self.execute_commit_command('''
-            CREATE TABLE IF NOT EXISTS public.mek_keyring_adoption (
-                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-                generation TEXT NOT NULL,
-                current_kid TEXT NOT NULL,
-                loaded_kids TEXT[] NOT NULL,
-                ready BOOLEAN NOT NULL DEFAULT FALSE,
-                adopted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        ''', ())
-        self.execute_commit_command('''
-            ALTER TABLE public.mek_keyring_adoption
-            ADD COLUMN IF NOT EXISTS ready BOOLEAN NOT NULL DEFAULT FALSE;
-        ''', ())
-
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS public.mek_rewrap_status (
-                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-                generation TEXT NOT NULL,
-                current_kid TEXT NOT NULL,
-                persistence_registry_version INTEGER NOT NULL DEFAULT 1,
-                last_started_at TIMESTAMPTZ,
-                last_completed_at TIMESTAMPTZ,
-                blocker TEXT NOT NULL DEFAULT ''
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-        self.execute_commit_command('''
-            ALTER TABLE public.mek_rewrap_status
-            ADD COLUMN IF NOT EXISTS persistence_registry_version INTEGER NOT NULL DEFAULT 1;
-        ''', ())
-
-        self.execute_commit_command('''
-            CREATE TABLE IF NOT EXISTS public.mek_write_epoch (
-                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-                epoch BIGINT NOT NULL DEFAULT 0,
-                writes_allowed BOOLEAN NOT NULL DEFAULT TRUE
-            );
-        ''', ())
-        self.execute_commit_command('''
-            ALTER TABLE public.mek_write_epoch
-            ADD COLUMN IF NOT EXISTS writes_allowed BOOLEAN NOT NULL DEFAULT TRUE;
-        ''', ())
-        self.execute_commit_command('''
-            INSERT INTO public.mek_write_epoch (singleton, epoch)
-            VALUES (TRUE, 0) ON CONFLICT (singleton) DO NOTHING;
-        ''', ())
-
-        self.execute_commit_command('''
-            CREATE TABLE IF NOT EXISTS public.mek_rewrap_progress (
-                resource TEXT PRIMARY KEY,
-                generation TEXT NOT NULL,
-                cursor_primary TEXT NOT NULL DEFAULT '',
-                cursor_secondary TEXT NOT NULL DEFAULT '',
-                completed BOOLEAN NOT NULL DEFAULT FALSE,
-                start_write_epoch BIGINT NOT NULL DEFAULT 0,
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        ''', ())
-        self.execute_commit_command('''
-            ALTER TABLE public.mek_rewrap_progress
-            ADD COLUMN IF NOT EXISTS start_write_epoch BIGINT NOT NULL DEFAULT 0;
-        ''', ())
-
-        self.execute_commit_command('''
-            CREATE OR REPLACE FUNCTION public.bump_mek_write_epoch()
-            RETURNS trigger LANGUAGE plpgsql AS $$
-            BEGIN
-                UPDATE public.mek_write_epoch SET epoch = epoch + 1
-                WHERE singleton AND writes_allowed;
-                IF NOT FOUND THEN
-                    RAISE EXCEPTION 'MEK registry adoption write fence is active';
-                END IF;
-                RETURN NULL;
-            END;
-            $$;
-        ''', ())
-        self.execute_commit_commands([
-            ('SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B45,)),
-            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON ueks;', ()),
-            ('''
-                CREATE TRIGGER bump_mek_write_epoch
-                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON ueks
-                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
-            ''', ()),
-            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON configs;', ()),
-            ('''
-                CREATE TRIGGER bump_mek_write_epoch
-                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON configs
-                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
-            ''', ()),
-        ])
-
-        self.execute_commit_command('''
-            CREATE TABLE IF NOT EXISTS public.mek_consumer_status (
-                consumer_id TEXT PRIMARY KEY,
-                consumer_name TEXT NOT NULL,
-                generation TEXT NOT NULL,
-                current_kid TEXT NOT NULL,
-                loaded_kids TEXT[] NOT NULL,
-                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        ''', ())
+        self._init_mek_tables()
 
         # Creates table for user role assignments
         # Each assignment has a UUID that access_token_roles references for cascading deletes
@@ -1633,7 +1646,7 @@ class PostgresConnector:
             ''', ()),
             ('''
                 UPDATE public.mek_write_epoch SET writes_allowed = TRUE
-                WHERE singleton;
+                WHERE singleton AND NOT writes_allowed;
             ''', ()),
         ])
         if observed_empty_registry:
@@ -1677,7 +1690,11 @@ class PostgresConnector:
                     WHEN EXCLUDED.state = 'current' THEN 'current'
                     ELSE mek_key_registry.state
                 END
-                WHERE mek_key_registry.fingerprint = EXCLUDED.fingerprint;
+                WHERE mek_key_registry.fingerprint = EXCLUDED.fingerprint
+                  AND mek_key_registry.state IS DISTINCT FROM CASE
+                      WHEN EXCLUDED.state = 'current' THEN 'current'
+                      ELSE mek_key_registry.state
+                  END;
             '''
             self.execute_commit_command(command, (key_id, fingerprint, state))
         self.execute_commit_command('''
@@ -1833,6 +1850,7 @@ class PostgresConnector:
         cursor_uid, cursor_key = '', ''
         while True:
             if self._mek_reconciler_stop.is_set():
+                blockers.append('inventory scan stopped before completion')
                 return counts, blockers
             uek_rows = self.execute_fetch_command('''
                 SELECT uid, entry.key AS key, entry.value AS value
@@ -1847,9 +1865,10 @@ class PostgresConnector:
                         row['value'], row['key'])
                     counts[key_id] += 1
                 except (KeyError, osmo_errors.OSMOError):
-                    user_id = row['uid']
                     user_key_id = row['key']
-                    blockers.append(f'ueks/{user_id}/{user_key_id}: authentication failed')
+                    blockers.append(
+                        f'ueks/{self._mek_row_identifier(row["uid"], user_key_id)}: '
+                        'authentication failed')
             if len(uek_rows) < MEK_RECONCILE_BATCH_SIZE:
                 break
             cursor_uid, cursor_key = uek_rows[-1]['uid'], uek_rows[-1]['key']
@@ -1858,6 +1877,7 @@ class PostgresConnector:
         cursor_type, cursor_key = '', ''
         while len(config_rows) <= MEK_MAX_CONFIG_ROWS:
             if self._mek_reconciler_stop.is_set():
+                blockers.append('inventory scan stopped before completion')
                 return counts, blockers
             batch = self.execute_fetch_command('''
                 SELECT key, type, value FROM configs
@@ -1872,7 +1892,6 @@ class PostgresConnector:
         if len(config_rows) > MEK_MAX_CONFIG_ROWS:
             return counts, ['configs: row limit exceeded']
         rows_by_type: Dict[str, Dict[str, Any]] = {}
-        raw_by_type: Dict[str, Dict[str, Any]] = {}
         for row in config_rows:
             try:
                 try:
@@ -1880,7 +1899,6 @@ class PostgresConnector:
                 except (json.JSONDecodeError, TypeError):
                     parsed_value = row['value']
                 rows_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
-                raw_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
             except (ValueError, TypeError):
                 config_type = row['type']
                 config_key = row['key']
@@ -1893,7 +1911,7 @@ class PostgresConnector:
         for config_type, config_values in rows_by_type.items():
             model_class = config_models.get(config_type)
             if model_class is None:
-                for config_key, raw_value in raw_by_type[config_type].items():
+                for config_key, raw_value in config_values.items():
                     try:
                         for path, _ in self._walk_jwe_values(raw_value, config_key):
                             blockers.append(
@@ -1918,7 +1936,7 @@ class PostgresConnector:
                         counts[key_id] += 1
                     except (KeyError, osmo_errors.OSMOError):
                         blockers.append(f'configs/{config_type}/{path}: authentication failed')
-                for config_key, raw_value in raw_by_type[config_type].items():
+                for config_key, raw_value in config_values.items():
                     try:
                         for path, _ in self._walk_jwe_values(raw_value, config_key):
                             if path not in registered_paths:
@@ -1931,6 +1949,11 @@ class PostgresConnector:
             except (pydantic.ValidationError, ValueError, TypeError):
                 blockers.append(f'configs/{config_type}: config schema validation failed')
         return counts, blockers
+
+    @staticmethod
+    def _mek_row_identifier(user_id: str, slot: str) -> str:
+        """Return a stable, non-reversible identifier for one persisted UEK slot."""
+        return hashlib.sha256(f'{user_id}\0{slot}'.encode('utf-8')).hexdigest()[:16]
 
     def _mek_write_epoch(self) -> int:
         rows = self.execute_fetch_command(
@@ -2008,8 +2031,8 @@ class PostgresConnector:
                 self.secret_manager.get_uek(row['uid'], row['key'])
             except osmo_errors.OSMOError:
                 logging.error(
-                    'UEK rewrap authentication failed for uid=%s slot=%s; '
-                    'continuing the batch.', row['uid'], row['key'])
+                    'UEK rewrap authentication failed for row=%s; continuing the batch.',
+                    self._mek_row_identifier(row['uid'], row['key']))
                 self._record_mek_blocker(
                     'A persisted UEK wrapper failed authentication; inspect service logs.')
         if rows:
@@ -2164,6 +2187,10 @@ class PostgresConnector:
               MEK_PERSISTENCE_REGISTRY_VERSION, blocker))
 
     def _record_mek_consumer(self) -> None:
+        self.execute_commit_command('''
+            DELETE FROM public.mek_consumer_status
+            WHERE last_seen_at <= NOW() - INTERVAL '10 minutes';
+        ''', ())
         self.execute_commit_command('''
             INSERT INTO public.mek_consumer_status (
                 consumer_id, consumer_name, generation, current_kid, loaded_kids, last_seen_at)
@@ -3504,7 +3531,9 @@ class DynamicConfig(ExtraArgBaseModel):
     model_config = pydantic.ConfigDict(validate_assignment=True)
 
     @classmethod
-    def deserialize(cls, config_dict: Dict, postgres: PostgresConnector):
+    def deserialize(
+            cls, config_dict: Dict, postgres: PostgresConnector,
+            raw_values: Mapping[str, str] | None = None):
         """ Decrypts all secrets in `config_dict` """
         encrypt_keys = set()
 
@@ -3592,8 +3621,12 @@ class DynamicConfig(ExtraArgBaseModel):
 
         # Encrypt updated secrets
         for key in encrypt_keys:
-            old_value = (config_dict[key] if isinstance(config_dict[key], str)
-                         else json.dumps(config_dict[key]))
+            old_value = (
+                raw_values[key]
+                if raw_values is not None and key in raw_values
+                else (config_dict[key] if isinstance(config_dict[key], str)
+                      else json.dumps(config_dict[key]))
+            )
             new_value = (encrypted_dict[key] if isinstance(encrypted_dict[key], str)
                          else json.dumps(encrypted_dict[key]))
             cmd = '''

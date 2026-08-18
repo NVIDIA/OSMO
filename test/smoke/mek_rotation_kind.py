@@ -6,6 +6,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import tempfile
 import time
@@ -43,8 +44,10 @@ class MekRotationKind(SmokeFixture):
             )
         return result.stdout
 
-    def _json(self, *args):
-        return json.loads(self._kubectl(*args, "-o", "json"))
+    def _json(self, *args, namespace=None):
+        return json.loads(
+            self._kubectl(*args, "-o", "json", namespace=namespace)
+        )
 
     def _mek_consumers(self):
         consumers = {}
@@ -60,14 +63,17 @@ class MekRotationKind(SmokeFixture):
             if not ready:
                 continue
             for container in pod["spec"]["containers"]:
-                if "--mek_file" in container.get("args", []):
+                if any(
+                    argument == "--mek_file" or argument.startswith("--mek_file=")
+                    for argument in container.get("args", [])
+                ):
                     consumers[pod["metadata"]["name"]] = container["name"]
         return consumers
 
     def _consumer_logs(self, since="15m"):
         return {
             pod: self._kubectl(
-                "logs", pod, "--container", container, f"--since={since}")
+                "logs", pod, "--container", container, f"--since={since}", "--tail=500")
             for pod, container in self._mek_consumers().items()
         }
 
@@ -104,6 +110,16 @@ class MekRotationKind(SmokeFixture):
         ]
         self.assertEqual(len(matches), 1, f"expected one API deployment, found {matches}")
         return matches[0]
+
+    def _service_image(self):
+        deployment = self._json("get", "deployment", self._api_deployment())
+        images = [
+            container["image"]
+            for container in deployment["spec"]["template"]["spec"]["containers"]
+            if container.get("command") == ["service"]
+        ]
+        self.assertEqual(len(images), 1, f"expected one service image, found {images}")
+        return images[0]
 
     def _restore_replicas(self, deployment, replicas):
         self._kubectl("scale", "deployment", deployment, f"--replicas={replicas}")
@@ -256,6 +272,98 @@ class MekRotationKind(SmokeFixture):
                 "--ignore-not-found=true", "--wait=true",
                 namespace="",
             )
+
+    def test_generated_tls_secrets_pass_real_helm_install(self):
+        release_name = f"tls-hook-{secrets.token_hex(4)}"
+        test_namespace = f"{release_name}-test"
+        source_chart = self._service_chart_path()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            test_chart = os.path.join(temporary_directory, "service")
+            templates = os.path.join(test_chart, "templates")
+            os.makedirs(templates)
+            for filename in ("Chart.yaml", "values.yaml"):
+                shutil.copy2(
+                    os.path.join(source_chart, filename),
+                    os.path.join(test_chart, filename),
+                )
+            for filename in (
+                "_helpers.tpl",
+                "_gateway-helpers.tpl",
+                "internal-tls-bootstrap.yaml",
+            ):
+                shutil.copy2(
+                    os.path.join(source_chart, "templates", filename),
+                    os.path.join(templates, filename),
+                )
+
+            try:
+                install = subprocess.run(
+                    [
+                        "helm", "install", release_name, test_chart,
+                        "--namespace", test_namespace, "--create-namespace",
+                        "--wait", "--wait-for-jobs", "--timeout", "5m",
+                        "--set-string", (
+                            "gateway.tls.generated.bootstrap.image="
+                            f"{self._service_image()}"
+                        ),
+                        "--set", (
+                            "gateway.tls.generated.bootstrap.imagePullPolicy="
+                            "IfNotPresent"
+                        ),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(
+                    install.returncode,
+                    0,
+                    f"real Helm install failed: {install.stdout}\n{install.stderr}",
+                )
+                expected = {
+                    f"{release_name}-internal-tls-ca": (
+                        "Opaque", {"ca.crt", "ca.key", "rotation-id"}
+                    ),
+                    f"{release_name}-internal-tls-trust": (
+                        "Opaque", {"ca.crt"}
+                    ),
+                    f"{release_name}-internal-tls-service": (
+                        "kubernetes.io/tls", {"tls.crt", "tls.key"}
+                    ),
+                    f"{release_name}-internal-tls-router": (
+                        "kubernetes.io/tls", {"tls.crt", "tls.key"}
+                    ),
+                    f"{release_name}-internal-tls-agent": (
+                        "kubernetes.io/tls", {"tls.crt", "tls.key"}
+                    ),
+                    f"{release_name}-internal-tls-logger": (
+                        "kubernetes.io/tls", {"tls.crt", "tls.key"}
+                    ),
+                }
+                for secret_name, (secret_type, required_keys) in expected.items():
+                    secret = self._json(
+                        "get", "secret", secret_name, namespace=test_namespace
+                    )
+                    self.assertEqual(secret["type"], secret_type)
+                    self.assertTrue(
+                        required_keys <= secret.get("data", {}).keys(),
+                        f"{secret_name} was not initialized by the hook",
+                    )
+            finally:
+                subprocess.run(
+                    [
+                        "helm", "uninstall", release_name,
+                        "--namespace", test_namespace, "--ignore-not-found",
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self._kubectl(
+                    "delete", "namespace", test_namespace,
+                    "--ignore-not-found=true", "--wait=true",
+                    namespace="",
+                )
 
     def test_projected_secret_ha_rotation_and_rewrap(self):
         credential_name = f"kind-mek-{secrets.token_hex(6)}"

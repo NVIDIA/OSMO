@@ -81,6 +81,16 @@ class MCPAuthConfig(pydantic.BaseModel):
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE'},
     )
+    storage_encryption_key_file: str | None = pydantic.Field(
+        default=None,
+        json_schema_extra={
+            'env': 'OSMO_MCP_AUTH_STORAGE_ENCRYPTION_KEY_FILE',
+        },
+    )
+    jwt_signing_key_file: str | None = pydantic.Field(
+        default=None,
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_JWT_SIGNING_KEY_FILE'},
+    )
     oidc_access_token_jwks_url: str | None = pydantic.Field(
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL'},
@@ -161,6 +171,15 @@ class MCPAuthConfig(pydantic.BaseModel):
             raise ValueError(
                 'Enabled MCP auth is missing: ' + ', '.join(missing)
             )
+        explicit_key_files = (
+            self.storage_encryption_key_file,
+            self.jwt_signing_key_file,
+        )
+        if any(explicit_key_files) and not all(explicit_key_files):
+            raise ValueError(
+                'storage_encryption_key_file and jwt_signing_key_file must '
+                'be configured together'
+            )
 
         issuer = _https_url(cast(str, self.issuer_url), root_only=True)
         resource = _https_url(cast(str, self.resource_url))
@@ -236,6 +255,20 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         cast(str, config.oidc_client_secret_file),
         'OIDC client secret',
     )
+    if config.storage_encryption_key_file:
+        storage_encryption_key = _read_fernet_key(
+            config.storage_encryption_key_file,
+            'storage encryption key',
+        )
+        jwt_signing_key = _read_fernet_key(
+            cast(str, config.jwt_signing_key_file),
+            'JWT signing key',
+        )
+    else:
+        jwt_signing_key = _legacy_signing_key(client_secret)
+        storage_encryption_key = _legacy_storage_encryption_key(
+            jwt_signing_key
+        )
     redis_client = redis_asyncio.Redis.from_url(
         cast(str, config.redis_url),
         password=_read_optional_secret(config.redis_password_file),
@@ -249,7 +282,7 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     )
     encrypted_store: AsyncKeyValue = FernetEncryptionWrapper(
         key_value=namespaced_store,
-        fernet=Fernet(_storage_encryption_key(client_secret)),
+        fernet=Fernet(storage_encryption_key),
         raise_on_decryption_error=False,
     )
     http_client = httpx.AsyncClient(
@@ -277,6 +310,7 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         redirect_path='/auth/callback',
         allowed_client_redirect_uris=config.allowed_client_redirect_uris,
         client_storage=encrypted_store,
+        jwt_signing_key=jwt_signing_key,
         token_endpoint_auth_method='client_secret_post',
         require_authorization_consent=True,
         forward_resource=False,
@@ -293,16 +327,31 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     return MCPAuthRuntime(provider, redis_client, http_client)
 
 
-def _storage_encryption_key(client_secret: str) -> bytes:
-    """Mirror FastMCP's default signing and storage key derivation."""
-    signing_key = derive_jwt_key(
+def _legacy_signing_key(client_secret: str) -> bytes:
+    """Return the FastMCP key historically derived from the OAuth secret."""
+    return derive_jwt_key(
         high_entropy_material=client_secret,
         salt='fastmcp-jwt-signing-key',
     )
+
+
+def _legacy_storage_encryption_key(signing_key: bytes) -> bytes:
+    """Return the storage key historically derived from the signing key."""
     return derive_jwt_key(
         high_entropy_material=signing_key.decode('ascii'),
         salt='fastmcp-storage-encryption-key',
     )
+
+
+def _read_fernet_key(path: str, name: str) -> bytes:
+    try:
+        value = _read_required_secret(path, name).encode('ascii')
+        Fernet(value)
+    except (TypeError, UnicodeEncodeError, ValueError) as error:
+        raise ValueError(
+            f'{name} file must contain one URL-safe base64-encoded 32-byte key'
+        ) from error
+    return value
 
 
 def _read_required_secret(path: str, name: str) -> str:

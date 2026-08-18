@@ -180,6 +180,21 @@ class TestSecretManagerRotation(unittest.TestCase):
                 thread.join()
 
             original_add_user = manager.add_user
+            original_prepare = manager.prepare_meks
+            original_can_activate = manager.can_activate_mek
+
+            def prepare(fingerprints):
+                assert_lock_available()
+                assert original_prepare is not None
+                return original_prepare(fingerprints)
+
+            def can_activate(fingerprints, current_key_id):
+                assert_lock_available()
+                assert original_can_activate is not None
+                return original_can_activate(fingerprints, current_key_id)
+
+            manager.prepare_meks = prepare
+            manager.can_activate_mek = can_activate
 
             def add_user(user_id, keys):
                 assert_lock_available()

@@ -395,6 +395,141 @@ test_control_umbrella() {
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$rendered"
 
+    resource_document "$rendered" List osmo-internal-tls-bootstrap \
+        >"$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'command: ["internal-tls-bootstrap"]'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'verbs: ["get", "update"]'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'resourceNames:'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'activeDeadlineSeconds: 300'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'ttlSecondsAfterFinished: 300'
+    require_contains "$CHARTS_ROOT/SECRET_ROTATION.md" 'chart_kind=service'
+    require_contains "$CHARTS_ROOT/SECRET_ROTATION.md" \
+        '"$osmo_fullname-api"'
+    require_contains "$CHARTS_ROOT/SECRET_ROTATION.md" \
+        '"$osmo_fullname-gateway-envoy"'
+    if [[ $(grep -c -- '--consumer-deployment' \
+            "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml") -ne 5 ]]; then
+        fail 'generated TLS hook does not verify every consumer Deployment'
+    fi
+    require_not_contains "$rendered" '--ssl_self_signed'
+    local tls_placeholder
+    for tls_placeholder in \
+        osmo-internal-tls-ca osmo-internal-tls-trust \
+        osmo-internal-tls-api osmo-internal-tls-router \
+        osmo-internal-tls-agent osmo-internal-tls-logger; do
+        resource_document "$rendered" Secret "$tls_placeholder" \
+            >"$TEST_DIRECTORY/$tls_placeholder.yaml"
+        if grep -Eq '^(data|stringData):' \
+                "$TEST_DIRECTORY/$tls_placeholder.yaml"; then
+            fail "generated TLS placeholder $tls_placeholder contains key material"
+        fi
+        require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" 'type: Opaque'
+    done
+    local upstream_identity
+    for upstream_identity in \
+            osmo-api osmo-router-headless osmo-agent osmo-logger-headless; do
+        require_contains "$rendered" 'match_typed_subject_alt_names:'
+        require_contains "$rendered" "exact: \"$upstream_identity\""
+    done
+
+    helm_template existingtls "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.tls.generated.enabled=false \
+        --set gateway.tls.caSecret=operator-trust \
+        --set gateway.tls.upstreamCerts.api=operator-api-tls \
+        --set gateway.tls.upstreamCerts.router=operator-router-tls \
+        --set gateway.tls.upstreamCerts.agent=operator-agent-tls \
+        --set gateway.tls.upstreamCerts.logger=operator-logger-tls \
+        >"$TEST_DIRECTORY/osmo-existing-internal-tls.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-existing-internal-tls.yaml" \
+        'secretName: "operator-trust"'
+    require_contains "$TEST_DIRECTORY/osmo-existing-internal-tls.yaml" \
+        'secretName: "operator-api-tls"'
+    if resource_document "$TEST_DIRECTORY/osmo-existing-internal-tls.yaml" \
+            List existingtls-osmo-internal-tls-bootstrap >/dev/null 2>&1; then
+        fail 'existing internal TLS mode rendered a Secret mutator'
+    fi
+
+    if helm_template mixed-internal-tls "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.tls.caSecret=operator-trust \
+        >"$TEST_DIRECTORY/mixed-internal-tls.out" 2>&1; then
+        fail 'expected mixed generated and existing internal TLS to fail'
+    fi
+    require_contains "$TEST_DIRECTORY/mixed-internal-tls.out" \
+        'cannot be combined with caSecret or upstreamCerts'
+
+    if helm_template missing-ca-rotation-id "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.tls.generated.caRotation.phase=prepare \
+        >"$TEST_DIRECTORY/missing-ca-rotation-id.out" 2>&1; then
+        fail 'expected generated CA prepare without a rotation id to fail'
+    fi
+    require_contains "$TEST_DIRECTORY/missing-ca-rotation-id.out" \
+        'caRotation.id is required'
+
+    if helm_template unfrozen-ca-rotation "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string gateway.tls.generated.caRotation.id=ca-test \
+        --set gateway.tls.generated.caRotation.phase=prepare \
+        >"$TEST_DIRECTORY/unfrozen-ca-rotation.out" 2>&1; then
+        fail 'expected CA prepare without frozen consumer HPAs to fail'
+    fi
+    require_contains "$TEST_DIRECTORY/unfrozen-ca-rotation.out" \
+        'freezeHpas must be true'
+
+    helm_template osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string gateway.tls.generated.caRotation.id=ca-test \
+        --set gateway.tls.generated.caRotation.phase=prepare \
+        --set gateway.tls.generated.caRotation.freezeHpas=true \
+        >"$TEST_DIRECTORY/frozen-ca-rotation.yaml"
+    local hpa hpa_document minimum maximum
+    for hpa in osmo-api osmo-router osmo-agent osmo-logger osmo-gateway-envoy; do
+        hpa_document=$(resource_document \
+            "$TEST_DIRECTORY/frozen-ca-rotation.yaml" \
+            HorizontalPodAutoscaler "$hpa")
+        minimum=$(awk '$1 == "minReplicas:" { print $2 }' <<<"$hpa_document")
+        maximum=$(awk '$1 == "maxReplicas:" { print $2 }' <<<"$hpa_document")
+        if [[ -z "$minimum" || "$minimum" != "$maximum" ]]; then
+            fail "CA rotation did not freeze HorizontalPodAutoscaler/$hpa"
+        fi
+    done
+
+    helm_template generated-oauth-cookie "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set secrets.oauthClientSecret.existingSecret=operator-oauth-client \
+        --set secrets.oauthCookieSecret.generate=true \
+        --set-string secrets.oauthCookieSecret.existingSecret= \
+        >"$TEST_DIRECTORY/generated-oauth-cookie.yaml"
+    resource_document "$TEST_DIRECTORY/generated-oauth-cookie.yaml" Secret \
+        generated-oauth-cookie-osmo-oauth-cookie \
+        >"$TEST_DIRECTORY/generated-oauth-cookie-placeholder.yaml"
+    if grep -Eq '^(data|stringData):' \
+            "$TEST_DIRECTORY/generated-oauth-cookie-placeholder.yaml"; then
+        fail 'generated OAuth cookie placeholder contains key material'
+    fi
+    resource_document "$TEST_DIRECTORY/generated-oauth-cookie.yaml" List \
+        generated-oauth-cookie-osmo-oauth-cookie-bootstrap \
+        >"$TEST_DIRECTORY/generated-oauth-cookie-bootstrap.yaml"
+    require_contains "$TEST_DIRECTORY/generated-oauth-cookie-bootstrap.yaml" \
+        'resourceNames: ["generated-oauth-cookie-osmo-oauth-cookie"]'
+    require_contains "$TEST_DIRECTORY/generated-oauth-cookie-bootstrap.yaml" \
+        'verbs: ["get", "patch"]'
+    bash -n "$charts_copy/osmo/files/oauth-cookie-bootstrap.sh"
+
     require_deployment "$rendered" "osmo-api"
     resource_document "$rendered" Deployment osmo-api \
         >"$TEST_DIRECTORY/osmo-api-external-postgresql.yaml"
@@ -548,6 +683,8 @@ test_control_umbrella() {
         'verbs: ["get", "patch"]'
     require_not_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" '"create"'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'kind: Job'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
+        'activeDeadlineSeconds: 120'
     require_contains "$TEST_DIRECTORY/mek-bootstrap-list.yaml" 'kind: RoleBinding'
     local role_binding_line
     local job_line
@@ -556,8 +693,7 @@ test_control_umbrella() {
     job_line=$(grep -n 'kind: Job' "$TEST_DIRECTORY/mek-bootstrap-list.yaml" \
         | cut -d: -f1)
     if [[ "$role_binding_line" -ge "$job_line" ]]; then
-        log_error 'MEK bootstrap RoleBinding must precede the Job'
-        return 1
+        fail 'MEK bootstrap RoleBinding must precede the Job'
     fi
     require_contains "$TEST_DIRECTORY/mek-bootstrap-diagnostic.yaml" \
         'privileged resources were removed'
@@ -570,7 +706,10 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml"
     require_contains "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
         '--fail-if-missing'
-    require_occurrences "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
+    resource_document "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" List \
+        bootstrap-osmo-upgrade-mek-bootstrap \
+        >"$TEST_DIRECTORY/mek-bootstrap-upgrade-list.yaml"
+    require_occurrences "$TEST_DIRECTORY/mek-bootstrap-upgrade-list.yaml" \
         'hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed' 1
     require_occurrences "$TEST_DIRECTORY/mek-bootstrap-upgrade.yaml" \
         'mek-bootstrap-placeholder' 1
@@ -615,7 +754,14 @@ test_control_umbrella() {
     require_schema_path "$TEST_DIRECTORY/invalid-mek-bootstrap.out" \
         "secrets.masterEncryptionKey.bootstrap.imagePullPolicy"
     require_contains "$rendered" 'key: "object-storage.yaml"'
-    require_not_contains "$rendered" "kind: Secret"
+    if awk '
+        /^---[[:space:]]*$/ { secret = 0 }
+        /^kind: Secret$/ { secret = 1 }
+        secret && /^(data|stringData):$/ { found = 1 }
+        END { exit !found }
+    ' "$rendered"; then
+        fail 'Helm rendered Secret material into release state'
+    fi
     require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"
@@ -1595,7 +1741,11 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-backend-token-existing.yaml" \
         "backend-token-bootstrap"
     require_not_contains "$TEST_DIRECTORY/osmo-backend-token-existing.yaml" \
-        'resources: ["secrets"]'
+        'resourceNames: ["backend-token"]'
+    if resource_document "$TEST_DIRECTORY/osmo-backend-token-existing.yaml" \
+            Secret backend-token >/dev/null 2>&1; then
+        fail 'backend existing-Secret mode rendered the credential Secret'
+    fi
 
     if helm_template unsupported-managed-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1991,7 +2141,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 10
+        "type: RuntimeDefault" 11
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \
@@ -2382,8 +2532,8 @@ EOF
         >"$TEST_DIRECTORY/unsupported-generated-oauth-secret.out" 2>&1; then
         fail "expected secrets.oauthClientSecret.generate=true to fail"
     fi
-    require_contains "$TEST_DIRECTORY/unsupported-generated-oauth-secret.out" \
-        "generated Secrets are not implemented"
+    require_schema_path "$TEST_DIRECTORY/unsupported-generated-oauth-secret.out" \
+        "secrets.oauthClientSecret"
 
     if helm_template missing-oauth-client-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

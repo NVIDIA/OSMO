@@ -32,6 +32,7 @@ import glob
 import json
 import logging
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -194,21 +195,36 @@ def _configure_current_quick_start_charts(
 ) -> None:
     """Bridge the released umbrella values to the current source charts.
 
-    quick-start 1.2.1 predates both the gateway consolidation and managed
-    backend API-token Secrets. Keep its ingress-nginx and data-service values,
-    but apply the maintained charts' development authentication contract.
+    quick-start 1.2.1 predates both the gateway consolidation and typed
+    backend API-token Secret references. Keep its ingress-nginx and data-service
+    values, but apply the maintained charts' development authentication contract.
     """
     backend_values_path = os.path.join(
         local_backend_operator_chart, "quick-start-values.yaml",
     )
     with open(backend_values_path, "r", encoding="utf-8") as values_file:
         backend_values = yaml.safe_load(values_file)
-    backend_values["global"]["serviceUrl"] = (
+    if not isinstance(backend_values, dict):
+        raise RuntimeError("backend-operator quick-start-values.yaml must be a mapping")
+    backend_global = backend_values.get("global")
+    backend_services = backend_values.get("services")
+    if not isinstance(backend_global, dict) or not isinstance(backend_services, dict):
+        raise RuntimeError(
+            "backend-operator quick-start-values.yaml requires global and services mappings")
+    missing_components = [
+        component for component in ("backendListener", "backendWorker")
+        if not isinstance(backend_services.get(component), dict)
+    ]
+    if missing_components:
+        raise RuntimeError(
+            "backend-operator quick-start-values.yaml is missing service mappings: "
+            + ", ".join(missing_components))
+    backend_global["serviceUrl"] = (
         f"http://{OSMO_GATEWAY_SERVICE}.{OSMO_NAMESPACE}.svc.cluster.local"
     )
     for component in ("backendListener", "backendWorker"):
         for init_container in (
-            backend_values["services"][component].get("initContainers", [])
+            backend_services[component].get("initContainers", [])
         ):
             if init_container.get("name") == "wait-for-gateway":
                 command = init_container.get("command", [])
@@ -231,7 +247,7 @@ def _configure_current_quick_start_charts(
                     "enabled": True,
                     "credentials": [{
                         "name": "default",
-                        "managedSecret": {"name": "backend-operator-token"},
+                        "existingSecret": {"name": "backend-operator-token"},
                     }],
                 },
             },
@@ -416,6 +432,8 @@ class KindAdapter:
         self._apply_nvidia_runtimeclass_stub()
         if self.pre_install_hook is not None:
             self.pre_install_hook(cluster_name)
+        if self.build_local:
+            self._ensure_backend_token_secret()
         self._helm_repo_add()
         self._helm_install()
         return cluster_existed
@@ -613,6 +631,53 @@ class KindAdapter:
         if self.use_local_registry and self.build_local:
             local_images.connect_registry_to_kind(cluster_name)
         return False
+
+    def _ensure_backend_token_secret(self) -> None:
+        """Create the local-only shared backend token without Helm rendering it."""
+        runner = self.subprocess_runner or subprocess.run
+        existing = runner(
+            ["kubectl", "get", "secret", "backend-operator-token",
+             "--namespace", OSMO_NAMESPACE],
+            check=False, capture_output=True, text=True,
+        )
+        if _returncode(existing) == 0:
+            return
+        namespace = runner(
+            ["kubectl", "create", "namespace", OSMO_NAMESPACE,
+             "--dry-run=client", "-o", "yaml"],
+            check=False, capture_output=True, text=True,
+        )
+        if _returncode(namespace) != 0:
+            raise RuntimeError("Failed to render the OSMO namespace")
+        applied_namespace = runner(
+            ["kubectl", "apply", "-f", "-"],
+            check=False, input=namespace.stdout, capture_output=True, text=True,
+        )
+        if _returncode(applied_namespace) != 0:
+            raise RuntimeError("Failed to create the OSMO namespace")
+        manifest = yaml.safe_dump({
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "name": "backend-operator-token",
+                "namespace": OSMO_NAMESPACE,
+            },
+            "type": "Opaque",
+            "stringData": {"token": secrets.token_urlsafe(32)},
+        })
+        created = runner(
+            ["kubectl", "create", "-f", "-"],
+            check=False, input=manifest, capture_output=True, text=True,
+        )
+        if _returncode(created) != 0:
+            # Another concurrent deploy may have won the create race.
+            winner = runner(
+                ["kubectl", "get", "secret", "backend-operator-token",
+                 "--namespace", OSMO_NAMESPACE],
+                check=False, capture_output=True, text=True,
+            )
+            if _returncode(winner) != 0:
+                raise RuntimeError("Failed to create the local backend token Secret")
 
     def _helm_repo_add(self) -> None:
         """Ensure the osmo helm repo is registered and up to date."""

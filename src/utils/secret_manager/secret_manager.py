@@ -19,7 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import binascii
 import dataclasses
-import functools
 import hashlib
 import json
 import os
@@ -84,15 +83,6 @@ def _json_object_without_duplicates(pairs):
             raise ValueError("duplicate JSON member")
         result[key] = value
     return result
-
-
-def _with_keyring_lock(method):
-    @functools.wraps(method)
-    def locked(secret_manager, *args, **kwargs):
-        with secret_manager._keyring_lock:  # pylint: disable=protected-access
-            return method(secret_manager, *args, **kwargs)
-
-    return locked
 
 
 class Encrypted:
@@ -167,6 +157,7 @@ class SecretManager:
         self.prepare_meks = prepare_meks
         self.can_activate_mek = can_activate_mek
         self._keyring_lock = threading.RLock()
+        self._reload_lock = threading.Lock()
         self._file_signature: Tuple[int, int, int, int] | None = None
         self._rejected_file_signature: Tuple[int, int, int, int] | None = None
         self._pending_file_signature: Tuple[int, int, int, int] | None = None
@@ -414,23 +405,27 @@ class SecretManager:
 
     def reload_if_changed(self, retry_pending: bool = True) -> bool:
         """Atomically adopt a safe kubelet-projected keyring revision."""
-        with self._keyring_lock:
+        with self._reload_lock:
             signature = None
             try:
                 signature = self._stat_file()
-                if signature == self._file_signature:
-                    self._rejected_file_signature = None
-                    self._pending_file_signature = None
-                    self._pending_keyring = None
-                    self._last_reload_error = ""
-                    return False
-                if signature == self._rejected_file_signature:
-                    return False
-                if signature == self._pending_file_signature and self._pending_keyring is not None:
-                    if not retry_pending:
+                with self._keyring_lock:
+                    if signature == self._file_signature:
+                        self._rejected_file_signature = None
+                        self._pending_file_signature = None
+                        self._pending_keyring = None
+                        self._last_reload_error = ""
                         return False
-                    candidate = self._pending_keyring
-                else:
+                    if signature == self._rejected_file_signature:
+                        return False
+                    candidate = (
+                        self._pending_keyring
+                        if signature == self._pending_file_signature
+                        else None
+                    )
+                    if candidate is not None and not retry_pending:
+                        return False
+                if candidate is None:
                     try:
                         for _ in range(3):
                             candidate, read_signature = self._read_keyring()
@@ -445,37 +440,44 @@ class SecretManager:
                                 f"MEK file {self.mek_file} changed repeatedly while being read."
                             )
                     except (OSError, osmo_errors.OSMOError) as error:
-                        self._rejected_file_signature = signature
-                        self._reload_failure_revision += 1
-                        self._last_reload_error = str(error)
+                        with self._keyring_lock:
+                            self._rejected_file_signature = signature
+                            self._reload_failure_revision += 1
+                            self._last_reload_error = str(error)
                         return False
                 try:
+                    # Persistence callbacks intentionally run without the
+                    # keyring lock so crypto can continue using the LKG.
                     self._validate_transition(candidate)
                 except osmo_errors.OSMOError as error:
-                    if signature != self._pending_file_signature:
-                        self._reload_failure_revision += 1
-                    self._pending_file_signature = signature
-                    self._pending_keyring = candidate
-                    self._last_reload_error = str(error)
+                    with self._keyring_lock:
+                        if signature != self._pending_file_signature:
+                            self._reload_failure_revision += 1
+                        self._pending_file_signature = signature
+                        self._pending_keyring = candidate
+                        self._last_reload_error = str(error)
                     return False
-                self._keyring = candidate
-                self._file_signature = signature
-                self._rejected_file_signature = None
-                self._pending_file_signature = None
-                self._pending_keyring = None
-                self._last_reload_error = ""
-                return True
+                if self._stat_file() != signature:
+                    return False
+                with self._keyring_lock:
+                    self._keyring = candidate
+                    self._file_signature = signature
+                    self._rejected_file_signature = None
+                    self._pending_file_signature = None
+                    self._pending_keyring = None
+                    self._last_reload_error = ""
+                    return True
             except (OSError, osmo_errors.OSMOError) as error:
-                if signature is None:
-                    self._reload_failure_revision += 1
-                self._last_reload_error = str(error)
+                with self._keyring_lock:
+                    if signature is None:
+                        self._reload_failure_revision += 1
+                    self._last_reload_error = str(error)
                 return False
 
-    @_with_keyring_lock
     def get_mek(self, kid: str = "") -> jwk.JWK:
         """Returns master key according to kid. Returns the current master key if kid is empty"""
+        self.reload_if_changed(retry_pending=False)
         with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
             if not kid:
                 kid = self.current_mek_id
             if kid not in self.meks:
@@ -485,11 +487,15 @@ class SecretManager:
     def get_uek(self, uid: str, kid: str = "") -> Tuple[jwk.JWK, bool]:
         """Returns user key according to kid and uid. Returns master key if uid is empty.
         Returns current user key if kid is empty"""
+        self.reload_if_changed(retry_pending=False)
         with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
             if not uid:
                 is_current = not kid or kid == self.current_mek_id
-                return (self.get_mek(kid), is_current)
+                selected_kid = kid or self._keyring.current_mek_id
+                if selected_kid not in self._keyring.meks:
+                    raise osmo_errors.OSMONotFoundError(
+                        f"Cannot find mek whose kid is {selected_kid}.")
+                return (self._keyring.meks[selected_kid], is_current)
 
         # Get Encrypted UEK
         try:
@@ -506,7 +512,6 @@ class SecretManager:
             raise osmo_errors.OSMOError(f"Cannot find user key for user {uid}.") from exc
         # Snapshot immutable keys while locked; database callbacks and crypto run outside it.
         with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
             if mek_kid not in self._keyring.meks:
                 raise osmo_errors.OSMONotFoundError(
                     f"Cannot find mek whose kid is {mek_kid}.")
@@ -539,8 +544,8 @@ class SecretManager:
                     replacement_jwe.deserialize(replacement)
                     replacement_mek_id = self._validate_jwe_header(
                         replacement_jwe.jose_header)
+                    self.reload_if_changed(retry_pending=False)
                     with self._keyring_lock:
-                        self.reload_if_changed(retry_pending=False)
                         replacement_current_id = self._keyring.current_mek_id
                         replacement_mek = self._keyring.meks.get(replacement_mek_id)
                     if replacement_mek_id != replacement_current_id or replacement_mek is None:
@@ -568,7 +573,6 @@ class SecretManager:
         kid = uuid.uuid4().hex
         return jwk.JWK.generate(kty="oct", size=256, kid=kid)
 
-    @_with_keyring_lock
     def authenticate_mek_encrypted(self, value: str) -> str:
         """Authenticate direct-MEK ciphertext without exposing its plaintext."""
         self.reload_if_changed(retry_pending=False)
@@ -578,7 +582,12 @@ class SecretManager:
             token = jwe.JWE()
             token.deserialize(value)
             key_id = self._validate_jwe_header(token.jose_header)
-            token.decrypt(self.get_mek(key_id))
+            with self._keyring_lock:
+                if key_id not in self._keyring.meks:
+                    raise osmo_errors.OSMONotFoundError(
+                        f"Cannot find mek whose kid is {key_id}.")
+                mek = self._keyring.meks[key_id]
+            token.decrypt(mek)
             token.payload.decode("utf-8")
             return key_id
         except (JWException, UnicodeError, ValueError, osmo_errors.OSMOError) as error:
@@ -586,7 +595,6 @@ class SecretManager:
                 "Persisted direct-MEK ciphertext failed authentication."
             ) from error
 
-    @_with_keyring_lock
     def authenticate_uek_wrapper(self, value: str, expected_uek_id: str = "") -> str:
         """Authenticate a persisted UEK wrapper and validate its JWK payload."""
         self.reload_if_changed(retry_pending=False)
@@ -596,7 +604,12 @@ class SecretManager:
             token = jwe.JWE()
             token.deserialize(value)
             key_id = self._validate_jwe_header(token.jose_header)
-            token.decrypt(self.get_mek(key_id))
+            with self._keyring_lock:
+                if key_id not in self._keyring.meks:
+                    raise osmo_errors.OSMONotFoundError(
+                        f"Cannot find mek whose kid is {key_id}.")
+                mek = self._keyring.meks[key_id]
+            token.decrypt(mek)
             user_key = jwk.JWK.from_json(token.payload.decode("utf-8"))
             exported = user_key.export(as_dict=True)
             if exported.get("kty") != "oct" or not exported.get("kid"):
@@ -621,10 +634,10 @@ class SecretManager:
 
     def add_new_user(self, uid: str):
         """Add uek for a new user"""
+        self.reload_if_changed(retry_pending=False)
         with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
             uek = self.generate_uek()
-            mek = self.get_mek()
+            mek = self._keyring.meks[self._keyring.current_mek_id]
 
             # Encrypt uek by mek
             jwetoken = jwe.JWE(

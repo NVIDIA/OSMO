@@ -176,7 +176,7 @@ for expected in \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE' \
     'name: OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS' \
-    'secretName: mcp-oidc-proxy-secrets'; do
+    'secretName: "mcp-oidc-proxy-secrets"'; do
   assert_file_contains "$PROXY_MCP_MANIFEST" "$expected"
 done
 
@@ -329,22 +329,22 @@ expect_render_failure "$PROXY_VALUES_FILE" \
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'relative OIDC client-secret path' \
-  'services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path' \
+  'services.mcp.oidcProxy.oidc.clientSecretFile is chart-owned' \
   --set 'services.mcp.oidcProxy.oidc.clientSecretFile=client-secret'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'relative Redis password path' \
-  'services.mcp.oidcProxy.redis.passwordFile must be an absolute path' \
+  'services.mcp.oidcProxy.redis.passwordFile is chart-owned' \
   --set 'services.mcp.oidcProxy.redis.passwordFile=redis-password'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC client-secret path outside the existing Secret mount' \
-  'services.mcp.oidcProxy.oidc.clientSecretFile must be <existingSecret.mountPath>/client-secret' \
+  'services.mcp.oidcProxy.oidc.clientSecretFile is chart-owned' \
   --set 'services.mcp.oidcProxy.oidc.clientSecretFile=/other/client-secret'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'Redis password path outside the existing Secret mount' \
-  'services.mcp.oidcProxy.redis.passwordFile must be <existingSecret.mountPath>/redis-password' \
+  'services.mcp.oidcProxy.redis.passwordFile is chart-owned' \
   --set 'services.mcp.oidcProxy.redis.passwordFile=/other/redis-password'
 
 expect_render_failure "$PROXY_VALUES_FILE" \

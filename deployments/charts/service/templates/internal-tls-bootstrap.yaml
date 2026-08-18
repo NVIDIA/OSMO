@@ -1,0 +1,175 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{{- $tls := .Values.gateway.tls }}
+{{- if and $tls.enabled $tls.generated.enabled }}
+{{- include "osmo.gateway-tls.validate" . }}
+{{- $bootstrapImage := $tls.generated.bootstrap.image | default (printf "%s/service:%s" .Values.global.osmoImageLocation .Values.global.osmoImageTag) }}
+{{- $bootstrapName := printf "%s-internal-tls-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- $caSecret := include "osmo.gateway-tls-generated-ca-secret-name" . }}
+{{- $trustSecret := include "osmo.gateway-tls-ca-secret-name" . }}
+{{- $leaves := list
+      (dict "component" "service" "dns" .Values.gateway.upstreams.service.host)
+      (dict "component" "router" "dns" .Values.gateway.upstreams.router.host)
+      (dict "component" "agent" "dns" .Values.gateway.upstreams.agent.host)
+      (dict "component" "logger" "dns" .Values.gateway.upstreams.logger.host) -}}
+{{- if .Values.services.mcp.enabled }}
+{{- $leaves = append $leaves (dict "component" "mcp" "dns" .Values.services.mcp.serviceName) -}}
+{{- end }}
+{{- $consumers := list
+      .Values.services.service.serviceName
+      .Values.services.router.serviceName
+      .Values.services.agent.serviceName
+      .Values.services.logger.serviceName
+      (printf "%s-envoy" (include "osmo.gateway-name" .)) -}}
+{{- if .Values.services.mcp.enabled }}
+{{- $consumers = append $consumers .Values.services.mcp.serviceName -}}
+{{- end }}
+{{- $secretNames := list $caSecret $trustSecret -}}
+{{- range $leaf := $leaves }}
+{{- $secretNames = append $secretNames (include "osmo.gateway-tls-leaf-secret-name" (dict "root" $ "component" $leaf.component)) -}}
+{{- end }}
+{{- if .Release.IsInstall }}
+{{- range $secretName := $secretNames }}
+{{- if not (lookup "v1" "Secret" $.Release.Namespace $secretName) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName | quote }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: osmo-internal-tls-bootstrap
+    app.kubernetes.io/instance: {{ $.Release.Name | quote }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-30"
+    helm.sh/resource-policy: keep
+type: Opaque
+---
+{{- end }}
+{{- end }}
+{{- end }}
+apiVersion: v1
+kind: List
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-29"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
+items:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+    {{- range $secretName := $secretNames }}
+    - {{ $secretName | quote }}
+    {{- end }}
+    verbs: ["get", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames:
+    {{- range $consumer := $consumers }}
+    - {{ $consumer | quote }}
+    {{- end }}
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["list"]
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  subjects:
+  - kind: ServiceAccount
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: {{ $bootstrapName }}
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  spec:
+    activeDeadlineSeconds: 300
+    backoffLimit: 0
+    ttlSecondsAfterFinished: 300
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: {{ include "osmo.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name | quote }}
+          app.kubernetes.io/component: internal-tls-bootstrap
+      spec:
+        restartPolicy: Never
+        serviceAccountName: {{ $bootstrapName }}
+        {{- if .Values.global.imagePullSecret }}
+        imagePullSecrets:
+        - name: {{ .Values.global.imagePullSecret | quote }}
+        {{- end }}
+        containers:
+        - name: internal-tls-bootstrap
+          image: {{ $bootstrapImage | quote }}
+          imagePullPolicy: {{ $tls.generated.bootstrap.imagePullPolicy | quote }}
+          command: ["internal-tls-bootstrap"]
+          args:
+          - --namespace
+          - {{ .Release.Namespace | quote }}
+          - --release-name
+          - {{ .Release.Name | quote }}
+          - --ca-secret
+          - {{ $caSecret | quote }}
+          - --trust-secret
+          - {{ $trustSecret | quote }}
+          - --leaf-rotation-nonce
+          - {{ $tls.generated.leafRotationNonce | quote }}
+          - --ca-rotation-id
+          - {{ $tls.generated.caRotation.id | quote }}
+          - --ca-rotation-phase
+          - {{ $tls.generated.caRotation.phase | quote }}
+          {{- range $leaf := $leaves }}
+          - --leaf
+          - {{ printf "%s=%s" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" $ "component" $leaf.component)) $leaf.dns | quote }}
+          {{- end }}
+          {{- range $consumer := $consumers }}
+          - --consumer-deployment
+          - {{ $consumer | quote }}
+          {{- end }}
+          {{- if .Release.IsUpgrade }}
+          - --fail-if-missing
+          {{- end }}
+          env:
+          - name: HOME
+            value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+          volumeMounts:
+          - name: bootstrap-tmp
+            mountPath: /tmp
+        volumes:
+        - name: bootstrap-tmp
+          emptyDir: {}
+{{- end }}

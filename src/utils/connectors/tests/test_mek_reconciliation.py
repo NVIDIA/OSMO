@@ -211,6 +211,17 @@ class TestMekReconciliation(unittest.TestCase):
         self.assertEqual(counts, {"old": 0, "new": 0})
         self.assertEqual(blockers, [])
 
+    def test_stopped_inventory_scan_fails_closed(self):
+        database = _connector()
+        database.execute_fetch_command = mock.Mock()
+        database._mek_reconciler_stop.set()
+
+        counts, blockers = database._scan_mek_references()
+
+        self.assertEqual(counts, {"old": 0, "new": 0})
+        self.assertEqual(blockers, ["inventory scan stopped before completion"])
+        database.execute_fetch_command.assert_not_called()
+
     def test_unregistered_config_type_with_compact_jwe_is_a_blocker(self):
         database = _connector()
         database.execute_fetch_command = mock.Mock(
@@ -290,6 +301,39 @@ class TestMekReconciliation(unittest.TestCase):
         self.assertEqual(database.execute_commit_command.call_count, 2)
         second_args = database.execute_commit_command.call_args_list[1].args[1]
         self.assertEqual(second_args[-1], '"concurrent"')
+
+    def test_lazy_config_rewrap_cas_uses_original_database_text(self):
+        class NestedConfig(postgres_module.pydantic.BaseModel):
+            secret: postgres_module.pydantic.SecretStr
+
+        class TestConfig(connectors.DynamicConfig):
+            nested: NestedConfig
+
+            def get_type(self):
+                return connectors.ConfigType.SERVICE
+
+        database = _connector()
+        database.execute_commit_command = mock.Mock(return_value=1)
+        database._record_mek_blocker = mock.Mock()
+        database.secret_manager.encrypt.return_value = postgres_module.Encrypted("rewrapped")
+        raw_value = '{  "secret" : "plaintext"  }'
+
+        TestConfig.deserialize(
+            {"nested": {"secret": "plaintext"}},
+            database,
+            raw_values={"nested": raw_value},
+        )
+
+        update_args = database.execute_commit_command.call_args.args[1]
+        self.assertEqual(update_args[-1], raw_value)
+        self.assertIn("rewrapped", update_args[0])
+
+    def test_uek_row_identifier_does_not_expose_user_id(self):
+        row_identifier = connectors.PostgresConnector._mek_row_identifier(
+            "private-user@example.com", "slot")
+
+        self.assertEqual(len(row_identifier), 16)
+        self.assertNotIn("private-user", row_identifier)
 
     def test_uek_rewrap_uses_durable_bounded_batches(self):
         database = _connector()
@@ -380,7 +424,9 @@ class TestMekReconciliation(unittest.TestCase):
         database = _connector()
         events = []
         database._mek_reconciler_thread = mock.Mock()
-        database._mek_reconciler_thread.join.side_effect = lambda: events.append("joined")
+        database._mek_reconciler_thread.is_alive.return_value = False
+        database._mek_reconciler_thread.join.side_effect = (
+            lambda timeout: events.append("joined"))
         database._pool_lock = threading.Lock()
         database._pool = mock.Mock()
         database._pool.closeall.side_effect = lambda: events.append("closed")
@@ -388,7 +434,23 @@ class TestMekReconciliation(unittest.TestCase):
         database.close()
 
         self.assertEqual(events, ["joined", "closed"])
-        database._mek_reconciler_thread.join.assert_called_once_with()
+        database._mek_reconciler_thread.join.assert_called_once_with(
+            timeout=connectors.MEK_RECONCILER_SHUTDOWN_TIMEOUT_SECONDS)
+
+    def test_close_closes_pool_when_reconciler_does_not_stop(self):
+        database = _connector()
+        database._mek_reconciler_thread = mock.Mock()
+        database._mek_reconciler_thread.is_alive.return_value = True
+        database._pool_lock = threading.Lock()
+        database._pool = mock.Mock()
+        pool = database._pool
+
+        with self.assertLogs(level="WARNING") as logs:
+            database.close()
+
+        pool.closeall.assert_called_once_with()
+        self.assertIsNone(database._pool)
+        self.assertTrue(any("did not stop" in message for message in logs.output))
 
     def test_reconciler_is_limited_to_long_lived_control_plane_consumers(self):
         self.assertEqual(

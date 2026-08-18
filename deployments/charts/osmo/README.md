@@ -226,7 +226,7 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 | `secrets.defaultAdmin` | `password` | Optional administrator bootstrap |
 | `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
-| `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy session-cookie encryption |
+| `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy session-cookie encryption; existing or generated development Secret |
 
 To use an existing embedded PostgreSQL credential Secret, provide a
 `kubernetes.io/basic-auth` Secret whose `username` matches
@@ -312,10 +312,24 @@ are also configured in its `externalDependencies` TLS block.
 Each credential configured in existing-Secret mode has its own Secret name and
 key, so operators can co-locate credentials or manage and rotate them
 independently. The chart only reads those operator-owned Secrets and never
-creates or modifies their credential data.
+creates or modifies their credential data. The OAuth cookie is the one optional
+exception: a disposable development install can set
+`secrets.oauthCookieSecret.generate=true` to fill a retained Secret from a
+scoped in-cluster bootstrap Job.
 For credential blocks that expose `rolloutNonce`, set it to a new non-secret
 value after an external Secret is rotated so consuming pods restart and read
 the new value.
+
+### Upgrading typed Secret references
+
+The typed Secret schema intentionally rejects fields that older values files
+could carry without effect. Before upgrading, remove `generate`, `mountPath`,
+and top-level `username` from `secrets.postgresql`; add `rolloutNonce` and set
+`keys.username` plus `keys.password`. Remove `mountPath` and unsupported nested
+keys from `secrets.valkey`, `secrets.objectStorage`, and
+`secrets.defaultAdmin`. Their supported `generate` fields remain valid, as does
+`secrets.defaultAdmin.username`. Helm schema validation fails existing values
+that still contain removed fields so credentials cannot be silently ignored.
 
 ### Upgrading OAuth Secret values
 
@@ -340,8 +354,22 @@ Map the former `secretName`, `clientSecretKey`, and `cookieSecretKey` values to
 the fields above, then remove those legacy fields and `useKubernetesSecrets`
 from `gateway.oauth2Proxy`. If the old deployment read credentials from custom
 `secretPaths`, create a Kubernetes Secret containing those values before the
-upgrade and reference it through the typed blocks. The chart does not copy or
-generate OAuth credential data.
+upgrade and reference it through the typed blocks. For a new disposable
+installation only, the cookie block may instead use `generate: true`; the
+identity-provider client secret is always an existing-Secret reference.
+
+Cookie rotation must stop all OAuth2 Proxy replicas so two keys are never live
+at once. See
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#oauth2-proxy-credentials).
+
+## Internal gateway TLS
+
+`gateway.tls` protects Envoy-to-control-plane traffic and is separate from
+public ingress certificates. Generated development mode maintains stable CA,
+trust, and leaf Secrets without putting private keys in Helm state. Production
+mode disables generation and requires operator/cert-manager-owned CA and leaf
+Secrets. Leaf rotation and the three-stage dual-trust CA procedure are in
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#internal-gateway-tls).
 
 ## Backend API tokens
 

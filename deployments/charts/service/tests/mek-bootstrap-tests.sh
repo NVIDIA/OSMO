@@ -159,7 +159,9 @@ if [[ "$output" != *'Unable to initialize MEK Secret failed-mek'* ]]; then
     exit 1
 fi
 
-if grep -qE '^create -f| create secret.*[^-]$' "$FAKE_STATE_DIRECTORY/commands"; then
+if grep -qE '^create -f( |$)' "$FAKE_STATE_DIRECTORY/commands" || \
+        awk '$1 == "create" && $2 == "secret" && $0 !~ /--dry-run=client/ { found=1 }
+             END { exit !found }' "$FAKE_STATE_DIRECTORY/commands"; then
     echo 'Bootstrap attempted a server-side Secret create' >&2
     exit 1
 fi

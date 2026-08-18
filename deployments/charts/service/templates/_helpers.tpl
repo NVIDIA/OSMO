@@ -158,14 +158,14 @@ Resolve the operator-owned Secret name for one backend API token credential.
 {{- if not (kindIs "map" .) -}}
 {{- fail "backend API token credentials must be mappings" -}}
 {{- end -}}
+{{- if or (hasKey . "managedSecret") (hasKey . "secretName") -}}
+{{- fail (printf "backend API token credential %q only supports existingSecret" (.name | default "")) -}}
+{{- end -}}
 {{- $allowedCredentialKeys := list "name" "existingSecret" -}}
 {{- range $key := keys . -}}
 {{- if not (has $key $allowedCredentialKeys) -}}
 {{- fail (printf "backend API token credential field %q is not supported" $key) -}}
 {{- end -}}
-{{- end -}}
-{{- if or (hasKey . "managedSecret") (hasKey . "secretName") -}}
-{{- fail (printf "backend API token credential %q only supports existingSecret" (.name | default "")) -}}
 {{- end -}}
 {{- if not (hasKey . "existingSecret") -}}
 {{- fail "backend API token credentials must configure existingSecret" -}}

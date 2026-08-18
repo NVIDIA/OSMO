@@ -56,6 +56,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" $gw.envoy "componentName" "gateway-envoy") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.envoy "protectedAnnotations" (dict "checksum/envoy-config" (include "osmo.gateway.envoyConfig" . | sha256sum))) | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ $gw.envoy.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -98,7 +99,7 @@ spec:
           - mountPath: /var/config
             name: envoy-config
             readOnly: true
-          {{- if and $gw.tls.enabled $gw.tls.caSecret }}
+          {{- if $gw.tls.enabled }}
           - name: gateway-tls-ca
             mountPath: /etc/gateway-tls
             readOnly: true
@@ -129,10 +130,10 @@ spec:
         - name: envoy-config
           configMap:
             name: {{ $gwName }}-envoy-config
-        {{- if and $gw.tls.enabled $gw.tls.caSecret }}
+        {{- if $gw.tls.enabled }}
         - name: gateway-tls-ca
           secret:
-            secretName: {{ $gw.tls.caSecret }}
+            secretName: {{ include "osmo.gateway.tlsTrustSecretName" . | quote }}
             items:
             - key: ca.crt
               path: ca.crt
@@ -207,7 +208,7 @@ spec:
     kind: Deployment
     name: {{ $gwName }}-envoy
   minReplicas: {{ $gw.envoy.autoscaling.minReplicas }}
-  maxReplicas: {{ $gw.envoy.autoscaling.maxReplicas }}
+  maxReplicas: {{ ternary $gw.envoy.autoscaling.minReplicas $gw.envoy.autoscaling.maxReplicas $gw.tls.generated.caRotation.freezeHpas }}
   {{- with $gw.envoy.autoscaling.behavior }}
   behavior:
     {{- toYaml . | nindent 4 }}
@@ -389,7 +390,7 @@ spec:
               path: client-secret
         - name: oauth-cookie-secret
           secret:
-            secretName: {{ .Values.secrets.oauthCookieSecret.existingSecret | quote }}
+            secretName: {{ include "osmo.oauthCookie.secretName" . | quote }}
             items:
             - key: {{ .Values.secrets.oauthCookieSecret.keys.value | quote }}
               path: cookie-secret

@@ -17,6 +17,10 @@
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- $envoyHostname := $gw.envoy.hostname | default .Values.global.hostname }}
+{{- include "osmo.gateway-tls.validate" . }}
+{{- if $gw.oauth2Proxy.enabled }}
+{{- include "osmo.oauth-secrets.validate" . }}
+{{- end }}
 
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
@@ -43,6 +47,7 @@ spec:
       labels:
         {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 8 }}
       annotations:
+        {{- include "osmo.gateway-tls-rollout-annotations" . | nindent 8 }}
         checksum/envoy-config: {{ include "osmo.gateway-envoy-config" . | sha256sum }}
         {{- include "osmo.extra-annotations" $gw.envoy | nindent 8 }}
     spec:
@@ -84,7 +89,7 @@ spec:
           - mountPath: /var/config
             name: envoy-config
             readOnly: true
-          {{- if and $gw.tls.enabled $gw.tls.caSecret }}
+          {{- if $gw.tls.enabled }}
           - name: gateway-tls-ca
             mountPath: /etc/gateway-tls
             readOnly: true
@@ -115,10 +120,10 @@ spec:
         - name: envoy-config
           configMap:
             name: {{ $gwName }}-envoy-config
-        {{- if and $gw.tls.enabled $gw.tls.caSecret }}
+        {{- if $gw.tls.enabled }}
         - name: gateway-tls-ca
           secret:
-            secretName: {{ $gw.tls.caSecret }}
+            secretName: {{ include "osmo.gateway-tls-ca-secret-name" . | quote }}
             items:
             - key: ca.crt
               path: ca.crt
@@ -224,7 +229,7 @@ spec:
     kind: Deployment
     name: {{ $gwName }}-envoy
   minReplicas: {{ $gw.envoy.scaling.minReplicas }}
-  maxReplicas: {{ $gw.envoy.scaling.maxReplicas }}
+  maxReplicas: {{ ternary $gw.envoy.scaling.minReplicas $gw.envoy.scaling.maxReplicas $gw.tls.generated.caRotation.freezeHpas }}
   metrics:
   - type: ContainerResource
     containerResource:
@@ -266,6 +271,8 @@ spec:
         {{- include "osmo.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 8 }}
       annotations:
         {{- include "osmo.extra-annotations" $gw.oauth2Proxy | nindent 8 }}
+        osmo.nvidia.com/oauth-client-secret-rollout: {{ $gw.oauth2Proxy.clientSecret.rolloutNonce | quote }}
+        osmo.nvidia.com/oauth-cookie-secret-rollout: {{ $gw.oauth2Proxy.cookieSecret.rolloutNonce | quote }}
     spec:
       {{- with $gw.oauth2Proxy.nodeSelector }}
       nodeSelector:
@@ -287,12 +294,8 @@ spec:
         securityContext:
           {{- toYaml $gw.oauth2Proxy.securityContext | nindent 10 }}
         args:
-          {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
           - --client-secret-file=/etc/oauth2-proxy/client-secret
           - --cookie-secret-file=/etc/oauth2-proxy/cookie-secret
-          {{- else }}
-          - --config={{ $gw.oauth2Proxy.secretPaths.cookieSecret }}
-          {{- end }}
           - --http-address=0.0.0.0:{{ $gw.oauth2Proxy.httpPort }}
           - --metrics-address=0.0.0.0:{{ $gw.oauth2Proxy.metricsPort }}
           - --reverse-proxy=true
@@ -346,25 +349,30 @@ spec:
         resources:
           {{- toYaml $gw.oauth2Proxy.resources | nindent 10 }}
         volumeMounts:
-          {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
-          - name: oauth2-proxy-secrets
-            mountPath: /etc/oauth2-proxy
+          - name: oauth-client-secret
+            mountPath: /etc/oauth2-proxy/client-secret
+            subPath: client-secret
             readOnly: true
-          {{- end }}
+          - name: oauth-cookie-secret
+            mountPath: /etc/oauth2-proxy/cookie-secret
+            subPath: cookie-secret
+            readOnly: true
           {{- with $gw.oauth2Proxy.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
       volumes:
-        {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
-        - name: oauth2-proxy-secrets
+        - name: oauth-client-secret
           secret:
-            secretName: {{ $gw.oauth2Proxy.secretName | default "oauth2-proxy-secrets" }}
+            secretName: {{ include "osmo.oauth-client-secret-name" . | quote }}
             items:
-            - key: {{ $gw.oauth2Proxy.clientSecretKey | default "client_secret" }}
+            - key: {{ include "osmo.oauth-client-secret-key" . | quote }}
               path: client-secret
-            - key: {{ $gw.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
+        - name: oauth-cookie-secret
+          secret:
+            secretName: {{ include "osmo.oauth-cookie-secret-name" . | quote }}
+            items:
+            - key: {{ include "osmo.oauth-cookie-secret-key" . | quote }}
               path: cookie-secret
-        {{- end }}
         {{- with $gw.oauth2Proxy.extraVolumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}

@@ -23,6 +23,9 @@
 {{- $secretNames := dict }}
 {{- range .Values.services.backendApiTokens.credentials }}
 {{- $credentialName := required "backend API token credential name is required" .name }}
+{{- if or (gt (len $credentialName) 49) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) }}
+{{- fail (printf "backend API token credential name %q must be a lowercase DNS label of at most 49 characters" $credentialName) }}
+{{- end }}
 {{- if hasKey $credentialNames $credentialName }}
 {{- fail (printf "duplicate backend API token credential name %q" $credentialName) }}
 {{- end }}
@@ -61,6 +64,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
         {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
         osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
         {{- if .Values.services.backendApiTokens.enabled }}
@@ -176,7 +180,7 @@ spec:
         {{- range $arg := .Values.services.api.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         env:
         {{- include "osmo.secrets.mekConsumerEnv" "api" | nindent 8 }}
         {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
@@ -216,7 +220,7 @@ spec:
         {{- end }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.api | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.api.resources | nindent 10 }}
 
@@ -239,7 +243,7 @@ spec:
         - name: osmo-runtime-tmp
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.api | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- if .Values.services.backendApiTokens.enabled }}
@@ -290,7 +294,7 @@ spec:
     kind: Deployment
     name: {{ $name }}
   minReplicas: {{ .Values.services.api.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.services.api.autoscaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.api.autoscaling.minReplicas .Values.services.api.autoscaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   {{- with .Values.services.api.autoscaling.behavior }}
   behavior:
     {{- toYaml . | nindent 4 }}

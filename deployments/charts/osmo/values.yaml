@@ -199,6 +199,7 @@ secrets:
     # named Secret once inside Kubernetes and never regenerates it on upgrade.
     bootstrap:
       enabled: false
+      # This fully qualified image is not prefixed by global.imageRegistry.
       image: alpine/kubectl:1.33.4
       imagePullPolicy: IfNotPresent
     # Enable only for the first upgrade after every legacy OSMO writer is stopped.
@@ -213,7 +214,6 @@ secrets:
       password: password
   # OAuth client Secret consumed only when the OAuth2 proxy is enabled.
   oauthClientSecret:
-    generate: false
     existingSecret: oauth2-proxy-secrets
     rolloutNonce: ''
     keys:
@@ -226,6 +226,9 @@ secrets:
     rolloutNonce: ''
     keys:
       value: cookie_secret
+    bootstrap:
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
 
 
 # Control-plane application services. Each service owns its image, scaling,
@@ -1135,11 +1138,25 @@ gateway:
       component: ui
       port: 8000
 
-  # TLS for traffic from Envoy to OSMO upstream services. Existing Secret
-  # names provide fixed certificates; empty entries use each service's
-  # chart-managed self-signed mode. This does not configure public edge TLS.
+  # TLS for traffic from Envoy to OSMO upstream services. Development mode
+  # generates stable Kubernetes Secrets; production uses operator-provided or
+  # cert-manager-owned existing Secrets. This does not configure edge TLS.
   tls:
     enabled: true
+    # Non-secret rollout trigger after operator-owned TLS Secrets change.
+    rolloutNonce: ''
+    generated:
+      enabled: true
+      bootstrap:
+        # Empty uses the OSMO API service image.
+        image: ''
+        imagePullPolicy: IfNotPresent
+      leafRotationNonce: ''
+      caRotation:
+        id: ''
+        phase: stable
+        # Set in a stable preflight upgrade and keep true through retirement.
+        freezeHpas: false
     upstreamCerts:
       api: ''
       router: ''

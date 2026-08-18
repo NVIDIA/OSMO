@@ -15,13 +15,15 @@ from run import start_service_kind
 
 
 def _process(stdout: str = '', stderr: str = '', failed: bool = False) -> mock.Mock:
-    stdout_file = tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8')
-    stdout_file.write(stdout)
-    stdout_file.close()
-    stderr_file = tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8')
-    stderr_file.write(stderr)
-    stderr_file.close()
-    process = mock.Mock(stdout_file=stdout_file.name, stderr_file=stderr_file.name)
+    with tempfile.NamedTemporaryFile(
+            mode='w', delete=False, encoding='utf-8') as stdout_file:
+        stdout_file.write(stdout)
+        stdout_path = stdout_file.name
+    with tempfile.NamedTemporaryFile(
+            mode='w', delete=False, encoding='utf-8') as stderr_file:
+        stderr_file.write(stderr)
+        stderr_path = stderr_file.name
+    process = mock.Mock(stdout_file=stdout_path, stderr_file=stderr_path)
     process.has_failed.return_value = failed
     return process
 

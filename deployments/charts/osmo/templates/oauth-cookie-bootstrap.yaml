@@ -1,40 +1,25 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-{{- if .Values.secrets.masterEncryptionKey.bootstrap.enabled }}
-{{- $bootstrapName := printf "%s-mek-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" }}
-{{- $diagnosticBase := $bootstrapName | trunc 52 | trimSuffix "-" }}
-{{- $diagnosticName := printf "%s-diagnostic" $diagnosticBase }}
-{{- $secretName := required "secrets.masterEncryptionKey.existingSecret.name is required" .Values.secrets.masterEncryptionKey.existingSecret.name }}
-{{- $secretKey := required "secrets.masterEncryptionKey.existingSecret.key is required" .Values.secrets.masterEncryptionKey.existingSecret.key }}
+{{- if .Values.secrets.oauthCookieSecret.generate }}
+{{- $bootstrapName := printf "%s-oauth-cookie-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- $secretName := include "osmo.oauthCookie.secretName" . }}
+{{- $secretKey := .Values.secrets.oauthCookieSecret.keys.value }}
 {{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ $diagnosticName }}
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-31"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
-data:
-  recovery: |
-    The MEK bootstrap did not complete. Its privileged resources were removed.
-    Review the Helm error and namespace Events for the underlying failure.
-    For an existing database, restore the MEK Secret that encrypted its data.
-    Never generate a replacement MEK for retained encrypted data.
----
 {{- if and .Release.IsInstall (not $existingSecret) }}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ $secretName | quote }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: osmo-oauth-cookie-bootstrap
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" .) | nindent 4 }}
     helm.sh/hook: pre-install
     helm.sh/hook-weight: "-30"
     helm.sh/resource-policy: keep
-    osmo.nvidia.com/mek-bootstrap-placeholder: "true"
 type: Opaque
 ---
 {{- end }}
@@ -44,6 +29,7 @@ metadata:
   name: {{ $bootstrapName }}
   namespace: {{ .Release.Namespace }}
   annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" .) | nindent 4 }}
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-29"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
@@ -82,30 +68,27 @@ items:
     name: {{ $bootstrapName }}
     namespace: {{ .Release.Namespace }}
   spec:
+    activeDeadlineSeconds: 300
     backoffLimit: 0
-    activeDeadlineSeconds: 120
+    ttlSecondsAfterFinished: 300
     template:
       metadata:
         labels:
-          {{- include "osmo.component.standardLabels" (dict "root" . "component" "mek-bootstrap") | nindent 10 }}
+          {{- include "osmo.component.standardLabels" (dict "root" . "component" "oauth-cookie-bootstrap") | nindent 10 }}
       spec:
         restartPolicy: Never
         serviceAccountName: {{ $bootstrapName }}
         {{- include "osmo.component.imagePullSecrets" . | nindent 8 }}
-        nodeSelector:
-          {{- toYaml .Values.podDefaults.nodeSelector | nindent 10 }}
-        tolerations:
-          {{- toYaml .Values.podDefaults.tolerations | nindent 10 }}
         containers:
-        - name: mek-bootstrap
-          image: {{ .Values.secrets.masterEncryptionKey.bootstrap.image | quote }}
-          imagePullPolicy: {{ .Values.secrets.masterEncryptionKey.bootstrap.imagePullPolicy | quote }}
+        - name: oauth-cookie-bootstrap
+          image: {{ .Values.secrets.oauthCookieSecret.bootstrap.image | quote }}
+          imagePullPolicy: {{ .Values.secrets.oauthCookieSecret.bootstrap.imagePullPolicy | quote }}
           command: ["/bin/ash"]
           args:
           - -c
           - |
-{{ .Files.Get "files/mek-bootstrap.sh" | nindent 12 }}
-          - mek-bootstrap
+{{ .Files.Get "files/oauth-cookie-bootstrap.sh" | nindent 12 }}
+          - oauth-cookie-bootstrap
           - --namespace
           - {{ .Release.Namespace | quote }}
           - --release-name
@@ -138,7 +121,7 @@ items:
               memory: 32Mi
             limits:
               cpu: 100m
-              memory: 128Mi
+              memory: 64Mi
         volumes:
         - name: bootstrap-tmp
           emptyDir: {}

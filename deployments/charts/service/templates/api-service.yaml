@@ -56,6 +56,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.gateway-tls-rollout-annotations" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
         {{- if .Values.services.backendApiTokens.enabled }}
         osmo.nvidia.com/backend-token-rollout: {{ .Values.services.backendApiTokens.rolloutNonce | quote }}
@@ -178,7 +179,7 @@ spec:
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "service"))) | nindent 8 }}
         env:
         {{- include "osmo.mek-consumer-env" "api" | nindent 8 }}
         {{- include "osmo.mek-adoption-env" . | nindent 8 }}
@@ -233,7 +234,7 @@ spec:
         {{- end }}
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.service | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "service"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
 
@@ -265,7 +266,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "service"))) | nindent 8 }}
         {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}
         {{- if .Values.services.backendApiTokens.enabled }}
@@ -308,7 +309,7 @@ spec:
     kind: Deployment
     name: {{ .Values.services.service.serviceName }}
   minReplicas: {{ .Values.services.service.scaling.minReplicas }}
-  maxReplicas: {{ .Values.services.service.scaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.service.scaling.minReplicas .Values.services.service.scaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   metrics:
   - type: ContainerResource
     containerResource:

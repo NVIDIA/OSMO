@@ -69,8 +69,8 @@
         "objectStorage": { "$ref": "#/definitions/objectStorageSecretReference" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
         "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
-        "oauthClientSecret": { "$ref": "#/definitions/valueSecretReference" },
-        "oauthCookieSecret": { "$ref": "#/definitions/valueSecretReference" }
+        "oauthClientSecret": { "$ref": "#/definitions/existingValueSecretReference" },
+        "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
       }
     },
     "configuration": { "type": "object" },
@@ -176,12 +176,48 @@
     },
     "gatewayTls": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
+        "rolloutNonce": { "type": "string" },
+        "generated": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "bootstrap": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "image": { "type": "string" },
+                "imagePullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"]
+                }
+              },
+              "required": ["image", "imagePullPolicy"]
+            },
+            "leafRotationNonce": { "type": "string" },
+            "caRotation": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" },
+                "freezeHpas": { "type": "boolean" },
+                "phase": {
+                  "type": "string",
+                  "enum": ["stable", "prepare", "activate", "retire"]
+                }
+              },
+              "required": ["id", "phase", "freezeHpas"]
+            }
+          },
+          "required": ["enabled", "bootstrap", "leafRotationNonce", "caRotation"]
+        },
         "upstreamCerts": { "$ref": "#/definitions/gatewayUpstreamCerts" },
         "caSecret": { "type": "string" }
       },
-      "required": ["enabled", "upstreamCerts", "caSecret"]
+      "required": ["enabled", "rolloutNonce", "generated", "upstreamCerts", "caSecret"]
     },
     "podMonitor": {
       "type": "object",
@@ -468,14 +504,6 @@
         "cookie": { "$ref": "#/definitions/gatewayRouteCookie" }
       },
       "required": ["prefix", "timeout", "cookie"]
-    },
-    "oauthSecretPaths": {
-      "type": "object",
-      "properties": {
-        "clientSecret": { "type": "string", "minLength": 1 },
-        "cookieSecret": { "type": "string", "minLength": 1 }
-      },
-      "required": ["clientSecret", "cookieSecret"]
     },
     "authzPostgres": {
       "type": "object",
@@ -789,11 +817,6 @@
         "scope": { "type": "string" },
         "passAccessToken": { "type": "boolean" },
         "redisSessionStore": { "type": "boolean" },
-        "useKubernetesSecrets": { "type": "boolean" },
-        "secretName": { "type": "string" },
-        "clientSecretKey": { "type": "string" },
-        "cookieSecretKey": { "type": "string" },
-        "secretPaths": { "$ref": "#/definitions/oauthSecretPaths" },
         "extraArgs": { "type": "array" },
         "resources": { "type": "object" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
@@ -910,17 +933,6 @@
         }
       }
     },
-    "secretReference": {
-      "type": "object",
-      "properties": {
-        "generate": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "keys": { "$ref": "#/definitions/stringMap" },
-        "mountPath": { "type": "string" },
-        "username": { "type": "string" }
-      },
-      "required": ["generate", "existingSecret", "keys"]
-    },
     "masterEncryptionKeyReference": {
       "type": "object",
       "additionalProperties": false,
@@ -1012,7 +1024,22 @@
       },
       "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
     },
-    "valueSecretReference": {
+    "existingValueSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "value": { "type": "string", "minLength": 1 } },
+          "required": ["value"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "keys"]
+    },
+    "generatedValueSecretReference": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -1024,9 +1051,21 @@
           "additionalProperties": false,
           "properties": { "value": { "type": "string", "minLength": 1 } },
           "required": ["value"]
+        },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          },
+          "required": ["image", "imagePullPolicy"]
         }
       },
-      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys", "bootstrap"]
     },
     "objectStorageSecretReference": {
       "type": "object",

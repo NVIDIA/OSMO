@@ -21,6 +21,7 @@ fake_kubectl() {
     case "$1" in
         *"get secret osmo-mek"*) return 1 ;;
         *"get secret default-admin-secret"*) return 0 ;;
+        *"get pvc"*) printf '%s' "${PVC_OUTPUT:-}" ;;
         *) return 0 ;;
     esac
 }
@@ -31,6 +32,16 @@ capture_manifest() {
 
 RUN_KUBECTL=fake_kubectl
 RUN_KUBECTL_APPLY_STDIN=capture_manifest
+
+OSMO_IN_CLUSTER_DB=true
+PVC_OUTPUT=""
+DB_TABLE_COUNT=""
+create_database >/dev/null
+[[ "$DB_TABLE_COUNT" == "0" ]]
+PVC_OUTPUT="persistentvolumeclaim/postgres-data"
+create_database >/dev/null
+[[ "$DB_TABLE_COUNT" == "UNKNOWN" ]]
+OSMO_IN_CLUSTER_DB=false
 
 for table_count in "" UNKNOWN invalid 1; do
     DB_TABLE_COUNT="$table_count"

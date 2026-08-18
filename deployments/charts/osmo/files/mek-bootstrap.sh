@@ -118,7 +118,7 @@ ensure_secret() {
         fi
         placeholder=$(kubectl get secret "$secret_name" \
             --namespace "$namespace" \
-            -o go-template='{{index .metadata.annotations "osmo.nvidia.com/mek-bootstrap-placeholder"}}') || {
+            -o go-template='{{with .metadata.annotations}}{{index . "osmo.nvidia.com/mek-bootstrap-placeholder"}}{{end}}') || {
             log_error "Unable to inspect MEK Secret $secret_name"
             return 1
         }

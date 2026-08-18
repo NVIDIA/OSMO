@@ -36,6 +36,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.gateway-tls-rollout-annotations" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.agent | nindent 8 }}
     spec:
       {{- with .Values.services.agent.hostAliases }}
@@ -126,7 +127,7 @@ spec:
         {{- range $arg := .Values.services.agent.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "agent"))) | nindent 8 }}
         env:
         {{- include "osmo.mek-consumer-env" "agent" | nindent 8 }}
         {{- include "osmo.mek-adoption-env" . | nindent 8 }}
@@ -157,7 +158,7 @@ spec:
         {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- include "osmo.extra-volume-mounts" .Values.services.agent | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "agent"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.agent.resources | nindent 10 }}
 
@@ -193,7 +194,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.agent | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.agent | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "agent"))) | nindent 8 }}
         {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}
 
@@ -230,7 +231,7 @@ spec:
     kind: Deployment
     name: {{ .Values.services.agent.serviceName }}
   minReplicas: {{ .Values.services.agent.scaling.minReplicas }}
-  maxReplicas: {{ .Values.services.agent.scaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.agent.scaling.minReplicas .Values.services.agent.scaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   metrics:
   - type: ContainerResource
     containerResource:

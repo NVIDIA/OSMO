@@ -35,6 +35,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.gateway-tls-rollout-annotations" . | nindent 8 }}
         {{- with .Values.services.router.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -113,7 +114,7 @@ spec:
         - {{ . }}
         {{- end }}
         {{- end }}
-        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "router"))) | nindent 8 }}
         env:
         {{- include "osmo.mek-consumer-env" "router" | nindent 8 }}
         {{- include "osmo.mek-adoption-env" . | nindent 8 }}
@@ -163,7 +164,7 @@ spec:
         {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "router"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.router.resources | nindent 10 }}
 
@@ -190,7 +191,7 @@ spec:
         {{- with .Values.services.router.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "router"))) | nindent 8 }}
 
 ---
 
@@ -243,7 +244,7 @@ spec:
     kind: Deployment
     name: {{ .Values.services.router.serviceName }}
   minReplicas: {{ .Values.services.router.scaling.minReplicas }}
-  maxReplicas: {{ .Values.services.router.scaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.router.scaling.minReplicas .Values.services.router.scaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   metrics:
   - type: ContainerResource
     containerResource:
