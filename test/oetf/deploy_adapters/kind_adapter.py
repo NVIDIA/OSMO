@@ -61,6 +61,7 @@ OSMO_HELM_REPO_NAME = "osmo"
 OSMO_HELM_REPO_URL = "https://helm.ngc.nvidia.com/nvidia/osmo"
 OSMO_CHART_REF = "osmo/quick-start"
 OSMO_NAMESPACE = "osmo"
+OSMO_GATEWAY_SERVICE = "osmo-gateway"
 
 # kai-scheduler is a soft dependency of osmo/quick-start — its pods have
 # schedulerName=kai-scheduler and won't schedule without it installed. Version
@@ -153,6 +154,120 @@ def _local_service_chart_path() -> str:
     ))
 
 
+def _local_backend_operator_chart_path() -> str:
+    """Resolve the maintained backend-operator chart in the runfiles."""
+    return os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
+        "deployments", "charts", "backend-operator",
+    ))
+
+
+def _replace_packaged_dependency(
+    chart_directory: str,
+    dependency_name: str,
+    local_chart: str,
+) -> None:
+    """Replace one dependency in a pulled umbrella with its source chart."""
+    dependency_directory = os.path.join(chart_directory, "charts")
+    packaged_chart = os.path.join(dependency_directory, dependency_name)
+    if os.path.isdir(packaged_chart):
+        shutil.rmtree(packaged_chart)
+    for archive in glob.glob(
+        os.path.join(dependency_directory, f"{dependency_name}-*.tgz"),
+    ):
+        os.unlink(archive)
+    shutil.copytree(local_chart, packaged_chart)
+
+
+def _merge_values(base: Dict[str, Any], overlay: Dict[str, Any]) -> None:
+    """Recursively merge a small compatibility overlay into Helm values."""
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            _merge_values(base[key], value)
+        else:
+            base[key] = value
+
+
+def _configure_current_quick_start_charts(
+    chart_directory: str,
+    local_backend_operator_chart: str,
+) -> None:
+    """Bridge the released umbrella values to the current source charts.
+
+    quick-start 1.2.1 predates both the gateway consolidation and managed
+    backend API-token Secrets. Keep its ingress-nginx and data-service values,
+    but apply the maintained charts' development authentication contract.
+    """
+    backend_values_path = os.path.join(
+        local_backend_operator_chart, "quick-start-values.yaml",
+    )
+    with open(backend_values_path, "r", encoding="utf-8") as values_file:
+        backend_values = yaml.safe_load(values_file)
+    backend_values["global"]["serviceUrl"] = (
+        f"http://{OSMO_GATEWAY_SERVICE}.{OSMO_NAMESPACE}.svc.cluster.local"
+    )
+    for component in ("backendListener", "backendWorker"):
+        for init_container in (
+            backend_values["services"][component].get("initContainers", [])
+        ):
+            if init_container.get("name") == "wait-for-gateway":
+                command = init_container.get("command", [])
+                if command:
+                    command[-1] = command[-1].replace(
+                        "quick-start", OSMO_GATEWAY_SERVICE,
+                    )
+
+    values_path = os.path.join(chart_directory, "values.yaml")
+    with open(values_path, "r", encoding="utf-8") as values_file:
+        values = yaml.safe_load(values_file)
+
+    overlay = {
+        "global": {
+            "hostname": KIND_HOSTNAME,
+        },
+        "service": {
+            "services": {
+                "backendApiTokens": {
+                    "enabled": True,
+                    "credentials": [{
+                        "name": "default",
+                        "managedSecret": {"name": "backend-operator-token"},
+                    }],
+                },
+            },
+            "gateway": {
+                # The umbrella ingress-nginx Service is already named
+                # quick-start. Keep the gateway on its standard internal
+                # name so both Services can coexist.
+                "name": OSMO_GATEWAY_SERVICE,
+                "envoy": {
+                    "hostname": KIND_HOSTNAME,
+                    "service": {
+                        "type": "ClusterIP",
+                        "httpsPort": None,
+                    },
+                    "ingress": {
+                        "enabled": True,
+                        "ingressClass": "nginx",
+                        "sslEnabled": False,
+                    },
+                    "defaultIdentity": {
+                        "user": "testuser",
+                        "roles": "osmo-admin",
+                        "allowedPools": "default",
+                    },
+                },
+                "oauth2Proxy": {"enabled": False},
+                "authz": {"enabled": False},
+            },
+        },
+        "backend-operator": backend_values,
+    }
+    _merge_values(values, overlay)
+    with open(values_path, "w", encoding="utf-8") as values_file:
+        yaml.safe_dump(values, values_file, sort_keys=False)
+
+
 def _remove_superseded_quick_start_dependencies(chart_directory: str) -> None:
     """Remove subcharts now owned by the maintained service chart.
 
@@ -234,8 +349,8 @@ class KindAdapter:
     pre_install_hook: Optional[Callable[[str], None]] = None
     # When True, helm install adds overrides that make the chart use
     # kind-loaded images (imagePullPolicy=IfNotPresent so the pseudo-registry
-    # ``osmo.local`` isn't actually contacted) and skips the web-ui Deployment
-    # (we don't build the UI image locally — only the 9 Python services).
+    # ``osmo.local`` isn't actually contacted). The local build includes and
+    # deploys the UI image under the same IfNotPresent contract.
     build_local: bool = False
     # When True (paired with build_local), publish locally-built images to a
     # host-side ``registry:2`` container that KIND nodes pull from on-demand
@@ -532,11 +647,11 @@ class KindAdapter:
 
     @contextlib.contextmanager
     def _quick_start_chart_ref(self):
-        """Use the PR-local service chart when local images are under test.
+        """Use the PR-local service/backend charts for local-image tests.
 
         The published quick-start chart necessarily contains the last released
-        service dependency.  A source-build KIND gate must replace that one
-        dependency or chart changes in the PR are never exercised.  All other
+        dependencies. A source-build KIND gate must replace the charts whose
+        images it builds or chart changes in the PR are never exercised. Other
         quick-start dependencies remain pinned by the released umbrella chart.
         """
         if not self.build_local:
@@ -544,10 +659,15 @@ class KindAdapter:
             return
 
         local_service_chart = _local_service_chart_path()
-        if not os.path.isfile(os.path.join(local_service_chart, "Chart.yaml")):
-            raise RuntimeError(
-                f"Local service chart is unavailable at {local_service_chart}"
-            )
+        local_backend_operator_chart = _local_backend_operator_chart_path()
+        for chart_name, chart_path in (
+            ("service", local_service_chart),
+            ("backend-operator", local_backend_operator_chart),
+        ):
+            if not os.path.isfile(os.path.join(chart_path, "Chart.yaml")):
+                raise RuntimeError(
+                    f"Local {chart_name} chart is unavailable at {chart_path}"
+                )
 
         with tempfile.TemporaryDirectory(prefix="osmo-quick-start-") as directory:
             pull_args = [
@@ -565,20 +685,27 @@ class KindAdapter:
             # updating would also move dependencies away from the exact
             # versions carried by the published quick-start artifact.
             _remove_superseded_quick_start_dependencies(chart_directory)
-            dependency_directory = os.path.join(chart_directory, "charts")
-            released_service = os.path.join(dependency_directory, "service")
-            if os.path.isdir(released_service):
-                shutil.rmtree(released_service)
-            for archive in glob.glob(os.path.join(dependency_directory, "service-*.tgz")):
-                os.unlink(archive)
-            shutil.copytree(local_service_chart, released_service)
+            _replace_packaged_dependency(
+                chart_directory, "service", local_service_chart,
+            )
+            _replace_packaged_dependency(
+                chart_directory, "backend-operator",
+                local_backend_operator_chart,
+            )
+            _configure_current_quick_start_charts(
+                chart_directory, local_backend_operator_chart,
+            )
 
-            # The released umbrella creates the legacy ConfigMap. The local
-            # service chart owns MEK bootstrap now, so do not run both hooks.
-            legacy_mek_template = os.path.join(
-                chart_directory, "templates", "mek-configmap.yaml")
-            if os.path.isfile(legacy_mek_template):
-                os.unlink(legacy_mek_template)
+            # The current service chart owns both bootstrap Secrets. Do not
+            # also run the released ConfigMap/token-generation mechanisms.
+            for legacy_template_name in (
+                "mek-configmap.yaml", "backend-operator-token-secret.yaml",
+            ):
+                legacy_template = os.path.join(
+                    chart_directory, "templates", legacy_template_name,
+                )
+                if os.path.isfile(legacy_template):
+                    os.unlink(legacy_template)
             yield chart_directory
 
     def _install_kai_scheduler(self) -> None:
