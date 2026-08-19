@@ -7,14 +7,86 @@ SPDX-License-Identifier: Apache-2.0
 
 The `osmo` chart is the unified OSMO deployment entry point.
 
-The supported `split-plane-control` profile installs the API, UI, router,
-worker, logger, agent, delayed-job monitor, and standalone OSMO gateway. It
-can create a persistent PostgreSQL cluster through CloudNativePG or connect to
-an external PostgreSQL service, and it can deploy embedded Valkey or connect
-to an external Valkey service. Object storage can use an external S3-compatible
-service or the optional embedded RustFS dependency. The remaining Kubernetes
-Secrets are externally managed. Compute-plane workloads and the other embedded
-dependencies remain future work.
+The chart supports control-only, compute-only, and converged releases. It can
+compose the backend operator with the control services, create a PostgreSQL
+Cluster through CloudNativePG, and deploy Valkey and RustFS. Production profiles
+consume externally managed Kubernetes Secrets. The self-contained kind profile
+uses retained in-cluster generation for development credentials without Vault
+agent injection.
+
+## Self-contained kind quick start
+
+The `kind-self-contained.yaml` profile is for development only. It expects an
+existing cluster with KAI Scheduler installed. CloudNativePG is intentionally a
+separate operator release; the unified `osmo` release owns its PostgreSQL
+`Cluster`, Valkey, RustFS, control plane, and compute plane.
+
+Install CloudNativePG first:
+
+```bash
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo update cnpg
+helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
+  --version 0.29.0 \
+  --namespace cnpg-system \
+  --create-namespace \
+  --wait \
+  --timeout 10m
+kubectl --context kind-osmo --namespace cnpg-system rollout status \
+  deployment/cnpg-cloudnative-pg --timeout=10m
+```
+
+Install OSMO with one values file:
+
+```bash
+helm dependency build deployments/charts/osmo
+helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --create-namespace \
+  --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --wait \
+  --timeout 20m
+```
+
+Check the database, workloads, storage, and Services without reading Secret
+values:
+
+```bash
+kubectl --context kind-osmo --namespace osmo wait \
+  --for=condition=Ready cluster/osmo-pg --timeout=10m
+kubectl --context kind-osmo --namespace osmo get pods,pvc,services,jobs
+kubectl --context kind-osmo --namespace osmo get secret \
+  osmo-backend-token osmo-master-encryption-key osmo-valkey-credentials \
+  osmo-rustfs-credentials
+```
+
+In one terminal, forward the gateway:
+
+```bash
+kubectl --context kind-osmo --namespace osmo \
+  port-forward service/osmo-gateway 8080:80
+```
+
+In another terminal, log in and submit the smoke workflow:
+
+```bash
+curl --fail http://127.0.0.1:8080/api/version
+osmo login http://127.0.0.1:8080 --method=dev --username=testuser
+osmo workflow submit deployments/workflows/verify-hello.yaml \
+  --pool default \
+  --format-type json
+osmo workflow query <workflow-id> --format-type json
+```
+
+Repeat the query until the workflow status is `COMPLETED`. A `FAILED` or
+`CANCELLED` status is an acceptance failure; inspect `osmo workflow logs` and
+namespace events before retrying.
+
+The profile creates the three object-storage buckets and wires their RustFS
+endpoint and credential Secret into the control plane. It also creates a
+retained backend token and master encryption key through pre-install hooks.
+Those two secret values are generated inside Kubernetes and never appear in
+Helm values, rendered manifests, logs, or Helm release state.
 
 ## Embedded PostgreSQL
 
@@ -22,7 +94,7 @@ Embedded PostgreSQL requires CloudNativePG chart `0.29.0` (operator `1.30.0`):
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm upgrade --install osmo-cnpg cnpg/cloudnative-pg \
+helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
   --create-namespace \
@@ -133,6 +205,34 @@ helm upgrade --install osmo deployments/charts/osmo \
   --wait \
   --timeout 25m
 ```
+
+## Install a split compute plane
+
+The `split-plane-compute.yaml` profile installs only the backend listener,
+worker, and their Kubernetes access. It does not render control services,
+PostgreSQL, Valkey, RustFS, or credentials. Before installing, provision the
+referenced Secret in the compute release namespace. Its `token` key must contain
+the current 43- or 64-character URL-safe backend token; `previous-token` may
+contain a distinct old token during rotation.
+
+Copy the profile and replace its example `computePlane.global.serviceUrl` and
+`accountTokenSecret` values, then install it:
+
+```bash
+helm dependency build deployments/charts/osmo
+helm --kube-context <compute-context> upgrade --install osmo-compute \
+  deployments/charts/osmo \
+  --namespace osmo-compute \
+  --create-namespace \
+  --values <compute-values.yaml> \
+  --wait \
+  --timeout 10m
+```
+
+Empty `computePlane.global.agentNamespace` and `backendNamespace` values resolve
+to the Helm release namespace. This is the WDP-01/WDP-02 boundary: the compute
+plane consumes an external gateway URL and Kubernetes Secret, and has no
+dependency on Vault-agent annotations or control-plane workloads.
 
 ## Embedded Valkey
 
@@ -258,6 +358,21 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.valkey` | `redis-password` | Valkey clients |
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
+| `services.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
+
+Generated backend-token and MEK Secrets are intentionally retained because
+replacing either can disconnect the compute plane or make encrypted database
+fields unreadable. Upgrades fail when a managed Secret is missing. Restore the
+original Secret under the same name; do not generate a replacement against a
+retained database. Back up the generated Valkey and RustFS Secrets with their
+PVCs for the same reason.
+
+`helm --kube-context kind-osmo uninstall osmo --namespace osmo` removes
+release-owned workloads but does
+not make retained credentials or data safe to discard. Inspect and back up
+retained Secrets and PVCs before deleting the namespace. CloudNativePG database
+retention follows the operator and cluster settings. Uninstall the CNPG operator
+only after all managed PostgreSQL Clusters have been handled.
 
 To use an existing embedded PostgreSQL credential Secret, provide a
 `kubernetes.io/basic-auth` Secret whose `username` matches
@@ -294,6 +409,7 @@ one of these ways:
 For local access to the default ClusterIP Service:
 
 ```bash
-kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
+kubectl --context kind-osmo --namespace osmo \
+  port-forward service/osmo-gateway 8080:80
 curl http://127.0.0.1:8080/api/version
 ```

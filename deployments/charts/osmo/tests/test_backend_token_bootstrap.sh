@@ -5,7 +5,11 @@
 set -euo pipefail
 
 CHART_DIRECTORY=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-BOOTSTRAP_SCRIPT="$CHART_DIRECTORY/files/backend-token-bootstrap.sh"
+if [[ -n "${TEST_SRCDIR:-}" && -n "${TEST_WORKSPACE:-}" ]]; then
+    BOOTSTRAP_SCRIPT="$TEST_SRCDIR/$TEST_WORKSPACE/deployments/charts/osmo/files/backend-token-bootstrap.sh"
+else
+    BOOTSTRAP_SCRIPT="$CHART_DIRECTORY/files/backend-token-bootstrap.sh"
+fi
 TEST_DIRECTORY=$(mktemp -d)
 trap 'rm -rf "$TEST_DIRECTORY"' EXIT INT TERM
 FAKE_BIN="$TEST_DIRECTORY/bin"

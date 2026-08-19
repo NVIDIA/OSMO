@@ -18,113 +18,67 @@ SPDX-License-Identifier: Apache-2.0
 
 # NVIDIA OSMO Helm Charts
 
-OSMO is deployed with two public charts:
+The `osmo` chart is the unified deployment entry point. It supports control-only,
+compute-only, and converged installations by composing the independent
+`backend-operator` chart with the OSMO control services. The legacy `service`
+and standalone `backend-operator` charts remain available for existing
+deployments.
 
-1. `service` deploys the core OSMO control plane, gateway, UI, router, worker, logger, agent, and optional local PostgreSQL, Redis, and LocalStack S3 dependencies.
-2. `backend-operator` connects a Kubernetes backend to the OSMO service and manages workflow workloads.
+## Local kind example
 
-Install the service chart first, wait for it to become healthy, then install the backend operator with a service URL and credentials that point back to the service release.
-
-## Local KIND Example
-
-The former quick-start values are preserved as chart-specific values files:
-
-- `service/quick-start-values.yaml`
-- `backend-operator/quick-start-values.yaml`
-
-Create the namespaces, the local admin password Secret, and the MEK ConfigMap
-used by the service pods. The service quick-start values create the shared
-backend bootstrap Secret through the chart-managed development mode:
+The development flow assumes KAI Scheduler is already installed. Install the
+CloudNativePG operator separately, then install one unified OSMO release:
 
 ```bash
-kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
-LOCAL_ADMIN_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
-kubectl create secret generic local-admin-password \
-  --namespace osmo \
-  --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
-  MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
-  MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
-  MEK_FILE=$(mktemp)
-  printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
-  kubectl create configmap mek-config \
-    --namespace osmo \
-    --from-file=mek.yaml="$MEK_FILE" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  rm -f "$MEK_FILE"
-fi
-```
-
-Install the service chart:
-
-```bash
-helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-helm repo update osmo
-
-helm upgrade --install osmo osmo/service \
-  --namespace osmo \
-  -f service/quick-start-values.yaml \
-  --wait \
-  --timeout 25m
-```
-
-Install the backend operator after the service deployment is available:
-
-```bash
-helm upgrade --install osmo-backend-operator osmo/backend-operator \
-  --namespace osmo \
-  -f backend-operator/quick-start-values.yaml \
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo update cnpg
+helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
+  --version 0.29.0 \
+  --namespace cnpg-system \
+  --create-namespace \
   --wait \
   --timeout 10m
+
+helm dependency build deployments/charts/osmo
+helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --create-namespace \
+  --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --wait \
+  --timeout 20m
 ```
 
-For local browser and CLI access, point `quick-start.osmo` and `localstack-s3.osmo` at your local machine:
+The profile deploys the control and compute planes, a CloudNativePG Cluster,
+Valkey, and RustFS. It generates retained development credentials, creates the
+workflow/log/app buckets, and connects the backend with no manual Secret copy.
+It is not a production identity or high-availability profile.
+
+Forward the gateway and submit the repository smoke workflow:
 
 ```bash
-echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
-echo "127.0.0.1 localstack-s3.osmo" | sudo tee -a /etc/hosts
+kubectl --context kind-osmo --namespace osmo \
+  port-forward service/osmo-gateway 8080:80
+osmo login http://127.0.0.1:8080 --method=dev --username=testuser
+osmo workflow submit deployments/workflows/verify-hello.yaml --pool default
 ```
 
-The service chart exposes the gateway through NodePort `30080` in these values. A KIND cluster must map host port `80` to that NodePort for `http://quick-start.osmo` access without port forwarding.
-
-After installing the CLI and logging in, set the local demo defaults:
-
-```bash
-osmo login http://quick-start.osmo --method=dev --username=testuser
-osmo profile set pool default
-osmo credential set osmo --type DATA --payload \
-  access_key_id=test \
-  access_key=test \
-  endpoint=s3://osmo \
-  override_url=http://localstack-s3.osmo:4566 \
-  region=us-east-1
-```
-
-The quick-start values use the chart-managed LocalStack S3 service and already
-include OSMO's workflow, log, and app storage config. Do not run
-`deployments/scripts/configure-storage.sh` for this local flow. If you replace
-LocalStack with an external S3, Azure Blob, or BYO storage backend, run
-`deployments/scripts/configure-storage.sh` before the service Helm install and
-pass its generated values file after your base values file.
-
-These values assume the OSMO images are pullable without a registry Secret. If
-your registry requires credentials, create a Kubernetes image pull Secret and
-pass `--set global.imagePullSecret=<secret-name>` to both chart installs.
+See [`osmo/README.md`](osmo/README.md) for readiness checks, workflow status,
+credential recovery, uninstall behavior, and the split-compute external URL and
+Secret interface.
 
 ## Production Shape
 
-For production, use your environment-specific values instead of the local quick-start values:
+For production, use environment-specific unified chart values or the legacy
+chart interfaces required by an existing deployment:
 
-- Set `global.hostname` to the external hostname served by the gateway.
-- Provide managed PostgreSQL, Redis, and object storage settings or enable the chart-managed development dependencies only for non-production use.
-- Enable OAuth2/authz in the service chart when exposing OSMO to untrusted networks.
-- Configure `backend-operator.global.serviceUrl` to the service gateway URL reachable from the backend cluster.
+- Set `externalUrl` to the hostname served by the gateway.
+- Provide managed PostgreSQL, Valkey, object storage, and Kubernetes Secrets.
+- Enable OAuth2 and authorization when exposing OSMO to untrusted networks.
+- Configure `computePlane.global.serviceUrl` to the gateway reachable from the
+  compute cluster.
 - Provision one backend bootstrap Secret per compute plane in both the control
-  and compute clusters. Configure the service chart's
+  and compute clusters. Configure the unified chart's
   `services.backendApiTokens.credentials[].existingSecret.name`
-  and `backend-operator.global.accountTokenSecret` to consume the matching Secret.
-  The service chart's `managedSecret` mode is intended only for single-cluster
-  development where the backend operator can consume the namespace-local Secret.
+  and `computePlane.global.accountTokenSecret` to consume the matching Secret.
+  Managed backend-token and MEK generation is intended only for single-cluster
+  development where both planes consume namespace-local Secrets.
