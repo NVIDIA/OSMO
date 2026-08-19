@@ -170,6 +170,7 @@ secrets:
   # postgresql.cluster.initdb.secret.name.
   postgresql:
     existingSecret: ''
+    rolloutNonce: ''
     keys:
       username: username
       password: db-password
@@ -179,28 +180,55 @@ secrets:
   valkey:
     generate: false
     existingSecret: ''
+    rolloutNonce: ''
     keys:
       password: redis-password
   # Storage SDK configuration file mounted for all three object-storage uses.
   objectStorage:
     generate: false
     existingSecret: ''
+    rolloutNonce: ''
     keys:
       credentials: object-storage.yaml
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
-    generate: false
-    existingSecret: ''
-    mountPath: /opt/osmo/config.yaml
-    keys:
-      config: mek.yaml
+    existingSecret:
+      name: ''
+      key: mek.yaml
+    # Opt-in convenience for disposable test installs. The hook creates the
+    # named Secret once inside Kubernetes and never regenerates it on upgrade.
+    bootstrap:
+      enabled: false
+      # This fully qualified image is not prefixed by global.imageRegistry.
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
+    # Enable only for the first upgrade after every legacy OSMO writer is stopped.
+    allowExistingCiphertextAdoption: false
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false
     existingSecret: ''
+    rolloutNonce: ''
     username: admin
     keys:
       password: password
+  # OAuth client Secret consumed only when the OAuth2 proxy is enabled.
+  oauthClientSecret:
+    existingSecret: oauth2-proxy-secrets
+    rolloutNonce: ''
+    keys:
+      value: client_secret
+  # OAuth cookie encryption Secret. This may be owned and rotated separately
+  # from the OAuth client Secret.
+  oauthCookieSecret:
+    generate: false
+    existingSecret: oauth2-proxy-secrets
+    rolloutNonce: ''
+    keys:
+      value: cookie_secret
+    bootstrap:
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
 
 
 # Control-plane application services. Each service owns its image, scaling,
@@ -208,6 +236,16 @@ secrets:
 # commands, ports, Service names, and required connection arguments remain
 # chart-managed implementation details.
 services:
+  # Operator-owned credentials used by backend operators to authenticate to
+  # the API. Create these Secrets before installing or upgrading the chart.
+  backendApiTokens:
+    enabled: false
+    rolloutNonce: ''
+    credentials: []
+    # - name: default
+    #   existingSecret:
+    #     name: osmo-backend-token-default
+
   # Optional Model Context Protocol endpoint exposed through the gateway.
   mcp:
     enabled: false
@@ -902,8 +940,8 @@ gateway:
       host: ''
       port: 8000
 
-  # Optional OIDC login/session proxy. The split-plane control profile keeps
-  # it disabled unless an identity provider and existing Secret are supplied.
+  # Optional OIDC login/session proxy. Enable it only after configuring an
+  # identity provider and the required existing Secrets.
   oauth2Proxy:
     enabled: true
     autoscaling:
@@ -933,13 +971,6 @@ gateway:
     scope: openid email profile
     passAccessToken: false
     redisSessionStore: true
-    useKubernetesSecrets: false
-    secretName: oauth2-proxy-secrets
-    clientSecretKey: client_secret
-    cookieSecretKey: cookie_secret
-    secretPaths:
-      clientSecret: /etc/oauth2-proxy/client-secret
-      cookieSecret: /etc/oauth2-proxy/cookie-secret
     extraArgs: []
     resources:
       requests:
@@ -1107,11 +1138,25 @@ gateway:
       component: ui
       port: 8000
 
-  # TLS for traffic from Envoy to OSMO upstream services. Existing Secret
-  # names provide fixed certificates; empty entries use each service's
-  # chart-managed self-signed mode. This does not configure public edge TLS.
+  # TLS for traffic from Envoy to OSMO upstream services. Development mode
+  # generates stable Kubernetes Secrets; production uses operator-provided or
+  # cert-manager-owned existing Secrets. This does not configure edge TLS.
   tls:
     enabled: true
+    # Non-secret rollout trigger after operator-owned TLS Secrets change.
+    rolloutNonce: ''
+    generated:
+      enabled: true
+      bootstrap:
+        # Empty uses the OSMO API service image.
+        image: ''
+        imagePullPolicy: IfNotPresent
+      leafRotationNonce: ''
+      caRotation:
+        id: ''
+        phase: stable
+        # Set in a stable preflight upgrade and keep true through retirement.
+        freezeHpas: false
     upstreamCerts:
       api: ''
       router: ''

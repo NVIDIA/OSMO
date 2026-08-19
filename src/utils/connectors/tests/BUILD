@@ -16,6 +16,7 @@
 
 load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@osmo_tests_python_deps//:requirements.bzl", test_requirement = "requirement")
 
 py_test(
     name = "test_resource_spec",
@@ -95,4 +96,30 @@ py_test(
         "//src/utils/connectors:connectors",
     ],
     size = "small",
+)
+
+py_test(
+    name = "test_mek_reconciliation",
+    srcs = ["test_mek_reconciliation.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+)
+
+py_test(
+    name = "test_mek_reconciliation_postgres",
+    srcs = ["test_mek_reconciliation_postgres.py"],
+    deps = [
+        requirement("jwcrypto"),
+        requirement("psycopg2-binary"),
+        test_requirement("testcontainers"),
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors:connectors",
+        "//src/utils/secret_manager",
+    ],
+    local = True,
+    size = "medium",
+    tags = ["exclusive", "integration"],
 )

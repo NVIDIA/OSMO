@@ -22,6 +22,7 @@ metadata:
   name: {{ .Values.services.logger.serviceName }}
   labels:
     app: {{ .Values.services.logger.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   selector:
     matchLabels:
@@ -30,10 +31,12 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.logger.serviceName }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.logger.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.gateway-tls-rollout-annotations" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.logger | nindent 8 }}
     spec:
       {{- with .Values.services.logger.hostAliases }}
@@ -101,10 +104,8 @@ spec:
         - {{ .Values.services.postgres.port | quote }}
         - --postgres_database_name
         - {{ .Values.services.postgres.db}}
-        {{- if .Values.services.configFile.enabled }}
         - --mek_file
-        - {{ .Values.services.configFile.path }}
-        {{- end}}
+        - {{ include "osmo.mek-file" . }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -121,8 +122,10 @@ spec:
         {{- range $arg := .Values.services.logger.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "logger"))) | nindent 8 }}
         env:
+        {{- include "osmo.mek-consumer-env" "logger" | nindent 8 }}
+        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.logger | nindent 8 }}
         {{- if .Values.services.postgres.password }}
@@ -142,17 +145,11 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.logger.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.logger.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.logger) }}
         volumeMounts:
-        {{- end }}
-        {{- if .Values.services.configFile.enabled}}
-        - mountPath: {{ .Values.services.configFile.path }}
-          name: mek-volume
-          subPath: mek.yaml
-        {{- end }}
+        {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- include "osmo.extra-volume-mounts" .Values.services.logger | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "logger"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.logger.resources | nindent 10 }}
 
@@ -190,16 +187,8 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.logger | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.logger | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
-        {{- if .Values.services.configFile.enabled}}
-        - configMap:
-            defaultMode: 420
-            items:
-            - key: mek.yaml
-              path: mek.yaml
-            name: mek-config
-          name: mek-volume
-        {{- end}}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "logger"))) | nindent 8 }}
+        {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}
 
 ---
@@ -245,6 +234,7 @@ metadata:
   name: {{ .Values.services.logger.serviceName }}
   labels:
     app: {{ .Values.services.logger.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
 spec:
   scaleTargetRef:
@@ -252,7 +242,7 @@ spec:
     kind: Deployment
     name: {{ .Values.services.logger.serviceName }}
   minReplicas: {{ .Values.services.logger.scaling.minReplicas }}
-  maxReplicas: {{ .Values.services.logger.scaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.logger.scaling.minReplicas .Values.services.logger.scaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   metrics:
   - type: ContainerResource
     containerResource:

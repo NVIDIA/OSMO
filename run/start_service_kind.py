@@ -22,7 +22,9 @@ import base64
 import json
 import logging
 import os
+import re
 import secrets
+import subprocess
 import tempfile
 import time
 
@@ -41,75 +43,101 @@ from run.print_next_steps import print_next_steps
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 RUNFILES = runfiles.Create()
+_BACKEND_TOKEN_PATTERN = re.compile(r'^[A-Za-z0-9_-]+$')
+_VALID_BACKEND_TOKEN_LENGTHS = frozenset((43, 64))
 
 
-def _generate_mek() -> None:
-    """Generate the Master Encryption Key (MEK) directly in Python if it doesn't exist."""
-    logger.info('🔑 Checking for existing Master Encryption Key (MEK)...')
-
+def _decode_backend_token(secret: dict, key: str, required: bool) -> str | None:
+    """Decode and validate one backend token without including it in errors."""
+    secret_data = secret.get('data')
+    encoded_token = secret_data.get(key) if isinstance(secret_data, dict) else None
+    if encoded_token is None:
+        if required:
+            raise RuntimeError(f'Backend token Secret osmo/agent-token is missing key {key}')
+        return None
+    if not isinstance(encoded_token, str):
+        raise RuntimeError(
+            f'Backend token Secret osmo/agent-token key {key} is not valid base64')
     try:
+        token = base64.b64decode(encoded_token, validate=True).decode('ascii')
+    except (UnicodeError, ValueError) as error:
+        raise RuntimeError(
+            f'Backend token Secret osmo/agent-token key {key} is unreadable') from error
+    if token.endswith('\r\n'):
+        token = token[:-2]
+    elif token.endswith('\n'):
+        token = token[:-1]
+    if len(token) not in _VALID_BACKEND_TOKEN_LENGTHS:
+        raise RuntimeError(
+            f'Backend token Secret osmo/agent-token key {key} has invalid length')
+    if not _BACKEND_TOKEN_PATTERN.fullmatch(token):
+        raise RuntimeError(
+            f'Backend token Secret osmo/agent-token key {key} has invalid format')
+    return token
+
+
+def _backend_token_exists() -> bool:
+    """Read and validate the backend token Secret without printing its values."""
+    process = subprocess.run([
+        'kubectl', 'get', 'secret', 'agent-token', '--namespace', 'osmo',
+        '--ignore-not-found=true',
+        '-o', 'json',
+    ], check=False, capture_output=True, text=True)
+    if process.returncode != 0:
+        raise RuntimeError(
+            'Failed to check backend token Secret osmo/agent-token: '
+            f'{process.stderr.strip()}')
+    if not process.stdout.strip():
+        return False
+    try:
+        secret = json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            'Failed to parse backend token Secret osmo/agent-token') from error
+    current_token = _decode_backend_token(secret, 'token', required=True)
+    previous_token = _decode_backend_token(secret, 'previous-token', required=False)
+    if current_token is None:
+        raise RuntimeError('Backend token Secret osmo/agent-token is missing key token')
+    if previous_token is not None and secrets.compare_digest(current_token, previous_token):
+        raise RuntimeError(
+            'Backend token Secret osmo/agent-token contains duplicate token values')
+    return True
+
+
+def _bootstrap_backend_token() -> None:
+    """Create the local backend credential with kubectl when it is missing."""
+    logger.info('🔑 Checking the backend credential Secret...')
+    if _backend_token_exists():
+        logger.info('✅ Backend credential Secret osmo/agent-token already exists')
+        return
+
+    token_file_path = ''
+    try:
+        with tempfile.NamedTemporaryFile(
+                mode='w', encoding='ascii', delete=False) as token_file:
+            token_file_path = token_file.name
+            token_file.write(secrets.token_urlsafe(32))
+        os.chmod(token_file_path, 0o600)
+
         process = run_command_with_logging([
-            'kubectl', 'get', 'configmap', 'mek-config', '-n', 'osmo'
-        ], 'Checking for existing MEK ConfigMap')
-
-        if not process.has_failed():
-            logger.info('✅ MEK ConfigMap already exists, skipping generation')
-            return
-
-        logger.info('🔑 Generating new Master Encryption Key (MEK)...')
-
-        random_key = base64.b64encode(secrets.token_bytes(32)).decode('utf-8')
-
-        jwk_json = {
-            'k': random_key,
-            'kid': 'key1',
-            'kty': 'oct'
-        }
-
-        encoded_jwk = base64.b64encode(
-            json.dumps(jwk_json).encode('utf-8')).decode('utf-8')
-
-        configmap_yaml = f"""apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mek-config
-  namespace: osmo
-data:
-  mek.yaml: |
-    # MEK generated {time.strftime('%Y-%m-%d %H:%M:%S')}
-    currentMek: key1
-    meks:
-      key1: {encoded_jwk}
-"""
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            temp_file.write(configmap_yaml)
-            temp_file_path = temp_file.name
-
-        try:
-            process = run_command_with_logging([
-                'kubectl', 'apply', '-f', temp_file_path
-            ], 'Creating MEK ConfigMap')
-
-            if not process.has_failed():
+            'kubectl', 'create', 'secret', 'generic', 'agent-token',
+            '--namespace', 'osmo',
+            f'--from-file=token={token_file_path}',
+        ], 'Creating backend credential Secret')
+        if process.has_failed():
+            if _backend_token_exists():
                 logger.info(
-                    '✅ MEK generated and ConfigMap created successfully in %.2fs',
-                    process.get_elapsed_time())
-            else:
-                logger.error('❌ Error creating MEK ConfigMap')
-                logger.error('   Check output files for details:')
-                logger.error('   - stdout: %s', process.stdout_file)
-                logger.error('   - stderr: %s', process.stderr_file)
-                raise RuntimeError('Error creating MEK ConfigMap')
-        finally:
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
+                    '✅ Backend credential Secret osmo/agent-token was created concurrently')
+                return
+            with open(process.stderr_file, 'r', encoding='utf-8') as error_file:
+                error_message = error_file.read().strip()
+            raise RuntimeError(
+                f'Failed to create backend token Secret osmo/agent-token: {error_message}')
+    finally:
+        if token_file_path:
+            os.unlink(token_file_path)
 
-    except OSError as e:
-        logger.error('❌ Unexpected error generating MEK: %s', e)
-        raise RuntimeError(f'Unexpected error generating MEK: {e}') from e
+    logger.info('✅ Created backend credential Secret osmo/agent-token')
 
 
 def _install_osmo_service(
@@ -141,6 +169,7 @@ def _install_osmo_service(
             '-f', values_path,
             '--set', image_location_override,
             '--set', f'global.osmoImageTag={image_tag}',
+            '--set', 'services.masterEncryptionKey.bootstrap.enabled=true',
             '--set', rf'global.nodeSelector.kubernetes\.io\/arch={detected_platform}',
             '-n', 'osmo', '--wait'
         ], f'Installing {service_name}')
@@ -214,7 +243,7 @@ def start_service_kind(args: argparse.Namespace) -> None:
             args.container_registry,
             args.container_registry_username,
             args.container_registry_password)
-        _generate_mek()
+        _bootstrap_backend_token()
         _install_osmo_services(args.image_location, args.image_tag, detected_platform)
 
         total_time = time.time() - start_time

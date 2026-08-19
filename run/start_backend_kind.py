@@ -74,7 +74,7 @@ def _setup_backend_operators(image_location: str, image_tag: str, detected_platf
         if not token_exists:
             raise RuntimeError(
                 'Backend token Secret osmo/agent-token is missing. Install the OSMO '
-                'service first so its managed backend credential is provisioned.')
+                'service first so its local backend credential is provisioned.')
         logger.info('   ✅ Backend operator Secret is present')
 
         logger.info('   Installing backend operator...')

@@ -22,6 +22,8 @@ from typing import Any
 import unittest
 from unittest import mock
 
+from cryptography.fernet import Fernet
+from fastmcp.server.auth.jwt_issuer import JWTIssuer
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration, OIDCProxy
 from fastmcp.server.auth.oauth_proxy.models import UpstreamTokenSet
 import httpx
@@ -75,9 +77,19 @@ class MCPAuthConfigTest(unittest.TestCase):
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
     async def test_factory_uses_plain_oidc_proxy_and_split_scope_contract(self) -> None:
-        with _secret_file('client-secret') as client_secret_file:
+        with (
+            _secret_file('client-secret') as client_secret_file,
+            _secret_file(
+                'c3RvcmFnZS1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODk='
+            ) as storage_key_file,
+            _secret_file(
+                'and0LXNpZ25pbmcta2V5LTEyMzQ1Njc4OTAxMjM0NTY='
+            ) as signing_key_file,
+        ):
             config = _config(
                 oidc_client_secret_file=client_secret_file,
+                storage_encryption_key_file=storage_key_file,
+                jwt_signing_key_file=signing_key_file,
             )
             redis_client = mock.create_autospec(
                 auth.redis_asyncio.Redis,
@@ -129,10 +141,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(type(provider), OIDCProxy)
                 self.assertEqual(
                     provider._jwt_signing_key,  # pylint: disable=protected-access
-                    auth.derive_jwt_key(
-                        high_entropy_material='client-secret',
-                        salt='fastmcp-jwt-signing-key',
-                    ),
+                    b'and0LXNpZ25pbmcta2V5LTEyMzQ1Njc4OTAxMjM0NTY=',
                 )
                 self.assertEqual(provider.required_scopes, ['access_as_user'])
                 self.assertEqual(
@@ -291,28 +300,106 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
         http_client.aclose.assert_awaited_once_with()
         redis_client.aclose.assert_awaited_once_with()
 
-    def test_storage_key_matches_fastmcp_default_and_is_deterministic(self) -> None:
-        first = auth._storage_encryption_key(  # pylint: disable=protected-access
+    def test_legacy_keys_match_fastmcp_default_and_are_deterministic(self) -> None:
+        first_signing = auth._legacy_signing_key(  # pylint: disable=protected-access
             'client-secret',
         )
-        second = auth._storage_encryption_key(  # pylint: disable=protected-access
+        second_signing = auth._legacy_signing_key(  # pylint: disable=protected-access
             'client-secret',
         )
-        different = auth._storage_encryption_key(  # pylint: disable=protected-access
+        different_signing = auth._legacy_signing_key(  # pylint: disable=protected-access
             'rotated-client-secret',
         )
-        signing_key = auth.derive_jwt_key(
+        expected_signing = auth.derive_jwt_key(
             high_entropy_material='client-secret',
             salt='fastmcp-jwt-signing-key',
         )
-        expected = auth.derive_jwt_key(
-            high_entropy_material=signing_key.decode('ascii'),
+        first_storage = auth._legacy_storage_encryption_key(  # pylint: disable=protected-access
+            first_signing
+        )
+        expected_storage = auth.derive_jwt_key(
+            high_entropy_material=expected_signing.decode('ascii'),
             salt='fastmcp-storage-encryption-key',
         )
 
-        self.assertEqual(first, expected)
-        self.assertEqual(first, second)
-        self.assertNotEqual(first, different)
+        self.assertEqual(first_signing, expected_signing)
+        self.assertEqual(first_signing, second_signing)
+        self.assertNotEqual(first_signing, different_signing)
+        self.assertEqual(first_storage, expected_storage)
+
+    async def test_materialized_legacy_keys_preserve_encrypted_state(self) -> None:
+        signing_key = auth._legacy_signing_key(  # pylint: disable=protected-access
+            'client-secret'
+        )
+        storage_key = auth._legacy_storage_encryption_key(  # pylint: disable=protected-access
+            signing_key
+        )
+        backing_store = MemoryStore(default_collection='mcp')
+        await backing_store.setup()
+        legacy_store = auth.FernetEncryptionWrapper(
+            key_value=backing_store,
+            fernet=Fernet(storage_key),
+            raise_on_decryption_error=True,
+        )
+        registration = {
+            'client_id': 'existing-client',
+            'refresh_token': 'existing-refresh-token',
+        }
+        await legacy_store.put('registration', registration)
+
+        # Explicit Secret files contain these exact bytes after the documented
+        # migration. A fresh wrapper can therefore read records written before
+        # the split, and FastMCP continues signing with the identical key.
+        explicit_store = auth.FernetEncryptionWrapper(
+            key_value=backing_store,
+            fernet=Fernet(storage_key),
+            raise_on_decryption_error=True,
+        )
+        self.assertEqual(
+            await explicit_store.get('registration'),
+            registration,
+        )
+        legacy_issuer = JWTIssuer(
+            'https://osmo.example',
+            'https://osmo.example/mcp',
+            signing_key,
+        )
+        refresh_token = legacy_issuer.issue_refresh_token(
+            'existing-client',
+            ['access_as_user'],
+            'existing-jti',
+            expires_in=3600,
+        )
+        with _secret_file(signing_key.decode('ascii')) as signing_key_file:
+            explicit_signing_key = auth._read_fernet_key(  # pylint: disable=protected-access
+                signing_key_file,
+                'JWT signing key',
+            )
+        explicit_issuer = JWTIssuer(
+            'https://osmo.example',
+            'https://osmo.example/mcp',
+            explicit_signing_key,
+        )
+        claims = explicit_issuer.verify_token(
+            refresh_token,
+            expected_token_use='refresh',
+        )
+        self.assertEqual(claims['jti'], 'existing-jti')
+
+    def test_explicit_key_files_are_all_or_nothing(self) -> None:
+        with self.assertRaisesRegex(
+            pydantic.ValidationError,
+            'must be configured together',
+        ):
+            _config(storage_encryption_key_file='/storage-key')
+
+    def test_explicit_key_files_require_fernet_keys(self) -> None:
+        with _secret_file('not-a-fernet-key') as key_file:
+            with self.assertRaisesRegex(ValueError, '32-byte key'):
+                auth._read_fernet_key(  # pylint: disable=protected-access
+                    key_file,
+                    'test key',
+                )
 
 
 def _config(**overrides: object) -> auth.MCPAuthConfig:

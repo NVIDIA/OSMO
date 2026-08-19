@@ -45,6 +45,8 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.agent "componentName" "agent") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.agent) | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
+        {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.agent.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -106,9 +108,9 @@ spec:
         - {{ include "osmo.postgresql.port" . | quote }}
         - --postgres_database_name
         - {{ include "osmo.postgresql.database" . }}
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - --mek_file
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        - {{ include "osmo.secrets.mekFile" . | quote }}
         {{- end}}
         {{- with (include "osmo.postgresql.username" .) }}
         - --postgres_user
@@ -126,8 +128,12 @@ spec:
         {{- range $arg := .Values.services.agent.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "agent"))) | nindent 8 }}
         env:
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
+        {{- include "osmo.secrets.mekConsumerEnv" "agent" | nindent 8 }}
+        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
+        {{- end }}
         {{- include "osmo.configuration.env" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.agent | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
@@ -137,15 +143,15 @@ spec:
           mountPath: /tmp
         - name: osmo-progress-files
           mountPath: /var/run/osmo
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
-        - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
+        - mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
           name: mek-volume
-          subPath: mek.yaml
+          readOnly: true
         {{- end }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.agent | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "agent"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.agent.resources | nindent 10 }}
 
@@ -177,7 +183,7 @@ spec:
         - name: osmo-progress-files
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.agent | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "agent"))) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
@@ -222,7 +228,7 @@ spec:
     kind: Deployment
     name: {{ $name }}
   minReplicas: {{ .Values.services.agent.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.services.agent.autoscaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.agent.autoscaling.minReplicas .Values.services.agent.autoscaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   {{- with .Values.services.agent.autoscaling.behavior }}
   behavior:
     {{- toYaml . | nindent 4 }}

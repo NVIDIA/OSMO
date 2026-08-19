@@ -14,6 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+{{- include "osmo.mcp-credentials.validate" . }}
 {{- if .Values.services.mcp.enabled }}
 {{- $mcp := .Values.services.mcp }}
 {{- $oidcProxy := $mcp.oidcProxy }}
@@ -35,6 +36,15 @@
 {{- $oidcAccessTokenRequiredScope := "" }}
 {{- $redisKeyPrefix := "" }}
 {{- $redisUrl := "" }}
+{{- $clientSecretName := "" }}
+{{- $clientSecretKey := "" }}
+{{- $redisPasswordName := "" }}
+{{- $redisPasswordKey := "" }}
+{{- $storageKeyName := "" }}
+{{- $storageKeyKey := "" }}
+{{- $signingKeyName := "" }}
+{{- $signingKeyKey := "" }}
+{{- $explicitInternalKeys := false }}
 {{- if $oidcProxyEnabled }}
 {{- if ne (int $mcp.replicas) 1 }}
 {{- fail "services.mcp.replicas must be 1 when services.mcp.oidcProxy.enabled=true" }}
@@ -57,7 +67,10 @@
 {{- $scope = required "services.mcp.oidcProxy.scope is required when the OIDC proxy is enabled" $oidcProxy.scope }}
 {{- $oidcConfigUrl = required "services.mcp.oidcProxy.oidc.configUrl is required when the OIDC proxy is enabled" $oidcProxy.oidc.configUrl }}
 {{- $oidcClientId = required "services.mcp.oidcProxy.oidc.clientId is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientId }}
-{{- $oidcClientSecretFile = required "services.mcp.oidcProxy.oidc.clientSecretFile is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientSecretFile }}
+{{- $oidcClientSecretFile = "/etc/osmo/mcp-auth/client-secret" }}
+{{- if ne $oidcProxy.oidc.clientSecretFile $oidcClientSecretFile }}
+{{- fail "services.mcp.oidcProxy.oidc.clientSecretFile is chart-owned; remove the custom or Vault path" }}
+{{- end }}
 {{- $oidcAccessTokenIssuer = required "services.mcp.oidcProxy.oidc.accessTokenIssuer is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenIssuer }}
 {{- $oidcAccessTokenAudience = required "services.mcp.oidcProxy.oidc.accessTokenAudience is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenAudience }}
 {{- $oidcAccessTokenJwksUrl = required "services.mcp.oidcProxy.oidc.accessTokenJwksUrl is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenJwksUrl }}
@@ -93,9 +106,6 @@
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if not (hasPrefix "/" $oidcClientSecretFile) }}
-{{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path" }}
-{{- end }}
 {{- $redisHost := $oidcProxy.redis.serviceName | default .Values.services.redis.serviceName | required "services.mcp.oidcProxy.redis.serviceName or services.redis.serviceName is required" }}
 {{- $redisPort := .Values.services.redis.port }}
 {{- if not (kindIs "invalid" $oidcProxy.redis.port) }}
@@ -111,8 +121,8 @@
 {{- if not (regexMatch "^[A-Za-z0-9:._~-]{1,128}$" $redisKeyPrefix) }}
 {{- fail "services.mcp.oidcProxy.redis.keyPrefix contains unsupported characters" }}
 {{- end }}
-{{- if and $oidcProxy.redis.passwordFile (not (hasPrefix "/" $oidcProxy.redis.passwordFile)) }}
-{{- fail "services.mcp.oidcProxy.redis.passwordFile must be an absolute path" }}
+{{- if and $oidcProxy.redis.passwordFile (ne $oidcProxy.redis.passwordFile "/etc/osmo/mcp-auth/redis-password") }}
+{{- fail "services.mcp.oidcProxy.redis.passwordFile is chart-owned; remove the custom or Vault path" }}
 {{- end }}
 {{- if or (lt (int $oidcProxy.redis.connectTimeoutSeconds) 1) (gt (int $oidcProxy.redis.connectTimeoutSeconds) 30) }}
 {{- fail "services.mcp.oidcProxy.redis.connectTimeoutSeconds must be between 1 and 30" }}
@@ -129,22 +139,33 @@
 {{- if or (lt (int $oidcProxy.upstreamTimeoutSeconds) 1) (gt (int $oidcProxy.upstreamTimeoutSeconds) 60) }}
 {{- fail "services.mcp.oidcProxy.upstreamTimeoutSeconds must be between 1 and 60" }}
 {{- end }}
-{{- if $oidcProxy.existingSecret.name }}
-{{- $mountPath := required "services.mcp.oidcProxy.existingSecret.mountPath is required when an existing Secret is configured" $oidcProxy.existingSecret.mountPath }}
-{{- if not (hasPrefix "/" $mountPath) }}
-{{- fail "services.mcp.oidcProxy.existingSecret.mountPath must be an absolute path" }}
+{{- if ne $oidcProxy.existingSecret.mountPath "/etc/osmo/mcp-auth" }}
+{{- fail "services.mcp.oidcProxy.existingSecret.mountPath is chart-owned; remove the custom or Vault path" }}
 {{- end }}
-{{- $clientSecretKey := required "services.mcp.oidcProxy.existingSecret.clientSecretKey is required" $oidcProxy.existingSecret.clientSecretKey }}
-{{- $normalizedMountPath := trimSuffix "/" $mountPath }}
-{{- if ne $oidcClientSecretFile (printf "%s/client-secret" $normalizedMountPath) }}
-{{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be <existingSecret.mountPath>/client-secret" }}
+{{- $clientSecretName = $oidcProxy.credentials.clientSecret.existingSecret.name | default $oidcProxy.existingSecret.name | required "services.mcp.oidcProxy.credentials.clientSecret.existingSecret.name is required" }}
+{{- $clientSecretKey = $oidcProxy.credentials.clientSecret.existingSecret.key | default $oidcProxy.existingSecret.clientSecretKey | required "services.mcp.oidcProxy.credentials.clientSecret.existingSecret.key is required" }}
+{{- $redisPasswordName = $oidcProxy.credentials.redisPassword.existingSecret.name }}
+{{- $redisPasswordKey = $oidcProxy.credentials.redisPassword.existingSecret.key }}
+{{- if and (not $redisPasswordName) $oidcProxy.redis.passwordFile }}
+{{- $redisPasswordName = $oidcProxy.existingSecret.name }}
+{{- $redisPasswordKey = $oidcProxy.existingSecret.redisPasswordKey }}
 {{- end }}
-{{- if and $oidcProxy.redis.passwordFile (ne $oidcProxy.redis.passwordFile (printf "%s/redis-password" $normalizedMountPath)) }}
-{{- fail "services.mcp.oidcProxy.redis.passwordFile must be <existingSecret.mountPath>/redis-password" }}
+{{- if and $redisPasswordName (not $redisPasswordKey) }}
+{{- fail "services.mcp.oidcProxy.credentials.redisPassword.existingSecret.key is required" }}
 {{- end }}
-{{- if and $oidcProxy.redis.passwordFile (not $oidcProxy.existingSecret.redisPasswordKey) }}
-{{- fail "services.mcp.oidcProxy.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
+{{- if and (not $redisPasswordName) $redisPasswordKey }}
+{{- fail "services.mcp.oidcProxy.credentials.redisPassword.existingSecret.name is required" }}
 {{- end }}
+{{- $storageKeyName = $oidcProxy.credentials.storageEncryptionKey.existingSecret.name }}
+{{- $storageKeyKey = $oidcProxy.credentials.storageEncryptionKey.existingSecret.key }}
+{{- $signingKeyName = $oidcProxy.credentials.jwtSigningKey.existingSecret.name }}
+{{- $signingKeyKey = $oidcProxy.credentials.jwtSigningKey.existingSecret.key }}
+{{- if ne (not (empty $storageKeyName)) (not (empty $signingKeyName)) }}
+{{- fail "services.mcp.oidcProxy storageEncryptionKey and jwtSigningKey must be configured together" }}
+{{- end }}
+{{- $explicitInternalKeys = and (not (empty $storageKeyName)) (not (empty $signingKeyName)) }}
+{{- if and $explicitInternalKeys (or (not $storageKeyKey) (not $signingKeyKey)) }}
+{{- fail "services.mcp.oidcProxy storageEncryptionKey and jwtSigningKey keys are required" }}
 {{- end }}
 {{- $redisScheme := ternary "rediss" "redis" $oidcProxy.redis.tlsEnabled }}
 {{- $redisUrl = printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
@@ -167,6 +188,8 @@
       "OSMO_MCP_AUTH_OIDC_CONFIG_URL"
       "OSMO_MCP_AUTH_OIDC_CLIENT_ID"
       "OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE"
+      "OSMO_MCP_AUTH_STORAGE_ENCRYPTION_KEY_FILE"
+      "OSMO_MCP_AUTH_JWT_SIGNING_KEY_FILE"
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER"
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE"
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL"
@@ -200,8 +223,10 @@ spec:
         {{- with $mcp.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with $mcp.extraPodAnnotations }}
       annotations:
+        {{- include "osmo.gateway-tls-rollout-annotations" . | nindent 8 }}
+        osmo.nvidia.com/mcp-credential-rollout: {{ $oidcProxy.credentials.rolloutNonce | quote }}
+      {{- with $mcp.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
@@ -227,7 +252,7 @@ spec:
         - mcp
         {{- if .Values.gateway.tls.enabled }}
         args:
-        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "mcp"))) | nindent 8 }}
         {{- end }}
         securityContext:
           {{- toYaml $mcp.securityContext | nindent 10 }}
@@ -257,9 +282,9 @@ spec:
           value: {{ join "," $oidcProxy.trustedHttpsRedirectOrigins | quote }}
         - name: OSMO_MCP_AUTH_REDIS_URL
           value: {{ $redisUrl | quote }}
-        {{- if $oidcProxy.redis.passwordFile }}
+        {{- if $redisPasswordName }}
         - name: OSMO_MCP_AUTH_REDIS_PASSWORD_FILE
-          value: {{ $oidcProxy.redis.passwordFile | quote }}
+          value: "/etc/osmo/mcp-auth/redis-password"
         {{- end }}
         - name: OSMO_MCP_AUTH_REDIS_KEY_PREFIX
           value: {{ $redisKeyPrefix | quote }}
@@ -273,6 +298,12 @@ spec:
           value: {{ $oidcClientId | quote }}
         - name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE
           value: {{ $oidcClientSecretFile | quote }}
+        {{- if $explicitInternalKeys }}
+        - name: OSMO_MCP_AUTH_STORAGE_ENCRYPTION_KEY_FILE
+          value: "/etc/osmo/mcp-auth/storage-encryption-key"
+        - name: OSMO_MCP_AUTH_JWT_SIGNING_KEY_FILE
+          value: "/etc/osmo/mcp-auth/jwt-signing-key"
+        {{- end }}
         - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER
           value: {{ $oidcAccessTokenIssuer | quote }}
         - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE
@@ -293,18 +324,35 @@ spec:
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
-        {{- if or (and $oidcProxyEnabled $oidcProxy.existingSecret.name) $mcp.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp) }}
+        {{- if or $oidcProxyEnabled $mcp.extraVolumeMounts .Values.gateway.tls.enabled }}
         volumeMounts:
-        {{- if and $oidcProxyEnabled $oidcProxy.existingSecret.name }}
-        - name: mcp-auth-secrets
-          mountPath: {{ $oidcProxy.existingSecret.mountPath }}
+        {{- if $oidcProxyEnabled }}
+        - name: mcp-oidc-client-secret
+          mountPath: /etc/osmo/mcp-auth/client-secret
+          subPath: client-secret
           readOnly: true
+        {{- if $redisPasswordName }}
+        - name: mcp-redis-password
+          mountPath: /etc/osmo/mcp-auth/redis-password
+          subPath: redis-password
+          readOnly: true
+        {{- end }}
+        {{- if $explicitInternalKeys }}
+        - name: mcp-storage-encryption-key
+          mountPath: /etc/osmo/mcp-auth/storage-encryption-key
+          subPath: storage-encryption-key
+          readOnly: true
+        - name: mcp-jwt-signing-key
+          mountPath: /etc/osmo/mcp-auth/jwt-signing-key
+          subPath: jwt-signing-key
+          readOnly: true
+        {{- end }}
         {{- end }}
         {{- with $mcp.extraVolumeMounts }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
+        {{- if .Values.gateway.tls.enabled }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "mcp"))) | nindent 8 }}
         {{- end }}
         {{- end }}
         livenessProbe:
@@ -313,25 +361,43 @@ spec:
           {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
         startupProbe:
           {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
-      {{- if or (and $oidcProxyEnabled $oidcProxy.existingSecret.name) $mcp.extraVolumes (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp) }}
+      {{- if or $oidcProxyEnabled $mcp.extraVolumes .Values.gateway.tls.enabled }}
       volumes:
-      {{- if and $oidcProxyEnabled $oidcProxy.existingSecret.name }}
-      - name: mcp-auth-secrets
+      {{- if $oidcProxyEnabled }}
+      - name: mcp-oidc-client-secret
         secret:
-          secretName: {{ $oidcProxy.existingSecret.name }}
+          secretName: {{ $clientSecretName | quote }}
           items:
-          - key: {{ $oidcProxy.existingSecret.clientSecretKey }}
+          - key: {{ $clientSecretKey | quote }}
             path: client-secret
-          {{- if $oidcProxy.redis.passwordFile }}
-          - key: {{ $oidcProxy.existingSecret.redisPasswordKey }}
+      {{- if $redisPasswordName }}
+      - name: mcp-redis-password
+        secret:
+          secretName: {{ $redisPasswordName | quote }}
+          items:
+          - key: {{ $redisPasswordKey | quote }}
             path: redis-password
-          {{- end }}
+      {{- end }}
+      {{- if $explicitInternalKeys }}
+      - name: mcp-storage-encryption-key
+        secret:
+          secretName: {{ $storageKeyName | quote }}
+          items:
+          - key: {{ $storageKeyKey | quote }}
+            path: storage-encryption-key
+      - name: mcp-jwt-signing-key
+        secret:
+          secretName: {{ $signingKeyName | quote }}
+          items:
+          - key: {{ $signingKeyKey | quote }}
+            path: jwt-signing-key
+      {{- end }}
       {{- end }}
       {{- with $mcp.extraVolumes }}
         {{- toYaml . | nindent 6 }}
       {{- end }}
-      {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
-      {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 6 }}
+      {{- if .Values.gateway.tls.enabled }}
+      {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "mcp"))) | nindent 6 }}
       {{- end }}
       {{- end }}
 

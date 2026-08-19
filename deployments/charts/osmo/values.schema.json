@@ -65,16 +65,19 @@
       "type": "object",
       "properties": {
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
-        "valkey": { "$ref": "#/definitions/secretReference" },
-        "objectStorage": { "$ref": "#/definitions/secretReference" },
-        "masterEncryptionKey": { "$ref": "#/definitions/secretReference" },
-        "defaultAdmin": { "$ref": "#/definitions/secretReference" }
+        "valkey": { "$ref": "#/definitions/passwordSecretReference" },
+        "objectStorage": { "$ref": "#/definitions/objectStorageSecretReference" },
+        "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
+        "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
+        "oauthClientSecret": { "$ref": "#/definitions/existingValueSecretReference" },
+        "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
       }
     },
     "configuration": { "type": "object" },
     "services": {
       "type": "object",
       "properties": {
+        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "api": { "$ref": "#/definitions/apiComponent" },
         "ui": { "$ref": "#/definitions/uiComponent" },
         "router": { "$ref": "#/definitions/routerComponent" },
@@ -173,12 +176,48 @@
     },
     "gatewayTls": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
+        "rolloutNonce": { "type": "string" },
+        "generated": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "bootstrap": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "image": { "type": "string" },
+                "imagePullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"]
+                }
+              },
+              "required": ["image", "imagePullPolicy"]
+            },
+            "leafRotationNonce": { "type": "string" },
+            "caRotation": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" },
+                "freezeHpas": { "type": "boolean" },
+                "phase": {
+                  "type": "string",
+                  "enum": ["stable", "prepare", "activate", "retire"]
+                }
+              },
+              "required": ["id", "phase", "freezeHpas"]
+            }
+          },
+          "required": ["enabled", "bootstrap", "leafRotationNonce", "caRotation"]
+        },
         "upstreamCerts": { "$ref": "#/definitions/gatewayUpstreamCerts" },
         "caSecret": { "type": "string" }
       },
-      "required": ["enabled", "upstreamCerts", "caSecret"]
+      "required": ["enabled", "rolloutNonce", "generated", "upstreamCerts", "caSecret"]
     },
     "podMonitor": {
       "type": "object",
@@ -465,14 +504,6 @@
         "cookie": { "$ref": "#/definitions/gatewayRouteCookie" }
       },
       "required": ["prefix", "timeout", "cookie"]
-    },
-    "oauthSecretPaths": {
-      "type": "object",
-      "properties": {
-        "clientSecret": { "type": "string", "minLength": 1 },
-        "cookieSecret": { "type": "string", "minLength": 1 }
-      },
-      "required": ["clientSecret", "cookieSecret"]
     },
     "authzPostgres": {
       "type": "object",
@@ -786,11 +817,6 @@
         "scope": { "type": "string" },
         "passAccessToken": { "type": "boolean" },
         "redisSessionStore": { "type": "boolean" },
-        "useKubernetesSecrets": { "type": "boolean" },
-        "secretName": { "type": "string" },
-        "clientSecretKey": { "type": "string" },
-        "cookieSecretKey": { "type": "string" },
-        "secretPaths": { "$ref": "#/definitions/oauthSecretPaths" },
         "extraArgs": { "type": "array" },
         "resources": { "type": "object" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
@@ -907,29 +933,172 @@
         }
       }
     },
-    "secretReference": {
+    "masterEncryptionKeyReference": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "generate": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "keys": { "$ref": "#/definitions/stringMap" },
-        "mountPath": { "type": "string" },
-        "username": { "type": "string" }
+        "existingSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "key": { "type": "string", "minLength": 1 }
+          },
+          "required": ["name", "key"]
+        },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "image": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          },
+          "required": ["enabled", "image", "imagePullPolicy"]
+        },
+        "allowExistingCiphertextAdoption": { "type": "boolean" }
       },
-      "required": ["generate", "existingSecret", "keys"]
+      "required": ["existingSecret", "bootstrap", "allowExistingCiphertextAdoption"]
     },
     "postgresqlSecretReference": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
         "keys": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "username": { "type": "string", "minLength": 1 },
             "password": { "type": "string", "minLength": 1 }
+          },
+          "required": ["username", "password"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "keys"]
+    },
+    "backendApiTokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "rolloutNonce": { "type": "string" },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 49, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+              "existingSecret": { "$ref": "#/definitions/namedSecretSource" }
+            },
+            "required": ["name", "existingSecret"]
           }
         }
-      }
+      },
+      "required": ["enabled", "rolloutNonce", "credentials"]
+    },
+    "namedSecretSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string", "minLength": 1 } },
+      "required": ["name"]
+    },
+    "passwordSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "password": { "type": "string", "minLength": 1 } },
+          "required": ["password"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+    },
+    "existingValueSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "value": { "type": "string", "minLength": 1 } },
+          "required": ["value"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "keys"]
+    },
+    "generatedValueSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "value": { "type": "string", "minLength": 1 } },
+          "required": ["value"]
+        },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          },
+          "required": ["image", "imagePullPolicy"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys", "bootstrap"]
+    },
+    "objectStorageSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "credentials": { "type": "string", "minLength": 1 } },
+          "required": ["credentials"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+    },
+    "adminSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "username": { "type": "string", "minLength": 1 },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "password": { "type": "string", "minLength": 1 } },
+          "required": ["password"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "username", "keys"]
     }
   }
 }

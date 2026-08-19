@@ -27,6 +27,7 @@ setting detects this rotation and triggers Envoy to reload.
 
 {{- define "osmo.gateway-envoy-config" -}}
 {{- $gw := .Values.gateway }}
+{{- $tlsCaSecret := include "osmo.gateway-tls-ca-secret-name" . }}
 {{- $envoy := $gw.envoy }}
 {{- $mcp := .Values.services.mcp }}
 {{- $mcpEnabled := $mcp.enabled | default false }}
@@ -170,7 +171,7 @@ data:
           filename: /etc/ssl/envoy-certs/tls.key
   {{- end }}
 
-  {{- if and $gw.tls.enabled $gw.tls.caSecret }}
+  {{- if and $gw.tls.enabled $tlsCaSecret }}
   sds_upstream_ca.yaml: |
     resources:
     - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
@@ -1030,15 +1031,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.caSecret }}
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-            {{- end }}
+            {{- include "osmo.gateway-upstream-validation-context" (dict "host" $gw.upstreams.service.host) | nindent 12 }}
       {{- end }}
 
     {{- if $gw.upstreams.router.enabled }}
@@ -1073,15 +1066,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.caSecret }}
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-            {{- end }}
+            {{- include "osmo.gateway-upstream-validation-context" (dict "host" $gw.upstreams.router.host) | nindent 12 }}
       {{- end }}
     {{- end }}
 
@@ -1137,15 +1122,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.caSecret }}
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-            {{- end }}
+            {{- include "osmo.gateway-upstream-validation-context" (dict "host" $gw.upstreams.agent.host) | nindent 12 }}
       {{- end }}
     {{- end }}
 
@@ -1179,15 +1156,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.caSecret }}
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-            {{- end }}
+            {{- include "osmo.gateway-upstream-validation-context" (dict "host" $gw.upstreams.logger.host) | nindent 12 }}
       {{- end }}
     {{- end }}
 
@@ -1223,15 +1192,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.caSecret }}
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-            {{- end }}
+            {{- include "osmo.gateway-upstream-validation-context" (dict "host" $mcp.serviceName) | nindent 12 }}
       {{- end }}
     {{- end }}
 
@@ -1352,7 +1313,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.caSecret }}
+            {{- if $tlsCaSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:

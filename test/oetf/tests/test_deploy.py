@@ -10,13 +10,17 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 # Unit tests for oetf.deploy.base + oetf.deploy.kind_adapter + oetf.breadcrumb.
 
+import contextlib
 import dataclasses
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 import unittest.mock
 from typing import List
+
+import yaml
 
 from test.oetf import breadcrumb, local_images, teardown_main
 from test.oetf.deploy_adapters import factory
@@ -190,13 +194,22 @@ class TestKindAdapter(unittest.TestCase):
                 capture_idx[0] += 1
             return _FakeCompleted(returncode=code, stdout=stdout)
 
-        return KindAdapter(
+        adapter = KindAdapter(
             image_tag="ci-123",
             subprocess_runner=fake_run,
             url_opener=_always_ok_opener,
             mode=mode,
             build_local=build_local,
-        ), calls
+        )
+        if build_local:
+            @contextlib.contextmanager
+            def fake_chart_ref():
+                yield "/tmp/local-quick-start"
+
+            adapter._quick_start_chart_ref = (  # type: ignore[method-assign]  # pylint: disable=protected-access
+                fake_chart_ref
+            )
+        return adapter, calls
 
     def test_deploy_creates_cluster_then_helm_installs(self):
         adapter, calls = self._adapter(capture_stdouts=["", "", ""])
@@ -223,6 +236,15 @@ class TestKindAdapter(unittest.TestCase):
             "ingress-nginx.controller.nodeSelector.node_group=service",
             osmo_calls[0],
         )
+        for component in (
+            "service", "worker", "router", "logger", "agent",
+            "delayedJobMonitor",
+        ):
+            self.assertIn(
+                "service.services."
+                f"{component}.extraPodLabels.osmo\\.nvidia\\.com/mek-consumer=true",
+                osmo_calls[0],
+            )
         # Sub-charts should NOT be remapped — our 6-node config has the
         # native data/compute/etc labels. Only ingress-nginx needs overriding.
         for arg in osmo_calls[0]:
@@ -413,25 +435,25 @@ class TestKindAdapter(unittest.TestCase):
              "-n", "osmo", "--timeout=10m"),
             cmds,
         )
-        osmo_helm_args = next(cmd for cmd in cmds if "osmo/quick-start" in cmd)
+        osmo_helm_args = next(cmd for cmd in cmds if "/tmp/local-quick-start" in cmd)
+        self.assertIn(
+            "service.services.masterEncryptionKey.bootstrap.enabled=true",
+            osmo_helm_args,
+        )
         self.assertIn(
             "service.services.mcp.imagePullPolicy=IfNotPresent",
             osmo_helm_args,
             f"expected MCP pull policy override, got: {osmo_helm_args}",
         )
         # Build-local helm overrides include UI's pull policy (UI now built locally).
-        helm_args_concat = " ".join(
-            arg for cmd in cmds for arg in cmd
-            if isinstance(arg, str) and arg.startswith("web-ui.")
-        )
         self.assertIn(
-            "web-ui.services.ui.imagePullPolicy=IfNotPresent",
-            helm_args_concat,
-            f"expected web-ui pull policy override, got: {helm_args_concat}",
+            "service.services.ui.imagePullPolicy=IfNotPresent",
+            osmo_helm_args,
+            f"expected web-ui pull policy override, got: {osmo_helm_args}",
         )
         self.assertNotIn(
-            "web-ui.services.ui.replicas=0",
-            helm_args_concat,
+            "service.services.ui.replicas=0",
+            osmo_helm_args,
             "build-local should NO LONGER scale UI to 0; we build it locally now",
         )
 
@@ -448,6 +470,240 @@ class TestKindAdapter(unittest.TestCase):
             rollout_calls, [],
             f"expected no rollout restart on first deploy, got: {rollout_calls}",
         )
+
+    def test_local_chart_substitution_keeps_packaged_dependencies_offline(self):
+        """Source charts replace obsolete packaged dependencies without network fetches."""
+        calls: List[List[str]] = []
+        with tempfile.TemporaryDirectory() as source_directory:
+            local_service = os.path.join(source_directory, "service")
+            os.makedirs(local_service)
+            with open(
+                os.path.join(local_service, "Chart.yaml"), "w", encoding="utf-8",
+            ) as chart_file:
+                chart_file.write("apiVersion: v2\nname: service\nversion: 1.0.0\n")
+            with open(
+                os.path.join(local_service, "source-marker"), "w", encoding="utf-8",
+            ) as marker:
+                marker.write("current service")
+
+            local_backend_operator = os.path.join(
+                source_directory, "backend-operator",
+            )
+            os.makedirs(local_backend_operator)
+            with open(
+                os.path.join(local_backend_operator, "Chart.yaml"),
+                "w", encoding="utf-8",
+            ) as chart_file:
+                chart_file.write(
+                    "apiVersion: v2\nname: backend-operator\nversion: 1.0.0\n",
+                )
+            with open(
+                os.path.join(local_backend_operator, "source-marker"),
+                "w", encoding="utf-8",
+            ) as marker:
+                marker.write("current backend operator")
+            with open(
+                os.path.join(local_backend_operator, "quick-start-values.yaml"),
+                "w", encoding="utf-8",
+            ) as values_file:
+                values_file.write(
+                    "global:\n"
+                    "  serviceUrl: http://quick-start.osmo.svc.cluster.local\n"
+                    "  accountTokenSecret: backend-operator-token\n"
+                    "  accountTokenSecretKey: token\n"
+                    "services:\n"
+                    "  backendListener:\n"
+                    "    initContainers:\n"
+                    "    - name: wait-for-gateway\n"
+                    "      command:\n"
+                    "      - sh\n"
+                    "      - -c\n"
+                    "      - until nc -z quick-start 80; do sleep 2; done\n"
+                    "  backendWorker:\n"
+                    "    initContainers:\n"
+                    "    - name: wait-for-gateway\n"
+                    "      command:\n"
+                    "      - sh\n"
+                    "      - -c\n"
+                    "      - until nc -z quick-start 80; do sleep 2; done\n"
+                )
+
+            def fake_run(args, **_kwargs):
+                calls.append(args)
+                if args[:2] == ["helm", "pull"]:
+                    untar_directory = args[args.index("--untardir") + 1]
+                    chart_directory = os.path.join(untar_directory, "quick-start")
+                    os.makedirs(os.path.join(chart_directory, "charts"))
+                    os.makedirs(os.path.join(chart_directory, "templates"))
+                    with open(
+                        os.path.join(chart_directory, "Chart.yaml"),
+                        "w", encoding="utf-8",
+                    ) as chart:
+                        chart.write(
+                            "apiVersion: v2\nname: quick-start\nversion: 1.2.1\n"
+                            "dependencies:\n"
+                            "- name: service\n  version: 1.2.1\n"
+                            "- name: backend-operator\n  version: 1.2.1\n"
+                            "- name: router\n  version: 1.2.1\n"
+                            "- name: web-ui\n  version: 1.2.1\n"
+                        )
+                    with open(
+                        os.path.join(chart_directory, "values.yaml"),
+                        "w", encoding="utf-8",
+                    ) as values_file:
+                        values_file.write(
+                            "global:\n  osmoImageTag: old\n"
+                            "service:\n"
+                            "  gateway:\n"
+                            "    oauth2Proxy:\n"
+                            "      enabled: true\n"
+                            "backend-operator:\n"
+                            "  services:\n"
+                            "    backendListener:\n"
+                            "      initContainers:\n"
+                            "      - name: wait-for-token\n"
+                        )
+                    with open(
+                        os.path.join(chart_directory, "Chart.lock"),
+                        "w", encoding="utf-8",
+                    ) as lock:
+                        lock.write("digest: stale-after-substitution\n")
+                    os.makedirs(os.path.join(chart_directory, "charts", "router"))
+                    os.makedirs(os.path.join(chart_directory, "charts", "web-ui"))
+                    released_backend = os.path.join(
+                        chart_directory, "charts", "backend-operator",
+                    )
+                    os.makedirs(released_backend)
+                    with open(
+                        os.path.join(released_backend, "released-marker"),
+                        "w", encoding="utf-8",
+                    ) as marker:
+                        marker.write("released backend operator")
+                    with open(
+                        os.path.join(chart_directory, "charts", "service-1.2.1.tgz"),
+                        "w", encoding="utf-8",
+                    ) as archive:
+                        archive.write("released service")
+                    with open(
+                        os.path.join(chart_directory, "templates", "mek-configmap.yaml"),
+                        "w", encoding="utf-8",
+                    ) as template:
+                        template.write("legacy MEK")
+                    with open(
+                        os.path.join(
+                            chart_directory, "templates",
+                            "backend-operator-token-secret.yaml",
+                        ),
+                        "w", encoding="utf-8",
+                    ) as template:
+                        template.write("legacy backend API token")
+                return _FakeCompleted()
+
+            adapter = KindAdapter(build_local=True, subprocess_runner=fake_run)
+            with unittest.mock.patch(
+                "test.oetf.deploy_adapters.kind_adapter._local_service_chart_path",
+                return_value=local_service,
+            ):
+                with unittest.mock.patch(
+                    "test.oetf.deploy_adapters.kind_adapter."
+                    "_local_backend_operator_chart_path",
+                    return_value=local_backend_operator,
+                ):
+                    with adapter._quick_start_chart_ref() as chart_ref:  # pylint: disable=protected-access
+                        self.assertTrue(os.path.isfile(os.path.join(
+                            chart_ref, "charts", "service", "source-marker",
+                        )))
+                        self.assertTrue(os.path.isfile(os.path.join(
+                            chart_ref, "charts", "backend-operator", "source-marker",
+                        )))
+                        self.assertFalse(os.path.exists(os.path.join(
+                            chart_ref, "charts", "backend-operator", "released-marker",
+                        )))
+                        self.assertFalse(os.path.exists(
+                            os.path.join(chart_ref, "charts", "service-1.2.1.tgz"),
+                        ))
+                        self.assertFalse(os.path.exists(os.path.join(
+                            chart_ref, "templates", "mek-configmap.yaml",
+                        )))
+                        self.assertFalse(os.path.exists(os.path.join(
+                            chart_ref, "templates",
+                            "backend-operator-token-secret.yaml",
+                        )))
+                        self.assertFalse(os.path.exists(
+                            os.path.join(chart_ref, "charts", "router"),
+                        ))
+                        self.assertFalse(os.path.exists(
+                            os.path.join(chart_ref, "charts", "web-ui"),
+                        ))
+                        self.assertFalse(os.path.exists(
+                            os.path.join(chart_ref, "Chart.lock"),
+                        ))
+                        with open(
+                            os.path.join(chart_ref, "Chart.yaml"), encoding="utf-8",
+                        ) as chart:
+                            chart_text = chart.read()
+                        self.assertIn("name: service", chart_text)
+                        self.assertIn("name: backend-operator", chart_text)
+                        self.assertNotIn("name: router", chart_text)
+                        self.assertNotIn("name: web-ui", chart_text)
+                        with open(
+                            os.path.join(chart_ref, "values.yaml"), encoding="utf-8",
+                        ) as values_file:
+                            values = yaml.safe_load(values_file)
+                        service_values = values["service"]
+                        self.assertFalse(
+                            service_values["gateway"]["oauth2Proxy"]["enabled"],
+                        )
+                        self.assertFalse(
+                            service_values["gateway"]["authz"]["enabled"],
+                        )
+                        self.assertEqual(
+                            service_values["gateway"]["name"], "osmo-gateway",
+                        )
+                        self.assertEqual(
+                            service_values["gateway"]["envoy"]["defaultIdentity"],
+                            {
+                                "user": "testuser",
+                                "roles": "osmo-admin",
+                                "allowedPools": "default",
+                            },
+                        )
+                        self.assertEqual(
+                            service_values["gateway"]["envoy"]["ingress"],
+                            {
+                                "enabled": True,
+                                "ingressClass": "nginx",
+                                "sslEnabled": False,
+                            },
+                        )
+                        self.assertEqual(
+                            service_values["services"]["backendApiTokens"]
+                            ["credentials"][0]["existingSecret"]["name"],
+                            "backend-operator-token",
+                        )
+                        backend_values = values["backend-operator"]
+                        self.assertEqual(
+                            backend_values["global"]["accountTokenSecret"],
+                            "backend-operator-token",
+                        )
+                        self.assertEqual(
+                            backend_values["global"]["serviceUrl"],
+                            "http://osmo-gateway.osmo.svc.cluster.local",
+                        )
+                        self.assertEqual(
+                            backend_values["services"]["backendListener"]
+                            ["initContainers"][0]["name"],
+                            "wait-for-gateway",
+                        )
+                        self.assertIn(
+                            "nc -z osmo-gateway 80",
+                            backend_values["services"]["backendListener"]
+                            ["initContainers"][0]["command"][-1],
+                        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][:2], ["helm", "pull"])
+        self.assertNotIn("dependency", calls[0])
 
     def test_redeploy_without_build_local_does_not_rollout_restart(self):
         """Cluster pre-exists but build_local=False → no rollout restart (chart-default deploy)."""
@@ -559,6 +815,18 @@ class TestKindPreflight(unittest.TestCase):
             for key, value in saved.items():
                 if value is not None:
                     os.environ[key] = value
+
+    def test_docker_timeout_is_reported(self):
+        with unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.shutil.which",
+            return_value="/usr/bin/tool",
+        ), unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["docker", "info"], 5),
+        ):
+            errors = check_kind_prereqs()
+
+        self.assertTrue(any("did not respond" in error.error for error in errors))
 
 
 class TestBreadcrumb(unittest.TestCase):

@@ -125,8 +125,22 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.objectStorage.generate .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
+{{- if and .Values.gateway.tls.enabled .Values.gateway.tls.generated.enabled -}}
+{{- if or .Values.gateway.tls.caSecret .Values.gateway.tls.upstreamCerts.api .Values.gateway.tls.upstreamCerts.router .Values.gateway.tls.upstreamCerts.agent .Values.gateway.tls.upstreamCerts.logger .Values.gateway.tls.upstreamCerts.mcp -}}
+{{- fail "gateway.tls.generated.enabled cannot be combined with caSecret or upstreamCerts" -}}
+{{- end -}}
+{{- if and (ne .Values.gateway.tls.generated.caRotation.phase "stable") (not .Values.gateway.tls.generated.caRotation.id) -}}
+{{- fail "gateway.tls.generated.caRotation.id is required outside the stable phase" -}}
+{{- end -}}
+{{- if and (ne .Values.gateway.tls.generated.caRotation.phase "stable") (not .Values.gateway.tls.generated.caRotation.freezeHpas) -}}
+{{- fail "gateway.tls.generated.caRotation.freezeHpas must be true during CA rotation" -}}
+{{- end -}}
+{{- end -}}
+{{- if or .Values.secrets.objectStorage.generate .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
+{{- end -}}
+{{- if and .Values.secrets.oauthCookieSecret.generate .Values.secrets.oauthCookieSecret.existingSecret -}}
+{{- fail "secrets.oauthCookieSecret.generate and existingSecret are mutually exclusive" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
   (dict "path" "services.ui" "component" .Values.services.ui)
@@ -180,6 +194,9 @@
 {{- if hasKey .Values "components" -}}
 {{- fail "components is not a supported value; configure services and gateway" -}}
 {{- end -}}
+{{- if or (hasKey .Values.gateway.oauth2Proxy "useKubernetesSecrets") (hasKey .Values.gateway.oauth2Proxy "secretName") (hasKey .Values.gateway.oauth2Proxy "clientSecretKey") (hasKey .Values.gateway.oauth2Proxy "cookieSecretKey") (hasKey .Values.gateway.oauth2Proxy "secretPaths") -}}
+{{- fail "gateway.oauth2Proxy legacy Secret values are not supported; configure secrets.oauthClientSecret and secrets.oauthCookieSecret" -}}
+{{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.externalDependencies.postgresql.host) -}}
 {{- fail "externalDependencies.postgresql.host is required for the control plane" -}}
 {{- end -}}
@@ -207,8 +224,17 @@
 {{- if not .Values.secrets.objectStorage.existingSecret -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
-{{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
+{{- if not .Values.secrets.masterEncryptionKey.existingSecret.name -}}
+{{- fail "secrets.masterEncryptionKey.existingSecret.name is required for the control plane" -}}
+{{- end -}}
+{{- if not .Values.secrets.masterEncryptionKey.existingSecret.key -}}
+{{- fail "secrets.masterEncryptionKey.existingSecret.key is required for the control plane" -}}
+{{- end -}}
+{{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthClientSecret.existingSecret) -}}
+{{- fail "secrets.oauthClientSecret.existingSecret is required when the OAuth2 proxy is enabled" -}}
+{{- end -}}
+{{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthCookieSecret.generate) (not .Values.secrets.oauthCookieSecret.existingSecret) -}}
+{{- fail "secrets.oauthCookieSecret requires generate=true or existingSecret when the OAuth2 proxy is enabled" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}

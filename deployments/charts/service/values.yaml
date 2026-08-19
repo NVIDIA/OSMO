@@ -111,6 +111,24 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
+  ## Master encryption key keyring. OSMO only reads this existing Secret; it
+  ## never patches or rotates it. For disposable test installations backed by
+  ## a new, empty database only, the opt-in bootstrap hook can create the
+  ## Secret once inside Kubernetes.
+  masterEncryptionKey:
+    existingSecret:
+      name: osmo-mek
+      key: mek.yaml
+    bootstrap:
+      # Disabled by default. Enabling this asserts that the database is new and
+      # empty; a Helm install may still point at retained data. The pre-install
+      # hook creates existingSecret only when absent; upgrades never regenerate it.
+      enabled: false
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
+    # Enable only for the first upgrade after every legacy OSMO writer is stopped.
+    allowExistingCiphertextAdoption: false
+
   ## External self-hosted MCP service configuration
   ##
   mcp:
@@ -215,14 +233,36 @@ services:
       refreshTokenTtlSeconds: 28800
       upstreamTimeoutSeconds: 10
 
-      ## Optionally mount all proxy credentials from an existing Secret.
-      ## Leave name empty when Vault injection or extra volumes provide them.
+      ## Legacy single-Secret compatibility. Prefer the typed credentials
+      ## below. Custom mount paths and Vault-injected paths are rejected.
       ##
       existingSecret:
         name: ""
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
         redisPasswordKey: redis-password
+
+      ## Typed Kubernetes Secret references. Storage and signing keys must be
+      ## configured together. Leaving both empty preserves the historical key
+      ## derivation during a staged migration of existing Redis state.
+      credentials:
+        rolloutNonce: ""
+        clientSecret:
+          existingSecret:
+            name: ""
+            key: client-secret
+        redisPassword:
+          existingSecret:
+            name: ""
+            key: redis-password
+        storageEncryptionKey:
+          existingSecret:
+            name: ""
+            key: storage-encryption-key
+        jwtSigningKey:
+          existingSecret:
+            name: ""
+            key: jwt-signing-key
 
     ## Additional pod labels and annotations.
     ##
@@ -233,8 +273,7 @@ services:
     ##
     extraEnv: []
 
-    ## Additional volume mounts and volumes for the MCP container and pod.
-    ## These can provide Vault-injected OIDC proxy credentials.
+    ## Additional non-credential volume mounts and volumes for the MCP pod.
     ##
     extraVolumeMounts: []
     extraVolumes: []
@@ -614,11 +653,9 @@ services:
 
   ## Backend operator bootstrap authentication.
   ##
-  ## Each credential selects exactly one Secret source. Use `existingSecret` for
-  ## production or `managedSecret` for single-cluster development. A managed
-  ## Secret is generated inside Kubernetes by a pre-install hook. The token is
-  ## never rendered into Helm output or stored in Helm release state. Upgrades
-  ## validate and preserve the existing Secret instead of regenerating it.
+  ## The chart consumes operator-owned Secrets and never creates or modifies
+  ## credential data. For development, create the Secret with kubectl before
+  ## installing the chart.
   ##
   ## Every Secret must contain a 43- or 64-character value under the `token`
   ## key. During rotation it may also contain the old value under
@@ -627,11 +664,6 @@ services:
   ##
   backendApiTokens:
     enabled: false
-    ## Image used only by the managed-credential bootstrap hook. Override the
-    ## tag when a kubectl version closer to the target cluster is required.
-    bootstrap:
-      image: alpine/kubectl:1.33.4
-      imagePullPolicy: IfNotPresent
     ## Non-secret value used to trigger an API deployment rollout after an
     ## externally managed Secret changes.
     rolloutNonce: ""
@@ -639,12 +671,6 @@ services:
     # - name: default
     #   existingSecret:
     #     name: osmo-backend-token-default
-    # - name: local
-    #   managedSecret:
-    #     name: osmo-backend-token-local
-    # Deprecated compatibility form (equivalent to existingSecret.name):
-    # - name: legacy
-    #   secretName: osmo-backend-token-legacy
 
   ## Dynamic configuration loaded from ConfigMap.
   ## When enabled, all configs are served from in-memory (parsed from the mounted
@@ -2298,13 +2324,30 @@ gateway:
     scope: "openid email profile"
     passAccessToken: false
     redisSessionStore: true
-    useKubernetesSecrets: false
+    ## Credentials are always read from Kubernetes Secrets. Legacy single-Secret
+    ## fields below remain as a compatibility fallback when the typed references
+    ## are empty.
+    useKubernetesSecrets: true
     secretName: oauth2-proxy-secrets
     clientSecretKey: client_secret
     cookieSecretKey: cookie_secret
     secretPaths:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
+    clientSecret:
+      existingSecret:
+        name: ""
+        key: client_secret
+      rolloutNonce: ""
+    cookieSecret:
+      generate: false
+      existingSecret:
+        name: ""
+        key: cookie_secret
+      rolloutNonce: ""
+      bootstrap:
+        image: alpine/kubectl:1.33.4
+        imagePullPolicy: IfNotPresent
     extraArgs: []
     ## Extra environment variables for the oauth2-proxy container. Useful for
     ## passing credentials from Secrets — e.g. Redis password via
@@ -2475,23 +2518,34 @@ gateway:
         app: osmo-ui
       port: 8000
 
-  ## TLS for gateway -> upstream traffic. Default: each service mints an
-  ## ephemeral self-signed cert in-process; Envoy connects with TLS but does
-  ## not validate (encryption-only — identity is provided by NetworkPolicy /
-  ## RBAC). UI is excluded; stays HTTP.
-  ##
-  ## To use externally-provisioned certs, set upstreamCerts.<service> to the
-  ## name of an existing kubernetes.io/tls Secret containing tls.crt + tls.key.
-  ## To make Envoy validate against a CA, set caSecret to an existing Secret
-  ## containing ca.crt. How those Secrets get created (cert-manager, Vault
-  ## CSI, sealed-secrets, manual, etc.) is up to the operator — OSMO just
-  ## consumes them.
+  ## TLS for gateway -> upstream traffic. Generated development mode maintains
+  ## stable CA and leaf Kubernetes Secrets. Production disables generated mode
+  ## and references operator/cert-manager-owned CA and leaf Secrets. UI is
+  ## excluded and remains HTTP behind the gateway.
   tls:
     enabled: true
+    ## Non-secret rollout trigger after operator-owned TLS Secrets change.
+    rolloutNonce: ""
 
-    ## Per-upstream server certs. Empty string = mint ephemeral self-signed
-    ## in-process. Otherwise the named Secret is mounted at /etc/osmo/tls
-    ## and uvicorn loads tls.crt + tls.key from it.
+    ## Development mode generates a stable private CA and leaf Secrets in the
+    ## cluster. Production should disable generated mode and configure every
+    ## existing Secret below (for example, cert-manager-owned Secrets).
+    generated:
+      enabled: true
+      bootstrap:
+        ## Empty uses the release's OSMO service image, which contains the
+        ## purpose-built bootstrap binary.
+        image: ""
+        imagePullPolicy: IfNotPresent
+      leafRotationNonce: ""
+      caRotation:
+        id: ""
+        phase: stable
+        # Set in a stable preflight upgrade and keep true through retirement.
+        freezeHpas: false
+
+    ## Existing per-upstream kubernetes.io/tls Secrets. These remain empty in
+    ## generated development mode.
     upstreamCerts:
       service: ""
       router: ""
@@ -2499,7 +2553,6 @@ gateway:
       logger: ""
       mcp: ""
 
-    ## Optional CA bundle for Envoy upstream validation. When set, Envoy
-    ## validates upstream certs against ca.crt from this Secret. When empty,
-    ## TLS is encryption-only (no validation).
+    ## Existing CA bundle containing ca.crt. Required when generated mode is
+    ## disabled; empty only in generated development mode.
     caSecret: ""

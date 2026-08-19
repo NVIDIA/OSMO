@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_library")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
@@ -112,6 +112,37 @@ osmo_py_library(
         requirement("kubernetes"),
         requirement("truststore"),
     ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "internal_tls_bootstrap_lib",
+    srcs = ["internal_tls_bootstrap.py"],
+    deps = [
+        requirement("cryptography"),
+        requirement("kubernetes"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_binary(
+    name = "internal_tls_bootstrap_binary",
+    main = "internal_tls_bootstrap.py",
+    srcs = ["internal_tls_bootstrap.py"],
+    deps = [":internal_tls_bootstrap_lib"],
+)
+
+osmo_python_wrapper(
+    name = "internal_tls_bootstrap_wrapper",
+    bin_name = "internal-tls-bootstrap",
+    main = None,
+    module = "src.utils.internal_tls_bootstrap",
+    runfiles_dir = "/src/service/core/service_binary.runfiles",
+)
+
+alias(
+    name = "internal_tls_bootstrap_wrapper_public",
+    actual = ":internal_tls_bootstrap_wrapper",
     visibility = ["//visibility:public"],
 )
 

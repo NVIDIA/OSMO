@@ -26,7 +26,7 @@ Deploying the backend operator will register your compute backend with OSMO, mak
 .. admonition:: Prerequisites
   :class: important
 
-  - Install :ref:`OSMO CLI <cli_install>` before you begin
+  - Install ``kubectl`` and Helm
   - Replace ``osmo.example.com`` with your domain name in the commands below
 
 .. _provision_backend_secret:
@@ -34,21 +34,17 @@ Deploying the backend operator will register your compute backend with OSMO, mak
 Step 1: Provision Backend Bootstrap Secret
 -------------------------------------------
 
-Provision the backend bootstrap credential as a Kubernetes Secret. This flow
-does not log in to OSMO or call the user or access-token APIs.
-
-Generate a 43-character credential into a protected temporary file and create
-the control-plane Secret:
+Provision the backend bootstrap credential as a Kubernetes Secret before
+installing the chart. Start with a protected file containing a 43- or
+64-character URL-safe token. If your secret-management integration already
+materializes the Secret, skip the ``kubectl create`` command.
 
 .. code-block:: bash
 
-   $ TOKEN_FILE=$(mktemp)
-   $ chmod 600 "$TOKEN_FILE"
-   $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
-   $ kubectl --context <control-context> create secret generic osmo-backend-token-default \
+   $ kubectl --context <control-context> create secret generic \
+       osmo-backend-token-default \
        --namespace <control-namespace> \
-       --from-file=token="$TOKEN_FILE"
-   $ rm -f "$TOKEN_FILE"
+       --from-file=token=/secure/path/backend-token
 
 Configure the control-plane service chart to consume the Secret:
 
@@ -64,33 +60,9 @@ Configure the control-plane service chart to consume the Secret:
 
 .. note::
 
-  For production, materialize the Secret through your approved external-secret
-  integration instead of generating it on an administrator workstation.
-
-For single-cluster development, the service chart can generate the Secret on
-the initial install:
-
-.. code-block:: yaml
-
-   services:
-     backendApiTokens:
-       enabled: true
-       credentials:
-       - name: default
-         managedSecret:
-           name: osmo-backend-token-default
-
-The backend operator can consume that Secret directly when it runs in the same
-namespace. A pre-install kubectl hook generates the credential inside Kubernetes; the
-token is not included in Helm output or release state. A pre-upgrade hook
-preserves and validates it, and fails rather than replacing a missing Secret.
-The Secret persists independently of Helm uninstall and rollback. This mode
-does not synchronize the token to another cluster, so use ``existingSecret``
-with an external secret manager for production and multi-cluster deployments.
-Managed credentials must be configured during the initial install. Add later
-credentials by provisioning them explicitly and using ``existingSecret``.
-Chart-bootstrap Secrets persist after Helm uninstall; delete them explicitly
-when they are no longer needed.
+  For production and multi-cluster deployments, materialize synchronized
+  copies through your approved external-secret integration. The Helm chart is
+  a consumer and never creates or modifies credential data.
 
 .. tip::
 
@@ -115,11 +87,12 @@ Create Kubernetes namespaces and secrets necessary for the backend deployment.
     $ kubectl --context <compute-context> create namespace osmo-operator
     $ kubectl --context <compute-context> create namespace osmo-workflows
 
-    # Stream the bootstrap Secret to the compute cluster without printing it.
-    $ kubectl --context <control-context> get secret osmo-backend-token-default \
-        --namespace <control-namespace> -o json \
-      | jq '.metadata = {"name":"osmo-backend-token-default","namespace":"osmo-operator"}' \
-      | kubectl --context <compute-context> apply --server-side -f -
+    # Create the compute-plane copy from the same protected token file.
+    # Skip this when your secret-management integration creates it.
+    $ kubectl --context <compute-context> create secret generic \
+        osmo-backend-token-default \
+        --namespace osmo-operator \
+        --from-file=token=/secure/path/backend-token
 
 
 Step 3: Deploy Backend Operator
@@ -179,21 +152,25 @@ Deploy the backend operator:
      -f ./backend_operator_values.yaml \
      --version <insert-chart-version> \
      --namespace osmo-operator \
-     --kube-context <compute-context>
+     --kube-context <compute-context> \
+     --wait
 
 Step 4: Validate Deployment
 ----------------------------
 
-Use the OSMO CLI to validate the backend configuration
+Use ``kubectl`` to verify that both operator Deployments rolled out and the
+pods are ready:
 
 .. code-block:: bash
   :substitutions:
 
-  $ export BACKEND_NAME=default  # Update with your backend name
+  $ kubectl --context <compute-context> --namespace osmo-operator \
+      rollout status deployment/osmo-operator-osmo-backend-listener
+  $ kubectl --context <compute-context> --namespace osmo-operator \
+      rollout status deployment/osmo-operator-osmo-backend-worker
+  $ kubectl --context <compute-context> --namespace osmo-operator get pods
 
-  $ osmo config show BACKEND $BACKEND_NAME
-
-Alternatively, visit http://osmo.example.com/api/configs/backend in your browser.
+Then visit ``https://osmo.example.com/api/configs/backend`` in your browser.
 
 Ensure the backend is online (see the highlighted line in the JSON output):
 
@@ -239,17 +216,7 @@ Step 5: Default Pool Is Ready
 
 The Helm chart ships with a default pool wired to a backend named ``default``. If your backend is named ``default`` (as used throughout this guide), the default pool will automatically link to it as soon as the backend shows as online in the previous step — no additional configuration is needed.
 
-Verify:
-
-.. code-block:: bash
-
-  $ osmo pool list
-  Pool      Description    Status    GPU [#]
-                                   Quota Used   Quota Limit   Total Usage   Total Capacity
-  =============================================================================================
-  default   Default pool   ONLINE    N/A          N/A           0             24
-  =============================================================================================
-                                                                0             24
+Verify in the OSMO UI that the ``default`` pool is online.
 
 If the pool shows ``OFFLINE``, wait a few seconds for the backend heartbeat or re-check Step 4.
 
@@ -292,14 +259,25 @@ Backend Authentication Error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Verify that the control- and compute-plane Secrets have identical ``token``
-data without printing the decoded credential:
+data without printing the decoded credential. Capture each value only after a
+successful, nonempty ``kubectl`` read so connection or authorization failures
+cannot produce matching hashes of empty input:
 
 .. code-block:: bash
 
-   $ kubectl --context <control-context> get secret osmo-backend-token-default \
-       -n <control-namespace> -o jsonpath='{.data.token}' | sha256sum
-   $ kubectl --context <compute-context> get secret osmo-backend-token-default \
-       -n osmo-operator -o jsonpath='{.data.token}' | sha256sum
+   $ CONTROL_TOKEN_B64=$(kubectl --context <control-context> get secret \
+       osmo-backend-token-default -n <control-namespace> \
+       -o jsonpath='{.data.token}') || exit 1
+   $ test -n "$CONTROL_TOKEN_B64" || { echo 'Control-plane token is empty.' >&2; exit 1; }
+   $ COMPUTE_TOKEN_B64=$(kubectl --context <compute-context> get secret \
+       osmo-backend-token-default -n osmo-operator \
+       -o jsonpath='{.data.token}') || exit 1
+   $ test -n "$COMPUTE_TOKEN_B64" || { echo 'Compute-plane token is empty.' >&2; exit 1; }
+   $ CONTROL_TOKEN_SHA256=$(printf %s "$CONTROL_TOKEN_B64" | sha256sum | awk '{print $1}')
+   $ COMPUTE_TOKEN_SHA256=$(printf %s "$COMPUTE_TOKEN_B64" | sha256sum | awk '{print $1}')
+   $ printf 'control: %s\ncompute: %s\n' \
+       "$CONTROL_TOKEN_SHA256" "$COMPUTE_TOKEN_SHA256"
+   $ unset CONTROL_TOKEN_B64 COMPUTE_TOKEN_B64 CONTROL_TOKEN_SHA256 COMPUTE_TOKEN_SHA256
 
-If the hashes differ, repeat the Secret-transfer step and restart the backend
-listener and worker.
+If the hashes differ, update both Secret objects from the same source and
+restart the backend listener and worker.

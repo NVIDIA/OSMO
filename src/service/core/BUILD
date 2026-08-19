@@ -45,6 +45,7 @@ osmo_py_library(
         "//src/service/core/workflow",
         "//src/service/logger:ctrl_websocket",
         "//src/utils:ssl_init",
+        "//src/utils:internal_tls_bootstrap_lib",
     ],
     data = [
         "//src/lib/utils:version.yaml",
@@ -78,6 +79,7 @@ filegroup(
         ":service_layer_interpreter",
         ":service_layer_packages",
         ":service_wrapper",
+        "//src/utils:internal_tls_bootstrap_wrapper_public",
     ],
 )
 

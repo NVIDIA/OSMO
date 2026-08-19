@@ -289,19 +289,88 @@ the charts independently managed.
      --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
      --dry-run=client -o yaml | kubectl apply -f -
 
-   if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
-     MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
-     MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
-     MEK_FILE=$(mktemp)
-     printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
-     kubectl create configmap mek-config \
-       --namespace osmo \
-       --from-file=mek.yaml="$MEK_FILE" \
-       --dry-run=client -o yaml | kubectl apply -f -
-     rm -f "$MEK_FILE"
+   BACKEND_TOKEN_FILE=$(mktemp)
+   BACKEND_PREVIOUS_TOKEN_FILE=$(mktemp)
+   BACKEND_INVALID_TOKEN_FILE=$(mktemp)
+   chmod 600 "$BACKEND_TOKEN_FILE" "$BACKEND_PREVIOUS_TOKEN_FILE" \
+     "$BACKEND_INVALID_TOKEN_FILE"
+   trap 'rm -f "$BACKEND_TOKEN_FILE" "$BACKEND_PREVIOUS_TOKEN_FILE" \
+     "$BACKEND_INVALID_TOKEN_FILE"' EXIT
+
+   validate_backend_token_file() {
+     local token_file=$1
+     local token_key=$2
+     local token_length
+     token_length=$(wc -c < "$token_file" | tr -d ' ')
+     LC_ALL=C tr -d 'A-Za-z0-9_-' < "$token_file" > "$BACKEND_INVALID_TOKEN_FILE"
+     if { [ "$token_length" -ne 43 ] && [ "$token_length" -ne 64 ]; } || \
+         [ -s "$BACKEND_INVALID_TOKEN_FILE" ]; then
+       echo "Secret backend-operator-token key $token_key is not a valid backend token." >&2
+       return 1
+     fi
+   }
+
+   load_and_validate_backend_token_secret() {
+     local secret_keys
+     if ! kubectl get secret backend-operator-token --namespace osmo \
+         -o 'go-template={{index .data "token" | base64decode}}' \
+         > "$BACKEND_TOKEN_FILE"; then
+       echo 'Failed to read Secret backend-operator-token key token.' >&2
+       return 1
+     fi
+     if ! secret_keys=$(kubectl get secret backend-operator-token \
+         --namespace osmo \
+         -o 'go-template={{range $key, $_ := .data}}{{printf "%s\n" $key}}{{end}}'); then
+       echo 'Failed to inspect Secret backend-operator-token.' >&2
+       return 1
+     fi
+     validate_backend_token_file "$BACKEND_TOKEN_FILE" token || return 1
+     if printf '%s\n' "$secret_keys" | grep -qx previous-token; then
+       if ! kubectl get secret backend-operator-token --namespace osmo \
+           -o 'go-template={{index .data "previous-token" | base64decode}}' \
+           > "$BACKEND_PREVIOUS_TOKEN_FILE"; then
+         echo 'Failed to read Secret backend-operator-token key previous-token.' >&2
+         return 1
+       fi
+       validate_backend_token_file "$BACKEND_PREVIOUS_TOKEN_FILE" previous-token || return 1
+       if cmp -s "$BACKEND_TOKEN_FILE" "$BACKEND_PREVIOUS_TOKEN_FILE"; then
+         echo 'Secret backend-operator-token contains duplicate token values.' >&2
+         return 1
+       fi
+     fi
+   }
+
+   if ! BACKEND_TOKEN_SECRET_MARKER=$(kubectl get secret backend-operator-token \
+       --namespace osmo --ignore-not-found=true \
+       -o 'go-template={{if .metadata.name}}present{{end}}'); then
+     echo 'Failed to check Secret backend-operator-token.' >&2
+     exit 1
    fi
 
-   helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   if [ "$BACKEND_TOKEN_SECRET_MARKER" = present ]; then
+     load_and_validate_backend_token_secret || exit 1
+   else
+     openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$BACKEND_TOKEN_FILE"
+     validate_backend_token_file "$BACKEND_TOKEN_FILE" token || exit 1
+     if ! kubectl create secret generic backend-operator-token \
+         --namespace osmo --from-file=token="$BACKEND_TOKEN_FILE"; then
+       echo 'Secret creation failed; checking for a concurrent valid Secret.' >&2
+       if ! load_and_validate_backend_token_secret; then
+         echo 'Failed to create a valid Secret backend-operator-token.' >&2
+         exit 1
+       fi
+     fi
+   fi
+
+   if ! kubectl get secret backend-operator-token --namespace osmo >/dev/null; then
+     echo 'Secret backend-operator-token is unavailable after provisioning.' >&2
+     exit 1
+   fi
+    rm -f "$BACKEND_TOKEN_FILE" "$BACKEND_PREVIOUS_TOKEN_FILE" \
+      "$BACKEND_INVALID_TOKEN_FILE"
+    trap - EXIT
+
+    helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
    helm repo update osmo
    helm upgrade --install osmo osmo/service \
      --namespace osmo \
@@ -309,15 +378,21 @@ the charts independently managed.
      --wait \
      --timeout 25m
 
+The quick-start values enable the install-only MEK bootstrap hook. It creates
+the ``osmo-mek`` Secret for this disposable local installation without placing
+key material in Helm values or release state. Existing Secrets are preserved,
+and upgrades fail if the Secret is missing rather than generating a new key.
+
    helm upgrade --install osmo-backend-operator osmo/backend-operator \
      --namespace osmo \
      -f osmo-values/backend-operator.yaml \
      --wait \
      --timeout 10m
 
-The service quick-start values generate ``backend-operator-token`` during the
-first Helm install. The backend operator consumes it directly from the same
-namespace.
+The ``kubectl`` flow creates ``backend-operator-token`` when it is missing and
+validates an existing current and optional previous token without printing
+either value. It refuses invalid or duplicate values before Helm runs. Both
+charts consume that operator-owned Secret and never modify it.
 
 .. tip::
    Installation takes about 5 minutes. Monitor progress with:

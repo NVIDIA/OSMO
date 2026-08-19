@@ -15,6 +15,28 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.api.enabled }}
 {{- $name := include "osmo.api.fullname" . }}
+{{- if .Values.services.backendApiTokens.enabled }}
+{{- if not .Values.services.backendApiTokens.credentials }}
+{{- fail "services.backendApiTokens.credentials must not be empty when backend API tokens are enabled" }}
+{{- end }}
+{{- $credentialNames := dict }}
+{{- $secretNames := dict }}
+{{- range .Values.services.backendApiTokens.credentials }}
+{{- $credentialName := required "backend API token credential name is required" .name }}
+{{- if or (gt (len $credentialName) 49) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) }}
+{{- fail (printf "backend API token credential name %q must be a lowercase DNS label of at most 49 characters" $credentialName) }}
+{{- end }}
+{{- if hasKey $credentialNames $credentialName }}
+{{- fail (printf "duplicate backend API token credential name %q" $credentialName) }}
+{{- end }}
+{{- $_ := set $credentialNames $credentialName true }}
+{{- $secretName := include "osmo.backendApiToken.secretName" . }}
+{{- if hasKey $secretNames $secretName }}
+{{- fail (printf "duplicate backend API token Secret name %q" $secretName) }}
+{{- end }}
+{{- $_ := set $secretNames $secretName true }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,6 +64,12 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
+        {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
+        osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        osmo.nvidia.com/backend-token-rollout: {{ .Values.services.backendApiTokens.rolloutNonce | quote }}
+        {{- end }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -97,9 +125,9 @@ spec:
         - {{ include "osmo.postgresql.port" . | quote }}
         - --postgres_database_name
         - {{ include "osmo.postgresql.database" . }}
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - --mek_file
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        - {{ include "osmo.secrets.mekFile" . | quote }}
         {{- end }}
         {{- with (include "osmo.postgresql.username" .) }}
         - --postgres_user
@@ -144,12 +172,18 @@ spec:
         - --default_admin_username
         - {{ .Values.secrets.defaultAdmin.username | quote }}
         {{- end }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        - --backend_token_directory
+        - /etc/osmo/backend-tokens
+        {{- end }}
         {{- include "osmo.configuration.args" . | nindent 8 }}
         {{- range $arg := .Values.services.api.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         env:
+        {{- include "osmo.secrets.mekConsumerEnv" "api" | nindent 8 }}
+        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.api.disableTaskMetrics | quote }}
         {{- include "osmo.configuration.env" . | nindent 8 }}
@@ -171,15 +205,22 @@ spec:
         volumeMounts:
         - name: osmo-runtime-tmp
           mountPath: /tmp
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
-        - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
+        - mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
           name: mek-volume
-          subPath: mek.yaml
+          readOnly: true
         {{- end }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        {{- range .Values.services.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
+          mountPath: /etc/osmo/backend-tokens/{{ .name }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.api | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.api.resources | nindent 10 }}
 
@@ -202,9 +243,16 @@ spec:
         - name: osmo-runtime-tmp
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.api | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        {{- range .Values.services.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
+          secret:
+            secretName: {{ include "osmo.backendApiToken.secretName" . | quote }}
+        {{- end }}
+        {{- end }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 ---
 
@@ -246,7 +294,7 @@ spec:
     kind: Deployment
     name: {{ $name }}
   minReplicas: {{ .Values.services.api.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.services.api.autoscaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.api.autoscaling.minReplicas .Values.services.api.autoscaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   {{- with .Values.services.api.autoscaling.behavior }}
   behavior:
     {{- toYaml . | nindent 4 }}

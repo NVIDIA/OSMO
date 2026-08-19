@@ -152,30 +152,107 @@ data:
 {{- end }}
 
 {{/*
-Resolve the Secret name for one backend API token credential. Each credential
-must select exactly one source so chart-managed generation is always explicit.
+Resolve the operator-owned Secret name for one backend API token credential.
 */}}
 {{- define "osmo.backend-api-token-secret-name" -}}
-{{- $hasExistingSecret := hasKey . "existingSecret" -}}
-{{- $hasManagedSecret := hasKey . "managedSecret" -}}
-{{- $hasLegacySecretName := hasKey . "secretName" -}}
-{{- $sourceCount := add (ternary 1 0 $hasExistingSecret) (ternary 1 0 $hasManagedSecret) (ternary 1 0 $hasLegacySecretName) -}}
-{{- if ne $sourceCount 1 -}}
-{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret, managedSecret, or deprecated secretName" (.name | default "")) -}}
+{{- if not (kindIs "map" .) -}}
+{{- fail "backend API token credentials must be mappings" -}}
 {{- end -}}
-{{- if $hasExistingSecret -}}
+{{- if or (hasKey . "managedSecret") (hasKey . "secretName") -}}
+{{- fail (printf "backend API token credential %q only supports existingSecret" (.name | default "")) -}}
+{{- end -}}
+{{- $allowedCredentialKeys := list "name" "existingSecret" -}}
+{{- range $key := keys . -}}
+{{- if not (has $key $allowedCredentialKeys) -}}
+{{- fail (printf "backend API token credential field %q is not supported" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (hasKey . "existingSecret") -}}
+{{- fail "backend API token credentials must configure existingSecret" -}}
+{{- end -}}
+{{- if not (hasKey . "name") -}}
+{{- fail "backend API token credential name is required" -}}
+{{- end -}}
+{{- if not (kindIs "string" .name) -}}
+{{- fail "backend API token credential name must be a string" -}}
+{{- end -}}
+{{- if not (kindIs "map" .existingSecret) -}}
+{{- fail "backend API token existingSecret must be a mapping" -}}
+{{- end -}}
+{{- range $key := keys .existingSecret -}}
+{{- if ne $key "name" -}}
+{{- fail (printf "backend API token existingSecret field %q is not supported" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (hasKey .existingSecret "name") -}}
+{{- fail "backend API token existingSecret.name is required" -}}
+{{- end -}}
+{{- if not (kindIs "string" .existingSecret.name) -}}
+{{- fail "backend API token existingSecret.name must be a string" -}}
+{{- end -}}
 {{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
-{{- else if $hasManagedSecret -}}
-{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
-{{- else -}}
-{{- required "backend API token secretName is required" .secretName -}}
+{{- end }}
+
+{{/*
+Reject unknown backend token values before Helm can retain inline material.
+*/}}
+{{- define "osmo.backend-api-tokens.validate" -}}
+{{- if not (kindIs "map" .) -}}
+{{- fail "services.backendApiTokens must be a mapping" -}}
+{{- end -}}
+{{- $allowedKeys := list "enabled" "rolloutNonce" "credentials" -}}
+{{- range $key := keys . -}}
+{{- if not (has $key $allowedKeys) -}}
+{{- fail (printf "services.backendApiTokens field %q is not supported" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (kindIs "bool" .enabled) -}}
+{{- fail "services.backendApiTokens.enabled must be a boolean" -}}
+{{- end -}}
+{{- if not (kindIs "string" .rolloutNonce) -}}
+{{- fail "services.backendApiTokens.rolloutNonce must be a string" -}}
+{{- end -}}
+{{- if not (kindIs "slice" .credentials) -}}
+{{- fail "services.backendApiTokens.credentials must be a list" -}}
+{{- end -}}
+{{- range .credentials -}}
+{{- $_ := include "osmo.backend-api-token-secret-name" . -}}
 {{- end -}}
 {{- end }}
 
-{{/* Name shared by the ephemeral managed-token bootstrap hook resources. */}}
-{{- define "osmo.backend-api-token-bootstrap-name" -}}
-{{- printf "%s-backend-token-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- end }}
+{{/* Kubernetes Secret-only MEK projection shared by every database consumer. */}}
+{{- define "osmo.mek-file" -}}
+{{- "/opt/osmo/mek/mek.yaml" | quote -}}
+{{- end -}}
+
+{{- define "osmo.mek-volume-mount" -}}
+- name: mek-volume
+  mountPath: "/opt/osmo/mek"
+  readOnly: true
+{{- end -}}
+
+{{- define "osmo.mek-volume" -}}
+- name: mek-volume
+  secret:
+    secretName: {{ required "services.masterEncryptionKey.existingSecret.name is required" .Values.services.masterEncryptionKey.existingSecret.name | quote }}
+    items:
+    - key: {{ required "services.masterEncryptionKey.existingSecret.key is required" .Values.services.masterEncryptionKey.existingSecret.key | quote }}
+      path: "mek.yaml"
+{{- end -}}
+
+{{- define "osmo.mek-adoption-env" -}}
+- name: OSMO_ALLOW_EXISTING_MEK_ADOPTION
+  value: {{ .Values.services.masterEncryptionKey.allowExistingCiphertextAdoption | quote }}
+{{- end -}}
+
+{{- define "osmo.mek-consumer-env" -}}
+- name: OSMO_POD_UID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid
+- name: OSMO_MEK_CONSUMER
+  value: {{ . | quote }}
+{{- end -}}
 
 {{/*
 ConfigMap-mode mounts (shared by api-service, worker, agent, logger).

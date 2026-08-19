@@ -20,12 +20,13 @@
 
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
-For a local deployment that previously used quick-start values, create the
-namespaces, `local-admin-password` and backend token Secrets, and the
-`mek-config` ConfigMap from
-[../README.md](../README.md), then install this chart first with
-`quick-start-values.yaml`. Install the `backend-operator` chart with its
-matching values file after the service release is available:
+For a disposable local deployment, create the namespaces and the
+`local-admin-password` Secret from [../README.md](../README.md), then install
+this chart with `quick-start-values.yaml`. Those values opt into Kubernetes
+Jobs that create the initial MEK Secret and shared backend token Secret without
+putting their material in Helm output or release state. Install the
+`backend-operator` chart with its matching values file after the service
+release is available:
 
 ```bash
 helm upgrade --install osmo osmo/service \
@@ -35,6 +36,15 @@ helm upgrade --install osmo osmo/service \
 ```
 
 See [../README.md](../README.md) for the full two-chart flow.
+
+The MEK bootstrap mode is only safe with a new, empty database. A Helm install
+or a new release name can still point at retained PostgreSQL data; in that case,
+restore or supply the MEK that encrypted that data instead of enabling
+bootstrap.
+
+If the bootstrap workload cannot start or complete, Helm removes the complete
+privileged hook resource set. A sanitized recovery ConfigMap remains for
+diagnosis and is removed automatically after a successful retry.
 
 ## Values
 
@@ -69,6 +79,11 @@ OSMO services write logs to standard streams for collection by the platform log 
 |-----------|-------------|---------|
 | `services.configFile.enabled` | Enable external configuration file loading | `false` |
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
+| `services.masterEncryptionKey.existingSecret.name` | Existing Kubernetes Secret containing the MEK keyring | `osmo-mek` |
+| `services.masterEncryptionKey.existingSecret.key` | Key containing the MEK YAML | `mek.yaml` |
+| `services.masterEncryptionKey.bootstrap.enabled` | Create a missing MEK Secret inside Kubernetes for disposable test installs with a new, empty database | `false` |
+| `services.masterEncryptionKey.bootstrap.image` | kubectl image used by the short-lived bootstrap hook | `alpine/kubectl:1.33.4` |
+| `services.masterEncryptionKey.allowExistingCiphertextAdoption` | One-time acknowledgement after stopping every legacy writer during an existing-install upgrade | `false` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
 
@@ -102,14 +117,18 @@ destination, but it cannot validate external DNS.
 | `services.mcp.requestTimeoutSeconds` | Total timeout for each MCP-initiated Gateway request, from 1 through 60 seconds. | `10` |
 | `services.mcp.replicas` | Number of MCP replicas. Must remain `1` with `oidcProxy.enabled` because FastMCP 3.4.7 refresh serialization is process-local. | `1` |
 | `services.mcp.extraEnv` | Additional non-managed environment variables. It cannot override MCP host, port, Gateway origin, or request timeout. | `[]` |
-| `services.mcp.extraVolumeMounts` | Additional MCP container volume mounts, including Vault-injected credential files. | `[]` |
+| `services.mcp.extraVolumeMounts` | Additional non-credential MCP container volume mounts. | `[]` |
 | `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
 | `services.mcp.oidcProxy.enabled` | Enable FastMCP's built-in OIDC proxy inside the existing MCP process. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
 | `services.mcp.oidcProxy.scope` | Full delegated scope URI advertised to MCP clients and requested upstream, normally `<resourceUrl>/access_as_user`. | `""` |
 | `services.mcp.oidcProxy.trustedHttpsRedirectOrigins` | Exact HTTPS origins allowed for pre-registered web-client redirects; native clients use loopback redirects. | `[]` |
 | `services.mcp.oidcProxy.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
 | `services.mcp.oidcProxy.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
-| `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
+| `services.mcp.oidcProxy.credentials.clientSecret.existingSecret` | Existing Secret name/key for the upstream OIDC client secret. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.redisPassword.existingSecret` | Optional existing Secret name/key for Redis AUTH. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.storageEncryptionKey.existingSecret` | Existing Secret name/key for FastMCP Redis encryption; configure with the signing key. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.jwtSigningKey.existingSecret` | Existing Secret name/key for FastMCP token signing; configure with the storage key. | See `values.yaml` |
+| `services.mcp.oidcProxy.credentials.rolloutNonce` | Non-secret value changed after an external credential rotation. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenAudience` | Exact OSMO MCP resource audience required on upstream API access tokens; must equal `resourceUrl`. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
@@ -118,7 +137,7 @@ destination, but it cannot validate external DNS.
 | `services.mcp.oidcProxy.accessTokenTtlSeconds` | Lifetime of proxy access tokens, from 60 through 3600 seconds. | `600` |
 | `services.mcp.oidcProxy.refreshTokenTtlSeconds` | Lifetime of proxy refresh tokens, from 300 through 604800 seconds. | `28800` |
 | `services.mcp.oidcProxy.upstreamTimeoutSeconds` | Timeout for upstream OIDC requests, from 1 through 60 seconds. | `10` |
-| `services.mcp.oidcProxy.existingSecret` | Optional existing Secret holding the OIDC client secret and Redis password. The chart references it but never creates credential material. | See `values.yaml` |
+| `services.mcp.oidcProxy.existingSecret` | Legacy single-Secret mapping; migrate to `credentials`. | See `values.yaml` |
 
 The in-process proxy follows OSMO's OIDC profile: a full delegated scope URI is requested
 from the upstream provider while its short suffix is enforced in the verified
@@ -135,11 +154,12 @@ endpoints. The chart does not choose a default shared bucket because one caller
 could otherwise exhaust it and block every user's login; deployments must
 select both the client-IP trust boundary and suitable limits.
 
-FastMCP deterministically derives its proxy-token signing key and the encrypted
-Redis-store key from the upstream OIDC client secret. Rotating that client
-secret therefore invalidates existing proxy tokens; encrypted entries from the
-old key are treated as cache misses, so clients must sign in again after a
-rotation.
+New installations should give FastMCP independent storage-encryption and JWT
+signing keys. Existing installations retain the exact historical derivation
+until both explicit keys are configured, so a staged migration does not lose
+encrypted Redis state. See
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#mcp-oidc-proxy-credentials)
+for the migration and rotation contract.
 
 Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
 only this release's Gateway Envoy pods, even when
@@ -168,14 +188,12 @@ bash deployments/charts/service/ci/validate-mcp-chart.sh
 
 ### Backend API Token Settings
 
-The backend bootstrap credential is created outside the OSMO API. Each
-credential selects exactly one source: `existingSecret` for an externally
-managed Secret, or `managedSecret` for a Secret generated by this chart. The
-service fixes the resulting identity to the `osmo-backend` role; roles cannot
-be selected through Helm values. Each Secret requires a `token` key and may
-contain `previous-token` during an overlap rotation.
-
-Use `existingSecret` for production and multi-cluster deployments:
+The backend bootstrap credential is created outside Helm and the OSMO API.
+The chart only consumes an operator-owned `existingSecret`; it never creates
+or modifies credential data. The service fixes the resulting identity to the
+`osmo-backend` role; roles cannot be selected through Helm values. Each Secret
+requires a `token` key and may contain `previous-token` during an overlap
+rotation.
 
 ```yaml
 services:
@@ -187,8 +205,35 @@ services:
         name: osmo-backend-token-default
 ```
 
-For single-cluster development, the chart can generate a credential during the
-initial install:
+Create the Secret before installing the chart. If you already manage Secrets
+with an external-secret controller or another Kubernetes-native workflow, no
+additional bootstrap step is required. For example, to create it from a
+protected file with `kubectl`:
+
+```bash
+kubectl create secret generic osmo-backend-token-default \
+  --namespace <namespace> \
+  --from-file=token=/secure/path/backend-token
+```
+
+The file must contain a 43- or 64-character URL-safe token. The token is not
+placed in Helm values or command arguments. The backend operator must run in
+the same namespace or receive a synchronized copy from your secret-management
+integration.
+
+#### Upgrading existing backend credentials
+
+Before upgrading a release that used `managedSecret` or the deprecated
+`secretName` field, preserve the existing Secret and change only the values
+contract. First verify that the Secret created by the earlier release still
+exists:
+
+```bash
+kubectl --namespace <namespace> get secret <existing-secret-name>
+```
+
+Then map either legacy source to `existingSecret.name` without changing the
+name:
 
 ```yaml
 services:
@@ -196,40 +241,20 @@ services:
     enabled: true
     credentials:
     - name: default
-      managedSecret:
-        name: osmo-backend-token-default
+      existingSecret:
+        name: <existing-secret-name>
 ```
 
-Managed mode runs a pre-install hook Job using the configurable
-`services.backendApiTokens.bootstrap.image` kubectl image. It generates the
-token inside Kubernetes and creates the Secret through a short-lived
-ServiceAccount. The token is never included in Helm values, rendered manifests,
-or release state, and the bootstrap command does not print it. A pre-upgrade
-hook validates and preserves the Secret; if it was deleted, the upgrade fails
-instead of silently rotating the credential. The Secret is not owned by the
-Helm release, persists after uninstall, and is unaffected by Helm rollback.
-Switching the same name from `managedSecret` to `existingSecret` is therefore
-safe.
-
-The backend operator must run in the same namespace or receive a synchronized
-copy of the Secret. Use an external secret manager for multi-cluster production
-because the bootstrap hook does not synchronize credentials across clusters.
-The legacy `secretName` field remains available as a deprecated alias for
-`existingSecret.name`.
-
-Managed credentials must be configured during the initial release install.
-To add one to an existing release, create the Secret explicitly and configure
-it through `existingSecret`. Because bootstrap Secrets intentionally persist
-after uninstall, delete them explicitly when the credential is no longer used:
-
-```bash
-kubectl delete secret osmo-backend-token-default --namespace <namespace>
-```
+Remove `managedSecret` or `secretName` from the values before running
+`helm upgrade`. Earlier chart-managed Secrets were retained independently of
+the Helm release, so this mapping reuses their existing token data. The new
+chart never regenerates a missing Secret; restore or recreate it before the
+upgrade if the `kubectl get` check fails.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `services.backendApiTokens.enabled` | Enable Secret-backed backend bootstrap authentication | `false` |
-| `services.backendApiTokens.credentials` | Credentials selecting `existingSecret.name`, `managedSecret.name`, or deprecated `secretName` | `[]` |
+| `services.backendApiTokens.credentials` | Credentials selecting an operator-owned `existingSecret.name` | `[]` |
 | `services.backendApiTokens.rolloutNonce` | Non-secret value that can force an API rollout after externally managed Secret changes | `""` |
 
 ### Database Migration Settings (pgroll)
@@ -436,7 +461,7 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
 | `services.router.extraArgs` | Additional command line arguments | `[]` |
 | `services.router.extraPodLabels` | Extra labels applied to the router pod | `{}` |
-| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod (e.g. vault-injector annotations) | `{}` |
+| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod | `{}` |
 | `services.router.extraEnvs` | Extra container env vars (list of `{name, value}` or `{name, valueFrom}`) | `[]` |
 | `services.router.extraPorts` | Extra named container ports | `[]` |
 | `services.router.extraVolumes` | Extra pod volumes | `[]` |
@@ -451,7 +476,68 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.startupProbe` | Startup probe configuration | See values.yaml |
 | `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
 
-The router reads the same `services.configFile.path` as the API service. When `services.configFile.enabled: false` (default), the router gets `--config <path>` as a CLI arg. The API service ignores `services.configFile.path` unless `services.configFile.enabled: true`, so setting just the path lets you point the router at a vault-injected config without affecting the API service.
+The router and all other control-plane database consumers read the MEK through
+the typed `services.masterEncryptionKey.existingSecret` reference. Production
+installs should create and manage that Secret outside Helm.
+
+For a disposable test install, set
+`services.masterEncryptionKey.bootstrap.enabled=true`. A pre-install hook uses
+the configured kubectl image and a short-lived, namespace-scoped ServiceAccount
+to generate the initial 256-bit key inside Kubernetes and create the named
+Secret only when it is absent. MEK material is never rendered into Helm output
+or stored in Helm release state. The hook preserves an existing Secret, and a
+pre-upgrade hook fails if the Secret was deleted instead of silently generating
+a new key that cannot decrypt the database. The Secret persists after uninstall
+and must be deleted explicitly when the disposable environment is removed.
+
+To rotate the MEK, update that Secret in two separate Kubernetes writes. First,
+add the new JWK to `meks` while leaving `currentMek` unchanged (prepare). Use
+`kubectl logs` on every live consumer and wait for its `MEK consumer status`
+record to list the new key in `loaded_kids`; the same state is durably recorded
+by Pod UID in `public.mek_consumer_status`. Then change only `currentMek`
+(activate). A pod whose projected volume skipped PREPARE accepts ACTIVATE only
+when the exact new key fingerprint was already registered by another consumer.
+OSMO preserves each UEK's key material and
+lazily rewraps its JWE under the active MEK; direct-MEK dynamic-config
+ciphertext is re-encrypted by a single database reconciler in bounded,
+durably checkpointed batches. Keep every previous
+MEK in the Secret. Removing a MEK is deliberately rejected because this release
+does not yet provide an HA-wide database write fence capable of proving safe
+retirement. Inspect `kubectl logs` for `MEK reconciliation status` records with
+per-key reference counts and blockers. OSMO never writes or rotates the Secret
+after bootstrap.
+
+For the first upgrade of an existing database to this registry, stop every
+legacy OSMO control-plane Deployment first. Start the new release once with
+`--set services.masterEncryptionKey.allowExistingCiphertextAdoption=true`, wait
+for every new Deployment to become ready, then immediately set the value back
+to `false`. Fresh installs do not need this acknowledgement. Existing
+ciphertext otherwise makes first adoption fail closed. PostgreSQL fences
+UEK/config writes across the adoption transaction, so an already in-flight
+legacy write is rolled back; the explicit scale-to-zero boundary prevents
+future writes from an old binary after the fence opens.
+
+```bash
+set -euo pipefail
+# If you overrode a services.*.serviceName value, replace its default below.
+MEK_SELECTOR='app in (osmo-service,osmo-worker,osmo-router,osmo-logger,osmo-agent,osmo-delayed-job-monitor)'
+kubectl delete horizontalpodautoscaler -n <namespace> \
+  -l "$MEK_SELECTOR" --ignore-not-found
+kubectl scale deployment -n <namespace> \
+  -l "$MEK_SELECTOR" --replicas=0
+kubectl wait pod -n <namespace> -l "$MEK_SELECTOR" \
+  --for=delete --timeout=10m
+remaining=$(kubectl get pod -n <namespace> -l "$MEK_SELECTOR" \
+  --field-selector='status.phase!=Succeeded,status.phase!=Failed' -o name)
+test -z "$remaining"
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.allowExistingCiphertextAdoption=true
+# After every new Deployment is Ready:
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.allowExistingCiphertextAdoption=false
+```
 
 ### Prometheus Metrics Settings
 
@@ -552,7 +638,16 @@ When enabled, the gateway exposes `/signout` and redirects it to `/oauth2/sign_o
 | `gateway.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
 | `gateway.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
 | `gateway.oauth2Proxy.redisSessionStore` | Use Redis for session store | `true` |
+| `gateway.oauth2Proxy.clientSecret.existingSecret` | Existing Secret name/key for identity-provider client authentication. | See `values.yaml` |
+| `gateway.oauth2Proxy.cookieSecret.generate` | Generate a stable retained cookie Secret for disposable development installs. | `false` |
+| `gateway.oauth2Proxy.cookieSecret.existingSecret` | Existing Secret name/key for session-cookie encryption. | See `values.yaml` |
+| `gateway.oauth2Proxy.cookieSecret.rolloutNonce` | Non-secret value changed after an external cookie rotation. | `""` |
 | `gateway.oauth2Proxy.extraEnv` | Extra environment variables for the oauth2-proxy container (e.g. `OAUTH2_PROXY_REDIS_PASSWORD` from a Secret ref when Redis requires AUTH) | `[]` |
+
+The client secret is always operator-owned. The cookie secret may be generated
+inside Kubernetes for a disposable install or supplied as an existing Secret.
+For the no-mixed-replica cookie rotation procedure, see
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#oauth2-proxy-credentials).
 
 #### Gateway Authz
 
@@ -588,21 +683,36 @@ The chart does not create Redis credentials. Secret controllers such as External
 
 Traffic between the Envoy gateway and the upstream services (`osmo-service`, `osmo-router`, `osmo-agent`, `osmo-logger`, and the optional `osmo-mcp`) is encrypted by default. The UI intentionally stays on plain HTTP behind NetworkPolicy — Next.js does not natively serve TLS.
 
-**Default — encryption without validation.** Each upstream service mints its own ephemeral self-signed cert in-process at startup (ECDSA P-256, ~1ms) and loads it into uvicorn's SSLContext via `--ssl_self_signed true`. Envoy connects with TLS but does *not* validate the cert. The wire is encrypted; identity verification is delegated to NetworkPolicy + Kubernetes RBAC. No CA management, no Secrets, no rotation — cert lifecycle is tied to process lifecycle.
+**Generated development mode.** A scoped bootstrap Job maintains one retained
+private CA, a trust bundle, and stable service certificate Secrets inside the
+cluster. Private-key bytes never enter Helm state. Envoy validates every
+upstream against that CA, and services no longer mint process-local ephemeral
+certificates.
 
-**Externally-provisioned certs.** Point `gateway.tls.upstreamCerts.<service>` at an existing `kubernetes.io/tls` Secret containing `tls.crt` + `tls.key`. That Secret is mounted at `/etc/osmo/tls` and uvicorn loads it instead of self-signing. To make Envoy validate against a CA, set `gateway.tls.caSecret` to a Secret containing `ca.crt`. The chart does not create these Secrets — provision them however suits your environment (cert-manager, Vault CSI, sealed-secrets, manual `kubectl create secret tls`, etc.). The two knobs are independent: you can use external certs without validation, or validation alone (rarely useful), but typical "real" TLS sets both.
+**Operator-provisioned production mode.** Disable generated mode, set
+`gateway.tls.caSecret` to an existing Secret containing `ca.crt`, and point
+every enabled `gateway.tls.upstreamCerts.<service>` value at an existing
+`kubernetes.io/tls` Secret. cert-manager or another Secret controller owns
+those resources; OSMO only mounts them.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `gateway.tls.enabled` | Encrypt gateway → upstream traffic. | `true` |
-| `gateway.tls.upstreamCerts.service` | Existing `kubernetes.io/tls` Secret for `osmo-service`. Empty string ⇒ self-signed. | `""` |
+| `gateway.tls.rolloutNonce` | Non-secret trigger after operator-owned CA or leaf Secrets change. | `""` |
+| `gateway.tls.generated.enabled` | Maintain stable development CA and leaf Secrets inside Kubernetes. | `true` |
+| `gateway.tls.generated.leafRotationNonce` | Non-secret trigger for a generated leaf rotation. | `""` |
+| `gateway.tls.generated.caRotation` | Explicit `stable`, `prepare`, `activate`, or `retire` generated-CA rotation state. | See `values.yaml` |
+| `gateway.tls.upstreamCerts.service` | Existing `kubernetes.io/tls` Secret for `osmo-service`; required in production mode. | `""` |
 | `gateway.tls.upstreamCerts.router` | Same, for `osmo-router`. | `""` |
 | `gateway.tls.upstreamCerts.agent` | Same, for `osmo-agent`. | `""` |
 | `gateway.tls.upstreamCerts.logger` | Same, for `osmo-logger`. | `""` |
 | `gateway.tls.upstreamCerts.mcp` | Same, for the optional `osmo-mcp`. | `""` |
-| `gateway.tls.caSecret` | Existing Secret containing `ca.crt`. When set, Envoy validates upstreams against this CA; when empty, TLS is encryption-only. | `""` |
+| `gateway.tls.caSecret` | Existing Secret containing `ca.crt`; required in production mode. | `""` |
 
-NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect at L3/L4; TLS encrypts the bytes at L7. Run them together for defense in depth.
+NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect
+at L3/L4; TLS authenticates and encrypts at L7. The generated leaf and staged
+dual-trust CA rotation procedures are documented in
+[Kubernetes Secret and TLS operations](../SECRET_ROTATION.md#internal-gateway-tls).
 
 ### Extensibility
 

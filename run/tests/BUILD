@@ -38,3 +38,12 @@ osmo_py_test(
     ],
     visibility = ["//visibility:public"],
 )
+
+osmo_py_test(
+    name = "test_start_service_kind",
+    srcs = ["test_start_service_kind.py"],
+    deps = [
+        "//run:start_service_kind_lib",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -268,7 +268,10 @@ data:
 {{- with .Values.secrets.objectStorage.existingSecret }}
 - name: object-storage-credentials
   secret:
-    secretName: {{ . }}
+    secretName: {{ . | quote }}
+    items:
+    - key: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
+      path: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -282,14 +285,31 @@ data:
 {{- end -}}
 
 {{- define "osmo.secrets.mekVolume" -}}
-{{- with .Values.secrets.masterEncryptionKey.existingSecret }}
+{{- with .Values.secrets.masterEncryptionKey.existingSecret.name }}
 - name: mek-volume
   secret:
-    secretName: {{ . }}
+    secretName: {{ . | quote }}
     items:
-    - key: {{ $.Values.secrets.masterEncryptionKey.keys.config }}
-      path: mek.yaml
+    - key: {{ required "secrets.masterEncryptionKey.existingSecret.key is required" $.Values.secrets.masterEncryptionKey.existingSecret.key | quote }}
+      path: "mek.yaml"
 {{- end }}
+{{- end -}}
+
+{{- define "osmo.secrets.mekMountPath" -}}/opt/osmo/mek{{- end -}}
+{{- define "osmo.secrets.mekFile" -}}{{ include "osmo.secrets.mekMountPath" . }}/mek.yaml{{- end -}}
+
+{{- define "osmo.secrets.mekAdoptionEnv" -}}
+- name: OSMO_ALLOW_EXISTING_MEK_ADOPTION
+  value: {{ .Values.secrets.masterEncryptionKey.allowExistingCiphertextAdoption | quote }}
+{{- end -}}
+
+{{- define "osmo.secrets.mekConsumerEnv" -}}
+- name: OSMO_POD_UID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid
+- name: OSMO_MEK_CONSUMER
+  value: {{ . | quote }}
 {{- end -}}
 
 {{- define "osmo.valkey.fullname" -}}
@@ -364,6 +384,15 @@ data:
 {{- end -}}
 {{- end -}}
 
+{{/* Effective OAuth cookie Secret. Generated mode owns a stable release name. */}}
+{{- define "osmo.oauthCookie.secretName" -}}
+{{- if .Values.secrets.oauthCookieSecret.generate -}}
+{{- printf "%s-oauth-cookie" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- required "secrets.oauthCookieSecret.existingSecret is required" .Values.secrets.oauthCookieSecret.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "osmo.postgresql.host" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
 {{- printf "%s-rw" (include "osmo.postgresql.clusterName" .) -}}
@@ -423,6 +452,16 @@ disable
   .Values.embeddedDependencies.postgresql.enabled
   .Values.externalDependencies.postgresql.tls.enabled
   (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "osmo.secrets.rolloutAnnotations" -}}
+osmo.nvidia.com/postgresql-secret-rollout: {{ .Values.secrets.postgresql.rolloutNonce | quote }}
+osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
+osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.rolloutNonce | quote }}
+{{- end -}}
+
+{{- define "osmo.backendApiToken.secretName" -}}
+{{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}

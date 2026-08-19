@@ -43,6 +43,8 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.router "componentName" "router") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.router) | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
+        {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.router.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -93,12 +95,9 @@ spec:
         - --postgres_user
         - {{ . }}
         {{- end }}
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - --mek_file
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
-        {{- else }}
-        - --config
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        - {{ include "osmo.secrets.mekFile" . | quote }}
         {{- end }}
         {{- if .Values.logging.enabled }}
         - --log_level
@@ -113,8 +112,10 @@ spec:
         - {{ . }}
         {{- end }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "router"))) | nindent 8 }}
         env:
+        {{- include "osmo.secrets.mekConsumerEnv" "router" | nindent 8 }}
+        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         {{- with .Values.services.router.env }}
         {{- range . }}
@@ -144,15 +145,15 @@ spec:
         volumeMounts:
         - name: osmo-runtime-tmp
           mountPath: /tmp
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
-        - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
+        - mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
           name: mek-volume
-          subPath: mek.yaml
+          readOnly: true
         {{- end }}
         {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "router"))) | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         resources:
         {{- toYaml .Values.services.router.resources | nindent 10 }}
@@ -182,7 +183,7 @@ spec:
         {{- with .Values.services.router.pod.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "router"))) | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 
 ---
@@ -247,7 +248,7 @@ spec:
     kind: Deployment
     name: {{ $name }}
   minReplicas: {{ .Values.services.router.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.services.router.autoscaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.router.autoscaling.minReplicas .Values.services.router.autoscaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   {{- with .Values.services.router.autoscaling.behavior }}
   behavior:
     {{- toYaml . | nindent 4 }}

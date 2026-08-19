@@ -261,6 +261,13 @@ def build_bazel_command(
         "--test_summary=terse",
         f"--build_event_json_file={bep_path}",
     ]
+    if args.env == "kind":
+        # Bazel gives tests an isolated HOME, so kubectl cannot otherwise see
+        # the kubeconfig created by the KIND deployment step.
+        kubeconfig = os.environ.get("KUBECONFIG")
+        if not kubeconfig:
+            kubeconfig = str(Path.home() / ".kube" / "config")
+        cmd.append(f"--test_env=KUBECONFIG={kubeconfig}")
     cmd.extend(test_args)
     cmd.extend(args.bazel_arg)
     return cmd

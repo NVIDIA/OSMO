@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
+{{ include "osmo.backend-api-tokens.validate" .Values.services.backendApiTokens }}
 {{ if .Values.services.backendApiTokens.enabled }}
 {{ if not .Values.services.backendApiTokens.credentials }}
 {{ fail "services.backendApiTokens.credentials must not be empty when backend API tokens are enabled" }}
@@ -22,15 +23,15 @@
 {{ range .Values.services.backendApiTokens.credentials }}
 {{ $credentialName := required "backend API token credential name is required" .name }}
 {{ if or (gt (len $credentialName) 49) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) }}
-{{ fail (printf "invalid backend API token credential name %q" $credentialName) }}
+{{ fail "backend API token credential name is invalid" }}
 {{ end }}
 {{ if hasKey $credentialNames $credentialName }}
-{{ fail (printf "duplicate backend API token credential name %q" $credentialName) }}
+{{ fail "backend API token credential names must be unique" }}
 {{ end }}
 {{ $_ := set $credentialNames $credentialName true }}
 {{ $secretName := include "osmo.backend-api-token-secret-name" . }}
 {{ if hasKey $secretNames $secretName }}
-{{ fail (printf "duplicate backend API token Secret name %q" $secretName) }}
+{{ fail "backend API token Secret names must be unique" }}
 {{ end }}
 {{ $_ := set $secretNames $secretName true }}
 {{ end }}
@@ -41,6 +42,7 @@ metadata:
   name: {{ .Values.services.service.serviceName }}
   labels:
     app: {{ .Values.services.service.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   selector:
     matchLabels:
@@ -49,10 +51,12 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.service.serviceName }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
         {{- with .Values.services.service.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.gateway-tls-rollout-annotations" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
         {{- if .Values.services.backendApiTokens.enabled }}
         osmo.nvidia.com/backend-token-rollout: {{ .Values.services.backendApiTokens.rolloutNonce | quote }}
@@ -118,10 +122,8 @@ spec:
         - {{ .Values.services.postgres.port | quote }}
         - --postgres_database_name
         - {{ .Values.services.postgres.db}}
-        {{- if .Values.services.configFile.enabled }}
         - --mek_file
-        - {{ .Values.services.configFile.path }}
-        {{- end }}
+        - {{ include "osmo.mek-file" . }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -177,8 +179,10 @@ spec:
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "service"))) | nindent 8 }}
         env:
+        {{- include "osmo.mek-consumer-env" "api" | nindent 8 }}
+        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
         {{- include "osmo.configmap-env" . | nindent 8 }}
@@ -219,14 +223,8 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.backendApiTokens.enabled .Values.services.service.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) }}
         volumeMounts:
-        {{- end }}
-        {{- if .Values.services.configFile.enabled}}
-        - mountPath: {{ .Values.services.configFile.path }}
-          name: mek-volume
-          subPath: mek.yaml
-        {{- end }}
+        {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- if .Values.services.backendApiTokens.enabled }}
         {{- range .Values.services.backendApiTokens.credentials }}
@@ -236,7 +234,7 @@ spec:
         {{- end }}
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.service | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "service"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
 
@@ -268,16 +266,8 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
-        {{- if .Values.services.configFile.enabled}}
-        - configMap:
-            defaultMode: 420
-            items:
-            - key: mek.yaml
-              path: mek.yaml
-            name: mek-config
-          name: mek-volume
-        {{- end}}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" (include "osmo.gateway-tls-leaf-secret-name" (dict "root" . "component" "service"))) | nindent 8 }}
+        {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}
         {{- if .Values.services.backendApiTokens.enabled }}
         {{- range .Values.services.backendApiTokens.credentials }}
@@ -311,6 +301,7 @@ metadata:
   name: {{ .Values.services.service.serviceName }}
   labels:
     app: {{ .Values.services.service.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
 spec:
   scaleTargetRef:
@@ -318,7 +309,7 @@ spec:
     kind: Deployment
     name: {{ .Values.services.service.serviceName }}
   minReplicas: {{ .Values.services.service.scaling.minReplicas }}
-  maxReplicas: {{ .Values.services.service.scaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.service.scaling.minReplicas .Values.services.service.scaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   metrics:
   - type: ContainerResource
     containerResource:

@@ -26,12 +26,11 @@ services:
     enabled: true
     credentials:
     - name: default
-      managedSecret:
+      existingSecret:
         name: agent-token
 
   configFile:
     enabled: true
-    path: /home/osmo/config/mek.yaml
 
   postgres:
     enabled: true
