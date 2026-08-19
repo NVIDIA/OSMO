@@ -436,7 +436,16 @@ test_control_umbrella() {
                 "$TEST_DIRECTORY/$tls_placeholder.yaml"; then
             fail "generated TLS placeholder $tls_placeholder contains key material"
         fi
-        require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" 'type: Opaque'
+        case "$tls_placeholder" in
+            osmo-internal-tls-ca|osmo-internal-tls-trust)
+                require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" \
+                    'type: "Opaque"'
+                ;;
+            *)
+                require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" \
+                    'type: "kubernetes.io/tls"'
+                ;;
+        esac
     done
     helm_template tlsmcp "$charts_copy/osmo" --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -460,6 +469,8 @@ test_control_umbrella() {
             "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml"; then
         fail 'MCP TLS upgrade placeholder contains key material'
     fi
+    require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
+        'type: "kubernetes.io/tls"'
     local upstream_identity
     for upstream_identity in \
             osmo-api osmo-router-headless osmo-agent osmo-logger-headless; do

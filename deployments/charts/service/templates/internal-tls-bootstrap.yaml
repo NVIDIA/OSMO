@@ -26,8 +26,11 @@
 {{- $consumers = append $consumers .Values.services.mcp.serviceName -}}
 {{- end }}
 {{- $secretNames := list $caSecret $trustSecret -}}
+{{- $secretTypes := dict $caSecret "Opaque" $trustSecret "Opaque" -}}
 {{- range $leaf := $leaves }}
-{{- $secretNames = append $secretNames (include "osmo.gateway-tls-leaf-secret-name" (dict "root" $ "component" $leaf.component)) -}}
+{{- $secretName := include "osmo.gateway-tls-leaf-secret-name" (dict "root" $ "component" $leaf.component) -}}
+{{- $secretNames = append $secretNames $secretName -}}
+{{- $_ := set $secretTypes $secretName "kubernetes.io/tls" -}}
 {{- end }}
 {{- range $secretName := $secretNames }}
 {{- if not (lookup "v1" "Secret" $.Release.Namespace $secretName) }}
@@ -43,7 +46,7 @@ metadata:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-30"
     helm.sh/resource-policy: keep
-type: Opaque
+type: {{ get $secretTypes $secretName | quote }}
 ---
 {{- end }}
 {{- end }}

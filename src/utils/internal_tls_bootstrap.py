@@ -302,6 +302,11 @@ def _replace_secret(
     name = secret.metadata.name if secret.metadata else None
     if not name:
         raise BootstrapError('Generated TLS Secret is missing metadata.name')
+    if secret.type != secret_type:
+        raise BootstrapError(
+            f'Generated TLS Secret {name} has immutable type {secret.type!r}; '
+            f'expected {secret_type!r}'
+        )
     try:
         api.patch_namespaced_secret(
             name=name,

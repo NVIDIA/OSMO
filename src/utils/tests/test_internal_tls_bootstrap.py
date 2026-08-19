@@ -35,7 +35,12 @@ class FakeCoreApi:
     def __init__(self) -> None:
         self.secrets: dict[str, kubernetes_client.V1Secret] = {}
 
-    def add_placeholder(self, name: str, release_name: str = 'test') -> None:
+    def add_placeholder(
+        self,
+        name: str,
+        release_name: str = 'test',
+        secret_type: str = 'Opaque',
+    ) -> None:
         self.secrets[name] = kubernetes_client.V1Secret(
             metadata=kubernetes_client.V1ObjectMeta(
                 name=name,
@@ -47,7 +52,7 @@ class FakeCoreApi:
                 },
             ),
             data={},
-            type='Opaque',
+            type=secret_type,
         )
 
     def read_namespaced_secret(
@@ -74,8 +79,9 @@ class FakeCoreApi:
 class InternalTlsBootstrapTest(unittest.TestCase):
     def setUp(self) -> None:
         self.api = FakeCoreApi()
-        for name in ('ca', 'trust', 'leaf'):
+        for name in ('ca', 'trust'):
             self.api.add_placeholder(name)
+        self.api.add_placeholder('leaf', secret_type='kubernetes.io/tls')
         self.now = datetime.datetime(2026, 8, 18, tzinfo=datetime.UTC)
 
     def reconcile(
@@ -116,6 +122,15 @@ class InternalTlsBootstrapTest(unittest.TestCase):
         ), self.assertRaisesRegex(
             internal_tls_bootstrap.BootstrapError,
             r'ca: Kubernetes API 403 Forbidden',
+        ):
+            self.reconcile()
+
+    def test_rejects_leaf_placeholder_with_immutable_opaque_type(self) -> None:
+        self.api.secrets['leaf'].type = 'Opaque'
+
+        with self.assertRaisesRegex(
+            internal_tls_bootstrap.BootstrapError,
+            r"leaf has immutable type 'Opaque'; expected 'kubernetes.io/tls'",
         ):
             self.reconcile()
 

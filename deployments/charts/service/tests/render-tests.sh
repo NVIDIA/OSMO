@@ -251,7 +251,14 @@ for tls_secret in \
         echo "Generated TLS placeholder $tls_secret contains key material" >&2
         exit 1
     fi
-    grep -q '^type: Opaque$' <<<"$placeholder"
+    case "$tls_secret" in
+        tls-generated-internal-tls-ca|tls-generated-internal-tls-trust)
+            grep -q '^type: "Opaque"$' <<<"$placeholder"
+            ;;
+        *)
+            grep -q '^type: "kubernetes.io/tls"$' <<<"$placeholder"
+            ;;
+    esac
 done
 
 tls_mcp_upgrade_render=$(helm template tls-mcp-upgrade "$CHART_DIR" \
@@ -272,6 +279,7 @@ if grep -qE '^(data|stringData):' <<<"$tls_mcp_upgrade_placeholder"; then
     echo 'MCP TLS upgrade placeholder contains key material' >&2
     exit 1
 fi
+grep -q '^type: "kubernetes.io/tls"$' <<<"$tls_mcp_upgrade_placeholder"
 for upstream_identity in \
         osmo-service osmo-router-headless osmo-agent osmo-logger-headless; do
     grep -q 'match_typed_subject_alt_names:' <<<"$tls_generated_render"
