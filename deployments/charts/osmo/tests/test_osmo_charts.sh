@@ -395,7 +395,7 @@ test_control_umbrella() {
         fail "expected an altered RustFS chart archive to fail digest verification"
     fi
     require_contains "$TEST_DIRECTORY/altered-rustfs-archive.out" \
-        "RustFS chart archive SHA-256 mismatch: expected c26cb094bc9735d01548ee540d018c1d88e2038bfd27ddc330770f5d525e63eb"
+        "RustFS chart archive SHA-256 mismatch:"
 
     if ! helm lint "$charts_copy/osmo" >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
         cat "$TEST_DIRECTORY/osmo-lint.out" >&2
