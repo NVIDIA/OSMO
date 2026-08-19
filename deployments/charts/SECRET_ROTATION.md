@@ -168,7 +168,7 @@ Generated leaf certificates can be rotated safely in one upgrade by changing
 `gateway.tls.generated.leafRotationNonce`. The bootstrap updates every leaf
 before Kubernetes rolls the workloads.
 
-Generated CA rotation uses three explicit upgrades with one unique ID:
+Generated CA rotation uses five explicit upgrades with one unique ID:
 
 1. Freeze each TLS-consumer HPA and complete that exact Deployment rollout.
 2. `prepare`: create the next CA and deploy a trust bundle containing both CAs;

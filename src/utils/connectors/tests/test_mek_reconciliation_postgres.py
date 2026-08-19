@@ -204,6 +204,20 @@ class TestMekReconciliationPostgres(unittest.TestCase):
                 return
         self.fail(f"{label} did not complete within 20 bounded batches")
 
+    def test_converged_schema_keeps_epoch_triggers(self):
+        query = (
+            "SELECT tgrelid::regclass::text AS table_name, oid "
+            "FROM pg_trigger WHERE tgname = 'bump_mek_write_epoch' "
+            "ORDER BY table_name;"
+        )
+        before = self.database.execute_fetch_command(query, (), return_raw=True)
+        self.assertEqual([row["table_name"] for row in before], ["configs", "ueks"])
+
+        self.database._init_mek_tables()
+
+        after = self.database.execute_fetch_command(query, (), return_raw=True)
+        self.assertEqual(after, before)
+
     def test_historical_adoption_rotation_rewrap_resume_and_leadership(self):
         self.database.secret_manager.add_new_user("user")
         user_key_id = self.database.read_current_kid("user")

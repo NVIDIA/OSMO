@@ -224,6 +224,9 @@ grep -q 'verbs: \["get", "update"\]' <<<"$tls_bootstrap_list"
 grep -q 'resourceNames:' <<<"$tls_bootstrap_list"
 grep -q 'activeDeadlineSeconds: 300' <<<"$tls_bootstrap_list"
 grep -q 'ttlSecondsAfterFinished: 300' <<<"$tls_bootstrap_list"
+grep -q 'nodeSelector:' <<<"$tls_bootstrap_list"
+grep -q 'tolerations:' <<<"$tls_bootstrap_list"
+grep -q 'seccompProfile:' <<<"$tls_bootstrap_list"
 if [[ $(grep -c -- '--consumer-deployment' <<<"$tls_bootstrap_list") -ne 5 ]]; then
     echo 'Generated TLS hook does not verify every consumer Deployment' >&2
     exit 1
@@ -246,6 +249,25 @@ for tls_secret in \
     fi
     grep -q '^type: Opaque$' <<<"$placeholder"
 done
+
+tls_mcp_upgrade_render=$(helm template tls-mcp-upgrade "$CHART_DIR" \
+    --namespace osmo --is-upgrade \
+    --set services.mcp.enabled=true \
+    --set-string services.mcp.resourceUrl=https://osmo.example.com/mcp \
+    --set-string 'services.mcp.authorizationServers[0]=https://login.example.com' \
+    --set-string 'services.mcp.scopes[0]=mcp.read' \
+    --set-string 'gateway.envoy.jwt.providers[0].issuer=https://login.example.com' \
+    --set-string 'gateway.envoy.jwt.providers[0].audience=https://osmo.example.com/mcp' \
+    --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://login.example.com/keys' \
+    --set-string 'gateway.envoy.jwt.providers[0].cluster=osmo-service')
+tls_mcp_upgrade_placeholder=$(resource_document "$tls_mcp_upgrade_render" Secret \
+    tls-mcp-upgrade-internal-tls-mcp)
+grep -q 'helm.sh/hook: pre-install,pre-upgrade' \
+    <<<"$tls_mcp_upgrade_placeholder"
+if grep -qE '^(data|stringData):' <<<"$tls_mcp_upgrade_placeholder"; then
+    echo 'MCP TLS upgrade placeholder contains key material' >&2
+    exit 1
+fi
 for upstream_identity in \
         osmo-service osmo-router-headless osmo-agent osmo-logger-headless; do
     grep -q 'match_typed_subject_alt_names:' <<<"$tls_generated_render"

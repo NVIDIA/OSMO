@@ -890,17 +890,47 @@ class PostgresConnector:
         ''', ())
         self.execute_commit_commands([
             ('SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B45,)),
-            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON ueks;', ()),
             ('''
-                CREATE TRIGGER bump_mek_write_epoch
-                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON ueks
-                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
-            ''', ()),
-            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON configs;', ()),
-            ('''
-                CREATE TRIGGER bump_mek_write_epoch
-                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON configs
-                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_trigger
+                        WHERE tgrelid = to_regclass('public.ueks')
+                          AND tgname = 'bump_mek_write_epoch'
+                          AND NOT tgisinternal
+                          AND tgenabled = 'O'
+                          AND tgtype = 60
+                          AND tgfoid = to_regprocedure(
+                              'public.bump_mek_write_epoch()')
+                          AND tgnargs = 0
+                          AND tgqual IS NULL
+                    ) THEN
+                        DROP TRIGGER IF EXISTS bump_mek_write_epoch ON public.ueks;
+                        CREATE TRIGGER bump_mek_write_epoch
+                        AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON public.ueks
+                        FOR EACH STATEMENT
+                        EXECUTE FUNCTION public.bump_mek_write_epoch();
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_trigger
+                        WHERE tgrelid = to_regclass('public.configs')
+                          AND tgname = 'bump_mek_write_epoch'
+                          AND NOT tgisinternal
+                          AND tgenabled = 'O'
+                          AND tgtype = 60
+                          AND tgfoid = to_regprocedure(
+                              'public.bump_mek_write_epoch()')
+                          AND tgnargs = 0
+                          AND tgqual IS NULL
+                    ) THEN
+                        DROP TRIGGER IF EXISTS bump_mek_write_epoch ON public.configs;
+                        CREATE TRIGGER bump_mek_write_epoch
+                        AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON public.configs
+                        FOR EACH STATEMENT
+                        EXECUTE FUNCTION public.bump_mek_write_epoch();
+                    END IF;
+                END;
+                $$;
             ''', ()),
         ])
         self.execute_commit_command('''

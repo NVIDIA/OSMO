@@ -78,7 +78,10 @@ done
 
 attempt=1
 while [ "$attempt" -le 30 ]; do
-    if read_secret_name >/dev/null 2>&1; then break; fi
+    if current_secret_name=$(read_secret_name) \
+            && [ -n "$current_secret_name" ]; then
+        break
+    fi
     attempt=$((attempt + 1)); sleep 1
 done
 existing_name=$(read_secret_name) || exit 1

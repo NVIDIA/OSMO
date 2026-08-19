@@ -523,6 +523,29 @@ class TestSecretManagerRotation(unittest.TestCase):
             self.assertTrue(manager.reload_if_changed())
             self.assertEqual(manager.last_reload_error, "")
 
+    def test_late_reload_failure_advances_revision_once_and_recovers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            keyring_path = Path(directory) / "mek.yaml"
+            old_mek = _make_mek("old")
+            new_mek = _make_mek("new")
+            _write_keyring(keyring_path, "old", {"old": old_mek})
+            manager = _manager(keyring_path, SecretStore())
+            _write_keyring(keyring_path, "old", {"old": old_mek, "new": new_mek})
+            signature = manager._stat_file()  # pylint: disable=protected-access
+
+            for expected_revision in (1, 1):
+                with mock.patch.object(
+                    manager,
+                    "_stat_file",
+                    side_effect=[signature, signature, OSError("projection unavailable")],
+                ):
+                    self.assertFalse(manager.reload_if_changed())
+                self.assertEqual(manager.reload_failure_revision, expected_revision)
+                self.assertEqual(manager.last_reload_error, "projection unavailable")
+
+            self.assertTrue(manager.reload_if_changed())
+            self.assertEqual(manager.last_reload_error, "")
+
     def test_projected_secret_symlink_race_retries_bound_revision(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -469,7 +469,7 @@ class SecretManager:
                     return True
             except (OSError, osmo_errors.OSMOError) as error:
                 with self._keyring_lock:
-                    if signature is None:
+                    if str(error) != self._last_reload_error:
                         self._reload_failure_revision += 1
                     self._last_reload_error = str(error)
                 return False

@@ -407,6 +407,12 @@ test_control_umbrella() {
         'activeDeadlineSeconds: 300'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'ttlSecondsAfterFinished: 300'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'nodeSelector:'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'tolerations:'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'seccompProfile:'
     require_contains "$CHARTS_ROOT/SECRET_ROTATION.md" 'chart_kind=service'
     require_contains "$CHARTS_ROOT/SECRET_ROTATION.md" \
         '"$osmo_fullname-api"'
@@ -430,6 +436,28 @@ test_control_umbrella() {
         fi
         require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" 'type: Opaque'
     done
+    helm_template tlsmcp "$charts_copy/osmo" --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.mcp.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set-string services.mcp.resourceUrl=https://osmo.example.com/mcp \
+        --set-string 'services.mcp.authorizationServers[0]=https://login.example.com' \
+        --set-string 'services.mcp.scopes[0]=mcp.read' \
+        --set-string 'gateway.envoy.jwt.providers[0].issuer=https://login.example.com' \
+        --set-string 'gateway.envoy.jwt.providers[0].audience=https://osmo.example.com/mcp' \
+        --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://login.example.com/keys' \
+        --set-string 'gateway.envoy.jwt.providers[0].cluster=osmo-api' \
+        >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Secret \
+        tlsmcp-osmo-internal-tls-mcp \
+        >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
+        'helm.sh/hook: pre-install,pre-upgrade'
+    if grep -Eq '^(data|stringData):' \
+            "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml"; then
+        fail 'MCP TLS upgrade placeholder contains key material'
+    fi
     local upstream_identity
     for upstream_identity in \
             osmo-api osmo-router-headless osmo-agent osmo-logger-headless; do
@@ -2010,7 +2038,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "image: nvcr.io/nvidia/osmo/mcp-self-hosted:6.3.1"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "kubernetes.io/os: linux" 10
+        "kubernetes.io/os: linux" 11
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

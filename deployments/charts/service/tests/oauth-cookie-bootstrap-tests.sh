@@ -18,6 +18,18 @@ set -eu
 if [ "$1" = get ]; then
     secret_name="$3"
     if [ ! -f "$FAKE_STATE_DIRECTORY/$secret_name.exists" ]; then
+        if [ -f "$FAKE_STATE_DIRECTORY/$secret_name.appear-after" ]; then
+            remaining=$(cat "$FAKE_STATE_DIRECTORY/$secret_name.appear-after")
+            if [ "$remaining" -le 0 ]; then
+                touch "$FAKE_STATE_DIRECTORY/$secret_name.exists"
+                rm -f "$FAKE_STATE_DIRECTORY/$secret_name.appear-after"
+            else
+                printf '%s' "$((remaining - 1))" \
+                    > "$FAKE_STATE_DIRECTORY/$secret_name.appear-after"
+            fi
+        fi
+    fi
+    if [ ! -f "$FAKE_STATE_DIRECTORY/$secret_name.exists" ]; then
         case "$*" in *--ignore-not-found=true*) exit 0 ;; *) exit 1 ;; esac
     fi
     case "$*" in
@@ -91,6 +103,8 @@ printf 'Unexpected fake kubectl command: %s\n' "$*" >&2
 exit 1
 FAKE_KUBECTL
 chmod +x "$FAKE_BIN/kubectl"
+printf '#!/bin/sh\nexit 0\n' > "$FAKE_BIN/sleep"
+chmod +x "$FAKE_BIN/sleep"
 
 export FAKE_STATE_DIRECTORY
 export PATH="$FAKE_BIN:$PATH"
@@ -153,6 +167,18 @@ for bootstrap_script in \
         exit 1
     fi
     printf '%s' "$generated_cookie" > "$FAKE_STATE_DIRECTORY/test-cookie.cookie"
+
+    rm -f "$FAKE_STATE_DIRECTORY/test-cookie.exists" \
+        "$FAKE_STATE_DIRECTORY/test-cookie.cookie"
+    printf 2 > "$FAKE_STATE_DIRECTORY/test-cookie.appear-after"
+    printf osmo-oauth-cookie-bootstrap \
+        > "$FAKE_STATE_DIRECTORY/test-cookie.managed-by"
+    printf test-release > "$FAKE_STATE_DIRECTORY/test-cookie.instance"
+    run_bootstrap "$bootstrap_script" >/dev/null
+    if [ ! -s "$FAKE_STATE_DIRECTORY/test-cookie.cookie" ]; then
+        echo 'Bootstrap did not wait for the placeholder Secret to appear' >&2
+        exit 1
+    fi
 
     printf other-release > "$FAKE_STATE_DIRECTORY/test-cookie.instance"
     if run_bootstrap "$bootstrap_script" >/dev/null 2>&1; then
