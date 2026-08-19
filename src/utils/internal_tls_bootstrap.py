@@ -53,11 +53,11 @@ class KeyPair:
     private_key: bytes
 
 
-def _active_pod(pod: object) -> bool:
-    metadata = getattr(pod, 'metadata', None)
-    phase = getattr(getattr(pod, 'status', None), 'phase', None)
+def _active_pod(pod: kubernetes_client.V1Pod) -> bool:
+    metadata = pod.metadata
+    phase = pod.status.phase if pod.status else None
     return (
-        getattr(metadata, 'deletion_timestamp', None) is None
+        (metadata is None or metadata.deletion_timestamp is None)
         and phase not in {'Succeeded', 'Failed'}
     )
 
@@ -240,8 +240,11 @@ def verify_transition_rollout(
     )
 
 
-def _decode_secret_data(secret: object, key: str) -> bytes | None:
-    encoded = getattr(secret, 'data', None) or {}
+def _decode_secret_data(
+    secret: kubernetes_client.V1Secret,
+    key: str,
+) -> bytes | None:
+    encoded = secret.data or {}
     value = encoded.get(key)
     if not value:
         return None
@@ -262,7 +265,7 @@ def _read_secret(
     api: kubernetes_client.CoreV1Api,
     namespace: str,
     name: str,
-) -> object:
+) -> kubernetes_client.V1Secret:
     try:
         return api.read_namespaced_secret(name=name, namespace=namespace)
     except kubernetes_exceptions.ApiException as error:
@@ -273,14 +276,17 @@ def _read_secret(
         raise BootstrapError(f'Unable to read generated TLS Secret {name}') from error
 
 
-def _require_owned(secret: object, release_name: str) -> None:
-    metadata = getattr(secret, 'metadata', None)
-    labels = getattr(metadata, 'labels', None) or {}
+def _require_owned(
+    secret: kubernetes_client.V1Secret,
+    release_name: str,
+) -> None:
+    metadata = secret.metadata
+    labels = metadata.labels if metadata and metadata.labels else {}
     if (
         labels.get(_MANAGED_BY_LABEL) != _MANAGED_BY
         or labels.get(_INSTANCE_LABEL) != release_name
     ):
-        name = getattr(metadata, 'name', '<unknown>')
+        name = metadata.name if metadata and metadata.name else '<unknown>'
         raise BootstrapError(
             f'Generated TLS Secret {name} is not owned by release {release_name}'
         )
@@ -289,20 +295,29 @@ def _require_owned(secret: object, release_name: str) -> None:
 def _replace_secret(
     api: kubernetes_client.CoreV1Api,
     namespace: str,
-    secret: object,
+    secret: kubernetes_client.V1Secret,
     secret_type: str,
     values: dict[str, bytes],
 ) -> None:
-    setattr(secret, 'data', _encode_secret_data(values))
-    setattr(secret, 'type', secret_type)
+    name = secret.metadata.name if secret.metadata else None
+    if not name:
+        raise BootstrapError('Generated TLS Secret is missing metadata.name')
     try:
-        api.replace_namespaced_secret(
-            name=getattr(getattr(secret, 'metadata'), 'name'),
+        api.patch_namespaced_secret(
+            name=name,
             namespace=namespace,
-            body=secret,
+            body={
+                'data': _encode_secret_data(values),
+                'type': secret_type,
+            },
         )
     except kubernetes_exceptions.ApiException as error:
-        raise BootstrapError('Unable to update generated TLS Secret') from error
+        status = error.status if error.status is not None else 'unknown'
+        reason = error.reason or 'API error'
+        raise BootstrapError(
+            f'Unable to update generated TLS Secret {name}: '
+            f'Kubernetes API {status} {reason}'
+        ) from error
 
 
 def _serialize_key(private_key: rsa.RSAPrivateKey) -> bytes:

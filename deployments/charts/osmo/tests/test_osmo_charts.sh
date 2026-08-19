@@ -400,7 +400,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'command: ["internal-tls-bootstrap"]'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'verbs: ["get", "update"]'
+        'verbs: ["get", "patch"]'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'resourceNames:'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \

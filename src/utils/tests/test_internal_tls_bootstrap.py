@@ -20,9 +20,11 @@ import base64
 import datetime
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 from cryptography import x509
 from kubernetes import client as kubernetes_client  # type: ignore
+from kubernetes.client import exceptions as kubernetes_exceptions  # type: ignore
 
 from src.utils import internal_tls_bootstrap
 
@@ -31,7 +33,7 @@ class FakeCoreApi:
     """Minimal in-memory CoreV1Api used by the reconciler tests."""
 
     def __init__(self) -> None:
-        self.secrets: dict[str, object] = {}
+        self.secrets: dict[str, kubernetes_client.V1Secret] = {}
 
     def add_placeholder(self, name: str, release_name: str = 'test') -> None:
         self.secrets[name] = kubernetes_client.V1Secret(
@@ -48,19 +50,25 @@ class FakeCoreApi:
             type='Opaque',
         )
 
-    def read_namespaced_secret(self, name: str, namespace: str) -> object:
-        del namespace
-        return self.secrets[name]
-
-    def replace_namespaced_secret(
+    def read_namespaced_secret(
         self,
         name: str,
         namespace: str,
-        body: object,
-    ) -> object:
+    ) -> kubernetes_client.V1Secret:
         del namespace
-        self.secrets[name] = body
-        return body
+        return self.secrets[name]
+
+    def patch_namespaced_secret(
+        self,
+        name: str,
+        namespace: str,
+        body: dict[str, object],
+    ) -> kubernetes_client.V1Secret:
+        del namespace
+        secret = self.secrets[name]
+        secret.data = body['data']  # type: ignore[assignment]
+        secret.type = body['type']  # type: ignore[assignment]
+        return secret
 
 
 class InternalTlsBootstrapTest(unittest.TestCase):
@@ -93,8 +101,23 @@ class InternalTlsBootstrapTest(unittest.TestCase):
 
     def secret_value(self, secret_name: str, key: str) -> bytes:
         secret = self.api.secrets[secret_name]
-        encoded = getattr(secret, 'data')[key]
+        self.assertIsNotNone(secret.data)
+        encoded = secret.data[key]  # type: ignore[index]
         return base64.b64decode(encoded)
+
+    def test_write_failure_reports_sanitized_api_status(self) -> None:
+        with mock.patch.object(
+            self.api,
+            'patch_namespaced_secret',
+            side_effect=kubernetes_exceptions.ApiException(
+                status=403,
+                reason='Forbidden',
+            ),
+        ), self.assertRaisesRegex(
+            internal_tls_bootstrap.BootstrapError,
+            r'ca: Kubernetes API 403 Forbidden',
+        ):
+            self.reconcile()
 
     def test_initial_bootstrap_generates_stable_ca_trust_and_leaf(self) -> None:
         self.reconcile()

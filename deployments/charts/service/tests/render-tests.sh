@@ -220,7 +220,7 @@ tls_bootstrap_list=$(resource_document "$tls_generated_render" List \
     tls-generated-internal-tls-bootstrap)
 grep -q 'command:' <<<"$tls_bootstrap_list"
 grep -q 'command: \["internal-tls-bootstrap"\]' <<<"$tls_bootstrap_list"
-grep -q 'verbs: \["get", "update"\]' <<<"$tls_bootstrap_list"
+grep -q 'verbs: \["get", "patch"\]' <<<"$tls_bootstrap_list"
 grep -q 'resourceNames:' <<<"$tls_bootstrap_list"
 grep -q 'activeDeadlineSeconds: 300' <<<"$tls_bootstrap_list"
 grep -q 'ttlSecondsAfterFinished: 300' <<<"$tls_bootstrap_list"

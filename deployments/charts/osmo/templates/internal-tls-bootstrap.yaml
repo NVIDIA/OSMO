@@ -77,7 +77,7 @@ items:
     {{- range $secretName := $secretNames }}
     - {{ $secretName | quote }}
     {{- end }}
-    verbs: ["get", "update"]
+    verbs: ["get", "patch"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
     resourceNames:
