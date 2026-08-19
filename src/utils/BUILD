@@ -135,7 +135,8 @@ osmo_py_binary(
 osmo_python_wrapper(
     name = "internal_tls_bootstrap_wrapper",
     bin_name = "internal-tls-bootstrap",
-    main = "/src/utils/internal_tls_bootstrap.py",
+    main = None,
+    module = "src.utils.internal_tls_bootstrap",
     runfiles_dir = "/src/service/core/service_binary.runfiles",
 )
 
