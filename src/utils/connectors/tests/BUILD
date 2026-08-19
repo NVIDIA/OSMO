@@ -16,6 +16,7 @@
 
 load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@osmo_tests_python_deps//:requirements.bzl", test_requirement = "requirement")
 
 py_test(
     name = "test_resource_spec",
@@ -113,6 +114,7 @@ py_test(
     deps = [
         requirement("jwcrypto"),
         requirement("psycopg2-binary"),
+        test_requirement("testcontainers"),
         "//src/lib/utils:osmo_errors",
         "//src/utils/connectors:connectors",
         "//src/utils/secret_manager",

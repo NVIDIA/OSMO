@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import base64
 import json
+import os
 from pathlib import Path
 import shutil
 import socket
@@ -29,6 +30,7 @@ import unittest
 
 from jwcrypto import jwk, jwe  # type: ignore
 import psycopg2  # type: ignore
+from testcontainers.postgres import PostgresContainer  # type: ignore
 
 from src.lib.utils import osmo_errors
 from src.utils import connectors
@@ -67,22 +69,28 @@ class TestMekReconciliationPostgres(unittest.TestCase):
     data_directory: Path
     socket_directory: Path
     port: int
+    postgres_host: str
+    postgres_password: str
     postgres_process: subprocess.Popen
+    postgres_container: PostgresContainer
 
     @classmethod
     def setUpClass(cls):
         initdb = shutil.which("initdb")
         postgres = shutil.which("postgres")
-        if not initdb or not postgres:
-            raise unittest.SkipTest("PostgreSQL server binaries are not installed")
-
         cls.temporary_directory = tempfile.TemporaryDirectory()
         cls.addClassCleanup(cls.temporary_directory.cleanup)
         root = Path(cls.temporary_directory.name)
+        if not initdb or not postgres:
+            cls._start_postgres_container()
+            return
+
         cls.data_directory = root / "data"
         cls.socket_directory = root / "socket"
         cls.socket_directory.mkdir()
         cls.port = _available_port()
+        cls.postgres_host = str(cls.socket_directory)
+        cls.postgres_password = ""
         subprocess.run(
             [initdb, "-D", str(cls.data_directory), "-A", "trust", "-U", "postgres"],
             check=True,
@@ -122,6 +130,21 @@ class TestMekReconciliationPostgres(unittest.TestCase):
                 time.sleep(0.05)
 
     @classmethod
+    def _start_postgres_container(cls):
+        registry = os.environ.get("DOCKER_HUB_REGISTRY", "docker.io")
+        cls.postgres_container = PostgresContainer(
+            f"{registry}/postgres:15.1",
+            username="postgres",
+            password="postgres",
+            dbname="postgres",
+        )
+        cls.postgres_container.start()
+        cls.addClassCleanup(cls.postgres_container.stop)
+        cls.postgres_host = cls.postgres_container.get_container_host_ip()
+        cls.port = int(cls.postgres_container.get_exposed_port(5432))
+        cls.postgres_password = "postgres"
+
+    @classmethod
     def _stop_postgres(cls):
         if cls.postgres_process.poll() is None:
             cls.postgres_process.terminate()
@@ -130,10 +153,10 @@ class TestMekReconciliationPostgres(unittest.TestCase):
     def setUp(self):
         self.database = object.__new__(connectors.PostgresConnector)
         self.database.config = connectors.PostgresConfig(
-            postgres_host=str(self.socket_directory),
+            postgres_host=self.postgres_host,
             postgres_port=self.port,
             postgres_user="postgres",
-            postgres_password="",
+            postgres_password=self.postgres_password,
             postgres_database_name="postgres",
             allow_existing_mek_adoption=True,
         )
