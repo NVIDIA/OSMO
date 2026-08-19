@@ -70,12 +70,29 @@ class MekRotationKind(SmokeFixture):
                     consumers[pod["metadata"]["name"]] = container["name"]
         return consumers
 
-    def _consumer_logs(self, since="15m"):
+    def _consumer_logs(self, since="15m", consumers=None):
+        if consumers is None:
+            consumers = self._mek_consumers()
         return {
             pod: self._kubectl(
                 "logs", pod, "--container", container, f"--since={since}", "--tail=500")
-            for pod, container in self._mek_consumers().items()
+            for pod, container in consumers.items()
         }
+
+    def _consumer_pod_uids(self, consumers):
+        return {
+            pod["metadata"]["name"]: pod["metadata"]["uid"]
+            for pod in self._json("get", "pods")["items"]
+            if pod["metadata"]["name"] in consumers
+        }
+
+    def _consumer_keyring_statuses(self):
+        raw_statuses = self._postgres_scalar(
+            "SELECT COALESCE(json_object_agg(consumer_id, json_build_object("
+            "'current_kid', current_kid, 'loaded_kids', loaded_kids))::text, '{}') "
+            "FROM public.mek_consumer_status;"
+        )
+        return json.loads(raw_statuses)
 
     def _wait(self, description, predicate):
         deadline = time.monotonic() + self.timeout_seconds
@@ -457,15 +474,33 @@ class MekRotationKind(SmokeFixture):
         )
 
         self._apply_keyring(secret_name, secret_key, "not: an-osmo-keyring\n")
+
+        def all_consumers_rejected_and_retained_lkg():
+            consumers = self._mek_consumers()
+            if not consumers:
+                return None
+            pod_uids = self._consumer_pod_uids(consumers)
+            logs = self._consumer_logs(consumers=consumers)
+            statuses = self._consumer_keyring_statuses()
+            if set(pod_uids) != set(consumers) or set(logs) != set(consumers):
+                return None
+            if not all(
+                "Rejected mounted MEK Secret update" in output
+                for output in logs.values()
+            ):
+                return None
+            if not all(
+                (status := statuses.get(pod_uids[pod]))
+                and status["current_kid"] == old_key_id
+                and old_key_id in status["loaded_kids"]
+                for pod in consumers
+            ):
+                return None
+            return logs
+
         self._wait(
             "every live consumer to reject the malformed Secret and retain LKG",
-            lambda: (
-                logs if logs and all(
-                    "Rejected mounted MEK Secret update" in output
-                    and f"current_kid={old_key_id}" in output
-                    for output in logs.values()
-                ) else None
-            ) if (logs := self._consumer_logs()) else None,
+            all_consumers_rejected_and_retained_lkg,
         )
 
         new_key_id = f"kind-{secrets.token_hex(8)}"
