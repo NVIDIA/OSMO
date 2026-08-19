@@ -8,6 +8,9 @@
 
 set -euo pipefail
 
+CHECK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$CHECK_DIR/../.." && pwd)"
+
 HELM_REPO_NAME="${OSMO_HELM_REPO_NAME:-osmo-release-contract}"
 HELM_REPO_URL="${OSMO_HELM_REPO_URL:-https://helm.ngc.nvidia.com/nvidia/osmo}"
 
@@ -28,40 +31,37 @@ if [[ "$service_version" != "$operator_version" ]]; then
     exit 1
 fi
 
-service_render="$(helm template osmo-minimal "$HELM_REPO_NAME/service" \
-    --version "$service_version" \
-    --namespace osmo-minimal \
-    -f deployments/values/service.yaml \
-    -f ci/deployment-test/azure-overrides.yaml \
-    --set global.osmoImageLocation=nvcr.io/nvstaging/osmo \
-    --set global.osmoImageTag=contract-test \
-    --set global.imagePullSecret=nvcr-pull \
-    --set services.postgres.serviceName=example.postgres.database.azure.com \
-    --set services.postgres.port=5432 \
-    --set services.postgres.db=osmo \
-    --set services.postgres.user=osmo \
-    --set services.redis.serviceName=example.redis.azure.net \
-    --set services.redis.port=10000 \
-    --set services.backendApiTokens.enabled=true \
-    --set 'services.backendApiTokens.credentials[0].name=default' \
-    --set 'services.backendApiTokens.credentials[0].existingSecret.name=osmo-operator-token' \
-    --set services.ui.apiHostname=osmo-gateway.osmo-minimal.svc.cluster.local:80 \
-    --set services.configs.service.service_base_url=http://osmo-gateway.osmo-minimal.svc.cluster.local \
-    --set services.configs.backends.default.router_address=ws://osmo-gateway.osmo-minimal.svc.cluster.local \
-    --set services.configs.workflow.backend_images.init=nvcr.io/nvstaging/osmo/init-container:contract-test \
-    --set services.configs.workflow.backend_images.client=nvcr.io/nvstaging/osmo/client:contract-test)"
+# Seed inert connection details, then render through the exact flag builders
+# used by deploy_osmo_service and setup_backend_operator. The storage fixture
+# represents configure-storage.sh's generated MinIO fragment without requiring
+# Kubernetes access.
+PROVIDER=azure
+OSMO_NAMESPACE=osmo-minimal
+OSMO_OPERATOR_NAMESPACE=osmo-operator
+OSMO_WORKFLOWS_NAMESPACE=osmo-workflows
+OSMO_IMAGE_REGISTRY=nvcr.io/nvstaging/osmo
+OSMO_IMAGE_TAG=contract-test
+OSMO_HELM_REPO_NAME="$HELM_REPO_NAME"
+OSMO_HELM_REPO_URL="$HELM_REPO_URL"
+OSMO_CHART_VERSION="$service_version"
+NGC_SECRET_NAME=nvcr-pull
+NGC_API_KEY=contract-test-api-key
+BACKEND_TOKEN_SECRET_NAME=osmo-operator-token
+POSTGRES_HOST=example.postgres.database.azure.com
+POSTGRES_PORT=5432
+POSTGRES_DB_NAME=osmo
+POSTGRES_USERNAME=osmo
+REDIS_HOST=example.redis.azure.net
+REDIS_PORT=10000
+STATIC_VALUES_DIR="$REPO_ROOT/deployments/values"
+STORAGE_VALUES_FILE="$CHECK_DIR/fixtures/minio-storage-values.yaml"
 
-operator_render="$(helm template osmo-operator "$HELM_REPO_NAME/backend-operator" \
-    --version "$operator_version" \
-    --namespace osmo-operator \
-    -f deployments/values/backend-operator.yaml \
-    --set global.osmoImageLocation=nvcr.io/nvstaging/osmo \
-    --set global.osmoImageTag=contract-test \
-    --set global.imagePullSecret=nvcr-pull \
-    --set global.serviceUrl=http://osmo-gateway.osmo-minimal.svc.cluster.local \
-    --set global.agentNamespace=osmo-operator \
-    --set global.backendNamespace=osmo-workflows \
-    --set global.accountTokenSecret=osmo-operator-token)"
+# shellcheck source=../../deployments/scripts/deploy-k8s.sh
+source "$REPO_ROOT/deployments/scripts/deploy-k8s.sh"
+OSMO_SERVICE_HELM_VALUES_FILES=("$CHECK_DIR/azure-overrides.yaml")
+
+service_render="$(render_osmo_service_chart)"
+operator_render="$(render_backend_operator_chart)"
 
 missing_contracts=()
 if ! grep -q 'k8s_namespace: osmo-minimal' <<<"$service_render"; then

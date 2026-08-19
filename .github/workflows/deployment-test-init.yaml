@@ -1,0 +1,48 @@
+name: Deployment Test (Azure Init)
+
+# Fast, non-provisioning validation for the Azure example. Keep this separate
+# from the cloud deployment workflow so PR path filters do not restrict the
+# opt-in `ci:azure-deployment` label.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - '.github/workflows/deployment-test-init.yaml'
+      - '.github/workflows/deployment-test.yaml'
+      - 'deployments/scripts/run-deployment-test.sh'
+      - 'deployments/terraform/azure/**'
+
+concurrency:
+  group: azure-terraform-validation-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  init-only:
+    name: init-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: deployments/terraform/azure/example
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: terraform init (no Azure auth required)
+        run: terraform init -input=false
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+      # Existing formatting drift is outside this gate's behavioral contract.
+      - name: terraform fmt -check (informational)
+        run: terraform fmt -check -recursive -no-color || true

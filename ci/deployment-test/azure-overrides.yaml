@@ -18,6 +18,32 @@
 # Layering a full values file keeps the merge clean.
 
 services:
+  # Keep the Azure E2E control plane small enough for the test cluster. These
+  # map-only overrides live here (rather than as wrapper --set flags) so the
+  # live install and released-chart compatibility render consume one source.
+  logger:
+    scaling:
+      minReplicas: 1
+    resources:
+      requests:
+        cpu: "100m"
+  service:
+    resources:
+      requests:
+        cpu: "100m"
+  worker:
+    resources:
+      requests:
+        cpu: "100m"
+  agent:
+    resources:
+      requests:
+        cpu: "100m"
+  router:
+    resources:
+      requests:
+        cpu: "100m"
+
   configs:
     podTemplates:
       default_ctrl:

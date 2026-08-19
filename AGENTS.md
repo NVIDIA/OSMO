@@ -26,7 +26,7 @@ Before making any code changes in this repo, you MUST:
 
 - Follow existing code patterns and conventions in the codebase
 - Use Bazel for builds and testing
-- Keep cheap, non-provisioning validation automatic; reserve opt-in labels for cloud-provisioning E2E.
+- On pull requests, keep cheap, non-provisioning validation automatic and require an opt-in label for cloud-provisioning E2E.
 - Go code follows standard Go conventions
 - Write self-describing code; avoid redundant comments that simply restate what the code does
 - Copyright headers must keep "All rights reserved." on the same line as "NVIDIA CORPORATION & AFFILIATES"

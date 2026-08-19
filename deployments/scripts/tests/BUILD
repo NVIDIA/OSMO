@@ -20,3 +20,17 @@ sh_test(
         "//deployments:scripts/deploy-k8s.sh",
     ],
 )
+
+sh_test(
+    name = "test_helm_render_path",
+    srcs = ["test_helm_render_path.sh"],
+    size = "small",
+    data = [
+        "//ci/deployment-test:azure-overrides.yaml",
+        "//ci/deployment-test:fixtures/minio-storage-values.yaml",
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-k8s.sh",
+        "//deployments:values/backend-operator.yaml",
+        "//deployments:values/service.yaml",
+    ],
+)

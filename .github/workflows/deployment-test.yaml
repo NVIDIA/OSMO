@@ -2,27 +2,25 @@ name: Deployment Test (Azure)
 
 # Cloud deployment-test gate. Runs `deployments/scripts/run-deployment-test.sh`
 # end-to-end against an ephemeral cloud cluster (Azure today; other providers
-# follow). Three modes, each cheaper to set up than the next:
+# follow). Automatic, non-provisioning Terraform validation lives in
+# `deployment-test-init.yaml`; this workflow owns the Azure-facing modes:
 #
-#   1. `init-only` (~30s, no cloud setup): terraform init + validate + fmt
-#      against the Azure example module. Provider-download + HCL syntax check;
-#      ZERO Azure API calls. Use this to shake out the workflow shape before
-#      any cloud-side setup.
-#   2. `auth-check` (~2 min, requires OIDC + Azure App Reg): adds terraform
+#   1. `auth-check` (~2 min, requires OIDC + Azure App Reg): runs terraform
 #      plan. First step that actually touches Azure — confirms the federated-
 #      identity → service-principal → RBAC chain.
-#   3. `full-deployment` (~45 min, requires #2 plus POSTGRES_PASSWORD): runs
+#   2. `full-deployment` (~45 min, requires #1 plus POSTGRES_PASSWORD): runs
 #      `deployments/scripts/run-deployment-test.sh --provider azure` end-to-end.
 #
 # Triggers:
 #   - `workflow_dispatch` — once this file lands on the default branch, the
-#     "Run workflow" button in Actions becomes available for all three modes.
-#   - `pull_request` — auto-runs only the cheap `init-only` validation when a
-#     relevant PR is opened or updated. It never starts cloud provisioning.
+#     "Run workflow" button in Actions becomes available for both modes.
+#   - `pull_request` — listens only for label events. Normal PR updates are
+#     handled by `deployment-test-init.yaml` and never provision cloud.
 #
 # PR-label trigger (works pre-merge when the dispatcher isn't registered yet):
-#   - `ci:azure-deployment` → init-only + full-deployment start immediately.
-#     Later pushes rerun only init-only; remove and re-add the label for full E2E.
+#   - `ci:azure-deployment` → full-deployment starts immediately for any PR.
+#     Later pushes run only automatic validation; remove and re-add the label
+#     to rerun full E2E at the new head.
 # auth-check is workflow_dispatch only — it's a developer-driven smoke for
 # the OIDC chain, not something we want to run automatically per PR.
 #
@@ -53,37 +51,22 @@ on:
         description: 'What to run'
         type: choice
         required: true
-        default: init-only
+        default: auth-check
         options:
-          - init-only
           - auth-check
           - full-deployment
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, labeled]
-    paths:
-      - '.bazelrc'
-      - '.bazelversion'
-      - '.github/workflows/deployment-test.yaml'
-      - 'BUILD'
-      - 'MODULE.bazel'
-      - 'MODULE.bazel.lock'
-      - 'bzl/**'
-      - 'ci/deployment-test/**'
-      - 'deployments/charts/backend-operator/**'
-      - 'deployments/charts/service/**'
-      - 'deployments/scripts/**'
-      - 'deployments/terraform/azure/**'
-      - 'deployments/values/**'
-      - 'src/**'
+    types: [labeled]
   schedule:
     # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
     # is UTC, doesn't track DST). Schedule fires only on main, not on
     # feature branches.
     - cron: '0 0 * * *'
 
-# Full runs share one resource group, so they use one concurrency group. Cheap
-# validation runs get a unique group and never queue behind cloud provisioning.
+# Full runs share one resource group and queue in one concurrency group.
+# Auth checks and non-matching label events use unique groups, so they never
+# wait behind cloud provisioning.
 concurrency:
   group: >-
     ${{ (github.event_name == 'schedule'
@@ -94,6 +77,7 @@ concurrency:
         && 'deployment-test-azure'
         || format('deployment-test-azure-{0}', github.run_id) }}
   cancel-in-progress: false
+  queue: max
 
 # OIDC federation to Azure — no static secrets in this workflow.
 # `id-token: write` lets the runner mint a JWT that Azure trusts via the
@@ -108,37 +92,6 @@ permissions:
   contents: read
 
 jobs:
-  # Cheapest mode — no Azure setup needed. terraform init downloads the
-  # azurerm provider plugin from the Terraform Registry (HTTPS, no Azure
-  # API call). terraform validate + fmt are purely local.
-  init-only:
-    if: >-
-      ${{ github.event_name == 'pull_request'
-          || github.event.inputs.mode == 'init-only' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: deployments/terraform/azure/example
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
-
-      - name: terraform init (no Azure auth required)
-        run: terraform init -input=false
-
-      - name: terraform validate
-        run: terraform validate -no-color
-
-      # fmt is informational only — formatting drift in the existing Azure
-      # example is out of scope for this PR and the run-deployment-test
-      # wrapper doesn't care about cosmetic formatting.
-      - name: terraform fmt -check (informational)
-        run: terraform fmt -check -recursive -no-color || true
-
   # First step that actually talks to Azure — terraform plan reads the
   # resource group via the azurerm_resource_group data source. Requires
   # the full OIDC + App Reg + RBAC setup. Provisions nothing.
@@ -198,15 +151,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: install helm
-        run: |
-          set -euo pipefail
-          HELM_VERSION=v3.16.2
-          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
-          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
-          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
-          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: 'v3.16.2'
 
       - name: verify latest released chart contract
         id: contract
@@ -223,8 +171,8 @@ jobs:
   # Pushes go to `nvcr.io/nvstaging/osmo` — the same team the Jenkins dev
   # pipeline uses (nvcr.io restricts registries to 3 path segments
   # `<org>/<team>/<image>`, so a dedicated `/ci` subpath isn't possible).
-  # CI-built tags include the workflow run ID, so separate label invocations
-  # cannot overwrite each other's images. A rerun keeps the same immutable tag.
+  # Keep the cleanup-compatible `pr-` prefix and include the workflow run ID,
+  # so separate invocations cannot overwrite each other. A rerun reuses it.
   build-images:
     needs: released-chart-compat
     if: ${{ needs.released-chart-compat.result == 'success' }}
@@ -280,16 +228,15 @@ jobs:
           username: $oauthtoken
           password: ${{ secrets.NGC_API_KEY }}
 
-      # Tag layout: nvcr.io/nvstaging/osmo/<image>:e2e-<pr|main>-<run-id>-amd64
+      # Tag layout: nvcr.io/nvstaging/osmo/<image>:pr-<pr|main>-<run-id>-amd64
       # The `-amd64` suffix is appended by rules_oci's per-arch oci_push;
       # we expose the FULL tag (with suffix) so downstream uses match the
       # actual remote tag.
       - id: tag
         run: |
           SCOPE="${{ github.event.pull_request.number || 'main' }}"
-          TAG_BASE="e2e-${SCOPE}-${GITHUB_RUN_ID}"
+          TAG_BASE="pr-${SCOPE}-${GITHUB_RUN_ID}"
           echo "registry=nvcr.io/nvstaging/osmo" >> "$GITHUB_OUTPUT"
-          echo "tag_base=${TAG_BASE}"            >> "$GITHUB_OUTPUT"
           echo "tag=${TAG_BASE}-amd64"           >> "$GITHUB_OUTPUT"
 
       # Minimal --no-gpu image set: 8 service images + client + init-container.
@@ -298,7 +245,7 @@ jobs:
       # per-target oci_push rules directly. Each accepts --repository and
       # --tag at `bazel run` time, so we don't need to mutate the constants
       # repo to redirect from the default nvcr.io/nvidia/osmo path to
-      # nvcr.io/nvstaging/osmo/ci.
+      # nvcr.io/nvstaging/osmo.
       - name: Build and push OSMO images
         env:
           REMOTE_CACHE: ${{ secrets.BAZEL_REMOTE_CACHE_URL }}
@@ -359,7 +306,7 @@ jobs:
             echo "- Source SHA: \`${{ github.sha }}\`"
             echo ""
             echo "Packages pushed:"
-            for img in service logger agent authz-sidecar router worker delayed-job-monitor web-ui init-container client; do
+            for img in service logger agent authz-sidecar router worker delayed-job-monitor web-ui init-container client backend-listener backend-worker; do
               echo "  - \`${{ steps.tag.outputs.registry }}/$img:${{ steps.tag.outputs.tag }}\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"
@@ -1041,18 +988,15 @@ jobs:
           if-no-files-found: warn
 
   # ── Stage 4: terraform destroy + cluster diagnostics ─────────────────────
-  # Downloads the tfstate artifact tf-apply uploaded, captures a final
-  # cluster snapshot before destroy, then tears everything down.
+  # Successful applies wait for the test stages. Failed applies use the same
+  # anchored teardown steps in the early job below without waiting for builds.
   tf-destroy:
     needs: [build-images, tf-apply, deploy-osmo, oetf]
-    # Run whenever tf-apply ran (any result) — a failed apply usually
-    # leaves partial resources to tear down. Skip only if tf-apply never
-    # ran.
-    if: ${{ always() && needs.tf-apply.result != 'skipped' }}
+    if: ${{ always() && needs.tf-apply.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: internal-ci
-    env:
+    env: &azure_destroy_env
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -1063,7 +1007,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    steps:
+    steps: &azure_destroy_steps
       - uses: actions/checkout@v4
 
       - name: azure login (OIDC)
@@ -1253,6 +1197,22 @@ jobs:
           path: runs/deployment-test-azure/**
           retention-days: 14
           if-no-files-found: warn
+  # A failed apply can leave billable partial resources. Start the identical
+  # teardown immediately after its always-upload step, without waiting for build.
+  tf-destroy-apply-failure:
+    needs: [tf-apply]
+    if: >-
+      ${{ always()
+          && needs.tf-apply.result != 'success'
+          && needs.tf-apply.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: internal-ci
+    env: *azure_destroy_env
+    permissions:
+      id-token: write
+      contents: read
+    steps: *azure_destroy_steps
 
 
   # ── Slack failure-notification (schedule-only) ───────────────────────────
@@ -1264,7 +1224,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
 
   notify-slack-on-azure-deployment-test-failure:
-    needs: [released-chart-compat, build-images, tf-apply, deploy-osmo, oetf, tf-destroy]
+    needs: [released-chart-compat, build-images, tf-apply, deploy-osmo, oetf, tf-destroy, tf-destroy-apply-failure]
     # always() so this evaluates even when an upstream `needs:` failed.
     # Fires only on scheduled-run failures — PR-label and workflow_dispatch
     # runs surface their own status interactively.
@@ -1276,7 +1236,8 @@ jobs:
               || needs.tf-apply.result == 'failure'
               || needs.deploy-osmo.result == 'failure'
               || needs.oetf.result == 'failure'
-              || needs.tf-destroy.result == 'failure') }}
+              || needs.tf-destroy.result == 'failure'
+              || needs.tf-destroy-apply-failure.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1389,7 +1350,7 @@ jobs:
           APPLY_RESULT: ${{ needs.tf-apply.result }}
           DEPLOY_RESULT: ${{ needs.deploy-osmo.result }}
           OETF_RESULT: ${{ needs.oetf.result }}
-          DESTROY_RESULT: ${{ needs.tf-destroy.result }}
+          DESTROY_RESULT: ${{ needs.tf-destroy.result != 'skipped' && needs.tf-destroy.result || needs.tf-destroy-apply-failure.result }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}

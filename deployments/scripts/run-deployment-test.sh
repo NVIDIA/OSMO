@@ -504,7 +504,8 @@ stage_deploy() {
             # strict-LE rule `USER_CPU LE K8_CPU` rejects every
             # cpu=1 task ("Value 1.0 too high for CPU").
             #
-            # Two reductions:
+            # Two reductions, both owned by azure-overrides.yaml so the live
+            # deployment and offline released-chart preflight share them:
             #   - OSMO-service requests → 100m  (was 1 each → 5 × 1 = 5 CPU)
             #   - osmo-ctrl sidecar request → 100m (was 1 per workflow task)
             # The chart's CPU LIMIT on ctrl/user still tracks USER_CPU,
@@ -522,36 +523,8 @@ stage_deploy() {
                 --cluster-name    "$AZURE_CLUSTER_NAME"
                 --environment     "$ENVIRONMENT"
                 --postgres-password "$POSTGRES_PASSWORD"
-                --helm-set services.logger.scaling.minReplicas=1
-                --helm-set services.logger.resources.requests.cpu=100m
-                --helm-set services.service.resources.requests.cpu=100m
-                --helm-set services.worker.resources.requests.cpu=100m
-                --helm-set services.agent.resources.requests.cpu=100m
-                --helm-set services.router.resources.requests.cpu=100m
-                # default_ctrl pod template override (osmo-ctrl sidecar
-                # requests.cpu → 100m). Has to come via --helm-values not
-                # --helm-set because helm replaces list elements wholesale —
-                # `--set …containers[0]...cpu=100m` wipes the container's
-                # `name` and limits, breaking the configmap loader's schema.
-                --helm-values "${SCRIPT_DIR}/../../ci/deployment-test/azure-overrides.yaml"
+                --service-helm-values "${SCRIPT_DIR}/../../ci/deployment-test/azure-overrides.yaml"
             )
-
-            # If NGC_API_KEY is in env (i.e. images are on a private nvcr.io
-            # path), wire it into services.configs.workflow.backend_images
-            # .credential so OSMO's task-pod scheduler code creates the
-            # per-workflow `<group_uuid>-osmo` docker-registry secret and
-            # attaches it as an imagePullSecret. Without this the dynamic
-            # workflow task pods try to pull the init-container from nvcr.io
-            # anonymously and get 403 (their ServiceAccount's imagePullSecret
-            # from global.imagePullSecret only covers the service-level pods,
-            # not the runtime task pods created by the backend-worker).
-            if [[ -n "${NGC_API_KEY:-}" ]]; then
-                args+=(
-                    --helm-set "services.configs.workflow.backend_images.credential.registry=nvcr.io"
-                    --helm-set 'services.configs.workflow.backend_images.credential.username=$oauthtoken'
-                    --helm-set "services.configs.workflow.backend_images.credential.auth=${NGC_API_KEY}"
-                )
-            fi
             ;;
         *)
             log_error "stage_deploy: provider $PROVIDER not wired"
