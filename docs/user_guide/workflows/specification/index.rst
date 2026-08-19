@@ -69,13 +69,12 @@ Workflow
 Workflow Labels
 ---------------
 
-Labels are fixed metadata for a workflow, unlike tags, which can change after
-submission. Keys and values use Kubernetes label syntax, values must be
-non-empty, and a workflow can define at most 16 labels. Labels are stored with
-the submitted specification and copied to task pods only. Any syntactically
-valid key is accepted; if a key collides with a system-owned pod label (an
-``osmo.`` selector or a scheduler queue label), the system value wins on the
-pod.
+Labels are immutable metadata for a workflow, set at submission. Keys and
+values use Kubernetes label syntax, values must be non-empty, and a workflow
+can define at most 16 labels. Labels are stored with the submitted
+specification and copied to task pods only. Any syntactically valid key is
+accepted; if a key collides with a system-owned pod label (an ``osmo.``
+selector or a scheduler queue label), the system value wins on the pod.
 
 .. code-block:: yaml
 
