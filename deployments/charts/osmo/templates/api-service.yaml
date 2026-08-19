@@ -16,6 +16,10 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- if and .Values.planes.control.enabled .Values.services.api.enabled }}
 {{- $name := include "osmo.api.fullname" . }}
+{{- $protectedPodAnnotations := dict }}
+{{- if .Values.services.backendApiTokens.enabled }}
+{{- $_ := set $protectedPodAnnotations "osmo.nvidia.com/backend-token-rollout" .Values.services.backendApiTokens.rolloutNonce }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,7 +46,7 @@ spec:
       labels:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
-        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api "protectedAnnotations" $protectedPodAnnotations) | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -145,6 +149,10 @@ spec:
         - --default_admin_username
         - {{ .Values.secrets.defaultAdmin.username | quote }}
         {{- end }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        - --backend_token_directory
+        - /etc/osmo/backend-tokens
+        {{- end }}
         {{- include "osmo.configuration.args" . | nindent 8 }}
         {{- range $arg := .Values.services.api.extraArgs }}
         - {{ $arg | quote }}
@@ -177,6 +185,13 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        {{- range .Values.services.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
+          mountPath: /etc/osmo/backend-tokens/{{ .name }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.api | nindent 8 }}
@@ -207,6 +222,13 @@ spec:
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
+        {{- if .Values.services.backendApiTokens.enabled }}
+        {{- range .Values.services.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
+          secret:
+            secretName: {{ include "osmo.backend-api-token-secret-name" . }}
+        {{- end }}
+        {{- end }}
 ---
 
 apiVersion: v1

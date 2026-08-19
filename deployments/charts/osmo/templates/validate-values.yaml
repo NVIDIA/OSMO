@@ -13,6 +13,35 @@
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
 {{- if .Values.planes.control.enabled -}}
+{{- if .Values.services.backendApiTokens.enabled -}}
+{{- if not .Values.services.backendApiTokens.credentials -}}
+{{- fail "services.backendApiTokens.credentials must not be empty when backend API tokens are enabled" -}}
+{{- end -}}
+{{- $backendTokenCredentialNames := dict -}}
+{{- $backendTokenSecretNames := dict -}}
+{{- range .Values.services.backendApiTokens.credentials -}}
+{{- $credentialName := required "backend API token credential name is required" .name -}}
+{{- if or
+  (gt (len $credentialName) 49)
+  (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) -}}
+{{- fail (printf "invalid backend API token credential name %q" $credentialName) -}}
+{{- end -}}
+{{- if hasKey $backendTokenCredentialNames $credentialName -}}
+{{- fail (printf "duplicate backend API token credential name %q" $credentialName) -}}
+{{- end -}}
+{{- $_ := set $backendTokenCredentialNames $credentialName true -}}
+{{- $secretName := include "osmo.backend-api-token-secret-name" . -}}
+{{- if or
+  (gt (len $secretName) 253)
+  (not (regexMatch "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$" $secretName)) -}}
+{{- fail (printf "invalid backend API token Secret name %q" $secretName) -}}
+{{- end -}}
+{{- if hasKey $backendTokenSecretNames $secretName -}}
+{{- fail (printf "duplicate backend API token Secret name %q" $secretName) -}}
+{{- end -}}
+{{- $_ := set $backendTokenSecretNames $secretName true -}}
+{{- end -}}
+{{- end -}}
 {{- $objectStorageCredentialsKey := .Values.secrets.objectStorage.keys.credentials -}}
 {{- if or
   (not $objectStorageCredentialsKey)

@@ -231,6 +231,30 @@ secrets:
 # commands, ports, Service names, and required connection arguments remain
 # chart-managed implementation details.
 services:
+  # Backend compute-plane authentication. Each credential selects exactly one
+  # Kubernetes Secret source. Existing Secrets are the production interface;
+  # managed Secrets are generated and retained by a development-only Helm hook
+  # without placing token material in rendered manifests or Helm release state.
+  # Every Secret contains `token` and may contain `previous-token` for rotation.
+  backendApiTokens:
+    enabled: false
+    bootstrap:
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
+    # Change this non-secret value to roll the API after an externally managed
+    # token Secret changes.
+    rolloutNonce: ''
+    credentials: []
+    # - name: default
+    #   existingSecret:
+    #     name: osmo-backend-token
+    # - name: local
+    #   managedSecret:
+    #     name: osmo-backend-token-local
+    # Deprecated compatibility form (equivalent to existingSecret.name):
+    # - name: legacy
+    #   secretName: osmo-backend-token-legacy
+
   # Optional Model Context Protocol endpoint exposed through the gateway.
   mcp:
     enabled: false

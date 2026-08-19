@@ -1,0 +1,145 @@
+{{- if .Values.planes.control.enabled }}
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.services.backendApiTokens.enabled }}
+{{- $managedCredentials := list }}
+{{- range .Values.services.backendApiTokens.credentials }}
+{{- if hasKey . "managedSecret" }}
+{{- $managedCredentials = append $managedCredentials . }}
+{{- end }}
+{{- end }}
+{{- if $managedCredentials }}
+{{- $bootstrapName := include "osmo.backend-api-token-bootstrap-name" . }}
+{{- $hookResourceAnnotations := dict
+      "helm.sh/hook" "pre-install,pre-upgrade"
+      "helm.sh/hook-weight" "-20"
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "backend-token-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $hookResourceAnnotations) | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "backend-token-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $hookResourceAnnotations) | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames:
+  {{- range $managedCredentials }}
+  - {{ include "osmo.backend-api-token-secret-name" . | quote }}
+  {{- end }}
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "backend-token-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $hookResourceAnnotations) | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $bootstrapName }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "backend-token-bootstrap") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict "helm.sh/hook" "pre-install,pre-upgrade" "helm.sh/hook-weight" "-10" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.component.selectorLabels" (dict "root" . "component" "backend-token-bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $bootstrapName }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.podDefaults.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      tolerations:
+        {{- toYaml .Values.podDefaults.tolerations | nindent 8 }}
+      containers:
+      - name: backend-token-bootstrap
+        image: {{ .Values.services.backendApiTokens.bootstrap.image | quote }}
+        imagePullPolicy: {{ .Values.services.backendApiTokens.bootstrap.imagePullPolicy }}
+        command:
+        - /bin/ash
+        args:
+        - -c
+        - |
+{{ .Files.Get "files/backend-token-bootstrap.sh" | nindent 10 }}
+        - backend-token-bootstrap
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --release-name
+        - {{ .Release.Name | quote }}
+        {{- if .Release.IsUpgrade }}
+        - --fail-if-missing
+        {{- end }}
+        {{- range $managedCredentials }}
+        - --secret-name
+        - {{ include "osmo.backend-api-token-secret-name" . | quote }}
+        {{- end }}
+        env:
+        - name: HOME
+          value: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+        volumeMounts:
+        - name: bootstrap-tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: bootstrap-tmp
+        emptyDir: {}
+{{- end }}
+{{- end }}
+{{- end }}

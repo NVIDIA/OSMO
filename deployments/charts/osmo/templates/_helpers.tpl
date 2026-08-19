@@ -229,6 +229,31 @@ data:
 {{- include "osmo.component.fullname" (dict "root" . "suffix" "api") -}}
 {{- end -}}
 
+{{/* Resolve the Secret selected by one backend API token credential. */}}
+{{- define "osmo.backend-api-token-secret-name" -}}
+{{- $hasExistingSecret := hasKey . "existingSecret" -}}
+{{- $hasManagedSecret := hasKey . "managedSecret" -}}
+{{- $hasLegacySecretName := hasKey . "secretName" -}}
+{{- $sourceCount := add
+      (ternary 1 0 $hasExistingSecret)
+      (ternary 1 0 $hasManagedSecret)
+      (ternary 1 0 $hasLegacySecretName) -}}
+{{- if ne $sourceCount 1 -}}
+{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret, managedSecret, or deprecated secretName" (.name | default "")) -}}
+{{- end -}}
+{{- if $hasExistingSecret -}}
+{{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
+{{- else if $hasManagedSecret -}}
+{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
+{{- else -}}
+{{- required "backend API token secretName is required" .secretName -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.backend-api-token-bootstrap-name" -}}
+{{- printf "%s-backend-token-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "osmo.configuration.args" -}}
 {{- if .Values.configuration.enabled }}
 - --config_file

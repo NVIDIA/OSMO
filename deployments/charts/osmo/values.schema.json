@@ -84,7 +84,8 @@
         "logger": { "$ref": "#/definitions/loggerComponent" },
         "agent": { "$ref": "#/definitions/agentComponent" },
         "delayedJobMonitor": { "$ref": "#/definitions/delayedJobMonitorComponent" },
-        "mcp": { "$ref": "#/definitions/mcpComponent" }
+        "mcp": { "$ref": "#/definitions/mcpComponent" },
+        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" }
       }
     },
     "gateway": {
@@ -946,6 +947,41 @@
         "username": { "type": "string" }
       },
       "required": ["generate", "existingSecret", "keys"]
+    },
+    "backendApiTokens": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "bootstrap": {
+          "type": "object",
+          "properties": {
+            "image": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          },
+          "required": ["image", "imagePullPolicy"]
+        },
+        "rolloutNonce": { "type": "string" },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "existingSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
+              "managedSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
+              "secretName": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["enabled", "bootstrap", "rolloutNonce", "credentials"]
+    },
+    "backendApiTokenSecretSource": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
     },
     "postgresqlSecretReference": {
       "type": "object",
