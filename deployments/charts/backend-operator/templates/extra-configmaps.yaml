@@ -21,7 +21,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ $name }}-{{ $configMapName }}
-  namespace: {{ $.Values.global.agentNamespace }}
+  namespace: {{ include "backend-operator.agentNamespace" $ }}
   {{- with $configMapData.labels }}
   labels:
     {{- include "backend-operator.labels" $ | nindent 4 }}

@@ -21,7 +21,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}-{{ .Values.services.backendListener.serviceName }}
-  namespace: {{ .Values.global.agentNamespace }}
+  namespace: {{ include "backend-operator.agentNamespace" . }}
   labels:
     app: {{ $name }}-{{ .Values.services.backendListener.serviceName }}
 spec:
@@ -95,7 +95,7 @@ spec:
         - --backend
         - {{ .Values.global.backendName }}
         - --namespace
-        - {{ .Values.global.backendNamespace }}
+        - {{ include "backend-operator.backendNamespace" . }}
         - --log_level
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
