@@ -1,11 +1,18 @@
 {{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- if .Values.planes.compute.enabled -}}
-{{- fail "planes.compute.enabled: compute plane is not implemented in this chart version" -}}
+{{- if and (not .Values.planes.control.enabled) (not .Values.planes.compute.enabled) -}}
+{{- fail "at least one of planes.control.enabled or planes.compute.enabled must be true" -}}
 {{- end -}}
-{{- if not .Values.planes.control.enabled -}}
-{{- fail "planes.control.enabled: this chart version requires the control plane" -}}
+{{- if and
+  (not .Values.planes.control.enabled)
+  (or
+    .Values.embeddedDependencies.postgresql.enabled
+    .Values.embeddedDependencies.valkey.enabled
+    .Values.embeddedDependencies.objectStorage.enabled
+    .Values.embeddedDependencies.kaiScheduler.enabled) -}}
+{{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
+{{- if .Values.planes.control.enabled -}}
 {{- $objectStorageCredentialsKey := .Values.secrets.objectStorage.keys.credentials -}}
 {{- if or
   (not $objectStorageCredentialsKey)
@@ -322,4 +329,5 @@
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- end -}}
 {{- end -}}

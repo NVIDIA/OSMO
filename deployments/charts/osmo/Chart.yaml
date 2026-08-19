@@ -18,6 +18,11 @@ keywords:
 - kubernetes
 icon: https://media.githubusercontent.com/media/NVIDIA/OSMO/main/docs/_static/osmo_favicon.png
 dependencies:
+- name: backend-operator
+  alias: computePlane
+  version: 1.4.0
+  repository: file://../backend-operator
+  condition: planes.compute.enabled
 - name: valkey
   version: 0.11.0
   repository: oci://ghcr.io/valkey-io/valkey-helm

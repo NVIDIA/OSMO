@@ -377,6 +377,7 @@ test_control_umbrella() {
     local rendered="$TEST_DIRECTORY/osmo.yaml"
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
+    cp -R "$CHARTS_ROOT/backend-operator" "$charts_copy/backend-operator"
     if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
@@ -421,6 +422,12 @@ test_control_umbrella() {
         ! grep -Fq "osmo/charts/rustfs-1.0.0-rc.2.tgz" \
         "$TEST_DIRECTORY/osmo-package.txt"; then
         fail "packaged OSMO chart does not contain RustFS 1.0.0-rc.2"
+    fi
+    if ! grep -Fq "osmo/charts/backend-operator/Chart.yaml" \
+        "$TEST_DIRECTORY/osmo-package.txt" && \
+        ! grep -Fq "osmo/charts/backend-operator-1.4.0.tgz" \
+        "$TEST_DIRECTORY/osmo-package.txt"; then
+        fail "packaged OSMO chart does not contain backend-operator 1.4.0"
     fi
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
@@ -2717,13 +2724,42 @@ EOF
     require_contains "$TEST_DIRECTORY/invalid-pdb.out" \
         "services.api.podDisruptionBudget cannot set both minAvailable and maxUnavailable"
 
-    if helm_template unsupported-compute "$charts_copy/osmo" \
+    helm_template compute-only "$charts_copy/osmo" \
+        --namespace compute-system \
+        --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
-        >"$TEST_DIRECTORY/unsupported-compute.out" 2>&1; then
-        fail "expected planes.compute.enabled=true to fail"
+        --set computePlane.global.serviceUrl=https://osmo.example.com \
+        --set computePlane.global.loginMethod=token \
+        --set computePlane.global.accountTokenSecret=osmo-backend-token \
+        >"$TEST_DIRECTORY/compute-only.yaml"
+    require_deployment "$TEST_DIRECTORY/compute-only.yaml" \
+        "compute-only-osmo-backend-listener"
+    require_deployment "$TEST_DIRECTORY/compute-only.yaml" \
+        "compute-only-osmo-backend-worker"
+    require_no_deployment "$TEST_DIRECTORY/compute-only.yaml" \
+        "compute-only-osmo-api"
+    require_not_contains "$TEST_DIRECTORY/compute-only.yaml" \
+        "apiVersion: postgresql.cnpg.io/v1"
+
+    if helm_template no-planes "$charts_copy/osmo" \
+        --set planes.control.enabled=false \
+        --set planes.compute.enabled=false \
+        >"$TEST_DIRECTORY/no-planes.out" 2>&1; then
+        fail "expected a release with no planes to fail"
     fi
-    require_contains "$TEST_DIRECTORY/unsupported-compute.out" \
-        "compute plane is not implemented"
+    require_contains "$TEST_DIRECTORY/no-planes.out" \
+        "at least one of planes.control.enabled or planes.compute.enabled must be true"
+
+    if helm_template compute-with-embedded "$charts_copy/osmo" \
+        --set planes.control.enabled=false \
+        --set planes.compute.enabled=true \
+        --set embeddedDependencies.valkey.enabled=true \
+        --set computePlane.global.serviceUrl=https://osmo.example.com \
+        >"$TEST_DIRECTORY/compute-with-embedded.out" 2>&1; then
+        fail "expected compute-only embedded dependencies to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/compute-with-embedded.out" \
+        "embedded dependencies require planes.control.enabled=true"
 
     if helm_template missing-cnpg-operator "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \

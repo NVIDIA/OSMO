@@ -1,3 +1,4 @@
+{{- if .Values.planes.control.enabled }}
 {{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled }}
@@ -95,4 +96,5 @@ spec:
           defaultMode: 0555
       - name: bootstrap-tmp
         emptyDir: {}
+{{- end }}
 {{- end }}

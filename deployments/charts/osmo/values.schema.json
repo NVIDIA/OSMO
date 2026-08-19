@@ -12,6 +12,7 @@
       },
       "required": ["control", "compute"]
     },
+    "computePlane": { "type": "object" },
     "embeddedDependencies": {
       "type": "object",
       "properties": {

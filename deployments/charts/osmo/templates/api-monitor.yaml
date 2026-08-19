@@ -33,6 +33,7 @@ metricRelabelings:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end -}}
+{{- if .Values.planes.control.enabled }}
 {{- $monitor := .Values.monitoring.podMonitor -}}
 {{- if $monitor.enabled }}
 {{- $root := . }}
@@ -110,4 +111,5 @@ spec:
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 6 }}
+{{- end }}
 {{- end }}

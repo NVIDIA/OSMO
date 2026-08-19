@@ -12,6 +12,11 @@ planes:
   compute:
     enabled: false
 
+# Values passed directly to the backend-operator dependency when the compute
+# plane is enabled. See profiles/split-plane-compute.yaml for the external
+# control-plane contract.
+computePlane: {}
+
 # Select supporting systems managed by this Helm release. Embedded PostgreSQL
 # requires a compatible CloudNativePG operator to be installed first. Embedded
 # Valkey is managed directly by this release.

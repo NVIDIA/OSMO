@@ -1,3 +1,4 @@
+{{- if .Values.planes.control.enabled }}
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -84,4 +85,5 @@ data:
     roles:
       {{- toYaml $cfg.roles | nindent 6 }}
     {{- end }}
+{{- end }}
 {{- end }}
