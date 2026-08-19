@@ -10,6 +10,14 @@ planes:
   compute:
     enabled: true
 
+# Keep the in-cluster development endpoints below valid for any Helm release
+# name. This profile intentionally supports one OSMO installation per namespace.
+fullnameOverride: osmo
+
+imageTag: latest
+runtimeImage:
+  tag: latest
+
 externalUrl: http://osmo-gateway
 
 embeddedDependencies:
@@ -94,6 +102,21 @@ monitoring:
 configuration:
   enabled: true
   podTemplates:
+    # KAI treats even a zero-valued nvidia.com/gpu resource key as a GPU pod
+    # and injects the NVIDIA RuntimeClass. This CPU-only profile omits the key.
+    default_user:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+            requests:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
     kind_dev_auth:
       spec:
         containers:
@@ -126,9 +149,7 @@ postgresql:
         memory: 1Gi
     enablePDB: false
     postgresql:
-      synchronous:
-        number: 0
-        dataDurability: preferred
+      synchronous: null
 
 valkey:
   resources:
@@ -166,7 +187,7 @@ rustfs:
 
 computePlane:
   global:
-    osmoImageTag: "6.4.0"
+    osmoImageTag: latest
     serviceUrl: http://osmo-gateway
     loginMethod: token
     accountTokenSecret: osmo-backend-token

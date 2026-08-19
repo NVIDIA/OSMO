@@ -89,7 +89,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if $component.image.digest -}}
 {{- printf "%s@%s" $base $component.image.digest -}}
 {{- else -}}
-{{- printf "%s:%s" $base ($component.image.tag | default $root.Chart.AppVersion) -}}
+{{- printf "%s:%s" $base ($component.image.tag | default $root.Values.imageTag | default $root.Chart.AppVersion) -}}
 {{- end -}}
 {{- end -}}
 

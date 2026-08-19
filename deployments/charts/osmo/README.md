@@ -332,11 +332,14 @@ above.
 
 ## Optional configuration
 
-- Configure the OSMO image registry under `imageRegistry`, pull credentials
-  under `imagePullSecrets`, and component images under `runtimeImage` and each
-  component's `image` block. Configure dependency images and pull credentials
-  in their native values blocks; for example, Valkey uses `valkey.image` and
-  `valkey.imagePullSecrets`.
+- Configure the OSMO image registry under `imageRegistry`, a shared
+  control-plane tag under `imageTag`, pull credentials under
+  `imagePullSecrets`, and workflow init/client images under `runtimeImage`.
+  The chart writes those workflow images into the managed API configuration
+  unless `configuration.workflow.backend_images` overrides them. Configure
+  per-component image overrides in each component's `image` block. Configure
+  dependency images and pull credentials in their native values blocks; for
+  example, Valkey uses `valkey.image` and `valkey.imagePullSecrets`.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,
   `gateway`, and `podDefaults`.

@@ -378,6 +378,8 @@ test_control_umbrella() {
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
     cp -R "$CHARTS_ROOT/backend-operator" "$charts_copy/backend-operator"
+    helm package "$charts_copy/backend-operator" \
+        --destination "$charts_copy/osmo/charts" >/dev/null
     if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
@@ -432,6 +434,10 @@ test_control_umbrella() {
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "osmo-osmo-backend-worker"
     require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Cluster "osmo-pg"
+    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Cluster "osmo-pg" \
+        >"$TEST_DIRECTORY/kind-self-contained-postgresql.yaml"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained-postgresql.yaml" \
+        "    synchronous:"
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-valkey"
     require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Service "osmo-valkey"
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-rustfs"
@@ -447,8 +453,22 @@ test_control_umbrella() {
         "secretName: osmo-backend-token"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "OSMO_LOGIN_DEV"
+    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/kind-self-contained-config.yaml"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained-config.yaml" \
+        "nvidia.com/gpu"
+    require_contains "$TEST_DIRECTORY/kind-self-contained-config.yaml" \
+        "init: nvcr.io/nvidia/osmo/init-container:latest"
+    require_contains "$TEST_DIRECTORY/kind-self-contained-config.yaml" \
+        "client: nvcr.io/nvidia/osmo/client:latest"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "http://osmo-gateway"
+    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "image: nvcr.io/nvidia/osmo/service:latest"
+    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "image: nvcr.io/nvidia/osmo/backend-listener:latest"
+    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "image: nvcr.io/nvidia/osmo/backend-worker:latest"
     require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "vault.hashicorp.com"
     require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
@@ -460,6 +480,18 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "currentMek:"
     require_contains "$charts_copy/osmo/Chart.yaml" 'appVersion: "6.4.0"'
+
+    helm_template portable-kind "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        >"$TEST_DIRECTORY/portable-kind-self-contained.yaml"
+    require_deployment "$TEST_DIRECTORY/portable-kind-self-contained.yaml" \
+        "osmo-api"
+    require_resource "$TEST_DIRECTORY/portable-kind-self-contained.yaml" \
+        Service "osmo-gateway"
+    require_contains "$TEST_DIRECTORY/portable-kind-self-contained.yaml" \
+        "http://osmo-gateway"
 
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"

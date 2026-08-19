@@ -18,7 +18,7 @@
 {{$name := or .Values.global.name .Release.Name }}
 
 # Backend Test Runner Service Account
-{{- if .Values.global.backendTestNamespace }}
+{{- if and .Values.backendTestRunner.enabled .Values.global.backendTestNamespace }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:

@@ -85,7 +85,8 @@ global:
   ##
   backendNamespace: ""
 
-  ## Kubernetes namespace where backend cluster validation tests will be deployed
+  ## Kubernetes namespace where backend cluster validation tests will be
+  ## deployed. Leave empty to disable backend test synchronization.
   ##
   backendTestNamespace: null
 

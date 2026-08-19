@@ -22,7 +22,7 @@ embeddedDependencies:
 
 computePlane:
   global:
-    osmoImageTag: "6.4.0"
+    osmoImageTag: latest
     serviceUrl: https://osmo.example.com
     loginMethod: token
     accountTokenSecret: osmo-backend-token

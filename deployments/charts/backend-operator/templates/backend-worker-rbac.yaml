@@ -89,13 +89,13 @@ roleRef:
   kind: Role
   name: {{ $name }}-worker
   apiGroup: rbac.authorization.k8s.io
----
 {{- if .Values.global.backendTestNamespace }}
+---
 # Role for Backend Worker (test namespace)
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ $name }}-worker
+  name: {{ $name }}-worker-backend-tests
   namespace: {{ .Values.global.backendTestNamespace }}
 rules:
 - apiGroups: [""]
@@ -110,7 +110,7 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ $name }}-worker
+  name: {{ $name }}-worker-backend-tests
   namespace: {{ .Values.global.backendTestNamespace }}
 subjects:
 - kind: ServiceAccount
@@ -118,8 +118,7 @@ subjects:
   namespace: {{ include "backend-operator.agentNamespace" . }}
 roleRef:
   kind: Role
-  name: {{ $name }}-worker
+  name: {{ $name }}-worker-backend-tests
   apiGroup: rbac.authorization.k8s.io
----
 {{- end }}
 {{- end }}

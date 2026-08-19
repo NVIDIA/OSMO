@@ -92,6 +92,11 @@ fullnameOverride: ''
 # registries. Configure dependency registries in their native values blocks.
 imageRegistry: ''
 
+# A non-empty tag overrides the chart application version for every OSMO-owned
+# control-plane image. Development profiles use latest until matching release
+# images are published; individual component tags still take precedence.
+imageTag: ''
+
 # Pull credential Secret references for OSMO-owned pods. Configure dependency
 # pull credentials in the dependency's native values block.
 imagePullSecrets: []

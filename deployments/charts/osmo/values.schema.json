@@ -28,6 +28,7 @@
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
+    "imageTag": { "type": "string" },
     "imagePullSecrets": { "$ref": "#/definitions/imagePullSecrets" },
     "runtimeImage": { "$ref": "#/definitions/runtimeImage" },
     "commonLabels": { "$ref": "#/definitions/stringMap" },
@@ -101,7 +102,7 @@
       }
     }
   },
-  "required": ["planes", "embeddedDependencies", "externalDependencies", "imageRegistry", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",

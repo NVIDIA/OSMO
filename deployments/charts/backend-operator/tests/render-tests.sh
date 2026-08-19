@@ -48,12 +48,17 @@ require_not_contains "$portable_render" "namespace: osmo"
 require_not_contains "$portable_render" "namespace: osmo-namespace"
 require_not_contains "$portable_render" "namespace: null"
 require_not_contains "$portable_render" "namespace: \"\""
+require_contains "$portable_render" "- --test_runner_namespace"
+require_contains "$portable_render" '- ""'
+require_not_contains "$portable_render" 'resources: ["cronjobs"]'
+require_not_contains "$portable_render" "  name: portable-test-runner"
 
 explicit_render="$TEST_DIRECTORY/explicit.yaml"
 helm template explicit "$CHART_DIRECTORY" \
     --namespace ignored-release-namespace \
     --set global.agentNamespace=agent-system \
     --set global.backendNamespace=workflow-system \
+    --set global.backendTestNamespace=test-system \
     --set global.serviceUrl=https://osmo.example.com \
     --set global.loginMethod=token \
     --set global.networkPolicy.enabled=true \
@@ -61,7 +66,11 @@ helm template explicit "$CHART_DIRECTORY" \
 
 require_contains "$explicit_render" "namespace: agent-system"
 require_contains "$explicit_render" "namespace: workflow-system"
+require_contains "$explicit_render" "namespace: test-system"
 require_contains "$explicit_render" "- workflow-system"
+require_contains "$explicit_render" '- "test-system"'
+require_contains "$explicit_render" 'resources: ["cronjobs"]'
+require_contains "$explicit_render" "  name: explicit-test-runner"
 require_contains "$explicit_render" \
     "kubernetes.io/metadata.name: workflow-system"
 require_not_contains "$explicit_render" "namespace: ignored-release-namespace"

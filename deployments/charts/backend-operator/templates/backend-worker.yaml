@@ -110,10 +110,8 @@ spec:
         - '{{ .Values.global.nodeConditionPrefix }}'
         - --progress_iter_frequency
         - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
-        {{- if .Values.global.backendTestNamespace }}
         - --test_runner_namespace
-        - {{ .Values.global.backendTestNamespace | quote }}
-        {{- end }}
+        - {{ .Values.global.backendTestNamespace | default "" | quote }}
         {{- if .Values.backendTestRunner.enabled }}
         - --test_runner_cronjob_spec_file
         - "/tmp/backend-test-runner/spec.yaml"
