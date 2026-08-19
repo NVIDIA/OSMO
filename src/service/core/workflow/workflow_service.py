@@ -33,6 +33,7 @@ import yaml
 import fastapi
 import fastapi.responses
 import fastapi.staticfiles
+from starlette.requests import ClientDisconnect
 
 from src.lib.data import storage
 from src.lib.utils import common, credentials, login, osmo_errors, priority as wf_priority
@@ -55,8 +56,19 @@ class _ClosingStreamingResponse(fastapi.responses.StreamingResponse):
     """Streaming response that closes its async body iterator on teardown."""
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        # Starlette relies only on send failures for ASGI 2.4 responses. Redis
+        # streams can be quiet indefinitely, so keep its disconnect listener
+        # active even when there is no log body to send.
+        disconnect_scope = dict(scope)
+        disconnect_scope['asgi'] = {
+            **scope.get('asgi', {}),
+            'spec_version': '2.3',
+        }
         try:
-            await super().__call__(scope, receive, send)
+            try:
+                await super().__call__(disconnect_scope, receive, send)
+            except OSError as exc:
+                raise ClientDisconnect() from exc
         finally:
             close = getattr(self.body_iterator, 'aclose', None)
             if close:

@@ -21,7 +21,10 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import ClientDisconnect
+from starlette.routing import Route
 
 from src.lib.utils import osmo_errors
 from src.service.core.workflow import objects, workflow_service
@@ -2066,6 +2069,101 @@ class TestRedisLogDisconnect(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             formatter_closed.is_set(),
             'Redis log formatter was not closed after the client disconnected.',
+        )
+
+    async def test_redis_disconnect_before_first_log_closes_formatter(self):
+        formatter_started = asyncio.Event()
+        formatter_closed = asyncio.Event()
+
+        async def tracked_formatter():
+            try:
+                formatter_started.set()
+                await asyncio.Future()
+                yield 'unreachable\n'
+            finally:
+                formatter_closed.set()
+
+        async def receive():
+            await formatter_started.wait()
+            return {'type': 'http.disconnect'}
+
+        async def send(_message):
+            return None
+
+        response = workflow_service._ClosingStreamingResponse(tracked_formatter())  # pylint: disable=protected-access
+        await asyncio.wait_for(
+            response(
+                {
+                    'type': 'http',
+                    'asgi': {'version': '3.0', 'spec_version': '2.4'},
+                },
+                receive,
+                send,
+            ),
+            timeout=1,
+        )
+
+        self.assertTrue(
+            formatter_closed.is_set(),
+            'Redis log formatter was not closed before its first log line.',
+        )
+
+    async def test_redis_disconnect_closes_formatter_through_http_middleware(self):
+        formatter_started = asyncio.Event()
+        formatter_closed = asyncio.Event()
+        request_count = 0
+
+        async def tracked_formatter():
+            try:
+                formatter_started.set()
+                await asyncio.Future()
+                yield 'unreachable\n'
+            finally:
+                formatter_closed.set()
+
+        async def endpoint(_request):
+            return workflow_service._ClosingStreamingResponse(tracked_formatter())  # pylint: disable=protected-access
+
+        async def pass_through_middleware(request, call_next):
+            return await call_next(request)
+
+        async def receive():
+            nonlocal request_count
+            if request_count == 0:
+                request_count += 1
+                return {'type': 'http.request', 'body': b'', 'more_body': False}
+            await formatter_started.wait()
+            return {'type': 'http.disconnect'}
+
+        async def send(_message):
+            return None
+
+        app = Starlette(routes=[Route('/logs', endpoint)])
+        app.add_middleware(BaseHTTPMiddleware, dispatch=pass_through_middleware)
+        await asyncio.wait_for(
+            app(
+                {
+                    'type': 'http',
+                    'asgi': {'version': '3.0', 'spec_version': '2.3'},
+                    'http_version': '1.1',
+                    'method': 'GET',
+                    'scheme': 'http',
+                    'path': '/logs',
+                    'raw_path': b'/logs',
+                    'query_string': b'',
+                    'headers': [],
+                    'client': ('127.0.0.1', 12345),
+                    'server': ('testserver', 80),
+                },
+                receive,
+                send,
+            ),
+            timeout=1,
+        )
+
+        self.assertTrue(
+            formatter_closed.is_set(),
+            'Redis log formatter was not closed through HTTP middleware.',
         )
 
 
