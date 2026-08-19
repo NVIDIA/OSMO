@@ -537,24 +537,56 @@ def get_recent_tasks(database: connectors.PostgresConnector,
     now = datetime.datetime.now(datetime.timezone.utc)
     cutoff_time = now - datetime.timedelta(minutes=minutes_ago)
 
-    # Query for active tasks or recently completed tasks
+    # Keep the mutually exclusive active and recently completed task sets in
+    # separate branches so PostgreSQL can optimize each branch independently.
     query = """
+    WITH active_tasks AS (
+        SELECT
+            w.pool,
+            w.submitted_by,
+            w.workflow_uuid,
+            t.status,
+            w.labels
+        FROM
+            workflows w
+        JOIN
+            tasks t ON t.workflow_id = w.workflow_id
+        WHERE
+            w.status IN ('WAITING', 'PENDING', 'RUNNING')
+            AND t.end_time IS NULL
+    ),
+    recently_completed_tasks AS (
+        SELECT
+            w.pool,
+            w.submitted_by,
+            w.workflow_uuid,
+            t.status,
+            w.labels
+        FROM
+            tasks t
+        JOIN
+            workflows w ON t.workflow_id = w.workflow_id
+        WHERE
+            t.end_time > %s
+    )
     SELECT
-        w.pool AS pool,
-        w.submitted_by AS user,
-        w.workflow_uuid AS workflow_uuid,
-        t.status AS status,
-        w.labels AS labels,
+        selected_tasks.pool AS pool,
+        selected_tasks.submitted_by AS user,
+        selected_tasks.workflow_uuid AS workflow_uuid,
+        selected_tasks.status AS status,
+        selected_tasks.labels AS labels,
         COUNT(*) AS count
-    FROM
-        tasks t
-    JOIN
-        workflows w ON t.workflow_id = w.workflow_id
-    WHERE
-        (t.end_time is NULL
-            AND w.status IN ('WAITING', 'PENDING', 'RUNNING'))
-        OR t.end_time > %s
-    GROUP BY w.pool, w.submitted_by, w.workflow_uuid, t.status, w.labels
+    FROM (
+        SELECT * FROM active_tasks
+        UNION ALL
+        SELECT * FROM recently_completed_tasks
+    ) AS selected_tasks
+    GROUP BY
+        selected_tasks.pool,
+        selected_tasks.submitted_by,
+        selected_tasks.workflow_uuid,
+        selected_tasks.status,
+        selected_tasks.labels
     """
 
     return database.execute_fetch_command(query, (cutoff_time,), True)
