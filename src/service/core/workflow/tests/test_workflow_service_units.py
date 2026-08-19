@@ -15,10 +15,13 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import asyncio
 import http
 import unittest
 from types import SimpleNamespace
 from unittest import mock
+
+from starlette.requests import ClientDisconnect
 
 from src.lib.utils import osmo_errors
 from src.service.core.workflow import objects, workflow_service
@@ -2015,6 +2018,55 @@ class TestGetFileInfo(unittest.TestCase):
                 storage_client=mock.Mock(),
                 last_n_lines=10)
         self.assertIsNotNone(response)
+
+
+class TestRedisLogDisconnect(unittest.IsolatedAsyncioTestCase):
+    """Covers cleanup when a Redis-backed log response loses its client."""
+
+    async def test_redis_disconnect_closes_formatter(self):
+        context = mock.Mock()
+        log_info = SimpleNamespace(logs='redis://localhost/wf-1')
+        formatter_closed = asyncio.Event()
+
+        async def tracked_formatter(*_args):
+            try:
+                yield 'first log line\n'
+                await asyncio.Future()
+            finally:
+                formatter_closed.set()
+
+        async def receive():
+            await asyncio.Future()
+
+        async def send(message):
+            if message['type'] == 'http.response.body':
+                raise OSError('client disconnected')
+
+        with mock.patch.object(workflow_service.objects.WorkflowServiceContext,
+                               'get', return_value=context), \
+             mock.patch.object(workflow_service.workflow.LogInfo,
+                               'fetch_log_info_from_db',
+                               return_value=log_info), \
+             mock.patch.object(workflow_service.connectors,
+                               'redis_log_formatter',
+                               side_effect=tracked_formatter):
+            response = workflow_service.get_file_info(
+                'wf-1', 'redis-key', 'log.txt', storage_client=mock.Mock())
+
+            with self.assertRaises(ClientDisconnect):
+                await response(
+                    {
+                        'type': 'http',
+                        'asgi': {'version': '3.0', 'spec_version': '2.4'},
+                    },
+                    receive,
+                    send,
+                )
+
+        self.assertTrue(
+            formatter_closed.is_set(),
+            'Redis log formatter was not closed after the client disconnected.',
+        )
 
 
 class TestGetWorkflowSpec(unittest.TestCase):

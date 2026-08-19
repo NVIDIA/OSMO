@@ -18,6 +18,15 @@ load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 py_test(
+    name = "test_redis",
+    srcs = ["test_redis.py"],
+    deps = [
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+)
+
+py_test(
     name = "test_resource_spec",
     srcs = [
         "test_resource_spec.py"
