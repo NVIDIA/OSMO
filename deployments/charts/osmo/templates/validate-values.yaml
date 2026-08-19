@@ -271,8 +271,18 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
-{{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
+{{- if and .Values.secrets.masterEncryptionKey.generate .Values.secrets.masterEncryptionKey.existingSecret -}}
+{{- fail "secrets.masterEncryptionKey.generate and existingSecret are mutually exclusive" -}}
+{{- end -}}
+{{- $mekSecretKey := .Values.secrets.masterEncryptionKey.keys.config -}}
+{{- if or
+  (not $mekSecretKey)
+  (gt (len $mekSecretKey) 253)
+  (not (regexMatch "^[A-Za-z0-9._-]+$" $mekSecretKey)) -}}
+{{- fail "secrets.masterEncryptionKey.keys.config must be a non-empty valid Kubernetes Secret data key" -}}
+{{- end -}}
+{{- if .Values.secrets.defaultAdmin.generate -}}
+{{- fail "secrets.defaultAdmin.generate is not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
   (dict "path" "services.ui" "component" .Values.services.ui)
@@ -353,7 +363,7 @@
 {{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.secrets.objectStorage.existingSecret) -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
+{{- if not (include "osmo.masterEncryptionKey.secretName" .) -}}
 {{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}

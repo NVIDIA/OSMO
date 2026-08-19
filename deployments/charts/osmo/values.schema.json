@@ -69,7 +69,7 @@
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
         "valkey": { "$ref": "#/definitions/secretReference" },
         "objectStorage": { "$ref": "#/definitions/secretReference" },
-        "masterEncryptionKey": { "$ref": "#/definitions/secretReference" },
+        "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeySecretReference" },
         "defaultAdmin": { "$ref": "#/definitions/secretReference" }
       }
     },
@@ -982,6 +982,30 @@
         "name": { "type": "string" }
       },
       "required": ["name"]
+    },
+    "masterEncryptionKeySecretReference": {
+      "type": "object",
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "mountPath": { "type": "string", "minLength": 1 },
+        "keys": {
+          "type": "object",
+          "properties": {
+            "config": { "type": "string" }
+          },
+          "required": ["config"]
+        },
+        "bootstrap": {
+          "type": "object",
+          "properties": {
+            "image": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          },
+          "required": ["image", "imagePullPolicy"]
+        }
+      },
+      "required": ["generate", "existingSecret", "mountPath", "keys", "bootstrap"]
     },
     "postgresqlSecretReference": {
       "type": "object",

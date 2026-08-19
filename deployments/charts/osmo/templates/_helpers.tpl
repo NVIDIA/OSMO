@@ -307,7 +307,7 @@ data:
 {{- end -}}
 
 {{- define "osmo.secrets.mekVolume" -}}
-{{- with .Values.secrets.masterEncryptionKey.existingSecret }}
+{{- with (include "osmo.masterEncryptionKey.secretName" .) }}
 - name: mek-volume
   secret:
     secretName: {{ . }}
@@ -315,6 +315,18 @@ data:
     - key: {{ $.Values.secrets.masterEncryptionKey.keys.config }}
       path: mek.yaml
 {{- end }}
+{{- end -}}
+
+{{- define "osmo.masterEncryptionKey.secretName" -}}
+{{- if .Values.secrets.masterEncryptionKey.generate -}}
+{{- printf "%s-master-encryption-key" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- .Values.secrets.masterEncryptionKey.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.masterEncryptionKey.bootstrapName" -}}
+{{- printf "%s-mek-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "osmo.valkey.fullname" -}}

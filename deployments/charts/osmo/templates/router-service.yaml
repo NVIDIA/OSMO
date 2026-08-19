@@ -94,7 +94,7 @@ spec:
         - --postgres_user
         - {{ . }}
         {{- end }}
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        {{- if (include "osmo.masterEncryptionKey.secretName" .) }}
         - --mek_file
         - {{ .Values.secrets.masterEncryptionKey.mountPath }}
         {{- else }}
@@ -145,7 +145,7 @@ spec:
         volumeMounts:
         - name: osmo-runtime-tmp
           mountPath: /tmp
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
+        {{- if (include "osmo.masterEncryptionKey.secretName" .) }}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
           name: mek-volume
           subPath: mek.yaml

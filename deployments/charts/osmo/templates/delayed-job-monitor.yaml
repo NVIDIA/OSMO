@@ -94,7 +94,7 @@ spec:
         - {{ include "osmo.postgresql.port" . | quote }}
         - --postgres_database_name
         - {{ include "osmo.postgresql.database" . }}
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        {{- if (include "osmo.masterEncryptionKey.secretName" .) }}
         - --mek_file
         - {{ .Values.secrets.masterEncryptionKey.mountPath }}
         {{- end}}
@@ -123,7 +123,7 @@ spec:
         volumeMounts:
         - name: osmo-progress-files
           mountPath: /var/run/osmo
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
+        {{- if (include "osmo.masterEncryptionKey.secretName" .) }}
         - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
           name: mek-volume
           subPath: mek.yaml

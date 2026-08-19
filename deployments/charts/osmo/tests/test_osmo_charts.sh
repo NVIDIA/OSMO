@@ -552,6 +552,61 @@ conflicting-source|--set services.backendApiTokens.credentials[0].name=default -
 duplicate-secret|--set services.backendApiTokens.credentials[0].name=one --set services.backendApiTokens.credentials[0].existingSecret.name=shared-token --set services.backendApiTokens.credentials[1].name=two --set services.backendApiTokens.credentials[1].managedSecret.name=shared-token|duplicate backend API token Secret name "shared-token"
 invalid-secret|--set services.backendApiTokens.credentials[0].name=default --set services.backendApiTokens.credentials[0].existingSecret.name=INVALID_SECRET|invalid backend API token Secret name "INVALID_SECRET"
 EOF
+
+    helm_template generated-mek "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.generate=true \
+        --set secrets.masterEncryptionKey.existingSecret= \
+        >"$TEST_DIRECTORY/generated-mek.yaml"
+    require_resource "$TEST_DIRECTORY/generated-mek.yaml" Job \
+        "generated-mek-osmo-mek-bootstrap"
+    require_no_resource "$TEST_DIRECTORY/generated-mek.yaml" Secret \
+        "generated-mek-osmo-master-encryption-key"
+    require_not_contains "$TEST_DIRECTORY/generated-mek.yaml" "currentMek:"
+    local mek_consumer
+    for mek_consumer in \
+            api router worker logger agent delayed-job-monitor; do
+        resource_document "$TEST_DIRECTORY/generated-mek.yaml" Deployment \
+            "generated-mek-osmo-$mek_consumer" \
+            >"$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml"
+        require_contains "$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml" \
+            "secretName: generated-mek-osmo-master-encryption-key"
+        require_contains "$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml" \
+            "mountPath: /opt/osmo/config.yaml"
+        require_contains "$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml" \
+            "--mek_file"
+    done
+
+    helm_template upgraded-mek "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.generate=true \
+        --set secrets.masterEncryptionKey.existingSecret= \
+        >"$TEST_DIRECTORY/upgraded-mek.yaml"
+    require_contains "$TEST_DIRECTORY/upgraded-mek.yaml" "--fail-if-missing"
+
+    require_no_resource "$rendered" Job "osmo-mek-bootstrap"
+    if helm_template conflicting-mek "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.masterEncryptionKey.generate=true \
+            >"$TEST_DIRECTORY/conflicting-mek.out" 2>&1; then
+        fail "expected generated and existing MEK ownership to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/conflicting-mek.out" \
+        "secrets.masterEncryptionKey.generate and existingSecret are mutually exclusive"
+    if helm_template invalid-mek-key "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.masterEncryptionKey.keys.config=invalid/key \
+            >"$TEST_DIRECTORY/invalid-mek-key.out" 2>&1; then
+        fail "expected an invalid MEK Secret key to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-mek-key.out" \
+        "secrets.masterEncryptionKey.keys.config must be a non-empty valid Kubernetes Secret data key"
+
     local hardened_component
     for hardened_component in \
         api worker router logger agent delayed-job-monitor ui gateway-envoy; do

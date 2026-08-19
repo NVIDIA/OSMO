@@ -217,6 +217,9 @@ secrets:
     mountPath: /opt/osmo/config.yaml
     keys:
       config: mek.yaml
+    bootstrap:
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false
