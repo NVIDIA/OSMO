@@ -41,6 +41,11 @@ class FakeCoreApi:
         release_name: str = 'test',
         secret_type: str = 'Opaque',
     ) -> None:
+        data = (
+            {'tls.crt': '', 'tls.key': ''}
+            if secret_type == 'kubernetes.io/tls'
+            else {}
+        )
         self.secrets[name] = kubernetes_client.V1Secret(
             metadata=kubernetes_client.V1ObjectMeta(
                 name=name,
@@ -51,7 +56,7 @@ class FakeCoreApi:
                     'app.kubernetes.io/instance': release_name,
                 },
             ),
-            data={},
+            data=data,
             type=secret_type,
         )
 

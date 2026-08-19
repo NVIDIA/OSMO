@@ -432,18 +432,22 @@ test_control_umbrella() {
         osmo-internal-tls-agent osmo-internal-tls-logger; do
         resource_document "$rendered" Secret "$tls_placeholder" \
             >"$TEST_DIRECTORY/$tls_placeholder.yaml"
-        if grep -Eq '^(data|stringData):' \
-                "$TEST_DIRECTORY/$tls_placeholder.yaml"; then
-            fail "generated TLS placeholder $tls_placeholder contains key material"
-        fi
         case "$tls_placeholder" in
             osmo-internal-tls-ca|osmo-internal-tls-trust)
+                if grep -Eq '^(data|stringData):' \
+                        "$TEST_DIRECTORY/$tls_placeholder.yaml"; then
+                    fail "generated TLS placeholder $tls_placeholder contains key material"
+                fi
                 require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" \
                     'type: "Opaque"'
                 ;;
             *)
                 require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" \
                     'type: "kubernetes.io/tls"'
+                require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" \
+                    'tls.crt: ""'
+                require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" \
+                    'tls.key: ""'
                 ;;
         esac
     done
@@ -465,12 +469,12 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml"
     require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
         'helm.sh/hook: pre-install,pre-upgrade'
-    if grep -Eq '^(data|stringData):' \
-            "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml"; then
-        fail 'MCP TLS upgrade placeholder contains key material'
-    fi
     require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
         'type: "kubernetes.io/tls"'
+    require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
+        'tls.crt: ""'
+    require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
+        'tls.key: ""'
     local upstream_identity
     for upstream_identity in \
             osmo-api osmo-router-headless osmo-agent osmo-logger-headless; do
@@ -796,12 +800,21 @@ test_control_umbrella() {
         "secrets.masterEncryptionKey.bootstrap.imagePullPolicy"
     require_contains "$rendered" 'key: "object-storage.yaml"'
     if awk '
-        /^---[[:space:]]*$/ { secret = 0 }
+        /^---[[:space:]]*$/ { secret = 0; secret_data = 0 }
         /^kind: Secret$/ { secret = 1 }
-        secret && /^(data|stringData):$/ { found = 1 }
+        secret && /^(data|stringData):$/ { secret_data = 1; next }
+        secret_data && /^  [^ ]+:/ {
+            value = $0
+            sub(/^  [^:]+:[[:space:]]*/, "", value)
+            if (value != "\"\"" && value != "\047\047") {
+                found = 1
+            }
+            next
+        }
+        secret_data && /^[^ ]/ { secret_data = 0 }
         END { exit !found }
     ' "$rendered"; then
-        fail 'Helm rendered Secret material into release state'
+        fail 'Helm rendered non-empty Secret material into release state'
     fi
     require_contains "$rendered" "https://s3.external.example.com"
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"

@@ -247,16 +247,18 @@ for tls_secret in \
         tls-generated-internal-tls-agent \
         tls-generated-internal-tls-logger; do
     placeholder=$(resource_document "$tls_generated_render" Secret "$tls_secret")
-    if grep -qE '^(data|stringData):' <<<"$placeholder"; then
-        echo "Generated TLS placeholder $tls_secret contains key material" >&2
-        exit 1
-    fi
     case "$tls_secret" in
         tls-generated-internal-tls-ca|tls-generated-internal-tls-trust)
+            if grep -qE '^(data|stringData):' <<<"$placeholder"; then
+                echo "Generated TLS placeholder $tls_secret contains key material" >&2
+                exit 1
+            fi
             grep -q '^type: "Opaque"$' <<<"$placeholder"
             ;;
         *)
             grep -q '^type: "kubernetes.io/tls"$' <<<"$placeholder"
+            grep -q '^  tls.crt: ""$' <<<"$placeholder"
+            grep -q '^  tls.key: ""$' <<<"$placeholder"
             ;;
     esac
 done
@@ -275,11 +277,9 @@ tls_mcp_upgrade_placeholder=$(resource_document "$tls_mcp_upgrade_render" Secret
     tls-mcp-upgrade-internal-tls-mcp)
 grep -q 'helm.sh/hook: pre-install,pre-upgrade' \
     <<<"$tls_mcp_upgrade_placeholder"
-if grep -qE '^(data|stringData):' <<<"$tls_mcp_upgrade_placeholder"; then
-    echo 'MCP TLS upgrade placeholder contains key material' >&2
-    exit 1
-fi
 grep -q '^type: "kubernetes.io/tls"$' <<<"$tls_mcp_upgrade_placeholder"
+grep -q '^  tls.crt: ""$' <<<"$tls_mcp_upgrade_placeholder"
+grep -q '^  tls.key: ""$' <<<"$tls_mcp_upgrade_placeholder"
 for upstream_identity in \
         osmo-service osmo-router-headless osmo-agent osmo-logger-headless; do
     grep -q 'match_typed_subject_alt_names:' <<<"$tls_generated_render"
