@@ -88,7 +88,6 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         cls.data_directory = root / "data"
         cls.socket_directory = root / "socket"
         cls.socket_directory.mkdir()
-        cls.port = _available_port()
         cls.postgres_host = str(cls.socket_directory)
         cls.postgres_password = ""
         subprocess.run(
@@ -97,37 +96,44 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        cls.postgres_process = subprocess.Popen(
-            [
-                postgres,
-                "-D",
-                str(cls.data_directory),
-                "-F",
-                "-p",
-                str(cls.port),
-                "-k",
-                str(cls.socket_directory),
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        cls.addClassCleanup(cls._stop_postgres)
-        deadline = time.monotonic() + 10
-        while True:
-            try:
-                connection = psycopg2.connect(
-                    host=str(cls.socket_directory),
-                    port=cls.port,
-                    dbname="postgres",
-                    user="postgres",
-                )
-                connection.close()
-                break
-            except psycopg2.OperationalError:
-                if time.monotonic() >= deadline:
-                    cls.postgres_process.terminate()
-                    raise
-                time.sleep(0.05)
+        for attempt in range(3):
+            cls.port = _available_port()
+            cls.postgres_process = subprocess.Popen(
+                [
+                    postgres,
+                    "-D",
+                    str(cls.data_directory),
+                    "-F",
+                    "-p",
+                    str(cls.port),
+                    "-k",
+                    str(cls.socket_directory),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            deadline = time.monotonic() + 10
+            while True:
+                try:
+                    connection = psycopg2.connect(
+                        host=cls.postgres_host,
+                        port=cls.port,
+                        dbname="postgres",
+                        user="postgres",
+                    )
+                    connection.close()
+                    cls.addClassCleanup(cls._stop_postgres)
+                    return
+                except psycopg2.OperationalError:
+                    if cls.postgres_process.poll() is not None:
+                        break
+                    if time.monotonic() >= deadline:
+                        cls.postgres_process.terminate()
+                        cls.postgres_process.wait(timeout=10)
+                        raise
+                    time.sleep(0.05)
+            if attempt == 2:
+                raise RuntimeError("PostgreSQL failed to bind an available test port")
 
     @classmethod
     def _start_postgres_container(cls):
