@@ -222,6 +222,20 @@ class TestMekReconciliation(unittest.TestCase):
         self.assertEqual(blockers, ["inventory scan stopped before completion"])
         database.execute_fetch_command.assert_not_called()
 
+    def test_uek_inventory_scan_fails_closed_at_row_limit(self):
+        database = _connector()
+        database.execute_fetch_command = mock.Mock(return_value=[
+            {"uid": "user-a", "key": "uek-a", "value": "wrapped-a"},
+            {"uid": "user-b", "key": "uek-b", "value": "wrapped-b"},
+        ])
+
+        with mock.patch.object(postgres_module, "MEK_MAX_UEK_ROWS", 1):
+            counts, blockers = database._scan_mek_references()
+
+        self.assertEqual(counts, {"old": 0, "new": 0})
+        self.assertEqual(blockers, ["ueks: row limit exceeded"])
+        database.secret_manager.authenticate_uek_wrapper.assert_not_called()
+
     def test_unregistered_config_type_with_compact_jwe_is_a_blocker(self):
         database = _connector()
         database.execute_fetch_command = mock.Mock(

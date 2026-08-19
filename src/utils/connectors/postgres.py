@@ -77,6 +77,7 @@ MEK_PERSISTENCE_REGISTRY = {
     'configs.value.<DynamicConfig.SecretStr>': 'direct-mek-jwe',
 }
 MEK_RECONCILE_BATCH_SIZE = 100
+MEK_MAX_UEK_ROWS = 100000
 MEK_MAX_CONFIG_ROWS = 1000
 MEK_RECONCILER_STATEMENT_TIMEOUT_MS = 10000
 MEK_RECONCILER_SHUTDOWN_TIMEOUT_SECONDS = 15
@@ -557,7 +558,7 @@ class PostgresConnector:
                     cur.close()
 
     @retry
-    def execute_commit_command(self, command: str, args: Tuple):
+    def execute_commit_command(self, command: str, args: Tuple) -> int:
         """
         Connects and executes a command that updates the database.
 
@@ -567,6 +568,9 @@ class PostgresConnector:
 
         Raises:
             OSMODatabaseError: Error while executing the database command.
+
+        Returns:
+            The number of rows affected by the committed command.
         """
         with self._get_connection() as conn:
             cur = None
@@ -1878,7 +1882,8 @@ class PostgresConnector:
         counts = {key_id: 0 for key_id in self.secret_manager.meks}
         blockers: List[str] = []
         cursor_uid, cursor_key = '', ''
-        while True:
+        scanned_uek_rows = 0
+        while scanned_uek_rows <= MEK_MAX_UEK_ROWS:
             if self._mek_reconciler_stop.is_set():
                 blockers.append('inventory scan stopped before completion')
                 return counts, blockers
@@ -1889,6 +1894,10 @@ class PostgresConnector:
                 ORDER BY uid, entry.key
                 LIMIT %s;
             ''', (cursor_uid, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+            scanned_uek_rows += len(uek_rows)
+            if scanned_uek_rows > MEK_MAX_UEK_ROWS:
+                blockers.append('ueks: row limit exceeded')
+                return counts, blockers
             for row in uek_rows:
                 try:
                     key_id = self.secret_manager.authenticate_uek_wrapper(
