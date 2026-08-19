@@ -413,6 +413,8 @@ test_control_umbrella() {
         'tolerations:'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'seccompProfile:'
+    require_not_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'hook-failed'
     require_contains "$CHARTS_ROOT/SECRET_ROTATION.md" 'chart_kind=service'
     require_contains "$CHARTS_ROOT/SECRET_ROTATION.md" \
         '"$osmo_fullname-api"'

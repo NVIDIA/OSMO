@@ -628,10 +628,11 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         else:
             self.fail('adoption did not reach the fenced transaction pause')
         writer = psycopg2.connect(
-            host=str(self.socket_directory),
+            host=self.postgres_host,
             port=self.port,
-            dbname="postgres",
-            user="postgres",
+            dbname='postgres',
+            user='postgres',
+            password=self.postgres_password,
         )
         writer_error = []
 

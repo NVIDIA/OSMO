@@ -14,6 +14,7 @@ import contextlib
 import dataclasses
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 import unittest.mock
@@ -814,6 +815,18 @@ class TestKindPreflight(unittest.TestCase):
             for key, value in saved.items():
                 if value is not None:
                     os.environ[key] = value
+
+    def test_docker_timeout_is_reported(self):
+        with unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.shutil.which",
+            return_value="/usr/bin/tool",
+        ), unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["docker", "info"], 5),
+        ):
+            errors = check_kind_prereqs()
+
+        self.assertTrue(any("did not respond" in error.error for error in errors))
 
 
 class TestBreadcrumb(unittest.TestCase):

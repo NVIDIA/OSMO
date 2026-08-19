@@ -227,6 +227,10 @@ grep -q 'ttlSecondsAfterFinished: 300' <<<"$tls_bootstrap_list"
 grep -q 'nodeSelector:' <<<"$tls_bootstrap_list"
 grep -q 'tolerations:' <<<"$tls_bootstrap_list"
 grep -q 'seccompProfile:' <<<"$tls_bootstrap_list"
+if grep -q 'hook-failed' <<<"$tls_bootstrap_list"; then
+    echo 'Failed internal TLS hook would be deleted before diagnostics' >&2
+    exit 1
+fi
 if [[ $(grep -c -- '--consumer-deployment' <<<"$tls_bootstrap_list") -ne 5 ]]; then
     echo 'Generated TLS hook does not verify every consumer Deployment' >&2
     exit 1

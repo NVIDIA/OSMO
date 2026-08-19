@@ -1895,9 +1895,10 @@ class PostgresConnector:
                         row['value'], row['key'])
                     counts[key_id] += 1
                 except (KeyError, osmo_errors.OSMOError):
+                    user_id = row['uid']
                     user_key_id = row['key']
                     blockers.append(
-                        f'ueks/{self._mek_row_identifier(row["uid"], user_key_id)}: '
+                        f'ueks/{self._mek_row_identifier(user_id, user_key_id)}: '
                         'authentication failed')
             if len(uek_rows) < MEK_RECONCILE_BATCH_SIZE:
                 break

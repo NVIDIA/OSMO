@@ -1107,16 +1107,24 @@ def check_kind_prereqs() -> List[PreflightError]:
     # exits non-zero with a clear "Cannot connect to the Docker daemon"
     # message when the daemon is down.
     if shutil.which("docker") is not None:
-        result = subprocess.run(
-            ["docker", "info"],
-            check=False, capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode != 0:
+        try:
+            result = subprocess.run(
+                ["docker", "info"],
+                check=False, capture_output=True, text=True, timeout=5,
+            )
+        except subprocess.TimeoutExpired:
             errors.append(PreflightError(
-                "docker daemon is not running",
+                "docker daemon did not respond within 5 seconds",
                 "start the daemon: 'open -a Docker' (macOS) or "
                 "'sudo systemctl start docker' (Linux), then re-run",
             ))
+        else:
+            if result.returncode != 0:
+                errors.append(PreflightError(
+                    "docker daemon is not running",
+                    "start the daemon: 'open -a Docker' (macOS) or "
+                    "'sudo systemctl start docker' (Linux), then re-run",
+                ))
 
     # The KIND ingress only listens on 127.0.0.1 (extraPortMapping). If the
     # hostname resolves to anything else (corp DNS, leftover hosts entry from
