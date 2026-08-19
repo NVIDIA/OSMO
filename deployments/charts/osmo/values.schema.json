@@ -67,7 +67,7 @@
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
         "valkey": { "$ref": "#/definitions/secretReference" },
         "objectStorage": { "$ref": "#/definitions/secretReference" },
-        "masterEncryptionKey": { "$ref": "#/definitions/secretReference" },
+        "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
         "defaultAdmin": { "$ref": "#/definitions/secretReference" }
       }
     },
@@ -917,6 +917,36 @@
         "username": { "type": "string" }
       },
       "required": ["generate", "existingSecret", "keys"]
+    },
+    "masterEncryptionKeyReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "key": { "type": "string", "minLength": 1 }
+          },
+          "required": ["name", "key"]
+        },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "image": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          },
+          "required": ["enabled", "image", "imagePullPolicy"]
+        },
+        "allowExistingCiphertextAdoption": { "type": "boolean" }
+      },
+      "required": ["existingSecret", "bootstrap", "allowExistingCiphertextAdoption"]
     },
     "postgresqlSecretReference": {
       "type": "object",

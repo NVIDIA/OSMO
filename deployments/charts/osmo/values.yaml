@@ -189,11 +189,17 @@ secrets:
       credentials: object-storage.yaml
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
-    generate: false
-    existingSecret: ''
-    mountPath: /opt/osmo/config.yaml
-    keys:
-      config: mek.yaml
+    existingSecret:
+      name: ''
+      key: mek.yaml
+    # Opt-in convenience for disposable test installs. The hook creates the
+    # named Secret once inside Kubernetes and never regenerates it on upgrade.
+    bootstrap:
+      enabled: false
+      image: alpine/kubectl:1.33.4
+      imagePullPolicy: IfNotPresent
+    # Enable only for the first upgrade after every legacy OSMO writer is stopped.
+    allowExistingCiphertextAdoption: false
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false

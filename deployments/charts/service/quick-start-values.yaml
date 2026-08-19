@@ -27,6 +27,11 @@ global:
     node_group: service
 
 services:
+  masterEncryptionKey:
+    bootstrap:
+      # Safe only for this disposable quick-start's new, empty PostgreSQL data.
+      enabled: true
+
   configFile:
     enabled: true
 

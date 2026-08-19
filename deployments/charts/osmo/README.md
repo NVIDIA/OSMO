@@ -116,7 +116,9 @@ secrets:
   objectStorage:
     existingSecret: osmo-object-storage
   masterEncryptionKey:
-    existingSecret: osmo-master-encryption-key
+    existingSecret:
+      name: osmo-master-encryption-key
+      key: mek.yaml
 ```
 
 Keep `embeddedDependencies.postgresql.enabled: false` (the default), then
@@ -219,14 +221,74 @@ postgresql:
         name: osmo-postgresql-credentials
 ```
 
-When an external PostgreSQL or Valkey service uses a private CA, enable TLS in
-the matching `externalDependencies` block and reference the CA Secret there.
-The Valkey `caKey` must hold a complete PEM trust bundle, including the public
-or system roots used by other HTTPS endpoints; OSMO's Python services consume
-that bundle through `SSL_CERT_FILE`. The default Valkey key is `ca-bundle.crt`.
+The MEK is mounted through the typed
+`secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Production
+installs should create and manage that Secret outside Helm. For a disposable
+test install backed by a new, empty database, set
+`secrets.masterEncryptionKey.bootstrap.enabled=true`; a
+pre-install hook generates the initial 256-bit key inside Kubernetes and creates
+the named Secret only when it is absent. It never renders key material into
+Helm output or release state, preserves an existing Secret, and fails an
+upgrade if the Secret was deleted rather than generating an incompatible key.
+The bootstrap Secret persists after uninstall and requires explicit cleanup. A
+Helm install or different release name can still point at retained database
+data. In that case, restore the MEK that encrypted the data; do not enable
+bootstrap to generate a replacement.
+If the bootstrap workload cannot start or complete, Helm removes the complete
+privileged hook resource set. A sanitized recovery ConfigMap remains for
+diagnosis and is removed automatically after a successful retry.
 
-For an external Valkey endpoint signed by a public CA, leave
-`caExistingSecret` empty to use the image's system trust store.
+Rotate the Secret with two separate updates: add the new JWK while leaving `currentMek`
+unchanged, verify every live pod's `MEK consumer status` log lists the new key,
+then change only `currentMek`. Per-Pod-UID state is also stored in
+`public.mek_consumer_status`, and a pod that skipped the projected PREPARE
+revision can activate only an exact fingerprint already registered by another
+consumer. Existing UEK key material is preserved
+while its wrapper is moved to the active MEK; direct-MEK dynamic-config
+ciphertext is re-encrypted in bounded, durably checkpointed background batches.
+Keep previous MEKs in the Secret.
+This release rejects MEK removal because it cannot yet prove retirement across
+all HA writers. OSMO does not mutate the Secret after bootstrap. Reconciliation progress and
+blockers appear in service logs as `MEK reconciliation status` records.
+
+For the first upgrade of an existing database to the MEK registry, stop every
+legacy control-plane writer before starting the new release. Scale the OSMO
+Deployments to zero, perform the Helm upgrade with
+`--set secrets.masterEncryptionKey.allowExistingCiphertextAdoption=true`, wait
+for all new Deployments to become ready, and immediately upgrade the value back
+to `false`. The flag is unnecessary on a fresh install and is rejected as an
+implicit migration: without it, first adoption fails when authenticated
+ciphertext already exists. During adoption PostgreSQL also fences UEK/config
+writes, so a legacy write already in flight is rolled back rather than landing
+after the authenticated scan.
+
+```bash
+set -euo pipefail
+MEK_SELECTOR='app.kubernetes.io/instance=<release>,app.kubernetes.io/component in (api,worker,router,logger,agent,delayed-job-monitor)'
+kubectl delete horizontalpodautoscaler -n <namespace> \
+  -l "$MEK_SELECTOR" --ignore-not-found
+kubectl scale deployment -n <namespace> \
+  -l "$MEK_SELECTOR" --replicas=0
+kubectl wait pod -n <namespace> -l "$MEK_SELECTOR" \
+  --for=delete --timeout=10m
+remaining=$(kubectl get pod -n <namespace> -l "$MEK_SELECTOR" \
+  --field-selector='status.phase!=Succeeded,status.phase!=Failed' -o name)
+test -z "$remaining"
+helm upgrade <release> deployments/charts/osmo -n <namespace> \
+  --reuse-values --wait \
+  --set secrets.masterEncryptionKey.allowExistingCiphertextAdoption=true
+# After every new Deployment is Ready:
+helm upgrade <release> deployments/charts/osmo -n <namespace> \
+  --reuse-values --wait \
+  --set secrets.masterEncryptionKey.allowExistingCiphertextAdoption=false
+```
+
+For an external Valkey endpoint signed by a public CA, enable
+`externalDependencies.valkey.tls.enabled` and leave `caExistingSecret` empty to
+use the image's system trust store. For a private CA, set `caExistingSecret` and
+`caKey` in the same block. The selected key must contain the complete trust
+bundle because clients use it through `SSL_CERT_FILE`. PostgreSQL private CAs
+are also configured in its `externalDependencies` TLS block.
 
 ## Exposure
 

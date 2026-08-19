@@ -27,6 +27,7 @@ import math
 import types
 import os
 import re
+import socket
 import threading
 import typing
 from functools import wraps
@@ -65,6 +66,20 @@ class ConfigType(enum.Enum):
     """ Type of Config to fetch or set """
     SERVICE = 'SERVICE'
     WORKFLOW = 'WORKFLOW'
+
+
+# Increment whenever a new database location can persist ciphertext encrypted directly by a MEK.
+# UEK-encrypted credential and workflow payloads are covered transitively by the UEK wrapper row.
+MEK_PERSISTENCE_REGISTRY_VERSION = 1
+MEK_PERSISTENCE_REGISTRY = {
+    'ueks.keys.*': 'uek-wrapper-jwe',
+    'configs.value.<DynamicConfig.SecretStr>': 'direct-mek-jwe',
+}
+MEK_RECONCILE_BATCH_SIZE = 100
+MEK_MAX_CONFIG_ROWS = 1000
+MEK_RECONCILER_CONSUMERS = frozenset({
+    'agent', 'api', 'delayed-job-monitor', 'logger', 'router', 'worker',
+})
 
 
 class ConfigHistoryType(enum.Enum):
@@ -164,9 +179,18 @@ class PostgresConfig(pydantic.BaseModel):
             'env': 'OSMO_POSTGRES_RECONNECT_RETRY'
         })
     mek_file: str = pydantic.Field(
-        default='/home/osmo/vault-agent/secrets/vault-secrets.yaml',
+        default='/opt/osmo/mek/mek.yaml',
         description='Path to the file that stores master encryption keys',
         json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
+    allow_existing_mek_adoption: bool = pydantic.Field(
+        default=False,
+        description=(
+            'Acknowledge that every legacy OSMO writer was stopped before first-time MEK '
+            'registry adoption with existing ciphertext'),
+        json_schema_extra={
+            'command_line': 'allow_existing_mek_adoption',
+            'env': 'OSMO_ALLOW_EXISTING_MEK_ADOPTION',
+        })
     method: Literal['dev'] | None = pydantic.Field(
         default=None,
         description='If set to "dev", use the default local mek file'
@@ -371,6 +395,25 @@ class PostgresConnector:
             # Always release the semaphore
             semaphore.release()
 
+    @contextlib.contextmanager
+    def _get_reserved_reconciler_connection(self) -> Generator:
+        """Use the pool's reserved +1 connection without consuming the application semaphore."""
+        pool = self._pool
+        if pool is None:
+            raise osmo_errors.OSMOConnectionError('Connection pool is not initialized.')
+        connection = pool.getconn()
+        try:
+            connection.rollback()
+            connection.set_session(autocommit=True)
+            yield connection
+        finally:
+            try:
+                connection.rollback()
+                connection.set_session(autocommit=False)
+                pool.putconn(connection)
+            except Exception:  # pylint: disable=broad-except
+                pool.putconn(connection, close=True)
+
     def __init__(self, config: PostgresConfig):
         if PostgresConnector._instance:
             raise osmo_errors.OSMOError(
@@ -379,7 +422,14 @@ class PostgresConnector:
         logging.debug('Connecting to postgres server at %s:%s...', config.postgres_host,
                       config.postgres_port)
         self.config = config
+        self._mek_consumer_id = os.environ.get(
+            'OSMO_POD_UID', f'{socket.gethostname()}:{os.getpid()}')
+        self._mek_consumer_name = os.environ.get('OSMO_MEK_CONSUMER', 'unknown')
+        self._last_logged_mek_generation = ''
+        self._last_reported_mek_reload_failure = 0
         self._pool_lock = threading.Lock()
+        self._mek_reconciler_stop = threading.Event()
+        self._mek_reconciler_thread: threading.Thread | None = None
         self._create_pool()
         logging.debug('Finished connecting to postgres database')
 
@@ -390,11 +440,14 @@ class PostgresConnector:
             mek_file = os.path.join(os.path.dirname(__file__), '..', 'secret_manager', 'mek.yaml')
         self.secret_manager = SecretManager(
             mek_file,
-            self.read_uek, self.write_uek, self.read_current_kid, self.add_user)
+            self.read_uek, self.write_uek, self.read_current_kid, self.add_user,
+            prepare_meks=self.prepare_meks,
+            can_activate_mek=self.can_activate_mek)
         logging.debug('Secret manager initialized')
 
         logging.debug('Initializing tables')
         self._init_tables()
+        self._init_mek_key_registry()
         logging.debug('Tables initialized')
 
         logging.debug('Initializing configs')
@@ -406,11 +459,20 @@ class PostgresConnector:
             logging.debug('Switching to pgroll schema: %s', self.config.schema_version)
             self.connect()
 
+        if self._mek_consumer_name in MEK_RECONCILER_CONSUMERS:
+            self._mek_reconciler_thread = threading.Thread(
+                target=self._run_mek_reconciler, name='mek-reconciler', daemon=True)
+            self._mek_reconciler_thread.start()
+
         # Register cleanup on exit
         atexit.register(self.close)
 
     def close(self):
         """Close all connections in the pool."""
+        self._mek_reconciler_stop.set()
+        if (self._mek_reconciler_thread is not None and
+                self._mek_reconciler_thread is not threading.current_thread()):
+            self._mek_reconciler_thread.join()
         with self._pool_lock:
             if self._pool is not None:
                 try:
@@ -496,8 +558,10 @@ class PostgresConnector:
             try:
                 cur = conn.cursor()
                 cur.execute(command, args)
+                affected_rows = cur.rowcount
                 cur.close()
                 conn.commit()
+                return affected_rows
             except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
                 try:
                     if cur is not None:
@@ -1152,6 +1216,127 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS public.mek_key_registry (
+                kid TEXT PRIMARY KEY,
+                fingerprint TEXT NOT NULL,
+                state TEXT NOT NULL CHECK (state IN ('prepared', 'current')),
+                remaining_references INTEGER,
+                last_scan_started_at TIMESTAMPTZ,
+                last_scan_completed_at TIMESTAMPTZ,
+                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_key_registry
+            ADD COLUMN IF NOT EXISTS remaining_references INTEGER;
+        ''', ())
+
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_keyring_adoption (
+                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+                generation TEXT NOT NULL,
+                current_kid TEXT NOT NULL,
+                loaded_kids TEXT[] NOT NULL,
+                ready BOOLEAN NOT NULL DEFAULT FALSE,
+                adopted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_keyring_adoption
+            ADD COLUMN IF NOT EXISTS ready BOOLEAN NOT NULL DEFAULT FALSE;
+        ''', ())
+
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS public.mek_rewrap_status (
+                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+                generation TEXT NOT NULL,
+                current_kid TEXT NOT NULL,
+                persistence_registry_version INTEGER NOT NULL DEFAULT 1,
+                last_started_at TIMESTAMPTZ,
+                last_completed_at TIMESTAMPTZ,
+                blocker TEXT NOT NULL DEFAULT ''
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_rewrap_status
+            ADD COLUMN IF NOT EXISTS persistence_registry_version INTEGER NOT NULL DEFAULT 1;
+        ''', ())
+
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_write_epoch (
+                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+                epoch BIGINT NOT NULL DEFAULT 0,
+                writes_allowed BOOLEAN NOT NULL DEFAULT TRUE
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_write_epoch
+            ADD COLUMN IF NOT EXISTS writes_allowed BOOLEAN NOT NULL DEFAULT TRUE;
+        ''', ())
+        self.execute_commit_command('''
+            INSERT INTO public.mek_write_epoch (singleton, epoch)
+            VALUES (TRUE, 0) ON CONFLICT (singleton) DO NOTHING;
+        ''', ())
+
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_rewrap_progress (
+                resource TEXT PRIMARY KEY,
+                generation TEXT NOT NULL,
+                cursor_primary TEXT NOT NULL DEFAULT '',
+                cursor_secondary TEXT NOT NULL DEFAULT '',
+                completed BOOLEAN NOT NULL DEFAULT FALSE,
+                start_write_epoch BIGINT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        ''', ())
+        self.execute_commit_command('''
+            ALTER TABLE public.mek_rewrap_progress
+            ADD COLUMN IF NOT EXISTS start_write_epoch BIGINT NOT NULL DEFAULT 0;
+        ''', ())
+
+        self.execute_commit_command('''
+            CREATE OR REPLACE FUNCTION public.bump_mek_write_epoch()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                UPDATE public.mek_write_epoch SET epoch = epoch + 1
+                WHERE singleton AND writes_allowed;
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION 'MEK registry adoption write fence is active';
+                END IF;
+                RETURN NULL;
+            END;
+            $$;
+        ''', ())
+        self.execute_commit_commands([
+            ('SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B45,)),
+            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON ueks;', ()),
+            ('''
+                CREATE TRIGGER bump_mek_write_epoch
+                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON ueks
+                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
+            ''', ()),
+            ('DROP TRIGGER IF EXISTS bump_mek_write_epoch ON configs;', ()),
+            ('''
+                CREATE TRIGGER bump_mek_write_epoch
+                AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON configs
+                FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
+            ''', ()),
+        ])
+
+        self.execute_commit_command('''
+            CREATE TABLE IF NOT EXISTS public.mek_consumer_status (
+                consumer_id TEXT PRIMARY KEY,
+                consumer_name TEXT NOT NULL,
+                generation TEXT NOT NULL,
+                current_kid TEXT NOT NULL,
+                loaded_kids TEXT[] NOT NULL,
+                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        ''', ())
+
         # Creates table for user role assignments
         # Each assignment has a UUID that access_token_roles references for cascading deletes
         create_cmd = '''
@@ -1389,6 +1574,684 @@ class PostgresConnector:
                 description='Updated roles',
             )
 
+    def _init_mek_key_registry(self) -> None:
+        """Adopt or validate key fingerprints without exposing them outside PostgreSQL."""
+        fingerprints = self.secret_manager.key_fingerprints()
+        rows = self.execute_fetch_command(
+            'SELECT kid, fingerprint, state FROM public.mek_key_registry;', (), return_raw=True)
+        registered = {row['kid']: row for row in rows}
+        observed_empty_registry = not registered
+        adoption_rows = self.execute_fetch_command(
+            'SELECT generation, current_kid, loaded_kids, ready '
+            'FROM public.mek_keyring_adoption WHERE singleton;', (), return_raw=True)
+        if not registered:
+            for _ in range(3):
+                scan_write_epoch = self._mek_write_epoch()
+                counts, blockers = self._scan_mek_references()
+                if blockers:
+                    raise osmo_errors.OSMOError(
+                        'Cannot adopt the mounted MEK keyring because persisted ciphertext '
+                        f'failed authentication ({len(blockers)} blocker(s)).')
+                if sum(counts.values()) and not self.config.allow_existing_mek_adoption:
+                    raise osmo_errors.OSMOError(
+                        'Existing ciphertext MEK adoption requires all legacy OSMO writers '
+                        'to be stopped and allow_existing_mek_adoption to be explicitly enabled.')
+                adoption_result = self._adopt_initial_mek_keyring(
+                    fingerprints, self.secret_manager.current_mek_id,
+                    self.secret_manager.generation, scan_write_epoch)
+                rows = self.execute_fetch_command(
+                    'SELECT kid, fingerprint, state FROM public.mek_key_registry;', (),
+                    return_raw=True)
+                registered = {row['kid']: row for row in rows}
+                adoption_rows = self.execute_fetch_command(
+                    'SELECT generation, current_kid, loaded_kids, ready '
+                    'FROM public.mek_keyring_adoption WHERE singleton;', (), return_raw=True)
+                if registered or adoption_rows:
+                    break
+                if adoption_result != 'write_epoch_changed':
+                    break
+            else:
+                raise osmo_errors.OSMOError(
+                    'MEK registry adoption was repeatedly invalidated by database writes.')
+        if not adoption_rows:
+            raise osmo_errors.OSMOError(
+                'MEK registry has no canonical initial keyring adoption record.')
+        adoption = adoption_rows[0]
+        if (
+            not registered
+            or adoption['current_kid'] not in registered
+            or not set(adoption['loaded_kids']).issubset(registered)
+        ):
+            raise osmo_errors.OSMOError(
+                'MEK canonical adoption and fingerprint registry are inconsistent.')
+        # The durable canonical bundle is complete. Release a fence left by a process that
+        # crashed after adoption, even if this process subsequently rejects its local mount.
+        self.execute_commit_commands([
+            ('''
+                UPDATE public.mek_keyring_adoption SET ready = TRUE
+                WHERE singleton AND NOT ready;
+            ''', ()),
+            ('''
+                UPDATE public.mek_write_epoch SET writes_allowed = TRUE
+                WHERE singleton;
+            ''', ()),
+        ])
+        if observed_empty_registry:
+            if (
+                adoption['generation'] != self.secret_manager.generation
+                or adoption['current_kid'] != self.secret_manager.current_mek_id
+                or adoption['loaded_kids'] != sorted(fingerprints)
+            ):
+                raise osmo_errors.OSMOError(
+                    'A concurrent process adopted a different initial MEK keyring bundle.')
+        if registered:
+            if len({row['fingerprint'] for row in registered.values()}) != len(registered):
+                raise osmo_errors.OSMOError(
+                    'MEK fingerprint registry contains aliased key material.')
+            missing = set(registered) - set(fingerprints)
+            if missing:
+                raise osmo_errors.OSMOError(
+                    f'Mounted MEK keyring is missing registered keys: {sorted(missing)}.')
+            for key_id, fingerprint in fingerprints.items():
+                existing = registered.get(key_id)
+                if existing is not None and existing['fingerprint'] != fingerprint:
+                    raise osmo_errors.OSMOError(
+                        f'MEK {key_id} does not match its registered key material.')
+                if existing is None and key_id == self.secret_manager.current_mek_id:
+                    raise osmo_errors.OSMOError(
+                        f'Current MEK {key_id} was not prepared before activation.')
+            unregistered = {
+                key_id: fingerprint for key_id, fingerprint in fingerprints.items()
+                if key_id not in registered
+            }
+            if unregistered and not self.prepare_meks(fingerprints):
+                raise osmo_errors.OSMOError(
+                    'Mounted MEK PREPARE conflicts with concurrently registered key material.')
+
+        for key_id, fingerprint in fingerprints.items():
+            state = 'current' if key_id == self.secret_manager.current_mek_id else 'prepared'
+            command = '''
+                INSERT INTO public.mek_key_registry (kid, fingerprint, state)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (kid) DO UPDATE SET state = CASE
+                    WHEN EXCLUDED.state = 'current' THEN 'current'
+                    ELSE mek_key_registry.state
+                END
+                WHERE mek_key_registry.fingerprint = EXCLUDED.fingerprint;
+            '''
+            self.execute_commit_command(command, (key_id, fingerprint, state))
+        self.execute_commit_command('''
+            UPDATE public.mek_key_registry SET state = 'prepared'
+            WHERE state = 'current' AND kid <> %s;
+        ''', (self.secret_manager.current_mek_id,))
+
+    def _adopt_initial_mek_keyring(
+            self, fingerprints: Mapping[str, str], current_key_id: str,
+            generation: str, expected_write_epoch: int
+    ) -> Literal['adopted', 'existing', 'write_epoch_changed']:
+        """Elect exactly one canonical keyring bundle for an empty database registry."""
+        if current_key_id not in fingerprints:
+            raise osmo_errors.OSMOError('Initial current MEK is not in the mounted keyring.')
+        with self._get_connection() as connection:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        'SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B41,))
+                    cursor.execute('''
+                        SELECT
+                            EXISTS (SELECT 1 FROM public.mek_keyring_adoption),
+                            EXISTS (SELECT 1 FROM public.mek_key_registry);
+                    ''')
+                    adoption_exists, registry_exists = cursor.fetchone()
+                    if adoption_exists or registry_exists:
+                        connection.rollback()
+                        return 'existing'
+                    cursor.execute('''
+                        SELECT epoch FROM public.mek_write_epoch
+                        WHERE singleton FOR UPDATE;
+                    ''')
+                    epoch_row = cursor.fetchone()
+                    if epoch_row is None:
+                        raise osmo_errors.OSMOError('MEK write epoch is not initialized.')
+                    if epoch_row[0] != expected_write_epoch:
+                        connection.rollback()
+                        return 'write_epoch_changed'
+                    cursor.execute('''
+                        UPDATE public.mek_write_epoch SET writes_allowed = FALSE
+                        WHERE singleton;
+                    ''')
+                    for key_id, fingerprint in sorted(fingerprints.items()):
+                        state = 'current' if key_id == current_key_id else 'prepared'
+                        cursor.execute('''
+                            INSERT INTO public.mek_key_registry (kid, fingerprint, state)
+                            VALUES (%s, %s, %s);
+                        ''', (key_id, fingerprint, state))
+                    cursor.execute('''
+                        INSERT INTO public.mek_keyring_adoption (
+                            singleton, generation, current_kid, loaded_kids, ready)
+                        VALUES (TRUE, %s, %s, %s, FALSE);
+                    ''', (generation, current_key_id, sorted(fingerprints)))
+                connection.commit()
+                return 'adopted'
+            except Exception:  # pylint: disable=broad-except
+                connection.rollback()
+                raise
+
+    def can_activate_mek(
+            self, fingerprints: Mapping[str, str], current_key_id: str) -> bool:
+        """Require ACTIVATE to contain the exact durable prepared key bundle."""
+        rows = self.execute_fetch_command(
+            'SELECT kid, fingerprint FROM public.mek_key_registry;', (), return_raw=True)
+        registered = {row['kid']: row['fingerprint'] for row in rows}
+        return (
+            registered == dict(fingerprints)
+            and current_key_id in registered
+            and len(set(registered.values())) == len(registered)
+        )
+
+    def prepare_meks(self, fingerprints: Mapping[str, str]) -> bool:
+        """Atomically extend the complete registered bundle without omissions or aliases."""
+        if not fingerprints:
+            return True
+        with self._get_connection() as connection:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        'SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B41,))
+                    cursor.execute(
+                        'SELECT 1 FROM public.mek_keyring_adoption WHERE singleton;')
+                    if cursor.fetchone() is None:
+                        connection.rollback()
+                        return False
+                    cursor.execute(
+                        'SELECT kid, fingerprint FROM public.mek_key_registry ORDER BY kid;')
+                    registered = dict(cursor.fetchall())
+                    candidate = dict(fingerprints)
+                    if (
+                        any(candidate.get(key_id) != fingerprint
+                            for key_id, fingerprint in registered.items())
+                        or len(set(candidate.values())) != len(candidate)
+                    ):
+                        connection.rollback()
+                        return False
+                    for key_id, fingerprint in sorted(fingerprints.items()):
+                        if key_id in registered:
+                            continue
+                        cursor.execute('''
+                            INSERT INTO public.mek_key_registry (kid, fingerprint, state)
+                            VALUES (%s, %s, 'prepared')
+                            ON CONFLICT DO NOTHING
+                            RETURNING kid;
+                        ''', (key_id, fingerprint))
+                        if cursor.fetchone() is None:
+                            connection.rollback()
+                            return False
+                connection.commit()
+                return True
+            except Exception:  # pylint: disable=broad-except
+                connection.rollback()
+                raise
+
+    @staticmethod
+    def _jwe_header(value: str) -> Mapping[str, Any] | None:
+        if value.count('.') != 4:
+            return None
+        token = jwe.JWE()
+        token.deserialize(value)
+        return token.jose_header
+
+    @classmethod
+    def _walk_jwe_values(
+            cls, value: Any, path: str = '') -> Generator[Tuple[str, str], None, None]:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f'{path}.{key}' if path else str(key)
+                yield from cls._walk_jwe_values(child, child_path)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                yield from cls._walk_jwe_values(child, f'{path}[{index}]')
+        elif isinstance(value, str) and cls._jwe_header(value) is not None:
+            yield path, value
+
+    @classmethod
+    def _walk_registered_secrets(cls, value: Any, path: str = '') \
+            -> Generator[Tuple[str, str], None, None]:
+        """Walk Pydantic-coerced config values using SecretStr as the registry contract."""
+        if isinstance(value, pydantic.SecretStr):
+            yield path, value.get_secret_value()
+        elif isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f'{path}.{key}' if path else str(key)
+                yield from cls._walk_registered_secrets(child, child_path)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                yield from cls._walk_registered_secrets(child, f'{path}[{index}]')
+
+    def _scan_mek_references(self) -> Tuple[Dict[str, int], List[str]]:
+        counts = {key_id: 0 for key_id in self.secret_manager.meks}
+        blockers: List[str] = []
+        cursor_uid, cursor_key = '', ''
+        while True:
+            if self._mek_reconciler_stop.is_set():
+                return counts, blockers
+            uek_rows = self.execute_fetch_command('''
+                SELECT uid, entry.key AS key, entry.value AS value
+                FROM ueks CROSS JOIN LATERAL each(keys) AS entry
+                WHERE entry.key <> 'current' AND (uid, entry.key) > (%s, %s)
+                ORDER BY uid, entry.key
+                LIMIT %s;
+            ''', (cursor_uid, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+            for row in uek_rows:
+                try:
+                    key_id = self.secret_manager.authenticate_uek_wrapper(
+                        row['value'], row['key'])
+                    counts[key_id] += 1
+                except (KeyError, osmo_errors.OSMOError):
+                    user_id = row['uid']
+                    user_key_id = row['key']
+                    blockers.append(f'ueks/{user_id}/{user_key_id}: authentication failed')
+            if len(uek_rows) < MEK_RECONCILE_BATCH_SIZE:
+                break
+            cursor_uid, cursor_key = uek_rows[-1]['uid'], uek_rows[-1]['key']
+
+        config_rows: List[Dict[str, Any]] = []
+        cursor_type, cursor_key = '', ''
+        while len(config_rows) <= MEK_MAX_CONFIG_ROWS:
+            if self._mek_reconciler_stop.is_set():
+                return counts, blockers
+            batch = self.execute_fetch_command('''
+                SELECT key, type, value FROM configs
+                WHERE (type, key) > (%s, %s)
+                ORDER BY type, key
+                LIMIT %s;
+            ''', (cursor_type, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+            config_rows.extend(batch)
+            if len(batch) < MEK_RECONCILE_BATCH_SIZE:
+                break
+            cursor_type, cursor_key = batch[-1]['type'], batch[-1]['key']
+        if len(config_rows) > MEK_MAX_CONFIG_ROWS:
+            return counts, ['configs: row limit exceeded']
+        rows_by_type: Dict[str, Dict[str, Any]] = {}
+        raw_by_type: Dict[str, Dict[str, Any]] = {}
+        for row in config_rows:
+            try:
+                try:
+                    parsed_value = json.loads(row['value'])
+                except (json.JSONDecodeError, TypeError):
+                    parsed_value = row['value']
+                rows_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
+                raw_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
+            except (ValueError, TypeError):
+                config_type = row['type']
+                config_key = row['key']
+                blockers.append(f'configs/{config_type}/{config_key}: value cannot be parsed')
+
+        config_models: Dict[str, Type[DynamicConfig]] = {
+            ConfigType.SERVICE.value: ServiceConfig,
+            ConfigType.WORKFLOW.value: WorkflowConfig,
+        }
+        for config_type, config_values in rows_by_type.items():
+            model_class = config_models.get(config_type)
+            if model_class is None:
+                for config_key, raw_value in raw_by_type[config_type].items():
+                    try:
+                        for path, _ in self._walk_jwe_values(raw_value, config_key):
+                            blockers.append(
+                                f'configs/{config_type}/{path}: unregistered compact JWE')
+                    except (JWException, ValueError, TypeError):
+                        blockers.append(
+                            f'configs/{config_type}/{config_key}: malformed compact JWE')
+                continue
+            unknown_keys = set(config_values) - set(model_class.model_fields)
+            if unknown_keys:
+                blockers.append(
+                    f'configs/{config_type}: unregistered fields {sorted(unknown_keys)}')
+                continue
+            try:
+                model = model_class.from_db(config_values)
+                registered_values = list(self._walk_registered_secrets(
+                    model.model_dump(exclude_unset=True, by_alias=True)))
+                registered_paths = {path for path, _ in registered_values}
+                for path, encrypted_value in registered_values:
+                    try:
+                        key_id = self.secret_manager.authenticate_mek_encrypted(encrypted_value)
+                        counts[key_id] += 1
+                    except (KeyError, osmo_errors.OSMOError):
+                        blockers.append(f'configs/{config_type}/{path}: authentication failed')
+                for config_key, raw_value in raw_by_type[config_type].items():
+                    try:
+                        for path, _ in self._walk_jwe_values(raw_value, config_key):
+                            if path not in registered_paths:
+                                blockers.append(
+                                    f'configs/{config_type}/{config_key}: '
+                                    'unregistered compact JWE')
+                    except (JWException, ValueError, TypeError):
+                        blockers.append(
+                            f'configs/{config_type}/{config_key}: malformed compact JWE')
+            except (pydantic.ValidationError, ValueError, TypeError):
+                blockers.append(f'configs/{config_type}: config schema validation failed')
+        return counts, blockers
+
+    def _mek_write_epoch(self) -> int:
+        rows = self.execute_fetch_command(
+            'SELECT epoch FROM public.mek_write_epoch WHERE singleton;', (), return_raw=True)
+        if not rows:
+            raise osmo_errors.OSMOError('MEK write epoch is not initialized.')
+        return rows[0]['epoch']
+
+    def _mek_progress(self, resource: str) -> Tuple[str, str, bool, int]:
+        generation = self.secret_manager.generation
+        write_epoch = self._mek_write_epoch()
+        rows = self.execute_fetch_command('''
+            SELECT generation, cursor_primary, cursor_secondary, completed, start_write_epoch
+            FROM public.mek_rewrap_progress WHERE resource = %s;
+        ''', (resource,), return_raw=True)
+        if rows and rows[0]['generation'] == generation:
+            row = rows[0]
+            if not row['completed'] or row['start_write_epoch'] == write_epoch:
+                return (row['cursor_primary'], row['cursor_secondary'], row['completed'],
+                        row['start_write_epoch'])
+        self.execute_commit_command('''
+            INSERT INTO public.mek_rewrap_progress (
+                resource, generation, cursor_primary, cursor_secondary, completed,
+                start_write_epoch, updated_at)
+            VALUES (%s, %s, '', '', FALSE, %s, NOW())
+            ON CONFLICT (resource) DO UPDATE SET
+                generation = EXCLUDED.generation,
+                cursor_primary = '',
+                cursor_secondary = '',
+                completed = FALSE,
+                start_write_epoch = EXCLUDED.start_write_epoch,
+                updated_at = NOW();
+        ''', (resource, generation, write_epoch))
+        return '', '', False, write_epoch
+
+    def _update_mek_progress(
+            self, resource: str, cursor_primary: str, cursor_secondary: str,
+            reached_end: bool, start_write_epoch: int) -> bool:
+        current_write_epoch = self._mek_write_epoch()
+        if reached_end and current_write_epoch != start_write_epoch:
+            self.execute_commit_command('''
+                UPDATE public.mek_rewrap_progress SET
+                    cursor_primary = '',
+                    cursor_secondary = '',
+                    completed = FALSE,
+                    start_write_epoch = %s,
+                    updated_at = NOW()
+                WHERE resource = %s AND generation = %s;
+            ''', (current_write_epoch, resource, self.secret_manager.generation))
+            return False
+        self.execute_commit_command('''
+            UPDATE public.mek_rewrap_progress SET
+                cursor_primary = %s,
+                cursor_secondary = %s,
+                completed = %s,
+                updated_at = NOW()
+            WHERE resource = %s AND generation = %s;
+        ''', (cursor_primary, cursor_secondary, reached_end, resource,
+              self.secret_manager.generation))
+        return reached_end
+
+    def _rewrap_ueks(self) -> bool:
+        cursor_uid, cursor_key, completed, start_write_epoch = self._mek_progress('ueks')
+        if completed:
+            return True
+        rows = self.execute_fetch_command('''
+            SELECT uid, entry.key AS key
+            FROM ueks CROSS JOIN LATERAL each(keys) AS entry
+            WHERE entry.key <> 'current' AND (uid, entry.key) > (%s, %s)
+            ORDER BY uid, entry.key
+            LIMIT %s;
+        ''', (cursor_uid, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+        for row in rows:
+            try:
+                self.secret_manager.get_uek(row['uid'], row['key'])
+            except osmo_errors.OSMOError:
+                logging.error(
+                    'UEK rewrap authentication failed for uid=%s slot=%s; '
+                    'continuing the batch.', row['uid'], row['key'])
+                self._record_mek_blocker(
+                    'A persisted UEK wrapper failed authentication; inspect service logs.')
+        if rows:
+            cursor_uid, cursor_key = rows[-1]['uid'], rows[-1]['key']
+        reached_end = len(rows) < MEK_RECONCILE_BATCH_SIZE
+        return self._update_mek_progress(
+            'ueks', cursor_uid, cursor_key, reached_end, start_write_epoch)
+
+    def _rewrap_config_value(self, value: Any, path: str = '') -> Tuple[Any, bool]:
+        changed = False
+        if isinstance(value, dict):
+            result = {}
+            for key, child in value.items():
+                child_path = f'{path}.{key}' if path else str(key)
+                result[key], child_changed = self._rewrap_config_value(child, child_path)
+                changed = changed or child_changed
+            return result, changed
+        if isinstance(value, list):
+            result_list = []
+            for index, child in enumerate(value):
+                result, child_changed = self._rewrap_config_value(
+                    child, f'{path}[{index}]')
+                result_list.append(result)
+                changed = changed or child_changed
+            return result_list, changed
+        if not isinstance(value, str):
+            return value, False
+        try:
+            header = self._jwe_header(value)
+        except (JWException, ValueError, TypeError):
+            logging.error(
+                'Config MEK rewrap found a malformed compact JWE at %s; '
+                'continuing the batch.', path)
+            self._record_mek_blocker(
+                'A persisted config ciphertext is malformed; inspect service logs.')
+            return value, False
+        if header is None or header.get('kid') not in self.secret_manager.meks:
+            return value, False
+        replacements: List[str] = []
+        try:
+            self.secret_manager.decrypt(Encrypted(value), '', replacements.append)
+        except (JWException, osmo_errors.OSMOError, UnicodeError, ValueError, TypeError):
+            logging.error(
+                'Config MEK rewrap authentication failed at %s; continuing the batch.', path)
+            self._record_mek_blocker(
+                'A persisted config ciphertext failed authentication; inspect service logs.')
+            return value, False
+        return (replacements[0], True) if replacements else (value, False)
+
+    def _rewrap_configs(self) -> bool:
+        cursor_type, cursor_key, completed, start_write_epoch = self._mek_progress('configs')
+        if completed:
+            return True
+        rows = self.execute_fetch_command('''
+            SELECT key, type, value FROM configs
+            WHERE (type, key) > (%s, %s)
+            ORDER BY type, key
+            LIMIT %s;
+        ''', (cursor_type, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+        for row in rows:
+            original = row['value']
+            for _ in range(3):
+                try:
+                    parsed = json.loads(original)
+                    encoded_as_json = True
+                except (json.JSONDecodeError, TypeError):
+                    parsed = original
+                    encoded_as_json = False
+                replacement, changed = self._rewrap_config_value(
+                    parsed, f"{row['type']}/{row['key']}")
+                if not changed:
+                    break
+                serialized = json.dumps(replacement) if encoded_as_json else replacement
+                command = '''
+                    UPDATE configs SET value = %s
+                    WHERE key = %s AND type = %s AND value = %s;
+                '''
+                if self.execute_commit_command(
+                        command, (serialized, row['key'], row['type'], original)) == 1:
+                    break
+                current_rows = self.execute_fetch_command('''
+                    SELECT value FROM configs WHERE key = %s AND type = %s;
+                ''', (row['key'], row['type']), return_raw=True)
+                if not current_rows:
+                    break
+                original = current_rows[0]['value']
+            else:
+                config_type = row['type']
+                config_key = row['key']
+                raise osmo_errors.OSMOError(
+                    'Concurrent config updates repeatedly blocked MEK rewrap for '
+                    f'{config_type}/{config_key}.')
+        if rows:
+            cursor_type, cursor_key = rows[-1]['type'], rows[-1]['key']
+        reached_end = len(rows) < MEK_RECONCILE_BATCH_SIZE
+        return self._update_mek_progress(
+            'configs', cursor_type, cursor_key, reached_end, start_write_epoch)
+
+    def _record_mek_scan(self, counts: Dict[str, int], blockers: List[str]) -> None:
+        current_key_id = self.secret_manager.current_mek_id
+        generation = self.secret_manager.generation
+        for blocker_detail in blockers:
+            logging.error('MEK inventory blocker: %s', blocker_detail)
+        blocker = (
+            f'{len(blockers)} ciphertext authentication blocker(s); inspect service logs.'
+            if blockers else '')
+        command = '''
+            INSERT INTO public.mek_rewrap_status (
+                singleton, generation, current_kid, persistence_registry_version,
+                last_started_at, last_completed_at, blocker)
+            VALUES (TRUE, %s, %s, %s, NOW(), NOW(), %s)
+            ON CONFLICT (singleton) DO UPDATE SET
+                generation = EXCLUDED.generation,
+                current_kid = EXCLUDED.current_kid,
+                persistence_registry_version = EXCLUDED.persistence_registry_version,
+                last_started_at = EXCLUDED.last_started_at,
+                last_completed_at = EXCLUDED.last_completed_at,
+                blocker = EXCLUDED.blocker;
+        '''
+        self.execute_commit_command(command, (
+            generation, current_key_id, MEK_PERSISTENCE_REGISTRY_VERSION, blocker))
+        for key_id, count in counts.items():
+            if key_id == current_key_id:
+                continue
+            command = '''
+                UPDATE public.mek_key_registry SET
+                    remaining_references = %s,
+                    last_scan_started_at = NOW(),
+                    last_scan_completed_at = NOW()
+                WHERE kid = %s;
+            '''
+            self.execute_commit_command(command, (count, key_id))
+        logging.info(
+            'MEK reconciliation status current_kid=%s references=%s '
+            'blockers=%d retirement_supported=false',
+            current_key_id, counts, len(blockers))
+
+    def _record_mek_blocker(self, blocker: str) -> None:
+        """Persist a redacted reconciliation blocker for operator inspection."""
+        self.execute_commit_command('''
+            INSERT INTO public.mek_rewrap_status (
+                singleton, generation, current_kid, persistence_registry_version,
+                last_started_at, blocker)
+            VALUES (TRUE, %s, %s, %s, NOW(), %s)
+            ON CONFLICT (singleton) DO UPDATE SET
+                generation = EXCLUDED.generation,
+                current_kid = EXCLUDED.current_kid,
+                persistence_registry_version = EXCLUDED.persistence_registry_version,
+                last_started_at = EXCLUDED.last_started_at,
+                blocker = EXCLUDED.blocker;
+        ''', (self.secret_manager.generation, self.secret_manager.current_mek_id,
+              MEK_PERSISTENCE_REGISTRY_VERSION, blocker))
+
+    def _record_mek_consumer(self) -> None:
+        self.execute_commit_command('''
+            INSERT INTO public.mek_consumer_status (
+                consumer_id, consumer_name, generation, current_kid, loaded_kids, last_seen_at)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (consumer_id) DO UPDATE SET
+                consumer_name = EXCLUDED.consumer_name,
+                generation = EXCLUDED.generation,
+                current_kid = EXCLUDED.current_kid,
+                loaded_kids = EXCLUDED.loaded_kids,
+                last_seen_at = NOW();
+        ''', (self._mek_consumer_id, self._mek_consumer_name,
+              self.secret_manager.generation, self.secret_manager.current_mek_id,
+              sorted(self.secret_manager.meks)))
+        if self._last_logged_mek_generation != self.secret_manager.generation:
+            logging.info(
+                'MEK consumer status consumer=%s pod_uid=%s current_kid=%s '
+                'loaded_kids=%s',
+                self._mek_consumer_name, self._mek_consumer_id,
+                self.secret_manager.current_mek_id,
+                sorted(self.secret_manager.meks))
+            self._last_logged_mek_generation = self.secret_manager.generation
+
+    def _all_live_mek_consumers_current(self) -> bool:
+        """Require every recently heartbeating process to report the same active keyring."""
+        rows = self.execute_fetch_command('''
+            SELECT generation, current_kid, loaded_kids
+            FROM public.mek_consumer_status
+            WHERE last_seen_at > NOW() - INTERVAL '90 seconds';
+        ''', (), return_raw=True)
+        return bool(rows) and all(
+            row['generation'] == self.secret_manager.generation
+            and row['current_kid'] == self.secret_manager.current_mek_id
+            and self.secret_manager.current_mek_id in row['loaded_kids']
+            for row in rows
+        )
+
+    def _run_mek_reconciler(self) -> None:
+        failure_backoff = 30
+        while not self._mek_reconciler_stop.is_set():
+            try:
+                self.secret_manager.reload_if_changed()
+                if self.secret_manager.last_reload_error:
+                    failure_revision = self.secret_manager.reload_failure_revision
+                    if failure_revision != self._last_reported_mek_reload_failure:
+                        logging.error(
+                            'Rejected mounted MEK Secret update; retaining last-known-good '
+                            'keyring: %s', self.secret_manager.last_reload_error)
+                        self._record_mek_blocker(
+                            'Mounted MEK Secret update rejected; inspect service logs.')
+                        self._last_reported_mek_reload_failure = failure_revision
+                    self._mek_reconciler_stop.wait(failure_backoff)
+                    continue
+                self._record_mek_consumer()
+                self._init_mek_key_registry()
+                with self._get_reserved_reconciler_connection() as connection:
+                    with connection.cursor() as cursor:
+                        cursor.execute('SELECT pg_try_advisory_lock(%s);', (0x4F534D4F4D454B,))
+                        leader = cursor.fetchone()[0]
+                    if leader:
+                        try:
+                            if not self._all_live_mek_consumers_current():
+                                self._record_mek_blocker(
+                                    'Waiting for all live MEK consumers to activate the '
+                                    'mounted keyring.')
+                            else:
+                                ueks_complete = self._rewrap_ueks()
+                                configs_complete = self._rewrap_configs()
+                                _, _, scan_complete, scan_write_epoch = self._mek_progress(
+                                    'inventory')
+                                if ueks_complete and configs_complete and not scan_complete:
+                                    counts, blockers = self._scan_mek_references()
+                                    if self._update_mek_progress(
+                                            'inventory', '', '', True, scan_write_epoch):
+                                        self._record_mek_scan(counts, blockers)
+                        finally:
+                            with connection.cursor() as cursor:
+                                cursor.execute(
+                                    'SELECT pg_advisory_unlock(%s);', (0x4F534D4F4D454B,))
+                failure_backoff = 30
+            except Exception as error:  # pylint: disable=broad-except
+                logging.error('MEK database reconciliation failed: %s', error)
+                try:
+                    self._record_mek_blocker('MEK reconciliation failed; inspect service logs.')
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                failure_backoff = min(failure_backoff * 2, 300)
+            self._mek_reconciler_stop.wait(failure_backoff)
+
     def read_uek(self, uid: str, kid: str) -> str:
         cmd = 'SELECT keys -> %s as value FROM ueks WHERE uid = %s;'
         uek_value = self.execute_fetch_command(cmd, (kid, uid))
@@ -1401,10 +2264,10 @@ class PostgresConnector:
         current_kid = current_kid_value[0].value
         return current_kid
 
-    def write_uek(self, uid: str, kid: str, new_uek: str, old_uek: str):
+    def write_uek(self, uid: str, kid: str, new_uek: str, old_uek: str) -> bool:
         new_key_value = self.encode_hstore({kid: new_uek})
         cmd = 'UPDATE ueks SET keys = keys || %s :: hstore WHERE uid = %s AND keys[%s] = %s;'
-        self.execute_commit_command(cmd, (new_key_value, uid, kid, old_uek))
+        return self.execute_commit_command(cmd, (new_key_value, uid, kid, old_uek)) == 1
 
     def add_user(self, uid: str, uek: Dict):
         cmd = 'INSERT INTO ueks (uid, keys) VALUES (%s, %s) ON CONFLICT DO NOTHING;'
@@ -2686,7 +3549,7 @@ class DynamicConfig(ExtraArgBaseModel):
             elif isinstance(encrypted_data, list):
                 for index in range(len(encrypted_data)):
                     decrypted, new_encrypted = _decrypt(
-                        result_data[index], result_data[index], top_level_key)
+                        result_data[index], encrypted_data[index], top_level_key)
                     result_data[index] = decrypted
                     if new_encrypted is not None:
                         encrypted_data[index] = new_encrypted
@@ -2729,17 +3592,25 @@ class DynamicConfig(ExtraArgBaseModel):
 
         # Encrypt updated secrets
         for key in encrypt_keys:
-            if isinstance(encrypted_dict[key], str):
-                postgres.set_config(key, encrypted_dict[key], dynamic_config.get_type())
-            else:
-                old_value = json.dumps(config_dict[key])
-                new_value = json.dumps(encrypted_dict[key])
-                cmd = 'UPDATE configs SET value = %s WHERE key = %s AND value = %s;'
-                postgres.execute_commit_command(cmd, (new_value, key, old_value))
+            old_value = (config_dict[key] if isinstance(config_dict[key], str)
+                         else json.dumps(config_dict[key]))
+            new_value = (encrypted_dict[key] if isinstance(encrypted_dict[key], str)
+                         else json.dumps(encrypted_dict[key]))
+            cmd = '''
+                UPDATE configs SET value = %s
+                WHERE key = %s AND type = %s AND value = %s;
+            '''
+            if postgres.execute_commit_command(
+                    cmd, (new_value, key, dynamic_config.get_type().value, old_value)) != 1:
+                logging.warning(
+                    'Concurrent config update deferred MEK rewrap for %s/%s.',
+                    dynamic_config.get_type().value, key)
+                postgres._record_mek_blocker(  # pylint: disable=protected-access
+                    'A concurrent config update deferred MEK rewrap; inspect service logs.')
         return dynamic_config
 
     def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,
-                         top_level: bool = False) -> Dict[str, str | None]:
+                         top_level: bool = False) -> Dict[str, Any]:
         """ Recursively encrypt all secret fields in any dictionary or list. """
         for key, value in config_dict.items():
             value_for_typecheck = value
@@ -2749,18 +3620,22 @@ class DynamicConfig(ExtraArgBaseModel):
                 else:
                     config_dict[key] = self.serialize_helper(value, postgres)
             elif isinstance(value_for_typecheck, list):
-                if all(isinstance(v, dict) for v in value_for_typecheck):
-                    config_dict[key] = \
-                        [self.serialize_helper(v, postgres) for v in value_for_typecheck]
-                else:
-                    config_dict[key] = value_for_typecheck
+                serialized_values: List[Any] = []
+                for item in value_for_typecheck:
+                    if isinstance(item, dict):
+                        serialized_values.append(self.serialize_helper(item, postgres))
+                    elif isinstance(item, list):
+                        nested = self.serialize_helper({'value': item}, postgres)
+                        serialized_values.append(nested['value'])
+                    elif isinstance(item, pydantic.SecretStr):
+                        serialized_values.append(postgres.secret_manager.encrypt(
+                            item.get_secret_value(), '').value)
+                    else:
+                        serialized_values.append(item)
+                config_dict[key] = serialized_values
             elif isinstance(value_for_typecheck, pydantic.SecretStr):
-                if top_level:
-                    encrypted = postgres.secret_manager.encrypt(value.get_secret_value(), '')
-                    config_dict[key] = encrypted.value
-                # TODO: Enable recursive encryption
-                else:
-                    config_dict[key] = value.get_secret_value()
+                encrypted = postgres.secret_manager.encrypt(value.get_secret_value(), '')
+                config_dict[key] = encrypted.value
             elif value_for_typecheck is None:
                 config_dict[key] = None
             elif not isinstance(value_for_typecheck, str):

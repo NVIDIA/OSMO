@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{{- $bootstrap := .Values.services.masterEncryptionKey.bootstrap }}
+{{- if not (kindIs "map" $bootstrap) }}
+{{- fail "services.masterEncryptionKey.bootstrap must be an object" }}
+{{- end }}
+{{- if not (hasKey $bootstrap "enabled") }}
+{{- fail "services.masterEncryptionKey.bootstrap.enabled is required" }}
+{{- end }}
+{{- if not (kindIs "bool" (get $bootstrap "enabled")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.enabled must be a boolean" }}
+{{- end }}
+{{- if not (hasKey $bootstrap "image") }}
+{{- fail "services.masterEncryptionKey.bootstrap.image is required" }}
+{{- end }}
+{{- if not (kindIs "string" (get $bootstrap "image")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.image must be a string" }}
+{{- end }}
+{{- if eq (trim (get $bootstrap "image")) "" }}
+{{- fail "services.masterEncryptionKey.bootstrap.image must not be empty" }}
+{{- end }}
+{{- if not (hasKey $bootstrap "imagePullPolicy") }}
+{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy is required" }}
+{{- end }}
+{{- if not (kindIs "string" (get $bootstrap "imagePullPolicy")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy must be a string" }}
+{{- end }}
+{{- if not (has (get $bootstrap "imagePullPolicy") (list "Always" "IfNotPresent" "Never")) }}
+{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy must be Always, IfNotPresent, or Never" }}
+{{- end }}
+{{- if (get $bootstrap "enabled") }}
+{{- $bootstrapName := printf "%s-mek-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- $diagnosticName := printf "%s-diagnostic" $bootstrapName | trunc 63 | trimSuffix "-" }}
+{{- $secretName := required "services.masterEncryptionKey.existingSecret.name is required" .Values.services.masterEncryptionKey.existingSecret.name }}
+{{- $secretKey := required "services.masterEncryptionKey.existingSecret.key is required" .Values.services.masterEncryptionKey.existingSecret.key }}
+{{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $diagnosticName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-31"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+data:
+  recovery: |
+    The MEK bootstrap did not complete. Its privileged resources were removed.
+    Review the Helm error and namespace Events for the underlying failure.
+    For an existing database, restore the MEK Secret that encrypted its data.
+    Never generate a replacement MEK for retained encrypted data.
+---
+{{- if and .Release.IsInstall (not $existingSecret) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName | quote }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-30"
+    helm.sh/resource-policy: keep
+    osmo.nvidia.com/mek-bootstrap-placeholder: "true"
+type: Opaque
+---
+{{- end }}
+apiVersion: v1
+kind: List
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-29"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
+items:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get", "patch"]
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  subjects:
+  - kind: ServiceAccount
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: {{ $bootstrapName }}
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: {{ $bootstrapName }}
+    namespace: {{ .Release.Namespace }}
+  spec:
+    backoffLimit: 0
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: {{ include "osmo.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: mek-bootstrap
+      spec:
+        restartPolicy: Never
+        serviceAccountName: {{ $bootstrapName }}
+        {{- with .Values.global.imagePullSecret }}
+        imagePullSecrets:
+        - name: {{ . }}
+        {{- end }}
+        nodeSelector:
+          {{- toYaml .Values.global.nodeSelector | nindent 10 }}
+        tolerations:
+          {{- toYaml .Values.services.service.tolerations | nindent 10 }}
+        containers:
+        - name: mek-bootstrap
+          image: {{ get $bootstrap "image" | quote }}
+          imagePullPolicy: {{ get $bootstrap "imagePullPolicy" | quote }}
+          command: ["/bin/ash"]
+          args:
+          - -c
+          - |
+{{ .Files.Get "files/mek-bootstrap.sh" | nindent 12 }}
+          - mek-bootstrap
+          - --namespace
+          - {{ .Release.Namespace | quote }}
+          - --release-name
+          - {{ .Release.Name | quote }}
+          - --secret-name
+          - {{ $secretName | quote }}
+          - --secret-key
+          - {{ $secretKey | quote }}
+          {{- if .Release.IsUpgrade }}
+          - --fail-if-missing
+          {{- end }}
+          env:
+          - name: HOME
+            value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+          volumeMounts:
+          - name: bootstrap-tmp
+            mountPath: /tmp
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+        volumes:
+        - name: bootstrap-tmp
+          emptyDir: {}
+{{- end }}

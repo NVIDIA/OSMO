@@ -28,12 +28,20 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 _COMMON_TAGS = ["external", "requires-network", "no-sandbox", "manual"]
 
 
-def oetf_smoke_test(name, src, tags = [], extra_deps = [], size = "medium", timeout = "moderate"):
+def oetf_smoke_test(
+        name,
+        src,
+        data = [],
+        tags = [],
+        extra_deps = [],
+        size = "medium",
+        timeout = "moderate"):
     """A smoke test — one py_test making HTTP/CLI/WebSocket probes against OSMO.
 
     Args:
       name: Bazel target name.
       src: the single .py file (a SmokeFixture subclass with test_* methods).
+      data: extra runfiles required by the test.
       tags: additional filter tags (e.g. ["health", "auth"]).
       extra_deps: additional Bazel labels the test needs (e.g. a requirement
         only this test uses).
@@ -44,6 +52,7 @@ def oetf_smoke_test(name, src, tags = [], extra_deps = [], size = "medium", time
         name = name,
         srcs = [src],
         main = src,
+        data = data,
         deps = [
             "@osmo_workspace//test/oetf:smoke_fixture",
             "@osmo_workspace//test/oetf:fixture_base",

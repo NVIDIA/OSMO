@@ -106,9 +106,9 @@ spec:
         - {{ include "osmo.postgresql.port" . | quote }}
         - --postgres_database_name
         - {{ include "osmo.postgresql.database" . }}
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - --mek_file
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        - {{ include "osmo.secrets.mekFile" . | quote }}
         {{- end}}
         {{- with (include "osmo.postgresql.username" .) }}
         - --postgres_user
@@ -128,6 +128,8 @@ spec:
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         env:
+        {{- include "osmo.secrets.mekConsumerEnv" "agent" | nindent 8 }}
+        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         {{- include "osmo.configuration.env" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.agent | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
@@ -137,10 +139,10 @@ spec:
           mountPath: /tmp
         - name: osmo-progress-files
           mountPath: /var/run/osmo
-        {{- if .Values.secrets.masterEncryptionKey.existingSecret}}
-        - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
+        - mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
           name: mek-volume
-          subPath: mek.yaml
+          readOnly: true
         {{- end }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}

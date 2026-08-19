@@ -36,6 +36,7 @@ class TestWorkflowLabelSchema(unittest.TestCase):
     def setUpClass(cls) -> None:
         database = object.__new__(connectors.PostgresConnector)
         database.execute_commit_command = mock.Mock()
+        database.execute_commit_commands = mock.Mock()
         database.execute_autocommit_command = mock.Mock()
         database._init_tables()  # pylint: disable=protected-access
 

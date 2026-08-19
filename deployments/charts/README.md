@@ -32,9 +32,9 @@ The former quick-start values are preserved as chart-specific values files:
 - `service/quick-start-values.yaml`
 - `backend-operator/quick-start-values.yaml`
 
-Create the namespaces, the local admin password Secret, and the MEK ConfigMap
-used by the service pods. The service quick-start values create the shared
-backend bootstrap Secret through the chart-managed development mode:
+Create the namespaces and the local admin password Secret. The service
+quick-start values create both the MEK Secret and the shared backend bootstrap
+Secret inside Kubernetes through chart-managed test modes:
 
 ```bash
 kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
@@ -44,18 +44,6 @@ kubectl create secret generic local-admin-password \
   --namespace osmo \
   --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
-
-if ! kubectl get configmap mek-config --namespace osmo >/dev/null 2>&1; then
-  MEK_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
-  MEK_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$MEK_KEY" | base64 | tr -d '\n')
-  MEK_FILE=$(mktemp)
-  printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$MEK_JWK" > "$MEK_FILE"
-  kubectl create configmap mek-config \
-    --namespace osmo \
-    --from-file=mek.yaml="$MEK_FILE" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  rm -f "$MEK_FILE"
-fi
 ```
 
 Install the service chart:
@@ -109,6 +97,11 @@ include OSMO's workflow, log, and app storage config. Do not run
 LocalStack with an external S3, Azure Blob, or BYO storage backend, run
 `deployments/scripts/configure-storage.sh` before the service Helm install and
 pass its generated values file after your base values file.
+
+MEK bootstrap is safe only for this disposable flow's new, empty PostgreSQL
+data. A Helm reinstall or a different release name can still target retained
+data; restore its original MEK Secret rather than asking the hook to generate a
+new key.
 
 These values assume the OSMO images are pullable without a registry Secret. If
 your registry requires credentials, create a Kubernetes image pull Secret and
