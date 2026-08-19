@@ -218,11 +218,11 @@ class TestSandboxedWorkerRecovery(unittest.TestCase):
                                         'failed to start after 3 retries'):
                 worker.run(3)
 
-    def test_worker_run_child_exits_before_result_raises_memory_error(self):
+    def test_worker_run_child_exits_before_result_raises_server_error(self):
         worker = jinja_sandbox.SandboxedWorker(triple_or_exit_on_odd, max_time=5)
         self.addCleanup(worker.shutdown)
 
-        with self.assertRaisesRegex(MemoryError, 'exceeded memory limit'):
+        with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'died unexpectedly exit code 7'):
             worker.run(1)
 
     def test_worker_run_dead_process_with_result_raises_server_error(self):
@@ -249,6 +249,26 @@ class TestSandboxedWorkerRecovery(unittest.TestCase):
                                side_effect=EOFError):
             with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'failed to start'):
                 jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+    def test_worker_init_unexpected_ready_signal_leaves_no_live_child(self):
+        children_before_init = set(multiprocessing.active_children())
+
+        with mock.patch.object(multiprocessing.connection.Connection, 'recv',
+                               return_value='not-the-ready-signal'):
+            with self.assertRaises(osmo_errors.OSMOServerError):
+                jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+        self.assertEqual(set(multiprocessing.active_children()) - children_before_init, set())
+
+    def test_worker_init_child_pipe_at_eof_leaves_no_live_child(self):
+        children_before_init = set(multiprocessing.active_children())
+
+        with mock.patch.object(multiprocessing.connection.Connection, 'recv',
+                               side_effect=EOFError):
+            with self.assertRaises(osmo_errors.OSMOServerError):
+                jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+        self.assertEqual(set(multiprocessing.active_children()) - children_before_init, set())
 
     def test_worker_shutdown_connection_close_failure_is_swallowed(self):
         worker = jinja_sandbox.SandboxedWorker(triple, max_time=5)
@@ -277,7 +297,7 @@ class TestSandboxedWorkerPoolRecovery(unittest.TestCase):
         pool = jinja_sandbox.SandboxedWorkerPool(triple_or_exit_on_odd, num_workers=1, max_time=5)
         self.addCleanup(pool.shutdown)
 
-        with self.assertRaises(MemoryError):
+        with self.assertRaises(osmo_errors.OSMOServerError):
             pool.run(1)
 
         self.assertEqual(pool.run(2), 6)
