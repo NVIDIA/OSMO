@@ -64,11 +64,15 @@ class _ClosingStreamingResponse(fastapi.responses.StreamingResponse):
             **scope.get('asgi', {}),
             'spec_version': '2.3',
         }
-        try:
+
+        async def send_with_disconnect(message: Any) -> None:
             try:
-                await super().__call__(disconnect_scope, receive, send)
+                await send(message)
             except OSError as exc:
                 raise ClientDisconnect() from exc
+
+        try:
+            await super().__call__(disconnect_scope, receive, send_with_disconnect)
         finally:
             close = getattr(self.body_iterator, 'aclose', None)
             if close:

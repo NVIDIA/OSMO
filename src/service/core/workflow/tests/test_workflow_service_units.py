@@ -2108,6 +2108,30 @@ class TestRedisLogDisconnect(unittest.IsolatedAsyncioTestCase):
             'Redis log formatter was not closed before its first log line.',
         )
 
+    async def test_redis_reader_oserror_is_not_a_client_disconnect(self):
+
+        async def failing_formatter():
+            if False:
+                yield 'unreachable\n'
+            raise OSError('redis read failed')
+
+        async def receive():
+            await asyncio.Future()
+
+        async def send(_message):
+            return None
+
+        response = workflow_service._ClosingStreamingResponse(failing_formatter())  # pylint: disable=protected-access
+        with self.assertRaisesRegex(OSError, 'redis read failed'):
+            await response(
+                {
+                    'type': 'http',
+                    'asgi': {'version': '3.0', 'spec_version': '2.4'},
+                },
+                receive,
+                send,
+            )
+
     async def test_redis_disconnect_closes_formatter_through_http_middleware(self):
         formatter_started = asyncio.Event()
         formatter_closed = asyncio.Event()
@@ -2144,7 +2168,7 @@ class TestRedisLogDisconnect(unittest.IsolatedAsyncioTestCase):
             app(
                 {
                     'type': 'http',
-                    'asgi': {'version': '3.0', 'spec_version': '2.3'},
+                    'asgi': {'version': '3.0', 'spec_version': '2.4'},
                     'http_version': '1.1',
                     'method': 'GET',
                     'scheme': 'http',
