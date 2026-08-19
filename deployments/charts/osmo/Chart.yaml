@@ -5,7 +5,7 @@ name: osmo
 description: Unified OSMO control and compute plane umbrella chart
 type: application
 version: 0.1.0
-appVersion: "6.3.1"
+appVersion: "6.4.0"
 kubeVersion: ">=1.30.0-0"
 home: https://nvidia.github.io/OSMO/main/
 sources:

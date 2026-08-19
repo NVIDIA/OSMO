@@ -20,7 +20,7 @@ embeddedDependencies:
 configuration:
   enabled: true
   workflow:
-    # The public 6.3.1 image predates workflow label policies.
+    # Omit an optional workflow label policy in this minimal external profile.
     labels_config: null
 
 services:

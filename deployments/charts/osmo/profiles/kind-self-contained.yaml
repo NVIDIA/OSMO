@@ -1,0 +1,224 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Development-only converged profile for a kind cluster where KAI Scheduler and
+# the CloudNativePG operator are already installed. The OSMO release owns the
+# control plane, compute plane, database Cluster, Valkey, and RustFS.
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: true
+
+externalUrl: http://osmo-gateway
+
+embeddedDependencies:
+  postgresql:
+    enabled: true
+  valkey:
+    enabled: true
+  objectStorage:
+    enabled: true
+  kaiScheduler:
+    enabled: false
+
+secrets:
+  postgresql:
+    existingSecret: ''
+  valkey:
+    generate: true
+    existingSecret: ''
+  objectStorage:
+    generate: true
+    existingSecret: ''
+  masterEncryptionKey:
+    generate: true
+    existingSecret: ''
+
+services:
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: default
+      managedSecret:
+        name: osmo-backend-token
+  mcp:
+    enabled: false
+  ui:
+    replicas: 1
+  worker:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  api:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  router:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  logger:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  agent:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  delayedJobMonitor:
+    replicas: 1
+
+gateway:
+  envoy:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    defaultIdentity:
+      user: testuser
+      roles: osmo-admin
+      allowedPools: default
+    service:
+      type: ClusterIP
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
+  rateLimit:
+    enabled: false
+
+monitoring:
+  podMonitor:
+    enabled: false
+
+configuration:
+  enabled: true
+  podTemplates:
+    kind_dev_auth:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
+        - name: osmo-ctrl
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
+  pools:
+    default:
+      common_pod_template:
+      - default_ctrl
+      - default_user
+      - kind_dev_auth
+
+postgresql:
+  cluster:
+    instances: 1
+    storage:
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    enablePDB: false
+    postgresql:
+      synchronous:
+        number: 0
+        dataDurability: preferred
+
+valkey:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  dataStorage:
+    requestedSize: 1Gi
+  replica:
+    enabled: false
+    minReplicasToWrite: 0
+  podDisruptionBudget:
+    enabled: false
+
+rustfs:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storageclass:
+    dataStorageSize: 2Gi
+
+computePlane:
+  global:
+    osmoImageTag: "6.4.0"
+    serviceUrl: http://osmo-gateway
+    loginMethod: token
+    accountTokenSecret: osmo-backend-token
+    accountTokenSecretKey: token
+    agentNamespace: ''
+    backendName: default
+    backendNamespace: ''
+    tolerations: []
+  podMonitor:
+    enabled: false
+  services:
+    backendListener:
+      imagePullPolicy: IfNotPresent
+      initContainers:
+      - &waitForGateway
+        name: wait-for-osmo-gateway
+        image: busybox:stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - until wget -q -O /dev/null http://osmo-gateway/api/version; do sleep 2; done
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+        resources:
+          requests:
+            cpu: 5m
+            memory: 8Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          memory: 1Gi
+    backendWorker:
+      imagePullPolicy: IfNotPresent
+      initContainers:
+      - *waitForGateway
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          memory: 1Gi
+  backendTestRunner:
+    enabled: false

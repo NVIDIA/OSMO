@@ -403,6 +403,64 @@ test_control_umbrella() {
         fail "expected chart defaults to pass helm lint"
     fi
 
+    helm_template split-compute "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        >"$TEST_DIRECTORY/split-compute.yaml"
+    require_deployment "$TEST_DIRECTORY/split-compute.yaml" \
+        "split-compute-osmo-backend-listener"
+    require_deployment "$TEST_DIRECTORY/split-compute.yaml" \
+        "split-compute-osmo-backend-worker"
+    require_no_deployment "$TEST_DIRECTORY/split-compute.yaml" \
+        "split-compute-osmo-api"
+    require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
+        "apiVersion: postgresql.cnpg.io/v1"
+    require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
+        "kind: Secret"
+    require_contains "$TEST_DIRECTORY/split-compute.yaml" \
+        "https://osmo.example.com"
+    require_contains "$TEST_DIRECTORY/split-compute.yaml" \
+        "secretName: osmo-backend-token"
+
+    helm_template osmo "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        >"$TEST_DIRECTORY/kind-self-contained.yaml"
+    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-api"
+    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "osmo-osmo-backend-listener"
+    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "osmo-osmo-backend-worker"
+    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Cluster "osmo-pg"
+    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-valkey"
+    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Service "osmo-valkey"
+    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-rustfs"
+    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Service \
+        "osmo-rustfs-svc"
+    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
+        "osmo-backend-token-bootstrap"
+    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
+        "osmo-mek-bootstrap"
+    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
+        "osmo-object-storage-bootstrap"
+    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "secretName: osmo-backend-token"
+    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "OSMO_LOGIN_DEV"
+    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "http://osmo-gateway"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "vault.hashicorp.com"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "hostPath:"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "kind-osmo"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "/home/"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "currentMek:"
+    require_contains "$charts_copy/osmo/Chart.yaml" 'appVersion: "6.4.0"'
+
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
     if ! grep -Fq "osmo/charts/valkey/Chart.yaml" \
@@ -680,7 +738,7 @@ EOF
         "endpoint: s3://osmo-apps/apps"
     require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
         "secretKey: object-storage.yaml"
-    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
+    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.4.0"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
@@ -987,7 +1045,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
         "app.kubernetes.io/instance: osmo"
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
-        "app.kubernetes.io/version: 6.3.1"
+        "app.kubernetes.io/version: 6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
         "app.kubernetes.io/managed-by: Helm"
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
@@ -2495,7 +2553,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "image: nvcr.io/nvidia/osmo/mcp-self-hosted:6.3.1"
+        "image: nvcr.io/nvidia/osmo/mcp-self-hosted:6.4.0"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 10
 
@@ -2740,21 +2798,21 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$TEST_DIRECTORY/osmo-image-defaults.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/service:6.3.1"
+        "image: nvcr.io/nvidia/osmo/service:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/web-ui:6.3.1"
+        "image: nvcr.io/nvidia/osmo/web-ui:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/worker:6.3.1"
+        "image: nvcr.io/nvidia/osmo/worker:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/router:6.3.1"
+        "image: nvcr.io/nvidia/osmo/router:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/logger:6.3.1"
+        "image: nvcr.io/nvidia/osmo/logger:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/agent:6.3.1"
+        "image: nvcr.io/nvidia/osmo/agent:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/delayed-job-monitor:6.3.1"
+        "image: nvcr.io/nvidia/osmo/delayed-job-monitor:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/authz-sidecar:6.3.1"
+        "image: nvcr.io/nvidia/osmo/authz-sidecar:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
         'image: "docker.io/envoyproxy/envoy:v1.38.1"'
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
@@ -2766,7 +2824,7 @@ EOF
         --set imagePullSecrets[0].name=mirror-secret \
         >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
-        "image: mirror.example.com/nvidia/osmo/service:6.3.1"
+        "image: mirror.example.com/nvidia/osmo/service:6.4.0"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
         'image: "mirror.example.com/envoyproxy/envoy:v1.38.1"'
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
@@ -2794,7 +2852,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
-        "image: osmo-mirror.example.com/nvidia/osmo/service:6.3.1"
+        "image: osmo-mirror.example.com/nvidia/osmo/service:6.4.0"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "valkey-mirror.example.com"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
