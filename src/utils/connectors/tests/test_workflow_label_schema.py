@@ -27,7 +27,7 @@ def _normalize_sql(command: str) -> str:
 
 
 class TestWorkflowLabelSchema(unittest.TestCase):
-    """The in-code database bootstrap defines the canonical label schema."""
+    """The in-code database bootstrap defines canonical schema details."""
 
     commit_commands: list[str]
     autocommit_commands: list[str]
@@ -73,6 +73,19 @@ class TestWorkflowLabelSchema(unittest.TestCase):
         )
         self.assertIn(
             'ON workflows USING gin (labels jsonb_ops)', labels_index)
+
+    def test_in_code_schema_has_concurrent_task_end_time_index(self) -> None:
+        end_time_index = next(
+            command
+            for command in self.autocommit_commands
+            if 'tasks_endtime_idx' in command
+        )
+
+        self.assertIn(
+            'CREATE INDEX CONCURRENTLY IF NOT EXISTS tasks_endtime_idx',
+            end_time_index,
+        )
+        self.assertIn('ON tasks USING btree (end_time)', end_time_index)
 
 
 if __name__ == '__main__':

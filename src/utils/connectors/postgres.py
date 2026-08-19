@@ -985,6 +985,11 @@ class PostgresConnector:
             CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS tasks_status_id_name
                 ON tasks
                 USING btree (status, workflow_id, retry_id, name);
+            ''',
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS tasks_endtime_idx
+                ON tasks
+                USING btree (end_time);
             '''
         ]
         for cmd in index_cmds:
