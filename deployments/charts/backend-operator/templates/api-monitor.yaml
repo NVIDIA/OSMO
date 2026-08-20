@@ -19,7 +19,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: {{ $name }}-otel-monitor
-  namespace: {{ include "backend-operator.agentNamespace" . }}
+  namespace: {{ .Values.global.agentNamespace }}
 spec:
   podMetricsEndpoints:
   - interval: 15s

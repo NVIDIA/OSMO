@@ -97,19 +97,3 @@ Create the name of the service account to use for test-runner pods.
 {{- define "backend-operator.testRunner.serviceAccountName" -}}
 {{- include "backend-operator.serviceAccountName" (dict "root" . "serviceConfig" .Values.backendTestRunner "component" "test-runner") -}}
 {{- end }}
-
-{{/*
-Resolve the namespace for backend operator services. Empty values keep the
-standalone chart portable by using the Helm release namespace.
-*/}}
-{{- define "backend-operator.agentNamespace" -}}
-{{- .Values.global.agentNamespace | default .Release.Namespace -}}
-{{- end }}
-
-{{/*
-Resolve the workflow namespace. Empty values converge operator and workflow
-resources in the effective agent namespace.
-*/}}
-{{- define "backend-operator.backendNamespace" -}}
-{{- .Values.global.backendNamespace | default (include "backend-operator.agentNamespace" .) -}}
-{{- end }}

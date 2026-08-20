@@ -65,6 +65,9 @@ Valkey, and RustFS in one OSMO release and creates their required retained
 credentials and buckets automatically. See
 [`charts/osmo/README.md`](charts/osmo/README.md) for readiness checks,
 port-forwarding, hello-world validation, recovery, and split-plane deployment.
+The unified chart owns its listener and worker templates directly. The
+standalone `backend-operator` chart below remains available only for legacy
+two-chart installations.
 
 ## Directory Structure
 

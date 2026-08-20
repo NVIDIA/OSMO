@@ -41,10 +41,10 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the image pull secret | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
-| `global.agentNamespace` | Namespace for agent deployment; empty uses the release namespace | `""` |
+| `global.agentNamespace` | Namespace for agent deployment | `osmo` |
 | `global.backendName` | Name identifier for this backend | `default` |
-| `global.backendNamespace` | Backend workload namespace; empty uses the effective agent namespace | `""` |
-| `global.backendTestNamespace` | Backend validation namespace; empty disables backend test synchronization | `null` |
+| `global.backendNamespace` | Backend namespace | `osmo-namespace` |
+| `global.backendTestNamespace` | Namespace for backend cluster validation tests | `null` |
 | `global.serviceUrl` | Service URL | `""` (empty, must be configured) |
 | `global.accountUsername` | Account username | `""` (empty, must be configured) |
 | `global.accountPasswordSecret` | Secret name for account password | `svc-osmo-admin` |

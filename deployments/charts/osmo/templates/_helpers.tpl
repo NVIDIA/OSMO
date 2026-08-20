@@ -102,6 +102,42 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.runtimeImage.tag | default .Chart.AppVersion -}}
 {{- end -}}
 
+{{- define "osmo.compute.agentNamespace" -}}
+{{- .Release.Namespace -}}
+{{- end -}}
+
+{{- define "osmo.compute.backendNamespace" -}}
+{{- .Values.compute.namespace | default .Release.Namespace -}}
+{{- end -}}
+
+{{- define "osmo.compute.serviceUrl" -}}
+{{- if .Values.planes.control.enabled -}}
+{{- printf "http://%s:%v" (include "osmo.gateway.fullname" .) .Values.gateway.envoy.service.port -}}
+{{- else -}}
+{{- required "externalUrl is required when the compute plane connects to an external control plane" (.Values.externalUrl | trimSuffix "/") -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.compute.listenerName" -}}
+{{- printf "%s-osmo-backend-listener" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "osmo.compute.workerName" -}}
+{{- printf "%s-osmo-backend-worker" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "osmo.compute.listenerServiceAccountName" -}}
+{{- include "osmo.component.serviceAccountName" (dict "root" . "component" .Values.services.backendListener "suffix" "backend-listener") -}}
+{{- end -}}
+
+{{- define "osmo.compute.workerServiceAccountName" -}}
+{{- include "osmo.component.serviceAccountName" (dict "root" . "component" .Values.services.backendWorker "suffix" "backend-worker") -}}
+{{- end -}}
+
+{{- define "osmo.compute.testRunnerServiceAccountName" -}}
+{{- include "osmo.component.serviceAccountName" (dict "root" . "component" .Values.services.backendTestRunner "suffix" "backend-test-runner") -}}
+{{- end -}}
+
 {{- define "osmo.hostname" -}}
 {{- $url := trimSuffix "/" .Values.externalUrl -}}
 {{- $withoutScheme := regexReplaceAll "^https?://" $url "" -}}
@@ -230,7 +266,7 @@ data:
 {{- end -}}
 
 {{/* Resolve the Secret selected by one backend API token credential. */}}
-{{- define "osmo.backend-api-token-secret-name" -}}
+{{- define "osmo.backendApiTokenSecretName" -}}
 {{- $hasExistingSecret := hasKey . "existingSecret" -}}
 {{- $hasManagedSecret := hasKey . "managedSecret" -}}
 {{- $hasLegacySecretName := hasKey . "secretName" -}}
@@ -250,7 +286,7 @@ data:
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.backend-api-token-bootstrap-name" -}}
+{{- define "osmo.backendApiTokenBootstrapName" -}}
 {{- printf "%s-backend-token-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 

@@ -12,7 +12,7 @@
       },
       "required": ["control", "compute"]
     },
-    "computePlane": { "type": "object" },
+    "compute": { "$ref": "#/definitions/compute" },
     "embeddedDependencies": {
       "type": "object",
       "properties": {
@@ -86,7 +86,10 @@
         "agent": { "$ref": "#/definitions/agentComponent" },
         "delayedJobMonitor": { "$ref": "#/definitions/delayedJobMonitorComponent" },
         "mcp": { "$ref": "#/definitions/mcpComponent" },
-        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" }
+        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
+        "backendListener": { "$ref": "#/definitions/backendListenerComponent" },
+        "backendWorker": { "$ref": "#/definitions/backendWorkerComponent" },
+        "backendTestRunner": { "$ref": "#/definitions/backendTestRunnerComponent" }
       }
     },
     "gateway": {
@@ -102,12 +105,229 @@
       }
     }
   },
-  "required": ["planes", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "compute", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
+    },
+    "compute": {
+      "type": "object",
+      "properties": {
+        "namespace": { "type": "string" },
+        "backendName": { "type": "string", "minLength": 1 },
+        "backendTestNamespace": { "type": "string" },
+        "loginMethod": { "type": "string", "enum": ["token"] },
+        "accountUsername": { "type": "string" },
+        "accountTokenSecret": { "type": "string" },
+        "accountTokenSecretKey": { "type": "string", "minLength": 1 },
+        "nodeConditionPrefix": { "type": "string" },
+        "includeNamespaceUsage": { "type": "string" },
+        "enableClusterRoles": { "type": "boolean" },
+        "networkPolicy": { "$ref": "#/definitions/computeNetworkPolicy" },
+        "priorityClasses": { "$ref": "#/definitions/computePriorityClasses" },
+        "extraConfigMaps": { "$ref": "#/definitions/computeExtraConfigMaps" },
+        "waitForControlPlane": { "$ref": "#/definitions/computeWaitForControlPlane" }
+      },
+      "required": ["namespace", "backendName", "backendTestNamespace", "loginMethod", "accountUsername", "accountTokenSecret", "accountTokenSecretKey", "nodeConditionPrefix", "includeNamespaceUsage", "enableClusterRoles", "networkPolicy", "priorityClasses", "extraConfigMaps", "waitForControlPlane"]
+    },
+    "computeNetworkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "clusterCIDRs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "dnsNamespace": { "type": "string", "minLength": 1 },
+        "allowedNamespaces": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "additionalEgressRules": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["enabled", "clusterCIDRs", "dnsNamespace", "allowedNamespaces", "additionalEgressRules"]
+    },
+    "computePriorityClass": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "value": { "type": "integer" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "value", "description"]
+    },
+    "computePriorityClasses": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "classes": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/computePriorityClass" }
+        }
+      },
+      "required": ["enabled", "classes"]
+    },
+    "computeExtraConfigMap": {
+      "type": "object",
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "data": { "$ref": "#/definitions/stringMap" }
+      }
+    },
+    "computeExtraConfigMaps": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/computeExtraConfigMap" }
+    },
+    "computeWaitForControlPlane": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "type": "string", "minLength": 1 },
+        "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "path": { "type": "string", "pattern": "^/" },
+        "resources": { "type": "object" }
+      },
+      "required": ["enabled", "image", "imagePullPolicy", "path", "resources"]
+    },
+    "computeComponent": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "resources": { "type": "object" },
+        "livenessProbe": { "type": "object" },
+        "startupProbe": { "type": "object" },
+        "env": { "type": "array", "items": { "type": "object" } },
+        "extraArgs": { "type": "array", "items": { "type": "string" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+        "pod": { "$ref": "#/definitions/podSettings" }
+      },
+      "required": ["enabled", "replicas", "image", "serviceAccount", "resources", "livenessProbe", "startupProbe", "env", "extraArgs", "extraVolumeMounts", "pod"]
+    },
+    "backendListenerComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/computeComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "enableNodeLabelUpdate": { "type": "boolean" },
+            "maxUnackedMessages": { "type": "integer", "minimum": 0 },
+            "podCacheTtlSeconds": { "type": "integer", "minimum": 0 },
+            "apiQps": { "type": "number", "minimum": 0 },
+            "apiBurst": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["enableNodeLabelUpdate", "maxUnackedMessages", "podCacheTtlSeconds", "apiQps", "apiBurst"]
+        }
+      ]
+    },
+    "backendWorkerComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/computeComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "progressIterFrequency": { "type": "string", "minLength": 1 },
+            "extraRBACRules": { "type": "array", "items": { "type": "object" } }
+          },
+          "required": ["progressIterFrequency", "extraRBACRules"]
+        }
+      ]
+    },
+    "backendTestRunnerCronJob": {
+      "type": "object",
+      "properties": {
+        "schedule": { "type": "string", "minLength": 1 },
+        "timezone": { "type": "string", "minLength": 1 },
+        "startingDeadlineSeconds": { "type": "integer", "minimum": 0 },
+        "concurrencyPolicy": { "type": "string", "enum": ["Allow", "Forbid", "Replace"] },
+        "suspend": { "type": "boolean" },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["schedule", "timezone", "startingDeadlineSeconds", "concurrencyPolicy", "suspend", "successfulJobsHistoryLimit", "failedJobsHistoryLimit"]
+    },
+    "backendTestRunnerJobTemplate": {
+      "type": "object",
+      "properties": {
+        "parallelism": { "type": "integer", "minimum": 0 },
+        "completions": { "type": "integer", "minimum": 0 },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "completionMode": { "type": "string", "enum": ["NonIndexed", "Indexed"] },
+        "suspend": { "type": "boolean" }
+      },
+      "required": ["parallelism", "completions", "backoffLimit", "activeDeadlineSeconds", "ttlSecondsAfterFinished", "completionMode", "suspend"]
+    },
+    "backendTestRunnerInitContainer": {
+      "type": "object",
+      "properties": {
+        "image": { "type": "string", "minLength": 1 },
+        "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "resources": { "type": "object" }
+      },
+      "required": ["image", "imagePullPolicy", "resources"]
+    },
+    "backendTestRunnerContainer": {
+      "type": "object",
+      "properties": {
+        "args": { "type": "array", "items": { "type": "string" } },
+        "resources": { "type": "object" }
+      },
+      "required": ["args", "resources"]
+    },
+    "backendTestRunnerConfigMap": {
+      "type": "object",
+      "properties": {
+        "nameTemplate": { "type": "string", "minLength": 1 },
+        "defaultMode": { "type": "integer", "minimum": 0, "maximum": 511 },
+        "optional": { "type": "boolean" }
+      },
+      "required": ["nameTemplate", "defaultMode", "optional"]
+    },
+    "backendTestRunnerVolume": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "mountPath": { "type": "string", "pattern": "^/" }
+      },
+      "required": ["name", "mountPath"]
+    },
+    "backendTestRunnerPod": {
+      "type": "object",
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "containerSecurityContext": { "type": "object" },
+        "restartPolicy": { "type": "string", "enum": ["Never", "OnFailure"] },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+        "automountServiceAccountToken": { "type": "boolean" },
+        "hostAliases": { "type": "array" }
+      },
+      "required": ["labels", "annotations", "nodeSelector", "affinity", "podSecurityContext", "containerSecurityContext", "restartPolicy", "terminationGracePeriodSeconds", "automountServiceAccountToken", "hostAliases"]
+    },
+    "backendTestRunnerComponent": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "cronJob": { "$ref": "#/definitions/backendTestRunnerCronJob" },
+        "jobTemplate": { "$ref": "#/definitions/backendTestRunnerJobTemplate" },
+        "initContainer": { "$ref": "#/definitions/backendTestRunnerInitContainer" },
+        "container": { "$ref": "#/definitions/backendTestRunnerContainer" },
+        "configMap": { "$ref": "#/definitions/backendTestRunnerConfigMap" },
+        "testConfigVolume": { "$ref": "#/definitions/backendTestRunnerVolume" },
+        "env": { "$ref": "#/definitions/stringMap" },
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "pod": { "$ref": "#/definitions/backendTestRunnerPod" },
+        "extraRoles": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["enabled", "serviceAccount", "image", "cronJob", "jobTemplate", "initContainer", "container", "configMap", "testConfigVolume", "env", "labels", "annotations", "pod", "extraRoles"]
     },
     "embeddedObjectStorage": {
       "type": "object",

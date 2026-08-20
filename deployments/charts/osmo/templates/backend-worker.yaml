@@ -1,0 +1,176 @@
+{{- if and .Values.planes.compute.enabled .Values.services.backendWorker.enabled }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- $component := .Values.services.backendWorker }}
+{{- $componentName := "backend-worker" }}
+{{- $name := include "osmo.compute.workerName" . }}
+{{- $podLabels := include "osmo.pod.labels" (dict "root" . "component" $component "componentName" $componentName) | fromYaml }}
+{{- $_ := set $podLabels "app" $name }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "osmo.compute.agentNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ $component.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        {{- toYaml $podLabels | nindent 8 }}
+      {{- with (include "osmo.pod.annotations" (dict "root" . "component" $component)) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "osmo.compute.workerServiceAccountName" . }}
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with (include "osmo.pod.securityContext" (dict "root" . "component" $component)) }}
+      securityContext:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $component)) }}
+      nodeSelector:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "osmo.pod.tolerations" (dict "root" . "component" $component)) }}
+      tolerations:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" $component)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with $component.pod.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.compute.waitForControlPlane.enabled $component.pod.initContainers }}
+      initContainers:
+      {{- if .Values.compute.waitForControlPlane.enabled }}
+      - name: wait-for-control-plane
+        image: {{ .Values.compute.waitForControlPlane.image | quote }}
+        imagePullPolicy: {{ .Values.compute.waitForControlPlane.imagePullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - {{ printf "until wget -q -O /dev/null %s%s; do sleep 2; done" (include "osmo.compute.serviceUrl" .) .Values.compute.waitForControlPlane.path | quote }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+        resources:
+          {{- toYaml .Values.compute.waitForControlPlane.resources | nindent 10 }}
+      {{- end }}
+      {{- with $component.pod.initContainers }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" $component) }}
+      containers:
+      - name: backend-worker
+        image: {{ include "osmo.component.image" (dict "root" . "component" $component) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "component" $component) }}
+        {{- with (include "osmo.container.securityContext" (dict "root" . "component" $component)) }}
+        securityContext:
+          {{- . | nindent 10 }}
+        {{- end }}
+        ports:
+        - name: metrics
+          containerPort: 9464
+        command:
+        - backend_worker
+        args:
+        - --host
+        - {{ include "osmo.compute.serviceUrl" . | quote }}
+        - --token_file
+        - /opt/osmo/secrets/token.txt
+        - --login_method
+        - token
+        - --backend
+        - {{ .Values.compute.backendName | quote }}
+        - --namespace
+        - {{ include "osmo.compute.backendNamespace" . | quote }}
+        - --log_level
+        - {{ .Values.logging.logLevel | quote }}
+        - --k8s_log_level
+        - {{ .Values.logging.k8sLogLevel | quote }}
+        - --log_format
+        - {{ .Values.logging.logFormat | quote }}
+        - --metrics_otel_collector_component
+        - {{ $name | quote }}
+        - --metrics_otel_enable
+        - "true"
+        - --node_condition_prefix
+        - {{ .Values.compute.nodeConditionPrefix | quote }}
+        - --progress_iter_frequency
+        - {{ $component.progressIterFrequency | quote }}
+        - --test_runner_namespace
+        - {{ .Values.compute.backendTestNamespace | quote }}
+        {{- if .Values.services.backendTestRunner.enabled }}
+        - --test_runner_cronjob_spec_file
+        - /tmp/backend-test-runner/spec.yaml
+        {{- end }}
+        {{- range $component.extraArgs }}
+        - {{ . | quote }}
+        {{- end }}
+        {{- with $component.env }}
+        env:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml $component.resources | nindent 10 }}
+        volumeMounts:
+        - name: osmo-secret
+          mountPath: /opt/osmo/secrets
+          readOnly: true
+        - name: progress-files
+          mountPath: /var/run/osmo
+        {{- if .Values.services.backendTestRunner.enabled }}
+        - name: backend-test-runner-template
+          mountPath: /tmp/backend-test-runner
+          readOnly: true
+        {{- end }}
+        {{- with $component.extraVolumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        livenessProbe:
+          {{- toYaml $component.livenessProbe | nindent 10 }}
+        startupProbe:
+          {{- toYaml $component.startupProbe | nindent 10 }}
+      {{- with $component.pod.sidecars }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      volumes:
+      - name: osmo-secret
+        secret:
+          secretName: {{ .Values.compute.accountTokenSecret }}
+          items:
+          - key: {{ .Values.compute.accountTokenSecretKey }}
+            path: token.txt
+      - name: progress-files
+        emptyDir: {}
+      {{- if .Values.services.backendTestRunner.enabled }}
+      - name: backend-test-runner-template
+        configMap:
+          name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "backend-test-runner-template") }}
+          items:
+          - key: spec.yaml
+            path: spec.yaml
+      {{- end }}
+      {{- with $component.pod.extraVolumes }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+{{- end }}

@@ -130,7 +130,7 @@ jobs:
               --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/split-plane-compute.yaml
             helm lint deployments/charts/osmo \
-              --kube-version 1.32.0 \
+              --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/kind-self-contained.yaml \
               --set embeddedDependencies.postgresql.enabled=false \
               --set externalDependencies.postgresql.host=lint-postgresql \
@@ -165,7 +165,7 @@ jobs:
               -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
               >/dev/null
             helm template test-kind deployments/charts/osmo \
-              --kube-version 1.32.0 \
+              --kube-version 1.30.0 \
               --api-versions postgresql.cnpg.io/v1 \
               -f deployments/charts/osmo/profiles/kind-self-contained.yaml \
               >/dev/null

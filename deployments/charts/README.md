@@ -19,10 +19,10 @@ SPDX-License-Identifier: Apache-2.0
 # NVIDIA OSMO Helm Charts
 
 The `osmo` chart is the unified deployment entry point. It supports control-only,
-compute-only, and converged installations by composing the independent
-`backend-operator` chart with the OSMO control services. The legacy `service`
-and standalone `backend-operator` charts remain available for existing
-deployments.
+compute-only, and converged installations with directly owned control and
+compute templates. The legacy `service` and standalone `backend-operator`
+charts remain available for existing deployments; neither is a dependency of
+the unified chart.
 
 ## Local kind example
 
@@ -74,11 +74,11 @@ chart interfaces required by an existing deployment:
 - Set `externalUrl` to the hostname served by the gateway.
 - Provide managed PostgreSQL, Valkey, object storage, and Kubernetes Secrets.
 - Enable OAuth2 and authorization when exposing OSMO to untrusted networks.
-- Configure `computePlane.global.serviceUrl` to the gateway reachable from the
-  compute cluster.
+- Configure `externalUrl` to the gateway reachable from a compute-only cluster.
+  Converged compute uses the release gateway Service DNS automatically.
 - Provision one backend bootstrap Secret per compute plane in both the control
   and compute clusters. Configure the unified chart's
   `services.backendApiTokens.credentials[].existingSecret.name`
-  and `computePlane.global.accountTokenSecret` to consume the matching Secret.
+  and `compute.accountTokenSecret` to consume the matching Secret.
   Managed backend-token and MEK generation is intended only for single-cluster
   development where both planes consume namespace-local Secrets.

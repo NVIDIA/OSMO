@@ -8,11 +8,13 @@ SPDX-License-Identifier: Apache-2.0
 The `osmo` chart is the unified OSMO deployment entry point.
 
 The chart supports control-only, compute-only, and converged releases. It can
-compose the backend operator with the control services, create a PostgreSQL
-Cluster through CloudNativePG, and deploy Valkey and RustFS. Production profiles
-consume externally managed Kubernetes Secrets. The self-contained kind profile
-uses retained in-cluster generation for development credentials without Vault
-agent injection.
+render backend listener and worker resources directly with the control services,
+create a PostgreSQL Cluster through CloudNativePG, and deploy Valkey and RustFS.
+Production profiles consume externally managed Kubernetes Secrets. The
+self-contained kind profile uses retained in-cluster generation for development
+credentials without Vault agent injection. The standalone `backend-operator`
+chart remains available for existing two-chart installations, but it is not a
+dependency of this chart.
 
 ## Self-contained kind quick start
 
@@ -215,8 +217,8 @@ referenced Secret in the compute release namespace. Its `token` key must contain
 the current 43- or 64-character URL-safe backend token; `previous-token` may
 contain a distinct old token during rotation.
 
-Copy the profile and replace its example `computePlane.global.serviceUrl` and
-`accountTokenSecret` values, then install it:
+Copy the profile and replace its example `externalUrl` and
+`compute.accountTokenSecret` values, then install it:
 
 ```bash
 helm dependency build deployments/charts/osmo
@@ -229,10 +231,16 @@ helm --kube-context <compute-context> upgrade --install osmo-compute \
   --timeout 10m
 ```
 
-Empty `computePlane.global.agentNamespace` and `backendNamespace` values resolve
-to the Helm release namespace. This is the WDP-01/WDP-02 boundary: the compute
-plane consumes an external gateway URL and Kubernetes Secret, and has no
-dependency on Vault-agent annotations or control-plane workloads.
+An empty `compute.namespace` resolves to the Helm release namespace. This is
+the WDP-01/WDP-02 boundary: a compute-only release uses `externalUrl` to reach
+the external control plane and consumes `compute.accountTokenSecret` from its
+release namespace. It has no dependency on Vault-agent annotations or
+control-plane workloads.
+
+In a converged release, listener, worker, and their readiness init containers
+instead use the release gateway Service DNS and port. They do not hairpin
+through `externalUrl`; that value remains the public URL used by clients and
+control-plane configuration.
 
 ## Embedded Valkey
 
@@ -333,7 +341,7 @@ above.
 ## Optional configuration
 
 - Configure the OSMO image registry under `imageRegistry`, a shared
-  control-plane tag under `imageTag`, pull credentials under
+  OSMO component tag under `imageTag`, pull credentials under
   `imagePullSecrets`, and workflow init/client images under `runtimeImage`.
   The chart writes those workflow images into the managed API configuration
   unless `configuration.workflow.backend_images` overrides them. Configure
@@ -343,6 +351,11 @@ above.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,
   `gateway`, and `podDefaults`.
+- Configure compute-wide namespaces, backend identity, authentication Secret,
+  network policy, priority classes, and readiness gate under `compute`.
+  Listener, worker, and test-runner workload settings live under
+  `services.backendListener`, `services.backendWorker`, and
+  `services.backendTestRunner`.
 - Enable Prometheus Operator PodMonitors with `monitoring.podMonitor.enabled`.
 - Apply shared resource metadata to OSMO-owned resources with `commonLabels`
   and `commonAnnotations`; configure dependency metadata under `valkey`.

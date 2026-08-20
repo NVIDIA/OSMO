@@ -1,0 +1,81 @@
+{{- if and .Values.planes.compute.enabled .Values.services.backendTestRunner.enabled .Values.compute.backendTestNamespace }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- $component := .Values.services.backendTestRunner }}
+{{- $name := include "osmo.component.fullname" (dict "root" . "suffix" "backend-test-runner") }}
+{{- if $component.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "osmo.compute.testRunnerServiceAccountName" . }}
+  namespace: {{ .Values.compute.backendTestNamespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "backend-test-runner") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $component.serviceAccount.annotations)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: {{ $component.serviceAccount.automountServiceAccountToken }}
+---
+{{- end }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.compute.backendTestNamespace }}
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "delete", "create", "get", "watch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.compute.backendTestNamespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "osmo.compute.testRunnerServiceAccountName" . }}
+  namespace: {{ .Values.compute.backendTestNamespace }}
+roleRef:
+  kind: Role
+  name: {{ $name }}
+  apiGroup: rbac.authorization.k8s.io
+{{- if .Values.compute.enableClusterRoles }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["patch", "get", "list"]
+- apiGroups: [""]
+  resources: ["nodes/status"]
+  verbs: ["patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "osmo.compute.testRunnerServiceAccountName" . }}
+  namespace: {{ .Values.compute.backendTestNamespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ $name }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- range $component.extraRoles }}
+---
+{{ toYaml . }}
+{{- end }}
+{{- end }}

@@ -20,17 +20,16 @@ embeddedDependencies:
   kaiScheduler:
     enabled: false
 
-computePlane:
-  global:
-    osmoImageTag: latest
-    serviceUrl: https://osmo.example.com
-    loginMethod: token
-    accountTokenSecret: osmo-backend-token
-    accountTokenSecretKey: token
-    agentNamespace: ''
-    backendName: default
-    backendNamespace: ''
-  podMonitor:
-    enabled: false
+externalUrl: https://osmo.example.com
+
+compute:
+  backendName: default
+  namespace: ''
+  backendTestNamespace: ''
+  loginMethod: token
+  accountTokenSecret: osmo-backend-token
+  accountTokenSecretKey: token
+
+services:
   backendTestRunner:
     enabled: false

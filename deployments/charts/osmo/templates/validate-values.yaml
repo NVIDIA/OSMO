@@ -3,6 +3,20 @@
 {{- if and (not .Values.planes.control.enabled) (not .Values.planes.compute.enabled) -}}
 {{- fail "at least one of planes.control.enabled or planes.compute.enabled must be true" -}}
 {{- end -}}
+{{- if .Values.planes.compute.enabled -}}
+{{- if ne .Values.compute.loginMethod "token" -}}
+{{- fail "compute.loginMethod must be token; compute authentication uses a Kubernetes Secret" -}}
+{{- end -}}
+{{- if not .Values.compute.accountTokenSecret -}}
+{{- fail "compute.accountTokenSecret is required when planes.compute.enabled=true" -}}
+{{- end -}}
+{{- if and (not .Values.planes.control.enabled) (not .Values.externalUrl) -}}
+{{- fail "externalUrl is required when the compute plane connects to an external control plane" -}}
+{{- end -}}
+{{- if and .Values.services.backendTestRunner.enabled (not .Values.compute.backendTestNamespace) -}}
+{{- fail "compute.backendTestNamespace is required when services.backendTestRunner.enabled=true" -}}
+{{- end -}}
+{{- end -}}
 {{- if and
   (not .Values.planes.control.enabled)
   (or
@@ -30,7 +44,7 @@
 {{- fail (printf "duplicate backend API token credential name %q" $credentialName) -}}
 {{- end -}}
 {{- $_ := set $backendTokenCredentialNames $credentialName true -}}
-{{- $secretName := include "osmo.backend-api-token-secret-name" . -}}
+{{- $secretName := include "osmo.backendApiTokenSecretName" . -}}
 {{- if or
   (gt (len $secretName) 253)
   (not (regexMatch "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$" $secretName)) -}}

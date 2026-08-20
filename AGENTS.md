@@ -120,7 +120,7 @@ bash deployments/charts/service/tests/render-tests.sh
 
 | Chart | Purpose |
 |-------|---------|
-| `osmo/` | Unified chart with directly owned control-plane services and gateway templates plus an optional composed compute plane; supports control-only, compute-only, and converged profiles. |
+| `osmo/` | Unified chart with directly owned control-plane, gateway, and compute-plane templates; supports control-only, compute-only, and converged profiles. |
 | `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
 | `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
 

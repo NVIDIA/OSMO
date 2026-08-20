@@ -226,7 +226,7 @@ spec:
         {{- range .Values.services.backendApiTokens.credentials }}
         - name: backend-token-{{ .name }}
           secret:
-            secretName: {{ include "osmo.backend-api-token-secret-name" . }}
+            secretName: {{ include "osmo.backendApiTokenSecretName" . }}
         {{- end }}
         {{- end }}
 ---

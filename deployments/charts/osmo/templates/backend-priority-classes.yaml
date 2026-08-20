@@ -1,0 +1,14 @@
+{{- if and .Values.planes.compute.enabled .Values.compute.priorityClasses.enabled }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- range .Values.compute.priorityClasses.classes }}
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .name }}
+value: {{ .value }}
+globalDefault: false
+description: {{ .description | quote }}
+{{- end }}
+{{- end }}

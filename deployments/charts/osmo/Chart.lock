@@ -1,7 +1,4 @@
 dependencies:
-- name: backend-operator
-  repository: file://../backend-operator
-  version: 1.4.0
 - name: valkey
   repository: oci://ghcr.io/valkey-io/valkey-helm
   version: 0.11.0
@@ -11,5 +8,5 @@ dependencies:
 - name: rustfs
   repository: https://charts.rustfs.com
   version: 1.0.0-rc.2
-digest: sha256:6c0624c20540e2fb4769e86c2b364685897de3a8d71fae8be7670816577eac35
-generated: "2026-08-19T17:04:38.333200612-04:00"
+digest: sha256:2a8b5fda3ed074ef65431be8f9a7dfa5a16dcb0c413b642feca4cda6d69e86f5
+generated: "2026-08-17T16:01:07.925530044-04:00"

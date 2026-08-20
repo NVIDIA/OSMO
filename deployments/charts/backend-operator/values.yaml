@@ -71,22 +71,19 @@ global:
   ##
   loginMethod: password
 
-  ## Kubernetes namespace where backend operators will be deployed. Leave
-  ## empty to use the Helm release namespace.
+  ## Kubernetes namespace where backend operators will be deployed
   ##
-  agentNamespace: ""
+  agentNamespace: osmo
 
   ## Name identifier for this backend
   ##
   backendName: default
 
-  ## Kubernetes namespace where backend workloads will be scheduled. Leave
-  ## empty to use the effective agent namespace.
+  ## Kubernetes namespace where backend workloads will be scheduled
   ##
-  backendNamespace: ""
+  backendNamespace: osmo-namespace
 
-  ## Kubernetes namespace where backend cluster validation tests will be
-  ## deployed. Leave empty to disable backend test synchronization.
+  ## Kubernetes namespace where backend cluster validation tests will be deployed
   ##
   backendTestNamespace: null
 

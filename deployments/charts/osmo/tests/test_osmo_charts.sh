@@ -317,6 +317,9 @@ require_downloaded_dependencies_untracked() {
 }
 
 require_clean_osmo_sources() {
+    require_not_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: backend-operator"
+    require_not_contains "$CHARTS_ROOT/osmo/Chart.lock" "name: backend-operator"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" 'appVersion: "6.3.1"'
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: cluster"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.8.0"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
@@ -377,9 +380,6 @@ test_control_umbrella() {
     local rendered="$TEST_DIRECTORY/osmo.yaml"
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
-    cp -R "$CHARTS_ROOT/backend-operator" "$charts_copy/backend-operator"
-    helm package "$charts_copy/backend-operator" \
-        --destination "$charts_copy/osmo/charts" >/dev/null
     if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
@@ -423,10 +423,77 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "secretName: osmo-backend-token"
 
+    helm_template split-custom "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/compute-custom-values.yaml" \
+        >"$TEST_DIRECTORY/split-custom.yaml"
+    resource_document "$TEST_DIRECTORY/split-custom.yaml" Deployment \
+        split-custom-osmo-backend-listener \
+        >"$TEST_DIRECTORY/split-custom-listener.yaml"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "image: registry.example.com/osmo/custom/backend-listener:review"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "serviceAccountName: custom-listener"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "example.com/common: compute"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "example.com/pod-default: compute"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "example.com/listener-annotation: custom"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "example.com/node-pool: compute"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "https://public-control.example.com"
+    require_contains "$TEST_DIRECTORY/split-custom-listener.yaml" \
+        "secretName: custom-backend-token"
+    require_no_resource "$TEST_DIRECTORY/split-custom.yaml" Role \
+        split-custom-osmo-backend-worker-backend-tests
+
+    helm_template compute-features "$charts_copy/osmo" \
+        --namespace compute-system \
+        --api-versions monitoring.coreos.com/v1 \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/compute-custom-values.yaml" \
+        --set compute.networkPolicy.enabled=true \
+        --set compute.priorityClasses.enabled=true \
+        --set compute.extraConfigMaps.example.data.key=value \
+        --set compute.backendTestNamespace=backend-tests \
+        --set monitoring.podMonitor.enabled=true \
+        --set services.backendTestRunner.enabled=true \
+        >"$TEST_DIRECTORY/compute-features.yaml"
+    require_resource "$TEST_DIRECTORY/compute-features.yaml" NetworkPolicy \
+        compute-features-osmo-workflow-network-policy
+    require_resource "$TEST_DIRECTORY/compute-features.yaml" PriorityClass \
+        osmo-high
+    require_resource "$TEST_DIRECTORY/compute-features.yaml" PodMonitor \
+        compute-features-osmo-backend-monitor
+    require_resource "$TEST_DIRECTORY/compute-features.yaml" ConfigMap \
+        compute-features-osmo-example
+    require_resource "$TEST_DIRECTORY/compute-features.yaml" ConfigMap \
+        compute-features-osmo-backend-test-runner-template
+    require_resource "$TEST_DIRECTORY/compute-features.yaml" ServiceAccount \
+        compute-features-osmo-backend-test-runner
+    require_resource "$TEST_DIRECTORY/compute-features.yaml" Role \
+        compute-features-osmo-backend-worker-backend-tests
+    resource_document "$TEST_DIRECTORY/compute-features.yaml" ConfigMap \
+        compute-features-osmo-backend-test-runner-template \
+        >"$TEST_DIRECTORY/compute-features-test-template.yaml"
+    require_occurrences "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "example.com/common: compute" 3
+    require_occurrences "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "example.com/common-annotation: compute" 3
+    require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "example.com/pod-default: compute"
+    require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "example.com/pod-annotation: compute"
+    require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "fsGroupChangePolicy: OnRootMismatch"
+
     helm_template osmo "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        --set externalUrl=https://public-control.example.com \
         >"$TEST_DIRECTORY/kind-self-contained.yaml"
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-api"
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
@@ -463,6 +530,15 @@ test_control_umbrella() {
         "client: nvcr.io/nvidia/osmo/client:latest"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "http://osmo-gateway"
+    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Deployment \
+        osmo-osmo-backend-listener \
+        >"$TEST_DIRECTORY/kind-self-contained-listener.yaml"
+    require_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
+        "http://osmo-gateway:80"
+    require_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
+        "app: osmo-osmo-backend-listener"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
+        "https://public-control.example.com"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "image: nvcr.io/nvidia/osmo/service:latest"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
@@ -479,7 +555,7 @@ test_control_umbrella() {
         "/home/"
     require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "currentMek:"
-    require_contains "$charts_copy/osmo/Chart.yaml" 'appVersion: "6.4.0"'
+    require_contains "$charts_copy/osmo/Chart.yaml" 'appVersion: "6.3.1"'
 
     helm_template portable-kind "$charts_copy/osmo" \
         --namespace osmo \
@@ -513,12 +589,8 @@ test_control_umbrella() {
         "$TEST_DIRECTORY/osmo-package.txt"; then
         fail "packaged OSMO chart does not contain RustFS 1.0.0-rc.2"
     fi
-    if ! grep -Fq "osmo/charts/backend-operator/Chart.yaml" \
-        "$TEST_DIRECTORY/osmo-package.txt" && \
-        ! grep -Fq "osmo/charts/backend-operator-1.4.0.tgz" \
-        "$TEST_DIRECTORY/osmo-package.txt"; then
-        fail "packaged OSMO chart does not contain backend-operator 1.4.0"
-    fi
+    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/charts/backend-operator"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "/migration-job.yaml"
@@ -770,7 +842,7 @@ EOF
         "endpoint: s3://osmo-apps/apps"
     require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
         "secretKey: object-storage.yaml"
-    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.4.0"
+    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
@@ -1077,7 +1149,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
         "app.kubernetes.io/instance: osmo"
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
-        "app.kubernetes.io/version: 6.4.0"
+        "app.kubernetes.io/version: 6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
         "app.kubernetes.io/managed-by: Helm"
     require_contains "$TEST_DIRECTORY/osmo-api-pod-labels.yaml" \
@@ -2585,7 +2657,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "image: nvcr.io/nvidia/osmo/mcp-self-hosted:6.4.0"
+        "image: nvcr.io/nvidia/osmo/mcp-self-hosted:6.3.1"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 10
 
@@ -2830,21 +2902,21 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$TEST_DIRECTORY/osmo-image-defaults.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/service:6.4.0"
+        "image: nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/web-ui:6.4.0"
+        "image: nvcr.io/nvidia/osmo/web-ui:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/worker:6.4.0"
+        "image: nvcr.io/nvidia/osmo/worker:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/router:6.4.0"
+        "image: nvcr.io/nvidia/osmo/router:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/logger:6.4.0"
+        "image: nvcr.io/nvidia/osmo/logger:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/agent:6.4.0"
+        "image: nvcr.io/nvidia/osmo/agent:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/delayed-job-monitor:6.4.0"
+        "image: nvcr.io/nvidia/osmo/delayed-job-monitor:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
-        "image: nvcr.io/nvidia/osmo/authz-sidecar:6.4.0"
+        "image: nvcr.io/nvidia/osmo/authz-sidecar:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
         'image: "docker.io/envoyproxy/envoy:v1.38.1"'
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
@@ -2856,7 +2928,7 @@ EOF
         --set imagePullSecrets[0].name=mirror-secret \
         >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
-        "image: mirror.example.com/nvidia/osmo/service:6.4.0"
+        "image: mirror.example.com/nvidia/osmo/service:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
         'image: "mirror.example.com/envoyproxy/envoy:v1.38.1"'
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
@@ -2884,7 +2956,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
-        "image: osmo-mirror.example.com/nvidia/osmo/service:6.4.0"
+        "image: osmo-mirror.example.com/nvidia/osmo/service:6.3.1"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "valkey-mirror.example.com"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
@@ -2969,9 +3041,9 @@ EOF
         --namespace compute-system \
         --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
-        --set computePlane.global.serviceUrl=https://osmo.example.com \
-        --set computePlane.global.loginMethod=token \
-        --set computePlane.global.accountTokenSecret=osmo-backend-token \
+        --set externalUrl=https://osmo.example.com \
+        --set compute.loginMethod=token \
+        --set compute.accountTokenSecret=osmo-backend-token \
         >"$TEST_DIRECTORY/compute-only.yaml"
     require_deployment "$TEST_DIRECTORY/compute-only.yaml" \
         "compute-only-osmo-backend-listener"
@@ -2981,6 +3053,16 @@ EOF
         "compute-only-osmo-api"
     require_not_contains "$TEST_DIRECTORY/compute-only.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
+
+    if helm_template invalid-test-runner-enabled "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set compute.backendTestNamespace=backend-tests \
+        --set-string services.backendTestRunner.enabled=not-a-boolean \
+        >"$TEST_DIRECTORY/invalid-test-runner-enabled.out" 2>&1; then
+        fail "expected a non-boolean backend test runner enabled value to fail"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-test-runner-enabled.out" \
+        "services.backendTestRunner.enabled"
 
     if helm_template no-planes "$charts_copy/osmo" \
         --set planes.control.enabled=false \
@@ -2995,7 +3077,8 @@ EOF
         --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
         --set embeddedDependencies.valkey.enabled=true \
-        --set computePlane.global.serviceUrl=https://osmo.example.com \
+        --set externalUrl=https://osmo.example.com \
+        --set compute.accountTokenSecret=osmo-backend-token \
         >"$TEST_DIRECTORY/compute-with-embedded.out" 2>&1; then
         fail "expected compute-only embedded dependencies to fail"
     fi

@@ -1,0 +1,49 @@
+{{- if and .Values.planes.compute.enabled .Values.monitoring.podMonitor.enabled }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "backend-monitor") }}
+  namespace: {{ include "osmo.compute.agentNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "compute-monitoring") | nindent 4 }}
+    {{- with .Values.monitoring.podMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.monitoring.podMonitor.annotations)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  podMetricsEndpoints:
+  - interval: {{ .Values.monitoring.podMonitor.interval }}
+    scrapeTimeout: {{ .Values.monitoring.podMonitor.scrapeTimeout }}
+    scheme: {{ .Values.monitoring.podMonitor.scheme }}
+    port: metrics
+    path: /metrics
+    honorLabels: {{ .Values.monitoring.podMonitor.honorLabels }}
+    {{- with .Values.monitoring.podMonitor.tlsConfig }}
+    tlsConfig:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.monitoring.podMonitor.relabelings }}
+    relabelings:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.monitoring.podMonitor.metricRelabelings }}
+    metricRelabelings:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  podTargetLabels:
+    {{- toYaml .Values.monitoring.podMonitor.podTargetLabels | nindent 4 }}
+  selector:
+    matchExpressions:
+    - key: app.kubernetes.io/component
+      operator: In
+      values:
+      - backend-listener
+      - backend-worker
+    matchLabels:
+      {{- include "osmo.selectorLabels" . | nindent 6 }}
+{{- end }}

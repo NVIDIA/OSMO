@@ -21,7 +21,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  namespace: {{ include "backend-operator.agentNamespace" . }}
+  namespace: {{ .Values.global.agentNamespace }}
   name: {{ include "backend-operator.worker.serviceAccountName" . }}
 ---
 # ClusterRole for Backend Worker (Cluster-scoped resources)
@@ -48,7 +48,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: {{ include "backend-operator.worker.serviceAccountName" . }}
-  namespace: {{ include "backend-operator.agentNamespace" . }}
+  namespace: {{ .Values.global.agentNamespace }}
 roleRef:
   kind: ClusterRole
   name: {{ $name }}-worker
@@ -60,7 +60,7 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ $name }}-worker
-  namespace: {{ include "backend-operator.backendNamespace" . }}
+  namespace: {{ .Values.global.backendNamespace }}
 rules:
 - apiGroups: [""]
   resources: ["secrets", "pods", "services"]
@@ -80,22 +80,22 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ $name }}-worker
-  namespace: {{ include "backend-operator.backendNamespace" . }}
+  namespace: {{ .Values.global.backendNamespace }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "backend-operator.worker.serviceAccountName" . }}
-  namespace: {{ include "backend-operator.agentNamespace" . }}
+  namespace: {{ .Values.global.agentNamespace }}
 roleRef:
   kind: Role
   name: {{ $name }}-worker
   apiGroup: rbac.authorization.k8s.io
-{{- if .Values.global.backendTestNamespace }}
 ---
+{{- if .Values.global.backendTestNamespace }}
 # Role for Backend Worker (test namespace)
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ $name }}-worker-backend-tests
+  name: {{ $name }}-worker
   namespace: {{ .Values.global.backendTestNamespace }}
 rules:
 - apiGroups: [""]
@@ -110,15 +110,16 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ $name }}-worker-backend-tests
+  name: {{ $name }}-worker
   namespace: {{ .Values.global.backendTestNamespace }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "backend-operator.worker.serviceAccountName" . }}
-  namespace: {{ include "backend-operator.agentNamespace" . }}
+  namespace: {{ .Values.global.agentNamespace }}
 roleRef:
   kind: Role
-  name: {{ $name }}-worker-backend-tests
+  name: {{ $name }}-worker
   apiGroup: rbac.authorization.k8s.io
+---
 {{- end }}
 {{- end }}

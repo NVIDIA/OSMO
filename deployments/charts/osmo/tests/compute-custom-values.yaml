@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+externalUrl: https://public-control.example.com
+
+imageRegistry: registry.example.com/osmo
+imageTag: review
+imagePullSecrets:
+- name: compute-pull-secret
+
+commonLabels:
+  example.com/common: compute
+commonAnnotations:
+  example.com/common-annotation: compute
+podDefaults:
+  labels:
+    example.com/pod-default: compute
+  annotations:
+    example.com/pod-annotation: compute
+  podSecurityContext:
+    fsGroupChangePolicy: OnRootMismatch
+  nodeSelector:
+    example.com/node-pool: compute
+
+compute:
+  backendName: custom
+  namespace: custom-workflows
+  backendTestNamespace: disabled-backend-tests
+  loginMethod: token
+  accountTokenSecret: custom-backend-token
+
+services:
+  backendListener:
+    image:
+      repository: custom/backend-listener
+    serviceAccount:
+      name: custom-listener
+      create: true
+    pod:
+      annotations:
+        example.com/listener-annotation: custom
+  backendWorker:
+    image:
+      repository: custom/backend-worker
+    serviceAccount:
+      name: custom-worker
+      create: true
+  backendTestRunner:
+    enabled: false

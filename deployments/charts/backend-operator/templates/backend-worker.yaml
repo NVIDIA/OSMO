@@ -21,7 +21,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
-  namespace: {{ include "backend-operator.agentNamespace" . }}
+  namespace: {{ .Values.global.agentNamespace }}
   labels:
     app: {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
 spec:
@@ -95,7 +95,7 @@ spec:
         - --backend
         - {{ .Values.global.backendName }}
         - --namespace
-        - {{ include "backend-operator.backendNamespace" . }}
+        - {{ .Values.global.backendNamespace }}
         - --log_level
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
@@ -110,8 +110,10 @@ spec:
         - '{{ .Values.global.nodeConditionPrefix }}'
         - --progress_iter_frequency
         - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
+        {{- if .Values.global.backendTestNamespace }}
         - --test_runner_namespace
-        - {{ .Values.global.backendTestNamespace | default "" | quote }}
+        - {{ .Values.global.backendTestNamespace | quote }}
+        {{- end }}
         {{- if .Values.backendTestRunner.enabled }}
         - --test_runner_cronjob_spec_file
         - "/tmp/backend-test-runner/spec.yaml"

@@ -19,7 +19,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: osmo-workflow-network-policy
-  namespace: {{ include "backend-operator.backendNamespace" . }}
+  namespace: {{ .Values.global.backendNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -42,7 +42,7 @@ spec:
   - to:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: {{ include "backend-operator.backendNamespace" . }}
+          kubernetes.io/metadata.name: {{ .Values.global.backendNamespace }}
 
   # Allow DNS. Works correctly on Cilium and Calico eBPF. For iptables-based CNIs,
   # add an explicit ipBlock /32 for the kube-dns service IP via additionalEgressRules.
