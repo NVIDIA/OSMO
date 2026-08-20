@@ -200,6 +200,14 @@ must select exactly one source so chart-managed generation is always explicit.
 {{- define "osmo.mek-adoption-env" -}}
 - name: OSMO_ALLOW_EXISTING_MEK_ADOPTION
   value: {{ .Values.services.masterEncryptionKey.allowExistingCiphertextAdoption | quote }}
+- name: OSMO_MEK_MANAGEMENT_MODE
+  value: {{ .Values.services.masterEncryptionKey.managementMode | quote }}
+- name: OSMO_MEK_SECRET_NAME
+  value: {{ .Values.services.masterEncryptionKey.existingSecret.name | quote }}
+- name: OSMO_MEK_SECRET_KEY
+  value: {{ .Values.services.masterEncryptionKey.existingSecret.key | quote }}
+- name: OSMO_MEK_INSTALLATION_ID
+  value: {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
 {{- end -}}
 
 {{- define "osmo.mek-consumer-env" -}}

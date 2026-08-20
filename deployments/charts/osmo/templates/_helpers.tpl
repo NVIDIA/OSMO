@@ -298,6 +298,14 @@ data:
 {{- define "osmo.secrets.mekAdoptionEnv" -}}
 - name: OSMO_ALLOW_EXISTING_MEK_ADOPTION
   value: {{ .Values.secrets.masterEncryptionKey.allowExistingCiphertextAdoption | quote }}
+- name: OSMO_MEK_MANAGEMENT_MODE
+  value: {{ .Values.secrets.masterEncryptionKey.managementMode | quote }}
+- name: OSMO_MEK_SECRET_NAME
+  value: {{ .Values.secrets.masterEncryptionKey.existingSecret.name | quote }}
+- name: OSMO_MEK_SECRET_KEY
+  value: {{ .Values.secrets.masterEncryptionKey.existingSecret.key | quote }}
+- name: OSMO_MEK_INSTALLATION_ID
+  value: {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
 {{- end -}}
 
 {{- define "osmo.secrets.mekConsumerEnv" -}}

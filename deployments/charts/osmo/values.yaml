@@ -189,15 +189,37 @@ secrets:
       credentials: object-storage.yaml
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
+    managementMode: external
     existingSecret:
       name: ''
       key: mek.yaml
-    # Opt-in convenience for disposable test installs. The hook creates the
-    # named Secret once inside Kubernetes and never regenerates it on upgrade.
     bootstrap:
       enabled: false
-      image: alpine/kubectl:1.33.4
+      attempt: "1"
       imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
+    rebind:
+      enabled: false
+      attempt: "1"
+    ownershipRelease:
+      enabled: false
+      attempt: "1"
+    ownershipReacquire:
+      enabled: false
+      attempt: "1"
+    rotation:
+      requestId: ''
+      attempt: "1"
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
+    # Recovery is a separate, credential-fenced attempt. Before enabling it,
+    # clear rotation.requestId and upgrade once so Helm removes the failed
+    # rotation Job's ServiceAccount, Role, and RoleBinding.
+    recovery:
+      enabled: false
+      attempt: "1"
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 300
     # Enable only for the first upgrade after every legacy OSMO writer is stopped.
     allowExistingCiphertextAdoption: false
   # Optional password used to bootstrap the named administrator account.

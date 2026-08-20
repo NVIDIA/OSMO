@@ -28,8 +28,8 @@ global:
 
 services:
   masterEncryptionKey:
+    managementMode: osmo
     bootstrap:
-      # Safe only for this disposable quick-start's new, empty PostgreSQL data.
       enabled: true
 
   configFile:

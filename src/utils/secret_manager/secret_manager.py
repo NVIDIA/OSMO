@@ -212,6 +212,14 @@ class SecretManager:
         with self._keyring_lock:
             return dict(self._keyring.fingerprints)
 
+    def fingerprint_bundle_digest(self) -> str:
+        """Return a stable, non-secret identity for the complete loaded MEK bundle."""
+        with self._keyring_lock:
+            descriptor = json.dumps(
+                dict(self._keyring.fingerprints), separators=(",", ":"), sort_keys=True
+            ).encode("utf-8")
+        return hashlib.sha256(descriptor).hexdigest()
+
     def _stat_file(self) -> Tuple[int, int, int, int]:
         file_stat = os.stat(self.mek_file)
         return (file_stat.st_dev, file_stat.st_ino, file_stat.st_mtime_ns, file_stat.st_size)

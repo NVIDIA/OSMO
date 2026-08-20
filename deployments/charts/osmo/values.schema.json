@@ -922,6 +922,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "managementMode": { "type": "string", "enum": ["external", "osmo"] },
         "existingSecret": {
           "type": "object",
           "additionalProperties": false,
@@ -936,17 +937,70 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "image": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "minLength": 1 },
             "imagePullPolicy": {
               "type": "string",
               "enum": ["Always", "IfNotPresent", "Never"]
-            }
+            },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
           },
-          "required": ["enabled", "image", "imagePullPolicy"]
+          "required": ["enabled", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
+        },
+        "rebind": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "attempt": { "type": "string", "minLength": 1 }
+          },
+          "required": ["enabled", "attempt"]
+        },
+        "ownershipRelease": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "attempt": { "type": "string", "minLength": 1 }
+          },
+          "required": ["enabled", "attempt"]
+        },
+        "ownershipReacquire": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "attempt": { "type": "string", "minLength": 1 }
+          },
+          "required": ["enabled", "attempt"]
+        },
+        "rotation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requestId": { "type": "string" },
+            "attempt": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["requestId", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
+        },
+        "recovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "attempt": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["enabled", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
         },
         "allowExistingCiphertextAdoption": { "type": "boolean" }
       },
-      "required": ["existingSecret", "bootstrap", "allowExistingCiphertextAdoption"]
+      "required": ["managementMode", "existingSecret", "bootstrap", "rebind", "ownershipRelease", "ownershipReacquire", "rotation", "recovery", "allowExistingCiphertextAdoption"]
     },
     "postgresqlSecretReference": {
       "type": "object",

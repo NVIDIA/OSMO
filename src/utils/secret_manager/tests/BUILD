@@ -10,3 +10,12 @@ osmo_py_test(
         "//src/utils/secret_manager",
     ],
 )
+
+osmo_py_test(
+    name = "test_mek_lifecycle",
+    srcs = ["test_mek_lifecycle.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/secret_manager:mek_lifecycle",
+    ],
+)

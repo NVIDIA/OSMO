@@ -116,6 +116,7 @@ py_test(
         "//src/lib/utils:osmo_errors",
         "//src/utils/connectors:connectors",
         "//src/utils/secret_manager",
+        "//src/utils/secret_manager:mek_lifecycle",
     ],
     local = True,
     size = "medium",

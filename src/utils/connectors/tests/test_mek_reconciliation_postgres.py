@@ -25,7 +25,10 @@ import subprocess
 import tempfile
 import threading
 import time
+import types
+from typing import Any, cast
 import unittest
+from unittest import mock
 
 from jwcrypto import jwk, jwe  # type: ignore
 import psycopg2  # type: ignore
@@ -33,6 +36,7 @@ import psycopg2  # type: ignore
 from src.lib.utils import osmo_errors
 from src.utils import connectors
 from src.utils.secret_manager import SecretManager
+from src.utils.secret_manager import mek_lifecycle
 
 
 def _available_port():
@@ -141,7 +145,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         self.database._mek_consumer_id = "integration-pod"
         self.database._mek_consumer_name = "integration"
         self.database._last_logged_mek_generation = ""
-        self.database._mek_reconciler_stop = threading.Event()
+        self.database._mek_monitor_stop = threading.Event()
         for command in (
             "CREATE EXTENSION IF NOT EXISTS hstore;",
             "DROP TABLE IF EXISTS public.mek_consumer_status, "
@@ -158,6 +162,9 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             "CREATE TABLE public.mek_keyring_adoption ("
             "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), generation TEXT NOT NULL, "
             "current_kid TEXT NOT NULL, loaded_kids TEXT[] NOT NULL, "
+            "secret_name TEXT NOT NULL DEFAULT '', secret_key TEXT NOT NULL DEFAULT '', "
+            "secret_uid TEXT NOT NULL DEFAULT '', installation_id TEXT NOT NULL DEFAULT '', "
+            "management_mode TEXT NOT NULL DEFAULT 'external', "
             "ready BOOLEAN NOT NULL DEFAULT FALSE, adopted_at TIMESTAMPTZ DEFAULT NOW());",
             "CREATE TABLE public.mek_rewrap_status ("
             "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), "
@@ -170,14 +177,10 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             "writes_allowed BOOLEAN NOT NULL DEFAULT TRUE);",
             "INSERT INTO public.mek_write_epoch(singleton, epoch, writes_allowed) "
             "VALUES(TRUE, 0, TRUE);",
-            "CREATE TABLE public.mek_rewrap_progress ("
-            "resource TEXT PRIMARY KEY, generation TEXT NOT NULL, "
-            "cursor_primary TEXT NOT NULL DEFAULT '', cursor_secondary TEXT NOT NULL DEFAULT '', "
-            "completed BOOLEAN NOT NULL DEFAULT FALSE, start_write_epoch BIGINT NOT NULL DEFAULT 0, "
-            "updated_at TIMESTAMPTZ DEFAULT NOW());",
             "CREATE TABLE public.mek_consumer_status ("
             "consumer_id TEXT PRIMARY KEY, consumer_name TEXT NOT NULL, generation TEXT NOT NULL, "
             "current_kid TEXT NOT NULL, loaded_kids TEXT[] NOT NULL, "
+            "registry_digest TEXT NOT NULL DEFAULT '', "
             "last_seen_at TIMESTAMPTZ DEFAULT NOW());",
             "CREATE OR REPLACE FUNCTION public.bump_mek_write_epoch() RETURNS trigger "
             "LANGUAGE plpgsql AS $$ BEGIN UPDATE public.mek_write_epoch SET epoch = epoch + 1 "
@@ -208,12 +211,6 @@ class TestMekReconciliationPostgres(unittest.TestCase):
     def tearDown(self):
         assert self.database._pool is not None
         self.database._pool.closeall()
-
-    def _complete_rewrap(self, callback, label):
-        for _ in range(20):
-            if callback():
-                return
-        self.fail(f"{label} did not complete within 20 bounded batches")
 
     def test_historical_adoption_rotation_rewrap_resume_and_leadership(self):
         self.database.secret_manager.add_new_user("user")
@@ -263,25 +260,11 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         _write_keyring(self.keyring_path, "new", {"old": self.old_mek, "new": self.new_mek})
         self.assertTrue(self.database.secret_manager.reload_if_changed())
         self.database._init_mek_key_registry()
-        self._complete_rewrap(self.database._rewrap_ueks, "UEK rewrap")
-        self._complete_rewrap(self.database._rewrap_configs, "config rewrap")
+        self.database.rewrap_mek_references()
         counts, blockers = self.database._scan_mek_references()
         self.assertEqual(blockers, [])
         self.assertEqual(counts["old"], 0)
         self.assertGreaterEqual(counts["new"], 3)
-
-        progress = self.database.execute_fetch_command(
-            "SELECT resource, completed FROM public.mek_rewrap_progress ORDER BY resource;",
-            (),
-            return_raw=True,
-        )
-        self.assertEqual(
-            progress,
-            [
-                {"resource": "configs", "completed": True},
-                {"resource": "ueks", "completed": True},
-            ],
-        )
 
         with self.database._get_connection(autocommit=True) as first, self.database._get_connection(
             autocommit=True
@@ -305,30 +288,82 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         token.deserialize(wrapper)
         self.assertEqual(token.jose_header["kid"], "new")
 
-        # A lagging write behind an in-progress cursor invalidates the pass and is swept.
-        epoch = self.database._mek_write_epoch()
-        self.database.execute_commit_command(
-            "UPDATE public.mek_rewrap_progress SET completed = FALSE, "
-            "cursor_primary = 'zzzz', cursor_secondary = 'zzzz', start_write_epoch = %s "
-            "WHERE resource = 'ueks';",
-            (epoch,),
-        )
+        # A lagging old-key write is swept by a new restart-from-zero invocation.
         self.database.execute_commit_command(
             "UPDATE ueks SET keys = keys || hstore(%s, %s) WHERE uid = 'user';",
             (user_key_id, old_wrapper),
         )
-        self.assertFalse(self.database._rewrap_ueks())
-        self._complete_rewrap(self.database._rewrap_ueks, "lagging UEK rewrap")
-
-        # A lagging write after completion also reopens the same generation.
-        self.database.execute_commit_command(
-            "UPDATE ueks SET keys = keys || hstore(%s, %s) WHERE uid = 'user';",
-            (user_key_id, old_wrapper),
-        )
-        self._complete_rewrap(self.database._rewrap_ueks, "completed UEK rewrap")
+        self.database.rewrap_mek_references()
         wrapper = self.database.read_uek("user", user_key_id)
         token.deserialize(wrapper)
         self.assertEqual(token.jose_header["kid"], "new")
+
+    def test_managed_bootstrap_persists_fence_until_binding_is_finalized(self):
+        keyring = mek_lifecycle._new_keyring("bootstrap")
+        secret = types.SimpleNamespace(
+            metadata=types.SimpleNamespace(
+                uid="secret-uid", resource_version="1",
+                annotations={
+                    mek_lifecycle._MANAGED_ANNOTATION: "osmo",
+                    mek_lifecycle._INSTALLATION_ANNOTATION: "osmo/release",
+                }),
+            data={
+                "mek.yaml": base64.b64encode(keyring.encoded).decode("ascii")
+            },
+        )
+        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
+        lifecycle.config = cast(Any, types.SimpleNamespace(
+            namespace="osmo", secret_name="mek", secret_key="mek.yaml",
+            installation_id="osmo/release", postgres_host=str(self.socket_directory),
+            postgres_port=self.port, postgres_user="postgres", postgres_password="",
+            postgres_database_name="postgres"))
+        lifecycle.__dict__["_check_deadline"] = mock.Mock()
+        lifecycle.__dict__["_secret"] = mock.Mock(return_value=secret)
+
+        lifecycle._reserve_bootstrap(keyring, secret, allow_patch=False)
+        pending = self.database.execute_fetch_command(
+            "SELECT a.ready, a.management_mode, e.writes_allowed "
+            "FROM public.mek_keyring_adoption a CROSS JOIN public.mek_write_epoch e "
+            "WHERE a.singleton AND e.singleton;", (), return_raw=True)[0]
+        self.assertEqual(pending, {
+            "ready": False, "management_mode": "osmo", "writes_allowed": False})
+        with self.assertRaises(osmo_errors.OSMODatabaseError):
+            self.database.execute_commit_command(
+                "INSERT INTO configs(key, type, value) VALUES ('late', 'TEST', 'value');", ())
+
+        lifecycle._finalize_bootstrap(keyring, secret)
+
+        finalized = self.database.execute_fetch_command(
+            "SELECT a.ready, e.writes_allowed FROM public.mek_keyring_adoption a "
+            "CROSS JOIN public.mek_write_epoch e WHERE a.singleton AND e.singleton;",
+            (), return_raw=True)[0]
+        self.assertEqual(finalized, {"ready": True, "writes_allowed": True})
+
+    def test_unregistered_valid_config_jwe_is_never_rewritten(self):
+        self.database._init_mek_key_registry()
+        unknown_jwe = self.database.secret_manager.encrypt("unknown", "").value
+        unknown_value = json.dumps({"unregistered": unknown_jwe})
+        self.database.execute_commit_command(
+            "INSERT INTO configs(key, type, value) VALUES (%s, %s, %s);",
+            ("legacy", "DATASET", unknown_value))
+        _write_keyring(
+            self.keyring_path, "old", {"old": self.old_mek, "new": self.new_mek})
+        self.assertTrue(self.database.secret_manager.reload_if_changed())
+        self.database._init_mek_key_registry()
+        _write_keyring(
+            self.keyring_path, "new", {"old": self.old_mek, "new": self.new_mek})
+        self.assertTrue(self.database.secret_manager.reload_if_changed())
+        self.database._init_mek_key_registry()
+
+        self.database._rewrap_configs()
+
+        persisted = self.database.execute_fetch_command(
+            "SELECT value FROM configs WHERE key = 'legacy' AND type = 'DATASET';",
+            (), return_raw=True)[0]["value"]
+        self.assertEqual(unknown_value, persisted)
+        _, blockers = self.database._scan_mek_references()
+        self.assertIn(
+            "configs/DATASET/legacy.unregistered: unregistered compact JWE", blockers)
 
     def test_committed_adoption_fence_self_heals_before_bad_mount_is_rejected(self):
         self.database._init_mek_key_registry()

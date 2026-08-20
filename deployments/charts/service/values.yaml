@@ -111,21 +111,43 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
-  ## Master encryption key keyring. OSMO only reads this existing Secret; it
-  ## never patches or rotates it. For disposable test installations backed by
-  ## a new, empty database only, the opt-in bootstrap hook can create the
-  ## Secret once inside Kubernetes.
+  ## Master encryption key keyring. External mode is read-only. OSMO-managed
+  ## mode can populate a retained empty Secret for a new database and rotate it
+  ## only through an explicitly requested, fenced lifecycle Job.
   masterEncryptionKey:
+    # `external` is read-only. `osmo` enables database-aware initial generation
+    # and explicitly requested rotation for this exact Secret.
+    managementMode: external
     existingSecret:
       name: osmo-mek
       key: mek.yaml
     bootstrap:
-      # Disabled by default. Enabling this asserts that the database is new and
-      # empty; a Helm install may still point at retained data. The pre-install
-      # hook creates existingSecret only when absent; upgrades never regenerate it.
       enabled: false
-      image: alpine/kubectl:1.33.4
+      attempt: "1"
       imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
+    rebind:
+      enabled: false
+      attempt: "1"
+    ownershipRelease:
+      enabled: false
+      attempt: "1"
+    ownershipReacquire:
+      enabled: false
+      attempt: "1"
+    rotation:
+      requestId: ""
+      attempt: "1"
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
+    # Recovery is a separate, credential-fenced attempt. Before enabling it,
+    # clear rotation.requestId and upgrade once so Helm removes the failed
+    # rotation Job's ServiceAccount, Role, and RoleBinding.
+    recovery:
+      enabled: false
+      attempt: "1"
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 300
     # Enable only for the first upgrade after every legacy OSMO writer is stopped.
     allowExistingCiphertextAdoption: false
 

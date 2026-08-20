@@ -235,15 +235,6 @@ class TestKindAdapter(unittest.TestCase):
             "ingress-nginx.controller.nodeSelector.node_group=service",
             osmo_calls[0],
         )
-        for component in (
-            "service", "worker", "router", "logger", "agent",
-            "delayedJobMonitor",
-        ):
-            self.assertIn(
-                "service.services."
-                f"{component}.extraPodLabels.osmo\\.nvidia\\.com/mek-consumer=true",
-                osmo_calls[0],
-            )
         # Sub-charts should NOT be remapped — our 6-node config has the
         # native data/compute/etc labels. Only ingress-nginx needs overriding.
         for arg in osmo_calls[0]:

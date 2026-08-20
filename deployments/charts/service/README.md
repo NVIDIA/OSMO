@@ -42,9 +42,9 @@ or a new release name can still point at retained PostgreSQL data; in that case,
 restore or supply the MEK that encrypted that data instead of enabling
 bootstrap.
 
-If the bootstrap workload cannot start or complete, Helm removes the complete
-privileged hook resource set. A sanitized recovery ConfigMap remains for
-diagnosis and is removed automatically after a successful retry.
+The retained Secret is created empty by Helm; the namespace-scoped lifecycle
+Job generates the key and commits its identity to PostgreSQL before the OSMO
+pods can become healthy. It never places key material in Helm release state.
 
 ## Values
 
@@ -81,8 +81,14 @@ OSMO services write logs to standard streams for collection by the platform log 
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
 | `services.masterEncryptionKey.existingSecret.name` | Existing Kubernetes Secret containing the MEK keyring | `osmo-mek` |
 | `services.masterEncryptionKey.existingSecret.key` | Key containing the MEK YAML | `mek.yaml` |
-| `services.masterEncryptionKey.bootstrap.enabled` | Create a missing MEK Secret inside Kubernetes for disposable test installs with a new, empty database | `false` |
-| `services.masterEncryptionKey.bootstrap.image` | kubectl image used by the short-lived bootstrap hook | `alpine/kubectl:1.33.4` |
+| `services.masterEncryptionKey.managementMode` | `external` for an operator-owned read-only Secret; `osmo` for database-aware bootstrap and explicit rotation | `external` |
+| `services.masterEncryptionKey.bootstrap.enabled` | Populate the retained empty Secret for a new database; upgrades are validation-only | `false` |
+| `services.masterEncryptionKey.rebind.enabled` | Explicitly bind an identical recreated managed Secret UID | `false` |
+| `services.masterEncryptionKey.ownershipRelease.enabled` | Verify and hand an unchanged managed keyring back to external ownership | `false` |
+| `services.masterEncryptionKey.ownershipReacquire.enabled` | Explicitly restore managed ownership after a rolled-back handoff | `false` |
+| `services.masterEncryptionKey.rotation.requestId` | Unique non-secret ID that creates an on-demand rotation Job | `""` |
+| `services.masterEncryptionKey.rotation.attempt` | Retry identity used to create an immutable Job name | `"1"` |
+| `services.masterEncryptionKey.recovery.enabled` | Fence a failed rotation attempt after its old RBAC has been removed | `false` |
 | `services.masterEncryptionKey.allowExistingCiphertextAdoption` | One-time acknowledgement after stopping every legacy writer during an existing-install upgrade | `false` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
@@ -467,37 +473,84 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
 
 The router and all other control-plane database consumers read the MEK through
-the typed `services.masterEncryptionKey.existingSecret` reference. Production
-installs should create and manage that Secret outside Helm.
+the typed `services.masterEncryptionKey.existingSecret` reference.
 
-For a disposable test install, set
-`services.masterEncryptionKey.bootstrap.enabled=true`. A pre-install hook uses
-the configured kubectl image and a short-lived, namespace-scoped ServiceAccount
-to generate the initial 256-bit key inside Kubernetes and create the named
-Secret only when it is absent. MEK material is never rendered into Helm output
-or stored in Helm release state. The hook preserves an existing Secret, and a
-pre-upgrade hook fails if the Secret was deleted instead of silently generating
-a new key that cannot decrypt the database. The Secret persists after uninstall
-and must be deleted explicitly when the disposable environment is removed.
+Use `managementMode: external` when an operator owns the Secret. OSMO mounts it
+read-only and never creates, patches, or rotates it. Use `managementMode: osmo`
+only when this release should own that exact Secret. With
+`bootstrap.enabled: true`, Helm retains an empty placeholder and a
+namespace-scoped Job generates the initial 256-bit MEK only after proving that
+PostgreSQL has no protected ciphertext. It then commits the Secret UID, keyring
+identity, and fingerprint registry to PostgreSQL. Re-running an install cannot
+replace a retained database's MEK. On upgrade, the bootstrap Job is
+validation-only and its Role has `get`, not `patch`, access to the Secret.
 
-To rotate the MEK, update that Secret in two separate Kubernetes writes. First,
-add the new JWK to `meks` while leaving `currentMek` unchanged (prepare). Use
-`kubectl logs` on every live consumer and wait for its `MEK consumer status`
-record to list the new key in `loaded_kids`; the same state is durably recorded
-by Pod UID in `public.mek_consumer_status`. Then change only `currentMek`
-(activate). A pod whose projected volume skipped PREPARE accepts ACTIVATE only
-when the exact new key fingerprint was already registered by another consumer.
-OSMO preserves each UEK's key material and
-lazily rewraps its JWE under the active MEK; direct-MEK dynamic-config
-ciphertext is re-encrypted by a single database reconciler in bounded,
-durably checkpointed batches. Keep every previous
-MEK in the Secret. Removing a MEK is deliberately rejected because this release
-does not yet provide an HA-wide database write fence capable of proving safe
-retirement. Inspect `kubectl logs` for `MEK reconciliation status` records with
-per-key reference counts and blockers. OSMO never writes or rotates the Secret
-after bootstrap.
+If the managed Secret object must be recreated, restore the exact same keyring
+and ownership annotations, then run one upgrade with
+`services.masterEncryptionKey.rebind.enabled=true`. The pre-upgrade Job accepts
+only identical registered key material before recording the new UID. To hand
+the unchanged keyring back to an operator, set `managementMode=external` and
+`ownershipRelease.enabled=true` in the same upgrade. The pre-upgrade Job checks
+the live UID and complete fingerprint registry before recording the explicit
+handoff. The release is idempotent, so retry the same upgrade if Helm fails
+after the hook. A rollback remains available with the released keyring, but
+rotation is blocked until an explicit upgrade sets `managementMode=osmo` and
+`ownershipReacquire.enabled=true`. Otherwise retry the external handoff. Disable
+the one-shot ownership flag on the following upgrade. None of these operations
+can change the Secret.
 
-For the first upgrade of an existing database to this registry, stop every
+Rotation is explicit, not scheduled. Set a unique non-secret request ID:
+
+```bash
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-19
+```
+
+The Job first adds one key without changing `currentMek` (PREPARE), waits for
+the exact stable Pod set owned by every chart-defined MEK consumer Deployment
+to acknowledge the complete fingerprint registry, and then changes
+`currentMek` (ACTIVATE). After every pod acknowledges activation, it explicitly
+rewraps UEKs and direct-MEK configuration from the beginning in bounded,
+compare-and-swap batches. A PostgreSQL write epoch and a final authenticated
+inventory prove that no old-key reference was written behind the scan. User
+secret plaintext and UEK key material do not change; only their encrypted
+wrappers change.
+
+The Job is fenced by a fixed Kubernetes Lease, a PostgreSQL fencing epoch, and
+a unique Pod-bound ServiceAccount token. Before exit, it deletes its own exact
+RoleBinding, and a completion annotation prevents a later upgrade with the same
+request ID from recreating mutation RBAC. Clear `rotation.requestId` after a
+successful rotation. Previous MEKs remain in the Secret; this release
+deliberately does not retire keys. A keyring is capped at 32 MEKs, so further
+rotation stops safely at that limit rather than deleting a key.
+
+If an attempt terminates, do not reuse its credentials. First clear
+`rotation.requestId`, enable recovery, and upgrade. Helm removes the old Job,
+ServiceAccount, Role, and RoleBinding. The recovery Job verifies the old Pod UID
+is absent and uses a namespaced `LocalSubjectAccessReview` to prove that the old
+ServiceAccount can no longer read or patch the Secret before fencing it in
+PostgreSQL and releasing the Lease. Then disable recovery, restore the same
+request ID, and increment `rotation.attempt` to resume from the durable phase:
+
+```bash
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.rotation.requestId= \
+  --set services.masterEncryptionKey.recovery.enabled=true
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.recovery.enabled=false \
+  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-19 \
+  --set services.masterEncryptionKey.rotation.attempt=2
+```
+
+If a fresh bootstrap container never starts (for example, an image pull
+failure), its self-revocation cannot run. The RBAC remains owned by the failed
+Helm release: uninstall that exact failed release before retrying the install.
+Do not reuse its lifecycle ServiceAccount from another Pod.
+
+For the first `external`-mode upgrade of an existing database to this registry, stop every
 legacy OSMO control-plane Deployment first. Start the new release once with
 `--set services.masterEncryptionKey.allowExistingCiphertextAdoption=true`, wait
 for every new Deployment to become ready, then immediately set the value back

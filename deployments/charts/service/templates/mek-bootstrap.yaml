@@ -1,57 +1,99 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-{{- $bootstrap := .Values.services.masterEncryptionKey.bootstrap }}
-{{- if not (kindIs "map" $bootstrap) }}
-{{- fail "services.masterEncryptionKey.bootstrap must be an object" }}
-{{- end }}
-{{- if not (hasKey $bootstrap "enabled") }}
-{{- fail "services.masterEncryptionKey.bootstrap.enabled is required" }}
-{{- end }}
-{{- if not (kindIs "bool" (get $bootstrap "enabled")) }}
-{{- fail "services.masterEncryptionKey.bootstrap.enabled must be a boolean" }}
-{{- end }}
-{{- if not (hasKey $bootstrap "image") }}
-{{- fail "services.masterEncryptionKey.bootstrap.image is required" }}
-{{- end }}
-{{- if not (kindIs "string" (get $bootstrap "image")) }}
-{{- fail "services.masterEncryptionKey.bootstrap.image must be a string" }}
-{{- end }}
-{{- if eq (trim (get $bootstrap "image")) "" }}
-{{- fail "services.masterEncryptionKey.bootstrap.image must not be empty" }}
-{{- end }}
-{{- if not (hasKey $bootstrap "imagePullPolicy") }}
-{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy is required" }}
-{{- end }}
-{{- if not (kindIs "string" (get $bootstrap "imagePullPolicy")) }}
-{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy must be a string" }}
-{{- end }}
-{{- if not (has (get $bootstrap "imagePullPolicy") (list "Always" "IfNotPresent" "Never")) }}
-{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy must be Always, IfNotPresent, or Never" }}
-{{- end }}
-{{- if (get $bootstrap "enabled") }}
-{{- $bootstrapName := printf "%s-mek-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- $diagnosticName := printf "%s-diagnostic" $bootstrapName | trunc 63 | trimSuffix "-" }}
-{{- $secretName := required "services.masterEncryptionKey.existingSecret.name is required" .Values.services.masterEncryptionKey.existingSecret.name }}
-{{- $secretKey := required "services.masterEncryptionKey.existingSecret.key is required" .Values.services.masterEncryptionKey.existingSecret.key }}
-{{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName }}
-apiVersion: v1
-kind: ConfigMap
+{{- $mek := .Values.services.masterEncryptionKey -}}
+{{- if not (kindIs "map" $mek) -}}{{- fail "services.masterEncryptionKey must be an object" -}}{{- end -}}
+{{- $managementMode := index $mek "managementMode" -}}
+{{- if not (kindIs "string" $managementMode) -}}{{- fail "services.masterEncryptionKey.managementMode must be a string" -}}{{- end -}}
+{{- if not (has $managementMode (list "external" "osmo")) -}}
+{{- fail "services.masterEncryptionKey.managementMode must be external or osmo" -}}
+{{- end -}}
+{{- $existingSecret := index $mek "existingSecret" -}}
+{{- if or (not (kindIs "map" $existingSecret)) (ne (len $existingSecret) 2) -}}{{- fail "services.masterEncryptionKey.existingSecret must be an exact name/key object" -}}{{- end -}}
+{{- if or (not (kindIs "string" (index $existingSecret "name"))) (eq (index $existingSecret "name") "") -}}{{- fail "services.masterEncryptionKey.existingSecret.name must be a nonempty string" -}}{{- end -}}
+{{- if or (not (kindIs "string" (index $existingSecret "key"))) (eq (index $existingSecret "key") "") -}}{{- fail "services.masterEncryptionKey.existingSecret.key must be a nonempty string" -}}{{- end -}}
+{{- $bootstrap := index $mek "bootstrap" -}}
+{{- if or (not (kindIs "map" $bootstrap)) (ne (len $bootstrap) 4) -}}{{- fail "services.masterEncryptionKey.bootstrap must be an exact lifecycle object" -}}{{- end -}}
+{{- if not (kindIs "bool" (index $bootstrap "enabled")) -}}{{- fail "services.masterEncryptionKey.bootstrap.enabled must be a boolean" -}}{{- end -}}
+{{- if or (not (kindIs "string" (index $bootstrap "attempt"))) (eq (index $bootstrap "attempt") "") -}}{{- fail "services.masterEncryptionKey.bootstrap.attempt must be a nonempty string" -}}{{- end -}}
+{{- if or (not (kindIs "string" (index $bootstrap "imagePullPolicy"))) (not (has (index $bootstrap "imagePullPolicy") (list "Always" "IfNotPresent" "Never"))) -}}{{- fail "services.masterEncryptionKey.bootstrap.imagePullPolicy is invalid" -}}{{- end -}}
+{{- $bootstrapDeadline := index $bootstrap "activeDeadlineSeconds" -}}
+{{- if or (not (or (kindIs "int" $bootstrapDeadline) (kindIs "int64" $bootstrapDeadline) (kindIs "float64" $bootstrapDeadline))) (le (int $bootstrapDeadline) 0) (ne (float64 $bootstrapDeadline) (float64 (int $bootstrapDeadline))) -}}{{- fail "services.masterEncryptionKey.bootstrap.activeDeadlineSeconds must be a positive integer" -}}{{- end -}}
+{{- range $field := list "rebind" "ownershipRelease" "ownershipReacquire" -}}
+{{- $operation := index $mek $field -}}
+{{- if or (not (kindIs "map" $operation)) (ne (len $operation) 2) -}}{{- fail "MEK ownership operation must be an exact enabled/attempt object" -}}{{- end -}}
+{{- if not (kindIs "bool" (index $operation "enabled")) -}}{{- fail "MEK ownership operation enabled must be a boolean" -}}{{- end -}}
+{{- if or (not (kindIs "string" (index $operation "attempt"))) (eq (index $operation "attempt") "") -}}{{- fail "MEK ownership operation attempt must be a nonempty string" -}}{{- end -}}
+{{- end -}}
+{{- range $field := list "rotation" "recovery" -}}
+{{- $operation := index $mek $field -}}
+{{- if or (not (kindIs "map" $operation)) (ne (len $operation) 4) -}}{{- fail "MEK rotation/recovery operation must be an exact lifecycle object" -}}{{- end -}}
+{{- if or (not (kindIs "string" (index $operation "attempt"))) (eq (index $operation "attempt") "") -}}{{- fail "MEK lifecycle attempt must be a nonempty string" -}}{{- end -}}
+{{- if or (not (kindIs "string" (index $operation "imagePullPolicy"))) (not (has (index $operation "imagePullPolicy") (list "Always" "IfNotPresent" "Never"))) -}}{{- fail "MEK lifecycle imagePullPolicy is invalid" -}}{{- end -}}
+{{- $operationDeadline := index $operation "activeDeadlineSeconds" -}}
+{{- if or (not (or (kindIs "int" $operationDeadline) (kindIs "int64" $operationDeadline) (kindIs "float64" $operationDeadline))) (le (int $operationDeadline) 0) (ne (float64 $operationDeadline) (float64 (int $operationDeadline))) -}}{{- fail "MEK lifecycle activeDeadlineSeconds must be a positive integer" -}}{{- end -}}
+{{- end -}}
+{{- if not (kindIs "string" $mek.rotation.requestId) -}}{{- fail "services.masterEncryptionKey.rotation.requestId must be a string" -}}{{- end -}}
+{{- if not (kindIs "bool" $mek.recovery.enabled) -}}{{- fail "services.masterEncryptionKey.recovery.enabled must be a boolean" -}}{{- end -}}
+{{- if not (kindIs "bool" $mek.allowExistingCiphertextAdoption) -}}{{- fail "services.masterEncryptionKey.allowExistingCiphertextAdoption must be a boolean" -}}{{- end -}}
+{{- if and $mek.bootstrap.enabled (ne $mek.managementMode "osmo") -}}
+{{- fail "services.masterEncryptionKey.bootstrap.enabled requires managementMode=osmo" -}}
+{{- end -}}
+{{- if and $mek.rotation.requestId (ne $mek.managementMode "osmo") -}}
+{{- fail "services.masterEncryptionKey.rotation.requestId requires managementMode=osmo" -}}
+{{- end -}}
+{{- if and $mek.recovery.enabled (ne $mek.managementMode "osmo") -}}
+{{- fail "services.masterEncryptionKey.recovery.enabled requires managementMode=osmo" -}}
+{{- end -}}
+{{- if and $mek.rebind.enabled (ne $mek.managementMode "osmo") -}}
+{{- fail "services.masterEncryptionKey.rebind.enabled requires managementMode=osmo" -}}
+{{- end -}}
+{{- if and $mek.ownershipRelease.enabled (ne $mek.managementMode "external") -}}
+{{- fail "services.masterEncryptionKey.ownershipRelease.enabled requires managementMode=external" -}}
+{{- end -}}
+{{- if and $mek.ownershipReacquire.enabled (ne $mek.managementMode "osmo") -}}
+{{- fail "services.masterEncryptionKey.ownershipReacquire.enabled requires managementMode=osmo" -}}
+{{- end -}}
+{{- if and $mek.rotation.requestId $mek.recovery.enabled -}}
+{{- fail "MEK rotation and recovery cannot be enabled in the same release" -}}
+{{- end -}}
+{{- if and (or $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.ownershipReacquire.enabled) (or $mek.rotation.requestId $mek.recovery.enabled) -}}
+{{- fail "MEK ownership maintenance cannot run with rotation or recovery" -}}
+{{- end -}}
+{{- if gt (len (compact (list (ternary "rebind" "" $mek.rebind.enabled) (ternary "release" "" $mek.ownershipRelease.enabled) (ternary "reacquire" "" $mek.ownershipReacquire.enabled)))) 1 -}}
+{{- fail "Only one MEK ownership maintenance operation can run at a time" -}}
+{{- end -}}
+{{- if and .Release.IsInstall (or $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.ownershipReacquire.enabled) -}}
+{{- fail "MEK ownership maintenance is an explicit upgrade-only operation" -}}
+{{- end -}}
+{{- if and .Release.IsInstall $mek.rotation.requestId -}}
+{{- fail "MEK rotation can be requested only after installation" -}}
+{{- end -}}
+
+{{- with $mek.existingSecret.name }}
+{{- $leaseHash := printf "%s/%s:%s" $.Release.Namespace $.Release.Name . | sha256sum | trunc 10 }}
+{{- $leasePrefix := regexReplaceAll "[^a-z0-9-]" (lower $.Release.Name) "-" | trimAll "-" | trunc 46 | trimSuffix "-" }}
+{{- $retainedLeaseName := printf "%s-mek-%s" $leasePrefix $leaseHash }}
+apiVersion: coordination.k8s.io/v1
+kind: Lease
 metadata:
-  name: {{ $diagnosticName }}
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-31"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
-data:
-  recovery: |
-    The MEK bootstrap did not complete. Its privileged resources were removed.
-    Review the Helm error and namespace Events for the underlying failure.
-    For an existing database, restore the MEK Secret that encrypted its data.
-    Never generate a replacement MEK for retained encrypted data.
+  name: {{ $retainedLeaseName | quote }}
+  namespace: {{ $.Release.Namespace }}
+spec: {}
 ---
-{{- if and .Release.IsInstall (not $existingSecret) }}
+{{- end }}
+{{- if or (eq $mek.managementMode "osmo") $mek.ownershipRelease.enabled }}
+{{- $secretName := required "services.masterEncryptionKey.existingSecret.name is required" $mek.existingSecret.name }}
+{{- $secretKey := required "services.masterEncryptionKey.existingSecret.key is required" $mek.existingSecret.key }}
+{{- $leaseHash := printf "%s/%s:%s" .Release.Namespace .Release.Name $secretName | sha256sum | trunc 10 }}
+{{- $leasePrefix := regexReplaceAll "[^a-z0-9-]" (lower .Release.Name) "-" | trimAll "-" | trunc 46 | trimSuffix "-" }}
+{{- $leaseName := printf "%s-mek-%s" $leasePrefix $leaseHash }}
+{{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName }}
+{{- $rotationAlreadyComplete := false }}
+{{- if $existingSecret }}
+{{- $rotationAlreadyComplete = eq (index (default dict $existingSecret.metadata.annotations) "osmo.nvidia.com/mek-rotation-complete") $mek.rotation.requestId }}
+{{- end }}
+{{- if and (eq $mek.managementMode "osmo") .Release.IsInstall (not $existingSecret) }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -61,114 +103,477 @@ metadata:
     helm.sh/hook: pre-install
     helm.sh/hook-weight: "-30"
     helm.sh/resource-policy: keep
-    osmo.nvidia.com/mek-bootstrap-placeholder: "true"
+    osmo.nvidia.com/mek-management: osmo
+    osmo.nvidia.com/mek-installation: {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
 type: Opaque
+data:
+  {{ $secretKey | quote }}: ""
 ---
 {{- end }}
+{{- if and (or $mek.bootstrap.enabled $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.ownershipReacquire.enabled) (not $mek.rotation.requestId) (not $mek.recovery.enabled) }}
+{{- $bootstrapOperation := ternary "release" (ternary "reacquire" (ternary "rebind" (ternary "validate" "bootstrap" .Release.IsUpgrade) $mek.rebind.enabled) $mek.ownershipReacquire.enabled) $mek.ownershipRelease.enabled }}
+{{- $bootstrapAttempt := ternary $mek.ownershipRelease.attempt (ternary $mek.ownershipReacquire.attempt (ternary $mek.rebind.attempt $mek.bootstrap.attempt $mek.rebind.enabled) $mek.ownershipReacquire.enabled) $mek.ownershipRelease.enabled }}
+{{- $bootstrapManagementMode := ternary "external" "osmo" $mek.ownershipRelease.enabled }}
+{{- $bootstrapHash := printf "%s:%s:%s" $bootstrapAttempt .Values.global.osmoImageTag .Chart.Version | sha256sum | trunc 8 }}
+{{- $bootstrapName := printf "%s-mek-bootstrap-%s" .Release.Name $bootstrapHash | trunc 63 | trimSuffix "-" }}
+---
 apiVersion: v1
-kind: List
+kind: ServiceAccount
 metadata:
   name: {{ $bootstrapName }}
   namespace: {{ .Release.Namespace }}
+  {{- if .Release.IsUpgrade }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-29"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
-items:
-- apiVersion: v1
-  kind: ServiceAccount
-  metadata:
-    name: {{ $bootstrapName }}
-    namespace: {{ .Release.Namespace }}
-- apiVersion: rbac.authorization.k8s.io/v1
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-30"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Release.IsUpgrade }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-30"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: [{{ $secretName | quote }}]
+  verbs: ["get"{{ if not .Release.IsUpgrade }}, "patch"{{ end }}]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  resourceNames: [{{ $leaseName | quote }}]
+  verbs: ["get", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings"]
+  resourceNames: [{{ $bootstrapName | quote }}]
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Release.IsUpgrade }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-30"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
   kind: Role
-  metadata:
-    name: {{ $bootstrapName }}
-    namespace: {{ .Release.Namespace }}
-  rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: [{{ $secretName | quote }}]
-    verbs: ["get", "patch"]
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: RoleBinding
-  metadata:
-    name: {{ $bootstrapName }}
-    namespace: {{ .Release.Namespace }}
-  subjects:
-  - kind: ServiceAccount
-    name: {{ $bootstrapName }}
-    namespace: {{ .Release.Namespace }}
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: Role
-    name: {{ $bootstrapName }}
-- apiVersion: batch/v1
-  kind: Job
-  metadata:
-    name: {{ $bootstrapName }}
-    namespace: {{ .Release.Namespace }}
-  spec:
-    backoffLimit: 0
-    template:
-      metadata:
-        labels:
-          app.kubernetes.io/name: {{ include "osmo.name" . }}
-          app.kubernetes.io/instance: {{ .Release.Name }}
-          app.kubernetes.io/component: mek-bootstrap
-      spec:
-        restartPolicy: Never
-        serviceAccountName: {{ $bootstrapName }}
-        {{- with .Values.global.imagePullSecret }}
-        imagePullSecrets:
-        - name: {{ . }}
+  name: {{ $bootstrapName }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $bootstrapName }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Release.IsUpgrade }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  {{- end }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ $mek.bootstrap.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "osmo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: mek-bootstrap
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $bootstrapName }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ . }}
+      {{- end }}
+      containers:
+      - name: mek-bootstrap
+        image: {{ printf "%s/%s:%s" .Values.global.osmoImageLocation .Values.services.service.imageName .Values.global.osmoImageTag | quote }}
+        imagePullPolicy: {{ $mek.bootstrap.imagePullPolicy | quote }}
+        command: ["mek-lifecycle"]
+        args:
+        - --operation
+        - {{ $bootstrapOperation }}
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --secret_name
+        - {{ $secretName | quote }}
+        - --secret_key
+        - {{ $secretKey | quote }}
+        - --installation_id
+        - {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
+        - --attempt
+        - {{ $bootstrapAttempt | quote }}
+        - --postgres_host
+        - {{ .Values.services.postgres.serviceName | quote }}
+        - --postgres_port
+        - {{ .Values.services.postgres.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.services.postgres.db | quote }}
+        - --postgres_user
+        - {{ .Values.services.postgres.user | quote }}
+        - --mek_management_mode
+        - {{ $bootstrapManagementMode }}
+        - --active_deadline_seconds
+        - {{ $mek.bootstrap.activeDeadlineSeconds | quote }}
+        env:
+        - name: OSMO_POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OSMO_SERVICE_ACCOUNT
+          value: {{ $bootstrapName | quote }}
+        {{- if .Values.services.postgres.password }}
+        - name: OSMO_POSTGRES_PASSWORD
+          value: {{ .Values.services.postgres.password | quote }}
+        {{- else if .Values.services.configFile.enabled }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
         {{- end }}
-        nodeSelector:
-          {{- toYaml .Values.global.nodeSelector | nindent 10 }}
-        tolerations:
-          {{- toYaml .Values.services.service.tolerations | nindent 10 }}
-        containers:
-        - name: mek-bootstrap
-          image: {{ get $bootstrap "image" | quote }}
-          imagePullPolicy: {{ get $bootstrap "imagePullPolicy" | quote }}
-          command: ["/bin/ash"]
-          args:
-          - -c
-          - |
-{{ .Files.Get "files/mek-bootstrap.sh" | nindent 12 }}
-          - mek-bootstrap
-          - --namespace
-          - {{ .Release.Namespace | quote }}
-          - --release-name
-          - {{ .Release.Name | quote }}
-          - --secret-name
-          - {{ $secretName | quote }}
-          - --secret-key
-          - {{ $secretKey | quote }}
-          {{- if .Release.IsUpgrade }}
-          - --fail-if-missing
-          {{- end }}
-          env:
-          - name: HOME
-            value: /tmp
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 1001
-          volumeMounts:
-          - name: bootstrap-tmp
-            mountPath: /tmp
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
-            limits:
-              cpu: 100m
-              memory: 128Mi
-        volumes:
-        - name: bootstrap-tmp
-          emptyDir: {}
+        volumeMounts:
+        - name: lifecycle-temp
+          mountPath: /tmp
+        - name: kubernetes-api
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      volumes:
+      - name: lifecycle-temp
+        emptyDir: {}
+      - name: kubernetes-api
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}
+{{- if and $mek.rotation.requestId (not $rotationAlreadyComplete) }}
+{{- $rotationHash := printf "%s:%s" $mek.rotation.requestId $mek.rotation.attempt | sha256sum | trunc 10 }}
+{{- $rotationName := printf "%s-mek-rotate-%s" .Release.Name $rotationHash | trunc 63 | trimSuffix "-" }}
+{{- $consumerDeployments := list .Values.services.service.serviceName .Values.services.worker.serviceName .Values.services.router.serviceName .Values.services.logger.serviceName .Values.services.agent.serviceName .Values.services.delayedJobMonitor.serviceName }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $rotationName }}
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $rotationName }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: [{{ $secretName | quote }}]
+  verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  resourceNames: [{{ $leaseName | quote }}]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings"]
+  resourceNames: [{{ $rotationName | quote }}]
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $rotationName }}
+  namespace: {{ .Release.Namespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $rotationName }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $rotationName }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $rotationName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ $mek.rotation.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "osmo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: mek-rotation
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $rotationName }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ . }}
+      {{- end }}
+      containers:
+      - name: mek-rotation
+        image: {{ printf "%s/%s:%s" .Values.global.osmoImageLocation .Values.services.service.imageName .Values.global.osmoImageTag | quote }}
+        imagePullPolicy: {{ $mek.rotation.imagePullPolicy | quote }}
+        command: ["mek-lifecycle"]
+        args:
+        - --operation
+        - rotate
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --secret_name
+        - {{ $secretName | quote }}
+        - --secret_key
+        - {{ $secretKey | quote }}
+        - --installation_id
+        - {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
+        - --request_id
+        - {{ $mek.rotation.requestId | quote }}
+        - --attempt
+        - {{ $mek.rotation.attempt | quote }}
+        - --consumer_deployments
+        - {{ join "," $consumerDeployments | quote }}
+        - --postgres_host
+        - {{ .Values.services.postgres.serviceName | quote }}
+        - --postgres_port
+        - {{ .Values.services.postgres.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.services.postgres.db | quote }}
+        - --postgres_user
+        - {{ .Values.services.postgres.user | quote }}
+        - --mek_management_mode
+        - osmo
+        - --active_deadline_seconds
+        - {{ $mek.rotation.activeDeadlineSeconds | quote }}
+        env:
+        - name: OSMO_POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OSMO_SERVICE_ACCOUNT
+          value: {{ $rotationName | quote }}
+        {{- if .Values.services.postgres.password }}
+        - name: OSMO_POSTGRES_PASSWORD
+          value: {{ .Values.services.postgres.password | quote }}
+        {{- else if .Values.services.configFile.enabled }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
+        {{- end }}
+        volumeMounts:
+        - name: lifecycle-temp
+          mountPath: /tmp
+        - name: kubernetes-api
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      volumes:
+      - name: lifecycle-temp
+        emptyDir: {}
+      - name: kubernetes-api
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}
+{{- if $mek.recovery.enabled }}
+{{- $recoveryHash := printf "%s:%s:%s" $mek.recovery.attempt .Values.global.osmoImageTag .Chart.Version | sha256sum | trunc 10 }}
+{{- $recoveryName := printf "%s-mek-recover-%s" .Release.Name $recoveryHash | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $recoveryName }}
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $recoveryName }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list"]
+- apiGroups: ["authorization.k8s.io"]
+  resources: ["localsubjectaccessreviews"]
+  verbs: ["create"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  resourceNames: [{{ $leaseName | quote }}]
+  verbs: ["get", "update"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings"]
+  resourceNames: [{{ $recoveryName | quote }}]
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $recoveryName }}
+  namespace: {{ .Release.Namespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $recoveryName }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $recoveryName }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $recoveryName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ $mek.recovery.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "osmo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: mek-recovery
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $recoveryName }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ . }}
+      {{- end }}
+      containers:
+      - name: mek-recovery
+        image: {{ printf "%s/%s:%s" .Values.global.osmoImageLocation .Values.services.service.imageName .Values.global.osmoImageTag | quote }}
+        imagePullPolicy: {{ $mek.recovery.imagePullPolicy | quote }}
+        command: ["mek-lifecycle"]
+        args:
+        - --operation
+        - recover
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --secret_name
+        - {{ $secretName | quote }}
+        - --secret_key
+        - {{ $secretKey | quote }}
+        - --installation_id
+        - {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
+        - --attempt
+        - {{ $mek.recovery.attempt | quote }}
+        - --postgres_host
+        - {{ .Values.services.postgres.serviceName | quote }}
+        - --postgres_port
+        - {{ .Values.services.postgres.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.services.postgres.db | quote }}
+        - --postgres_user
+        - {{ .Values.services.postgres.user | quote }}
+        - --mek_management_mode
+        - osmo
+        - --active_deadline_seconds
+        - {{ $mek.recovery.activeDeadlineSeconds | quote }}
+        env:
+        - name: OSMO_POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OSMO_SERVICE_ACCOUNT
+          value: {{ $recoveryName | quote }}
+        {{- if .Values.services.postgres.password }}
+        - name: OSMO_POSTGRES_PASSWORD
+          value: {{ .Values.services.postgres.password | quote }}
+        {{- else if .Values.services.configFile.enabled }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
+        {{- end }}
+        volumeMounts:
+        - name: lifecycle-temp
+          mountPath: /tmp
+        - name: kubernetes-api
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      volumes:
+      - name: lifecycle-temp
+        emptyDir: {}
+      - name: kubernetes-api
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}
 {{- end }}
