@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
@@ -31,23 +32,32 @@ var poolResourcePrefix = string(ResourceTypePool) + "/"
 func GetAllPoolNames(ctx context.Context, client *postgres.PostgresClient) ([]string, error) {
 	query := `SELECT name FROM pools ORDER BY name`
 
-	rows, err := client.Pool().Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query pool names: %w", err)
-	}
-	defer rows.Close()
-
 	var names []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, fmt.Errorf("failed to scan pool name: %w", err)
-		}
-		names = append(names, name)
-	}
+	err := runWithRetryResult(ctx, client, "get all pool names", postgres.ReplayReadOnly, &names,
+		func(attemptContext context.Context, pool *pgxpool.Pool) ([]string, error) {
+			rows, err := pool.Query(attemptContext, query)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query pool names: %w", err)
+			}
+			defer rows.Close()
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating pool names: %w", err)
+			var attemptNames []string
+			for rows.Next() {
+				var name string
+				if err := rows.Scan(&name); err != nil {
+					return nil, fmt.Errorf("failed to scan pool name: %w", err)
+				}
+				attemptNames = append(attemptNames, name)
+			}
+
+			if err := rows.Err(); err != nil {
+				return nil, fmt.Errorf("error iterating pool names: %w", err)
+			}
+
+			return attemptNames, nil
+		})
+	if err != nil {
+		return nil, err
 	}
 
 	return names, nil

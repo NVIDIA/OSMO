@@ -23,6 +23,7 @@ go_library(
         "file_loader.go",
         "pool_access.go",
         "role_cache.go",
+        "retry_result.go",
         "roles.go",
         "user_role_sync.go",
     ],
@@ -32,6 +33,7 @@ go_library(
         "//src/utils",
         "//src/utils/postgres",
         "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
+        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
         "@in_gopkg_yaml_v3//:go_default_library",
     ],
 )
@@ -45,7 +47,11 @@ go_test(
         "roles_test.go",
     ],
     embed = [":roles"],
-    deps = [],
+    deps = [
+        "//src/utils/postgres",
+        "@com_github_jackc_pgx_v5//pgconn:go_default_library",
+        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
+    ],
 )
 
 go_test(

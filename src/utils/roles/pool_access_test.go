@@ -19,9 +19,65 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
+	"context"
 	"reflect"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
+
+type twoAttemptRetryRunner struct {
+	afterFailedAttempt func()
+}
+
+func (r *twoAttemptRetryRunner) RunWithRetry(
+	ctx context.Context,
+	_ string,
+	_ postgres.ReplaySafety,
+	operation func(context.Context, *pgxpool.Pool) error,
+) error {
+	if err := operation(ctx, nil); err != nil {
+		r.afterFailedAttempt()
+		return operation(ctx, nil)
+	}
+	return nil
+}
+
+func TestRunWithRetryResultPublishesOnlySuccessfulAttempt(t *testing.T) {
+	var published []string
+	runner := &twoAttemptRetryRunner{
+		afterFailedAttempt: func() {
+			if published != nil {
+				t.Errorf("result after failed attempt = %v, want nil", published)
+			}
+		},
+	}
+	attempts := 0
+
+	err := runWithRetryResult(context.Background(), runner, "get all pool names",
+		postgres.ReplayReadOnly, &published,
+		func(context.Context, *pgxpool.Pool) ([]string, error) {
+			attempts++
+			attemptResult := []string{"partial"}
+			if attempts == 1 {
+				return attemptResult, &pgconn.PgError{Code: "40001"}
+			}
+			return append(attemptResult, "complete"), nil
+		})
+
+	if err != nil {
+		t.Fatalf("runWithRetryResult() error = %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("operation calls = %d, want 2", attempts)
+	}
+	want := []string{"partial", "complete"}
+	if !reflect.DeepEqual(published, want) {
+		t.Errorf("published result = %v, want %v", published, want)
+	}
+}
 
 func TestGetAllowedPools(t *testing.T) {
 	allPools := []string{"default", "dev", "production", "staging", "restricted"}

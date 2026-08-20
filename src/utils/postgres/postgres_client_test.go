@@ -19,10 +19,15 @@ SPDX-License-Identifier: Apache-2.0
 package postgres
 
 import (
+	"context"
+	"flag"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -351,6 +356,7 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 	maxConnLifetime := 10
 	sslMode := "require"
 	schemaVersion := "public"
+	retryAttempts := 7
 
 	flagPtrs := &PostgresFlagPointers{
 		host:               &host,
@@ -363,6 +369,7 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 		maxConnLifetimeMin: &maxConnLifetime,
 		sslMode:            &sslMode,
 		schemaVersion:      &schemaVersion,
+		retryAttempts:      &retryAttempts,
 	}
 
 	config := flagPtrs.ToPostgresConfig()
@@ -398,6 +405,54 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 	}
 	if config.SchemaVersion != schemaVersion {
 		t.Errorf("Expected schemaVersion %s, got %s", schemaVersion, config.SchemaVersion)
+	}
+	if config.RetryAttempts != retryAttempts {
+		t.Errorf("Expected RetryAttempts %d, got %d", retryAttempts, config.RetryAttempts)
+	}
+}
+
+func TestPostgresRetryAttemptsDefaultAndEnvironment(t *testing.T) {
+	originalFlagSet := flag.CommandLine
+	t.Cleanup(func() { flag.CommandLine = originalFlagSet })
+
+	testCases := []struct {
+		name        string
+		environment string
+		want        int
+	}{
+		{name: "default", environment: "", want: 5},
+		{name: "environment", environment: "7", want: 7},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv("OSMO_POSTGRES_RECONNECT_RETRY", testCase.environment)
+			flag.CommandLine = flag.NewFlagSet(testCase.name, flag.ContinueOnError)
+
+			config := RegisterPostgresFlags().ToPostgresConfig()
+
+			if config.RetryAttempts != testCase.want {
+				t.Errorf("RetryAttempts = %d, want %d", config.RetryAttempts, testCase.want)
+			}
+		})
+	}
+}
+
+func TestNewPostgresClientRejectsRetryAttemptsBelowOne(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	for _, retryAttempts := range []int{0, -1} {
+		t.Run(fmt.Sprintf("attempts_%d", retryAttempts), func(t *testing.T) {
+			_, err := NewPostgresClient(context.Background(), PostgresConfig{
+				RetryAttempts: retryAttempts,
+			}, logger)
+
+			if err == nil {
+				t.Fatal("NewPostgresClient() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), "retry attempts must be at least 1") {
+				t.Errorf("NewPostgresClient() error = %q, want retry-attempt validation", err)
+			}
+		})
 	}
 }
 

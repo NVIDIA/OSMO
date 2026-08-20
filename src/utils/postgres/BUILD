@@ -20,11 +20,13 @@ go_library(
     name = "postgres",
     srcs = [
         "postgres_client.go",
+        "retry.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/utils/postgres",
     visibility = ["//visibility:public"],
     deps = [
         "//src/utils",
+        "@com_github_jackc_pgx_v5//pgconn:go_default_library",
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )
@@ -33,9 +35,12 @@ go_test(
     name = "postgres_test",
     srcs = [
         "postgres_client_test.go",
+        "retry_test.go",
     ],
     embed = [":postgres"],
     deps = [
+        "@com_github_jackc_pgx_v5//:go_default_library",
+        "@com_github_jackc_pgx_v5//pgconn:go_default_library",
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )

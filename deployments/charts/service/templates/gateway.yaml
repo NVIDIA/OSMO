@@ -480,6 +480,9 @@ spec:
           {{- with .Values.global.logs.logFormat }}
           - "--log-format={{ . }}"
           {{- end }}
+          {{- range $gw.authz.extraArgs }}
+          - {{ . | quote }}
+          {{- end }}
         env:
           {{- if .Values.services.migration.enabled }}
           - name: OSMO_SCHEMA_VERSION

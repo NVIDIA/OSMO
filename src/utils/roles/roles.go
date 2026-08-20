@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
@@ -176,80 +177,89 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 		slog.Any("roles", roleNames),
 	)
 
-	rows, err := client.Pool().Query(ctx, query, roleNames)
-	if err != nil {
-		logger.Error("failed to query roles",
-			slog.String("error", err.Error()),
-			slog.Any("role_names", roleNames),
-		)
-		return nil, fmt.Errorf("failed to query roles: %w", err)
-	}
-	defer rows.Close()
-
 	var result []*Role
-	for rows.Next() {
-		var role Role
-		var policiesStr string // Scan as string first to handle PostgreSQL's JSONB representation
-
-		err := rows.Scan(&role.Name, &role.Description, &policiesStr, &role.Immutable)
-		if err != nil {
-			logger.Error("failed to scan role",
-				slog.String("error", err.Error()),
-			)
-			return nil, fmt.Errorf("failed to scan role: %w", err)
-		}
-
-		policiesJSON := []byte(policiesStr)
-
-		// Parse policies JSON array (converted from JSONB[] via array_to_json)
-		var policiesArray []json.RawMessage
-		err = json.Unmarshal(policiesJSON, &policiesArray)
-		if err != nil {
-			logger.Error("failed to unmarshal policies array",
-				slog.String("error", err.Error()),
-				slog.String("role", role.Name),
-				slog.String("raw_json", string(policiesJSON)),
-			)
-			return nil, fmt.Errorf("failed to unmarshal policies for role %s: %w", role.Name, err)
-		}
-
-		// Parse each policy
-		role.Policies = make([]RolePolicy, 0, len(policiesArray))
-		for _, policyRaw := range policiesArray {
-			var policy RolePolicy
-			err = json.Unmarshal(policyRaw, &policy)
+	err := runWithRetryResult(ctx, client, "get roles", postgres.ReplayReadOnly, &result,
+		func(attemptContext context.Context, pool *pgxpool.Pool) ([]*Role, error) {
+			rows, err := pool.Query(attemptContext, query, roleNames)
 			if err != nil {
-				logger.Error("failed to unmarshal policy",
+				logger.Error("failed to query roles",
 					slog.String("error", err.Error()),
-					slog.String("role", role.Name),
-					slog.String("policy_raw", string(policyRaw)),
+					slog.Any("role_names", roleNames),
 				)
-				return nil, fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
+				return nil, fmt.Errorf("failed to query roles: %w", err)
 			}
-			// Default effect to Allow when not specified (backward compatibility)
-			if policy.Effect == "" {
-				policy.Effect = EffectAllow
+			defer rows.Close()
+
+			var attemptResult []*Role
+			for rows.Next() {
+				var role Role
+				var policiesStr string // Scan as string first to handle PostgreSQL's JSONB representation
+
+				err := rows.Scan(&role.Name, &role.Description, &policiesStr, &role.Immutable)
+				if err != nil {
+					logger.Error("failed to scan role",
+						slog.String("error", err.Error()),
+					)
+					return nil, fmt.Errorf("failed to scan role: %w", err)
+				}
+
+				policiesJSON := []byte(policiesStr)
+
+				// Parse policies JSON array (converted from JSONB[] via array_to_json)
+				var policiesArray []json.RawMessage
+				err = json.Unmarshal(policiesJSON, &policiesArray)
+				if err != nil {
+					logger.Error("failed to unmarshal policies array",
+						slog.String("error", err.Error()),
+						slog.String("role", role.Name),
+						slog.String("raw_json", string(policiesJSON)),
+					)
+					return nil, fmt.Errorf("failed to unmarshal policies for role %s: %w", role.Name, err)
+				}
+
+				// Parse each policy
+				role.Policies = make([]RolePolicy, 0, len(policiesArray))
+				for _, policyRaw := range policiesArray {
+					var policy RolePolicy
+					err = json.Unmarshal(policyRaw, &policy)
+					if err != nil {
+						logger.Error("failed to unmarshal policy",
+							slog.String("error", err.Error()),
+							slog.String("role", role.Name),
+							slog.String("policy_raw", string(policyRaw)),
+						)
+						return nil, fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
+					}
+					// Default effect to Allow when not specified (backward compatibility)
+					if policy.Effect == "" {
+						policy.Effect = EffectAllow
+					}
+					// Ensure Resources is never nil (always an empty list if not specified)
+					if policy.Resources == nil {
+						policy.Resources = []string{}
+					}
+					role.Policies = append(role.Policies, policy)
+				}
+
+				attemptResult = append(attemptResult, &role)
+
+				logger.Debug("loaded role",
+					slog.String("name", role.Name),
+					slog.Int("policies", len(role.Policies)),
+				)
 			}
-			// Ensure Resources is never nil (always an empty list if not specified)
-			if policy.Resources == nil {
-				policy.Resources = []string{}
+
+			if err := rows.Err(); err != nil {
+				logger.Error("error iterating rows",
+					slog.String("error", err.Error()),
+				)
+				return nil, fmt.Errorf("error iterating rows: %w", err)
 			}
-			role.Policies = append(role.Policies, policy)
-		}
 
-		result = append(result, &role)
-
-		logger.Debug("loaded role",
-			slog.String("name", role.Name),
-			slog.Int("policies", len(role.Policies)),
-		)
-	}
-
-	if err := rows.Err(); err != nil {
-		logger.Error("error iterating rows",
-			slog.String("error", err.Error()),
-		)
-		return nil, fmt.Errorf("error iterating rows: %w", err)
+			return attemptResult, nil
+		})
+	if err != nil {
+		return nil, err
 	}
 
 	loaded := make([]string, len(result))
@@ -270,23 +280,32 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 func GetAllRoleNames(ctx context.Context, client *postgres.PostgresClient) ([]string, error) {
 	query := `SELECT name FROM roles ORDER BY name`
 
-	rows, err := client.Pool().Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query role names: %w", err)
-	}
-	defer rows.Close()
-
 	var roleNames []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, fmt.Errorf("failed to scan role name: %w", err)
-		}
-		roleNames = append(roleNames, name)
-	}
+	err := runWithRetryResult(ctx, client, "get all role names", postgres.ReplayReadOnly, &roleNames,
+		func(attemptContext context.Context, pool *pgxpool.Pool) ([]string, error) {
+			rows, err := pool.Query(attemptContext, query)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query role names: %w", err)
+			}
+			defer rows.Close()
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating role names: %w", err)
+			var attemptRoleNames []string
+			for rows.Next() {
+				var name string
+				if err := rows.Scan(&name); err != nil {
+					return nil, fmt.Errorf("failed to scan role name: %w", err)
+				}
+				attemptRoleNames = append(attemptRoleNames, name)
+			}
+
+			if err := rows.Err(); err != nil {
+				return nil, fmt.Errorf("error iterating role names: %w", err)
+			}
+
+			return attemptRoleNames, nil
+		})
+	if err != nil {
+		return nil, err
 	}
 
 	return roleNames, nil
@@ -300,7 +319,14 @@ func GetPoolForWorkflow(
 	query := `SELECT pool FROM workflows WHERE workflow_id = $1`
 
 	var pool string
-	err := client.Pool().QueryRow(ctx, query, workflowID).Scan(&pool)
+	err := runWithRetryResult(ctx, client, "get pool for workflow", postgres.ReplayReadOnly, &pool,
+		func(attemptContext context.Context, databasePool *pgxpool.Pool) (string, error) {
+			var attemptPool string
+			if err := databasePool.QueryRow(attemptContext, query, workflowID).Scan(&attemptPool); err != nil {
+				return "", err
+			}
+			return attemptPool, nil
+		})
 	if err != nil {
 		return "", fmt.Errorf("failed to get pool for workflow %s: %w", workflowID, err)
 	}
@@ -327,7 +353,11 @@ func UpdateRolePolicies(
 	// PostgreSQL expects JSONB[] which we construct from individual JSON values
 	query := `UPDATE roles SET policies = $1::jsonb[] WHERE name = $2`
 
-	_, err := client.Pool().Exec(ctx, query, policiesJSON, role.Name)
+	err := client.RunWithRetry(ctx, "update role policies", postgres.ReplayIdempotent,
+		func(attemptContext context.Context, pool *pgxpool.Pool) error {
+			_, err := pool.Exec(attemptContext, query, policiesJSON, role.Name)
+			return err
+		})
 	if err != nil {
 		logger.Error("failed to update role policies",
 			slog.String("role", role.Name),
