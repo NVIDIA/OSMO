@@ -19,10 +19,51 @@ import datetime
 import unittest
 from unittest import mock
 
+import anyio
+
 from src.utils.connectors import redis
 
 
 class RedisLogFormatterTest(unittest.IsolatedAsyncioTestCase):
+
+    async def test_cancellation_does_not_interrupt_redis_client_cleanup(self):
+        read_started = asyncio.Event()
+        client_closed = asyncio.Event()
+
+        class TrackedRedisClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                await self.aclose()
+
+            async def xread(self, *_args, **_kwargs):
+                read_started.set()
+                await asyncio.Future()
+
+            async def aclose(self):
+                await asyncio.sleep(0)
+                client_closed.set()
+
+        redis_client = TrackedRedisClient()
+
+        async def consume():
+            async for _ in redis.redis_log_streamer(
+                'redis://localhost', 'workflow-logs'
+            ):
+                pass
+
+        with mock.patch.object(redis.redis.asyncio, 'from_url',
+                               return_value=redis_client):
+            async with anyio.create_task_group() as task_group:
+                task_group.start_soon(consume)
+                await read_started.wait()
+                task_group.cancel_scope.cancel()
+
+        self.assertTrue(
+            client_closed.is_set(),
+            'Redis client cleanup was cancelled before it completed.',
+        )
 
     async def test_closing_formatter_closes_redis_reader(self):
         reader_closed = asyncio.Event()

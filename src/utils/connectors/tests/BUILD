@@ -21,6 +21,7 @@ py_test(
     name = "test_redis",
     srcs = ["test_redis.py"],
     deps = [
+        requirement("anyio"),
         "//src/utils/connectors:connectors",
     ],
     size = "small",
