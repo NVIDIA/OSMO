@@ -29,8 +29,21 @@ from src.utils.connectors import postgres
 class _PostgresError(psycopg2.DatabaseError):
     """A psycopg2 error with a deterministic SQLSTATE for retry tests."""
 
-    def __init__(self, sqlstate: str):
-        super().__init__(f'postgres error {sqlstate}')
+    def __init__(self, sqlstate: str | None, message: str | None = None):
+        super().__init__(message if message is not None else f'postgres error {sqlstate}')
+        self._sqlstate = sqlstate
+
+    def __getattribute__(self, name: str) -> object:
+        if name == 'pgcode':
+            return object.__getattribute__(self, '_sqlstate')
+        return super().__getattribute__(name)
+
+
+class _OperationalError(psycopg2.OperationalError):
+    """A psycopg2 operational error with a controllable SQLSTATE."""
+
+    def __init__(self, sqlstate: str | None, message: str | None = None):
+        super().__init__(message if message is not None else f'operational error {sqlstate}')
         self._sqlstate = sqlstate
 
     def __getattribute__(self, name: str) -> object:
@@ -100,6 +113,10 @@ class TestPostgresRetry(unittest.TestCase):
         ])
         database.connect.assert_not_called()
 
+    def test_retry_delay_caps_before_extremely_large_exponent(self):
+        with mock.patch.object(postgres.random, 'random', return_value=0.0):
+            self.assertEqual(postgres._get_retry_delay(1_000_000), 1.0)
+
     def test_final_failure_does_not_sleep_or_reconnect(self):
         database = _FakePostgres([_PostgresError('40001'), _PostgresError('40001')], attempts=2)
 
@@ -113,6 +130,33 @@ class TestPostgresRetry(unittest.TestCase):
         time_mock.sleep.assert_called_once_with(0.05)
         database.connect.assert_not_called()
 
+    def test_retry_exhaustion_logs_terminal_metadata_without_sensitive_values(self):
+        database = _FakePostgres([
+            _PostgresError('40001', 'sensitive SQL from the first failure'),
+            _PostgresError('40001', 'postgresql://user:password@database/osmo'),
+        ], attempts=2)
+
+        sleep, random, random_values = self._patch_retry_seams([0.0])
+        with sleep, random as random_mock, self.assertLogs(level='ERROR') as logs:
+            random_mock.random.side_effect = random_values
+            with self.assertRaises(osmo_errors.OSMODatabaseError):
+                _retrying_operation(database, 'sensitive-operation-argument')
+
+        terminal_logs = [
+            message for message in logs.output if 'PostgreSQL retry exhausted' in message]
+        self.assertEqual(len(terminal_logs), 1)
+        terminal_log = terminal_logs[0]
+        self.assertIn('operation=_retrying_operation', terminal_log)
+        self.assertIn('attempt=2/2', terminal_log)
+        self.assertIn('error_type=_PostgresError', terminal_log)
+        self.assertIn('sqlstate=40001', terminal_log)
+        self.assertNotIn('Retrying PostgreSQL operation', terminal_log)
+        self.assertNotIn('delay', terminal_log)
+        log_output = '\n'.join(logs.output)
+        self.assertNotIn('sensitive SQL from the first failure', log_output)
+        self.assertNotIn('postgresql://user:password@database/osmo', log_output)
+        self.assertNotIn('sensitive-operation-argument', log_output)
+
     def test_non_transient_database_error_fails_immediately(self):
         database = _FakePostgres([_PostgresError('23505')])
 
@@ -125,6 +169,16 @@ class TestPostgresRetry(unittest.TestCase):
         time_mock.sleep.assert_not_called()
         random_mock.random.assert_not_called()
         database.connect.assert_not_called()
+
+    def test_non_transient_database_error_does_not_log_retry_exhaustion(self):
+        database = _FakePostgres([_PostgresError('23505')])
+
+        sleep, random, random_values = self._patch_retry_seams()
+        with sleep, random as random_mock, self.assertNoLogs(level='ERROR'):
+            with self.assertRaises(osmo_errors.OSMODatabaseError):
+                _retrying_operation(database)
+
+        random_mock.random.assert_not_called()
 
     def test_serialization_failure_retries_without_reconnect(self):
         database = _FakePostgres([_PostgresError('40001'), 'success'])
@@ -147,6 +201,79 @@ class TestPostgresRetry(unittest.TestCase):
 
         time_mock.sleep.assert_called_once_with(0.05)
         database.connect.assert_called_once_with()
+
+    def test_operational_error_without_sqlstate_retries_with_reconnect(self):
+        database = _FakePostgres([_OperationalError(None), 'success'], attempts=2)
+
+        sleep, random, random_values = self._patch_retry_seams([0.0])
+        with sleep as time_mock, random as random_mock:
+            random_mock.random.side_effect = random_values
+            self.assertEqual(_retrying_operation(database), 'success')
+
+        self.assertEqual(database.operation_calls, 2)
+        time_mock.sleep.assert_called_once_with(0.05)
+        database.connect.assert_called_once_with()
+
+    def test_operational_error_without_sqlstate_during_reconnect_uses_attempt_budget(self):
+        database = _FakePostgres([_OperationalError(None), 'success'], attempts=3)
+        database.connect.side_effect = [_OperationalError(None), None]
+
+        sleep, random, random_values = self._patch_retry_seams([0.0, 0.0])
+        with sleep as time_mock, random as random_mock:
+            random_mock.random.side_effect = random_values
+            self.assertEqual(_retrying_operation(database), 'success')
+
+        self.assertEqual(database.operation_calls, 2)
+        self.assertEqual(time_mock.sleep.call_args_list, [mock.call(0.05), mock.call(0.1)])
+        self.assertEqual(database.connect.call_count, 2)
+
+    def test_reconnect_exhaustion_logs_terminal_metadata(self):
+        database = _FakePostgres([_OperationalError(None), 'unused'], attempts=2)
+        database.connect.side_effect = _OperationalError(
+            None, 'postgresql://user:password@database/osmo')
+
+        sleep, random, random_values = self._patch_retry_seams([0.0])
+        with sleep, random as random_mock, self.assertLogs(level='ERROR') as logs:
+            random_mock.random.side_effect = random_values
+            with self.assertRaises(osmo_errors.OSMODatabaseError):
+                _retrying_operation(database)
+
+        terminal_logs = [
+            message for message in logs.output if 'PostgreSQL retry exhausted' in message]
+        self.assertEqual(len(terminal_logs), 1)
+        self.assertIn('operation=_retrying_operation', terminal_logs[0])
+        self.assertIn('attempt=2/2', terminal_logs[0])
+        self.assertIn('error_type=_OperationalError', terminal_logs[0])
+        self.assertIn('sqlstate=None', terminal_logs[0])
+        self.assertNotIn('postgresql://user:password@database/osmo', '\n'.join(logs.output))
+        self.assertEqual(database.operation_calls, 1)
+        database.connect.assert_called_once_with()
+
+    def test_operational_error_with_non_transient_sqlstate_fails_immediately(self):
+        database = _FakePostgres([_OperationalError('28P01')])
+
+        sleep, random, random_values = self._patch_retry_seams()
+        with sleep as time_mock, random as random_mock:
+            with self.assertRaises(osmo_errors.OSMODatabaseError):
+                _retrying_operation(database)
+
+        self.assertEqual(database.operation_calls, 1)
+        time_mock.sleep.assert_not_called()
+        random_mock.random.assert_not_called()
+        database.connect.assert_not_called()
+
+    def test_database_error_without_sqlstate_fails_immediately(self):
+        database = _FakePostgres([_PostgresError(None)])
+
+        sleep, random, random_values = self._patch_retry_seams()
+        with sleep as time_mock, random as random_mock:
+            with self.assertRaises(osmo_errors.OSMODatabaseError):
+                _retrying_operation(database)
+
+        self.assertEqual(database.operation_calls, 1)
+        time_mock.sleep.assert_not_called()
+        random_mock.random.assert_not_called()
+        database.connect.assert_not_called()
 
     def test_reconnect_failure_consumes_attempt_budget(self):
         database = _FakePostgres([_PostgresError('08006'), 'success'], attempts=3)
@@ -181,7 +308,7 @@ class TestPostgresRetry(unittest.TestCase):
         database = _FakePostgres([_PostgresError('08006')], attempts=1)
 
         sleep, random, random_values = self._patch_retry_seams()
-        with sleep as time_mock, random as random_mock:
+        with sleep as time_mock, random as random_mock, self.assertLogs(level='ERROR') as logs:
             with self.assertRaises(osmo_errors.OSMODatabaseError):
                 _retrying_operation(database)
 
@@ -189,6 +316,10 @@ class TestPostgresRetry(unittest.TestCase):
         time_mock.sleep.assert_not_called()
         random_mock.random.assert_not_called()
         database.connect.assert_not_called()
+        self.assertEqual(sum(
+            'PostgreSQL retry exhausted' in message for message in logs.output), 1)
+        self.assertFalse(any(
+            'Retrying PostgreSQL operation' in message for message in logs.output))
 
     def test_retry_log_excludes_operation_arguments(self):
         database = _FakePostgres([_PostgresError('40001'), 'success'], attempts=2)

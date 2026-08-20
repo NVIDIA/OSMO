@@ -26,7 +26,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -71,6 +74,14 @@ func (permanentNetworkError) Timeout() bool {
 
 func (permanentNetworkError) Temporary() bool {
 	return false
+}
+
+func newNetworkOperationError(systemCallError error) error {
+	return &net.OpError{
+		Op:  "read",
+		Net: "tcp",
+		Err: &os.SyscallError{Syscall: "read", Err: systemCallError},
+	}
 }
 
 func newRetryTestClient(attempts int) (*PostgresClient, *[]time.Duration) {
@@ -141,11 +152,11 @@ func TestRunWithRetrySuccessDoesNotDelay(t *testing.T) {
 	}
 }
 
-func TestRunWithRetryExhaustionHasNoFinalDelay(t *testing.T) {
+func TestRunWithRetryExhaustionLogsTerminalFailureWithoutFinalDelay(t *testing.T) {
 	var logs bytes.Buffer
 	client, delays := newRetryTestClient(3)
-	client.logger = slog.New(slog.NewTextHandler(&logs, nil))
-	wantErr := &pgconn.PgError{Code: "40001"}
+	client.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	wantErr := &pgconn.PgError{Code: "40001", Message: "postgresql://user:password@database/osmo"}
 	attempts := 0
 
 	err := client.RunWithRetry(context.Background(), "update role", ReplaySafeOnly,
@@ -163,8 +174,70 @@ func TestRunWithRetryExhaustionHasNoFinalDelay(t *testing.T) {
 	if got := len(*delays); got != 2 {
 		t.Errorf("retry delay count = %d, want 2", got)
 	}
-	if got := strings.Count(logs.String(), "retrying PostgreSQL operation"); got != 2 {
+	logOutput := logs.String()
+	if got := strings.Count(logOutput, "retrying PostgreSQL operation"); got != 2 {
 		t.Errorf("retry log count = %d, want 2", got)
+	}
+	if strings.Contains(logOutput, "postgresql://user:password@database/osmo") {
+		t.Errorf("retry logs contain error message text: %s", logOutput)
+	}
+
+	var terminalFields map[string]any
+	terminalLogCount := 0
+	for _, logLine := range strings.Split(strings.TrimSpace(logOutput), "\n") {
+		var fields map[string]any
+		if err := json.Unmarshal([]byte(logLine), &fields); err != nil {
+			t.Fatalf("retry log is not valid structured JSON: %v", err)
+		}
+		if fields["msg"] == "PostgreSQL retry exhausted" {
+			terminalFields = fields
+			terminalLogCount++
+		}
+	}
+	if terminalLogCount != 1 {
+		t.Fatalf("terminal exhaustion log count = %d, want 1", terminalLogCount)
+	}
+	wantFields := map[string]any{
+		"operation":     "update role",
+		"attempt":       float64(3),
+		"max_attempts":  float64(3),
+		"error_type":    "*pgconn.PgError",
+		"sqlstate":      "40001",
+		"replay_safety": ReplaySafeOnly.String(),
+	}
+	for name, wantValue := range wantFields {
+		if terminalFields[name] != wantValue {
+			t.Errorf("terminal log field %q = %v, want %v", name, terminalFields[name], wantValue)
+		}
+	}
+	if _, ok := terminalFields["delay"]; ok {
+		t.Error("terminal exhaustion log contains a retry delay")
+	}
+}
+
+func TestRunWithRetryOneAttemptTransientFailureLogsOnlyExhaustion(t *testing.T) {
+	var logs bytes.Buffer
+	client, delays := newRetryTestClient(1)
+	client.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	wantErr := &pgconn.PgError{Code: "40001"}
+
+	err := client.RunWithRetry(context.Background(), "update role", ReplaySafeOnly,
+		func(context.Context, *pgxpool.Pool) error {
+			return wantErr
+		})
+
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("RunWithRetry() error = %v, want original error", err)
+	}
+	if len(*delays) != 0 {
+		t.Errorf("retry delays = %v, want none", *delays)
+	}
+	logOutput := logs.String()
+	if strings.Contains(logOutput, "retrying PostgreSQL operation") {
+		t.Errorf("one-attempt mode logged a scheduled retry: %s", logOutput)
+	}
+	if got := strings.Count(logOutput, "PostgreSQL retry exhausted"); got != 1 {
+		t.Errorf("terminal exhaustion log count = %d, want 1", got)
 	}
 }
 
@@ -260,6 +333,18 @@ func TestRunWithRetryConnectionFailureRespectsReplaySafety(t *testing.T) {
 		{name: "read only timeout", error: timeoutError{}, replaySafety: ReplayReadOnly, wantAttempts: 2},
 		{name: "safe only timeout", error: timeoutError{}, replaySafety: ReplaySafeOnly, wantAttempts: 1},
 		{name: "read only permanent network error", error: permanentNetworkError{}, replaySafety: ReplayReadOnly, wantAttempts: 1},
+		{name: "read only EOF", error: io.EOF, replaySafety: ReplayReadOnly, wantAttempts: 2},
+		{name: "safe only EOF", error: io.EOF, replaySafety: ReplaySafeOnly, wantAttempts: 1},
+		{name: "idempotent unexpected EOF", error: io.ErrUnexpectedEOF, replaySafety: ReplayIdempotent, wantAttempts: 2},
+		{name: "safe only unexpected EOF", error: io.ErrUnexpectedEOF, replaySafety: ReplaySafeOnly, wantAttempts: 1},
+		{name: "read only connection reset", error: newNetworkOperationError(syscall.ECONNRESET), replaySafety: ReplayReadOnly, wantAttempts: 2},
+		{name: "safe only connection reset", error: newNetworkOperationError(syscall.ECONNRESET), replaySafety: ReplaySafeOnly, wantAttempts: 1},
+		{name: "idempotent connection refused", error: newNetworkOperationError(syscall.ECONNREFUSED), replaySafety: ReplayIdempotent, wantAttempts: 2},
+		{name: "safe only connection refused", error: newNetworkOperationError(syscall.ECONNREFUSED), replaySafety: ReplaySafeOnly, wantAttempts: 1},
+		{name: "read only broken pipe", error: newNetworkOperationError(syscall.EPIPE), replaySafety: ReplayReadOnly, wantAttempts: 2},
+		{name: "safe only broken pipe", error: newNetworkOperationError(syscall.EPIPE), replaySafety: ReplaySafeOnly, wantAttempts: 1},
+		{name: "read only permanent DNS error", error: &net.DNSError{Err: "no such host", Name: "database.invalid"}, replaySafety: ReplayReadOnly, wantAttempts: 1},
+		{name: "read only permanent address error", error: &net.AddrError{Err: "missing port", Addr: "database.invalid"}, replaySafety: ReplayReadOnly, wantAttempts: 1},
 		{name: "read only closed transaction", error: pgx.ErrTxClosed, replaySafety: ReplayReadOnly, wantAttempts: 1},
 		{name: "safe only closed transaction", error: pgx.ErrTxClosed, replaySafety: ReplaySafeOnly, wantAttempts: 1},
 	}
@@ -282,6 +367,33 @@ func TestRunWithRetryConnectionFailureRespectsReplaySafety(t *testing.T) {
 				t.Errorf("operation calls = %d, want %d", attempts, testCase.wantAttempts)
 			}
 		})
+	}
+}
+
+func TestRunWithRetryServerShutdownCodesPermitAllReplayClasses(t *testing.T) {
+	for _, sqlState := range []string{"57P01", "57P02", "57P03"} {
+		for _, replaySafety := range []ReplaySafety{ReplayReadOnly, ReplayIdempotent, ReplaySafeOnly} {
+			t.Run(sqlState+"/"+replaySafety.String(), func(t *testing.T) {
+				client, _ := newRetryTestClient(2)
+				attempts := 0
+
+				err := client.RunWithRetry(context.Background(), "database operation", replaySafety,
+					func(context.Context, *pgxpool.Pool) error {
+						attempts++
+						if attempts == 1 {
+							return &pgconn.PgError{Code: sqlState}
+						}
+						return nil
+					})
+
+				if err != nil {
+					t.Fatalf("RunWithRetry() error = %v", err)
+				}
+				if attempts != 2 {
+					t.Errorf("operation calls = %d, want 2", attempts)
+				}
+			})
+		}
 	}
 }
 
@@ -339,8 +451,10 @@ func TestRunWithRetryTransactionAbortCodes(t *testing.T) {
 }
 
 func TestRunWithRetryRejectsDeterministicPgError(t *testing.T) {
+	var logs bytes.Buffer
 	client, delays := newRetryTestClient(5)
-	wantErr := &pgconn.PgError{Code: "23505"}
+	client.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	wantErr := &pgconn.PgError{Code: "23505", Message: "sensitive SQL contents"}
 	attempts := 0
 
 	err := client.RunWithRetry(context.Background(), "insert role", ReplayReadOnly,
@@ -357,5 +471,8 @@ func TestRunWithRetryRejectsDeterministicPgError(t *testing.T) {
 	}
 	if len(*delays) != 0 {
 		t.Errorf("retry delays = %v, want none", *delays)
+	}
+	if logs.Len() != 0 {
+		t.Errorf("deterministic first-attempt failure produced retry logs: %s", logs.String())
 	}
 }

@@ -281,7 +281,8 @@ func TestSyncUserRoles_Integration_NoChanges_ReturnsExistingRole(t *testing.T) {
 
 // TestSyncUserRoles_Integration_CanceledContext_UpsertError covers the error
 // wrap "upsert user: <err>" returned by SyncUserRoles when upsertUser's
-// Pool().Exec call fails. A canceled context fails the Exec immediately.
+// retry callback returns an error. A canceled context fails its database
+// operation immediately.
 func TestSyncUserRoles_Integration_CanceledContext_UpsertError(t *testing.T) {
 	fixture := database.StartPostgresWithSchema(t)
 

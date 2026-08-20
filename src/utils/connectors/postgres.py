@@ -226,10 +226,11 @@ def _get_postgres_sqlstate(error: Exception) -> str | None:
 
 
 def _get_retry_delay(retry_number: int) -> float:
-    window = min(
-        _POSTGRES_RETRY_MAX_DELAY_SECONDS,
-        _POSTGRES_RETRY_BASE_DELAY_SECONDS * (2 ** (retry_number - 1)),
-    )
+    window = _POSTGRES_RETRY_BASE_DELAY_SECONDS
+    for _ in range(1, retry_number):
+        window = min(_POSTGRES_RETRY_MAX_DELAY_SECONDS, window * 2)
+        if window == _POSTGRES_RETRY_MAX_DELAY_SECONDS:
+            break
     return window / 2 + random.random() * window / 2
 
 
@@ -238,6 +239,8 @@ def _is_transient_postgres_error(error: Exception) -> bool:
         return True
 
     sqlstate = _get_postgres_sqlstate(error)
+    if isinstance(error, psycopg2.OperationalError) and sqlstate is None:
+        return True
     return sqlstate in _TRANSIENT_TRANSACTION_SQLSTATES or bool(
         sqlstate and sqlstate.startswith('08'))
 
@@ -248,6 +251,8 @@ def _requires_pool_reconnect(error: Exception) -> bool:
         return True
 
     sqlstate = _get_postgres_sqlstate(error)
+    if isinstance(error, psycopg2.OperationalError) and sqlstate is None:
+        return True
     return bool(sqlstate and sqlstate.startswith('08'))
 
 
@@ -260,6 +265,19 @@ def _log_postgres_retry(operation_name: str, attempt_number: int,
         attempt_number,
         maximum_attempts,
         delay,
+        type(error).__name__,
+        _get_postgres_sqlstate(error),
+    )
+
+
+def _log_postgres_retry_exhausted(operation_name: str, attempt_number: int,
+                                  maximum_attempts: int, error: Exception) -> None:
+    logging.error(
+        'PostgreSQL retry exhausted: operation=%s, attempt=%d/%d, '
+        'error_type=%s, sqlstate=%s',
+        operation_name,
+        attempt_number,
+        maximum_attempts,
         type(error).__name__,
         _get_postgres_sqlstate(error),
     )
@@ -289,6 +307,8 @@ def retry(func=None, *, reconnect: bool = True):
                             self.connect()
                         except osmo_errors.OSMOConnectionError as error:
                             if attempt_number == maximum_attempts:
+                                _log_postgres_retry_exhausted(
+                                    fn.__name__, attempt_number, maximum_attempts, error)
                                 raise osmo_errors.OSMODatabaseError(
                                     f'Error: {str(error)}') from error
                             last_error = error
@@ -299,8 +319,12 @@ def retry(func=None, *, reconnect: bool = True):
                             continue
                         except (psycopg2.InterfaceError, psycopg2.DatabaseError,
                                 psycopg2.pool.PoolError) as error:
-                            if not _is_transient_postgres_error(error) or \
-                                    attempt_number == maximum_attempts:
+                            if not _is_transient_postgres_error(error):
+                                raise osmo_errors.OSMODatabaseError(
+                                    f'Error: {str(error)}') from error
+                            if attempt_number == maximum_attempts:
+                                _log_postgres_retry_exhausted(
+                                    fn.__name__, attempt_number, maximum_attempts, error)
                                 raise osmo_errors.OSMODatabaseError(
                                     f'Error: {str(error)}') from error
                             last_error = error
@@ -313,8 +337,11 @@ def retry(func=None, *, reconnect: bool = True):
                     return fn(*args, **kwargs)
                 except (psycopg2.InterfaceError, psycopg2.DatabaseError,
                         psycopg2.pool.PoolError) as error:
-                    if not _is_transient_postgres_error(error) or \
-                            attempt_number == maximum_attempts:
+                    if not _is_transient_postgres_error(error):
+                        raise osmo_errors.OSMODatabaseError(f'Error: {str(error)}') from error
+                    if attempt_number == maximum_attempts:
+                        _log_postgres_retry_exhausted(
+                            fn.__name__, attempt_number, maximum_attempts, error)
                         raise osmo_errors.OSMODatabaseError(f'Error: {str(error)}') from error
                     last_error = error
                     delay = _get_retry_delay(attempt_number)

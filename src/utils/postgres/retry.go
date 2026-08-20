@@ -22,10 +22,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand/v2"
 	"net"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -81,7 +83,21 @@ func (c *PostgresClient) RunWithRetry(
 			}
 			return contextError
 		}
-		if attempt == c.retryAttempts || !canRetry(err, replaySafety) {
+		retryable := canRetry(err, replaySafety)
+		if attempt == c.retryAttempts {
+			if retryable {
+				c.logger.Error("PostgreSQL retry exhausted",
+					slog.String("operation", operationName),
+					slog.Int("attempt", attempt),
+					slog.Int("max_attempts", c.retryAttempts),
+					slog.String("error_type", fmt.Sprintf("%T", err)),
+					slog.String("sqlstate", postgresSQLState(err)),
+					slog.String("replay_safety", replaySafety.String()),
+				)
+			}
+			return err
+		}
+		if !retryable {
 			return err
 		}
 
@@ -132,11 +148,20 @@ func canRetry(err error, replaySafety ReplaySafety) bool {
 	}
 
 	sqlState := postgresSQLState(err)
-	if sqlState == "40001" || sqlState == "40P01" {
+	if isDefinitiveRetryableSQLState(sqlState) {
 		return true
 	}
 
 	return permitsAmbiguousReplay(replaySafety) && isConnectionFailure(err, sqlState)
+}
+
+func isDefinitiveRetryableSQLState(sqlState string) bool {
+	switch sqlState {
+	case "40001", "40P01", "57P01", "57P02", "57P03":
+		return true
+	default:
+		return false
+	}
 }
 
 func permitsAmbiguousReplay(replaySafety ReplaySafety) bool {
@@ -144,7 +169,10 @@ func permitsAmbiguousReplay(replaySafety ReplaySafety) bool {
 }
 
 func isConnectionFailure(err error, sqlState string) bool {
-	if strings.HasPrefix(sqlState, "08") || pgconn.Timeout(err) || errors.Is(err, net.ErrClosed) {
+	if strings.HasPrefix(sqlState, "08") || pgconn.Timeout(err) ||
+		errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE) {
 		return true
 	}
 
