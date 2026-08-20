@@ -158,11 +158,13 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
     def test_get_users_from_all_workflows(self):
         # Arrange
+        database = connectors.postgres.PostgresConnector.get_instance()
         users = [
             'test_user_1',
             'test_user_2',
         ]
         for user in users:
+            connectors.upsert_user(database, user)
             workflow.Workflow(
                 workflow_name='test_workflow',
                 workflow_uuid=common.generate_unique_id(),
@@ -171,7 +173,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                 logs='',
                 groups=[],
                 priority=wf_priority.WorkflowPriority.NORMAL,
-                database=connectors.postgres.PostgresConnector.get_instance(),
+                database=database,
             ).insert_to_db()
 
         # Act

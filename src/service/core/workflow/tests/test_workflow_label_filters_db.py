@@ -63,6 +63,10 @@ class WorkflowLabelFiltersFixture(
     def database(self) -> postgres.PostgresConnector:
         return postgres.PostgresConnector.get_instance()
 
+    def setUp(self):
+        super().setUp()
+        postgres.upsert_user(self.database, 'alice')
+
     def insert_workflow(self, name: str, labels: dict[str, str]) -> str:
         workflow_obj = workflow.Workflow(
             workflow_name=name,

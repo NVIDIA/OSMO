@@ -105,6 +105,17 @@ osmo_py_test(
     tags = ["requires-network"],
 )
 
+osmo_py_test(
+    name = "test_user_filters_db",
+    size = "large",
+    srcs = ["test_user_filters_db.py"],
+    deps = [
+        "//src/service/core/tests:fixture",
+        "//src/utils/connectors",
+    ],
+    tags = ["requires-network"],
+)
+
 py_test(
     name = "test_workflow_metrics",
     srcs = ["test_workflow_metrics.py"],
