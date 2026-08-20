@@ -25,7 +25,7 @@
 {{- if not (kindIs "bool" (index $operation "enabled")) -}}{{- fail "MEK ownership operation enabled must be a boolean" -}}{{- end -}}
 {{- if or (not (kindIs "string" (index $operation "attempt"))) (eq (index $operation "attempt") "") -}}{{- fail "MEK ownership operation attempt must be a nonempty string" -}}{{- end -}}
 {{- end -}}
-{{- range $field := list "rotation" "recovery" -}}
+{{- range $field := list "rotation" "rewrap" "recovery" -}}
 {{- $operation := index $mek $field -}}
 {{- if or (not (kindIs "map" $operation)) (ne (len $operation) 4) -}}{{- fail "MEK rotation/recovery operation must be an exact lifecycle object" -}}{{- end -}}
 {{- if or (not (kindIs "string" (index $operation "attempt"))) (eq (index $operation "attempt") "") -}}{{- fail "MEK lifecycle attempt must be a nonempty string" -}}{{- end -}}
@@ -34,6 +34,7 @@
 {{- if or (not (or (kindIs "int" $operationDeadline) (kindIs "int64" $operationDeadline) (kindIs "float64" $operationDeadline))) (le (int $operationDeadline) 0) (ne (float64 $operationDeadline) (float64 (int $operationDeadline))) -}}{{- fail "MEK lifecycle activeDeadlineSeconds must be a positive integer" -}}{{- end -}}
 {{- end -}}
 {{- if not (kindIs "string" $mek.rotation.requestId) -}}{{- fail "services.masterEncryptionKey.rotation.requestId must be a string" -}}{{- end -}}
+{{- if not (kindIs "string" $mek.rewrap.requestId) -}}{{- fail "services.masterEncryptionKey.rewrap.requestId must be a string" -}}{{- end -}}
 {{- if not (kindIs "bool" $mek.recovery.enabled) -}}{{- fail "services.masterEncryptionKey.recovery.enabled must be a boolean" -}}{{- end -}}
 {{- if not (kindIs "bool" $mek.allowExistingCiphertextAdoption) -}}{{- fail "services.masterEncryptionKey.allowExistingCiphertextAdoption must be a boolean" -}}{{- end -}}
 {{- if and $mek.bootstrap.enabled (ne $mek.managementMode "osmo") -}}
@@ -42,11 +43,11 @@
 {{- if and $mek.rotation.requestId (ne $mek.managementMode "osmo") -}}
 {{- fail "services.masterEncryptionKey.rotation.requestId requires managementMode=osmo" -}}
 {{- end -}}
+{{- if and $mek.rewrap.requestId (ne $mek.managementMode "external") -}}
+{{- fail "services.masterEncryptionKey.rewrap.requestId requires managementMode=external" -}}
+{{- end -}}
 {{- if and $mek.recovery.enabled (ne $mek.managementMode "osmo") -}}
 {{- fail "services.masterEncryptionKey.recovery.enabled requires managementMode=osmo" -}}
-{{- end -}}
-{{- if and $mek.rebind.enabled (ne $mek.managementMode "osmo") -}}
-{{- fail "services.masterEncryptionKey.rebind.enabled requires managementMode=osmo" -}}
 {{- end -}}
 {{- if and $mek.ownershipRelease.enabled (ne $mek.managementMode "external") -}}
 {{- fail "services.masterEncryptionKey.ownershipRelease.enabled requires managementMode=external" -}}
@@ -54,11 +55,11 @@
 {{- if and $mek.ownershipReacquire.enabled (ne $mek.managementMode "osmo") -}}
 {{- fail "services.masterEncryptionKey.ownershipReacquire.enabled requires managementMode=osmo" -}}
 {{- end -}}
-{{- if and $mek.rotation.requestId $mek.recovery.enabled -}}
-{{- fail "MEK rotation and recovery cannot be enabled in the same release" -}}
+{{- if gt (len (compact (list $mek.rotation.requestId $mek.rewrap.requestId (ternary "recovery" "" $mek.recovery.enabled)))) 1 -}}
+{{- fail "Only one MEK rotation, rewrap, or recovery operation can run at a time" -}}
 {{- end -}}
-{{- if and (or $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.ownershipReacquire.enabled) (or $mek.rotation.requestId $mek.recovery.enabled) -}}
-{{- fail "MEK ownership maintenance cannot run with rotation or recovery" -}}
+{{- if and (or $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.ownershipReacquire.enabled) (or $mek.rotation.requestId $mek.rewrap.requestId $mek.recovery.enabled) -}}
+{{- fail "MEK ownership maintenance cannot run with rotation, rewrap, or recovery" -}}
 {{- end -}}
 {{- if gt (len (compact (list (ternary "rebind" "" $mek.rebind.enabled) (ternary "release" "" $mek.ownershipRelease.enabled) (ternary "reacquire" "" $mek.ownershipReacquire.enabled)))) 1 -}}
 {{- fail "Only one MEK ownership maintenance operation can run at a time" -}}
@@ -68,6 +69,9 @@
 {{- end -}}
 {{- if and .Release.IsInstall $mek.rotation.requestId -}}
 {{- fail "MEK rotation can be requested only after installation" -}}
+{{- end -}}
+{{- if and .Release.IsInstall $mek.rewrap.requestId -}}
+{{- fail "MEK rewrap can be requested only after installation" -}}
 {{- end -}}
 
 {{- with $mek.existingSecret.name }}
@@ -82,7 +86,7 @@ metadata:
 spec: {}
 ---
 {{- end }}
-{{- if or (eq $mek.managementMode "osmo") $mek.ownershipRelease.enabled }}
+{{- if or (eq $mek.managementMode "osmo") $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.rewrap.requestId }}
 {{- $secretName := required "services.masterEncryptionKey.existingSecret.name is required" $mek.existingSecret.name }}
 {{- $secretKey := required "services.masterEncryptionKey.existingSecret.key is required" $mek.existingSecret.key }}
 {{- $leaseHash := printf "%s/%s:%s" .Release.Namespace .Release.Name $secretName | sha256sum | trunc 10 }}
@@ -110,10 +114,10 @@ data:
   {{ $secretKey | quote }}: ""
 ---
 {{- end }}
-{{- if and (or $mek.bootstrap.enabled $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.ownershipReacquire.enabled) (not $mek.rotation.requestId) (not $mek.recovery.enabled) }}
+{{- if and (or $mek.bootstrap.enabled $mek.rebind.enabled $mek.ownershipRelease.enabled $mek.ownershipReacquire.enabled) (not $mek.rotation.requestId) (not $mek.rewrap.requestId) (not $mek.recovery.enabled) }}
 {{- $bootstrapOperation := ternary "release" (ternary "reacquire" (ternary "rebind" (ternary "validate" "bootstrap" .Release.IsUpgrade) $mek.rebind.enabled) $mek.ownershipReacquire.enabled) $mek.ownershipRelease.enabled }}
 {{- $bootstrapAttempt := ternary $mek.ownershipRelease.attempt (ternary $mek.ownershipReacquire.attempt (ternary $mek.rebind.attempt $mek.bootstrap.attempt $mek.rebind.enabled) $mek.ownershipReacquire.enabled) $mek.ownershipRelease.enabled }}
-{{- $bootstrapManagementMode := ternary "external" "osmo" $mek.ownershipRelease.enabled }}
+{{- $bootstrapManagementMode := $mek.managementMode }}
 {{- $bootstrapHash := printf "%s:%s:%s" $bootstrapAttempt .Values.global.osmoImageTag .Chart.Version | sha256sum | trunc 8 }}
 {{- $bootstrapName := printf "%s-mek-bootstrap-%s" .Release.Name $bootstrapHash | trunc 63 | trimSuffix "-" }}
 ---
@@ -396,6 +400,157 @@ spec:
               fieldPath: metadata.uid
         - name: OSMO_SERVICE_ACCOUNT
           value: {{ $rotationName | quote }}
+        {{- if .Values.services.postgres.password }}
+        - name: OSMO_POSTGRES_PASSWORD
+          value: {{ .Values.services.postgres.password | quote }}
+        {{- else if .Values.services.configFile.enabled }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
+        {{- end }}
+        volumeMounts:
+        - name: lifecycle-temp
+          mountPath: /tmp
+        - name: kubernetes-api
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      volumes:
+      - name: lifecycle-temp
+        emptyDir: {}
+      - name: kubernetes-api
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}
+{{- if $mek.rewrap.requestId }}
+{{- $rewrapHash := printf "%s:%s" $mek.rewrap.requestId $mek.rewrap.attempt | sha256sum | trunc 10 }}
+{{- $rewrapName := printf "%s-mek-rewrap-%s" .Release.Name $rewrapHash | trunc 63 | trimSuffix "-" }}
+{{- $consumerDeployments := list .Values.services.service.serviceName .Values.services.worker.serviceName .Values.services.router.serviceName .Values.services.logger.serviceName .Values.services.agent.serviceName .Values.services.delayedJobMonitor.serviceName }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $rewrapName }}
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $rewrapName }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: [{{ $secretName | quote }}]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  resourceNames: [{{ $leaseName | quote }}]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings"]
+  resourceNames: [{{ $rewrapName | quote }}]
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $rewrapName }}
+  namespace: {{ .Release.Namespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $rewrapName }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $rewrapName }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $rewrapName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ $mek.rewrap.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "osmo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: mek-rewrap
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $rewrapName }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ . }}
+      {{- end }}
+      containers:
+      - name: mek-rewrap
+        image: {{ printf "%s/%s:%s" .Values.global.osmoImageLocation .Values.services.service.imageName .Values.global.osmoImageTag | quote }}
+        imagePullPolicy: {{ $mek.rewrap.imagePullPolicy | quote }}
+        command: ["mek-lifecycle"]
+        args:
+        - --operation
+        - rewrap
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --secret_name
+        - {{ $secretName | quote }}
+        - --secret_key
+        - {{ $secretKey | quote }}
+        - --installation_id
+        - {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
+        - --request_id
+        - {{ $mek.rewrap.requestId | quote }}
+        - --attempt
+        - {{ $mek.rewrap.attempt | quote }}
+        - --consumer_deployments
+        - {{ join "," $consumerDeployments | quote }}
+        - --postgres_host
+        - {{ .Values.services.postgres.serviceName | quote }}
+        - --postgres_port
+        - {{ .Values.services.postgres.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.services.postgres.db | quote }}
+        - --postgres_user
+        - {{ .Values.services.postgres.user | quote }}
+        - --mek_management_mode
+        - external
+        - --active_deadline_seconds
+        - {{ $mek.rewrap.activeDeadlineSeconds | quote }}
+        env:
+        - name: OSMO_POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OSMO_SERVICE_ACCOUNT
+          value: {{ $rewrapName | quote }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password | quote }}

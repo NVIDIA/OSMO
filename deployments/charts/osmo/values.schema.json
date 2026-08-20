@@ -987,6 +987,20 @@
           },
           "required": ["requestId", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
         },
+        "rewrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requestId": { "type": "string" },
+            "attempt": { "type": "string", "minLength": 1 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["requestId", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
+        },
         "recovery": {
           "type": "object",
           "additionalProperties": false,
@@ -1000,7 +1014,7 @@
         },
         "allowExistingCiphertextAdoption": { "type": "boolean" }
       },
-      "required": ["managementMode", "existingSecret", "bootstrap", "rebind", "ownershipRelease", "ownershipReacquire", "rotation", "recovery", "allowExistingCiphertextAdoption"]
+      "required": ["managementMode", "existingSecret", "bootstrap", "rebind", "ownershipRelease", "ownershipReacquire", "rotation", "rewrap", "recovery", "allowExistingCiphertextAdoption"]
     },
     "postgresqlSecretReference": {
       "type": "object",

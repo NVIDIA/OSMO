@@ -112,7 +112,7 @@ def _wrap_uek(mek, user_key, payload=None):
 class TestSecretManagerRotation(unittest.TestCase):
     """Exercises safe externally managed keyring transitions."""
 
-    def test_prepare_activate_rewraps_direct_mek_value(self):
+    def test_direct_mek_read_is_read_only_and_explicit_rewrap_uses_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
             keyring_path = Path(directory) / "mek.yaml"
             old_mek = _make_mek("old")
@@ -132,10 +132,21 @@ class TestSecretManagerRotation(unittest.TestCase):
             decrypted = manager.decrypt(Encrypted(encrypted.value), "", replacements.append)
 
             self.assertEqual(decrypted.value, "secret")
-            self.assertEqual(len(replacements), 1)
-            self.assertEqual(_jwe_kid(replacements[0]), "new")
+            self.assertEqual(replacements, [])
+            result = manager.rewrap_direct_mek(encrypted.value, manager.rewrap_snapshot())
+            self.assertEqual(result.status, "rewrapped")
+            self.assertEqual(_jwe_kid(result.value), "new")
+            self.assertEqual(
+                manager.decrypt(Encrypted(result.value), "", replacements.append).value,
+                "secret",
+            )
+            self.assertEqual(replacements, [])
+            current = manager.rewrap_direct_mek(
+                result.value, manager.rewrap_snapshot())
+            self.assertEqual(current.status, "already-current")
+            self.assertEqual(current.value, result.value)
 
-    def test_prepare_activate_lazily_rewraps_uek_without_changing_uek(self):
+    def test_uek_read_is_read_only_and_explicit_rewrap_preserves_uek(self):
         with tempfile.TemporaryDirectory() as directory:
             keyring_path = Path(directory) / "mek.yaml"
             old_mek = _make_mek("old")
@@ -155,8 +166,13 @@ class TestSecretManagerRotation(unittest.TestCase):
 
             rewrapped_uek = manager.get_uek("user")[0]
             assert rewrapped_uek.export() == original_uek
+            assert store.users["user"][user_key_id] == old_wrapper
+            result = manager.rewrap_uek(
+                "user", user_key_id, manager.rewrap_snapshot())
+            self.assertEqual(result.status, "rewrapped")
             assert store.users["user"][user_key_id] != old_wrapper
             assert _jwe_kid(store.users["user"][user_key_id]) == "new"
+            assert manager.get_uek("user")[0].export() == original_uek
 
     def test_persistence_callbacks_run_outside_keyring_lock(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -200,7 +216,8 @@ class TestSecretManagerRotation(unittest.TestCase):
                 return original_write_uek(user_id, key_id, new_value, old_value)
 
             manager.write_uek = write_uek
-            manager.get_uek("user")
+            manager.rewrap_uek(
+                "user", store.users["user"]["current"], manager.rewrap_snapshot())
 
             replacements = []
 
@@ -209,7 +226,8 @@ class TestSecretManagerRotation(unittest.TestCase):
                 replacements.append(value)
 
             manager.decrypt(direct_encrypted, "", update_secret)
-            self.assertEqual(len(replacements), 1)
+            self.assertEqual(replacements, [])
+            manager.rewrap_direct_mek(direct_encrypted.value, manager.rewrap_snapshot())
 
     def test_add_and_activate_is_rejected_and_last_known_good_is_retained(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -316,7 +334,7 @@ class TestSecretManagerRotation(unittest.TestCase):
                 manager.authenticate_uek_wrapper(wrapper, expected_key.key_id)
 
     def test_uek_cas_loser_replacement_is_authenticated_and_identical(self):
-        cases = ("malformed", "different")
+        cases = ("malformed", "different", "wrong-mek")
         for replacement_kind in cases:
             with self.subTest(replacement=replacement_kind), tempfile.TemporaryDirectory() \
                     as directory:
@@ -339,10 +357,14 @@ class TestSecretManagerRotation(unittest.TestCase):
                     expected_error = "failed authentication"
                 else:
                     original_data = original_key.export(as_dict=True)
-                    different_key = jwk.JWK.generate(
-                        kty="oct", size=256, kid=original_data["kid"])
-                    replacement = _wrap_uek(new_mek, different_key)
-                    expected_error = "changed the key payload"
+                    if replacement_kind == "different":
+                        different_key = jwk.JWK.generate(
+                            kty="oct", size=256, kid=original_data["kid"])
+                        replacement = _wrap_uek(new_mek, different_key)
+                        expected_error = "changed the key payload"
+                    else:
+                        replacement = _wrap_uek(old_mek, original_key)
+                        expected_error = "pinned target MEK"
 
                 def lose_compare_and_set(
                         user_id, key_id, new_value, old_value,
@@ -353,7 +375,93 @@ class TestSecretManagerRotation(unittest.TestCase):
 
                 manager.write_uek = lose_compare_and_set
                 with self.assertRaisesRegex(osmo_errors.OSMOError, expected_error):
-                    manager.get_uek("user", user_key_id)
+                    manager.rewrap_uek(
+                        "user", user_key_id, manager.rewrap_snapshot())
+
+    def test_uek_rewrap_accepts_identical_concurrent_winner_and_current_noop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            keyring_path = Path(directory) / "mek.yaml"
+            old_mek = _make_mek("old")
+            new_mek = _make_mek("new")
+            store = SecretStore()
+            _write_keyring(keyring_path, "old", {"old": old_mek})
+            manager = _manager(keyring_path, store)
+            manager.add_new_user("user")
+            user_key_id = store.users["user"]["current"]
+            user_key = manager.get_uek("user", user_key_id)[0]
+            _write_keyring(keyring_path, "old", {"old": old_mek, "new": new_mek})
+            self.assertTrue(manager.reload_if_changed())
+            _write_keyring(keyring_path, "new", {"old": old_mek, "new": new_mek})
+            self.assertTrue(manager.reload_if_changed())
+            snapshot = manager.rewrap_snapshot()
+            concurrent = _wrap_uek(new_mek, user_key)
+
+            def lose_with_identical(user_id, key_id, new_value, old_value):
+                del new_value, old_value
+                store.users[user_id][key_id] = concurrent
+                return False
+
+            manager.write_uek = lose_with_identical
+            result = manager.rewrap_uek("user", user_key_id, snapshot)
+            self.assertEqual(result.status, "concurrent-winner")
+            current = manager.rewrap_uek("user", user_key_id, snapshot)
+            self.assertEqual(current.status, "already-current")
+            self.assertEqual(current.value, concurrent)
+
+    def test_explicit_rewrap_rejects_missing_or_malformed_wrapper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            keyring_path = Path(directory) / "mek.yaml"
+            mek = _make_mek("current")
+            store = SecretStore()
+            _write_keyring(keyring_path, "current", {"current": mek})
+            manager = _manager(keyring_path, store)
+            snapshot = manager.rewrap_snapshot()
+            store.users["user"] = {"current": "missing", "bad": "not-a-jwe"}
+            with self.assertRaisesRegex(osmo_errors.OSMOError, "failed authentication"):
+                manager.rewrap_uek("user", "missing", snapshot)
+            with self.assertRaisesRegex(osmo_errors.OSMOError, "failed authentication"):
+                manager.rewrap_uek("user", "bad", snapshot)
+            with self.assertRaisesRegex(osmo_errors.OSMOError, "failed authentication"):
+                manager.rewrap_direct_mek("not-a-jwe", snapshot)
+
+    def test_explicit_rewrap_rejects_keyring_change_before_and_after_cas(self):
+        with tempfile.TemporaryDirectory() as directory:
+            keyring_path = Path(directory) / "mek.yaml"
+            old_mek = _make_mek("old")
+            new_mek = _make_mek("new")
+            later_mek = _make_mek("later")
+            store = SecretStore()
+            _write_keyring(keyring_path, "old", {"old": old_mek})
+            manager = _manager(keyring_path, store)
+            manager.add_new_user("user")
+            user_key_id = store.users["user"]["current"]
+            _write_keyring(keyring_path, "old", {"old": old_mek, "new": new_mek})
+            self.assertTrue(manager.reload_if_changed())
+            _write_keyring(keyring_path, "new", {"old": old_mek, "new": new_mek})
+            self.assertTrue(manager.reload_if_changed())
+            snapshot = manager.rewrap_snapshot()
+            _write_keyring(
+                keyring_path, "new", {"old": old_mek, "new": new_mek, "later": later_mek})
+            self.assertTrue(manager.reload_if_changed())
+            with self.assertRaisesRegex(osmo_errors.OSMOError, "changed during explicit rewrap"):
+                manager.rewrap_uek("user", user_key_id, snapshot)
+
+            # Restore the activated snapshot, then change it from inside the CAS callback.
+            _write_keyring(keyring_path, "new", {"old": old_mek, "new": new_mek})
+            manager = _manager(keyring_path, store)
+            snapshot = manager.rewrap_snapshot()
+            original_write = manager.write_uek
+
+            def change_after_cas(user_id, key_id, new_value, old_value):
+                updated = original_write(user_id, key_id, new_value, old_value)
+                _write_keyring(
+                    keyring_path, "new",
+                    {"old": old_mek, "new": new_mek, "later": later_mek})
+                return updated
+
+            manager.write_uek = change_after_cas
+            with self.assertRaisesRegex(osmo_errors.OSMOError, "changed during explicit rewrap"):
+                manager.rewrap_uek("user", user_key_id, snapshot)
 
     def test_historical_standard_base64_key_material_is_accepted(self):
         fixtures = {

@@ -579,6 +579,76 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/mek-rotation.yaml" '- rotate'
     require_contains "$TEST_DIRECTORY/mek-rotation.yaml" '- "321"'
 
+    helm_template rewrap-osmo "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=external \
+        --set secrets.masterEncryptionKey.rewrap.requestId=rewrap-2026-08 \
+        --set secrets.masterEncryptionKey.rewrap.activeDeadlineSeconds=432 \
+        >"$TEST_DIRECTORY/mek-rewrap.yaml"
+    require_contains "$TEST_DIRECTORY/mek-rewrap.yaml" \
+        'app.kubernetes.io/component: mek-rewrap'
+    require_contains "$TEST_DIRECTORY/mek-rewrap.yaml" '- rewrap'
+    require_contains "$TEST_DIRECTORY/mek-rewrap.yaml" '- "432"'
+    require_contains "$TEST_DIRECTORY/mek-rewrap.yaml" \
+        'resourceNames: ["external-master-encryption-key-secret"]'
+    rewrap_role_name=$(awk '
+        /app.kubernetes.io\/component: mek-rewrap/ { found = 1 }
+        found && /serviceAccountName:/ { print $2; exit }
+    ' "$TEST_DIRECTORY/mek-rewrap.yaml")
+    resource_document "$TEST_DIRECTORY/mek-rewrap.yaml" Role "$rewrap_role_name" \
+        >"$TEST_DIRECTORY/mek-rewrap-role.yaml"
+    require_contains "$TEST_DIRECTORY/mek-rewrap-role.yaml" 'verbs: ["get"]'
+    awk '
+        /resources: \["secrets"\]/ { secret_rule = 1; next }
+        secret_rule && /verbs:/ {
+            if ($0 != "  verbs: [\"get\"]") exit 1
+            found = 1
+            secret_rule = 0
+        }
+        END { if (!found) exit 1 }
+    ' "$TEST_DIRECTORY/mek-rewrap-role.yaml" || \
+        fail "external MEK rewrap has Secret mutation permission"
+    resource_document "$TEST_DIRECTORY/mek-rewrap.yaml" Job "$rewrap_role_name" \
+        >"$TEST_DIRECTORY/mek-rewrap-job.yaml"
+    require_not_contains "$TEST_DIRECTORY/mek-rewrap-job.yaml" \
+        'ttlSecondsAfterFinished'
+    if helm_template invalid-rewrap-osmo "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.rewrap.requestId=invalid \
+        >"$TEST_DIRECTORY/mek-rewrap-invalid.out" 2>&1; then
+        fail "external MEK rewrap was accepted in OSMO-managed mode"
+    fi
+
+    helm_template rebind-external-osmo "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=external \
+        --set secrets.masterEncryptionKey.rebind.enabled=true \
+        >"$TEST_DIRECTORY/mek-rebind-external.yaml"
+    require_contains "$TEST_DIRECTORY/mek-rebind-external.yaml" '- rebind'
+    rebind_role_name=$(awk '
+        /app.kubernetes.io\/component: mek-bootstrap/ { found = 1 }
+        found && /serviceAccountName:/ { print $2; exit }
+    ' "$TEST_DIRECTORY/mek-rebind-external.yaml")
+    resource_document "$TEST_DIRECTORY/mek-rebind-external.yaml" Role \
+        "$rebind_role_name" >"$TEST_DIRECTORY/mek-rebind-external-role.yaml"
+    awk '
+        /resources: \["secrets"\]/ { secret_rule = 1; next }
+        secret_rule && /verbs:/ {
+            if ($0 != "  verbs: [\"get\"]") exit 1
+            found = 1
+            secret_rule = 0
+        }
+        END { if (!found) exit 1 }
+    ' "$TEST_DIRECTORY/mek-rebind-external-role.yaml" || \
+        fail "external MEK rebind has Secret mutation permission"
+
     helm_template rotate-osmo-disabled-consumer "$charts_copy/osmo" \
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

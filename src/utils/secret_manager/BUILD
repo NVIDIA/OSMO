@@ -23,6 +23,7 @@ osmo_py_library(
     name = "secret_manager",
     srcs = [
         "secret_manager.py",
+        "mek_schema.py",
         "__init__.py",
     ],
     data = [

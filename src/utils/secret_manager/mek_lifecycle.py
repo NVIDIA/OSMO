@@ -38,6 +38,7 @@ import yaml
 
 from src.lib.utils import osmo_errors
 from src.utils import connectors, static_config
+from src.utils.secret_manager import mek_schema
 from src.utils.secret_manager.secret_manager import (
     MAX_KEYRING_BYTES,
     MAX_MEK_COUNT,
@@ -78,7 +79,8 @@ class MekLifecycleConfig(connectors.PostgresConfig, static_config.StaticConfig):
     """Configuration for the namespace-scoped MEK lifecycle Job."""
 
     operation: Literal[
-        "bootstrap", "validate", "rebind", "release", "reacquire", "recover", "rotate"
+        "bootstrap", "validate", "rebind", "release", "reacquire", "recover", "rotate",
+        "rewrap",
     ] = pydantic.Field(
         description="Lifecycle operation to execute.",
         json_schema_extra={"command_line": "operation", "env": "OSMO_MEK_OPERATION"},
@@ -228,7 +230,8 @@ def _lease_name(installation_id: str, secret_name: str) -> str:
     prefix = re.sub(r"[^a-z0-9-]", "-", release_name.lower()).strip("-") or "osmo"
     digest = hashlib.sha256(
         f"{installation_id}:{secret_name}".encode("utf-8")).hexdigest()[:10]
-    return f"{prefix[:46].rstrip('-')}-mek-{digest}"
+    safe_prefix = prefix[:46].rstrip("-")
+    return f"{safe_prefix}-mek-{digest}"
 
 
 def _add_candidate(keyring: ParsedKeyring, request_id: str) -> ParsedKeyring:
@@ -394,80 +397,7 @@ class MekLifecycle:
 
     @staticmethod
     def _ensure_registry_schema(cursor) -> None:
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS public.mek_key_registry (
-                kid TEXT PRIMARY KEY, fingerprint TEXT NOT NULL,
-                state TEXT NOT NULL CHECK (state IN ('prepared', 'current')),
-                remaining_references INTEGER, last_scan_started_at TIMESTAMPTZ,
-                last_scan_completed_at TIMESTAMPTZ,
-                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS public.mek_keyring_adoption (
-                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-                generation TEXT NOT NULL, current_kid TEXT NOT NULL,
-                loaded_kids TEXT[] NOT NULL, secret_name TEXT NOT NULL DEFAULT '',
-                secret_key TEXT NOT NULL DEFAULT '', secret_uid TEXT NOT NULL DEFAULT '',
-                installation_id TEXT NOT NULL DEFAULT '',
-                management_mode TEXT NOT NULL DEFAULT 'external'
-                    CHECK (management_mode IN ('external', 'osmo')),
-                ready BOOLEAN NOT NULL DEFAULT FALSE,
-                adopted_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-        ''')
-        for column in ("secret_name", "secret_key", "secret_uid", "installation_id"):
-            cursor.execute(
-                f"ALTER TABLE public.mek_keyring_adoption "
-                f"ADD COLUMN IF NOT EXISTS {column} TEXT NOT NULL DEFAULT '';"
-            )
-        cursor.execute('''
-            ALTER TABLE public.mek_keyring_adoption
-            ADD COLUMN IF NOT EXISTS management_mode TEXT;
-        ''')
-        cursor.execute('''
-            UPDATE public.mek_keyring_adoption
-            SET management_mode = CASE WHEN secret_uid <> '' THEN 'osmo' ELSE 'external' END
-            WHERE management_mode IS NULL;
-        ''')
-        cursor.execute('''
-            ALTER TABLE public.mek_keyring_adoption
-            ALTER COLUMN management_mode SET DEFAULT 'external';
-        ''')
-        cursor.execute('''
-            ALTER TABLE public.mek_keyring_adoption
-            ALTER COLUMN management_mode SET NOT NULL;
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS public.mek_write_epoch (
-                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-                epoch BIGINT NOT NULL DEFAULT 0,
-                writes_allowed BOOLEAN NOT NULL DEFAULT TRUE);
-        ''')
-        cursor.execute('''
-            INSERT INTO public.mek_write_epoch(singleton, epoch, writes_allowed)
-            VALUES (TRUE, 0, TRUE) ON CONFLICT (singleton) DO NOTHING;
-        ''')
-        cursor.execute('''
-            CREATE OR REPLACE FUNCTION public.bump_mek_write_epoch()
-            RETURNS trigger LANGUAGE plpgsql AS $$
-            BEGIN
-                UPDATE public.mek_write_epoch SET epoch = epoch + 1
-                WHERE singleton AND writes_allowed;
-                IF NOT FOUND THEN
-                    RAISE EXCEPTION 'MEK lifecycle write fence is active';
-                END IF;
-                RETURN NULL;
-            END;
-            $$;
-        ''')
-        for table in ("ueks", "configs"):
-            cursor.execute("SELECT to_regclass(%s);", (f"public.{table}",))
-            if cursor.fetchone()[0] is not None:
-                cursor.execute(f"DROP TRIGGER IF EXISTS bump_mek_write_epoch ON {table};")
-                cursor.execute(f'''
-                    CREATE TRIGGER bump_mek_write_epoch
-                    AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON {table}
-                    FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();
-                ''')
+        mek_schema.ensure_mek_schema(cursor)
 
     @staticmethod
     def _database_is_raw_empty(cursor) -> bool:
@@ -519,9 +449,9 @@ class MekLifecycle:
                 cursor.execute("SELECT pg_advisory_xact_lock(%s);", (0x4F534D4F4D454B41,))
                 self._ensure_registry_schema(cursor)
                 cursor.execute(
-                    "SELECT generation, current_kid, loaded_kids, secret_name, secret_key, "
-                    "secret_uid, installation_id, management_mode, ready "
-                    "FROM public.mek_keyring_adoption WHERE singleton;")
+                    "SELECT adopted_generation, adopted_current_kid, adopted_kids, "
+                    "bound_secret_name, bound_secret_key, bound_secret_uid, installation_id, "
+                    "management_mode, ready FROM public.mek_lifecycle_state WHERE singleton;")
                 existing = cursor.fetchone()
                 cursor.execute(
                     "SELECT kid, fingerprint, state FROM public.mek_key_registry;")
@@ -571,9 +501,9 @@ class MekLifecycle:
                         "INSERT INTO public.mek_key_registry(kid, fingerprint, state) "
                         "VALUES(%s, %s, %s);", (key_id, fingerprint, state))
                 cursor.execute('''
-                    INSERT INTO public.mek_keyring_adoption (
-                        singleton, generation, current_kid, loaded_kids,
-                        secret_name, secret_key, secret_uid, installation_id,
+                    INSERT INTO public.mek_lifecycle_state (
+                        singleton, adopted_generation, adopted_current_kid, adopted_kids,
+                        bound_secret_name, bound_secret_key, bound_secret_uid, installation_id,
                         management_mode, ready)
                     VALUES (TRUE, %s, %s, %s, %s, %s, %s, %s, 'osmo', FALSE);
                 ''', (
@@ -595,9 +525,9 @@ class MekLifecycle:
                 cursor.execute("SELECT pg_advisory_xact_lock(%s);", (0x4F534D4F4D454B41,))
                 self._ensure_registry_schema(cursor)
                 cursor.execute(
-                    "SELECT generation, current_kid, loaded_kids, secret_name, secret_key, "
-                    "secret_uid, installation_id, management_mode, ready "
-                    "FROM public.mek_keyring_adoption "
+                    "SELECT adopted_generation, adopted_current_kid, adopted_kids, "
+                    "bound_secret_name, bound_secret_key, bound_secret_uid, installation_id, "
+                    "management_mode, ready FROM public.mek_lifecycle_state "
                     "WHERE singleton FOR UPDATE;")
                 adoption = cursor.fetchone()
                 identity = (
@@ -631,7 +561,7 @@ class MekLifecycle:
                         raise osmo_errors.OSMOError(
                             "Protected ciphertext appeared during MEK bootstrap.")
                     cursor.execute(
-                        "UPDATE public.mek_keyring_adoption SET ready = TRUE "
+                        "UPDATE public.mek_lifecycle_state SET ready = TRUE "
                         "WHERE singleton AND NOT ready;")
                 cursor.execute(
                     "UPDATE public.mek_write_epoch SET writes_allowed = TRUE, "
@@ -722,14 +652,16 @@ class MekLifecycle:
                 cursor.execute(
                     "SELECT rotation_id, fencing_epoch, phase, active_pod_uid, "
                     "active_service_account, credential_fenced, predecessor_generation, "
-                    "candidate_generation, registry_digest, secret_uid, "
-                    "secret_resource_version FROM public.mek_rewrap_status "
+                    "candidate_generation, registry_digest, "
+                    "rotation_secret_uid AS secret_uid, "
+                    "rotation_secret_resource_version AS secret_resource_version "
+                    "FROM public.mek_lifecycle_state "
                     "WHERE singleton FOR UPDATE;")
                 row = cursor.fetchone()
                 cursor.execute(
-                    "SELECT secret_name, secret_key, secret_uid, installation_id, "
-                    "management_mode, ready "
-                    "FROM public.mek_keyring_adoption WHERE singleton;")
+                    "SELECT bound_secret_name, bound_secret_key, bound_secret_uid, "
+                    "installation_id, management_mode, ready "
+                    "FROM public.mek_lifecycle_state WHERE singleton;")
                 adoption = cursor.fetchone()
                 if adoption != (
                     self.config.secret_name, self.config.secret_key,
@@ -762,10 +694,10 @@ class MekLifecycle:
                         self._validate_resumed_rotation(row, keyring, secret))
                     if resumed_phase == "complete":
                         cursor.execute('''
-                            UPDATE public.mek_rewrap_status
-                            SET secret_resource_version = %s
+                            UPDATE public.mek_lifecycle_state
+                            SET rotation_secret_resource_version = %s
                             WHERE singleton AND rotation_id = %s AND phase = 'complete'
-                              AND secret_uid = %s;
+                              AND rotation_secret_uid = %s;
                         ''', (
                             secret.metadata.resource_version,
                             self.config.request_id, secret.metadata.uid,
@@ -802,27 +734,23 @@ class MekLifecycle:
                         raise osmo_errors.OSMOError(
                             "MEK write fence is not initialized.")
                 cursor.execute('''
-                    INSERT INTO public.mek_rewrap_status (
-                        singleton, generation, current_kid, persistence_registry_version,
-                        rotation_id, fencing_epoch, phase, active_pod_uid,
-                        active_service_account, credential_fenced, predecessor_generation,
-                        candidate_generation, registry_digest, secret_uid,
-                        secret_resource_version, last_started_at)
-                    VALUES (TRUE, %s, %s, %s, %s, %s, %s, %s, %s, FALSE,
-                            %s, %s, %s, %s, %s, NOW())
-                    ON CONFLICT (singleton) DO UPDATE SET
-                        rotation_id = EXCLUDED.rotation_id,
-                        fencing_epoch = EXCLUDED.fencing_epoch,
-                        phase = EXCLUDED.phase,
-                        active_pod_uid = EXCLUDED.active_pod_uid,
-                        active_service_account = EXCLUDED.active_service_account,
+                    UPDATE public.mek_lifecycle_state SET
+                        observed_generation = %s,
+                        observed_current_kid = %s,
+                        persistence_registry_version = %s,
+                        rotation_id = %s,
+                        fencing_epoch = %s,
+                        phase = %s,
+                        active_pod_uid = %s,
+                        active_service_account = %s,
                         credential_fenced = FALSE,
-                        predecessor_generation = EXCLUDED.predecessor_generation,
-                        candidate_generation = EXCLUDED.candidate_generation,
-                        registry_digest = EXCLUDED.registry_digest,
-                        secret_uid = EXCLUDED.secret_uid,
-                        secret_resource_version = EXCLUDED.secret_resource_version,
-                        last_started_at = NOW(), blocker = '';
+                        predecessor_generation = %s,
+                        candidate_generation = %s,
+                        registry_digest = %s,
+                        rotation_secret_uid = %s,
+                        rotation_secret_resource_version = %s,
+                        last_started_at = NOW(), blocker = ''
+                    WHERE singleton AND ready;
                 ''', (
                     keyring.generation, keyring.current_key_id,
                     connectors.MEK_PERSISTENCE_REGISTRY_VERSION,
@@ -832,6 +760,9 @@ class MekLifecycle:
                     keyring.registry_digest, secret.metadata.uid,
                     secret.metadata.resource_version,
                 ))
+                if cursor.rowcount != 1:
+                    raise osmo_errors.OSMOError(
+                        "MEK rotation requires an initialized lifecycle binding.")
                 return RotationClaim(
                     fencing_epoch, phase, predecessor_generation, candidate_generation)
 
@@ -851,10 +782,11 @@ class MekLifecycle:
         with self._database() as connection:
             with connection.cursor() as cursor:
                 cursor.execute('''
-                    UPDATE public.mek_rewrap_status SET
-                        phase = %s, generation = %s, current_kid = %s,
+                    UPDATE public.mek_lifecycle_state SET
+                        phase = %s, observed_generation = %s, observed_current_kid = %s,
                         candidate_generation = %s, registry_digest = %s,
-                        secret_uid = %s, secret_resource_version = %s
+                        rotation_secret_uid = %s,
+                        rotation_secret_resource_version = %s
                     WHERE singleton AND rotation_id = %s AND fencing_epoch = %s
                       AND active_pod_uid = %s AND phase = %s;
                 ''', (
@@ -884,10 +816,11 @@ class MekLifecycle:
         with self._database() as connection:
             with connection.cursor() as cursor:
                 cursor.execute('''
-                    UPDATE public.mek_rewrap_status SET secret_resource_version = %s
+                    UPDATE public.mek_lifecycle_state
+                    SET rotation_secret_resource_version = %s
                     WHERE singleton AND rotation_id = %s AND fencing_epoch = %s
                       AND active_pod_uid = %s AND phase = 'complete'
-                      AND secret_uid = %s;
+                      AND rotation_secret_uid = %s;
                 ''', (
                     secret.metadata.resource_version, self.config.request_id,
                     fencing_epoch, self.config.pod_uid, secret.metadata.uid,
@@ -991,6 +924,121 @@ class MekLifecycle:
                     return
             time.sleep(3)
 
+    def _run_rewrap(self, keyring: ParsedKeyring) -> None:
+        """Run the explicit data rewrap against exactly one activated keyring."""
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as keyring_file:
+            keyring_file.write(keyring.encoded)
+            keyring_path = keyring_file.name
+        database = None
+        try:
+            connector_config = self.config.model_copy(update={
+                "mek_file": keyring_path,
+                "mek_secret_name": self.config.secret_name,
+                "mek_secret_key": self.config.secret_key,
+                "mek_installation_id": self.config.installation_id,
+            })
+            database = connectors.PostgresConnector(connector_config)
+            database.rewrap_mek_references(
+                max(1, int(self.deadline - time.monotonic())),
+                expected_generation=keyring.generation,
+                expected_current_kid=keyring.current_key_id,
+                expected_registry_digest=keyring.registry_digest,
+            )
+        finally:
+            if database is not None:
+                database.close()
+            Path(keyring_path).unlink(missing_ok=True)
+
+    def rewrap(self) -> None:
+        """Rewrap external-mode ciphertext without mutating the Kubernetes Secret."""
+        if not self.config.request_id:
+            raise osmo_errors.OSMOError("Rewrap request_id is required.")
+        if (
+            not self.config.secret_name
+            or not self.config.secret_key
+            or not self.config.installation_id
+        ):
+            raise osmo_errors.OSMOError("External rewrap installation identity is incomplete.")
+        secret = self._secret()
+        if secret.metadata.uid is None or secret.metadata.resource_version is None:
+            raise osmo_errors.OSMOError("MEK Secret metadata is incomplete.")
+        keyring = self._required_keyring_from_secret(secret, "MEK Secret is empty.")
+        with self._database() as connection:
+            with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute("SELECT pg_advisory_xact_lock(%s);", (0x4F534D4F4D454B41,))
+                cursor.execute('''
+                    SELECT bound_secret_name, bound_secret_key, bound_secret_uid,
+                           installation_id, management_mode, ready, rotation_id, phase
+                    FROM public.mek_lifecycle_state WHERE singleton FOR UPDATE;
+                ''')
+                state = cursor.fetchone()
+                if (
+                    state is None
+                    or state["management_mode"] != "external"
+                    or not state["ready"]
+                ):
+                    raise osmo_errors.OSMOError(
+                        "External rewrap does not match the MEK installation binding.")
+                if state["rotation_id"] and state["phase"] != "complete":
+                    raise osmo_errors.OSMOError(
+                        "External rewrap cannot run while a managed rotation is incomplete.")
+                cursor.execute(
+                    "SELECT kid, fingerprint, state FROM public.mek_key_registry ORDER BY kid;")
+                registered = {
+                    row["kid"]: (row["fingerprint"], row["state"])
+                    for row in cursor.fetchall()
+                }
+                expected_registry = {
+                    key_id: (
+                        fingerprint,
+                        "current" if key_id == keyring.current_key_id else "prepared",
+                    )
+                    for key_id, fingerprint in keyring.fingerprints.items()
+                }
+                if registered != expected_registry:
+                    raise osmo_errors.OSMOError(
+                        "External rewrap keyring does not match the durable registry.")
+                bound_identity = (
+                    state["bound_secret_name"], state["bound_secret_key"],
+                    state["bound_secret_uid"], state["installation_id"])
+                expected_identity = (
+                    self.config.secret_name, self.config.secret_key,
+                    secret.metadata.uid, self.config.installation_id)
+                if not any(bound_identity):
+                    cursor.execute('''
+                        UPDATE public.mek_lifecycle_state SET
+                            bound_secret_name = %s, bound_secret_key = %s,
+                            bound_secret_uid = %s, installation_id = %s
+                        WHERE singleton AND management_mode = 'external' AND ready
+                          AND bound_secret_name = '' AND bound_secret_key = ''
+                          AND bound_secret_uid = '' AND installation_id = '';
+                    ''', expected_identity)
+                    if cursor.rowcount != 1:
+                        raise osmo_errors.OSMOError(
+                            "External MEK installation binding changed concurrently.")
+                elif bound_identity != expected_identity:
+                    raise osmo_errors.OSMOError(
+                        "External rewrap does not match the MEK installation binding.")
+                bound_secret = self._secret()
+                if (
+                    bound_secret.metadata.uid != secret.metadata.uid
+                    or bound_secret.metadata.resource_version
+                    != secret.metadata.resource_version
+                ):
+                    raise osmo_errors.OSMOError(
+                        "MEK Secret changed during external rewrap binding.")
+                self._verify_secret_keyring(bound_secret, keyring)
+
+        self._wait_for_acknowledgements(keyring, active=True)
+        self._run_rewrap(keyring)
+        live_secret = self._secret()
+        if (
+            live_secret.metadata.uid != secret.metadata.uid
+            or live_secret.metadata.resource_version != secret.metadata.resource_version
+        ):
+            raise osmo_errors.OSMOError("MEK Secret changed during external rewrap.")
+        self._verify_secret_keyring(live_secret, keyring)
+
     def rotate(self) -> None:
         if not self.config.request_id:
             raise osmo_errors.OSMOError("Rotation request_id is required.")
@@ -1071,24 +1119,7 @@ class MekLifecycle:
             secret = self._secret()
             activated = self._required_keyring_from_secret(
                 secret, "Activated MEK Secret is empty.")
-            with tempfile.NamedTemporaryFile(mode="wb", delete=False) as keyring_file:
-                keyring_file.write(activated.encoded)
-                keyring_path = keyring_file.name
-            database = None
-            try:
-                connector_config = self.config.model_copy(update={
-                    "mek_file": keyring_path,
-                    "mek_secret_name": self.config.secret_name,
-                    "mek_secret_key": self.config.secret_key,
-                    "mek_installation_id": self.config.installation_id,
-                })
-                database = connectors.PostgresConnector(connector_config)
-                database.rewrap_mek_references(
-                    max(1, int(self.deadline - time.monotonic())))
-            finally:
-                if database is not None:
-                    database.close()
-                Path(keyring_path).unlink(missing_ok=True)
+            self._run_rewrap(activated)
             secret = self._secret()
             self._advance_phase(
                 fencing_epoch, "activated", "complete", activated, secret)
@@ -1101,27 +1132,27 @@ class MekLifecycle:
     def rebind(self) -> None:
         """Explicitly bind an identical recreated Secret UID to this installation."""
         secret = self._secret()
-        if (
-            (secret.metadata.annotations or {}).get(_MANAGED_ANNOTATION) != "osmo"
-            or (secret.metadata.annotations or {}).get(_INSTALLATION_ANNOTATION)
-            != self.config.installation_id
-        ):
+        management_mode = self.config.mek_management_mode
+        if management_mode == "osmo" and (
+                (secret.metadata.annotations or {}).get(_MANAGED_ANNOTATION) != "osmo"
+                or (secret.metadata.annotations or {}).get(_INSTALLATION_ANNOTATION)
+                != self.config.installation_id):
             raise osmo_errors.OSMOError("MEK Secret is not OSMO managed.")
         keyring = self._required_keyring_from_secret(secret, "MEK Secret is empty.")
         with self._database() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_xact_lock(%s);", (0x4F534D4F4D454B41,))
                 cursor.execute('''
-                    SELECT secret_name, secret_key, secret_uid, installation_id,
+                    SELECT bound_secret_name, bound_secret_key, bound_secret_uid, installation_id,
                            management_mode, ready
-                    FROM public.mek_keyring_adoption WHERE singleton FOR UPDATE;
+                    FROM public.mek_lifecycle_state WHERE singleton FOR UPDATE;
                 ''')
                 adoption = cursor.fetchone()
                 if (
                     adoption is None or not adoption[5]
                     or adoption[:2] != (self.config.secret_name, self.config.secret_key)
                     or adoption[3] != self.config.installation_id
-                    or adoption[4] != "osmo"
+                    or adoption[4] != management_mode
                 ):
                     raise osmo_errors.OSMOError(
                         "MEK installation binding is absent or names another Secret.")
@@ -1132,7 +1163,7 @@ class MekLifecycle:
                     raise osmo_errors.OSMOError(
                         "Recreated MEK Secret is not identical to the registered keyring.")
                 cursor.execute('''
-                    SELECT rotation_id, phase FROM public.mek_rewrap_status
+                    SELECT rotation_id, phase FROM public.mek_lifecycle_state
                     WHERE singleton;
                 ''')
                 rotation = cursor.fetchone()
@@ -1149,9 +1180,10 @@ class MekLifecycle:
                         "Recreated MEK Secret changed during rebind.")
                 self._verify_secret_keyring(live_secret, keyring)
                 cursor.execute('''
-                    UPDATE public.mek_keyring_adoption SET secret_uid = %s
-                    WHERE singleton AND secret_uid = %s;
-                ''', (secret.metadata.uid, adoption[2]))
+                    UPDATE public.mek_lifecycle_state SET bound_secret_uid = %s
+                    WHERE singleton AND bound_secret_uid = %s
+                      AND management_mode = %s;
+                ''', (secret.metadata.uid, adoption[2], management_mode))
                 if cursor.rowcount != 1:
                     raise osmo_errors.OSMOError("MEK Secret UID rebind changed concurrently.")
 
@@ -1169,9 +1201,9 @@ class MekLifecycle:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_xact_lock(%s);", (0x4F534D4F4D454B41,))
                 cursor.execute('''
-                    SELECT secret_name, secret_key, secret_uid, installation_id,
+                    SELECT bound_secret_name, bound_secret_key, bound_secret_uid, installation_id,
                            management_mode, ready
-                    FROM public.mek_keyring_adoption WHERE singleton FOR UPDATE;
+                    FROM public.mek_lifecycle_state WHERE singleton FOR UPDATE;
                 ''')
                 adoption = cursor.fetchone()
                 expected_identity = (
@@ -1190,7 +1222,7 @@ class MekLifecycle:
                     raise osmo_errors.OSMOError(
                         "MEK Secret does not match the registered keyring.")
                 cursor.execute('''
-                    SELECT rotation_id, phase FROM public.mek_rewrap_status
+                    SELECT rotation_id, phase FROM public.mek_lifecycle_state
                     WHERE singleton;
                 ''')
                 rotation = cursor.fetchone()
@@ -1209,8 +1241,8 @@ class MekLifecycle:
                 if adoption[4] == "external":
                     return
                 cursor.execute('''
-                    UPDATE public.mek_keyring_adoption SET management_mode = 'external'
-                    WHERE singleton AND management_mode = 'osmo' AND secret_uid = %s;
+                    UPDATE public.mek_lifecycle_state SET management_mode = 'external'
+                    WHERE singleton AND management_mode = 'osmo' AND bound_secret_uid = %s;
                 ''', (secret.metadata.uid,))
                 if cursor.rowcount != 1:
                     raise osmo_errors.OSMOError("MEK ownership release changed concurrently.")
@@ -1229,9 +1261,9 @@ class MekLifecycle:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_xact_lock(%s);", (0x4F534D4F4D454B41,))
                 cursor.execute('''
-                    SELECT secret_name, secret_key, secret_uid, installation_id,
+                    SELECT bound_secret_name, bound_secret_key, bound_secret_uid, installation_id,
                            management_mode, ready
-                    FROM public.mek_keyring_adoption WHERE singleton FOR UPDATE;
+                    FROM public.mek_lifecycle_state WHERE singleton FOR UPDATE;
                 ''')
                 adoption = cursor.fetchone()
                 expected_identity = (
@@ -1250,7 +1282,7 @@ class MekLifecycle:
                     raise osmo_errors.OSMOError(
                         "MEK Secret does not match the registered keyring.")
                 cursor.execute('''
-                    SELECT rotation_id, phase FROM public.mek_rewrap_status
+                    SELECT rotation_id, phase FROM public.mek_lifecycle_state
                     WHERE singleton;
                 ''')
                 rotation = cursor.fetchone()
@@ -1269,8 +1301,8 @@ class MekLifecycle:
                 if adoption[4] == "osmo":
                     return
                 cursor.execute('''
-                    UPDATE public.mek_keyring_adoption SET management_mode = 'osmo'
-                    WHERE singleton AND management_mode = 'external' AND secret_uid = %s;
+                    UPDATE public.mek_lifecycle_state SET management_mode = 'osmo'
+                    WHERE singleton AND management_mode = 'external' AND bound_secret_uid = %s;
                 ''', (secret.metadata.uid,))
                 if cursor.rowcount != 1:
                     raise osmo_errors.OSMOError(
@@ -1281,8 +1313,9 @@ class MekLifecycle:
         with self._database() as connection:
             with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute('''
-                    SELECT secret_name, secret_key, installation_id, management_mode, ready
-                    FROM public.mek_keyring_adoption WHERE singleton;
+                    SELECT bound_secret_name AS secret_name, bound_secret_key AS secret_key,
+                           installation_id, management_mode, ready
+                    FROM public.mek_lifecycle_state WHERE singleton;
                 ''')
                 adoption = cursor.fetchone()
                 if adoption != {
@@ -1296,7 +1329,7 @@ class MekLifecycle:
                         "Recovery does not match the managed MEK installation binding.")
                 cursor.execute('''
                     SELECT rotation_id, phase, active_pod_uid, active_service_account
-                    FROM public.mek_rewrap_status WHERE singleton FOR UPDATE;
+                    FROM public.mek_lifecycle_state WHERE singleton FOR UPDATE;
                 ''')
                 row = cursor.fetchone()
                 if row is None or not row["rotation_id"]:
@@ -1341,7 +1374,7 @@ class MekLifecycle:
                         break
                     time.sleep(2)
                 cursor.execute('''
-                    UPDATE public.mek_rewrap_status SET credential_fenced = TRUE
+                    UPDATE public.mek_lifecycle_state SET credential_fenced = TRUE
                     WHERE singleton AND active_pod_uid = %s AND active_service_account = %s;
                 ''', (row["active_pod_uid"], row["active_service_account"]))
                 if cursor.rowcount != 1:
@@ -1364,7 +1397,7 @@ def _run() -> None:
     lifecycle_config = MekLifecycleConfig.load()
     lifecycle = MekLifecycle(lifecycle_config)
     release_on_failure = lifecycle_config.operation in (
-        "bootstrap", "validate", "rebind", "release", "reacquire")
+        "bootstrap", "validate", "rebind", "release", "reacquire", "rewrap")
     if lifecycle_config.operation not in ("rotate", "recover"):
         lifecycle.acquire_lease(allow_expired=release_on_failure)
     succeeded = False
@@ -1381,6 +1414,8 @@ def _run() -> None:
             lifecycle.reacquire_ownership()
         elif lifecycle_config.operation == "recover":
             lifecycle.recover()
+        elif lifecycle_config.operation == "rewrap":
+            lifecycle.rewrap()
         else:
             lifecycle.rotate()
         succeeded = True

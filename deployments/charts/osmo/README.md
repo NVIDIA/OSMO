@@ -235,10 +235,11 @@ database. Key material is never rendered into Helm output or release state.
 Upgrades run the same workload in validation-only mode with Secret `get`
 permission and cannot generate a replacement for retained data.
 
-If the managed Secret object must be recreated, restore the exact same keyring
-and ownership annotations, then run one upgrade with
-`secrets.masterEncryptionKey.rebind.enabled=true`. The pre-upgrade Job accepts
-only identical registered key material and records the new Secret UID. To hand
+If the Secret object must be recreated, restore the exact same keyring and run
+one upgrade with `secrets.masterEncryptionKey.rebind.enabled=true`. In managed
+mode, also restore the ownership annotations. The pre-upgrade Job has only
+exact-name Secret `get` access, accepts only identical registered key material,
+and records the new Secret UID. To hand
 an unchanged managed keyring back to an external operator, set
 `managementMode=external` and `ownershipRelease.enabled=true` in the same
 upgrade. A pre-upgrade Job verifies the Secret UID and full registry before it
@@ -257,14 +258,43 @@ acknowledge it, writes ACTIVATE, and waits again. It then restarts the UEK and
 direct-config rewrap from zero in bounded compare-and-swap batches. A database
 write epoch and final authenticated inventory prove that no old-key row landed
 behind the scan. User secret plaintext and UEK material do not change; only
-their encrypted wrappers do.
+their encrypted wrappers do. Application reads never perform MEK rewrap writes;
+the lifecycle Job is the sole rewrap orchestrator.
 
 Each attempt is fenced by a Kubernetes Lease, PostgreSQL epoch, unique Pod UID,
 and short-lived ServiceAccount token. Before exit, the Job deletes its exact
-RoleBinding; a completion annotation also prevents the same request from
-recreating mutation RBAC on a later upgrade. Clear `rotation.requestId` after a
-successful rotation. Old MEKs are retained; removal is rejected, and the
-keyring stops safely at 32 keys.
+RoleBinding. A direct Helm upgrade observes the completion annotation and does
+not render that request again. Clear `rotation.requestId` after a successful
+rotation. Old MEKs are retained; removal is rejected, and the keyring stops
+safely at 32 keys.
+
+`managementMode=osmo` bootstrap and rotation require direct Helm lifecycle
+execution. They are not safe to render continuously with an offline GitOps
+Helm renderer: `lookup` cannot see the retained Secret or completion annotation,
+so a controller can reapply the empty bootstrap placeholder or recreate
+mutation RBAC. For Argo CD or Flux, use `managementMode=external`, create and
+update the Secret outside this chart, and use the read-only rewrap Job below.
+Do not commit managed `bootstrap.enabled` or `rotation.requestId` into a
+continuously reconciled application unless that application explicitly excludes
+the MEK Secret and lifecycle resources; use two manual syncs and clear the
+request immediately after success. Self-revocation alone is not a GitOps cleanup
+guarantee because reconciliation can recreate a deleted RoleBinding.
+
+For `managementMode=external`, the operator performs the same two Secret
+updates: first add the new key without changing `currentMek`, wait for all
+control-plane Pods to become ready, then select it as `currentMek`. Set a unique
+`secrets.masterEncryptionKey.rewrap.requestId` on the following upgrade. This
+renders a rewrap-only Job that verifies fresh ACTIVATE acknowledgements, pins
+the Secret UID/resourceVersion and complete keyring digest, and runs the same
+fenced restart-from-zero sweep. Its Role has exact-name Secret `get` only and
+cannot patch or update the Secret. Leave the completed Job present until the
+request ID is cleared; it intentionally has no TTL so GitOps controllers do not
+recreate it. On the first external rewrap, the Job also binds the previously
+unbound database lifecycle row to this exact Secret UID and release identity.
+If GitOps later recreates the object with identical bytes, set
+`rebind.enabled=true` for one sync before requesting another rewrap. A
+read-only Job verifies the complete registry and updates only the bound UID.
+Increment `rewrap.attempt` only to retry the same request safely.
 
 For a terminated attempt, first clear `rotation.requestId`, enable `recovery`,
 and upgrade. Helm removes the previous attempt's ServiceAccount/RBAC. The
@@ -310,6 +340,13 @@ helm upgrade <release> deployments/charts/osmo -n <namespace> \
   --reuse-values --wait \
   --set secrets.masterEncryptionKey.allowExistingCiphertextAdoption=false
 ```
+
+Developer environments that ran an earlier, pre-merge version of this MEK PR
+are intentionally not migrated automatically. If startup reports an unsupported
+pre-merge MEK schema, keep every OSMO writer stopped, back up any data that must
+be retained, and recreate the development database before reinstalling. Never
+drop MEK metadata tables from a database containing ciphertext and then restart
+writers; that discards the durable key identity and rotation fences.
 
 For an external Valkey endpoint signed by a public CA, enable
 `externalDependencies.valkey.tls.enabled` and leave `caExistingSecret` empty to

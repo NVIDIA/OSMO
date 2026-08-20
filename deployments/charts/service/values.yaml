@@ -140,6 +140,13 @@ services:
       attempt: "1"
       imagePullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
+    # In external mode, set a unique requestId after completing PREPARE/ACTIVATE
+    # to run the read-only, restart-from-zero ciphertext rewrap Job.
+    rewrap:
+      requestId: ""
+      attempt: "1"
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
     # Recovery is a separate, credential-fenced attempt. Before enabling it,
     # clear rotation.requestId and upgrade once so Helm removes the failed
     # rotation Job's ServiceAccount, Role, and RoleBinding.

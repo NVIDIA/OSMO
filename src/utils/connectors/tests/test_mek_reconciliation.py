@@ -37,18 +37,19 @@ def _connector():
     database.secret_manager.generation = "generation"
     database.secret_manager.meks = {"old": object(), "new": object()}
     database._mek_monitor_stop = threading.Event()
+    database.execute_commit_command = mock.Mock(return_value=1)
     database.execute_commit_commands = mock.Mock()
     return database
 
 
 def _adoption(**overrides):
     adoption = {
-        "generation": "generation",
-        "current_kid": "new",
-        "loaded_kids": ["new"],
-        "secret_name": "",
-        "secret_key": "",
-        "secret_uid": "",
+        "adopted_generation": "generation",
+        "adopted_current_kid": "new",
+        "adopted_kids": ["new"],
+        "bound_secret_name": "",
+        "bound_secret_key": "",
+        "bound_secret_uid": "",
         "installation_id": "",
         "management_mode": "external",
         "ready": True,
@@ -93,7 +94,8 @@ class TestMekReconciliation(unittest.TestCase):
         database.execute_fetch_command = mock.Mock(side_effect=[
             [{"kid": "old", "fingerprint": "old-fingerprint", "state": "current"}],
             [_adoption(
-                generation="old-generation", current_kid="old", loaded_kids=["old"])],
+                adopted_generation="old-generation", adopted_current_kid="old",
+                adopted_kids=["old"])],
         ])
 
         with self.assertRaisesRegex(osmo_errors.OSMOError, "missing registered keys"):
@@ -109,7 +111,8 @@ class TestMekReconciliation(unittest.TestCase):
             [],
             [],
             [{"kid": "a", "fingerprint": "fingerprint-a", "state": "current"}],
-            [_adoption(generation="other", current_kid="a", loaded_kids=["a"])],
+            [_adoption(
+                adopted_generation="other", adopted_current_kid="a", adopted_kids=["a"])],
         ])
         database._adopt_initial_mek_keyring = mock.Mock(return_value="existing")
 
@@ -120,7 +123,7 @@ class TestMekReconciliation(unittest.TestCase):
         ), self.assertRaisesRegex(osmo_errors.OSMOError, "different initial MEK keyring"):
             database._init_mek_key_registry()
 
-        database.execute_commit_commands.assert_called_once()
+        database.execute_commit_command.assert_called_once()
 
     def test_committed_adoption_fence_is_released_before_local_mount_rejection(self):
         database = _connector()
@@ -131,13 +134,14 @@ class TestMekReconciliation(unittest.TestCase):
             [{"kid": "new", "fingerprint": "canonical-fingerprint", "state": "current"}],
             [_adoption(ready=False)],
         ])
+        database.execute_commit_command = mock.Mock(return_value=1)
 
         with self.assertRaisesRegex(osmo_errors.OSMOError, "does not match"):
             database._init_mek_key_registry()
 
-        database.execute_commit_commands.assert_called_once()
-        commands = database.execute_commit_commands.call_args.args[0]
-        self.assertTrue(any("writes_allowed = TRUE" in command for command, _ in commands))
+        database.execute_commit_command.assert_called_once()
+        self.assertIn(
+            "writes_allowed = TRUE", database.execute_commit_command.call_args.args[0])
 
     def test_released_binding_keeps_rolled_back_managed_readers_available(self):
         database = _connector()
@@ -151,7 +155,7 @@ class TestMekReconciliation(unittest.TestCase):
         database.execute_fetch_command = mock.Mock(side_effect=[
             [{"kid": "new", "fingerprint": "new-fingerprint", "state": "current"}],
             [_adoption(
-                secret_name="mek", secret_key="mek.yaml", secret_uid="uid",
+                bound_secret_name="mek", bound_secret_key="mek.yaml", bound_secret_uid="uid",
                 installation_id="osmo/release", management_mode="external")],
         ])
 
@@ -278,15 +282,15 @@ class TestMekReconciliation(unittest.TestCase):
         database.execute_fetch_command = mock.Mock(side_effect=[
             [],
             [{
-                "generation": "generation",
-                "current_kid": "new",
-                "loaded_kids": ["new"],
+                "adopted_generation": "generation",
+                "adopted_current_kid": "new",
+                "adopted_kids": ["new"],
             }],
             [],
             [{
-                "generation": "generation",
-                "current_kid": "new",
-                "loaded_kids": ["new"],
+                "adopted_generation": "generation",
+                "adopted_current_kid": "new",
+                "adopted_kids": ["new"],
             }],
         ])
         database._adopt_initial_mek_keyring = mock.Mock(return_value="existing")
@@ -310,7 +314,7 @@ class TestMekReconciliation(unittest.TestCase):
         database._registered_config_rewrap_paths = mock.Mock(return_value={
             ("WORKFLOW", "workflow_alerts"): frozenset({""})})
         database._rewrap_config_value = mock.Mock(side_effect=[("new", True), ("newer", True)])
-        database._rewrap_configs()
+        database._rewrap_configs(mock.sentinel.snapshot)
 
         self.assertEqual(database.execute_commit_command.call_count, 2)
         second_args = database.execute_commit_command.call_args_list[1].args[1]
@@ -324,10 +328,10 @@ class TestMekReconciliation(unittest.TestCase):
         ]
         database.execute_fetch_command = mock.Mock(side_effect=[rows, []])
 
-        completed = database._rewrap_ueks()
+        completed = database._rewrap_ueks(mock.sentinel.snapshot)
 
         self.assertTrue(completed)
-        self.assertEqual(database.secret_manager.get_uek.call_count, len(rows))
+        self.assertEqual(database.secret_manager.rewrap_uek.call_count, len(rows))
         self.assertEqual(database.execute_fetch_command.call_count, 2)
         query_args = database.execute_fetch_command.call_args_list[0].args[1]
         self.assertEqual(query_args[-1], connectors.MEK_RECONCILE_BATCH_SIZE)
@@ -339,9 +343,9 @@ class TestMekReconciliation(unittest.TestCase):
         rows = [{"uid": "bad-user", "key": "bad-key"}]
         database._record_mek_blocker = mock.Mock()
         database.execute_fetch_command = mock.Mock(return_value=rows)
-        database.secret_manager.get_uek.side_effect = osmo_errors.OSMOError("bad wrapper")
+        database.secret_manager.rewrap_uek.side_effect = osmo_errors.OSMOError("bad wrapper")
 
-        self.assertTrue(database._rewrap_ueks())
+        self.assertTrue(database._rewrap_ueks(mock.sentinel.snapshot))
 
         database._record_mek_blocker.assert_called_once_with(
             "A persisted UEK wrapper failed authentication; inspect service logs.")
@@ -351,19 +355,60 @@ class TestMekReconciliation(unittest.TestCase):
         database._record_mek_blocker = mock.Mock()
         with mock.patch.object(database, "_jwe_header", side_effect=ValueError("malformed")):
             replacement, changed = database._rewrap_config_value(
-                "a.b.c.d.e", frozenset({""}))
+                "a.b.c.d.e", frozenset({""}), mock.sentinel.snapshot)
 
         self.assertEqual(replacement, "a.b.c.d.e")
         self.assertFalse(changed)
         database._record_mek_blocker.assert_called_once_with(
             "A persisted config ciphertext is malformed; inspect service logs.")
 
+    def test_rewrap_rejects_requested_snapshot_mismatch_before_writes(self):
+        database = _connector()
+        snapshot = mock.Mock(
+            generation="generation", current_mek_id="new",
+            fingerprints={"new": "fingerprint"})
+        database.secret_manager.rewrap_snapshot.return_value = snapshot
+        database.secret_manager.rewrap_snapshot_digest.return_value = "digest"
+        database._get_reserved_reconciler_connection = mock.Mock()
+
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "requested rewrap snapshot"):
+            database.rewrap_mek_references(expected_generation="other")
+
+        database._get_reserved_reconciler_connection.assert_not_called()
+
+    def test_rewrap_fails_if_registry_changes_before_final_inventory_commit(self):
+        database = _connector()
+        snapshot = mock.Mock(
+            generation="generation", current_mek_id="new",
+            fingerprints={"new": "fingerprint"})
+        database.secret_manager.rewrap_snapshot.return_value = snapshot
+        database.secret_manager.rewrap_snapshot_digest.return_value = "digest"
+        database.is_active_mek_registry = mock.Mock(side_effect=[True, False])
+        database._rewrap_ueks = mock.Mock(return_value=True)
+        database._rewrap_configs = mock.Mock(return_value=True)
+        database._scan_mek_references = mock.Mock(return_value=({"new": 0}, []))
+        database._set_mek_writes_allowed = mock.Mock()
+        connection = mock.MagicMock()
+        connection.cursor.return_value.__enter__.return_value.fetchone.return_value = (True,)
+        context = mock.MagicMock()
+        context.__enter__.return_value = connection
+        database._get_reserved_reconciler_connection = mock.Mock(return_value=context)
+
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "registry changed"):
+            database.rewrap_mek_references(
+                expected_generation="generation", expected_current_kid="new",
+                expected_registry_digest="digest")
+
+        self.assertEqual(database._set_mek_writes_allowed.call_args_list, [
+            mock.call(False), mock.call(True)])
+
     def test_scan_status_persists_only_redacted_blocker_summary(self):
         database = _connector()
-        database.execute_commit_command = mock.Mock()
+        database.execute_commit_command = mock.Mock(return_value=1)
 
         database._record_mek_scan(
-            {"old": 1, "new": 0}, ["configs/WORKFLOW/private-user-path: failed"])
+            {"old": 1, "new": 0}, ["configs/WORKFLOW/private-user-path: failed"],
+            mock.Mock(current_mek_id="new", generation="generation"))
 
         status_args = database.execute_commit_command.call_args_list[0].args[1]
         self.assertEqual(

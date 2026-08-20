@@ -218,6 +218,39 @@ grep -q 'resources: \["deployments", "replicasets"\]' <<<"$mek_rotation_render"
 grep -A1 -- '--active_deadline_seconds' <<<"$mek_rotation_render" \
     | grep -q -- '"321"'
 
+mek_rewrap_render=$(helm template mek-rewrap "$CHART_DIR" --namespace osmo \
+    --is-upgrade \
+    --set 'services.masterEncryptionKey.managementMode=external' \
+    --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
+    --set 'services.masterEncryptionKey.rewrap.requestId=rewrap-2026-08' \
+    --set 'services.masterEncryptionKey.rewrap.activeDeadlineSeconds=432')
+grep -q 'app.kubernetes.io/component: mek-rewrap' <<<"$mek_rewrap_render"
+grep -A1 -- '- --operation' <<<"$mek_rewrap_render" | grep -q -- '- rewrap'
+grep -A1 -- '--active_deadline_seconds' <<<"$mek_rewrap_render" \
+    | grep -q -- '"432"'
+mek_rewrap_role=$(resource_document "$mek_rewrap_render" Role \
+    "$(awk '/app.kubernetes.io\/component: mek-rewrap/{found=1} found && /serviceAccountName:/{print $2; exit}' <<<"$mek_rewrap_render")")
+grep -q 'resourceNames: \["test-mek"\]' <<<"$mek_rewrap_role"
+grep -q 'verbs: \["get"\]' <<<"$mek_rewrap_role"
+if grep -qE 'verbs: .*\b(patch|update|create|deletecollection)\b' \
+        <<<"$(grep -A4 'resources: \["secrets"\]' <<<"$mek_rewrap_role")"; then
+    echo 'External MEK rewrap has Secret mutation permission' >&2
+    exit 1
+fi
+if grep -q 'ttlSecondsAfterFinished' \
+        <<<"$(resource_document "$mek_rewrap_render" Job \
+            "$(awk '/serviceAccountName: .*mek-rewrap/{print $2; exit}' <<<"$mek_rewrap_render")")"; then
+    echo 'External MEK rewrap Job would be recreated repeatedly by GitOps after TTL cleanup' >&2
+    exit 1
+fi
+if helm template invalid-mek-rewrap "$CHART_DIR" --namespace osmo --is-upgrade \
+        --set 'services.masterEncryptionKey.managementMode=osmo' \
+        --set 'services.masterEncryptionKey.rewrap.requestId=invalid' \
+        >/dev/null 2>&1; then
+    echo 'External MEK rewrap was accepted in OSMO-managed mode' >&2
+    exit 1
+fi
+
 mek_recovery_render=$(helm template mek-recover "$CHART_DIR" --namespace osmo \
     --is-upgrade \
     --set 'services.masterEncryptionKey.managementMode=osmo' \
@@ -233,6 +266,24 @@ if grep -A20 'app.kubernetes.io/component: mek-recovery' <<<"$mek_recovery_rende
     echo 'MEK recovery unexpectedly has Secret access' >&2
     exit 1
 fi
+
+mek_external_rebind_render=$(helm template mek-rebind "$CHART_DIR" --namespace osmo \
+    --is-upgrade \
+    --set 'services.masterEncryptionKey.managementMode=external' \
+    --set 'services.masterEncryptionKey.rebind.enabled=true')
+grep -A1 -- '- --operation' <<<"$mek_external_rebind_render" | grep -q -- '- rebind'
+awk '
+    /resources: \["secrets"\]/ { secret_rule = 1; next }
+    secret_rule && /verbs:/ {
+        if ($0 != "  verbs: [\"get\"]") exit 1
+        found = 1
+        secret_rule = 0
+    }
+    END { if (!found) exit 1 }
+' <<<"$mek_external_rebind_render" || {
+    echo 'External MEK rebind has Secret mutation permission' >&2
+    exit 1
+}
 
 mek_release_render=$(helm template mek-release "$CHART_DIR" --namespace osmo \
     --is-upgrade \

@@ -303,8 +303,8 @@ class MekRotationKind(SmokeFixture):
             secret["metadata"].get("annotations", {}).get(
                 "osmo.nvidia.com/mek-installation"))
         adoption = self._postgres_scalar(
-            "SELECT secret_uid || '|' || installation_id || '|' || management_mode || '|' || "
-            "ready::text FROM public.mek_keyring_adoption WHERE singleton;")
+            "SELECT bound_secret_uid || '|' || installation_id || '|' || management_mode || "
+            "'|' || ready::text FROM public.mek_lifecycle_state WHERE singleton;")
         secret_uid = secret["metadata"]["uid"]
         self.assertEqual(
             f"{secret_uid}|{installation_id}|osmo|true", adoption)
@@ -326,7 +326,7 @@ class MekRotationKind(SmokeFixture):
         self.assertFalse(lease.get("spec", {}).get("holderIdentity"))
         self._run_lifecycle(secret_name, secret_key, "rebind", attempt="uid-2")
         rebound_uid = self._postgres_scalar(
-            "SELECT secret_uid FROM public.mek_keyring_adoption WHERE singleton;")
+            "SELECT bound_secret_uid FROM public.mek_lifecycle_state WHERE singleton;")
         self.assertEqual(recreated["metadata"]["uid"], rebound_uid)
 
         original_workflow_alerts = self._workflow_alerts_raw()
@@ -361,7 +361,7 @@ class MekRotationKind(SmokeFixture):
             f"{request_id}|prepare-written|false",
             self._postgres_scalar(
                 "SELECT rotation_id || '|' || phase || '|' || credential_fenced::text "
-                "FROM public.mek_rewrap_status WHERE singleton;"))
+                "FROM public.mek_lifecycle_state WHERE singleton;"))
         self._delete_rotation_resources(failed_name)
         self._wait(
             "the failed rotation Pod to disappear",
@@ -371,7 +371,7 @@ class MekRotationKind(SmokeFixture):
         self._run_lifecycle(secret_name, secret_key, "recover", attempt="recover-1")
         self.assertEqual(
             "true", self._postgres_scalar(
-                "SELECT credential_fenced::text FROM public.mek_rewrap_status "
+                "SELECT credential_fenced::text FROM public.mek_lifecycle_state "
                 "WHERE singleton;"))
         completed_name = self._run_lifecycle(
             secret_name, secret_key, "rotate", request_id=request_id, attempt="2")
@@ -441,7 +441,7 @@ class MekRotationKind(SmokeFixture):
         adoption = self._postgres_scalar_in(
             namespace,
             "SELECT management_mode || '|' || ready::text "
-            "FROM public.mek_keyring_adoption WHERE singleton;")
+            "FROM public.mek_lifecycle_state WHERE singleton;")
         self.assertEqual("osmo|true", adoption)
         bindings = self._json_in(namespace, "get", "rolebindings")["items"]
         self.assertFalse(any(
@@ -455,7 +455,7 @@ class MekRotationKind(SmokeFixture):
             "the Helm rotation claim",
             lambda: request_id if self._postgres_scalar_in(
                 namespace,
-                "SELECT rotation_id FROM public.mek_rewrap_status WHERE singleton;")
+                "SELECT rotation_id FROM public.mek_lifecycle_state WHERE singleton;")
             == request_id else None)
         self._kubectl(
             "delete", "deployment", "osmo-logger", namespace=namespace)

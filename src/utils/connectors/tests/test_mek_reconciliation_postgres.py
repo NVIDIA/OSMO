@@ -37,6 +37,7 @@ from src.lib.utils import osmo_errors
 from src.utils import connectors
 from src.utils.secret_manager import SecretManager
 from src.utils.secret_manager import mek_lifecycle
+from src.utils.secret_manager import mek_schema
 
 
 def _available_port():
@@ -149,49 +150,18 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         for command in (
             "CREATE EXTENSION IF NOT EXISTS hstore;",
             "DROP TABLE IF EXISTS public.mek_consumer_status, "
-            "public.mek_rewrap_progress, public.mek_rewrap_status, public.mek_write_epoch, "
+            "public.mek_lifecycle_state, public.mek_rewrap_progress, "
+            "public.mek_rewrap_status, public.mek_write_epoch, "
             "public.mek_keyring_adoption, public.mek_key_registry, configs, ueks, users CASCADE;",
             "CREATE TABLE users (id TEXT PRIMARY KEY);",
             "CREATE TABLE ueks (uid TEXT REFERENCES users(id), keys HSTORE, PRIMARY KEY(uid));",
             "CREATE TABLE configs (key TEXT, type TEXT, value TEXT, PRIMARY KEY(key, type));",
-            "CREATE TABLE public.mek_key_registry ("
-            "kid TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, "
-            "state TEXT NOT NULL CHECK (state IN ('prepared','current')), "
-            "remaining_references INTEGER, last_scan_started_at TIMESTAMPTZ, "
-            "last_scan_completed_at TIMESTAMPTZ, first_seen_at TIMESTAMPTZ DEFAULT NOW());",
-            "CREATE TABLE public.mek_keyring_adoption ("
-            "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), generation TEXT NOT NULL, "
-            "current_kid TEXT NOT NULL, loaded_kids TEXT[] NOT NULL, "
-            "secret_name TEXT NOT NULL DEFAULT '', secret_key TEXT NOT NULL DEFAULT '', "
-            "secret_uid TEXT NOT NULL DEFAULT '', installation_id TEXT NOT NULL DEFAULT '', "
-            "management_mode TEXT NOT NULL DEFAULT 'external', "
-            "ready BOOLEAN NOT NULL DEFAULT FALSE, adopted_at TIMESTAMPTZ DEFAULT NOW());",
-            "CREATE TABLE public.mek_rewrap_status ("
-            "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), "
-            "generation TEXT NOT NULL, current_kid TEXT NOT NULL, "
-            "persistence_registry_version INTEGER NOT NULL DEFAULT 1, "
-            "last_started_at TIMESTAMPTZ, last_completed_at TIMESTAMPTZ, "
-            "blocker TEXT NOT NULL DEFAULT '');",
-            "CREATE TABLE public.mek_write_epoch ("
-            "singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton), epoch BIGINT NOT NULL, "
-            "writes_allowed BOOLEAN NOT NULL DEFAULT TRUE);",
-            "INSERT INTO public.mek_write_epoch(singleton, epoch, writes_allowed) "
-            "VALUES(TRUE, 0, TRUE);",
-            "CREATE TABLE public.mek_consumer_status ("
-            "consumer_id TEXT PRIMARY KEY, consumer_name TEXT NOT NULL, generation TEXT NOT NULL, "
-            "current_kid TEXT NOT NULL, loaded_kids TEXT[] NOT NULL, "
-            "registry_digest TEXT NOT NULL DEFAULT '', "
-            "last_seen_at TIMESTAMPTZ DEFAULT NOW());",
-            "CREATE OR REPLACE FUNCTION public.bump_mek_write_epoch() RETURNS trigger "
-            "LANGUAGE plpgsql AS $$ BEGIN UPDATE public.mek_write_epoch SET epoch = epoch + 1 "
-            "WHERE singleton AND writes_allowed; IF NOT FOUND THEN RAISE EXCEPTION "
-            "'MEK registry adoption write fence is active'; END IF; RETURN NULL; END; $$;",
-            "CREATE TRIGGER bump_mek_write_epoch AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE "
-            "ON ueks FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();",
-            "CREATE TRIGGER bump_mek_write_epoch AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE "
-            "ON configs FOR EACH STATEMENT EXECUTE FUNCTION public.bump_mek_write_epoch();",
         ):
             self.database.execute_commit_command(command, ())
+        with self.database._get_connection() as connection:
+            with connection.cursor() as cursor:
+                mek_schema.ensure_mek_schema(cursor)
+            connection.commit()
         self.database.execute_commit_command("INSERT INTO users(id) VALUES ('user');", ())
 
         self.keyring_path = Path(self.temporary_directory.name) / "mek-integration.yaml"
@@ -211,6 +181,19 @@ class TestMekReconciliationPostgres(unittest.TestCase):
     def tearDown(self):
         assert self.database._pool is not None
         self.database._pool.closeall()
+
+    def _raw_connection(self):
+        return psycopg2.connect(
+            host=str(self.socket_directory),
+            port=self.port,
+            dbname="postgres",
+            user="postgres",
+        )
+
+    def _ensure_schema(self) -> None:
+        with self._raw_connection() as connection:
+            with connection.cursor() as cursor:
+                mek_schema.ensure_mek_schema(cursor)
 
     def test_historical_adoption_rotation_rewrap_resume_and_leadership(self):
         self.database.secret_manager.add_new_user("user")
@@ -259,7 +242,10 @@ class TestMekReconciliationPostgres(unittest.TestCase):
 
         _write_keyring(self.keyring_path, "new", {"old": self.old_mek, "new": self.new_mek})
         self.assertTrue(self.database.secret_manager.reload_if_changed())
-        self.database._init_mek_key_registry()
+        active_registry = self.database.execute_fetch_command(
+            "SELECT kid FROM public.mek_key_registry WHERE state = 'current';",
+            (), return_raw=True)
+        self.assertEqual(active_registry, [{"kid": "new"}])
         self.database.rewrap_mek_references()
         counts, blockers = self.database._scan_mek_references()
         self.assertEqual(blockers, [])
@@ -272,6 +258,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             with first.cursor() as cursor:
                 cursor.execute("SELECT pg_try_advisory_lock(%s);", (1234567,))
                 self.assertTrue(cursor.fetchone()[0])
+
             with second.cursor() as cursor:
                 cursor.execute("SELECT pg_try_advisory_lock(%s);", (1234567,))
                 self.assertFalse(cursor.fetchone()[0])
@@ -298,6 +285,43 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         token.deserialize(wrapper)
         self.assertEqual(token.jose_header["kid"], "new")
 
+    def test_external_prepare_activate_and_rewrap_needs_no_process_restart(self):
+        self.database.secret_manager.add_new_user("user")
+        user_key_id = self.database.read_current_kid("user")
+        old_wrapper = self.database.read_uek("user", user_key_id)
+        self.database._init_mek_key_registry()
+
+        _write_keyring(
+            self.keyring_path, "old", {"old": self.old_mek, "new": self.new_mek})
+        self.assertTrue(self.database.secret_manager.reload_if_changed())
+        prepared = self.database.execute_fetch_command(
+            "SELECT kid, state FROM public.mek_key_registry ORDER BY kid;",
+            (), return_raw=True)
+        self.assertEqual(
+            prepared,
+            [{"kid": "new", "state": "prepared"},
+             {"kid": "old", "state": "current"}],
+        )
+
+        _write_keyring(
+            self.keyring_path, "new", {"old": self.old_mek, "new": self.new_mek})
+        self.assertTrue(self.database.secret_manager.reload_if_changed())
+        activated = self.database.execute_fetch_command(
+            "SELECT kid, state FROM public.mek_key_registry ORDER BY kid;",
+            (), return_raw=True)
+        self.assertEqual(
+            activated,
+            [{"kid": "new", "state": "current"},
+             {"kid": "old", "state": "prepared"}],
+        )
+
+        self.database.rewrap_mek_references()
+        replacement = self.database.read_uek("user", user_key_id)
+        self.assertNotEqual(replacement, old_wrapper)
+        protected = jwe.JWE()
+        protected.deserialize(replacement, key=self.new_mek)
+        self.assertEqual(json.loads(protected.payload)["kid"], user_key_id)
+
     def test_managed_bootstrap_persists_fence_until_binding_is_finalized(self):
         keyring = mek_lifecycle._new_keyring("bootstrap")
         secret = types.SimpleNamespace(
@@ -323,7 +347,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         lifecycle._reserve_bootstrap(keyring, secret, allow_patch=False)
         pending = self.database.execute_fetch_command(
             "SELECT a.ready, a.management_mode, e.writes_allowed "
-            "FROM public.mek_keyring_adoption a CROSS JOIN public.mek_write_epoch e "
+            "FROM public.mek_lifecycle_state a CROSS JOIN public.mek_write_epoch e "
             "WHERE a.singleton AND e.singleton;", (), return_raw=True)[0]
         self.assertEqual(pending, {
             "ready": False, "management_mode": "osmo", "writes_allowed": False})
@@ -334,7 +358,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         lifecycle._finalize_bootstrap(keyring, secret)
 
         finalized = self.database.execute_fetch_command(
-            "SELECT a.ready, e.writes_allowed FROM public.mek_keyring_adoption a "
+            "SELECT a.ready, e.writes_allowed FROM public.mek_lifecycle_state a "
             "CROSS JOIN public.mek_write_epoch e WHERE a.singleton AND e.singleton;",
             (), return_raw=True)[0]
         self.assertEqual(finalized, {"ready": True, "writes_allowed": True})
@@ -355,7 +379,8 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         self.assertTrue(self.database.secret_manager.reload_if_changed())
         self.database._init_mek_key_registry()
 
-        self.database._rewrap_configs()
+        self.database._rewrap_configs(
+            self.database.secret_manager.rewrap_snapshot())
 
         persisted = self.database.execute_fetch_command(
             "SELECT value FROM configs WHERE key = 'legacy' AND type = 'DATASET';",
@@ -368,7 +393,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
     def test_committed_adoption_fence_self_heals_before_bad_mount_is_rejected(self):
         self.database._init_mek_key_registry()
         self.database.execute_commit_commands([
-            ("UPDATE public.mek_keyring_adoption SET ready = FALSE;", ()),
+            ("UPDATE public.mek_lifecycle_state SET ready = FALSE;", ()),
             ("UPDATE public.mek_write_epoch SET writes_allowed = FALSE;", ()),
         ])
         original_manager = self.database.secret_manager
@@ -391,12 +416,87 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             self.database.secret_manager = original_manager
 
         state = self.database.execute_fetch_command(
-            "SELECT a.ready, e.writes_allowed FROM public.mek_keyring_adoption a "
+            "SELECT a.ready, e.writes_allowed FROM public.mek_lifecycle_state a "
             "CROSS JOIN public.mek_write_epoch e WHERE a.singleton AND e.singleton;",
             (),
             return_raw=True,
         )[0]
         self.assertEqual(state, {"ready": True, "writes_allowed": True})
+
+    def test_established_external_rewrap_fence_is_not_reopened_by_consumer_init(self):
+        self.database._init_mek_key_registry()
+        self.database.execute_commit_command(
+            "UPDATE public.mek_write_epoch SET writes_allowed = FALSE;", ())
+
+        self.database._init_mek_key_registry()
+
+        state = self.database.execute_fetch_command(
+            "SELECT writes_allowed FROM public.mek_write_epoch WHERE singleton;",
+            (), return_raw=True)[0]
+        self.assertEqual(state, {"writes_allowed": False})
+        self.database.execute_commit_command(
+            "UPDATE public.mek_write_epoch SET writes_allowed = TRUE;", ())
+
+    def test_external_from_day_one_is_bound_once_by_first_explicit_rewrap(self):
+        self.database._init_mek_key_registry()
+        keyring = mek_lifecycle._parse_keyring(self.keyring_path.read_bytes())
+        secret = types.SimpleNamespace(
+            metadata=types.SimpleNamespace(
+                uid="secret-uid", resource_version="7", annotations={}),
+            data={
+                "mek.yaml": base64.b64encode(keyring.encoded).decode("ascii")
+            },
+        )
+        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
+        lifecycle.config = cast(Any, types.SimpleNamespace(
+            request_id="rewrap-1", namespace="osmo", secret_name="mek",
+            secret_key="mek.yaml", installation_id="osmo/release",
+            mek_management_mode="external"))
+        lifecycle.__dict__["_secret"] = mock.Mock(return_value=secret)
+        lifecycle.__dict__["_database"] = self._raw_connection
+        lifecycle.__dict__["_wait_for_acknowledgements"] = mock.Mock()
+        run_rewrap = mock.Mock()
+        lifecycle.__dict__["_run_rewrap"] = run_rewrap
+
+        lifecycle.rewrap()
+
+        binding = self.database.execute_fetch_command(
+            "SELECT bound_secret_name, bound_secret_key, bound_secret_uid, installation_id "
+            "FROM public.mek_lifecycle_state WHERE singleton;",
+            (), return_raw=True)[0]
+        self.assertEqual(binding, {
+            "bound_secret_name": "mek", "bound_secret_key": "mek.yaml",
+            "bound_secret_uid": "secret-uid", "installation_id": "osmo/release",
+        })
+        run_rewrap.assert_called_once_with(keyring)
+
+        recreated = types.SimpleNamespace(
+            metadata=types.SimpleNamespace(
+                uid="different-uid", resource_version="8", annotations={}),
+            data=secret.data,
+        )
+        lifecycle.__dict__["_secret"] = mock.Mock(return_value=recreated)
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "installation binding"):
+            lifecycle.rewrap()
+
+        lifecycle.rebind()
+        rebound = self.database.execute_fetch_command(
+            "SELECT bound_secret_uid FROM public.mek_lifecycle_state WHERE singleton;",
+            (), return_raw=True)[0]
+        self.assertEqual(rebound["bound_secret_uid"], "different-uid")
+        lifecycle.rewrap()
+
+        different_keyring = mek_lifecycle._new_keyring("different")
+        mismatched = types.SimpleNamespace(
+            metadata=types.SimpleNamespace(
+                uid="third-uid", resource_version="9", annotations={}),
+            data={
+                "mek.yaml": base64.b64encode(different_keyring.encoded).decode("ascii")
+            },
+        )
+        lifecycle.__dict__["_secret"] = mock.Mock(return_value=mismatched)
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "not identical"):
+            lifecycle.rebind()
 
     def test_atomic_concurrent_registration_rejects_divergent_fingerprint(self):
         self.database._init_mek_key_registry()
@@ -412,8 +512,8 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             }))
 
         threads = [
-            threading.Thread(target=register, args=("fingerprint-a",)),
-            threading.Thread(target=register, args=("fingerprint-b",)),
+            threading.Thread(target=register, args=("a" * 64,)),
+            threading.Thread(target=register, args=("b" * 64,)),
         ]
         for thread in threads:
             thread.start()
@@ -427,7 +527,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             return_raw=True,
         )
         self.assertEqual(len(rows), 1)
-        self.assertIn(rows[0]["fingerprint"], {"fingerprint-a", "fingerprint-b"})
+        self.assertIn(rows[0]["fingerprint"], {"a" * 64, "b" * 64})
 
     def test_skipped_prepare_cannot_poison_complete_registered_bundle(self):
         self.database._init_mek_key_registry()
@@ -524,11 +624,11 @@ class TestMekReconciliationPostgres(unittest.TestCase):
 
     def test_concurrent_cold_adoption_elects_one_complete_bundle(self):
         candidates = {
-            "small": ({"a": "fingerprint-a"}, "a", "small-generation"),
+            "small": ({"a": "a" * 64}, "a", "1" * 16),
             "large": (
-                {"a": "fingerprint-a", "b": "fingerprint-b"},
+                {"a": "a" * 64, "b": "b" * 64},
                 "b",
-                "large-generation",
+                "2" * 16,
             ),
         }
         barrier = threading.Barrier(2)
@@ -551,14 +651,14 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         winner = next(name for name, result in results.items() if result == "adopted")
         expected_fingerprints, expected_current, expected_generation = candidates[winner]
         adoption = self.database.execute_fetch_command(
-            "SELECT generation, current_kid, loaded_kids "
-            "FROM public.mek_keyring_adoption WHERE singleton;",
+            "SELECT adopted_generation, adopted_current_kid, adopted_kids "
+            "FROM public.mek_lifecycle_state WHERE singleton;",
             (),
             return_raw=True,
         )[0]
-        self.assertEqual(adoption["generation"], expected_generation)
-        self.assertEqual(adoption["current_kid"], expected_current)
-        self.assertEqual(adoption["loaded_kids"], sorted(expected_fingerprints))
+        self.assertEqual(adoption["adopted_generation"], expected_generation)
+        self.assertEqual(adoption["adopted_current_kid"], expected_current)
+        self.assertEqual(adoption["adopted_kids"], sorted(expected_fingerprints))
         rows = self.database.execute_fetch_command(
             "SELECT kid, fingerprint FROM public.mek_key_registry ORDER BY kid;",
             (),
@@ -627,7 +727,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         ''', ())
         self.database.execute_commit_command('''
             CREATE TRIGGER pause_mek_adoption_for_test
-            BEFORE INSERT ON public.mek_keyring_adoption
+            BEFORE INSERT ON public.mek_lifecycle_state
             FOR EACH ROW EXECUTE FUNCTION public.pause_mek_adoption_for_test();
         ''', ())
         expected_epoch = self.database._mek_write_epoch()
@@ -652,7 +752,7 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             paused = self.database.execute_fetch_command('''
                 SELECT 1 FROM pg_stat_activity
                 WHERE state = 'active' AND wait_event = 'PgSleep'
-                  AND query LIKE '%%INSERT INTO public.mek_keyring_adoption%%';
+                  AND query LIKE '%%INSERT INTO public.mek_lifecycle_state%%';
             ''', (), return_raw=True)
             if paused:
                 break
@@ -692,6 +792,186 @@ class TestMekReconciliationPostgres(unittest.TestCase):
                 "SELECT key FROM configs WHERE key = 'late';", (), return_raw=True),
             [],
         )
+
+    def test_schema_constraints_reject_invalid_direct_sql(self):
+        self.database._init_mek_key_registry()
+        fingerprint = next(iter(self.database.secret_manager.key_fingerprints().values()))
+        invalid_commands = (
+            (
+                "INSERT INTO public.mek_key_registry(kid, fingerprint, state) "
+                "VALUES ('alias', %s, 'prepared');",
+                (fingerprint,),
+            ),
+            (
+                "INSERT INTO public.mek_key_registry(kid, fingerprint, state) "
+                "VALUES ('second-current', %s, 'current');",
+                ("f" * 64,),
+            ),
+            (
+                "UPDATE public.mek_key_registry SET remaining_references = -1 "
+                "WHERE state = 'current';",
+                (),
+            ),
+            (
+                "UPDATE public.mek_lifecycle_state SET phase = 'unknown' WHERE singleton;",
+                (),
+            ),
+            (
+                "UPDATE public.mek_lifecycle_state SET bound_secret_name = 'partial' "
+                "WHERE singleton;",
+                (),
+            ),
+            (
+                "UPDATE public.mek_write_epoch SET epoch = -1 WHERE singleton;",
+                (),
+            ),
+        )
+        for command, arguments in invalid_commands:
+            with self.subTest(command=command), self._raw_connection() as connection:
+                with connection.cursor() as cursor:
+                    with self.assertRaises(psycopg2.DatabaseError):
+                        cursor.execute(command, arguments)
+
+    def test_scan_and_blocker_cannot_create_lifecycle_state(self):
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "initialized lifecycle binding"):
+            self.database._record_mek_blocker("redacted blocker")
+        rows = self.database.execute_fetch_command(
+            "SELECT singleton FROM public.mek_lifecycle_state;", (), return_raw=True)
+        self.assertEqual(rows, [])
+
+    def test_schema_rejects_legacy_pr_tables_without_dropping_them(self):
+        self.database.execute_commit_command(
+            "CREATE TABLE public.mek_rewrap_status(singleton BOOLEAN PRIMARY KEY);", ())
+
+        with self.assertRaisesRegex(mek_schema.MekSchemaError, "pre-merge MEK schema"):
+            self._ensure_schema()
+
+        self.assertEqual(
+            self.database.execute_fetch_command(
+                "SELECT to_regclass('public.mek_rewrap_status') AS relation;",
+                (), return_raw=True)[0]["relation"],
+            "mek_rewrap_status",
+        )
+
+    def test_schema_rejects_same_columns_with_missing_constraint(self):
+        self.database.execute_commit_command(
+            "ALTER TABLE public.mek_lifecycle_state "
+            "DROP CONSTRAINT mek_lifecycle_phase_valid;", ())
+
+        with self.assertRaisesRegex(mek_schema.MekSchemaError, "unsupported"):
+            self._ensure_schema()
+
+    def test_schema_rejects_same_name_wrong_partial_index(self):
+        self.database.execute_commit_command(
+            "DROP INDEX public.mek_key_registry_one_current;", ())
+        self.database.execute_commit_command(
+            "CREATE UNIQUE INDEX mek_key_registry_one_current "
+            "ON public.mek_key_registry(kid);", ())
+
+        with self.assertRaisesRegex(mek_schema.MekSchemaError, "unsupported"):
+            self._ensure_schema()
+
+    def test_schema_installs_missing_trigger_without_recreating_valid_trigger(self):
+        trigger_query = '''
+            SELECT trigger.oid
+            FROM pg_trigger trigger
+            JOIN pg_class relation ON relation.oid = trigger.tgrelid
+            WHERE relation.oid = 'public.configs'::regclass
+              AND trigger.tgname = 'bump_mek_write_epoch';
+        '''
+        original_oid = self.database.execute_fetch_command(
+            trigger_query, (), return_raw=True)[0]["oid"]
+        self._ensure_schema()
+        retained_oid = self.database.execute_fetch_command(
+            trigger_query, (), return_raw=True)[0]["oid"]
+        self.assertEqual(original_oid, retained_oid)
+
+        self.database.execute_commit_command(
+            "DROP TRIGGER bump_mek_write_epoch ON public.configs;", ())
+        self._ensure_schema()
+        replacement_oid = self.database.execute_fetch_command(
+            trigger_query, (), return_raw=True)[0]["oid"]
+        self.assertNotEqual(original_oid, replacement_oid)
+
+    def test_schema_rejects_disabled_or_wrong_write_fence_trigger(self):
+        self.database.execute_commit_command(
+            "ALTER TABLE public.configs DISABLE TRIGGER bump_mek_write_epoch;", ())
+        with self.assertRaisesRegex(mek_schema.MekSchemaError, "disabled or invalid"):
+            self._ensure_schema()
+
+        self.database.execute_commit_command(
+            "ALTER TABLE public.configs ENABLE TRIGGER bump_mek_write_epoch;", ())
+        self.database.execute_commit_command(
+            "DROP TRIGGER bump_mek_write_epoch ON public.configs;", ())
+        self.database.execute_commit_command('''
+            CREATE OR REPLACE FUNCTION public.wrong_mek_trigger()
+            RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END; $$;
+        ''', ())
+        self.database.execute_commit_command('''
+            CREATE TRIGGER bump_mek_write_epoch AFTER INSERT ON public.configs
+            FOR EACH STATEMENT EXECUTE FUNCTION public.wrong_mek_trigger();
+        ''', ())
+        with self.assertRaisesRegex(mek_schema.MekSchemaError, "disabled or invalid"):
+            self._ensure_schema()
+
+    def test_concurrent_schema_initializers_preserve_exact_triggers(self):
+        barrier = threading.Barrier(2)
+        errors = []
+
+        def initialize():
+            try:
+                barrier.wait()
+                self._ensure_schema()
+            except Exception as error:  # pylint: disable=broad-except
+                errors.append(error)
+
+        threads = [threading.Thread(target=initialize) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        self.assertEqual(errors, [])
+        triggers = self.database.execute_fetch_command('''
+            SELECT relation.relname, trigger.tgenabled, trigger.tgtype,
+                   procedure.oid = 'public.bump_mek_write_epoch()'::regprocedure AS valid_function
+            FROM pg_trigger trigger
+            JOIN pg_class relation ON relation.oid = trigger.tgrelid
+            JOIN pg_proc procedure ON procedure.oid = trigger.tgfoid
+            WHERE relation.relname IN ('configs', 'ueks')
+              AND trigger.tgname = 'bump_mek_write_epoch'
+            ORDER BY relation.relname;
+        ''', (), return_raw=True)
+        self.assertEqual(
+            [(row["relname"], row["tgenabled"], row["tgtype"], row["valid_function"])
+             for row in triggers],
+            [("configs", "O", 60, True), ("ueks", "O", 60, True)],
+        )
+
+    def test_protected_writes_do_not_lock_lifecycle_state(self):
+        self.database._init_mek_key_registry()
+        lifecycle_lock = self._raw_connection()
+        writer = self._raw_connection()
+        try:
+            with lifecycle_lock.cursor() as cursor:
+                cursor.execute(
+                    "SELECT singleton FROM public.mek_lifecycle_state "
+                    "WHERE singleton FOR UPDATE;")
+            with writer.cursor() as cursor:
+                cursor.execute("SET LOCAL statement_timeout = '1s';")
+                cursor.execute(
+                    "INSERT INTO configs(key, type, value) "
+                    "VALUES ('independent-fence', 'TEST', 'value');")
+            writer.commit()
+        finally:
+            lifecycle_lock.rollback()
+            lifecycle_lock.close()
+            writer.close()
+
+        rows = self.database.execute_fetch_command(
+            "SELECT key FROM configs WHERE key = 'independent-fence';",
+            (), return_raw=True)
+        self.assertEqual(rows[0]["key"], "independent-fence")
 
 
 if __name__ == "__main__":

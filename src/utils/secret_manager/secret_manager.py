@@ -26,7 +26,7 @@ import os
 import re
 import threading
 from types import MappingProxyType
-from typing import Callable, Dict, Mapping, Tuple
+from typing import Callable, Dict, Literal, Mapping, Tuple
 import uuid
 
 from jwcrypto import jwk, jwe  # type: ignore
@@ -75,6 +75,14 @@ class Keyring:
     meks: Mapping[str, jwk.JWK]
     fingerprints: Mapping[str, str]
     generation: str
+
+
+@dataclasses.dataclass(frozen=True)
+class MekRewrapResult:
+    """Result of one explicit, snapshot-pinned MEK rewrap operation."""
+
+    status: Literal["already-current", "rewrapped", "concurrent-winner"]
+    value: str
 
 
 def _json_object_without_duplicates(pairs):
@@ -219,6 +227,33 @@ class SecretManager:
                 dict(self._keyring.fingerprints), separators=(",", ":"), sort_keys=True
             ).encode("utf-8")
         return hashlib.sha256(descriptor).hexdigest()
+
+    def rewrap_snapshot(self) -> Keyring:
+        """Capture the immutable activated keyring used by one explicit rewrap run."""
+        with self._keyring_lock:
+            self.reload_if_changed(retry_pending=False)
+            return self._keyring
+
+    @staticmethod
+    def rewrap_snapshot_digest(snapshot: Keyring) -> str:
+        descriptor = json.dumps(
+            dict(snapshot.fingerprints), separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
+        return hashlib.sha256(descriptor).hexdigest()
+
+    def validate_rewrap_snapshot(self, snapshot: Keyring) -> None:
+        """Fail if the live keyring no longer matches the pinned rewrap authority."""
+        with self._keyring_lock:
+            self.reload_if_changed(retry_pending=False)
+            live = self._keyring
+            if (
+                live.generation != snapshot.generation
+                or live.current_mek_id != snapshot.current_mek_id
+                or dict(live.fingerprints) != dict(snapshot.fingerprints)
+            ):
+                raise osmo_errors.OSMOError(
+                    "Active MEK keyring changed during explicit rewrap."
+                )
 
     def _stat_file(self) -> Tuple[int, int, int, int]:
         file_stat = os.stat(self.mek_file)
@@ -519,8 +554,6 @@ class SecretManager:
                 raise osmo_errors.OSMONotFoundError(
                     f"Cannot find mek whose kid is {mek_kid}.")
             mek = self._keyring.meks[mek_kid]
-            current_mek_id = self._keyring.current_mek_id
-            current_mek = self._keyring.meks[current_mek_id]
         jwetoken.decrypt(mek)
 
         jwk_json = jwetoken.payload.decode("utf-8")
@@ -530,47 +563,111 @@ class SecretManager:
                 f"User key wrapper for user {uid} does not match slot {kid}."
             )
 
-        # Re-encrypt uek if not using the latest MEK
-        if mek_kid != current_mek_id:
-            new_jwe = jwe.JWE(
-                jwetoken.payload,
-                json_encode({"alg": self.alg, "enc": self.enc, "kid": current_mek_id}),
-            )
-            new_jwe.add_recipient(current_mek)
-            updated = self.write_uek(uid, kid, new_jwe.serialize(True), uek_jwe)
-            if not updated:
-                # A concurrent reader may already have rewrapped this UEK. Re-read so callers do
-                # not mistake an unrelated CAS loss for a successful migration.
-                replacement = self.read_uek(uid, kid)
-                replacement_jwe = jwe.JWE()
-                try:
-                    replacement_jwe.deserialize(replacement)
-                    replacement_mek_id = self._validate_jwe_header(
-                        replacement_jwe.jose_header)
-                    with self._keyring_lock:
-                        self.reload_if_changed(retry_pending=False)
-                        replacement_current_id = self._keyring.current_mek_id
-                        replacement_mek = self._keyring.meks.get(replacement_mek_id)
-                    if replacement_mek_id != replacement_current_id or replacement_mek is None:
-                        raise osmo_errors.OSMOError(
-                            f"Concurrent UEK update for user {uid} did not use the current MEK."
-                        )
-                    replacement_jwe.decrypt(replacement_mek)
-                    replacement_key = jwk.JWK.from_json(
-                        replacement_jwe.payload.decode("utf-8"))
-                    if (
-                        replacement_key.key_id != kid
-                        or replacement_key.export(as_dict=True) != user_key.export(as_dict=True)
-                    ):
-                        raise osmo_errors.OSMOError(
-                            f"Concurrent UEK update for user {uid} changed the key payload."
-                        )
-                except (JWException, UnicodeError, ValueError, jwk.InvalidJWKValue) as error:
-                    raise osmo_errors.OSMOError(
-                        f"Concurrent UEK update for user {uid} failed authentication."
-                    ) from error
-
         return (user_key, is_current)
+
+    def rewrap_uek(self, uid: str, kid: str, snapshot: Keyring) -> MekRewrapResult:
+        """Explicitly rewrap one persisted UEK under one activated keyring snapshot."""
+        self.validate_rewrap_snapshot(snapshot)
+        try:
+            original = self.read_uek(uid, kid)
+            token = jwe.JWE()
+            token.deserialize(original)
+            wrapping_kid = self._validate_jwe_header(token.jose_header)
+            wrapping_mek = snapshot.meks.get(wrapping_kid)
+            if wrapping_mek is None:
+                raise osmo_errors.OSMOError("UEK wrapper references an unavailable MEK.")
+            token.decrypt(wrapping_mek)
+            payload = token.payload
+            user_key = jwk.JWK.from_json(payload.decode("utf-8"))
+            if user_key.key_id != kid:
+                raise osmo_errors.OSMOError("UEK wrapper does not match its persisted slot.")
+        except (
+            JWException, UnicodeError, ValueError, TypeError, KeyError, IndexError,
+            jwk.InvalidJWKValue,
+        ) as error:
+            raise osmo_errors.OSMOError("Persisted UEK wrapper failed authentication.") from error
+
+        if wrapping_kid == snapshot.current_mek_id:
+            self.validate_rewrap_snapshot(snapshot)
+            return MekRewrapResult("already-current", original)
+
+        replacement_token = jwe.JWE(
+            payload,
+            json_encode({
+                "alg": self.alg,
+                "enc": self.enc,
+                "kid": snapshot.current_mek_id,
+            }),
+        )
+        replacement_token.add_recipient(snapshot.meks[snapshot.current_mek_id])
+        replacement = replacement_token.serialize(True)
+        self.validate_rewrap_snapshot(snapshot)
+        if self.write_uek(uid, kid, replacement, original):
+            self.validate_rewrap_snapshot(snapshot)
+            return MekRewrapResult("rewrapped", replacement)
+
+        # Accept a CAS winner only when it authenticates under this exact target
+        # snapshot and preserves the canonical UEK payload.
+        concurrent = self.read_uek(uid, kid)
+        try:
+            concurrent_token = jwe.JWE()
+            concurrent_token.deserialize(concurrent)
+            concurrent_kid = self._validate_jwe_header(concurrent_token.jose_header)
+            if concurrent_kid != snapshot.current_mek_id:
+                raise osmo_errors.OSMOError(
+                    "Concurrent UEK rewrap did not use the pinned target MEK."
+                )
+            concurrent_token.decrypt(snapshot.meks[concurrent_kid])
+            concurrent_key = jwk.JWK.from_json(
+                concurrent_token.payload.decode("utf-8"))
+            if (
+                concurrent_key.key_id != kid
+                or concurrent_key.export(as_dict=True) != user_key.export(as_dict=True)
+            ):
+                raise osmo_errors.OSMOError(
+                    "Concurrent UEK rewrap changed the key payload."
+                )
+        except (JWException, UnicodeError, ValueError, jwk.InvalidJWKValue) as error:
+            raise osmo_errors.OSMOError(
+                "Concurrent UEK rewrap failed authentication."
+            ) from error
+        self.validate_rewrap_snapshot(snapshot)
+        return MekRewrapResult("concurrent-winner", concurrent)
+
+    def rewrap_direct_mek(self, value: str, snapshot: Keyring) -> MekRewrapResult:
+        """Explicitly rewrap one direct-MEK ciphertext under a pinned snapshot."""
+        self.validate_rewrap_snapshot(snapshot)
+        try:
+            token = jwe.JWE()
+            token.deserialize(value)
+            wrapping_kid = self._validate_jwe_header(token.jose_header)
+            wrapping_mek = snapshot.meks.get(wrapping_kid)
+            if wrapping_mek is None:
+                raise osmo_errors.OSMOError(
+                    "Direct-MEK ciphertext references an unavailable MEK."
+                )
+            token.decrypt(wrapping_mek)
+            plaintext = token.payload
+            plaintext.decode("utf-8")
+        except (JWException, UnicodeError, ValueError) as error:
+            raise osmo_errors.OSMOError(
+                "Persisted direct-MEK ciphertext failed authentication."
+            ) from error
+        if wrapping_kid == snapshot.current_mek_id:
+            self.validate_rewrap_snapshot(snapshot)
+            return MekRewrapResult("already-current", value)
+        replacement_token = jwe.JWE(
+            plaintext,
+            json_encode({
+                "alg": self.alg,
+                "enc": self.enc,
+                "kid": snapshot.current_mek_id,
+            }),
+        )
+        replacement_token.add_recipient(snapshot.meks[snapshot.current_mek_id])
+        replacement = replacement_token.serialize(True)
+        self.validate_rewrap_snapshot(snapshot)
+        return MekRewrapResult("rewrapped", replacement)
 
     def generate_uek(self) -> jwk.JWK:
         kid = uuid.uuid4().hex
@@ -675,7 +772,10 @@ class SecretManager:
         jwetoken.decrypt(uek)
         decrypted = jwetoken.payload.decode("utf-8")
 
-        if not is_current:
+        # MEK migration is an explicit lifecycle Job responsibility. Preserve
+        # the historical lazy UEK-to-UEK migration for user-owned ciphertext,
+        # but never mutate direct-MEK config values from an application read.
+        if uid and not is_current:
             current_uek, _ = self.get_uek(uid)
             new_jwe = jwe.JWE(
                 decrypted.encode("utf-8"),

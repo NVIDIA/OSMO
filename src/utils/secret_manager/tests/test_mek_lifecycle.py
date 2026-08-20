@@ -1,5 +1,8 @@
 """Unit coverage for the Kubernetes-native MEK lifecycle controller."""
 
+# These tests intentionally exercise private crash-boundary and fencing helpers.
+# pylint: disable=protected-access
+
 import base64
 import contextlib
 import copy
@@ -416,8 +419,131 @@ class RotationResumeTest(unittest.TestCase):
 
         self.assertEqual("complete", claim.phase)
         self.assertTrue(any(
-            "SET secret_resource_version" in call.args[0]
+            "SET rotation_secret_resource_version" in call.args[0]
             for call in cursor.execute.call_args_list))
+
+
+class ExternalRewrapTest(unittest.TestCase):
+    """Require external rewrap to stay bound to one acknowledged Secret revision."""
+
+    def _lifecycle(self, live_resource_version="7"):
+        keyring = mek_lifecycle._new_keyring("external")
+        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
+        lifecycle.config = _object(
+            request_id="rewrap-1", namespace="osmo", secret_name="mek",
+            secret_key="mek.yaml", installation_id="osmo/release",
+            consumer_deployments=["api"], mek_management_mode="external")
+        initial = _object(
+            metadata=_object(uid="uid", resource_version="7", annotations={}),
+            data={"mek.yaml": base64.b64encode(keyring.encoded).decode("ascii")})
+        live = _object(
+            metadata=_object(
+                uid="uid", resource_version=live_resource_version, annotations={}),
+            data=initial.data)
+        lifecycle.__dict__["_secret"] = mock.Mock(side_effect=[initial, live, live])
+        lifecycle.__dict__["_wait_for_acknowledgements"] = mock.Mock()
+        lifecycle.__dict__["_run_rewrap"] = mock.Mock()
+        cursor = mock.MagicMock()
+        cursor.fetchone.return_value = {
+            "bound_secret_name": "mek", "bound_secret_key": "mek.yaml",
+            "bound_secret_uid": "uid", "installation_id": "osmo/release",
+            "management_mode": "external", "ready": True,
+            "rotation_id": "", "phase": "idle",
+        }
+        cursor.fetchall.return_value = [
+            {"kid": kid, "fingerprint": fingerprint, "state": "current"}
+            for kid, fingerprint in keyring.fingerprints.items()
+        ]
+        connection = mock.MagicMock()
+        connection.__enter__.return_value = connection
+        connection.cursor.return_value.__enter__.return_value = cursor
+        lifecycle.__dict__["_database"] = mock.Mock(return_value=connection)
+        return lifecycle, keyring
+
+    def test_external_rewrap_waits_for_active_consumers_and_runs_once(self):
+        lifecycle, keyring = self._lifecycle()
+
+        lifecycle.rewrap()
+
+        lifecycle._wait_for_acknowledgements.assert_called_once_with(  # pylint: disable=protected-access
+            keyring, active=True)
+        lifecycle._run_rewrap.assert_called_once_with(keyring)  # pylint: disable=protected-access
+
+    def test_external_rewrap_rejects_concurrent_secret_change(self):
+        lifecycle, _ = self._lifecycle(live_resource_version="8")
+
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "changed during external rewrap"):
+            lifecycle.rewrap()
+
+    def test_external_rewrap_rejects_wrong_binding_before_ack_or_writes(self):
+        lifecycle, _ = self._lifecycle()
+        connection = lifecycle._database.return_value  # pylint: disable=protected-access
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value["management_mode"] = "osmo"
+
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "installation binding"):
+            lifecycle.rewrap()
+        lifecycle._wait_for_acknowledgements.assert_not_called()  # pylint: disable=protected-access
+        lifecycle._run_rewrap.assert_not_called()  # pylint: disable=protected-access
+
+    def test_first_external_rewrap_binds_a_completely_unbound_installation(self):
+        lifecycle, keyring = self._lifecycle()
+        connection = lifecycle._database.return_value
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value.update({
+            "bound_secret_name": "", "bound_secret_key": "",
+            "bound_secret_uid": "", "installation_id": "",
+        })
+        cursor.rowcount = 1
+
+        lifecycle.rewrap()
+
+        binding_calls = [
+            call for call in cursor.execute.call_args_list
+            if "SET\n                            bound_secret_name" in call.args[0]
+        ]
+        self.assertEqual(len(binding_calls), 1)
+        self.assertEqual(
+            binding_calls[0].args[1], ("mek", "mek.yaml", "uid", "osmo/release"))
+        lifecycle._run_rewrap.assert_called_once_with(keyring)
+
+    def test_external_rewrap_rejects_partial_identity_without_repair(self):
+        lifecycle, _ = self._lifecycle()
+        connection = lifecycle._database.return_value
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value.update({
+            "bound_secret_name": "mek", "bound_secret_key": "",
+            "bound_secret_uid": "", "installation_id": "",
+        })
+
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "installation binding"):
+            lifecycle.rewrap()
+        self.assertFalse(any(
+            "SET\n                            bound_secret_name" in call.args[0]
+            for call in cursor.execute.call_args_list))
+
+    def test_connector_rewrap_is_pinned_to_parsed_keyring_descriptor(self):
+        keyring = mek_lifecycle._new_keyring("external")
+        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
+        lifecycle.deadline = mek_lifecycle.time.monotonic() + 60
+        connector_config = mock.Mock()
+        lifecycle.config = mock.Mock(
+            secret_name="mek", secret_key="mek.yaml",
+            installation_id="osmo/release")
+        lifecycle.config.model_copy.return_value = connector_config
+        database = mock.Mock()
+
+        with mock.patch.object(
+            mek_lifecycle.connectors, "PostgresConnector", return_value=database
+        ):
+            lifecycle._run_rewrap(keyring)  # pylint: disable=protected-access
+
+        database.rewrap_mek_references.assert_called_once()
+        kwargs = database.rewrap_mek_references.call_args.kwargs
+        self.assertEqual(kwargs["expected_generation"], keyring.generation)
+        self.assertEqual(kwargs["expected_current_kid"], keyring.current_key_id)
+        self.assertEqual(kwargs["expected_registry_digest"], keyring.registry_digest)
+        database.close.assert_called_once_with()
 
 
 class OwnershipTest(unittest.TestCase):
@@ -427,7 +553,7 @@ class OwnershipTest(unittest.TestCase):
         lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
         lifecycle.config = _object(
             namespace="osmo", secret_name="mek", secret_key="mek.yaml",
-            installation_id="osmo/release")
+            installation_id="osmo/release", mek_management_mode="osmo")
         secret = _object(
             metadata=_object(
                 uid="new-uid", resource_version="2",
@@ -461,7 +587,7 @@ class OwnershipTest(unittest.TestCase):
         lifecycle.rebind()
 
         self.assertTrue(any(
-            "SET secret_uid" in call.args[0]
+            "SET bound_secret_uid" in call.args[0]
             for call in cursor.execute.call_args_list))
 
     def test_release_records_explicit_external_ownership(self):
