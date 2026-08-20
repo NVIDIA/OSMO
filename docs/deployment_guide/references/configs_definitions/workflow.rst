@@ -248,34 +248,31 @@ Workflow Information
 Workflow Labels
 ===============
 
-Label syntax is checked on every submission, even when no policy is
-configured. Policies add requirements on top: which keys must be present and
-which values are accepted. See :ref:`workflow_spec_labels` for how users set
-labels in a workflow specification, and :ref:`workflow_submission` for the CLI
-flags and list filters.
+Policy and prefix behavior, enforcement rollout, and the exported metrics are
+described in :ref:`workflow_labels_config`.
 
-The default configuration applies no label policies:
+.. list-table::
+   :header-rows: 1
+   :widths: 25 12 43 20
 
-.. code-block:: yaml
+   * - **Field**
+     - **Type**
+     - **Description**
+     - **Default Values**
+   * - ``policy``
+     - List of `Label Policy`_
+     - One entry per label key to check. At most 16 entries; duplicate keys are
+       rejected.
+     - ``[]``
+   * - ``pod_label_prefix``
+     - String
+     - Prepended to each workflow label key on task pods only. Empty disables
+       it. Rejected at configuration time if it contains a space, tab, or line
+       break, or exceeds 253 characters.
+     - ``""``
 
-   labels_config:
-     policy: []
-
-Each entry in ``policy`` controls one key independently. Use ``off`` or omit a
-key from ``policy`` to disable both warnings and enforcement for that key:
-
-.. code-block:: yaml
-
-   labels_config:
-     policy:
-     - key: team
-       allow_list:
-       - robotics
-       - simulation
-       enforcement: warn
-     - key: cost-center
-       allow_list: []
-       enforcement: enforce
+Label Policy
+============
 
 .. list-table::
    :header-rows: 1
@@ -287,8 +284,7 @@ key from ``policy`` to disable both warnings and enforcement for that key:
      - **Default Values**
    * - ``key``
      - String
-     - Kubernetes label key to check. Duplicate policy keys are rejected,
-       and at most 16 keys can be configured.
+     - Kubernetes label key to check.
      - Required
    * - ``allow_list``
      - List of Strings
@@ -296,87 +292,10 @@ key from ``policy`` to disable both warnings and enforcement for that key:
      - ``[]``
    * - ``enforcement``
      - String (``"off"``, ``warn``, ``enforce``)
-     - ``off`` accepts without policy warnings. ``warn`` accepts but warns
-       when the key is missing or its value is outside a non-empty allow-list.
+     - ``off`` accepts without policy warnings. ``warn`` accepts but warns when
+       the key is missing or its value is outside a non-empty allow-list.
        ``enforce`` rejects those violations.
      - ``"off"``
-
-The same policy applies to new submissions, resubmission by ID, restart, and
-validation-only requests. An ``enforce`` rejection creates neither a workflow
-row nor a stored specification. Warnings are recomputed from the stored labels
-and the current policy, so a workflow always shows the warnings its policy
-would produce today, including after it completes.
-
-Changing a policy leaves existing and in-flight workflows untouched. To roll
-back enforcement, use ``enforcement: warn``; to disable it entirely, use
-``enforcement: "off"`` (quoted, because unquoted YAML ``off`` parses as boolean
-false) or remove the entry. In ConfigMap mode, an invalid edit is rejected and
-the previous valid snapshot stays active.
-
-Prefixing Pod Labels
---------------------
-
-``pod_label_prefix`` is prepended to every workflow label key when labels are
-stamped onto task pods, and nowhere else:
-
-.. code-block:: yaml
-
-   labels_config:
-     pod_label_prefix: example.com/
-     policy:
-     - key: team
-       enforcement: warn
-
-A workflow submitted with ``team: robotics`` then carries
-``example.com/team=robotics`` on its pods. Everywhere else keeps the bare
-``team`` key: the stored specification, the workflow API, list filters, the
-CLI, and the metric attributes below. Users never type or query the prefix.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 25 12 43 20
-
-   * - **Field**
-     - **Type**
-     - **Description**
-     - **Default Values**
-   * - ``pod_label_prefix``
-     - String
-     - Prepended to each workflow label key on task pods only. Empty disables
-       it. Rejected at configuration time if it contains a space, tab, or line
-       break, or exceeds 253 characters.
-     - ``""``
-
-The prefix is an opaque string, not an assumed DNS prefix: it is joined to the
-label key, and the merged key is validated as a Kubernetes label key at
-submission, in the same check as the policy above. An invalid merged key is
-rejected with an error reporting the original key, the prefix, and the result.
-
-Set this when task pods share a cluster with unrelated workloads: pod labels
-are exported by key name, so a short key such as ``team`` can match an
-identically named label on another pod.
-
-Label Metrics
--------------
-
-Only configured policy keys become workflow-label dimensions on
-``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
-and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
-``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
-``project`` is exported as ``workflow_label_project``. Values in the configured
-allow-list are exported verbatim; a present value outside that list is clamped
-to ``<other>``, and a missing key is reported as ``<missing>``. An empty
-allow-list exports every present value as ``<other>``.
-This keeps the number of series bounded to the allow-list plus two sentinels
-per key.
-
-Admission also emits
-``osmo_label_validation_total{key, outcome}``, where ``outcome`` is ``ok``,
-``missing``, ``invalid``, or ``rejected``. The counter covers rejected
-submissions that do not create a workflow row. Keep the policy list small to
-control metric cardinality. Exporting a Pod label through ``kube_pod_labels`` is a
-separate kube-state-metrics allow-list decision; see
-:ref:`adding_observability`.
 
 Backend Images
 ==============

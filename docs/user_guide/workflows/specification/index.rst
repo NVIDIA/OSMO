@@ -96,8 +96,7 @@ validate labels, or to override them without editing a shared specification.
 
 Your administrator may also configure a prefix added to label keys on task
 pods, so a pod can show ``example.com/team`` where the specification said
-``team``. Only the pod is affected; stored labels, the detail view, and the
-filters in :ref:`workflow_submission` use the key as written here.
+``team``.
 
 .. _workflow_spec_task:
 
