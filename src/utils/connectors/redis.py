@@ -24,6 +24,7 @@ import logging
 from typing import AsyncGenerator, Dict, Optional
 
 import aiofiles  # type: ignore
+import anyio
 import kombu  # type: ignore
 import pydantic
 import redis.asyncio  # type: ignore
@@ -204,7 +205,8 @@ async def redis_log_streamer(
     Yields:
         AsyncGenerator[connectors.LogStreamBody]: The logs line.
     """
-    async with redis.asyncio.from_url(url) as redis_client:
+    redis_client = redis.asyncio.from_url(url)
+    try:
         # Continue to fetch log lines until the end control message is met
         start_id = 0
         skip_streaming = False
@@ -228,6 +230,12 @@ async def redis_log_streamer(
                 yield log
             except IndexError:  # No new line
                 await asyncio.sleep(1)  # Otherwise the stream will hang
+    finally:
+        # A client disconnect closes this generator by cancelling the task that
+        # drives it, and an unshielded await here would be cancelled in turn,
+        # leaving the connection open. Shield it so the socket actually closes.
+        with anyio.CancelScope(shield=True):
+            await redis_client.aclose()
 
 
 async def redis_log_formatter(url: str, name: str, last_n_lines: int | None = None) -> \

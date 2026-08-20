@@ -13,6 +13,7 @@ osmo_py_library(
         requirement("pydantic"),
         requirement("redis"),
         requirement("aiofiles"),
+        requirement("anyio"),
         requirement("pyyaml"),
         "//src/lib/data/storage",
         "//src/lib/data/storage/constants",
