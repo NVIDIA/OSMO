@@ -75,8 +75,11 @@ func (c *PostgresClient) RunWithRetry(
 		if err == nil {
 			return nil
 		}
-		if ctx.Err() != nil {
-			return ctx.Err()
+		if contextError := ctx.Err(); contextError != nil {
+			if errors.Is(err, contextError) {
+				return err
+			}
+			return contextError
 		}
 		if attempt == c.retryAttempts || !canRetry(err, replaySafety) {
 			return err
