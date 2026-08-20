@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import contextlib
-from typing import Any, AsyncGenerator, AsyncIterator, cast
+from typing import Any, AsyncIterator
 
 import anyio
 import anyio.abc
@@ -81,10 +81,13 @@ class ClosingStreamingResponse(fastapi.responses.StreamingResponse):
 
     async def _close_body(self) -> None:
         """Release the body and whatever it holds open."""
-        # Starlette wraps every body in an async generator -- including a
-        # synchronous one, via iterate_in_threadpool -- but types the result as a
-        # bare AsyncIterable.
-        await cast(AsyncGenerator[bytes, None], self.body_iterator).aclose()
+        # Generators are the case that matters; an async iterable that is not one
+        # has nothing to close.
+        close_body = getattr(self.body_iterator, 'aclose', None)
+        if close_body is not None:
+            await close_body()
+        # Starlette wraps a synchronous body with iterate_in_threadpool and keeps
+        # only the wrapper, so close the original too.
         if self._source is not self.body_iterator:
             close_source = getattr(self._source, 'close', None)
             if close_source is not None:

@@ -20,6 +20,7 @@ import unittest
 from unittest import mock
 
 import fastapi.responses
+from starlette.requests import ClientDisconnect
 
 from src.service.asgi import responses
 from src.service.core import service
@@ -73,7 +74,7 @@ class TestClientVersionMiddleware(unittest.IsolatedAsyncioTestCase):
                 raise OSError('client disconnected')
 
         middleware = service.ClientVersionMiddleware(application)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ClientDisconnect):
             await asyncio.wait_for(
                 middleware(_request_scope(), _empty_receive, failing_send),
                 timeout=1,
@@ -114,7 +115,7 @@ class TestClientVersionMiddleware(unittest.IsolatedAsyncioTestCase):
     async def test_check_headers_are_added_to_the_response(self):
         sent = []
 
-        async def application(scope, receive, send):
+        async def application(scope, receive, send):  # pylint: disable=unused-argument
             await send({'type': 'http.response.start', 'status': 200,
                         'headers': [(b'content-type', b'text/plain')]})
             await send({'type': 'http.response.body', 'body': b'ok', 'more_body': False})
@@ -136,7 +137,7 @@ class TestClientVersionMiddleware(unittest.IsolatedAsyncioTestCase):
     async def test_rejection_short_circuits_the_application(self):
         called = False
 
-        async def application(scope, receive, send):
+        async def application(scope, receive, send):  # pylint: disable=unused-argument
             nonlocal called
             called = True
 
@@ -160,7 +161,7 @@ class TestClientVersionMiddleware(unittest.IsolatedAsyncioTestCase):
     async def test_non_http_scopes_pass_straight_through(self):
         seen = []
 
-        async def application(scope, receive, send):
+        async def application(scope, receive, send):  # pylint: disable=unused-argument
             seen.append(scope['type'])
 
         middleware = service.ClientVersionMiddleware(application)

@@ -782,10 +782,11 @@ def get_file_info(name: str, redis_name: str, file_name: str,
 
     def filter_log(log_generator: storage.LinesStream) -> Generator[str, None, None]:
         ''' Returns whether to send the log '''
-        for line in log_generator:
-            if not regexes or \
-                all(compiled_regex.search(line) for compiled_regex in compiled_regexes):
-                yield line
+        with contextlib.closing(log_generator) as log_stream:
+            for line in log_stream:
+                if not regexes or \
+                    all(compiled_regex.search(line) for compiled_regex in compiled_regexes):
+                    yield line
 
     if parsed_result.scheme in ('redis', 'rediss') and not download:
         response = responses.ClosingStreamingResponse(

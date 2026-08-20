@@ -2019,10 +2019,43 @@ class TestGetFileInfo(unittest.TestCase):
         self.assertIsNotNone(response)
 
 
-class TestLogResponseType(unittest.TestCase):
-    """Covers the response type get_file_info returns for each log source."""
+class _TrackedLinesStream:
+    """Stands in for storage.LinesStream, recording whether it was closed."""
 
-    def _get_file_info(self, **kwargs):
+    def __init__(self, lines):
+        self._lines = iter(lines)
+        self.closed = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._lines)
+
+    def close(self):
+        self.closed = True
+
+
+class TestLogSourceRelease(unittest.IsolatedAsyncioTestCase):
+    """Covers release of the underlying log source when a client disconnects."""
+
+    _SCOPE = {'type': 'http', 'asgi': {'version': '3.0', 'spec_version': '2.4'}}
+
+    async def _run_until_disconnect(self, response):
+        """Send one chunk to the client, then disconnect and let teardown run."""
+        chunk_sent = asyncio.Event()
+
+        async def receive():
+            await chunk_sent.wait()
+            return {'type': 'http.disconnect'}
+
+        async def send(message):
+            if message['type'] == 'http.response.body':
+                chunk_sent.set()
+
+        await asyncio.wait_for(response(dict(self._SCOPE), receive, send), timeout=1)
+
+    def _get_file_info(self, redis_formatter, workflow_file, **kwargs):
         context = mock.Mock()
         workflow_config = mock.Mock()
         workflow_config.max_log_lines = 1000
@@ -2035,18 +2068,42 @@ class TestLogResponseType(unittest.TestCase):
                                'fetch_log_info_from_db',
                                return_value=log_info), \
              mock.patch.object(workflow_service.connectors,
-                               'redis_log_formatter', return_value=iter([])), \
+                               'redis_log_formatter', return_value=redis_formatter), \
              mock.patch.object(workflow_service.helpers, 'get_workflow_file',
-                               return_value=iter([])):
+                               return_value=workflow_file):
             return workflow_service.get_file_info(
                 'wf-1', 'redis-key', 'log.txt', storage_client=mock.Mock(), **kwargs)
 
-    def test_redis_logs_release_their_reader(self):
-        self.assertIsInstance(self._get_file_info(), responses.ClosingStreamingResponse)
+    async def test_redis_logs_release_their_reader(self):
+        reader_closed = asyncio.Event()
 
-    def test_downloaded_logs_release_their_stream(self):
-        self.assertIsInstance(
-            self._get_file_info(download=True), responses.ClosingStreamingResponse)
+        async def tracked_reader():
+            try:
+                yield 'first log line\n'
+                await asyncio.Future()
+            finally:
+                reader_closed.set()
+
+        response = self._get_file_info(tracked_reader(), _TrackedLinesStream([]))
+        self.assertIsInstance(response, responses.ClosingStreamingResponse)
+        await self._run_until_disconnect(response)
+
+        self.assertTrue(
+            reader_closed.is_set(),
+            'The Redis log reader outlived the client that requested it.',
+        )
+
+    async def test_downloaded_logs_release_their_stream(self):
+        workflow_file = _TrackedLinesStream(['first log line\n'] * 100)
+
+        response = self._get_file_info(None, workflow_file, download=True)
+        self.assertIsInstance(response, responses.ClosingStreamingResponse)
+        await self._run_until_disconnect(response)
+
+        self.assertTrue(
+            workflow_file.closed,
+            'The workflow file stream outlived the client that requested it.',
+        )
 
 
 class TestGetWorkflowSpec(unittest.TestCase):
