@@ -208,5 +208,3 @@ compute:
   loginMethod: token
   accountTokenSecret: osmo-backend-token
   accountTokenSecretKey: token
-  waitForControlPlane:
-    enabled: true

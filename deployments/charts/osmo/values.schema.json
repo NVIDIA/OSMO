@@ -127,10 +127,9 @@
         "enableClusterRoles": { "type": "boolean" },
         "networkPolicy": { "$ref": "#/definitions/computeNetworkPolicy" },
         "priorityClasses": { "$ref": "#/definitions/computePriorityClasses" },
-        "extraConfigMaps": { "$ref": "#/definitions/computeExtraConfigMaps" },
-        "waitForControlPlane": { "$ref": "#/definitions/computeWaitForControlPlane" }
+        "extraConfigMaps": { "$ref": "#/definitions/computeExtraConfigMaps" }
       },
-      "required": ["namespace", "backendName", "backendTestNamespace", "loginMethod", "accountUsername", "accountTokenSecret", "accountTokenSecretKey", "nodeConditionPrefix", "includeNamespaceUsage", "enableClusterRoles", "networkPolicy", "priorityClasses", "extraConfigMaps", "waitForControlPlane"]
+      "required": ["namespace", "backendName", "backendTestNamespace", "loginMethod", "accountUsername", "accountTokenSecret", "accountTokenSecretKey", "nodeConditionPrefix", "includeNamespaceUsage", "enableClusterRoles", "networkPolicy", "priorityClasses", "extraConfigMaps"]
     },
     "computeNetworkPolicy": {
       "type": "object",
@@ -174,17 +173,6 @@
     "computeExtraConfigMaps": {
       "type": "object",
       "additionalProperties": { "$ref": "#/definitions/computeExtraConfigMap" }
-    },
-    "computeWaitForControlPlane": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "image": { "type": "string", "minLength": 1 },
-        "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
-        "path": { "type": "string", "pattern": "^/" },
-        "resources": { "type": "object" }
-      },
-      "required": ["enabled", "image", "imagePullPolicy", "path", "resources"]
     },
     "computeComponent": {
       "type": "object",

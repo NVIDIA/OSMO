@@ -237,10 +237,11 @@ the external control plane and consumes `compute.accountTokenSecret` from its
 release namespace. It has no dependency on Vault-agent annotations or
 control-plane workloads.
 
-In a converged release, listener, worker, and their readiness init containers
-instead use the release gateway Service DNS and port. They do not hairpin
-through `externalUrl`; that value remains the public URL used by clients and
-control-plane configuration.
+In a converged release, listener and worker instead use the release gateway
+Service DNS and port. They start concurrently with the control plane and rely
+on their normal connection retries rather than a chart-managed startup gate.
+They do not hairpin through `externalUrl`; that value remains the public URL
+used by clients and control-plane configuration.
 
 ## Embedded Valkey
 

@@ -53,30 +53,9 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or .Values.compute.waitForControlPlane.enabled $component.pod.initContainers }}
-      initContainers:
-      {{- if .Values.compute.waitForControlPlane.enabled }}
-      - name: wait-for-control-plane
-        image: {{ .Values.compute.waitForControlPlane.image | quote }}
-        imagePullPolicy: {{ .Values.compute.waitForControlPlane.imagePullPolicy }}
-        command:
-        - /bin/sh
-        - -c
-        - {{ printf "until wget -q -O /dev/null %s%s; do sleep 2; done" (include "osmo.compute.serviceUrl" .) .Values.compute.waitForControlPlane.path | quote }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 1001
-        resources:
-          {{- toYaml .Values.compute.waitForControlPlane.resources | nindent 10 }}
-      {{- end }}
       {{- with $component.pod.initContainers }}
-        {{- toYaml . | nindent 6 }}
-      {{- end }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ include "osmo.pod.terminationGracePeriodSeconds" (dict "root" . "component" $component) }}
       containers:

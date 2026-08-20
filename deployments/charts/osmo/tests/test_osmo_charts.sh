@@ -537,6 +537,8 @@ test_control_umbrella() {
         "http://osmo-gateway:80"
     require_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
         "app: osmo-osmo-backend-listener"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        "name: wait-for-control-plane"
     require_not_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
         "https://public-control.example.com"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
