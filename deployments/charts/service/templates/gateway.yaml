@@ -473,6 +473,7 @@ spec:
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
           - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"
+          - "--postgres-reconnect-retry={{ $gw.authz.postgres.reconnectRetry }}"
           {{- end }}
           - "--cache-ttl={{ $gw.authz.cache.ttl }}"
           - "--cache-max-size={{ $gw.authz.cache.maxSize }}"

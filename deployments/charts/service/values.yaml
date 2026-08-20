@@ -2164,6 +2164,7 @@ gateway:
       maxConns: 10
       minConns: 2
       maxConnLifetimeMin: 5
+      reconnectRetry: 5
     cache:
       ttl: 300
       maxSize: 1000
