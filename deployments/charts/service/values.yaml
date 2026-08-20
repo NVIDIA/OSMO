@@ -2158,13 +2158,17 @@ gateway:
     imageTag: ""
     imagePullPolicy: Always
     grpcPort: 50052
+    ## Additional command-line arguments for the authz container.
+    ##
+    extraArgs: []
+    ## Additional environment variables for the authz container.
+    ##
     extraEnv: []
     postgres:
       sslMode: prefer
       maxConns: 10
       minConns: 2
       maxConnLifetimeMin: 5
-      reconnectRetry: 5
     cache:
       ttl: 300
       maxSize: 1000
