@@ -305,7 +305,7 @@ def retry(func=None, *, reconnect: bool = True):
                                     f'Error: {str(error)}') from error
                             last_error = error
                             delay = _get_retry_delay(attempt_number)
-                            reconnect_pool = _requires_pool_reconnect(error)
+                            reconnect_pool = True
                             _log_postgres_retry(
                                 fn.__name__, attempt_number, maximum_attempts, delay, error)
                             continue

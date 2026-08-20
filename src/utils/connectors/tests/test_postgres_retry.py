@@ -164,6 +164,19 @@ class TestPostgresRetry(unittest.TestCase):
         self.assertEqual(time_mock.sleep.call_args_list, [mock.call(0.05), mock.call(0.1)])
         self.assertEqual(database.connect.call_count, 2)
 
+    def test_transient_reconnect_failure_retries_pool_recreation(self):
+        database = _FakePostgres([_PostgresError('08006'), 'success'], attempts=3)
+        database.connect.side_effect = [_PostgresError('40001'), None]
+
+        sleep, random, random_values = self._patch_retry_seams([0.0, 0.0])
+        with sleep as time_mock, random as random_mock:
+            random_mock.random.side_effect = random_values
+            self.assertEqual(_retrying_operation(database), 'success')
+
+        self.assertEqual(database.operation_calls, 2)
+        self.assertEqual(time_mock.sleep.call_args_list, [mock.call(0.05), mock.call(0.1)])
+        self.assertEqual(database.connect.call_count, 2)
+
     def test_one_attempt_disables_retry(self):
         database = _FakePostgres([_PostgresError('08006')], attempts=1)
 
