@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -62,14 +63,15 @@ func (s ReplaySafety) String() string {
 }
 
 // RunWithRetry runs an operation with bounded retries appropriate for its replay safety.
+// Each attempt receives the client's connection pool.
 func (c *PostgresClient) RunWithRetry(
 	ctx context.Context,
 	operationName string,
 	replaySafety ReplaySafety,
-	operation func(context.Context) error,
+	operation func(context.Context, *pgxpool.Pool) error,
 ) error {
 	for attempt := 1; attempt <= c.retryAttempts; attempt++ {
-		err := operation(ctx)
+		err := operation(ctx, c.pool)
 		if err == nil {
 			return nil
 		}

@@ -105,8 +105,8 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 	defer cancel()
 
 	if err := client.RunWithRetry(pingCtx, "startup ping", ReplayReadOnly,
-		func(operationCtx context.Context) error {
-			return pool.Ping(operationCtx)
+		func(operationCtx context.Context, operationPool *pgxpool.Pool) error {
+			return operationPool.Ping(operationCtx)
 		}); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)

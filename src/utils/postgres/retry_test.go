@@ -31,6 +31,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type safeToRetryError struct{}
@@ -111,17 +112,22 @@ func TestRetryDelayUsesEqualJitterAndCap(t *testing.T) {
 
 func TestRunWithRetrySuccessDoesNotDelay(t *testing.T) {
 	client, delays := newRetryTestClient(5)
+	client.pool = &pgxpool.Pool{}
 	type contextKey string
 	ctx := context.WithValue(context.Background(), contextKey("request"), "original")
 	attempts := 0
 
-	err := client.RunWithRetry(ctx, "read roles", ReplayReadOnly, func(operationCtx context.Context) error {
-		attempts++
-		if operationCtx != ctx {
-			t.Errorf("operation context differs from original context")
-		}
-		return nil
-	})
+	err := client.RunWithRetry(ctx, "read roles", ReplayReadOnly,
+		func(operationCtx context.Context, operationPool *pgxpool.Pool) error {
+			attempts++
+			if operationCtx != ctx {
+				t.Errorf("operation context differs from original context")
+			}
+			if operationPool != client.pool {
+				t.Errorf("operation pool differs from client pool")
+			}
+			return nil
+		})
 
 	if err != nil {
 		t.Fatalf("RunWithRetry() error = %v", err)
@@ -142,7 +148,7 @@ func TestRunWithRetryExhaustionHasNoFinalDelay(t *testing.T) {
 	attempts := 0
 
 	err := client.RunWithRetry(context.Background(), "update role", ReplaySafeOnly,
-		func(context.Context) error {
+		func(context.Context, *pgxpool.Pool) error {
 			attempts++
 			return wantErr
 		})
@@ -172,10 +178,11 @@ func TestRunWithRetryCancellationDuringDelay(t *testing.T) {
 	}
 	attempts := 0
 
-	err := client.RunWithRetry(ctx, "read roles", ReplayReadOnly, func(context.Context) error {
-		attempts++
-		return &pgconn.PgError{Code: "08006"}
-	})
+	err := client.RunWithRetry(ctx, "read roles", ReplayReadOnly,
+		func(context.Context, *pgxpool.Pool) error {
+			attempts++
+			return &pgconn.PgError{Code: "08006"}
+		})
 
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("RunWithRetry() error = %v, want context.Canceled", err)
@@ -195,7 +202,7 @@ func TestRunWithRetrySafeToRetryPermitsAllClasses(t *testing.T) {
 			attempts := 0
 
 			err := client.RunWithRetry(context.Background(), "database operation", replaySafety,
-				func(context.Context) error {
+				func(context.Context, *pgxpool.Pool) error {
 					attempts++
 					if attempts == 1 {
 						return safeToRetryError{}
@@ -236,7 +243,7 @@ func TestRunWithRetryConnectionFailureRespectsReplaySafety(t *testing.T) {
 			attempts := 0
 
 			err := client.RunWithRetry(context.Background(), "database operation", testCase.replaySafety,
-				func(context.Context) error {
+				func(context.Context, *pgxpool.Pool) error {
 					attempts++
 					return testCase.error
 				})
@@ -261,7 +268,7 @@ func TestRunWithRetryTransactionAbortCodes(t *testing.T) {
 				attempts := 0
 
 				err := client.RunWithRetry(context.Background(), "database operation", replaySafety,
-					func(context.Context) error {
+					func(context.Context, *pgxpool.Pool) error {
 						attempts++
 						if attempts == 1 {
 							return &pgconn.PgError{Code: sqlState, Message: "sensitive query contents"}
@@ -310,7 +317,7 @@ func TestRunWithRetryRejectsDeterministicPgError(t *testing.T) {
 	attempts := 0
 
 	err := client.RunWithRetry(context.Background(), "insert role", ReplayReadOnly,
-		func(context.Context) error {
+		func(context.Context, *pgxpool.Pool) error {
 			attempts++
 			return wantErr
 		})
