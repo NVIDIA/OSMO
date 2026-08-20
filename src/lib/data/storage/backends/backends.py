@@ -174,7 +174,7 @@ class Boto3Backend(common.StorageBackend):
             data_cred: The data credential to use for validation.
         """
         # Use credential's override_url if set, otherwise fallback to backend's parsed endpoint
-        endpoint_url = data_cred.override_url or self.endpoint
+        endpoint_url = data_cred.override_url or self.endpoint or None
 
         s3_client = s3.create_client(
             data_cred=data_cred,
