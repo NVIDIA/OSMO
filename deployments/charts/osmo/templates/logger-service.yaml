@@ -59,9 +59,9 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.services.logger.pod.topologySpreadConstraints }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" .Values.services.logger "componentName" "logger")) }}
       topologySpreadConstraints:
-        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "logger") | nindent 8 }}
+        {{- . | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.logger)) }}
       nodeSelector:
@@ -124,7 +124,7 @@ spec:
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         env:
-        {{- include "osmo.configuration.env" . | nindent 8 }}
+        {{- include "osmo.configuration.extraEnv" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.logger | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.logger) }}
@@ -159,9 +159,9 @@ spec:
           periodSeconds: 45
 
         # Give the container 30 seconds to startup
-        {{- with .Values.services.logger.startupProbe }}
+        {{- with (include "osmo.probe" (dict "probe" .Values.services.logger.startupProbe)) }}
         startupProbe:
-          {{- toYaml . | nindent 10 }}
+          {{- . | nindent 10 }}
         {{- end }}
 
         readinessProbe:
@@ -176,7 +176,7 @@ spec:
           timeoutSeconds: 20
 
 
-      {{- include "osmo.pod.extraSidecars" .Values.services.logger | nindent 6 }}
+      {{- include "osmo.pod.extraContainers" .Values.services.logger | nindent 6 }}
       volumes:
         - name: osmo-runtime-tmp
           emptyDir: {}
@@ -195,8 +195,8 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+    {{- include "osmo.service.labels" (dict "root" . "component" "logger" "service" .Values.services.logger.service) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.logger.service.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}
@@ -216,8 +216,8 @@ kind: Service
 metadata:
   name: {{ $name }}-headless
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "logger") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+    {{- include "osmo.service.labels" (dict "root" . "component" "logger" "service" .Values.services.logger.service) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.logger.service.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}

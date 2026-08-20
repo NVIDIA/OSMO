@@ -88,6 +88,34 @@ deployment_names() {
     ' "$1"
 }
 
+resource_names() {
+    local file=$1
+    local kind=$2
+    awk -v kind="$kind" '
+        /^kind: / {
+            document_kind = $0
+            sub(/^kind: /, "", document_kind)
+            in_metadata = 0
+            next
+        }
+        document_kind == kind && /^metadata:$/ {
+            in_metadata = 1
+            next
+        }
+        document_kind == kind && in_metadata && /^  name: / {
+            name = $0
+            sub(/^  name: /, "", name)
+            print name
+            document_kind = ""
+            in_metadata = 0
+        }
+        /^---[[:space:]]*$/ {
+            document_kind = ""
+            in_metadata = 0
+        }
+    ' "$file"
+}
+
 resource_document() {
     local file=$1
     local kind=$2
@@ -454,11 +482,12 @@ test_control_umbrella() {
         --api-versions monitoring.coreos.com/v1 \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/compute-custom-values.yaml" \
-        --set compute.networkPolicy.enabled=true \
-        --set compute.priorityClasses.enabled=true \
+        --set compute.workflowNetworkPolicy.enabled=true \
+        --set compute.workflowNetworkPolicy.allowAllClusterEgress=true \
+        --set compute.priorityClasses.create=true \
         --set compute.extraConfigMaps.example.data.key=value \
         --set compute.backendTestNamespace=backend-tests \
-        --set monitoring.podMonitor.enabled=true \
+        --set monitoring.podMonitor.compute.enabled=true \
         --set services.backendTestRunner.enabled=true \
         >"$TEST_DIRECTORY/compute-features.yaml"
     require_resource "$TEST_DIRECTORY/compute-features.yaml" NetworkPolicy \
@@ -497,9 +526,9 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/kind-self-contained.yaml"
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-api"
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
-        "osmo-osmo-backend-listener"
+        "osmo-backend-listener"
     require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
-        "osmo-osmo-backend-worker"
+        "osmo-backend-worker"
     require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Cluster "osmo-pg"
     resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Cluster "osmo-pg" \
         >"$TEST_DIRECTORY/kind-self-contained-postgresql.yaml"
@@ -531,16 +560,301 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "http://osmo-gateway"
     resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Deployment \
-        osmo-osmo-backend-listener \
+        osmo-backend-listener \
         >"$TEST_DIRECTORY/kind-self-contained-listener.yaml"
+    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Deployment \
+        osmo-ui \
+        >"$TEST_DIRECTORY/kind-self-contained-ui.yaml"
     require_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
         "http://osmo-gateway:80"
     require_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
-        "app: osmo-osmo-backend-listener"
+        "app.kubernetes.io/component: backend-listener"
     require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "name: wait-for-control-plane"
     require_not_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
         "https://public-control.example.com"
+    require_not_contains "$TEST_DIRECTORY/kind-self-contained-ui.yaml" \
+        "scheme: HTTPS"
+
+    helm_template conventions "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/conventions-values.yaml" \
+        >"$TEST_DIRECTORY/conventions.yaml"
+    resource_document "$TEST_DIRECTORY/conventions.yaml" Deployment \
+        osmo-api >"$TEST_DIRECTORY/conventions-api.yaml"
+    resource_document "$TEST_DIRECTORY/conventions.yaml" Deployment \
+        osmo-backend-listener >"$TEST_DIRECTORY/conventions-listener.yaml"
+    resource_document "$TEST_DIRECTORY/conventions.yaml" Deployment \
+        osmo-backend-worker >"$TEST_DIRECTORY/conventions-worker.yaml"
+    resource_document "$TEST_DIRECTORY/conventions.yaml" Service \
+        osmo-api >"$TEST_DIRECTORY/conventions-api-service.yaml"
+    local gateway_component
+    for gateway_component in oauth2-proxy authz ratelimit; do
+        resource_document "$TEST_DIRECTORY/conventions.yaml" Deployment \
+            "osmo-gateway-$gateway_component" \
+            >"$TEST_DIRECTORY/conventions-gateway-$gateway_component.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-gateway-$gateway_component.yaml" \
+            "${gateway_component}-init"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-gateway-$gateway_component.yaml" \
+            "${gateway_component}-sidecar"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-gateway-$gateway_component.yaml" \
+            "${gateway_component}-convention.example.com"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-gateway-$gateway_component.yaml" \
+            "topologyKey: example.com/zone"
+    done
+    require_contains "$TEST_DIRECTORY/conventions-api.yaml" API_CONVENTION
+    require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        COMPUTE_CONVENTION
+    require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        listener-sidecar
+    require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        "topologyKey: example.com/zone"
+    require_not_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        "startupProbe:"
+    require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        "livenessProbe:"
+    require_contains "$TEST_DIRECTORY/conventions-worker.yaml" \
+        "automountServiceAccountToken: false"
+    require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        "convention-workloads"
+    require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        "team-a,team-b"
+    require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
+        "secretName: convention-backend-token"
+    require_contains "$TEST_DIRECTORY/conventions-api-service.yaml" \
+        "example.com/service: api"
+    require_contains "$TEST_DIRECTORY/conventions-api-service.yaml" \
+        "example.com/service-annotation: api"
+    local convention_deployment
+    local convention_deployment_file
+    for convention_deployment in api backend-listener backend-worker; do
+        case "$convention_deployment" in
+            api)
+                convention_deployment_file=api
+                ;;
+            backend-listener)
+                convention_deployment_file=listener
+                ;;
+            backend-worker)
+                convention_deployment_file=worker
+                ;;
+        esac
+        deployment_selector_labels \
+            "$TEST_DIRECTORY/conventions-$convention_deployment_file.yaml" \
+            >"$TEST_DIRECTORY/conventions-$convention_deployment-selectors.yaml"
+        require_line_count \
+            "$TEST_DIRECTORY/conventions-$convention_deployment-selectors.yaml" 3
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_deployment-selectors.yaml" \
+            "app.kubernetes.io/name: osmo"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_deployment-selectors.yaml" \
+            "app.kubernetes.io/instance: conventions"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_deployment-selectors.yaml" \
+            "app.kubernetes.io/component: $convention_deployment"
+        require_not_contains \
+            "$TEST_DIRECTORY/conventions-$convention_deployment-selectors.yaml" \
+            "app:"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_deployment_file.yaml" \
+            "example.com/common: unified"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_deployment_file.yaml" \
+            "example.com/common-annotation: unified"
+    done
+
+    helm_template same-name "$charts_copy/osmo" \
+        --namespace compute-a \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        >"$TEST_DIRECTORY/compute-a.yaml"
+    helm_template same-name "$charts_copy/osmo" \
+        --namespace compute-b \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        >"$TEST_DIRECTORY/compute-b.yaml"
+    compute_a_cluster_roles=$(resource_names \
+        "$TEST_DIRECTORY/compute-a.yaml" ClusterRole)
+    compute_b_cluster_roles=$(resource_names \
+        "$TEST_DIRECTORY/compute-b.yaml" ClusterRole)
+    [[ "$compute_a_cluster_roles" != "$compute_b_cluster_roles" ]] || \
+        fail "expected same-named compute releases in different namespaces to use distinct ClusterRoles"
+    local compute_a_cluster_role_bindings
+    local compute_b_cluster_role_bindings
+    compute_a_cluster_role_bindings=$(resource_names \
+        "$TEST_DIRECTORY/compute-a.yaml" ClusterRoleBinding)
+    compute_b_cluster_role_bindings=$(resource_names \
+        "$TEST_DIRECTORY/compute-b.yaml" ClusterRoleBinding)
+    [[ "$compute_a_cluster_role_bindings" != \
+        "$compute_b_cluster_role_bindings" ]] || \
+        fail "expected same-named compute releases in different namespaces to use distinct ClusterRoleBindings"
+
+    local long_release_name=conventions-release-name-that-is-forty-chars
+    helm_template "$long_release_name" "$charts_copy/osmo" \
+        --namespace compute-long-name \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        >"$TEST_DIRECTORY/compute-long-name.yaml"
+    local long_name_cluster_resources
+    long_name_cluster_resources=$(resource_names \
+        "$TEST_DIRECTORY/compute-long-name.yaml" ClusterRole; \
+        resource_names "$TEST_DIRECTORY/compute-long-name.yaml" ClusterRoleBinding)
+    awk '!seen[$0]++ { unique += 1 } END { exit unique != NR }' \
+        <<<"$long_name_cluster_resources" || \
+        fail "expected long release names to produce unique cluster-scoped RBAC names"
+
+    helm_template external-rbac "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set compute.rbac.clusterRoles.create=false \
+        --set compute.rbac.clusterRoles.listenerName=platform-listener \
+        --set compute.rbac.clusterRoles.workerName=platform-worker \
+        >"$TEST_DIRECTORY/external-rbac.yaml"
+    require_no_resource "$TEST_DIRECTORY/external-rbac.yaml" ClusterRole \
+        external-rbac-osmo-backend-listener
+    require_contains "$TEST_DIRECTORY/external-rbac.yaml" \
+        "name: platform-listener"
+    require_contains "$TEST_DIRECTORY/external-rbac.yaml" \
+        "name: platform-worker"
+
+    helm_template no-namespaced-rbac "$charts_copy/osmo" \
+        --namespace compute-system \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/conventions-values.yaml" \
+        --set compute.rbac.create=false \
+        >"$TEST_DIRECTORY/no-namespaced-rbac.yaml"
+    require_no_resource "$TEST_DIRECTORY/no-namespaced-rbac.yaml" Role \
+        convention-extra-role
+
+    helm_template no-priority-classes "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set compute.priorityClasses.create=false \
+        >"$TEST_DIRECTORY/no-priority-classes.yaml"
+    require_no_resource "$TEST_DIRECTORY/no-priority-classes.yaml" \
+        PriorityClass osmo-high
+
+    if helm_template unsafe-workflow-policy "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set compute.workflowNetworkPolicy.enabled=true \
+        >"$TEST_DIRECTORY/unsafe-workflow-policy.out" 2>&1; then
+        fail "expected workflow network policy without cluster CIDRs or explicit allow-all acknowledgement to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsafe-workflow-policy.out" \
+        "compute.workflowNetworkPolicy.clusterCIDRs"
+
+    helm_template acknowledged-workflow-policy "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set compute.workflowNetworkPolicy.enabled=true \
+        --set compute.workflowNetworkPolicy.allowAllClusterEgress=true \
+        >"$TEST_DIRECTORY/acknowledged-workflow-policy.yaml"
+    require_resource "$TEST_DIRECTORY/acknowledged-workflow-policy.yaml" \
+        NetworkPolicy acknowledged-workflow-policy-osmo-workflow-network-policy
+
+    helm_template compute-monitor "$charts_copy/osmo" \
+        --api-versions monitoring.coreos.com/v1 \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set monitoring.podMonitor.compute.enabled=true \
+        >"$TEST_DIRECTORY/compute-monitor.yaml"
+    require_resource "$TEST_DIRECTORY/compute-monitor.yaml" PodMonitor \
+        compute-monitor-osmo-backend-monitor
+    require_not_contains "$TEST_DIRECTORY/compute-monitor.yaml" \
+        "component: api"
+
+    helm_template control-monitor "$charts_copy/osmo" \
+        --api-versions monitoring.coreos.com/v1 \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set monitoring.podMonitor.control.enabled=true \
+        >"$TEST_DIRECTORY/control-monitor.yaml"
+    require_resource "$TEST_DIRECTORY/control-monitor.yaml" PodMonitor \
+        control-monitor-osmo-otel-monitor
+    require_no_resource "$TEST_DIRECTORY/control-monitor.yaml" PodMonitor \
+        control-monitor-osmo-backend-monitor
+
+    resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
+        conventions-backend-token-bootstrap \
+        >"$TEST_DIRECTORY/conventions-backend-token-bootstrap.yaml"
+    resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
+        osmo-mek-bootstrap \
+        >"$TEST_DIRECTORY/conventions-mek-bootstrap.yaml"
+    resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
+        osmo-object-storage-bootstrap \
+        >"$TEST_DIRECTORY/conventions-object-storage-bootstrap.yaml"
+    resource_document "$TEST_DIRECTORY/conventions.yaml" ConfigMap \
+        osmo-backend-test-runner-template \
+        >"$TEST_DIRECTORY/conventions-test-runner-template.yaml"
+    require_contains "$TEST_DIRECTORY/conventions-test-runner-template.yaml" \
+        "topologyKey: example.com/zone"
+    local convention_image_resource
+    local convention_image_repository
+    for convention_image_resource in \
+            backend-token-bootstrap mek-bootstrap object-storage-bootstrap \
+            test-runner-template; do
+        case "$convention_image_resource" in
+            backend-token-bootstrap)
+                convention_image_repository=backend-token-bootstrap
+                ;;
+            mek-bootstrap)
+                convention_image_repository=mek-bootstrap
+                ;;
+            object-storage-bootstrap)
+                convention_image_repository=object-storage-bootstrap
+                ;;
+            test-runner-template)
+                convention_image_repository=test-init
+                ;;
+        esac
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_image_resource.yaml" \
+            "registry.example.com/conventions/$convention_image_repository@sha256:"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_image_resource.yaml" \
+            "name: convention-pull-secret"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_image_resource.yaml" \
+            "imagePullPolicy: Always"
+    done
+
+    local convention_service
+    for convention_service in api router logger agent ui mcp gateway; do
+        resource_document "$TEST_DIRECTORY/conventions.yaml" Service \
+            "osmo-$convention_service" \
+            >"$TEST_DIRECTORY/conventions-$convention_service-service.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_service-service.yaml" \
+            "example.com/service: $convention_service"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_service-service.yaml" \
+            "example.com/service-annotation: $convention_service"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_service-service.yaml" \
+            "example.com/common: unified"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$convention_service-service.yaml" \
+            "app.kubernetes.io/name: osmo"
+    done
+    local gateway_auxiliary_service
+    for gateway_auxiliary_service in \
+            gateway-oauth2-proxy gateway-authz gateway-ratelimit; do
+        resource_document "$TEST_DIRECTORY/conventions.yaml" Service \
+            "osmo-$gateway_auxiliary_service" \
+            >"$TEST_DIRECTORY/conventions-$gateway_auxiliary_service-service.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$gateway_auxiliary_service-service.yaml" \
+            "example.com/service: $gateway_auxiliary_service"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$gateway_auxiliary_service-service.yaml" \
+            "example.com/service-annotation: $gateway_auxiliary_service"
+        require_contains \
+            "$TEST_DIRECTORY/conventions-$gateway_auxiliary_service-service.yaml" \
+            "example.com/common: unified"
+    done
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
         "image: nvcr.io/nvidia/osmo/service:latest"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
@@ -642,7 +956,7 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Secret \
         osmo-backend-token
     require_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
-        'image: "alpine/kubectl:1.33.4"'
+        'image: "alpine/k8s:1.30.14"'
     require_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
         "--from-file=token=/dev/stdin"
 
@@ -727,6 +1041,8 @@ EOF
         "generated-mek-osmo-mek-bootstrap"
     require_no_resource "$TEST_DIRECTORY/generated-mek.yaml" Secret \
         "generated-mek-osmo-master-encryption-key"
+    require_contains "$TEST_DIRECTORY/generated-mek.yaml" \
+        'image: "alpine/k8s:1.30.14"'
     require_not_contains "$TEST_DIRECTORY/generated-mek.yaml" "currentMek:"
     local mek_consumer
     for mek_consumer in \
@@ -1314,7 +1630,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "backoffLimit: 3"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "amazon/aws-cli:2.31.13@sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a"
+        "amazon/aws-cli@sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "name: AWS_ACCESS_KEY_ID"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
@@ -3005,10 +3321,10 @@ EOF
     helm_template image-digest "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set services.worker.image.tag=ignored \
-        --set-string services.worker.image.digest=sha256:0123456789abcdef \
+        --set-string services.worker.image.digest=sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
         >"$TEST_DIRECTORY/osmo-image-digest.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-digest.yaml" \
-        "image: nvcr.io/nvidia/osmo/worker@sha256:0123456789abcdef"
+        "image: nvcr.io/nvidia/osmo/worker@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     require_not_contains "$TEST_DIRECTORY/osmo-image-digest.yaml" \
         "worker:ignored"
 
@@ -3044,8 +3360,7 @@ EOF
         --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
         --set externalUrl=https://osmo.example.com \
-        --set compute.loginMethod=token \
-        --set compute.accountTokenSecret=osmo-backend-token \
+        --set compute.authentication.existingSecret=osmo-backend-token \
         >"$TEST_DIRECTORY/compute-only.yaml"
     require_deployment "$TEST_DIRECTORY/compute-only.yaml" \
         "compute-only-osmo-backend-listener"
@@ -3080,7 +3395,7 @@ EOF
         --set planes.compute.enabled=true \
         --set embeddedDependencies.valkey.enabled=true \
         --set externalUrl=https://osmo.example.com \
-        --set compute.accountTokenSecret=osmo-backend-token \
+        --set compute.authentication.existingSecret=osmo-backend-token \
         >"$TEST_DIRECTORY/compute-with-embedded.out" 2>&1; then
         fail "expected compute-only embedded dependencies to fail"
     fi

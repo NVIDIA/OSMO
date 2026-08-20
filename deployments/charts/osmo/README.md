@@ -7,6 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 
 The `osmo` chart is the unified OSMO deployment entry point.
 
+See the [profile matrix](profiles/README.md) for which values files are direct
+development presets and which are base overlays requiring environment input.
+
 The chart supports control-only, compute-only, and converged releases. It can
 render backend listener and worker resources directly with the control services,
 create a PostgreSQL Cluster through CloudNativePG, and deploy Valkey and RustFS.
@@ -218,7 +221,7 @@ the current 43- or 64-character URL-safe backend token; `previous-token` may
 contain a distinct old token during rotation.
 
 Copy the profile and replace its example `externalUrl` and
-`compute.accountTokenSecret` values, then install it:
+`compute.authentication.existingSecret` values, then install it:
 
 ```bash
 helm dependency build deployments/charts/osmo
@@ -231,10 +234,12 @@ helm --kube-context <compute-context> upgrade --install osmo-compute \
   --timeout 10m
 ```
 
-An empty `compute.namespace` resolves to the Helm release namespace. This is
-the WDP-01/WDP-02 boundary: a compute-only release uses `externalUrl` to reach
-the external control plane and consumes `compute.accountTokenSecret` from its
-release namespace. It has no dependency on Vault-agent annotations or
+An empty `compute.workloadNamespace` resolves to the Helm release namespace.
+This is the WDP-01/WDP-02 boundary: a compute-only release uses `externalUrl`
+to reach the external control plane and consumes
+`compute.authentication.existingSecret` from its release namespace. Change
+`compute.authentication.tokenKey` when the token is stored under a non-default
+Secret key. The release has no dependency on Vault-agent annotations or
 control-plane workloads.
 
 In a converged release, listener and worker instead use the release gateway
@@ -327,7 +332,9 @@ reused on upgrades. To provide an existing Secret, disable
 `rustfs.secret.existingSecret` to its name. The Secret must contain
 `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, and `object-storage.yaml`; the
 credentials in all three entries must match. Use a unique Secret name for each
-OSMO release in the same namespace.
+OSMO release in the same namespace. Generated RustFS credentials are also
+stored in Helm release history; restrict access to it and use `--hide-secret`
+when previewing an install or upgrade.
 
 For a distributed deployment, layer
 [`embedded-rustfs-ha-values.yaml`](embedded-rustfs-ha-values.yaml) after the
@@ -351,18 +358,60 @@ above.
   example, Valkey uses `valkey.image` and `valkey.imagePullSecrets`.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,
-  `gateway`, and `podDefaults`.
-- Configure compute-wide namespaces, backend identity, authentication Secret,
-  network policy, priority classes, and readiness gate under `compute`.
+  `gateway`, and `podDefaults`. Directly owned workload extensions use
+  `extraEnv`, `extraArgs`, `extraVolumeMounts`, `pod.initContainers`,
+  `pod.extraContainers`, and `pod.extraVolumes`. Configurable probes use an
+  `enabled` switch and a raw Kubernetes probe under `spec`.
+- Configure per-Service labels and annotations under each component's
+  `service` block. Service ports and names that wire chart components together
+  remain chart-managed.
+- Configure compute-wide workflow namespace, backend identity, authentication
+  Secret, RBAC, namespace-wide workflow network policy, and priority classes
+  under `compute`.
   Listener, worker, and test-runner workload settings live under
   `services.backendListener`, `services.backendWorker`, and
   `services.backendTestRunner`.
-- Enable Prometheus Operator PodMonitors with `monitoring.podMonitor.enabled`.
+- Enable Prometheus Operator PodMonitors independently with
+  `monitoring.podMonitor.control.enabled` and
+  `monitoring.podMonitor.compute.enabled`. Shared scrape settings apply to both
+  planes and cover only OSMO-owned pods.
 - Apply shared resource metadata to OSMO-owned resources with `commonLabels`
-  and `commonAnnotations`; configure dependency metadata under `valkey`.
+  and `commonAnnotations`. Component metadata overrides shared user metadata;
+  chart-protected identity labels and annotations take final precedence.
+  Configure dependency metadata in the dependency's native values block.
+- Configure hook and init-container images with their image objects under
+  `services.backendApiTokens.bootstrap.image`,
+  `secrets.masterEncryptionKey.bootstrap.image`,
+  `embeddedDependencies.objectStorage.bootstrap.image`, and
+  `services.backendTestRunner.initContainer.image`. Digest references take
+  precedence over tags, and all directly owned Pods use `imagePullSecrets`.
 - Supply OSMO application configuration under `configuration`.
 
 See [`values.yaml`](values.yaml) for the complete configuration reference.
+
+## Compute resource ownership
+
+`compute.usageNamespaces` is an array of namespaces whose usage the backend
+listener reports. `compute.rbac.create=false` disables all chart-owned compute
+Roles and RoleBindings in the workflow and test namespaces. Cluster RBAC is
+controlled separately. When namespaced RBAC is chart-owned but cluster policy
+is centrally managed, set `compute.rbac.clusterRoles.create=false` and provide
+`listenerName`, `workerName`, and, when the test runner is enabled,
+`testRunnerName` under `compute.rbac.clusterRoles`. Chart-owned cluster RBAC
+names include a stable hash of the Helm release namespace so equal release names
+in different namespaces do not collide.
+
+`compute.workflowNetworkPolicy` owns a namespace-wide egress policy for every
+Pod in `compute.workloadNamespace`; it is not limited to OSMO Pods. Enabling it
+requires one or more `clusterCIDRs`, unless
+`allowAllClusterEgress=true` explicitly acknowledges unrestricted cluster
+egress. Use `allowedNamespaces` and `additionalEgressRules` for environment
+specific destinations.
+
+`compute.priorityClasses.create` controls ownership of the fixed
+`osmo-high`, `osmo-normal`, and `osmo-low` PriorityClasses consumed by workflow
+Pods. Only one release in a cluster should create them; other compute releases
+must set `create: false`.
 
 ## Secrets
 

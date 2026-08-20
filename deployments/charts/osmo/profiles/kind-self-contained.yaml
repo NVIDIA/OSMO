@@ -27,8 +27,6 @@ embeddedDependencies:
     enabled: true
   objectStorage:
     enabled: true
-  kaiScheduler:
-    enabled: false
 
 secrets:
   postgresql:
@@ -113,7 +111,10 @@ gateway:
 
 monitoring:
   podMonitor:
-    enabled: false
+    control:
+      enabled: false
+    compute:
+      enabled: false
 
 configuration:
   enabled: true
@@ -203,8 +204,8 @@ rustfs:
 
 compute:
   backendName: default
-  namespace: ''
+  workloadNamespace: ''
   backendTestNamespace: ''
-  loginMethod: token
-  accountTokenSecret: osmo-backend-token
-  accountTokenSecretKey: token
+  authentication:
+    existingSecret: osmo-backend-token
+    tokenKey: token

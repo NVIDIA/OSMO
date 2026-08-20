@@ -14,8 +14,6 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
-  kaiScheduler:
-    enabled: false
 
 configuration:
   enabled: true
@@ -104,7 +102,10 @@ gateway:
 
 monitoring:
   podMonitor:
-    enabled: false
+    control:
+      enabled: false
+    compute:
+      enabled: false
 
 secrets:
   postgresql:

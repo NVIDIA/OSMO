@@ -4,8 +4,6 @@
 {{- $component := .Values.services.backendListener }}
 {{- $componentName := "backend-listener" }}
 {{- $name := include "osmo.compute.listenerName" . }}
-{{- $podLabels := include "osmo.pod.labels" (dict "root" . "component" $component "componentName" $componentName) | fromYaml }}
-{{- $_ := set $podLabels "app" $name }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,17 +19,18 @@ spec:
   replicas: {{ $component.replicas }}
   selector:
     matchLabels:
-      app: {{ $name }}
+      {{- include "osmo.component.selectorLabels" (dict "root" . "component" $componentName) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- toYaml $podLabels | nindent 8 }}
+        {{- include "osmo.pod.labels" (dict "root" . "component" $component "componentName" $componentName) | nindent 8 }}
       {{- with (include "osmo.pod.annotations" (dict "root" . "component" $component)) }}
       annotations:
         {{- . | nindent 8 }}
       {{- end }}
     spec:
       serviceAccountName: {{ include "osmo.compute.listenerServiceAccountName" . }}
+      automountServiceAccountToken: {{ $component.serviceAccount.automountServiceAccountToken }}
       {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
       {{- with (include "osmo.pod.securityContext" (dict "root" . "component" $component)) }}
       securityContext:
@@ -47,6 +46,10 @@ spec:
       {{- end }}
       {{- with (include "osmo.pod.affinity" (dict "root" . "component" $component)) }}
       affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" $component "componentName" $componentName)) }}
+      topologySpreadConstraints:
         {{- . | nindent 8 }}
       {{- end }}
       {{- with $component.pod.hostAliases }}
@@ -101,7 +104,7 @@ spec:
         - --pod_event_cache_ttl
         - {{ $component.podCacheTtlSeconds | quote }}
         - --include_namespace_usage
-        - {{ .Values.compute.includeNamespaceUsage | quote }}
+        - {{ join "," .Values.compute.usageNamespaces | quote }}
         - --api_qps
         - {{ $component.apiQps | quote }}
         - --api_burst
@@ -109,7 +112,7 @@ spec:
         {{- range $component.extraArgs }}
         - {{ . | quote }}
         {{- end }}
-        {{- with $component.env }}
+        {{- with $component.extraEnv }}
         env:
           {{- toYaml . | nindent 10 }}
         {{- end }}
@@ -124,19 +127,21 @@ spec:
         {{- with $component.extraVolumeMounts }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- with (include "osmo.probe" (dict "probe" $component.livenessProbe)) }}
         livenessProbe:
-          {{- toYaml $component.livenessProbe | nindent 10 }}
+          {{- . | nindent 10 }}
+        {{- end }}
+        {{- with (include "osmo.probe" (dict "probe" $component.startupProbe)) }}
         startupProbe:
-          {{- toYaml $component.startupProbe | nindent 10 }}
-      {{- with $component.pod.sidecars }}
-        {{- toYaml . | nindent 6 }}
-      {{- end }}
+          {{- . | nindent 10 }}
+        {{- end }}
+      {{- include "osmo.pod.extraContainers" $component | nindent 6 }}
       volumes:
       - name: osmo-secret
         secret:
-          secretName: {{ .Values.compute.accountTokenSecret }}
+          secretName: {{ .Values.compute.authentication.existingSecret }}
           items:
-          - key: {{ .Values.compute.accountTokenSecretKey }}
+          - key: {{ .Values.compute.authentication.tokenKey }}
             path: token.txt
       - name: progress-files
         emptyDir: {}

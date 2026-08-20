@@ -15,25 +15,31 @@ planes:
 compute:
   # Workflow resources are created in this namespace. Empty uses the Helm
   # release namespace.
-  namespace: ''
+  workloadNamespace: ''
   backendName: default
   # Empty disables backend-test synchronization and test-namespace RBAC.
   backendTestNamespace: ''
-  loginMethod: token
-  accountUsername: ''
-  accountTokenSecret: ''
-  accountTokenSecretKey: token
+  authentication:
+    existingSecret: ''
+    tokenKey: token
   nodeConditionPrefix: ''
-  includeNamespaceUsage: ''
-  enableClusterRoles: true
-  networkPolicy:
+  usageNamespaces: []
+  rbac:
+    create: true
+    clusterRoles:
+      create: true
+      listenerName: ''
+      workerName: ''
+      testRunnerName: ''
+  workflowNetworkPolicy:
     enabled: false
+    allowAllClusterEgress: false
     clusterCIDRs: []
     dnsNamespace: kube-system
     allowedNamespaces: []
     additionalEgressRules: []
   priorityClasses:
-    enabled: true
+    create: true
     classes:
     - name: osmo-high
       value: 125
@@ -64,7 +70,12 @@ embeddedDependencies:
       logs: osmo-logs
       apps: osmo-apps
     bootstrap:
-      image: amazon/aws-cli:2.31.13@sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a
+      image:
+        registry: ''
+        repository: amazon/aws-cli
+        tag: 2.31.13
+        digest: sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a
+        pullPolicy: IfNotPresent
       attempts: 30
       backoffLimit: 3
       resources:
@@ -74,8 +85,6 @@ embeddedDependencies:
         limits:
           cpu: 100m
           memory: 128Mi
-  kaiScheduler:
-    enabled: false
 
 # Connection details for dependencies owned outside this release. Each
 # endpoint is required only when its embedded dependency is disabled.
@@ -122,7 +131,7 @@ fullnameOverride: ''
 imageRegistry: ''
 
 # A non-empty tag overrides the chart application version for every OSMO-owned
-# control-plane image. Development profiles use latest until matching release
+# component image. Development profiles use latest until matching release
 # images are published; individual component tags still take precedence.
 imageTag: ''
 
@@ -147,6 +156,7 @@ podDefaults:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
@@ -204,7 +214,10 @@ httproute:
 # Optional Prometheus Operator PodMonitors for OSMO metrics endpoints.
 monitoring:
   podMonitor:
-    enabled: false
+    control:
+      enabled: false
+    compute:
+      enabled: false
     labels: {}
     annotations: {}
     interval: 30s
@@ -252,8 +265,12 @@ secrets:
     keys:
       config: mek.yaml
     bootstrap:
-      image: alpine/kubectl:1.33.4
-      imagePullPolicy: IfNotPresent
+      image:
+        registry: ''
+        repository: alpine/k8s
+        tag: 1.30.14
+        digest: ''
+        pullPolicy: IfNotPresent
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false
@@ -263,8 +280,8 @@ secrets:
       password: password
 
 
-# Control-plane application services. Each service owns its image, scaling,
-# probes, resources, environment overrides, and pod-level settings. Internal
+# Directly owned OSMO services and workload components. Each component owns its
+# image, scaling, probes, resources, environment overrides, and pod-level settings. Internal
 # commands, ports, Service names, and required connection arguments remain
 # chart-managed implementation details.
 services:
@@ -276,8 +293,12 @@ services:
   backendApiTokens:
     enabled: false
     bootstrap:
-      image: alpine/kubectl:1.33.4
-      imagePullPolicy: IfNotPresent
+      image:
+        registry: ''
+        repository: alpine/k8s
+        tag: 1.30.14
+        digest: ''
+        pullPolicy: IfNotPresent
     # Change this non-secret value to roll the API after an externally managed
     # token Secret changes.
     rolloutNonce: ''
@@ -319,30 +340,34 @@ services:
       limits:
         memory: 2Gi
     livenessProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - "300:300:300:300"
-        - --progress_file
-        - /var/run/osmo/last_progress_websocket:/var/run/osmo/last_progress_pod:/var/run/osmo/last_progress_node:/var/run/osmo/last_progress_event
-      failureThreshold: 1
-      periodSeconds: 30
-      timeoutSeconds: 15
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - "300:300:300:300"
+          - --progress_file
+          - /var/run/osmo/last_progress_websocket:/var/run/osmo/last_progress_pod:/var/run/osmo/last_progress_node:/var/run/osmo/last_progress_event
+        failureThreshold: 1
+        periodSeconds: 30
+        timeoutSeconds: 15
     startupProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - "300:300:300:300"
-        - --progress_file
-        - /var/run/osmo/last_progress_websocket:/var/run/osmo/last_progress_pod:/var/run/osmo/last_progress_node:/var/run/osmo/last_progress_event
-      failureThreshold: 30
-      periodSeconds: 5
-      timeoutSeconds: 60
-      initialDelaySeconds: 10
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - "300:300:300:300"
+          - --progress_file
+          - /var/run/osmo/last_progress_websocket:/var/run/osmo/last_progress_pod:/var/run/osmo/last_progress_node:/var/run/osmo/last_progress_event
+        failureThreshold: 30
+        periodSeconds: 5
+        timeoutSeconds: 60
+        initialDelaySeconds: 10
     extraArgs: []
-    env: []
+    extraEnv: []
     extraVolumeMounts: []
     pod:
       labels: {}
@@ -352,7 +377,7 @@ services:
       podSecurityContext: {}
       containerSecurityContext: {}
       initContainers: []
-      sidecars: []
+      extraContainers: []
       extraVolumes: []
       hostAliases: []
 
@@ -380,30 +405,34 @@ services:
       limits:
         memory: 1Gi
     livenessProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - "300:300"
-        - --progress_file
-        - /var/run/osmo/last_progress_worker_job:/var/run/osmo/last_progress_worker_heartbeat
-      failureThreshold: 1
-      periodSeconds: 30
-      timeoutSeconds: 15
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - "300:300"
+          - --progress_file
+          - /var/run/osmo/last_progress_worker_job:/var/run/osmo/last_progress_worker_heartbeat
+        failureThreshold: 1
+        periodSeconds: 30
+        timeoutSeconds: 15
     startupProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - "300:300"
-        - --progress_file
-        - /var/run/osmo/last_progress_worker_job:/var/run/osmo/last_progress_worker_heartbeat
-      failureThreshold: 30
-      periodSeconds: 5
-      timeoutSeconds: 60
-      initialDelaySeconds: 10
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - "300:300"
+          - --progress_file
+          - /var/run/osmo/last_progress_worker_job:/var/run/osmo/last_progress_worker_heartbeat
+        failureThreshold: 30
+        periodSeconds: 5
+        timeoutSeconds: 60
+        initialDelaySeconds: 10
     extraArgs: []
-    env: []
+    extraEnv: []
     extraVolumeMounts: []
     pod:
       labels: {}
@@ -413,7 +442,7 @@ services:
       podSecurityContext: {}
       containerSecurityContext: {}
       initContainers: []
-      sidecars: []
+      extraContainers: []
       extraVolumes: []
       hostAliases: []
 
@@ -448,8 +477,12 @@ services:
       completionMode: NonIndexed
       suspend: false
     initContainer:
-      image: ubuntu:22.04
-      imagePullPolicy: IfNotPresent
+      image:
+        registry: ''
+        repository: ubuntu
+        tag: '22.04'
+        digest: ''
+        pullPolicy: IfNotPresent
       resources:
         requests:
           cpu: 50m
@@ -479,7 +512,7 @@ services:
     testConfigVolume:
       name: test-config
       mountPath: /test-config
-    env: {}
+    extraEnv: {}
     labels:
       managed-by: osmo
     annotations:
@@ -535,6 +568,9 @@ services:
     authorizationServers: []
     scopes: []
     allowedOrigins: []
+    service:
+      labels: {}
+      annotations: {}
     serviceAccount:
       name: ''
       create: false
@@ -552,30 +588,36 @@ services:
       limits:
         memory: 256Mi
     livenessProbe:
-      httpGet:
-        port: http
-        path: /health
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 3
-      failureThreshold: 3
+      enabled: true
+      spec:
+        httpGet:
+          port: http
+          path: /health
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 3
     readinessProbe:
-      httpGet:
-        port: http
-        path: /health
-      initialDelaySeconds: 5
-      periodSeconds: 5
-      timeoutSeconds: 3
-      failureThreshold: 2
+      enabled: true
+      spec:
+        httpGet:
+          port: http
+          path: /health
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 2
     startupProbe:
-      httpGet:
-        port: http
-        path: /health
-      initialDelaySeconds: 5
-      periodSeconds: 5
-      timeoutSeconds: 3
-      failureThreshold: 24
-    env: []
+      enabled: true
+      spec:
+        httpGet:
+          port: http
+          path: /health
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 24
+    extraEnv: []
     pod:
       labels: {}
       annotations: {}
@@ -638,28 +680,34 @@ services:
     extraPorts: []
     envFrom: []
     livenessProbe:
-      httpGet:
-        path: /health
-        port: 8000
-      failureThreshold: 2
-      periodSeconds: 5
-      timeoutSeconds: 3
+      enabled: true
+      spec:
+        httpGet:
+          path: /health
+          port: 8000
+        failureThreshold: 2
+        periodSeconds: 5
+        timeoutSeconds: 3
     startupProbe:
-      httpGet:
-        path: /health
-        port: 8000
-      failureThreshold: 24
-      periodSeconds: 5
-      timeoutSeconds: 3
-      initialDelaySeconds: 5
+      enabled: true
+      spec:
+        httpGet:
+          path: /health
+          port: 8000
+        failureThreshold: 24
+        periodSeconds: 5
+        timeoutSeconds: 3
+        initialDelaySeconds: 5
     readinessProbe:
-      httpGet:
-        path: /health
-        port: 8000
-      failureThreshold: 2
-      timeoutSeconds: 3
-      periodSeconds: 5
-    env: []
+      enabled: true
+      spec:
+        httpGet:
+          path: /health
+          port: 8000
+        failureThreshold: 2
+        timeoutSeconds: 3
+        periodSeconds: 5
+    extraEnv: []
     extraVolumeMounts: []
     pod:
       labels: {}
@@ -677,6 +725,7 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+      extraContainers: []
       extraVolumes: []
 
   # Promotes scheduled Redis jobs when their delay expires.
@@ -690,15 +739,17 @@ services:
       digest: ''
       pullPolicy: IfNotPresent
     startupProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - '30'
-      failureThreshold: 24
-      periodSeconds: 5
-      timeoutSeconds: 15
-      initialDelaySeconds: 10
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - '30'
+        failureThreshold: 24
+        periodSeconds: 5
+        timeoutSeconds: 15
+        initialDelaySeconds: 10
     resources: {}
     extraArgs: []
     serviceAccount:
@@ -712,7 +763,7 @@ services:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraVolumeMounts: []
-    env: []
+    extraEnv: []
     pod:
       labels: {}
       annotations: {}
@@ -720,6 +771,7 @@ services:
       containerSecurityContext:
         readOnlyRootFilesystem: true
       initContainers: []
+      extraContainers: []
       extraVolumes: []
 
   # Executes asynchronous control-plane jobs from the Valkey queue.
@@ -740,15 +792,17 @@ services:
       digest: ''
       pullPolicy: IfNotPresent
     startupProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - '300'
-      failureThreshold: 24
-      periodSeconds: 5
-      timeoutSeconds: 15
-      initialDelaySeconds: 10
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - '300'
+        failureThreshold: 24
+        periodSeconds: 5
+        timeoutSeconds: 15
+        initialDelaySeconds: 10
     resources: {}
     extraArgs: []
     serviceAccount:
@@ -761,7 +815,7 @@ services:
       labels: {}
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
-    env: []
+    extraEnv: []
     replicas: 2
     extraVolumeMounts: []
     pod:
@@ -778,6 +832,7 @@ services:
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+      extraContainers: []
       extraVolumes: []
 
   # Main OSMO REST API and control-plane service.
@@ -808,30 +863,39 @@ services:
       browserClientId: ''
       tokenEndpoint: ''
       logoutEndpoint: ''
+    service:
+      labels: {}
+      annotations: {}
     livenessProbe:
-      httpGet:
-        port: 8000
-        path: /api/version
-      timeoutSeconds: 20
-      failureThreshold: 3
-      periodSeconds: 45
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /api/version
+        timeoutSeconds: 20
+        failureThreshold: 3
+        periodSeconds: 45
     startupProbe:
-      httpGet:
-        port: 8000
-        path: /api/version
-      failureThreshold: 24
-      periodSeconds: 5
-      timeoutSeconds: 3
-      initialDelaySeconds: 5
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /api/version
+        failureThreshold: 24
+        periodSeconds: 5
+        timeoutSeconds: 3
+        initialDelaySeconds: 5
     # Keep readiness authorization-neutral: this endpoint only confirms that
     # the API process is ready to receive traffic.
     readinessProbe:
-      httpGet:
-        port: 8000
-        path: /health
-      failureThreshold: 3
-      periodSeconds: 45
-      timeoutSeconds: 20
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /health
+        failureThreshold: 3
+        periodSeconds: 45
+        timeoutSeconds: 20
     resources: {}
     extraArgs: []
     serviceAccount:
@@ -844,7 +908,7 @@ services:
       labels: {}
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
-    env: []
+    extraEnv: []
     replicas: 3
     extraVolumeMounts: []
     pod:
@@ -859,6 +923,7 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+      extraContainers: []
       extraVolumes: []
 
   # Routes sticky HTTP and WebSocket sessions to connected backends.
@@ -893,29 +958,38 @@ services:
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraPorts: []
     resources: {}
+    service:
+      labels: {}
+      annotations: {}
     livenessProbe:
-      httpGet:
-        port: 8000
-        path: /api/router/version
-      failureThreshold: 2
-      periodSeconds: 5
-      timeoutSeconds: 30
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /api/router/version
+        failureThreshold: 2
+        periodSeconds: 5
+        timeoutSeconds: 30
     startupProbe:
-      httpGet:
-        port: 8000
-        path: /api/router/version
-      failureThreshold: 24
-      periodSeconds: 5
-      timeoutSeconds: 3
-      initialDelaySeconds: 30
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /api/router/version
+        failureThreshold: 24
+        periodSeconds: 5
+        timeoutSeconds: 3
+        initialDelaySeconds: 30
     readinessProbe:
-      httpGet:
-        port: 8000
-        path: /api/router/version
-      periodSeconds: 5
-      failureThreshold: 2
-      timeoutSeconds: 30
-    env: []
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /api/router/version
+        periodSeconds: 5
+        failureThreshold: 2
+        timeoutSeconds: 30
+    extraEnv: []
     replicas: 3
     extraVolumeMounts: []
     pod:
@@ -930,6 +1004,7 @@ services:
         whenUnsatisfiable: ScheduleAnyway
       hostAliases: []
       initContainers: []
+      extraContainers: []
       extraVolumes: []
 
   # Receives workflow logs and task metrics from runtime containers.
@@ -950,23 +1025,28 @@ services:
       digest: ''
       pullPolicy: IfNotPresent
     startupProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - '60'
-        - --progress_file
-        - /var/run/osmo/last_progress
-      failureThreshold: 24
-      periodSeconds: 5
-      timeoutSeconds: 15
-      initialDelaySeconds: 10
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - '60'
+          - --progress_file
+          - /var/run/osmo/last_progress
+        failureThreshold: 24
+        periodSeconds: 5
+        timeoutSeconds: 15
+        initialDelaySeconds: 10
     resources:
       requests:
         cpu: '1'
         memory: 1Gi
       limits:
         memory: 1Gi
+    service:
+      labels: {}
+      annotations: {}
     extraArgs: []
     serviceAccount:
       name: ''
@@ -979,7 +1059,7 @@ services:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     envoy: {}
-    env: []
+    extraEnv: []
     replicas: 3
     extraVolumeMounts: []
     pod:
@@ -993,6 +1073,7 @@ services:
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+      extraContainers: []
       extraVolumes: []
 
   # Receives backend-cluster events and heartbeat streams.
@@ -1013,30 +1094,37 @@ services:
       digest: ''
       pullPolicy: IfNotPresent
     startupProbe:
-      exec:
-        command:
-        - progress_check
-        - --progress_interval
-        - '60'
-        - --progress_file
-        - /var/run/osmo/last_progress
-      failureThreshold: 24
-      periodSeconds: 5
-      timeoutSeconds: 15
-      initialDelaySeconds: 10
+      enabled: true
+      spec:
+        exec:
+          command:
+          - progress_check
+          - --progress_interval
+          - '60'
+          - --progress_file
+          - /var/run/osmo/last_progress
+        failureThreshold: 24
+        periodSeconds: 5
+        timeoutSeconds: 15
+        initialDelaySeconds: 10
     readinessProbe:
-      httpGet:
-        port: 8000
-        path: /health
-      periodSeconds: 45
-      failureThreshold: 3
-      timeoutSeconds: 20
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /health
+        periodSeconds: 45
+        failureThreshold: 3
+        timeoutSeconds: 20
     resources:
       requests:
         cpu: 500m
         memory: 500Mi
       limits:
         memory: 1Gi
+    service:
+      labels: {}
+      annotations: {}
     extraArgs: []
     serviceAccount:
       name: ''
@@ -1049,7 +1137,7 @@ services:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     envoy: {}
-    env: []
+    extraEnv: []
     replicas: 1
     extraVolumeMounts: []
     pod:
@@ -1063,6 +1151,7 @@ services:
         maxSkew: 1
         whenUnsatisfiable: ScheduleAnyway
       initContainers: []
+      extraContainers: []
       extraVolumes: []
 
 # Internal API gateway and optional gateway-adjacent services. This block is
@@ -1124,26 +1213,32 @@ gateway:
       limits:
         memory: 256Mi
     livenessProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 3
+      enabled: true
+      spec:
+        httpGet:
+          path: /ready
+          port: 9901
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 3
     readinessProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 5
-      periodSeconds: 5
-      timeoutSeconds: 3
+      enabled: true
+      spec:
+        httpGet:
+          path: /ready
+          port: 9901
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
     startupProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 15
-      periodSeconds: 5
-      timeoutSeconds: 3
+      enabled: true
+      spec:
+        httpGet:
+          path: /ready
+          port: 9901
+        initialDelaySeconds: 15
+        periodSeconds: 5
+        timeoutSeconds: 3
     idp:
       host: ''
     internalJwks:
@@ -1178,6 +1273,8 @@ gateway:
     replicas: 2
     pod:
       nodeSelector: {}
+      affinity: {}
+      podSecurityContext: {}
       containerSecurityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1187,6 +1284,9 @@ gateway:
         runAsNonRoot: true
         runAsUser: 1001
       extraVolumes: []
+      hostAliases: []
+      initContainers: []
+      extraContainers: []
       labels: {}
       annotations: {}
 
@@ -1258,6 +1358,9 @@ gateway:
         memory: 64Mi
       limits:
         memory: 128Mi
+    service:
+      labels: {}
+      annotations: {}
     serviceAccount:
       name: ''
       create: false
@@ -1269,11 +1372,13 @@ gateway:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraVolumeMounts: []
-    env: []
+    extraEnv: []
     replicas: 1
     pod:
       annotations: {}
       nodeSelector: {}
+      affinity: {}
+      podSecurityContext: {}
       containerSecurityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1282,6 +1387,9 @@ gateway:
         runAsNonRoot: true
         runAsUser: 1001
       extraVolumes: []
+      hostAliases: []
+      initContainers: []
+      extraContainers: []
       labels: {}
 
   # Optional external-authorization service backed by OSMO role policies.
@@ -1316,20 +1424,27 @@ gateway:
       limits:
         cpu: 500m
         memory: 256Mi
+    service:
+      labels: {}
+      annotations: {}
     livenessProbe:
-      grpc:
-        port: 50052
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 3
-      failureThreshold: 3
+      enabled: true
+      spec:
+        grpc:
+          port: 50052
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 3
     readinessProbe:
-      grpc:
-        port: 50052
-      initialDelaySeconds: 5
-      periodSeconds: 5
-      timeoutSeconds: 3
-      failureThreshold: 2
+      enabled: true
+      spec:
+        grpc:
+          port: 50052
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 2
     serviceAccount:
       name: ''
       create: false
@@ -1341,11 +1456,13 @@ gateway:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraVolumeMounts: []
-    env: []
+    extraEnv: []
     replicas: 1
     pod:
       annotations: {}
       nodeSelector: {}
+      affinity: {}
+      podSecurityContext: {}
       containerSecurityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1354,6 +1471,9 @@ gateway:
         runAsNonRoot: true
         runAsUser: 10001
       extraVolumes: []
+      hostAliases: []
+      initContainers: []
+      extraContainers: []
       labels: {}
 
   # Optional Envoy-compatible global rate-limit service backed by Valkey.
@@ -1377,6 +1497,9 @@ gateway:
         memory: 200Mi
       limits:
         memory: 200Mi
+    service:
+      labels: {}
+      annotations: {}
     serviceAccount:
       name: ''
       create: false
@@ -1388,10 +1511,12 @@ gateway:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraVolumeMounts: []
-    env: []
+    extraEnv: []
     pod:
       annotations: {}
       nodeSelector: {}
+      affinity: {}
+      podSecurityContext: {}
       containerSecurityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1400,6 +1525,9 @@ gateway:
         runAsNonRoot: true
         runAsUser: 1001
       extraVolumes: []
+      hostAliases: []
+      initContainers: []
+      extraContainers: []
       labels: {}
 
   # Optional ingress policies limiting gateway traffic to known upstream pods.

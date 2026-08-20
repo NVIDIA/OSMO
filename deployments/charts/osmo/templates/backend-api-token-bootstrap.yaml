@@ -96,8 +96,8 @@ spec:
         {{- toYaml .Values.podDefaults.tolerations | nindent 8 }}
       containers:
       - name: backend-token-bootstrap
-        image: {{ .Values.services.backendApiTokens.bootstrap.image | quote }}
-        imagePullPolicy: {{ .Values.services.backendApiTokens.bootstrap.imagePullPolicy }}
+        image: {{ include "osmo.image" (dict "root" . "image" .Values.services.backendApiTokens.bootstrap.image "useSharedRegistry" false "useSharedTag" false) | quote }}
+        imagePullPolicy: {{ .Values.services.backendApiTokens.bootstrap.image.pullPolicy }}
         command:
         - /bin/ash
         args:

@@ -69,6 +69,7 @@ data:
               activeDeadlineSeconds: {{ $component.jobTemplate.activeDeadlineSeconds }}
               serviceAccountName: {{ include "osmo.compute.testRunnerServiceAccountName" . }}
               automountServiceAccountToken: {{ $component.pod.automountServiceAccountToken }}
+              {{- include "osmo.component.imagePullSecrets" . | nindent 14 }}
               securityContext:
                 {{- include "osmo.pod.securityContext" (dict "root" . "component" $component) | nindent 16 }}
               {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $component)) }}
@@ -83,10 +84,14 @@ data:
               affinity:
                 {{- . | nindent 16 }}
               {{- end }}
+              {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" $component "componentName" "backend-test-runner")) }}
+              topologySpreadConstraints:
+                {{- . | nindent 16 }}
+              {{- end }}
               initContainers:
               - name: config-validator
-                image: {{ $component.initContainer.image | quote }}
-                imagePullPolicy: {{ $component.initContainer.imagePullPolicy }}
+                image: {{ include "osmo.image" (dict "root" . "image" $component.initContainer.image "useSharedRegistry" false "useSharedTag" false) | quote }}
+                imagePullPolicy: {{ $component.initContainer.image.pullPolicy }}
                 command: ["/bin/sh"]
                 args:
                 - -c
@@ -126,7 +131,7 @@ data:
                   valueFrom:
                     fieldRef:
                       fieldPath: spec.serviceAccountName
-                {{- range $key, $value := $component.env }}
+                {{- range $key, $value := $component.extraEnv }}
                 - name: {{ $key }}
                   value: {{ $value | quote }}
                 {{- end }}

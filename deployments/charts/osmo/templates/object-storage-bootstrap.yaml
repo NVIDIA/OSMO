@@ -34,6 +34,7 @@ spec:
         {{- include "osmo.component.selectorLabels" (dict "root" . "component" "object-storage-bootstrap") | nindent 8 }}
     spec:
       automountServiceAccountToken: false
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
@@ -43,8 +44,8 @@ spec:
           type: RuntimeDefault
       containers:
       - name: object-storage-bootstrap
-        image: {{ .Values.embeddedDependencies.objectStorage.bootstrap.image | quote }}
-        imagePullPolicy: IfNotPresent
+        image: {{ include "osmo.image" (dict "root" . "image" .Values.embeddedDependencies.objectStorage.bootstrap.image "useSharedRegistry" false "useSharedTag" false) | quote }}
+        imagePullPolicy: {{ .Values.embeddedDependencies.objectStorage.bootstrap.image.pullPolicy }}
         command:
         - /bin/sh
         - /scripts/object-storage-bootstrap.sh

@@ -22,9 +22,9 @@
 {{- $gatewayUrl := trimSuffix "/mcp" $mcpResourceUrl }}
 {{- $requestTimeoutSeconds := toString $mcp.requestTimeoutSeconds }}
 {{- $reservedEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_GATEWAY_URL" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" }}
-{{- range $env := $mcp.env }}
+{{- range $env := $mcp.extraEnv }}
 {{- if has (toString (default "" $env.name)) $reservedEnvNames }}
-{{- fail (printf "services.mcp.env must not override managed variable %s" $env.name) }}
+{{- fail (printf "services.mcp.extraEnv must not override managed variable %s" $env.name) }}
 {{- end }}
 {{- end }}
 apiVersion: apps/v1
@@ -61,6 +61,10 @@ spec:
       affinity:
         {{- . | nindent 8 }}
       {{- end }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" $mcp "componentName" "mcp")) }}
+      topologySpreadConstraints:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $mcp)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -94,7 +98,7 @@ spec:
           value: {{ $gatewayUrl | quote }}
         - name: OSMO_MCP_REQUEST_TIMEOUT_SECONDS
           value: {{ $requestTimeoutSeconds | quote }}
-        {{- with $mcp.env }}
+        {{- with $mcp.extraEnv }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         resources:
@@ -103,15 +107,23 @@ spec:
         volumeMounts:
         {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 8 }}
         {{- end }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.livenessProbe "context" .)) }}
         livenessProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.livenessProbe "context" .) | nindent 10 }}
+          {{- . | nindent 10 }}
+        {{- end }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.readinessProbe "context" .)) }}
         readinessProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
+          {{- . | nindent 10 }}
+        {{- end }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.startupProbe "context" .)) }}
         startupProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
-      {{- if and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp }}
+          {{- . | nindent 10 }}
+        {{- end }}
+      {{- include "osmo.pod.extraContainers" $mcp | nindent 6 }}
+      {{- if or (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp) $mcp.pod.extraVolumes }}
       volumes:
       {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.mcp) | nindent 6 }}
+      {{- include "osmo.pod.extraVolumes" $mcp | nindent 6 }}
       {{- end }}
 
 ---
@@ -121,8 +133,8 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "mcp") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+    {{- include "osmo.service.labels" (dict "root" . "component" "mcp" "service" $mcp.service) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $mcp.service.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}

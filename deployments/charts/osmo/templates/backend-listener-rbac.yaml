@@ -2,7 +2,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 {{- $component := .Values.services.backendListener }}
+{{- $componentName := "backend-listener" }}
 {{- $name := include "osmo.compute.listenerName" . }}
+{{- $clusterRoleName := include "osmo.compute.listenerClusterRoleName" . }}
+{{- $clusterRoleBindingName := include "osmo.compute.clusterResourceName" (dict "root" . "suffix" "backend-listener-binding") }}
 {{- if $component.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
@@ -10,19 +13,26 @@ metadata:
   name: {{ include "osmo.compute.listenerServiceAccountName" . }}
   namespace: {{ include "osmo.compute.agentNamespace" . }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "backend-listener") | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
   {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $component.serviceAccount.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}
 automountServiceAccountToken: {{ $component.serviceAccount.automountServiceAccountToken }}
----
 {{- end }}
+{{- if .Values.compute.rbac.create }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ $name }}-events
   namespace: {{ include "osmo.compute.backendNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 rules:
 - apiGroups: [""]
   resources: ["events"]
@@ -33,6 +43,12 @@ kind: RoleBinding
 metadata:
   name: {{ $name }}-events
   namespace: {{ include "osmo.compute.backendNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "osmo.compute.listenerServiceAccountName" . }}
@@ -41,12 +57,19 @@ roleRef:
   kind: Role
   name: {{ $name }}-events
   apiGroup: rbac.authorization.k8s.io
-{{- if .Values.compute.enableClusterRoles }}
+{{- end }}
+{{- if .Values.compute.rbac.clusterRoles.create }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ $name }}
+  name: {{ $clusterRoleName }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 rules:
 - apiGroups: [""]
   resources: ["pods", "nodes"]
@@ -59,18 +82,24 @@ rules:
   resources: ["nodes"]
   verbs: ["patch"]
 {{- end }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ $name }}
+  name: {{ $clusterRoleBindingName }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "osmo.compute.listenerServiceAccountName" . }}
   namespace: {{ include "osmo.compute.agentNamespace" . }}
 roleRef:
   kind: ClusterRole
-  name: {{ $name }}
+  name: {{ $clusterRoleName }}
   apiGroup: rbac.authorization.k8s.io
-{{- end }}
 {{- end }}

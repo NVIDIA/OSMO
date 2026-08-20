@@ -13,7 +13,8 @@ externalDependencies:
 
 monitoring:
   podMonitor:
-    enabled: true
+    control:
+      enabled: true
 
 services:
   api: {}
@@ -32,17 +33,19 @@ services:
         cpu: 321m
         memory: 512Mi
   router:
-    env:
+    extraEnv:
     - name: EMPTY_VALUE
       value: ""
   agent:
     readinessProbe:
-      httpGet:
-        port: 8000
-        path: /review-ready
-      periodSeconds: 17
-      failureThreshold: 2
-      timeoutSeconds: 4
+      enabled: true
+      spec:
+        httpGet:
+          port: 8000
+          path: /review-ready
+        periodSeconds: 17
+        failureThreshold: 2
+        timeoutSeconds: 4
     serviceAccount:
       name: ""
       create: true

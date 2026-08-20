@@ -60,9 +60,9 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.services.api.pod.topologySpreadConstraints }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" .Values.services.api "componentName" "api")) }}
       topologySpreadConstraints:
-        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "api") | nindent 8 }}
+        {{- . | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.api)) }}
       nodeSelector:
@@ -161,7 +161,7 @@ spec:
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.api.disableTaskMetrics | quote }}
-        {{- include "osmo.configuration.env" . | nindent 8 }}
+        {{- include "osmo.configuration.extraEnv" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.api | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         {{- if .Values.secrets.defaultAdmin.existingSecret }}
@@ -199,21 +199,20 @@ spec:
         resources:
         {{- toYaml .Values.services.api.resources | nindent 10 }}
 
-        # Any failure to return the version api means the service is in a bad state
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.livenessProbe "context" .)) }}
         livenessProbe:
-        {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.livenessProbe "context" .) | nindent 10 }}
-
-
-        # Probe spec comes from values.yaml; the helper overlays
-        # `scheme: HTTPS` when gateway.tls.enabled is true.
+          {{- . | nindent 10 }}
+        {{- end }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.startupProbe "context" .)) }}
         startupProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.startupProbe "context" .) | nindent 10 }}
-
-        # Readiness must not require privileged request headers.
+          {{- . | nindent 10 }}
+        {{- end }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.readinessProbe "context" .)) }}
         readinessProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.readinessProbe "context" .) | nindent 10 }}
+          {{- . | nindent 10 }}
+        {{- end }}
 
-      {{- include "osmo.pod.extraSidecars" .Values.services.api | nindent 6 }}
+      {{- include "osmo.pod.extraContainers" .Values.services.api | nindent 6 }}
       volumes:
         - name: osmo-runtime-tmp
           emptyDir: {}
@@ -236,8 +235,8 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "api") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+    {{- include "osmo.service.labels" (dict "root" . "component" "api" "service" .Values.services.api.service) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.api.service.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}

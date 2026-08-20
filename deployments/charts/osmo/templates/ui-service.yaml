@@ -54,9 +54,9 @@ spec:
       {{- end }}
       hostAliases:
         {{ toYaml .Values.services.ui.pod.hostAliases | nindent 8}}
-      {{- with .Values.services.ui.pod.topologySpreadConstraints }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" .Values.services.ui "componentName" "ui")) }}
       topologySpreadConstraints:
-        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "ui") | nindent 8 }}
+        {{- . | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.ui)) }}
       nodeSelector:
@@ -96,7 +96,7 @@ spec:
           value: {{ .Values.services.ui.docsBaseUrl | quote }}
         - name: CLI_INSTALL_SCRIPT_URL
           value: {{ .Values.services.ui.cliInstallScriptUrl | quote }}
-        {{- with .Values.services.ui.env }}
+        {{- with .Values.services.ui.extraEnv }}
         {{- range $env := . }}
         - name: {{ $env.name }}
           {{- if (hasKey $env "value") }}
@@ -123,120 +123,20 @@ spec:
         resources:
           {{- toYaml .Values.services.ui.resources | nindent 10 }}
 
-        {{- with .Values.services.ui.livenessProbe }}
-        # Any failure to return the version api means the service is in a bad state
+        {{- with (include "osmo.probe" (dict "probe" .Values.services.ui.livenessProbe)) }}
         livenessProbe:
-          {{- if .httpGet }}
-          httpGet:
-            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
-            path: {{ .httpGet.path | default "/" }}
-            {{- with .httpGet.scheme }}
-            scheme: {{ . }}
-            {{- end }}
-            {{- with .httpGet.httpHeaders }}
-            httpHeaders:
-              {{- toYaml . | nindent 12 }}
-            {{- end }}
-          {{- else if .tcpSocket }}
-          tcpSocket:
-            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
-          {{- else if .exec }}
-          exec:
-            {{- toYaml .exec | nindent 12 }}
-          {{- end }}
-          {{- with .failureThreshold }}
-          failureThreshold: {{ . }}
-          {{- end }}
-          {{- with .periodSeconds }}
-          periodSeconds: {{ . }}
-          {{- end }}
-          {{- with .timeoutSeconds }}
-          timeoutSeconds: {{ . }}
-          {{- end }}
-          {{- with .initialDelaySeconds }}
-          initialDelaySeconds: {{ . }}
-          {{- end }}
-          {{- with .successThreshold }}
-          successThreshold: {{ . }}
-          {{- end }}
+          {{- . | nindent 10 }}
         {{- end }}
-
-        {{- with .Values.services.ui.startupProbe }}
+        {{- with (include "osmo.probe" (dict "probe" .Values.services.ui.startupProbe)) }}
         startupProbe:
-          {{- if .httpGet }}
-          httpGet:
-            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
-            path: {{ .httpGet.path | default "/" }}
-            {{- with .httpGet.scheme }}
-            scheme: {{ . }}
-            {{- end }}
-            {{- with .httpGet.httpHeaders }}
-            httpHeaders:
-              {{- toYaml . | nindent 12 }}
-            {{- end }}
-          {{- else if .tcpSocket }}
-          tcpSocket:
-            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
-          {{- else if .exec }}
-          exec:
-            {{- toYaml .exec | nindent 12 }}
-          {{- end }}
-          {{- with .failureThreshold }}
-          failureThreshold: {{ . }}
-          {{- end }}
-          {{- with .periodSeconds }}
-          periodSeconds: {{ . }}
-          {{- end }}
-          {{- with .timeoutSeconds }}
-          timeoutSeconds: {{ . }}
-          {{- end }}
-          {{- with .initialDelaySeconds }}
-          initialDelaySeconds: {{ . }}
-          {{- end }}
-          {{- with .successThreshold }}
-          successThreshold: {{ . }}
-          {{- end }}
+          {{- . | nindent 10 }}
         {{- end }}
-
-        {{- with .Values.services.ui.readinessProbe }}
-        # Do a basic database read operation to ensure the service is able to serve traffic
+        {{- with (include "osmo.probe" (dict "probe" .Values.services.ui.readinessProbe)) }}
         readinessProbe:
-          {{- if .httpGet }}
-          httpGet:
-            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
-            path: {{ .httpGet.path | default "/" }}
-            {{- with .httpGet.scheme }}
-            scheme: {{ . }}
-            {{- end }}
-            {{- with .httpGet.httpHeaders }}
-            httpHeaders:
-              {{- toYaml . | nindent 12 }}
-            {{- end }}
-          {{- else if .tcpSocket }}
-          tcpSocket:
-            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
-          {{- else if .exec }}
-          exec:
-            {{- toYaml .exec | nindent 12 }}
-          {{- end }}
-          {{- with .failureThreshold }}
-          failureThreshold: {{ . }}
-          {{- end }}
-          {{- with .periodSeconds }}
-          periodSeconds: {{ . }}
-          {{- end }}
-          {{- with .timeoutSeconds }}
-          timeoutSeconds: {{ . }}
-          {{- end }}
-          {{- with .initialDelaySeconds }}
-          initialDelaySeconds: {{ . }}
-          {{- end }}
-          {{- with .successThreshold }}
-          successThreshold: {{ . }}
-          {{- end }}
+          {{- . | nindent 10 }}
         {{- end }}
 
-      {{- with .Values.services.ui.pod.sidecars }}
+      {{- with .Values.services.ui.pod.extraContainers }}
         {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:

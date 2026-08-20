@@ -50,6 +50,10 @@ spec:
       affinity:
         {{- . | nindent 8 }}
       {{- end }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" .Values.services.delayedJobMonitor "componentName" "delayed-job-monitor")) }}
+      topologySpreadConstraints:
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.delayedJobMonitor)) }}
       nodeSelector:
         {{- . | nindent 8 }}
@@ -142,12 +146,12 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 15
 
-        {{- with .Values.services.delayedJobMonitor.startupProbe }}
+        {{- with (include "osmo.probe" (dict "probe" .Values.services.delayedJobMonitor.startupProbe)) }}
         startupProbe:
-          {{- toYaml . | nindent 10 }}
+          {{- . | nindent 10 }}
         {{- end }}
 
-      {{- include "osmo.pod.extraSidecars" .Values.services.delayedJobMonitor | nindent 6 }}
+      {{- include "osmo.pod.extraContainers" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:
         - name: osmo-progress-files
           emptyDir: {}

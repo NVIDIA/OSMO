@@ -88,8 +88,8 @@ spec:
         {{- toYaml .Values.podDefaults.tolerations | nindent 8 }}
       containers:
       - name: mek-bootstrap
-        image: {{ .Values.secrets.masterEncryptionKey.bootstrap.image | quote }}
-        imagePullPolicy: {{ .Values.secrets.masterEncryptionKey.bootstrap.imagePullPolicy }}
+        image: {{ include "osmo.image" (dict "root" . "image" .Values.secrets.masterEncryptionKey.bootstrap.image "useSharedRegistry" false "useSharedTag" false) | quote }}
+        imagePullPolicy: {{ .Values.secrets.masterEncryptionKey.bootstrap.image.pullPolicy }}
         command:
         - /bin/ash
         args:

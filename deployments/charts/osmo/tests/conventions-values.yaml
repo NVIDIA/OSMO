@@ -1,0 +1,197 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+imagePullSecrets:
+- name: convention-pull-secret
+
+commonLabels:
+  example.com/common: unified
+commonAnnotations:
+  example.com/common-annotation: unified
+
+podDefaults:
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: example.com/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/instance: conventions
+
+compute:
+  workloadNamespace: convention-workloads
+  authentication:
+    existingSecret: convention-backend-token
+    tokenKey: convention-token
+  usageNamespaces:
+  - team-a
+  - team-b
+  backendTestNamespace: convention-backend-tests
+
+embeddedDependencies:
+  objectStorage:
+    bootstrap:
+      image:
+        registry: registry.example.com
+        repository: conventions/object-storage-bootstrap
+        tag: ignored
+        digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        pullPolicy: Always
+
+secrets:
+  masterEncryptionKey:
+    bootstrap:
+      image:
+        registry: registry.example.com
+        repository: conventions/mek-bootstrap
+        tag: ignored
+        digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        pullPolicy: Always
+
+services:
+  backendApiTokens:
+    bootstrap:
+      image:
+        registry: registry.example.com
+        repository: conventions/backend-token-bootstrap
+        tag: ignored
+        digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        pullPolicy: Always
+  api:
+    extraEnv:
+    - name: API_CONVENTION
+      value: control
+    service:
+      labels:
+        example.com/service: api
+      annotations:
+        example.com/service-annotation: api
+  router:
+    service:
+      labels:
+        example.com/service: router
+      annotations:
+        example.com/service-annotation: router
+  logger:
+    service:
+      labels:
+        example.com/service: logger
+      annotations:
+        example.com/service-annotation: logger
+  agent:
+    service:
+      labels:
+        example.com/service: agent
+      annotations:
+        example.com/service-annotation: agent
+  ui:
+    service:
+      labels:
+        example.com/service: ui
+      annotations:
+        example.com/service-annotation: ui
+  mcp:
+    enabled: true
+    resourceUrl: https://osmo.example.com/mcp
+    service:
+      labels:
+        example.com/service: mcp
+      annotations:
+        example.com/service-annotation: mcp
+  backendListener:
+    extraEnv:
+    - name: COMPUTE_CONVENTION
+      value: listener
+    startupProbe:
+      enabled: false
+    pod:
+      extraContainers:
+      - name: listener-sidecar
+        image: busybox:stable
+  backendWorker:
+    serviceAccount:
+      automountServiceAccountToken: false
+  backendTestRunner:
+    enabled: true
+    initContainer:
+      image:
+        registry: registry.example.com
+        repository: conventions/test-init
+        tag: ignored
+        digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+        pullPolicy: Always
+    extraRoles:
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: convention-extra-role
+        namespace: convention-backend-tests
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - configmaps
+        verbs:
+        - get
+
+gateway:
+  envoy:
+    service:
+      labels:
+        example.com/service: gateway
+      annotations:
+        example.com/service-annotation: gateway
+  oauth2Proxy:
+    enabled: true
+    service:
+      labels:
+        example.com/service: gateway-oauth2-proxy
+      annotations:
+        example.com/service-annotation: gateway-oauth2-proxy
+    pod:
+      hostAliases:
+      - ip: 192.0.2.10
+        hostnames:
+        - oauth2-proxy-convention.example.com
+      initContainers:
+      - name: oauth2-proxy-init
+        image: busybox:stable
+      extraContainers:
+      - name: oauth2-proxy-sidecar
+        image: busybox:stable
+  authz:
+    enabled: true
+    service:
+      labels:
+        example.com/service: gateway-authz
+      annotations:
+        example.com/service-annotation: gateway-authz
+    pod:
+      hostAliases:
+      - ip: 192.0.2.11
+        hostnames:
+        - authz-convention.example.com
+      initContainers:
+      - name: authz-init
+        image: busybox:stable
+      extraContainers:
+      - name: authz-sidecar
+        image: busybox:stable
+  rateLimit:
+    enabled: true
+    service:
+      labels:
+        example.com/service: gateway-ratelimit
+      annotations:
+        example.com/service-annotation: gateway-ratelimit
+    pod:
+      hostAliases:
+      - ip: 192.0.2.12
+        hostnames:
+        - ratelimit-convention.example.com
+      initContainers:
+      - name: ratelimit-init
+        image: busybox:stable
+      extraContainers:
+      - name: ratelimit-sidecar
+        image: busybox:stable

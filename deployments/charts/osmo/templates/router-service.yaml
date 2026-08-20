@@ -57,9 +57,9 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.services.router.pod.topologySpreadConstraints }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" .Values.services.router "componentName" "router")) }}
       topologySpreadConstraints:
-        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "router") | nindent 8 }}
+        {{- . | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.router)) }}
       nodeSelector:
@@ -117,7 +117,7 @@ spec:
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         env:
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
-        {{- with .Values.services.router.env }}
+        {{- with .Values.services.router.extraEnv }}
         {{- range . }}
         - name: {{ .name }}
           {{- if hasKey . "value" }}
@@ -158,22 +158,22 @@ spec:
         resources:
         {{- toYaml .Values.services.router.resources | nindent 10 }}
 
-        {{- with .Values.services.router.livenessProbe }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.router.livenessProbe "context" .)) }}
         livenessProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" . "context" $) | nindent 10 }}
+          {{- . | nindent 10 }}
         {{- end }}
 
-        {{- with .Values.services.router.startupProbe }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.router.startupProbe "context" .)) }}
         startupProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" . "context" $) | nindent 10 }}
+          {{- . | nindent 10 }}
         {{- end }}
 
-        {{- with .Values.services.router.readinessProbe }}
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.router.readinessProbe "context" .)) }}
         readinessProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" . "context" $) | nindent 10 }}
+          {{- . | nindent 10 }}
         {{- end }}
 
-      {{- with .Values.services.router.pod.sidecars }}
+      {{- with .Values.services.router.pod.extraContainers }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
@@ -193,8 +193,8 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "router") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+    {{- include "osmo.service.labels" (dict "root" . "component" "router" "service" .Values.services.router.service) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.router.service.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}
@@ -214,8 +214,8 @@ kind: Service
 metadata:
   name: {{ $name }}-headless
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "router") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+    {{- include "osmo.service.labels" (dict "root" . "component" "router" "service" .Values.services.router.service) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.router.service.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}

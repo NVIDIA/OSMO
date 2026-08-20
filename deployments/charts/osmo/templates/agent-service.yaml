@@ -59,9 +59,9 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.services.agent.pod.topologySpreadConstraints }}
+      {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" .Values.services.agent "componentName" "agent")) }}
       topologySpreadConstraints:
-        {{- include "osmo.pod.topologySpreadConstraints" (dict "root" $ "constraints" . "componentName" "agent") | nindent 8 }}
+        {{- . | nindent 8 }}
       {{- end }}
       {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.agent)) }}
       nodeSelector:
@@ -129,7 +129,7 @@ spec:
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         env:
-        {{- include "osmo.configuration.env" . | nindent 8 }}
+        {{- include "osmo.configuration.extraEnv" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.agent | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.agent) }}
@@ -163,15 +163,17 @@ spec:
           failureThreshold: 3
           periodSeconds: 45
 
-        {{- with .Values.services.agent.startupProbe }}
+        {{- with (include "osmo.probe" (dict "probe" .Values.services.agent.startupProbe)) }}
         startupProbe:
-          {{- toYaml . | nindent 10 }}
+          {{- . | nindent 10 }}
         {{- end }}
 
+        {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.agent.readinessProbe "context" .)) }}
         readinessProbe:
-          {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.agent.readinessProbe "context" .) | nindent 10 }}
+          {{- . | nindent 10 }}
+        {{- end }}
 
-      {{- include "osmo.pod.extraSidecars" .Values.services.agent | nindent 6 }}
+      {{- include "osmo.pod.extraContainers" .Values.services.agent | nindent 6 }}
       volumes:
         - name: osmo-runtime-tmp
           emptyDir: {}
@@ -190,8 +192,8 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "agent") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+    {{- include "osmo.service.labels" (dict "root" . "component" "agent" "service" .Values.services.agent.service) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.agent.service.annotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}

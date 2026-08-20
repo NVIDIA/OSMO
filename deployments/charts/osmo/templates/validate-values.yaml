@@ -4,11 +4,8 @@
 {{- fail "at least one of planes.control.enabled or planes.compute.enabled must be true" -}}
 {{- end -}}
 {{- if .Values.planes.compute.enabled -}}
-{{- if ne .Values.compute.loginMethod "token" -}}
-{{- fail "compute.loginMethod must be token; compute authentication uses a Kubernetes Secret" -}}
-{{- end -}}
-{{- if not .Values.compute.accountTokenSecret -}}
-{{- fail "compute.accountTokenSecret is required when planes.compute.enabled=true" -}}
+{{- if not .Values.compute.authentication.existingSecret -}}
+{{- fail "compute.authentication.existingSecret is required when planes.compute.enabled=true" -}}
 {{- end -}}
 {{- if and (not .Values.planes.control.enabled) (not .Values.externalUrl) -}}
 {{- fail "externalUrl is required when the compute plane connects to an external control plane" -}}
@@ -16,14 +13,37 @@
 {{- if and .Values.services.backendTestRunner.enabled (not .Values.compute.backendTestNamespace) -}}
 {{- fail "compute.backendTestNamespace is required when services.backendTestRunner.enabled=true" -}}
 {{- end -}}
+{{- if and
+  (not .Values.compute.rbac.clusterRoles.create)
+  .Values.services.backendListener.enabled
+  (not .Values.compute.rbac.clusterRoles.listenerName) -}}
+{{- fail "compute.rbac.clusterRoles.listenerName is required when cluster role creation is disabled" -}}
+{{- end -}}
+{{- if and
+  (not .Values.compute.rbac.clusterRoles.create)
+  .Values.services.backendWorker.enabled
+  (not .Values.compute.rbac.clusterRoles.workerName) -}}
+{{- fail "compute.rbac.clusterRoles.workerName is required when cluster role creation is disabled" -}}
+{{- end -}}
+{{- if and
+  (not .Values.compute.rbac.clusterRoles.create)
+  .Values.services.backendTestRunner.enabled
+  (not .Values.compute.rbac.clusterRoles.testRunnerName) -}}
+{{- fail "compute.rbac.clusterRoles.testRunnerName is required when cluster role creation is disabled and services.backendTestRunner.enabled=true" -}}
+{{- end -}}
+{{- if and
+  .Values.compute.workflowNetworkPolicy.enabled
+  (not .Values.compute.workflowNetworkPolicy.clusterCIDRs)
+  (not .Values.compute.workflowNetworkPolicy.allowAllClusterEgress) -}}
+{{- fail "compute.workflowNetworkPolicy.clusterCIDRs must not be empty when the workflow network policy is enabled unless allowAllClusterEgress=true" -}}
+{{- end -}}
 {{- end -}}
 {{- if and
   (not .Values.planes.control.enabled)
   (or
     .Values.embeddedDependencies.postgresql.enabled
     .Values.embeddedDependencies.valkey.enabled
-    .Values.embeddedDependencies.objectStorage.enabled
-    .Values.embeddedDependencies.kaiScheduler.enabled) -}}
+    .Values.embeddedDependencies.objectStorage.enabled) -}}
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
 {{- if .Values.planes.control.enabled -}}
@@ -211,9 +231,6 @@
 {{- end -}}
 {{- else if .Values.secrets.objectStorage.generate -}}
 {{- fail "secrets.objectStorage.generate is supported only when embedded object storage is enabled" -}}
-{{- end -}}
-{{- if .Values.embeddedDependencies.kaiScheduler.enabled -}}
-{{- fail "embeddedDependencies.kaiScheduler.enabled: embedded KAI Scheduler is not implemented" -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.valkey.enabled -}}
 {{- if .Values.externalDependencies.valkey.host -}}

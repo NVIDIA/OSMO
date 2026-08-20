@@ -18,8 +18,7 @@
       "properties": {
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
         "valkey": { "$ref": "#/definitions/enabledBlock" },
-        "objectStorage": { "$ref": "#/definitions/embeddedObjectStorage" },
-        "kaiScheduler": { "$ref": "#/definitions/enabledBlock" }
+        "objectStorage": { "$ref": "#/definitions/embeddedObjectStorage" }
       }
     },
     "valkey": { "type": "object" },
@@ -115,32 +114,56 @@
     "compute": {
       "type": "object",
       "properties": {
-        "namespace": { "type": "string" },
+        "workloadNamespace": { "type": "string" },
         "backendName": { "type": "string", "minLength": 1 },
         "backendTestNamespace": { "type": "string" },
-        "loginMethod": { "type": "string", "enum": ["token"] },
-        "accountUsername": { "type": "string" },
-        "accountTokenSecret": { "type": "string" },
-        "accountTokenSecretKey": { "type": "string", "minLength": 1 },
+        "authentication": { "$ref": "#/definitions/computeAuthentication" },
         "nodeConditionPrefix": { "type": "string" },
-        "includeNamespaceUsage": { "type": "string" },
-        "enableClusterRoles": { "type": "boolean" },
-        "networkPolicy": { "$ref": "#/definitions/computeNetworkPolicy" },
+        "usageNamespaces": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rbac": { "$ref": "#/definitions/computeRbac" },
+        "workflowNetworkPolicy": { "$ref": "#/definitions/computeNetworkPolicy" },
         "priorityClasses": { "$ref": "#/definitions/computePriorityClasses" },
         "extraConfigMaps": { "$ref": "#/definitions/computeExtraConfigMaps" }
       },
-      "required": ["namespace", "backendName", "backendTestNamespace", "loginMethod", "accountUsername", "accountTokenSecret", "accountTokenSecretKey", "nodeConditionPrefix", "includeNamespaceUsage", "enableClusterRoles", "networkPolicy", "priorityClasses", "extraConfigMaps"]
+      "required": ["workloadNamespace", "backendName", "backendTestNamespace", "authentication", "nodeConditionPrefix", "usageNamespaces", "rbac", "workflowNetworkPolicy", "priorityClasses", "extraConfigMaps"]
+    },
+    "computeAuthentication": {
+      "type": "object",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "tokenKey": { "type": "string", "minLength": 1 }
+      },
+      "required": ["existingSecret", "tokenKey"]
+    },
+    "computeRbac": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "clusterRoles": { "$ref": "#/definitions/computeClusterRoles" }
+      },
+      "required": ["create", "clusterRoles"]
+    },
+    "computeClusterRoles": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "listenerName": { "type": "string" },
+        "workerName": { "type": "string" },
+        "testRunnerName": { "type": "string" }
+      },
+      "required": ["create", "listenerName", "workerName", "testRunnerName"]
     },
     "computeNetworkPolicy": {
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
+        "allowAllClusterEgress": { "type": "boolean" },
         "clusterCIDRs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "dnsNamespace": { "type": "string", "minLength": 1 },
         "allowedNamespaces": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "additionalEgressRules": { "type": "array", "items": { "type": "object" } }
       },
-      "required": ["enabled", "clusterCIDRs", "dnsNamespace", "allowedNamespaces", "additionalEgressRules"]
+      "required": ["enabled", "allowAllClusterEgress", "clusterCIDRs", "dnsNamespace", "allowedNamespaces", "additionalEgressRules"]
     },
     "computePriorityClass": {
       "type": "object",
@@ -154,13 +177,13 @@
     "computePriorityClasses": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
+        "create": { "type": "boolean" },
         "classes": {
           "type": "array",
           "items": { "$ref": "#/definitions/computePriorityClass" }
         }
       },
-      "required": ["enabled", "classes"]
+      "required": ["create", "classes"]
     },
     "computeExtraConfigMap": {
       "type": "object",
@@ -182,14 +205,14 @@
         "image": { "$ref": "#/definitions/componentImage" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "resources": { "type": "object" },
-        "livenessProbe": { "type": "object" },
-        "startupProbe": { "type": "object" },
-        "env": { "type": "array", "items": { "type": "object" } },
+        "livenessProbe": { "$ref": "#/definitions/probe" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
         "extraArgs": { "type": "array", "items": { "type": "string" } },
         "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
         "pod": { "$ref": "#/definitions/podSettings" }
       },
-      "required": ["enabled", "replicas", "image", "serviceAccount", "resources", "livenessProbe", "startupProbe", "env", "extraArgs", "extraVolumeMounts", "pod"]
+      "required": ["enabled", "replicas", "image", "serviceAccount", "resources", "livenessProbe", "startupProbe", "extraEnv", "extraArgs", "extraVolumeMounts", "pod"]
     },
     "backendListenerComponent": {
       "allOf": [
@@ -249,11 +272,10 @@
     "backendTestRunnerInitContainer": {
       "type": "object",
       "properties": {
-        "image": { "type": "string", "minLength": 1 },
-        "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "image": { "$ref": "#/definitions/componentImage" },
         "resources": { "type": "object" }
       },
-      "required": ["image", "imagePullPolicy", "resources"]
+      "required": ["image", "resources"]
     },
     "backendTestRunnerContainer": {
       "type": "object",
@@ -288,6 +310,7 @@
         "nodeSelector": { "$ref": "#/definitions/stringMap" },
         "tolerations": { "type": "array" },
         "affinity": { "type": "object" },
+        "topologySpreadConstraints": { "type": "array" },
         "podSecurityContext": { "type": "object" },
         "containerSecurityContext": { "type": "object" },
         "restartPolicy": { "type": "string", "enum": ["Never", "OnFailure"] },
@@ -309,13 +332,13 @@
         "container": { "$ref": "#/definitions/backendTestRunnerContainer" },
         "configMap": { "$ref": "#/definitions/backendTestRunnerConfigMap" },
         "testConfigVolume": { "$ref": "#/definitions/backendTestRunnerVolume" },
-        "env": { "$ref": "#/definitions/stringMap" },
+        "extraEnv": { "$ref": "#/definitions/stringMap" },
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
         "pod": { "$ref": "#/definitions/backendTestRunnerPod" },
         "extraRoles": { "type": "array", "items": { "type": "object" } }
       },
-      "required": ["enabled", "serviceAccount", "image", "cronJob", "jobTemplate", "initContainer", "container", "configMap", "testConfigVolume", "env", "labels", "annotations", "pod", "extraRoles"]
+      "required": ["enabled", "serviceAccount", "image", "cronJob", "jobTemplate", "initContainer", "container", "configMap", "testConfigVolume", "extraEnv", "labels", "annotations", "pod", "extraRoles"]
     },
     "embeddedObjectStorage": {
       "type": "object",
@@ -334,7 +357,7 @@
         "bootstrap": {
           "type": "object",
           "properties": {
-            "image": { "type": "string", "minLength": 1 },
+            "image": { "$ref": "#/definitions/componentImage" },
             "attempts": { "type": "integer", "minimum": 1 },
             "backoffLimit": { "type": "integer", "minimum": 0 },
             "resources": { "type": "object" }
@@ -422,7 +445,8 @@
     "podMonitor": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
+        "control": { "$ref": "#/definitions/enabledBlock" },
+        "compute": { "$ref": "#/definitions/enabledBlock" },
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
         "interval": { "type": "string", "minLength": 1 },
@@ -434,7 +458,7 @@
         "relabelings": { "type": "array", "items": { "type": "object" } },
         "metricRelabelings": { "type": "array", "items": { "type": "object" } }
       },
-      "required": ["enabled", "labels", "annotations", "interval", "scrapeTimeout", "scheme", "tlsConfig", "honorLabels", "podTargetLabels", "relabelings", "metricRelabelings"]
+      "required": ["control", "compute", "labels", "annotations", "interval", "scrapeTimeout", "scheme", "tlsConfig", "honorLabels", "podTargetLabels", "relabelings", "metricRelabelings"]
     },
     "monitoring": {
       "type": "object",
@@ -555,10 +579,18 @@
         "registry": { "type": "string" },
         "repository": { "type": "string", "minLength": 1 },
         "tag": { "type": "string" },
-        "digest": { "type": "string", "pattern": "^$|^sha256:[A-Fa-f0-9]{16,}$" },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[A-Fa-f0-9]{64}$" },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
       },
       "required": ["registry", "repository", "tag", "digest", "pullPolicy"]
+    },
+    "probe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "spec": { "type": "object" }
+      },
+      "required": ["enabled", "spec"]
     },
     "podSettings": {
       "type": "object",
@@ -574,7 +606,7 @@
         "hostAliases": { "type": "array" },
         "initContainers": { "type": "array" },
         "extraVolumes": { "type": "array" },
-        "sidecars": { "type": "array" },
+        "extraContainers": { "type": "array" },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
       }
     },
@@ -586,6 +618,7 @@
         "nodeSelector": { "$ref": "#/definitions/stringMap" },
         "tolerations": { "type": "array" },
         "affinity": { "type": "object" },
+        "topologySpreadConstraints": { "type": "array" },
         "podSecurityContext": { "type": "object" },
         "containerSecurityContext": { "type": "object" },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
@@ -604,7 +637,7 @@
         "topologySpreadConstraints": { "type": "array" },
         "initContainers": { "type": "array" },
         "extraVolumes": { "type": "array" },
-        "sidecars": { "type": "array" },
+        "extraContainers": { "type": "array" },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
       }
     },
@@ -620,21 +653,7 @@
         "containerSecurityContext": { "type": "object" },
         "initContainers": { "type": "array" },
         "extraVolumes": { "type": "array" },
-        "sidecars": { "type": "array" },
-        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
-      }
-    },
-    "podSettingsWithVolumes": {
-      "type": "object",
-      "properties": {
-        "labels": { "$ref": "#/definitions/stringMap" },
-        "annotations": { "$ref": "#/definitions/stringMap" },
-        "nodeSelector": { "$ref": "#/definitions/stringMap" },
-        "tolerations": { "type": "array" },
-        "affinity": { "type": "object" },
-        "podSecurityContext": { "type": "object" },
-        "containerSecurityContext": { "type": "object" },
-        "extraVolumes": { "type": "array" },
+        "extraContainers": { "type": "array" },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 }
       }
     },
@@ -817,6 +836,14 @@
         "extraPorts": { "type": "array" }
       }
     },
+    "serviceMetadata": {
+      "type": "object",
+      "properties": {
+        "labels": { "$ref": "#/definitions/stringMap" },
+        "annotations": { "$ref": "#/definitions/stringMap" }
+      },
+      "required": ["labels", "annotations"]
+    },
     "apiComponent": {
       "type": "object",
       "properties": {
@@ -828,14 +855,15 @@
         "clientInstallUrl": { "type": "string" },
         "disableTaskMetrics": { "type": "boolean" },
         "auth": { "$ref": "#/definitions/apiAuth" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
-        "startupProbe": { "type": "object" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
+        "livenessProbe": { "$ref": "#/definitions/probe" },
+        "readinessProbe": { "$ref": "#/definitions/probe" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
         "resources": { "type": "object" },
         "extraArgs": { "type": "array" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
-        "env": { "type": "array" },
+        "extraEnv": { "type": "array" },
         "extraVolumeMounts": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
@@ -863,10 +891,10 @@
         "resources": { "type": "object" },
         "extraPorts": { "type": "array" },
         "envFrom": { "type": "array" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
-        "startupProbe": { "type": "object" },
-        "env": { "type": "array" },
+        "livenessProbe": { "$ref": "#/definitions/probe" },
+        "readinessProbe": { "$ref": "#/definitions/probe" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
+        "extraEnv": { "type": "array" },
         "extraVolumeMounts": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
@@ -879,12 +907,12 @@
         "replicas": { "type": "integer", "minimum": 0 },
         "autoscaling": { "$ref": "#/definitions/autoscaling" },
         "image": { "$ref": "#/definitions/componentImage" },
-        "startupProbe": { "type": "object" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
         "resources": { "type": "object" },
         "extraArgs": { "type": "array" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
-        "env": { "type": "array" },
+        "extraEnv": { "type": "array" },
         "extraVolumeMounts": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettingsWithoutHostAliases" },
         "deploymentStrategy": { "type": "object" }
@@ -904,10 +932,11 @@
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "extraPorts": { "type": "array" },
         "resources": { "type": "object" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
-        "startupProbe": { "type": "object" },
-        "env": { "type": "array" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
+        "livenessProbe": { "$ref": "#/definitions/probe" },
+        "readinessProbe": { "$ref": "#/definitions/probe" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
+        "extraEnv": { "type": "array" },
         "extraVolumeMounts": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
@@ -920,13 +949,14 @@
         "replicas": { "type": "integer", "minimum": 0 },
         "autoscaling": { "$ref": "#/definitions/autoscaling" },
         "image": { "$ref": "#/definitions/componentImage" },
-        "startupProbe": { "type": "object" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
         "resources": { "type": "object" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
         "extraArgs": { "type": "array" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "envoy": { "type": "object" },
-        "env": { "type": "array" },
+        "extraEnv": { "type": "array" },
         "extraVolumeMounts": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
@@ -939,14 +969,15 @@
         "replicas": { "type": "integer", "minimum": 0 },
         "autoscaling": { "$ref": "#/definitions/autoscaling" },
         "image": { "$ref": "#/definitions/componentImage" },
-        "startupProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
+        "readinessProbe": { "$ref": "#/definitions/probe" },
         "resources": { "type": "object" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
         "extraArgs": { "type": "array" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "envoy": { "type": "object" },
-        "env": { "type": "array" },
+        "extraEnv": { "type": "array" },
         "extraVolumeMounts": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
@@ -958,12 +989,12 @@
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
         "image": { "$ref": "#/definitions/componentImage" },
-        "startupProbe": { "type": "object" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
         "resources": { "type": "object" },
         "extraArgs": { "type": "array" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
-        "env": { "type": "array" },
+        "extraEnv": { "type": "array" },
         "extraVolumeMounts": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettingsWithoutTopologyOrHosts" },
         "deploymentStrategy": { "type": "object" }
@@ -987,9 +1018,9 @@
         "service": { "$ref": "#/definitions/gatewayService" },
         "ssl": { "$ref": "#/definitions/gatewaySsl" },
         "resources": { "type": "object" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
-        "startupProbe": { "type": "object" },
+        "livenessProbe": { "$ref": "#/definitions/probe" },
+        "readinessProbe": { "$ref": "#/definitions/probe" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
         "idp": { "$ref": "#/definitions/gatewayIdp" },
         "internalJwks": { "$ref": "#/definitions/gatewayInternalJwks" },
         "jwt": { "$ref": "#/definitions/envoyJwt" },
@@ -1001,7 +1032,7 @@
         "extraClusters": { "type": "array" },
         "maxRequests": { "type": "integer", "minimum": 1 },
         "extraVolumeMounts": { "type": "array" },
-        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
       }
     },
@@ -1032,11 +1063,12 @@
         "secretPaths": { "$ref": "#/definitions/oauthSecretPaths" },
         "extraArgs": { "type": "array" },
         "resources": { "type": "object" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "extraVolumeMounts": { "type": "array" },
-        "env": { "type": "array" },
-        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "extraEnv": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
       }
     },
@@ -1051,13 +1083,14 @@
         "postgres": { "$ref": "#/definitions/authzPostgres" },
         "cache": { "$ref": "#/definitions/authzCache" },
         "resources": { "type": "object" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
+        "livenessProbe": { "$ref": "#/definitions/probe" },
+        "readinessProbe": { "$ref": "#/definitions/probe" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "extraVolumeMounts": { "type": "array" },
-        "env": { "type": "array" },
-        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "extraEnv": { "type": "array" },
+        "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
       }
     },
@@ -1071,13 +1104,14 @@
         "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
         "config": { "$ref": "#/definitions/rateLimitConfig" },
         "resources": { "type": "object" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "extraVolumeMounts": { "type": "array" },
-        "env": { "type": "array" },
+        "extraEnv": { "type": "array" },
         "command": { "type": "array" },
         "args": { "type": "array" },
-        "pod": { "$ref": "#/definitions/podSettingsWithVolumes" },
+        "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
       }
     },
@@ -1093,13 +1127,14 @@
         "authorizationServers": { "type": "array" },
         "scopes": { "type": "array" },
         "allowedOrigins": { "type": "array" },
+        "service": { "$ref": "#/definitions/serviceMetadata" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
         "resources": { "type": "object" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
-        "startupProbe": { "type": "object" },
-        "env": { "type": "array" },
+        "livenessProbe": { "$ref": "#/definitions/probe" },
+        "readinessProbe": { "$ref": "#/definitions/probe" },
+        "startupProbe": { "$ref": "#/definitions/probe" },
+        "extraEnv": { "type": "array" },
         "pod": { "$ref": "#/definitions/podSettingsSchedulingOnly" },
         "deploymentStrategy": { "type": "object" }
       }
@@ -1164,10 +1199,9 @@
         "bootstrap": {
           "type": "object",
           "properties": {
-            "image": { "type": "string", "minLength": 1 },
-            "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+            "image": { "$ref": "#/definitions/componentImage" }
           },
-          "required": ["image", "imagePullPolicy"]
+          "required": ["image"]
         },
         "rolloutNonce": { "type": "string" },
         "credentials": {
@@ -1208,10 +1242,9 @@
         "bootstrap": {
           "type": "object",
           "properties": {
-            "image": { "type": "string", "minLength": 1 },
-            "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+            "image": { "$ref": "#/definitions/componentImage" }
           },
-          "required": ["image", "imagePullPolicy"]
+          "required": ["image"]
         }
       },
       "required": ["generate", "existingSecret", "mountPath", "keys", "bootstrap"]

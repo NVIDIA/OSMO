@@ -1,4 +1,4 @@
-{{- if and .Values.planes.compute.enabled .Values.monitoring.podMonitor.enabled }}
+{{- if and .Values.planes.compute.enabled .Values.monitoring.podMonitor.compute.enabled }}
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 apiVersion: monitoring.coreos.com/v1
@@ -17,24 +17,7 @@ metadata:
   {{- end }}
 spec:
   podMetricsEndpoints:
-  - interval: {{ .Values.monitoring.podMonitor.interval }}
-    scrapeTimeout: {{ .Values.monitoring.podMonitor.scrapeTimeout }}
-    scheme: {{ .Values.monitoring.podMonitor.scheme }}
-    port: metrics
-    path: /metrics
-    honorLabels: {{ .Values.monitoring.podMonitor.honorLabels }}
-    {{- with .Values.monitoring.podMonitor.tlsConfig }}
-    tlsConfig:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
-    {{- with .Values.monitoring.podMonitor.relabelings }}
-    relabelings:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
-    {{- with .Values.monitoring.podMonitor.metricRelabelings }}
-    metricRelabelings:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
+  - {{ include "osmo.monitoring.podMetricsEndpoint" (dict "monitor" .Values.monitoring.podMonitor "port" "metrics" "path" "/metrics") | nindent 4 | trim }}
   podTargetLabels:
     {{- toYaml .Values.monitoring.podMonitor.podTargetLabels | nindent 4 }}
   selector:

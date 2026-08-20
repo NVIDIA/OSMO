@@ -79,6 +79,6 @@ chart interfaces required by an existing deployment:
 - Provision one backend bootstrap Secret per compute plane in both the control
   and compute clusters. Configure the unified chart's
   `services.backendApiTokens.credentials[].existingSecret.name`
-  and `compute.accountTokenSecret` to consume the matching Secret.
+  and `compute.authentication.existingSecret` to consume the matching Secret.
   Managed backend-token and MEK generation is intended only for single-cluster
   development where both planes consume namespace-local Secrets.

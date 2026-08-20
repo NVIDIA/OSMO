@@ -24,10 +24,13 @@ podDefaults:
 
 compute:
   backendName: custom
-  namespace: custom-workflows
+  workloadNamespace: custom-workflows
   backendTestNamespace: disabled-backend-tests
-  loginMethod: token
-  accountTokenSecret: custom-backend-token
+  authentication:
+    existingSecret: custom-backend-token
+    tokenKey: token
+  usageNamespaces:
+  - custom-workflows
 
 services:
   backendListener:
@@ -36,6 +39,9 @@ services:
     serviceAccount:
       name: custom-listener
       create: true
+    extraEnv:
+    - name: CUSTOM_LISTENER
+      value: enabled
     pod:
       annotations:
         example.com/listener-annotation: custom

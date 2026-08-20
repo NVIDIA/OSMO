@@ -17,18 +17,16 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
-  kaiScheduler:
-    enabled: false
 
 externalUrl: https://osmo.example.com
 
 compute:
   backendName: default
-  namespace: ''
+  workloadNamespace: ''
   backendTestNamespace: ''
-  loginMethod: token
-  accountTokenSecret: osmo-backend-token
-  accountTokenSecretKey: token
+  authentication:
+    existingSecret: osmo-backend-token
+    tokenKey: token
 
 services:
   backendTestRunner:
