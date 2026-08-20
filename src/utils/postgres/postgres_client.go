@@ -42,16 +42,24 @@ type PostgresConfig struct {
 	MaxConnLifetime time.Duration
 	SSLMode         string
 	SchemaVersion   string
+	RetryAttempts   int
 }
 
 // PostgresClient handles PostgreSQL database operations
 type PostgresClient struct {
-	pool   *pgxpool.Pool
-	logger *slog.Logger
+	pool          *pgxpool.Pool
+	logger        *slog.Logger
+	retryAttempts int
+	randomFloat   func() float64
+	waitForRetry  func(context.Context, time.Duration) error
 }
 
 // NewPostgresClient creates a new PostgreSQL client with connection pooling
 func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
+	if config.RetryAttempts < 1 {
+		return nil, fmt.Errorf("retry attempts must be at least 1")
+	}
+
 	// Build connection URL with properly escaped user and password
 	connURL := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
@@ -84,12 +92,22 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
+	client := &PostgresClient{
+		pool:          pool,
+		logger:        logger,
+		retryAttempts: config.RetryAttempts,
+		randomFloat:   defaultRandomFloat,
+		waitForRetry:  waitForRetry,
+	}
 
 	// Ping to verify connection
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := pool.Ping(pingCtx); err != nil {
+	if err := client.RunWithRetry(pingCtx, "startup ping", ReplayReadOnly,
+		func(operationCtx context.Context) error {
+			return pool.Ping(operationCtx)
+		}); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
@@ -100,10 +118,7 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 		slog.String("database", config.Database),
 	)
 
-	return &PostgresClient{
-		pool:   pool,
-		logger: logger,
-	}, nil
+	return client, nil
 }
 
 // Close closes the database connection pool
@@ -139,6 +154,7 @@ type PostgresFlagPointers struct {
 	maxConnLifetimeMin *int
 	sslMode            *string
 	schemaVersion      *string
+	retryAttempts      *int
 }
 
 // RegisterPostgresFlags registers PostgreSQL-related command-line flags
@@ -176,6 +192,11 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 		schemaVersion: flag.String("postgres-schema-version",
 			utils.GetEnv("OSMO_SCHEMA_VERSION", "public"),
 			"pgroll schema version for search_path"),
+		retryAttempts: flag.Int(
+			"postgres-reconnect-retry",
+			utils.GetEnvInt("OSMO_POSTGRES_RECONNECT_RETRY", 5),
+			"PostgreSQL total connection and operation attempts",
+		),
 	}
 }
 
@@ -193,5 +214,6 @@ func (p *PostgresFlagPointers) ToPostgresConfig() PostgresConfig {
 		MaxConnLifetime: time.Duration(*p.maxConnLifetimeMin) * time.Minute,
 		SSLMode:         *p.sslMode,
 		SchemaVersion:   *p.schemaVersion,
+		RetryAttempts:   *p.retryAttempts,
 	}
 }
