@@ -19,6 +19,13 @@ oetf_scenario_test(
 )
 
 oetf_scenario_test(
+    name = "redis-reader-cleanup",
+    env_inherit = ["HOME", "KUBECONFIG"],
+    test_dir = "redis_reader_cleanup",
+    tags = ["logger", "redis", "positive", "kind", "exclusive"],
+)
+
+oetf_scenario_test(
     name = "task-runtime-environment",
     test_dir = "task_runtime_environment",
     tags = ["task-env", "positive", "kind"],

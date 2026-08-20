@@ -67,6 +67,7 @@ def oetf_scenario_test(
         workflow_data = ["@osmo_workspace//test/workflow:all_workflow_yamls"],
         tags = [],
         test_filter = None,
+        env_inherit = [],
         size = "large",
         timeout = "long"):
     """A scenario test — submits a workflow and asserts outcome.
@@ -94,6 +95,7 @@ def oetf_scenario_test(
       test_filter: optional "ClassName.test_method" — emitted as an argv arg
         so `unittest` only runs the one method. Used to split slow files
         into per-test Bazel targets for parallelism.
+      env_inherit: host environment variables required by the scenario.
       size: Bazel size. Default large (workflows take minutes).
       timeout: Bazel timeout class. Default long (900s). Use "eternal" for load tests.
     """
@@ -120,6 +122,7 @@ def oetf_scenario_test(
         main = main,
         data = data,
         args = [test_filter] if test_filter else [],
+        env_inherit = env_inherit,
         deps = [
             "@osmo_workspace//test/oetf:runner_fixture",
             "@osmo_workspace//test/oetf:fixture_base",
