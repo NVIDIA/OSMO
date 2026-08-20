@@ -26,7 +26,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//src/utils",
-        "@com_github_jackc_pgx_v5//:go_default_library",
         "@com_github_jackc_pgx_v5//pgconn:go_default_library",
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],

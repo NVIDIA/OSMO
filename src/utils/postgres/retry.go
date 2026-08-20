@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -140,13 +139,12 @@ func permitsAmbiguousReplay(replaySafety ReplaySafety) bool {
 }
 
 func isConnectionFailure(err error, sqlState string) bool {
-	if strings.HasPrefix(sqlState, "08") || pgconn.Timeout(err) ||
-		errors.Is(err, pgx.ErrTxClosed) || errors.Is(err, net.ErrClosed) {
+	if strings.HasPrefix(sqlState, "08") || pgconn.Timeout(err) || errors.Is(err, net.ErrClosed) {
 		return true
 	}
 
 	var networkError net.Error
-	return errors.As(err, &networkError)
+	return errors.As(err, &networkError) && networkError.Timeout()
 }
 
 func postgresSQLState(err error) string {

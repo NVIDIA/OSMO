@@ -57,6 +57,20 @@ func (timeoutError) Temporary() bool {
 	return true
 }
 
+type permanentNetworkError struct{}
+
+func (permanentNetworkError) Error() string {
+	return "permanent network error"
+}
+
+func (permanentNetworkError) Timeout() bool {
+	return false
+}
+
+func (permanentNetworkError) Temporary() bool {
+	return false
+}
+
 func newRetryTestClient(attempts int) (*PostgresClient, *[]time.Duration) {
 	delays := []time.Duration{}
 	return &PostgresClient{
@@ -211,7 +225,8 @@ func TestRunWithRetryConnectionFailureRespectsReplaySafety(t *testing.T) {
 		{name: "safe only SQLSTATE 08", error: &pgconn.PgError{Code: "08006"}, replaySafety: ReplaySafeOnly, wantAttempts: 1},
 		{name: "read only timeout", error: timeoutError{}, replaySafety: ReplayReadOnly, wantAttempts: 2},
 		{name: "safe only timeout", error: timeoutError{}, replaySafety: ReplaySafeOnly, wantAttempts: 1},
-		{name: "read only closed transaction", error: pgx.ErrTxClosed, replaySafety: ReplayReadOnly, wantAttempts: 2},
+		{name: "read only permanent network error", error: permanentNetworkError{}, replaySafety: ReplayReadOnly, wantAttempts: 1},
+		{name: "read only closed transaction", error: pgx.ErrTxClosed, replaySafety: ReplayReadOnly, wantAttempts: 1},
 		{name: "safe only closed transaction", error: pgx.ErrTxClosed, replaySafety: ReplaySafeOnly, wantAttempts: 1},
 	}
 
