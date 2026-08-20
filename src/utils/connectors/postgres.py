@@ -26,8 +26,10 @@ import logging
 import math
 import types
 import os
+import random
 import re
 import threading
+import time
 import typing
 from functools import wraps
 from typing import Any, Callable, Dict, Generator, List, Literal, Mapping, Optional, Tuple, Type
@@ -158,7 +160,7 @@ class PostgresConfig(pydantic.BaseModel):
     postgres_reconnect_retry: int = pydantic.Field(
         default=5,
         gt=0,
-        description='Reconnect try count after connection error',
+        description='Maximum total attempts for retryable PostgreSQL errors',
         json_schema_extra={
             'command_line': 'postgres_reconnect_retry',
             'env': 'OSMO_POSTGRES_RECONNECT_RETRY'
@@ -213,6 +215,56 @@ class PostgresConfig(pydantic.BaseModel):
         json_schema_extra={'command_line': 'schema_version', 'env': 'OSMO_SCHEMA_VERSION'})
 
 
+_POSTGRES_RETRY_BASE_DELAY_SECONDS = 0.1
+_POSTGRES_RETRY_MAX_DELAY_SECONDS = 2.0
+_TRANSIENT_TRANSACTION_SQLSTATES = frozenset({'40001', '40P01'})
+
+
+def _get_postgres_sqlstate(error: Exception) -> str | None:
+    sqlstate = getattr(error, 'pgcode', None)
+    return sqlstate if isinstance(sqlstate, str) else None
+
+
+def _get_retry_delay(retry_number: int) -> float:
+    window = min(
+        _POSTGRES_RETRY_MAX_DELAY_SECONDS,
+        _POSTGRES_RETRY_BASE_DELAY_SECONDS * (2 ** (retry_number - 1)),
+    )
+    return window / 2 + random.random() * window / 2
+
+
+def _is_transient_postgres_error(error: Exception) -> bool:
+    if isinstance(error, (psycopg2.InterfaceError, psycopg2.pool.PoolError)):
+        return True
+
+    sqlstate = _get_postgres_sqlstate(error)
+    return sqlstate in _TRANSIENT_TRANSACTION_SQLSTATES or bool(
+        sqlstate and sqlstate.startswith('08'))
+
+
+def _requires_pool_reconnect(error: Exception) -> bool:
+    if isinstance(error, (osmo_errors.OSMOConnectionError, psycopg2.InterfaceError,
+                          psycopg2.pool.PoolError)):
+        return True
+
+    sqlstate = _get_postgres_sqlstate(error)
+    return bool(sqlstate and sqlstate.startswith('08'))
+
+
+def _log_postgres_retry(operation_name: str, attempt_number: int,
+                        maximum_attempts: int, delay: float, error: Exception) -> None:
+    logging.error(
+        'Retrying PostgreSQL operation %s: attempt %d/%d, delay %.3fs, '
+        'exception=%s, sqlstate=%s',
+        operation_name,
+        attempt_number,
+        maximum_attempts,
+        delay,
+        type(error).__name__,
+        _get_postgres_sqlstate(error),
+    )
+
+
 def retry(func=None, *, reconnect: bool = True):
     """
     Retry database operations in case of connection/pool errors.
@@ -226,21 +278,55 @@ def retry(func=None, *, reconnect: bool = True):
         def retry_wrapper(*args, **kwargs):
             self = args[0]
             last_error: Exception | None = None
-            for _ in range(self.config.postgres_reconnect_retry):
+            delay: float | None = None
+            reconnect_pool = False
+            maximum_attempts = self.config.postgres_reconnect_retry
+            for attempt_number in range(1, maximum_attempts + 1):
+                if delay is not None:
+                    time.sleep(delay)
+                    if reconnect_pool:
+                        try:
+                            self.connect()
+                        except osmo_errors.OSMOConnectionError as error:
+                            if attempt_number == maximum_attempts:
+                                raise osmo_errors.OSMODatabaseError(
+                                    f'Error: {str(error)}') from error
+                            last_error = error
+                            delay = _get_retry_delay(attempt_number)
+                            reconnect_pool = True
+                            _log_postgres_retry(
+                                fn.__name__, attempt_number, maximum_attempts, delay, error)
+                            continue
+                        except (psycopg2.InterfaceError, psycopg2.DatabaseError,
+                                psycopg2.pool.PoolError) as error:
+                            if not _is_transient_postgres_error(error) or \
+                                    attempt_number == maximum_attempts:
+                                raise osmo_errors.OSMODatabaseError(
+                                    f'Error: {str(error)}') from error
+                            last_error = error
+                            delay = _get_retry_delay(attempt_number)
+                            reconnect_pool = _requires_pool_reconnect(error)
+                            _log_postgres_retry(
+                                fn.__name__, attempt_number, maximum_attempts, delay, error)
+                            continue
                 try:
                     return fn(*args, **kwargs)
                 except (psycopg2.InterfaceError, psycopg2.DatabaseError,
                         psycopg2.pool.PoolError) as error:
-                    logging.error('Database/pool error, retrying: %s', str(error))
+                    if not _is_transient_postgres_error(error) or \
+                            attempt_number == maximum_attempts:
+                        raise osmo_errors.OSMODatabaseError(f'Error: {str(error)}') from error
                     last_error = error
-                    if reconnect:
-                        self.connect()
+                    delay = _get_retry_delay(attempt_number)
+                    reconnect_pool = reconnect and _requires_pool_reconnect(error)
+                    _log_postgres_retry(
+                        fn.__name__, attempt_number, maximum_attempts, delay, error)
                 except osmo_errors.OSMOError as error:
                     raise error
                 except Exception as error:  # pylint: disable=broad-except
                     raise osmo_errors.OSMODatabaseError(f'Error: {str(error)}')
             if last_error:
-                raise osmo_errors.OSMODatabaseError(f'Error: {str(last_error)}')
+                raise osmo_errors.OSMODatabaseError(f'Error: {str(last_error)}') from last_error
         return retry_wrapper
     if func is None:
         return decorator
