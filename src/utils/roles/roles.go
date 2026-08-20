@@ -178,15 +178,15 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 	)
 
 	var result []*Role
-	err := client.RunWithRetry(ctx, "get roles", postgres.ReplayReadOnly,
-		func(attemptContext context.Context, pool *pgxpool.Pool) error {
+	err := runWithRetryResult(ctx, client, "get roles", postgres.ReplayReadOnly, &result,
+		func(attemptContext context.Context, pool *pgxpool.Pool) ([]*Role, error) {
 			rows, err := pool.Query(attemptContext, query, roleNames)
 			if err != nil {
 				logger.Error("failed to query roles",
 					slog.String("error", err.Error()),
 					slog.Any("role_names", roleNames),
 				)
-				return fmt.Errorf("failed to query roles: %w", err)
+				return nil, fmt.Errorf("failed to query roles: %w", err)
 			}
 			defer rows.Close()
 
@@ -200,7 +200,7 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 					logger.Error("failed to scan role",
 						slog.String("error", err.Error()),
 					)
-					return fmt.Errorf("failed to scan role: %w", err)
+					return nil, fmt.Errorf("failed to scan role: %w", err)
 				}
 
 				policiesJSON := []byte(policiesStr)
@@ -214,7 +214,7 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 						slog.String("role", role.Name),
 						slog.String("raw_json", string(policiesJSON)),
 					)
-					return fmt.Errorf("failed to unmarshal policies for role %s: %w", role.Name, err)
+					return nil, fmt.Errorf("failed to unmarshal policies for role %s: %w", role.Name, err)
 				}
 
 				// Parse each policy
@@ -228,7 +228,7 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 							slog.String("role", role.Name),
 							slog.String("policy_raw", string(policyRaw)),
 						)
-						return fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
+						return nil, fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
 					}
 					// Default effect to Allow when not specified (backward compatibility)
 					if policy.Effect == "" {
@@ -253,11 +253,10 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 				logger.Error("error iterating rows",
 					slog.String("error", err.Error()),
 				)
-				return fmt.Errorf("error iterating rows: %w", err)
+				return nil, fmt.Errorf("error iterating rows: %w", err)
 			}
 
-			result = attemptResult
-			return nil
+			return attemptResult, nil
 		})
 	if err != nil {
 		return nil, err
@@ -282,11 +281,11 @@ func GetAllRoleNames(ctx context.Context, client *postgres.PostgresClient) ([]st
 	query := `SELECT name FROM roles ORDER BY name`
 
 	var roleNames []string
-	err := client.RunWithRetry(ctx, "get all role names", postgres.ReplayReadOnly,
-		func(attemptContext context.Context, pool *pgxpool.Pool) error {
+	err := runWithRetryResult(ctx, client, "get all role names", postgres.ReplayReadOnly, &roleNames,
+		func(attemptContext context.Context, pool *pgxpool.Pool) ([]string, error) {
 			rows, err := pool.Query(attemptContext, query)
 			if err != nil {
-				return fmt.Errorf("failed to query role names: %w", err)
+				return nil, fmt.Errorf("failed to query role names: %w", err)
 			}
 			defer rows.Close()
 
@@ -294,17 +293,16 @@ func GetAllRoleNames(ctx context.Context, client *postgres.PostgresClient) ([]st
 			for rows.Next() {
 				var name string
 				if err := rows.Scan(&name); err != nil {
-					return fmt.Errorf("failed to scan role name: %w", err)
+					return nil, fmt.Errorf("failed to scan role name: %w", err)
 				}
 				attemptRoleNames = append(attemptRoleNames, name)
 			}
 
 			if err := rows.Err(); err != nil {
-				return fmt.Errorf("error iterating role names: %w", err)
+				return nil, fmt.Errorf("error iterating role names: %w", err)
 			}
 
-			roleNames = attemptRoleNames
-			return nil
+			return attemptRoleNames, nil
 		})
 	if err != nil {
 		return nil, err
@@ -321,14 +319,13 @@ func GetPoolForWorkflow(
 	query := `SELECT pool FROM workflows WHERE workflow_id = $1`
 
 	var pool string
-	err := client.RunWithRetry(ctx, "get pool for workflow", postgres.ReplayReadOnly,
-		func(attemptContext context.Context, databasePool *pgxpool.Pool) error {
+	err := runWithRetryResult(ctx, client, "get pool for workflow", postgres.ReplayReadOnly, &pool,
+		func(attemptContext context.Context, databasePool *pgxpool.Pool) (string, error) {
 			var attemptPool string
 			if err := databasePool.QueryRow(attemptContext, query, workflowID).Scan(&attemptPool); err != nil {
-				return err
+				return "", err
 			}
-			pool = attemptPool
-			return nil
+			return attemptPool, nil
 		})
 	if err != nil {
 		return "", fmt.Errorf("failed to get pool for workflow %s: %w", workflowID, err)

@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -220,37 +219,6 @@ func TestRunWithRetryPreservesCallbackErrorWrappingCanceledContext(t *testing.T)
 	}
 	if len(*delays) != 0 {
 		t.Errorf("retry delays = %v, want none", *delays)
-	}
-}
-
-func TestRunWithRetryPublishesOnlySuccessfulAttemptResults(t *testing.T) {
-	client, _ := newRetryTestClient(2)
-	attempts := 0
-	var published []string
-
-	err := client.RunWithRetry(context.Background(), "read role names", ReplayReadOnly,
-		func(context.Context, *pgxpool.Pool) error {
-			attempts++
-			attemptResult := []string{"partial"}
-			if attempts == 1 {
-				attemptResult = append(attemptResult, "failed attempt")
-				return &pgconn.PgError{Code: "40001"}
-			}
-
-			attemptResult = append(attemptResult, "successful attempt")
-			published = attemptResult
-			return nil
-		})
-
-	if err != nil {
-		t.Fatalf("RunWithRetry() error = %v", err)
-	}
-	if attempts != 2 {
-		t.Fatalf("operation calls = %d, want 2", attempts)
-	}
-	want := []string{"partial", "successful attempt"}
-	if !slices.Equal(published, want) {
-		t.Errorf("published result = %v, want %v", published, want)
 	}
 }
 

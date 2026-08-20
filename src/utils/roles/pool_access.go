@@ -33,11 +33,11 @@ func GetAllPoolNames(ctx context.Context, client *postgres.PostgresClient) ([]st
 	query := `SELECT name FROM pools ORDER BY name`
 
 	var names []string
-	err := client.RunWithRetry(ctx, "get all pool names", postgres.ReplayReadOnly,
-		func(attemptContext context.Context, pool *pgxpool.Pool) error {
+	err := runWithRetryResult(ctx, client, "get all pool names", postgres.ReplayReadOnly, &names,
+		func(attemptContext context.Context, pool *pgxpool.Pool) ([]string, error) {
 			rows, err := pool.Query(attemptContext, query)
 			if err != nil {
-				return fmt.Errorf("failed to query pool names: %w", err)
+				return nil, fmt.Errorf("failed to query pool names: %w", err)
 			}
 			defer rows.Close()
 
@@ -45,17 +45,16 @@ func GetAllPoolNames(ctx context.Context, client *postgres.PostgresClient) ([]st
 			for rows.Next() {
 				var name string
 				if err := rows.Scan(&name); err != nil {
-					return fmt.Errorf("failed to scan pool name: %w", err)
+					return nil, fmt.Errorf("failed to scan pool name: %w", err)
 				}
 				attemptNames = append(attemptNames, name)
 			}
 
 			if err := rows.Err(); err != nil {
-				return fmt.Errorf("error iterating pool names: %w", err)
+				return nil, fmt.Errorf("error iterating pool names: %w", err)
 			}
 
-			names = attemptNames
-			return nil
+			return attemptNames, nil
 		})
 	if err != nil {
 		return nil, err
