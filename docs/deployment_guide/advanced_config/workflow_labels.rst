@@ -104,11 +104,11 @@ Rolling Out a Requirement
         **2. Watch** 📊
         ^^^
 
-        Track ``osmo_label_validation_total``
+        Check the :ref:`validation metrics <workflow_labels_metrics>`
 
         +++
 
-        The ``missing`` and ``invalid`` outcomes show who is affected
+        See who is still missing the key before it starts rejecting
 
     .. grid-item-card::
         :class-header: sd-bg-success sd-text-white
@@ -150,6 +150,8 @@ The prefix is an opaque string, not an assumed DNS prefix: it is joined to the l
 
    Set a prefix when task pods share a cluster with unrelated workloads. Pod labels are exported by key name, so a short key such as ``team`` can match an identically named label on another pod.
 
+
+.. _workflow_labels_metrics:
 
 Metrics
 =======
