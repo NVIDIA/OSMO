@@ -217,6 +217,7 @@ class PostgresConfig(pydantic.BaseModel):
 
 _POSTGRES_RETRY_BASE_DELAY_SECONDS = 0.1
 _POSTGRES_RETRY_MAX_DELAY_SECONDS = 2.0
+_POSTGRES_RETRY_MAX_EXPONENT = 5
 _TRANSIENT_TRANSACTION_SQLSTATES = frozenset({'40001', '40P01'})
 
 
@@ -226,11 +227,10 @@ def _get_postgres_sqlstate(error: Exception) -> str | None:
 
 
 def _get_retry_delay(retry_number: int) -> float:
-    window = _POSTGRES_RETRY_BASE_DELAY_SECONDS
-    for _ in range(1, retry_number):
-        window = min(_POSTGRES_RETRY_MAX_DELAY_SECONDS, window * 2)
-        if window == _POSTGRES_RETRY_MAX_DELAY_SECONDS:
-            break
+    exponent = min(retry_number - 1, _POSTGRES_RETRY_MAX_EXPONENT)
+    window = min(
+        _POSTGRES_RETRY_MAX_DELAY_SECONDS,
+        _POSTGRES_RETRY_BASE_DELAY_SECONDS * 2**exponent)
     return window / 2 + random.random() * window / 2
 
 

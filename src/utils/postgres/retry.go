@@ -35,8 +35,9 @@ import (
 )
 
 const (
-	retryBaseDelay = 100 * time.Millisecond
-	retryMaxDelay  = 2 * time.Second
+	retryBaseDelay   = 100 * time.Millisecond
+	retryMaxDelay    = 2 * time.Second
+	retryMaxExponent = 5
 )
 
 // ReplaySafety describes whether an operation can be safely replayed after an ambiguous failure.
@@ -119,13 +120,8 @@ func (c *PostgresClient) RunWithRetry(
 }
 
 func (c *PostgresClient) retryDelay(attempt int) time.Duration {
-	window := retryBaseDelay
-	for retryNumber := 1; retryNumber < attempt && window < retryMaxDelay; retryNumber++ {
-		window *= 2
-	}
-	if window > retryMaxDelay {
-		window = retryMaxDelay
-	}
+	exponent := min(attempt-1, retryMaxExponent)
+	window := min(retryBaseDelay*time.Duration(1<<exponent), retryMaxDelay)
 	halfWindow := window / 2
 	return halfWindow + time.Duration(c.randomFloat()*float64(halfWindow))
 }
