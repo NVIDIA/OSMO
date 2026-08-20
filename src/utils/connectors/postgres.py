@@ -851,12 +851,12 @@ class PostgresConnector:
         # Creates durable user identities and current users.
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS user_identities (
-                id TEXT PRIMARY KEY,
+                id TEXT NOT NULL PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
             );
 
             CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
+                id TEXT NOT NULL PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 created_by TEXT,
                 CONSTRAINT users_identity_fkey

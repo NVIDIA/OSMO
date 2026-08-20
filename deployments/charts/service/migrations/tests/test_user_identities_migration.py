@@ -267,6 +267,19 @@ class UserIdentitiesMigrationTest(
             self.assertEqual(cursor.fetchone()[0], 'user_identities')
             cursor.execute(
                 '''
+                SELECT table_name, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name IN ('user_identities', 'users')
+                  AND column_name = 'id'
+                ORDER BY table_name
+                ''')
+            self.assertEqual(
+                cursor.fetchall(),
+                [('user_identities', 'NO'), ('users', 'NO')],
+            )
+            cursor.execute(
+                '''
                 SELECT conname
                 FROM pg_constraint
                 WHERE conname = ANY(%s)

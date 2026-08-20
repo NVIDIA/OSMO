@@ -97,12 +97,13 @@ func readUserRoleNames(t *testing.T, fixture *database.PostgresFixture,
 func readIdentityAndUserCounts(t *testing.T, fixture *database.PostgresFixture,
 	userID string) (int, int) {
 	t.Helper()
+	// The durable identity remains while the current user is deleted and recreated.
 	var identityCount int
 	var userCount int
 	err := fixture.Pool.QueryRow(context.Background(),
 		`SELECT
-			(SELECT COUNT(*) FROM user_identities WHERE id = $1),
-			(SELECT COUNT(*) FROM users WHERE id = $1)`,
+			(SELECT COUNT(*) FROM user_identities WHERE id = $1) AS identity_count,
+			(SELECT COUNT(*) FROM users WHERE id = $1) AS user_count`,
 		userID).Scan(&identityCount, &userCount)
 	if err != nil {
 		t.Fatalf("failed to query identity and user counts: %v", err)
