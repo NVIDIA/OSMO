@@ -33,6 +33,7 @@ import uvicorn  # type: ignore
 
 from src.lib.utils import common, version
 import src.lib.utils.logging
+from src.service.asgi import responses
 from src.service.router import helper
 from src.utils import connectors, ssl_config, static_config
 
@@ -266,7 +267,7 @@ async def webserver_http_request(request: fastapi.Request, ctrl_key: str):
     if headers.get('transfer-encoding', '').lower() == 'chunked':
         # Remove chunked encoding header since fastapi will handle it
         headers.pop('transfer-encoding')
-        return fastapi.responses.StreamingResponse(
+        return responses.ClosingStreamingResponse(
             helper.stream_chunked(ws, close, body),
             status_code=status_code,
             headers=headers,
@@ -274,7 +275,7 @@ async def webserver_http_request(request: fastapi.Request, ctrl_key: str):
         )
     else:
         total_length = int(headers.get('content-length', 0))
-        return fastapi.responses.StreamingResponse(
+        return responses.ClosingStreamingResponse(
             helper.stream_content(ws, close, body, total_length),
             status_code=status_code,
             headers=headers,

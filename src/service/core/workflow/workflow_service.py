@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import collections
+import contextlib
 import dataclasses
 import datetime
 import enum
@@ -37,6 +38,7 @@ from src.lib.data import storage
 from src.lib.utils import common, credentials, login, osmo_errors, priority as wf_priority
 from src.lib.utils.redact import redact_secrets
 from src.utils.job import common as job_common, jobs, workflow, task
+from src.service.asgi import responses
 from src.service.core.workflow import helpers, objects
 from src.utils import connectors
 
@@ -48,6 +50,7 @@ router_pool = fastapi.APIRouter(tags = ['Pool API'])
 
 
 FETCH_TASK_LIMIT = 1000
+
 
 class ActionType(enum.Enum):
     EXEC = 'exec'
@@ -771,10 +774,11 @@ def get_file_info(name: str, redis_name: str, file_name: str,
     async def async_filter_log(log_generator: AsyncGenerator[str, None])\
         -> AsyncGenerator[str, None]:
         ''' Returns whether to send the log '''
-        async for line in log_generator:
-            if not regexes or \
-                all(compiled_regex.search(line) for compiled_regex in compiled_regexes):
-                yield line
+        async with contextlib.aclosing(log_generator) as log_stream:
+            async for line in log_stream:
+                if not regexes or \
+                    all(compiled_regex.search(line) for compiled_regex in compiled_regexes):
+                    yield line
 
     def filter_log(log_generator: storage.LinesStream) -> Generator[str, None, None]:
         ''' Returns whether to send the log '''
@@ -784,11 +788,11 @@ def get_file_info(name: str, redis_name: str, file_name: str,
                 yield line
 
     if parsed_result.scheme in ('redis', 'rediss') and not download:
-        response = fastapi.responses.StreamingResponse(
+        response = responses.ClosingStreamingResponse(
             async_filter_log(
                 connectors.redis_log_formatter(log_info.logs, redis_name, last_n_lines)))
     else:
-        response = fastapi.responses.StreamingResponse(
+        response = responses.ClosingStreamingResponse(
             filter_log(
                 helpers.get_workflow_file(
                     file_name, name, storage_client, last_n_lines)))
@@ -954,7 +958,7 @@ def get_workflow_spec(name: str, use_template: bool = False) -> Any:
         ) items;
     ''', (name,))
     cred_allowlist = frozenset(row.name for row in rows)
-    return fastapi.responses.StreamingResponse(
+    return responses.ClosingStreamingResponse(
         redact_secrets(download_workflow_spec(name, use_template), cred_allowlist),
         media_type='text/plain; charset=utf-8',
     )

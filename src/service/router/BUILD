@@ -32,6 +32,7 @@ osmo_py_library(
         requirement("fastapi"),
         requirement("pydantic"),
         requirement("uvicorn"),
+        "//src/service/asgi:responses",
         "//src/utils/connectors:connectors",
         "//src/lib/utils:common",
         "//src/lib/utils:logging",

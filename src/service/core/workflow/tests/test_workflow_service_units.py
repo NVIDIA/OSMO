@@ -15,12 +15,14 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import asyncio
 import http
 import unittest
 from types import SimpleNamespace
 from unittest import mock
 
 from src.lib.utils import osmo_errors
+from src.service.asgi import responses
 from src.service.core.workflow import objects, workflow_service
 from src.utils.job import task, workflow as job_workflow
 
@@ -2015,6 +2017,36 @@ class TestGetFileInfo(unittest.TestCase):
                 storage_client=mock.Mock(),
                 last_n_lines=10)
         self.assertIsNotNone(response)
+
+
+class TestLogResponseType(unittest.TestCase):
+    """Covers the response type get_file_info returns for each log source."""
+
+    def _get_file_info(self, **kwargs):
+        context = mock.Mock()
+        workflow_config = mock.Mock()
+        workflow_config.max_log_lines = 1000
+        context.database.get_workflow_configs.return_value = workflow_config
+        log_info = SimpleNamespace(logs='redis://localhost/wf-1')
+
+        with mock.patch.object(workflow_service.objects.WorkflowServiceContext,
+                               'get', return_value=context), \
+             mock.patch.object(workflow_service.workflow.LogInfo,
+                               'fetch_log_info_from_db',
+                               return_value=log_info), \
+             mock.patch.object(workflow_service.connectors,
+                               'redis_log_formatter', return_value=iter([])), \
+             mock.patch.object(workflow_service.helpers, 'get_workflow_file',
+                               return_value=iter([])):
+            return workflow_service.get_file_info(
+                'wf-1', 'redis-key', 'log.txt', storage_client=mock.Mock(), **kwargs)
+
+    def test_redis_logs_release_their_reader(self):
+        self.assertIsInstance(self._get_file_info(), responses.ClosingStreamingResponse)
+
+    def test_downloaded_logs_release_their_stream(self):
+        self.assertIsInstance(
+            self._get_file_info(download=True), responses.ClosingStreamingResponse)
 
 
 class TestGetWorkflowSpec(unittest.TestCase):

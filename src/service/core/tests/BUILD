@@ -60,6 +60,18 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_client_version_middleware",
+    srcs = ["test_client_version_middleware.py"],
+    deps = [
+        osmo_requirement("fastapi"),
+        "//src/service/asgi:responses",
+        "//src/service/core:service_lib",
+    ],
+    size = "small",
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
     name = "test_asyncio_startup",
     srcs = ["test_asyncio_startup.py"],
     deps = [
