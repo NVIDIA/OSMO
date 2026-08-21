@@ -1080,8 +1080,8 @@ test_control_umbrella() {
             >"$TEST_DIRECTORY/empty-backend-token-name.out" 2>&1; then
         fail "expected an empty backend token credential name to fail schema validation"
     fi
-    require_contains "$TEST_DIRECTORY/empty-backend-token-name.out" \
-        "minLength: got 0, want 1"
+    require_schema_path "$TEST_DIRECTORY/empty-backend-token-name.out" \
+        "secrets.backendApiTokens.credentials.0.name"
 
     local invalid_backend_token_case
     local invalid_backend_token_values
