@@ -20,3 +20,10 @@ py_test(
     args = ["$(rootpath //src:python_runtime_tar_amd64)"],
     data = ["//src:python_runtime_tar_amd64"],
 )
+
+py_test(
+    name = "python_image_runtime_dedup_test",
+    srcs = ["python_image_runtime_dedup_test.py"],
+    args = ["$(rootpath //src/service/router:router_image_x86_64)"],
+    data = ["//src/service/router:router_image_x86_64"],
+)

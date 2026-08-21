@@ -75,7 +75,6 @@ filegroup(
     name = "service_image_layers",
     srcs = [
         ":service_layer_default",
-        ":service_layer_interpreter",
         ":service_layer_packages",
         ":service_wrapper",
     ],
