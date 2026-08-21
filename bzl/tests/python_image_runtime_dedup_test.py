@@ -36,8 +36,9 @@ def _read_json_blob(layout: pathlib.Path, digest: str) -> dict[str, Any]:
 class PythonImageRuntimeDedupTest(unittest.TestCase):
     """Checks runtime files across the actual OCI layer graph."""
 
-    def test_has_one_python_runtime(self) -> None:
+    def test_has_expected_python_runtime_count(self) -> None:
         layout = pathlib.Path(sys.argv[1])
+        expected_runtime_count = int(sys.argv[2])
         index = json.loads((layout / "index.json").read_text())
         manifest_descriptor = index["manifests"][0]
         manifest = _read_json_blob(layout, manifest_descriptor["digest"])
@@ -49,12 +50,12 @@ class PythonImageRuntimeDedupTest(unittest.TestCase):
             with tarfile.open(layout / "blobs" / algorithm / value, mode="r:*") as archive:
                 for member in archive.getmembers():
                     name = member.name.removeprefix("./").removeprefix("/")
-                    if name.endswith("/bin/python3.14"):
+                    if name.endswith("/bin/python3.14") and member.isfile():
                         python_binaries.append(name)
                     if "/lib/libpython3.14" in name:
                         libpython_files.append(name)
 
-        self.assertEqual(python_binaries, [_EXPECTED_BINARY])
+        self.assertEqual(python_binaries, [_EXPECTED_BINARY] * expected_runtime_count)
         self.assertEqual(libpython_files, [])
 
 

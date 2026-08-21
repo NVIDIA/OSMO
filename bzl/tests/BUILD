@@ -24,8 +24,22 @@ py_test(
 py_test(
     name = "python_image_runtime_dedup_test",
     srcs = ["python_image_runtime_dedup_test.py"],
-    args = ["$(rootpath //src/service/router:router_image_x86_64)"],
+    args = [
+        "$(rootpath //src/service/router:router_image_x86_64)",
+        "1",
+    ],
     data = ["//src/service/router:router_image_x86_64"],
+)
+
+py_test(
+    name = "non_python_image_runtime_test",
+    srcs = ["python_image_runtime_dedup_test.py"],
+    args = [
+        "$(rootpath //src/service/authz_sidecar:authz_sidecar_image_x86_64)",
+        "0",
+    ],
+    data = ["//src/service/authz_sidecar:authz_sidecar_image_x86_64"],
+    main = "python_image_runtime_dedup_test.py",
 )
 
 py_test(

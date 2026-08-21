@@ -158,6 +158,9 @@ pkg_tar(
     symlinks = {
         "/usr/bin/python": "/opt/osmo-python/bin/python3.14",
         "/usr/bin/python3": "/opt/osmo-python/bin/python3.14",
+        "/usr/local/bin/python": "/opt/osmo-python/bin/python3.14",
+        "/usr/local/bin/python3": "/opt/osmo-python/bin/python3.14",
+        "/usr/local/bin/python3.14": "/opt/osmo-python/bin/python3.14",
     },
 )
 
@@ -176,8 +179,42 @@ pkg_tar(
 )
 
 oci_image(
-    name = "osmo_docker_distroless_image_amd64",
+    name = "osmo_docker_distroless_cc_image_amd64",
     base = "@distroless_cc_linux_amd64",
+    entrypoint = ["/usr/bin/shelless_ulimit"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+    tars = [
+        "//src:group_tar",
+        "//src:passwd_tar",
+        "//src:osmo_run_tar",
+    ],
+    user = "osmo",
+    visibility = ["//visibility:public"],
+    workdir = "/app",
+)
+
+oci_image(
+    name = "osmo_docker_distroless_cc_image_arm64",
+    base = "@distroless_cc_linux_arm64_v8",
+    entrypoint = ["/usr/bin/shelless_ulimit"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+    tars = [
+        "//src:group_tar",
+        "//src:passwd_tar",
+        "//src:osmo_run_tar",
+    ],
+    user = "osmo",
+    visibility = ["//visibility:public"],
+    workdir = "/app",
+)
+
+oci_image(
+    name = "osmo_docker_distroless_image_amd64",
+    base = ":osmo_docker_distroless_cc_image_amd64",
     entrypoint = ["/usr/bin/shelless_ulimit"],
     env = {
         "LANG": "C.UTF-8",
@@ -191,9 +228,6 @@ oci_image(
         "@platforms//cpu:x86_64",
     ],
     tars = [
-        "//src:group_tar",
-        "//src:passwd_tar",
-        "//src:osmo_run_tar",
         "//src:python_symlinks_tar",
         "//src:python_runtime_tar_amd64",
     ],
@@ -204,7 +238,7 @@ oci_image(
 
 oci_image(
     name = "osmo_docker_distroless_image_arm64",
-    base = "@distroless_cc_linux_arm64_v8",
+    base = ":osmo_docker_distroless_cc_image_arm64",
     entrypoint = ["/usr/bin/shelless_ulimit"],
     env = {
         "LANG": "C.UTF-8",
@@ -218,9 +252,6 @@ oci_image(
         "@platforms//cpu:arm64",
     ],
     tars = [
-        "//src:group_tar",
-        "//src:passwd_tar",
-        "//src:osmo_run_tar",
         "//src:python_symlinks_tar",
         "//src:python_runtime_tar_arm64",
     ],
@@ -231,16 +262,7 @@ oci_image(
 
 oci_image(
     name = "osmo_docker_client_image_amd64",
-    base = "@distroless_cc_linux_amd64",
-    entrypoint = ["/usr/bin/shelless_ulimit"],
-    env = {
-        "LANG": "C.UTF-8",
-        "PIP_BREAK_SYSTEM_PACKAGES": "1",
-        "PYTHONNOUSERSITE": "1",
-        "PYTHONPATH": "/usr/local/lib/python3.14/dist-packages:/app:",
-        "PYTHONUNBUFFERED": "1",
-        "PY_VERSION": "3.14",
-    },
+    base = ":osmo_docker_distroless_image_amd64",
     target_compatible_with = [
         "@platforms//cpu:x86_64",
     ],
@@ -249,13 +271,7 @@ oci_image(
         "@debian_packages//tree/amd64:data",
         "@debian_packages//ca-certificates/amd64:data",
         "//src:osmo_client_dir_tar",
-        # User and system setup
-        "//src:group_tar",
-        "//src:passwd_tar",
-        "//src:osmo_run_tar",
         "//src:osmo_home_tar",
-        "//src:python_symlinks_tar",
-        "//src:python_runtime_tar_amd64",
     ],
     user = "osmo",
     visibility = ["//visibility:public"],
@@ -274,16 +290,7 @@ oci_image(
 
 oci_image(
     name = "osmo_docker_client_image_arm64",
-    base = "@distroless_cc_linux_arm64_v8",
-    entrypoint = ["/usr/bin/shelless_ulimit"],
-    env = {
-        "LANG": "C.UTF-8",
-        "PIP_BREAK_SYSTEM_PACKAGES": "1",
-        "PYTHONNOUSERSITE": "1",
-        "PYTHONPATH": "/usr/local/lib/python3.14/dist-packages:/app:",
-        "PYTHONUNBUFFERED": "1",
-        "PY_VERSION": "3.14",
-    },
+    base = ":osmo_docker_distroless_image_arm64",
     target_compatible_with = [
         "@platforms//cpu:arm64",
     ],
@@ -292,13 +299,7 @@ oci_image(
         "@debian_packages_arm64//tree/arm64:data",
         "@debian_packages_arm64//ca-certificates/arm64:data",
         "//src:osmo_client_dir_tar",
-        # User and system setup
-        "//src:group_tar",
-        "//src:passwd_tar",
-        "//src:osmo_run_tar",
         "//src:osmo_home_tar",
-        "//src:python_symlinks_tar",
-        "//src:python_runtime_tar_arm64",
     ],
     user = "osmo",
     visibility = ["//visibility:public"],
