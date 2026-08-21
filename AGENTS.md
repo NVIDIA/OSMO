@@ -116,6 +116,14 @@ bash deployments/charts/service/tests/render-tests.sh
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
 | `service/mcp/` | Serves the Streamable HTTP MCP endpoint and optionally attaches FastMCP's built-in OIDC proxy for endpoint-only client authentication. |
 
+### Shared Service Code (`service/asgi/`)
+
+ASGI building blocks shared by the core, workflow, and router services.
+
+| Module | Purpose |
+|--------|---------|
+| `service/asgi/responses.py` | `ClosingStreamingResponse` — a streaming response that ends when the client disconnects, even while the body is idle, and closes its body on teardown so a Redis connection, backend socket, or object-store read is released with the response. Use it for any body backed by a live connection. |
+
 ### Deployment Charts (`deployments/charts/`)
 
 | Chart | Purpose |

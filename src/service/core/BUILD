@@ -30,6 +30,7 @@ osmo_py_library(
     deps = [
         requirement("fastapi"),
         requirement("redis"),
+        requirement("starlette"),
         requirement("opentelemetry-instrumentation-fastapi"),
         requirement("opentelemetry-sdk"),
         requirement("uvicorn"),

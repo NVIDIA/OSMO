@@ -121,55 +121,57 @@ async def stream_chunked(ws: fastapi.WebSocket, close: asyncio.Event, initial_bo
     buffer = initial_body
     pos = 0
 
-    while True:
-        # Process any complete chunks in the buffer
-        while pos < len(buffer):
-            # Find chunk size line end
-            size_end = buffer.find(b'\r\n', pos)
-            if size_end == -1:
-                # Incomplete chunk size line, need more data
-                break
+    try:
+        while True:
+            # Process any complete chunks in the buffer
+            while pos < len(buffer):
+                # Find chunk size line end
+                size_end = buffer.find(b'\r\n', pos)
+                if size_end == -1:
+                    # Incomplete chunk size line, need more data
+                    break
 
-            # Parse chunk size (hex)
+                # Parse chunk size (hex)
+                try:
+                    chunk_size = int(buffer[pos:size_end].decode(), 16)
+                except ValueError:
+                    logging.error('Invalid chunk size in chunked response')
+                    return
+
+                if chunk_size == 0:  # End marker "0"
+                    return
+
+                # Check if we have the complete chunk data
+                chunk_start = size_end + 2
+                chunk_end = chunk_start + chunk_size
+                chunk_trailer_end = chunk_end + 2  # Include trailing CRLF
+
+                if chunk_trailer_end > len(buffer):
+                    # Incomplete chunk, need more data
+                    break
+
+                # Extract and yield chunk data
+                chunk_data = buffer[chunk_start:chunk_end]
+                if chunk_data:
+                    yield chunk_data
+
+                # Move position to next chunk
+                pos = chunk_trailer_end
+
+            # If we processed some data, remove it from buffer
+            if pos > 0:
+                buffer = buffer[pos:]
+                pos = 0
+
+            # Receive more data from websocket
             try:
-                chunk_size = int(buffer[pos:size_end].decode(), 16)
-            except ValueError:
-                logging.error('Invalid chunk size in chunked response')
-                if close:
-                    close.set()
-                return
-
-            if chunk_size == 0:  # End marker "0"
-                if close:
-                    close.set()
-                return
-
-            # Check if we have the complete chunk data
-            chunk_start = size_end + 2
-            chunk_end = chunk_start + chunk_size
-            chunk_trailer_end = chunk_end + 2  # Include trailing CRLF
-
-            if chunk_trailer_end > len(buffer):
-                # Incomplete chunk, need more data
+                data = await ws.receive_bytes()
+                buffer += data
+            except fastapi.WebSocketDisconnect:
+                logging.info('WebSocket disconnected while streaming chunked response')
                 break
-
-            # Extract and yield chunk data
-            chunk_data = buffer[chunk_start:chunk_end]
-            if chunk_data:
-                yield chunk_data
-
-            # Move position to next chunk
-            pos = chunk_trailer_end
-
-        # If we processed some data, remove it from buffer
-        if pos > 0:
-            buffer = buffer[pos:]
-            pos = 0
-
-        # Receive more data from websocket
-        try:
-            data = await ws.receive_bytes()
-            buffer += data
-        except fastapi.WebSocketDisconnect:
-            logging.info('WebSocket disconnected while streaming chunked response')
-            break
+    finally:
+        # Release the backend connection however this generator ends, including
+        # when it is closed early because the client went away.
+        if close:
+            close.set()

@@ -25,6 +25,7 @@ import fastapi.staticfiles
 from src.lib.data import storage
 from src.lib.utils import common, osmo_errors
 from src.utils.job import app, jobs
+from src.service.asgi import responses
 from src.service.core.app import helpers, objects
 from src.service.core.workflow import objects as workflow_objects
 from src.utils import connectors
@@ -105,7 +106,7 @@ def get_app_content(name: objects.AppNamePattern,
         scope_to_container=True,
     )
 
-    return fastapi.responses.StreamingResponse(
+    return responses.ClosingStreamingResponse(
         storage_client.get_object_stream(app_info.uri),
     )
 

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,27 +20,12 @@ load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_library(
-    name = "app",
-    srcs = [
-        "app_service.py",
-        "helpers.py",
-        "objects.py",
-    ],
+    name = "responses",
+    srcs = ["responses.py"],
     deps = [
+        requirement("anyio"),
         requirement("fastapi"),
-        requirement("redis"),
-        requirement("pyjwt"),
-        requirement("kubernetes"),
-        "//src/utils:yaml",
-        "//src/lib/utils:common",
-        "//src/lib/utils:credentials",
-        "//src/lib/utils:logging",
-        "//src/lib/utils:login",
-        "//src/lib/utils:osmo_errors",
-        "//src/service/asgi:responses",
-        "//src/service/core/workflow:workflow",
-        "//src/utils:static_config",
-        "//src/utils/job:job",
+        requirement("starlette"),
     ],
     visibility = ["//visibility:public"],
 )

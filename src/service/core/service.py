@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
 
 import base64
+import dataclasses
 import datetime
 import logging
 from pathlib import Path
@@ -31,6 +32,7 @@ import fastapi.middleware.cors
 import fastapi.responses
 import uvicorn  # type: ignore
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src.lib.utils import common, login, osmo_errors, version
 import src.lib.utils.logging
@@ -58,28 +60,70 @@ misc_router = fastapi.APIRouter(tags=['Misc API'])
 curr_cli_config = connectors.CliConfig()
 
 
-@app.middleware('http')
-async def check_client_version(request: fastapi.Request, call_next):
-    user_id = request.headers.get(login.OSMO_USER_HEADER, '')
-    with src.lib.utils.logging.UserLogContext(user_id):
-        response = await _check_client_version(request, call_next)
-        logging.info(
-            '%s %s -> %d',
-            request.method, request.url.path, response.status_code,
-            extra={'status_code': response.status_code},
-        )
-        return response
+@dataclasses.dataclass
+class ClientVersionCheck:
+    """Outcome of the client version and access token checks for one request."""
+
+    rejection: fastapi.responses.JSONResponse | None = None
+    response_headers: Dict[str, str] = dataclasses.field(default_factory=dict)
 
 
-async def _check_client_version(request: fastapi.Request, call_next):
+class ClientVersionMiddleware:
+    """Apply client version and access token policy to every HTTP request.
+
+    Implemented against ASGI rather than as a ``BaseHTTPMiddleware`` dispatch so
+    that it stays out of the way of the response it wraps. ``BaseHTTPMiddleware``
+    pumps the response through a memory stream and swallows the send failure that
+    tells a streaming response its client is gone, which leaves the request, and
+    everything it holds open, alive indefinitely.
+    """
+
+    def __init__(self, application: ASGIApp) -> None:
+        self._application = application
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope['type'] != 'http':
+            await self._application(scope, receive, send)
+            return
+
+        request = fastapi.Request(scope, receive)
+        user_id = request.headers.get(login.OSMO_USER_HEADER, '')
+        with src.lib.utils.logging.UserLogContext(user_id):
+            check = await _check_client_version(request)
+
+            async def send_checked(message: Message) -> None:
+                if message['type'] == 'http.response.start':
+                    if check.response_headers:
+                        message = {
+                            **message,
+                            'headers': [
+                                *message['headers'],
+                                *((name.encode(), value.encode())
+                                  for name, value in check.response_headers.items()),
+                            ],
+                        }
+                    logging.info(
+                        '%s %s -> %d',
+                        request.method, request.url.path, message['status'],
+                        extra={'status_code': message['status']},
+                    )
+                await send(message)
+
+            if check.rejection is not None:
+                await check.rejection(scope, receive, send_checked)
+                return
+            await self._application(scope, receive, send_checked)
+
+
+async def _check_client_version(request: fastapi.Request) -> ClientVersionCheck:
     client_version_str = request.headers.get(version.VERSION_HEADER)
     token_name = request.headers.get(login.OSMO_TOKEN_NAME_HEADER)
     if client_version_str is None:
-        return await call_next(request)
+        return ClientVersionCheck()
     client_version = version.Version.from_string(client_version_str)
     path = Path(request.url.path).parts
     if path[1] in ('/client'):
-        return await call_next(request)
+        return ClientVersionCheck()
     suggest_version_update = False
     postgres = objects.WorkflowServiceContext.get().database
     cli_info = postgres.get_service_configs().cli_config
@@ -95,13 +139,13 @@ async def _check_client_version(request: fastapi.Request, call_next):
         # If no min_supported_version specified, we allow all client versions
         if cli_info.min_supported_version and\
                 client_version < version.Version.from_string(cli_info.min_supported_version):
-            return fastapi.responses.JSONResponse(
+            return ClientVersionCheck(rejection=fastapi.responses.JSONResponse(
                 status_code=400,
                 content={'message': 'Your client is out of date. Client version is ' +
                          f'{client_version_str} but the newest client version is '
                          f'{newest_client_version}.\n{install_command}',
                          'error_code': osmo_errors.OSMOError.error_code},
-            )
+            ))
         suggest_version_update = True
 
     warning_msg = ''
@@ -114,13 +158,13 @@ async def _check_client_version(request: fastapi.Request, call_next):
                 today = datetime.datetime.now(datetime.timezone.utc).date()
                 expiry_date = token.expires_at.date()
                 if expiry_date <= today:
-                    return fastapi.responses.JSONResponse(
+                    return ClientVersionCheck(rejection=fastapi.responses.JSONResponse(
                         status_code=400,
                         content={
                             'message': f'Access token {token_name} has expired.',
                             'error_code': osmo_errors.OSMOError.error_code,
                         },
-                    )
+                    ))
                 days_until_expiry = (expiry_date - today).days
                 if days_until_expiry <= 7:
                     token_warning = (
@@ -135,10 +179,9 @@ async def _check_client_version(request: fastapi.Request, call_next):
                                 user_name, token_name)
                 pass
 
-    response = await call_next(request)
-
+    response_headers: Dict[str, str] = {}
     if suggest_version_update:
-        response.headers[version.SERVICE_VERSION_HEADER] = str(newest_client_version)
+        response_headers[version.SERVICE_VERSION_HEADER] = str(newest_client_version)
         version_warning = (
             f'WARNING: New client {newest_client_version} available.\n'
             f'Current version: {client_version_str}.\n'
@@ -148,10 +191,12 @@ async def _check_client_version(request: fastapi.Request, call_next):
         else:
             warning_msg = version_warning
     if warning_msg:
-        response.headers[version.WARNING_HEADER] = (
+        response_headers[version.WARNING_HEADER] = (
             base64.b64encode(warning_msg.encode()).decode())
-    return response
+    return ClientVersionCheck(response_headers=response_headers)
 
+
+app.add_middleware(ClientVersionMiddleware)
 
 app.include_router(config_service.router)
 app.include_router(auth_service.router)

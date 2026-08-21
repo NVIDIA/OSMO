@@ -75,6 +75,7 @@ py_test(
     deps = [
         "//src/lib/utils:osmo_errors",
         "//src/service/core/workflow",
+        "//src/service/asgi:responses",
         "//src/utils/job",
     ],
 )
