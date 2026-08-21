@@ -163,6 +163,11 @@ python.single_version_platform_override(
         "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-install_only.tar.gz",
     ],
 )
+use_repo(
+    python,
+    "python_3_14_6_aarch64-unknown-linux-gnu",
+    "python_3_14_6_x86_64-unknown-linux-gnu",
+)
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
@@ -365,9 +370,9 @@ apt.install(
 )
 
 oci.pull(
-    name = "distroless_python3_14",
-    digest = "sha256:e75772d395b9053b65f95009f0389a0216d42617adc01d3295bd7664f982a2dc",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.9",
+    name = "distroless_cc",
+    digest = "sha256:d1f0fd42719120badb6e6773a518b7fadc9c19d2c94d0d2ccb7695a69d91a5c6",
+    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.0.9",
     platforms = [
         "linux/arm64/v8",
         "linux/amd64",
@@ -396,9 +401,9 @@ oci.pull(
 )
 use_repo(
     oci,
-    "distroless_python3_14",
-    "distroless_python3_14_linux_amd64",
-    "distroless_python3_14_linux_arm64_v8",
+    "distroless_cc",
+    "distroless_cc_linux_amd64",
+    "distroless_cc_linux_arm64_v8",
     # "distroless_python3_14_dev",
     # "distroless_python3_14_dev_linux_amd64",
     # "distroless_python3_14_dev_linux_arm64_v8",
