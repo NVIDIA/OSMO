@@ -66,7 +66,7 @@ pkg_tar(
 
 oci_image(
     name = "authz_sidecar_image_x86_64",
-    base = "//src:osmo_docker_distroless_image_amd64",
+    base = "//src:osmo_docker_distroless_cc_image_amd64",
     tars = [":authz_sidecar_pkg_x86_64"],
     entrypoint = ["/osmo/authz_sidecar"],
     visibility = ["//visibility:public"],
@@ -122,7 +122,7 @@ pkg_tar(
 
 oci_image(
     name = "authz_sidecar_image_arm64",
-    base = "//src:osmo_docker_distroless_image_arm64",
+    base = "//src:osmo_docker_distroless_cc_image_arm64",
     tars = [":authz_sidecar_pkg_arm64"],
     entrypoint = ["/osmo/authz_sidecar"],
     visibility = ["//visibility:public"],

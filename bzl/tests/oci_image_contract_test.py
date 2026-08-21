@@ -20,6 +20,7 @@
 import json
 import pathlib
 import sys
+import tarfile
 import unittest
 from typing import Any
 
@@ -31,6 +32,13 @@ _REQUIRED_ENVIRONMENT = {
     "PYTHONPATH=/usr/local/lib/python3.14/dist-packages:/app:",
     "PYTHONUNBUFFERED=1",
     "PY_VERSION=3.14",
+}
+_PYTHON_SYMLINKS = {
+    "usr/bin/python": "/opt/osmo-python/bin/python3.14",
+    "usr/bin/python3": "/opt/osmo-python/bin/python3.14",
+    "usr/local/bin/python": "/opt/osmo-python/bin/python3.14",
+    "usr/local/bin/python3": "/opt/osmo-python/bin/python3.14",
+    "usr/local/bin/python3.14": "/opt/osmo-python/bin/python3.14",
 }
 
 
@@ -55,6 +63,25 @@ class OCIImageContractTest(unittest.TestCase):
         self.assertEqual(config["WorkingDir"], "/app")
         self.assertLessEqual(_REQUIRED_ENVIRONMENT, set(config["Env"]))
         self.assertFalse(any(value.startswith("PYTHONHOME=") for value in config["Env"]))
+
+    def test_preserves_python_executable_paths(self) -> None:
+        layout = pathlib.Path(sys.argv[1])
+        index = json.loads((layout / "index.json").read_text())
+        manifest = _read_json_blob(layout, index["manifests"][0]["digest"])
+        final_members: dict[str, tarfile.TarInfo] = {}
+
+        for layer in manifest["layers"]:
+            algorithm, value = layer["digest"].split(":", maxsplit=1)
+            with tarfile.open(layout / "blobs" / algorithm / value, mode="r:*") as archive:
+                for member in archive.getmembers():
+                    name = member.name.removeprefix("./").removeprefix("/")
+                    if name in _PYTHON_SYMLINKS:
+                        final_members[name] = member
+
+        for path, target in _PYTHON_SYMLINKS.items():
+            self.assertIn(path, final_members)
+            self.assertTrue(final_members[path].issym())
+            self.assertEqual(final_members[path].linkname, target)
 
 
 if __name__ == "__main__":
