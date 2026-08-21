@@ -43,7 +43,6 @@ filegroup(
     name = "init_image_layers",
     srcs = [
         ":init_layer_default",
-        ":init_layer_interpreter",
         ":init_layer_packages",
         ":init_wrapper",
     ],
