@@ -38,6 +38,37 @@ cd scripts
 ./deploy-osmo-minimal.sh --provider aws
 ```
 
+For an existing kind cluster with KAI Scheduler already installed, use the
+unified chart. CloudNativePG remains a separate prerequisite release:
+
+```bash
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo update cnpg
+helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
+  --version 0.29.0 \
+  --namespace cnpg-system \
+  --create-namespace \
+  --wait \
+  --timeout 10m
+
+helm dependency build deployments/charts/osmo
+helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --create-namespace \
+  --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --wait \
+  --timeout 20m
+```
+
+This development profile installs the control and compute planes, PostgreSQL,
+Valkey, and RustFS in one OSMO release and creates their required retained
+credentials and buckets automatically. See
+[`charts/osmo/README.md`](charts/osmo/README.md) for readiness checks,
+port-forwarding, hello-world validation, recovery, and split-plane deployment.
+The unified chart owns its listener and worker templates directly. The
+standalone `backend-operator` chart below remains available only for legacy
+two-chart installations.
+
 ## Directory Structure
 
 ```
@@ -96,17 +127,13 @@ For users who already have Kubernetes infrastructure and want to deploy OSMO dir
 
 📖 **[charts/](charts/)** - Helm chart install guide
 
-> **Note:** Before installing Helm charts manually, you must create:
-> - Kubernetes namespaces (`osmo-minimal`, `osmo-operator`, `osmo-workflows`)
-> - Database secrets (`db-secret` with PostgreSQL password)
-> - Redis secrets (`redis-secret` with Redis password)
-> - For production or multi-cluster installs, a backend bootstrap token Secret
->   copied to the control and compute clusters
-> - MEK ConfigMap (Master Encryption Key)
-> - The PostgreSQL database itself
->
-> **Recommended:** Use the deployment script which handles all prerequisites.
-> You'll need to provide your existing infrastructure details:
+The unified kind profile creates its namespace, CloudNativePG database Cluster,
+Valkey and RustFS credentials, retained MEK and backend token Secrets, and
+object-storage buckets. Production and multi-cluster installs instead provide
+external endpoints and Kubernetes Secret references through the control-only
+and compute-only profile contracts.
+
+The legacy deployment scripts require existing infrastructure details:
 
 ```bash
 cd scripts
@@ -121,7 +148,8 @@ export REDIS_PASSWORD="your-redis-password"
 ./deploy-osmo-minimal.sh --provider azure --skip-terraform
 ```
 
-For a direct Helm install, deploy the charts in this order:
+For a legacy two-chart direct Helm install, deploy the charts in this order.
+New development installs should use the unified flow above:
 
 ```bash
 kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -

@@ -32,3 +32,15 @@ filegroup(
     srcs = glob(["osmo/**"]),
     visibility = ["//visibility:public"],
 )
+
+sh_test(
+    name = "osmo_backend_token_bootstrap_test",
+    srcs = ["osmo/tests/test_backend_token_bootstrap.sh"],
+    data = ["osmo/files/backend-token-bootstrap.sh"],
+)
+
+sh_test(
+    name = "osmo_mek_bootstrap_test",
+    srcs = ["osmo/tests/test_mek_bootstrap.sh"],
+    data = ["osmo/files/mek-bootstrap.sh"],
+)

@@ -1,3 +1,4 @@
+{{- if .Values.planes.control.enabled }}
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +39,19 @@ data:
     {{- if $cfg.workflow }}
     workflow:
       {{- $workflow := deepCopy $cfg.workflow }}
+      {{- $backendImages := index $workflow "backend_images" | default dict }}
+      {{- if not (kindIs "map" $backendImages) }}
+      {{- $backendImages = dict }}
+      {{- end }}
+      {{- $runtimeRepository := include "osmo.component.imageRepository" . }}
+      {{- $runtimeTag := include "osmo.component.imageTag" . }}
+      {{- if not (index $backendImages "init") }}
+      {{- $_ := set $backendImages "init" (printf "%s/init-container:%s" $runtimeRepository $runtimeTag) }}
+      {{- end }}
+      {{- if not (index $backendImages "client") }}
+      {{- $_ := set $backendImages "client" (printf "%s/client:%s" $runtimeRepository $runtimeTag) }}
+      {{- end }}
+      {{- $_ := set $workflow "backend_images" $backendImages }}
       {{- $secret := .Values.secrets.objectStorage }}
       {{- $secretName := include "osmo.objectStorage.secretName" . }}
       {{- $endpoint := include "osmo.objectStorage.endpoint" . }}
@@ -84,4 +98,5 @@ data:
     roles:
       {{- toYaml $cfg.roles | nindent 6 }}
     {{- end }}
+{{- end }}
 {{- end }}

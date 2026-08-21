@@ -1633,8 +1633,8 @@ class BackendSynchronizeBackendTestExecuteTest(unittest.TestCase):
         return _make_sync_test_job(
             test_configs={'GpuCheck': {'cron_schedule': '0 * * * *'}})
 
-    def _execute(self, spec_file=None):
-        context = _FakeContext(test_runner_namespace='test-ns',
+    def _execute(self, spec_file=None, test_runner_namespace='test-ns'):
+        context = _FakeContext(test_runner_namespace=test_runner_namespace,
                                cronjob_spec_file=spec_file)
         with mock.patch.object(backend_jobs.kb_client, 'BatchV1Api',
                                return_value=self.batch_api), \
@@ -1648,6 +1648,16 @@ class BackendSynchronizeBackendTestExecuteTest(unittest.TestCase):
         self.assertEqual(result.status, jobs_base.JobStatus.SUCCESS)
         self.batch_api.list_namespaced_cron_job.assert_not_called()
         self.core_api.list_namespaced_config_map.assert_not_called()
+
+    def test_execute_skips_everything_without_a_test_namespace(self):
+        result = self._execute(spec_file=self.spec_path,
+                               test_runner_namespace='')
+
+        self.assertEqual(result.status, jobs_base.JobStatus.SUCCESS)
+        self.batch_api.list_namespaced_cron_job.assert_not_called()
+        self.core_api.list_namespaced_config_map.assert_not_called()
+        self.batch_api.create_namespaced_cron_job.assert_not_called()
+        self.core_api.create_namespaced_config_map.assert_not_called()
 
     def test_execute_creates_configmap_and_cronjob_for_each_test_config(self):
         result = self._execute(spec_file=self.spec_path)

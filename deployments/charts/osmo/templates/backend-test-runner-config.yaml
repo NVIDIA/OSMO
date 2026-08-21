@@ -1,0 +1,162 @@
+{{- if and .Values.planes.compute.enabled .Values.services.backendTestRunner.enabled .Values.compute.backendTestNamespace }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- $component := .Values.services.backendTestRunner }}
+{{- $componentName := "backend-test-runner" }}
+{{- $cronLabels := include "osmo.component.labels" (dict "root" . "component" $componentName) | fromYaml }}
+{{- $cronLabels = mergeOverwrite (deepCopy $component.labels) $cronLabels }}
+{{- $_ := set $cronLabels (printf "%scomponent" .Values.compute.nodeConditionPrefix) "backend-test" }}
+{{- $_ := set $cronLabels (printf "%sbackend" .Values.compute.nodeConditionPrefix) "{{ backend_name }}" }}
+{{- $_ := set $cronLabels (printf "%stest" .Values.compute.nodeConditionPrefix) "{{ test_name }}" }}
+{{- $cronAnnotations := deepCopy .Values.commonAnnotations }}
+{{- $_ := set $cronAnnotations "description" ($component.annotations.description | replace "{{.BackendName}}" "{{ backend_name }}" | replace "{{.TestName}}" "{{ test_name }}") }}
+{{- $_ := set $cronAnnotations "scheduler" $component.annotations.scheduler }}
+{{- $podLabels := include "osmo.pod.labels" (dict "root" . "component" $component "componentName" $componentName) | fromYaml }}
+{{- $_ := set $podLabels "backend" "{{ backend_name }}" }}
+{{- $_ := set $podLabels "test" "{{ test_name }}" }}
+{{- $podAnnotations := include "osmo.pod.annotations" (dict "root" . "component" $component) | fromYaml }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "backend-test-runner-template") }}
+  namespace: {{ include "osmo.compute.agentNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict "checksum/config" (toJson (dict "component" $component "compute" .Values.compute) | sha256sum))) | nindent 4 }}
+data:
+  spec.yaml: |
+    apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: "{{ "{{" }} resource_name {{ "}}" }}"
+      labels:
+        {{- toYaml $cronLabels | nindent 8 }}
+      annotations:
+        {{- toYaml $cronAnnotations | nindent 8 }}
+    spec:
+      schedule: "{{ "{{" }} cron_schedule | default({{ $component.cronJob.schedule | quote }}) {{ "}}" }}"
+      timeZone: "{{ "{{" }} timezone | default({{ $component.cronJob.timezone | quote }}) {{ "}}" }}"
+      startingDeadlineSeconds: {{ $component.cronJob.startingDeadlineSeconds }}
+      concurrencyPolicy: {{ $component.cronJob.concurrencyPolicy }}
+      suspend: {{ $component.cronJob.suspend }}
+      successfulJobsHistoryLimit: {{ $component.cronJob.successfulJobsHistoryLimit }}
+      failedJobsHistoryLimit: {{ $component.cronJob.failedJobsHistoryLimit }}
+      jobTemplate:
+        metadata:
+          labels:
+            component: backend-test-job
+            backend: "{{ "{{" }} backend_name {{ "}}" }}"
+            test: "{{ "{{" }} test_name {{ "}}" }}"
+            job-type: test-runner
+        spec:
+          parallelism: {{ $component.jobTemplate.parallelism }}
+          completions: {{ $component.jobTemplate.completions }}
+          backoffLimit: {{ $component.jobTemplate.backoffLimit }}
+          activeDeadlineSeconds: {{ $component.jobTemplate.activeDeadlineSeconds }}
+          ttlSecondsAfterFinished: {{ $component.jobTemplate.ttlSecondsAfterFinished }}
+          completionMode: {{ $component.jobTemplate.completionMode }}
+          suspend: {{ $component.jobTemplate.suspend }}
+          template:
+            metadata:
+              labels:
+                {{- toYaml $podLabels | nindent 16 }}
+              annotations:
+                {{- toYaml $podAnnotations | nindent 16 }}
+            spec:
+              restartPolicy: {{ $component.pod.restartPolicy }}
+              terminationGracePeriodSeconds: {{ $component.pod.terminationGracePeriodSeconds }}
+              activeDeadlineSeconds: {{ $component.jobTemplate.activeDeadlineSeconds }}
+              serviceAccountName: {{ include "osmo.compute.testRunnerServiceAccountName" . }}
+              automountServiceAccountToken: {{ $component.pod.automountServiceAccountToken }}
+              securityContext:
+                {{- include "osmo.pod.securityContext" (dict "root" . "component" $component) | nindent 16 }}
+              {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $component)) }}
+              nodeSelector:
+                {{- . | nindent 16 }}
+              {{- end }}
+              {{- with (include "osmo.pod.tolerations" (dict "root" . "component" $component)) }}
+              tolerations:
+                {{- . | nindent 16 }}
+              {{- end }}
+              {{- with (include "osmo.pod.affinity" (dict "root" . "component" $component)) }}
+              affinity:
+                {{- . | nindent 16 }}
+              {{- end }}
+              {{- with (include "osmo.pod.topologySpreadConstraints" (dict "root" . "component" $component "componentName" "backend-test-runner")) }}
+              topologySpreadConstraints:
+                {{- . | nindent 16 }}
+              {{- end }}
+              initContainers:
+              - name: config-validator
+                image: {{ include "osmo.image" (dict "root" . "image" $component.initContainer.image "useSharedRegistry" false "useSharedTag" false) | quote }}
+                imagePullPolicy: {{ $component.initContainer.image.pullPolicy }}
+                command: ["/bin/sh"]
+                args:
+                - -c
+                - |
+                  test -f {{ $component.testConfigVolume.mountPath }}/test_config.json
+                volumeMounts:
+                - name: {{ $component.testConfigVolume.name }}
+                  mountPath: {{ $component.testConfigVolume.mountPath }}
+                  readOnly: true
+                securityContext:
+                  {{- include "osmo.container.securityContext" (dict "root" . "component" $component) | nindent 18 }}
+                resources:
+                  {{- toYaml $component.initContainer.resources | nindent 18 }}
+              containers:
+              - name: backend-test-runner
+                image: {{ include "osmo.component.image" (dict "root" . "component" $component) }}
+                imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "component" $component) }}
+                command: ["backend_test_runner"]
+                args:
+                - --read_from_osmo
+                - "false"
+                - --read_from_file
+                - {{ $component.testConfigVolume.mountPath }}/test_config.json
+                {{- range $component.extraArgs }}
+                - {{ . | quote }}
+                {{- end }}
+                env:
+                - name: BACKEND
+                  value: "{{ "{{" }} backend_name {{ "}}" }}"
+                - name: BACKEND_TEST_NAME
+                  value: "{{ "{{" }} test_name {{ "}}" }}"
+                - name: NODE_CONDITION_PREFIX
+                  value: {{ .Values.compute.nodeConditionPrefix | quote }}
+                - name: NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: SERVICE_ACCOUNT
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.serviceAccountName
+                {{- range $key, $value := $component.extraEnv }}
+                - name: {{ $key }}
+                  value: {{ $value | quote }}
+                {{- end }}
+                volumeMounts:
+                - name: {{ $component.testConfigVolume.name }}
+                  mountPath: {{ $component.testConfigVolume.mountPath }}
+                  readOnly: true
+                securityContext:
+                  {{- include "osmo.container.securityContext" (dict "root" . "component" $component) | nindent 18 }}
+                resources:
+                  {{- toYaml $component.container.resources | nindent 18 }}
+              volumes:
+              - name: {{ $component.testConfigVolume.name }}
+                configMap:
+                  name: {{ $component.configMap.nameTemplate | replace "{{.TestName}}" "{{ test_name }}" | quote }}
+                  defaultMode: {{ $component.configMap.defaultMode }}
+                  optional: {{ $component.configMap.optional }}
+              {{- include "osmo.component.imagePullSecrets" . | nindent 14 }}
+              {{- with $component.pod.hostAliases }}
+              hostAliases:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+{{- end }}

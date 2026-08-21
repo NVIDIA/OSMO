@@ -1,10 +1,88 @@
 {{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- if .Values.planes.compute.enabled -}}
-{{- fail "planes.compute.enabled: compute plane is not implemented in this chart version" -}}
+{{- if and (not .Values.planes.control.enabled) (not .Values.planes.compute.enabled) -}}
+{{- fail "at least one of planes.control.enabled or planes.compute.enabled must be true" -}}
 {{- end -}}
-{{- if not .Values.planes.control.enabled -}}
-{{- fail "planes.control.enabled: this chart version requires the control plane" -}}
+{{- if .Values.planes.compute.enabled -}}
+{{- if not .Values.compute.authentication.existingSecret -}}
+{{- fail "compute.authentication.existingSecret is required when planes.compute.enabled=true" -}}
+{{- end -}}
+{{- if and (not .Values.planes.control.enabled) (not .Values.externalUrl) -}}
+{{- fail "externalUrl is required when the compute plane connects to an external control plane" -}}
+{{- end -}}
+{{- if and .Values.services.backendTestRunner.enabled (not .Values.compute.backendTestNamespace) -}}
+{{- fail "compute.backendTestNamespace is required when services.backendTestRunner.enabled=true" -}}
+{{- end -}}
+{{- if and
+  (not .Values.compute.rbac.clusterRoles.create)
+  .Values.services.backendListener.enabled
+  (not .Values.compute.rbac.clusterRoles.listenerName) -}}
+{{- fail "compute.rbac.clusterRoles.listenerName is required when cluster role creation is disabled" -}}
+{{- end -}}
+{{- if and
+  (not .Values.compute.rbac.clusterRoles.create)
+  .Values.services.backendWorker.enabled
+  (not .Values.compute.rbac.clusterRoles.workerName) -}}
+{{- fail "compute.rbac.clusterRoles.workerName is required when cluster role creation is disabled" -}}
+{{- end -}}
+{{- if and
+  (not .Values.compute.rbac.clusterRoles.create)
+  .Values.services.backendTestRunner.enabled
+  (not .Values.compute.rbac.clusterRoles.testRunnerName) -}}
+{{- fail "compute.rbac.clusterRoles.testRunnerName is required when cluster role creation is disabled and services.backendTestRunner.enabled=true" -}}
+{{- end -}}
+{{- if and
+  .Values.compute.workflowNetworkPolicy.enabled
+  (not .Values.compute.workflowNetworkPolicy.clusterCIDRs)
+  (not .Values.compute.workflowNetworkPolicy.allowAllClusterEgress) -}}
+{{- fail "compute.workflowNetworkPolicy.clusterCIDRs must not be empty when the workflow network policy is enabled unless allowAllClusterEgress=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if and
+  (not .Values.planes.control.enabled)
+  (or
+    .Values.embeddedDependencies.postgresql.enabled
+    .Values.embeddedDependencies.valkey.enabled
+    .Values.embeddedDependencies.objectStorage.enabled) -}}
+{{- fail "embedded dependencies require planes.control.enabled=true" -}}
+{{- end -}}
+{{- if .Values.planes.control.enabled -}}
+{{- if and .Values.planes.compute.enabled (not .Values.secrets.backendApiTokens.enabled) -}}
+{{- fail "secrets.backendApiTokens.enabled must be true when both planes are enabled" -}}
+{{- end -}}
+{{- if .Values.secrets.backendApiTokens.enabled -}}
+{{- if not .Values.secrets.backendApiTokens.credentials -}}
+{{- fail "secrets.backendApiTokens.credentials must not be empty when backend API tokens are enabled" -}}
+{{- end -}}
+{{- $backendTokenCredentialNames := dict -}}
+{{- $backendTokenSecretNames := dict -}}
+{{- range .Values.secrets.backendApiTokens.credentials -}}
+{{- $credentialName := required "backend API token credential name is required" .name -}}
+{{- if or
+  (gt (len $credentialName) 49)
+  (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) -}}
+{{- fail (printf "invalid backend API token credential name %q" $credentialName) -}}
+{{- end -}}
+{{- if hasKey $backendTokenCredentialNames $credentialName -}}
+{{- fail (printf "duplicate backend API token credential name %q" $credentialName) -}}
+{{- end -}}
+{{- $_ := set $backendTokenCredentialNames $credentialName true -}}
+{{- $secretName := include "osmo.backendApiTokenSecretName" . -}}
+{{- if or
+  (gt (len $secretName) 253)
+  (not (regexMatch "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$" $secretName)) -}}
+{{- fail (printf "invalid backend API token Secret name %q" $secretName) -}}
+{{- end -}}
+{{- if hasKey $backendTokenSecretNames $secretName -}}
+{{- fail (printf "duplicate backend API token Secret name %q" $secretName) -}}
+{{- end -}}
+{{- $_ := set $backendTokenSecretNames $secretName true -}}
+{{- end -}}
+{{- if and
+  .Values.planes.compute.enabled
+  (not (hasKey $backendTokenSecretNames .Values.compute.authentication.existingSecret)) -}}
+{{- fail "compute.authentication.existingSecret must match a configured backend API token Secret in a converged release" -}}
+{{- end -}}
 {{- end -}}
 {{- $objectStorageCredentialsKey := .Values.secrets.objectStorage.keys.credentials -}}
 {{- if or
@@ -162,9 +240,6 @@
 {{- else if .Values.secrets.objectStorage.generate -}}
 {{- fail "secrets.objectStorage.generate is supported only when embedded object storage is enabled" -}}
 {{- end -}}
-{{- if .Values.embeddedDependencies.kaiScheduler.enabled -}}
-{{- fail "embeddedDependencies.kaiScheduler.enabled: embedded KAI Scheduler is not implemented" -}}
-{{- end -}}
 {{- if .Values.embeddedDependencies.valkey.enabled -}}
 {{- if .Values.externalDependencies.valkey.host -}}
 {{- fail "externalDependencies.valkey.host must be empty when embedded Valkey is enabled" -}}
@@ -235,8 +310,18 @@
 {{- if and .Values.httproute.enabled (eq (len .Values.httproute.parentRefs) 0) -}}
 {{- fail "httproute.parentRefs requires at least one entry when httproute.enabled=true" -}}
 {{- end -}}
-{{- if or .Values.secrets.masterEncryptionKey.generate .Values.secrets.defaultAdmin.generate -}}
-{{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
+{{- if and .Values.secrets.masterEncryptionKey.generate .Values.secrets.masterEncryptionKey.existingSecret -}}
+{{- fail "secrets.masterEncryptionKey.generate and existingSecret are mutually exclusive" -}}
+{{- end -}}
+{{- $mekSecretKey := .Values.secrets.masterEncryptionKey.keys.config -}}
+{{- if or
+  (not $mekSecretKey)
+  (gt (len $mekSecretKey) 253)
+  (not (regexMatch "^[A-Za-z0-9._-]+$" $mekSecretKey)) -}}
+{{- fail "secrets.masterEncryptionKey.keys.config must be a non-empty valid Kubernetes Secret data key" -}}
+{{- end -}}
+{{- if .Values.secrets.defaultAdmin.generate -}}
+{{- fail "secrets.defaultAdmin.generate is not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
   (dict "path" "services.ui" "component" .Values.services.ui)
@@ -317,9 +402,10 @@
 {{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.secrets.objectStorage.existingSecret) -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.masterEncryptionKey.existingSecret -}}
+{{- if not (include "osmo.masterEncryptionKey.secretName" .) -}}
 {{- fail "secrets.masterEncryptionKey.existingSecret is required for the control plane" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- end -}}
 {{- end -}}

@@ -85,9 +85,11 @@ Use:
   {{- include "osmo.gateway.upstreamProbeYaml" (dict "probe" .Values.services.api.livenessProbe "context" .) | nindent 10 }}
 */}}
 {{- define "osmo.gateway.upstreamProbeYaml" -}}
-{{- $probe := .probe }}
-{{- if and $probe .context.Values.gateway.tls.enabled (hasKey $probe "httpGet") }}
-  {{- $probe = mustMergeOverwrite (deepCopy $probe) (dict "httpGet" (dict "scheme" "HTTPS")) }}
+{{- if .probe.enabled }}
+{{- $spec := deepCopy .probe.spec }}
+{{- if and .context.Values.gateway.tls.enabled (hasKey $spec "httpGet") }}
+  {{- $spec = mustMergeOverwrite $spec (dict "httpGet" (dict "scheme" "HTTPS")) }}
 {{- end }}
-{{- toYaml $probe }}
+{{- toYaml $spec }}
+{{- end }}
 {{- end }}
