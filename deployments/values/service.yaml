@@ -72,8 +72,7 @@ services:
       # backend-worker injects into every workflow Pod. The chart has no
       # defaults for `init` / `client` — deploy-k8s.sh --sets them from
       # OSMO_IMAGE_REGISTRY + OSMO_IMAGE_TAG. The `credential` block is also
-      # added via --set, but only when NGC_API_KEY is provided or an existing
-      # pull secret is detected. With public images it is omitted entirely.
+      # added when NGC_API_KEY is provided. With public images it is omitted.
 
       # workflow_data / workflow_log / workflow_app credential blocks are owned
       # entirely by the storage values fragment (configure-storage.sh writes

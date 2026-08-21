@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Representative output from configure-storage.sh --backend minio.
+# Uses inert values so released charts can be rendered without a cluster.
+services:
+  configs:
+    secretRefs:
+      - secretName: nvcr-pull
+      - secretName: osmo-workflow-data-cred
+      - secretName: osmo-workflow-log-cred
+      - secretName: osmo-workflow-app-cred
+    workflow:
+      workflow_data:
+        credential:
+          secretName: osmo-workflow-data-cred
+        base_url: s3://osmo-workflows
+      workflow_log:
+        credential:
+          secretName: osmo-workflow-log-cred
+      workflow_app:
+        credential:
+          secretName: osmo-workflow-app-cred

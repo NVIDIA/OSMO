@@ -46,9 +46,10 @@ create_workflow_cred_secrets() {
 # cred secrets so the chart mounts them at /etc/osmo/secrets/<name>/. The NGC
 # pull-secret entry is only included when NGC_SECRET_NAME is non-empty (caller
 # opted in via --ngc-api-key, --ngc-secret-name, or NGC_SECRET_NAME env) —
-# same gate the rest of the script uses for global.imagePullSecret and
-# backend_images.credential, so no-opt-in deploys never reference a secret
-# that won't exist.
+# same gate the rest of the script uses for global.imagePullSecret. The
+# backend_images.credential fields are populated separately when NGC_API_KEY
+# is available, so no-opt-in deploys never reference credentials that do not
+# exist.
 # Args: backend_label (free text for the comment header) base_url
 emit_static_values_fragment() {
     local backend_label="$1" base_url="$2"
