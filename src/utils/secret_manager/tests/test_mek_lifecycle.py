@@ -4,6 +4,7 @@
 # pylint: disable=protected-access
 
 import base64
+import json
 import time
 import types
 from typing import Literal
@@ -295,8 +296,14 @@ class TestMekLifecycle(unittest.TestCase):
             "generation": "abc",
             "digest": "def",
         }
-        log = "prefix\nINFO OSMO_MEK_DESCRIPTOR " + __import__("json").dumps(descriptor)
+        log = "prefix\nINFO OSMO_MEK_DESCRIPTOR " + json.dumps(descriptor)
         self.assertEqual(MekLifecycle._descriptor_from_log(log), descriptor)
+        structured_log = json.dumps({
+            "timestamp": "2026-08-21T00:00:00Z",
+            "level": "INFO",
+            "message": "OSMO_MEK_DESCRIPTOR " + json.dumps(descriptor),
+        })
+        self.assertEqual(MekLifecycle._descriptor_from_log(structured_log), descriptor)
         with self.assertRaisesRegex(osmo_errors.OSMOError, "descriptor"):
             MekLifecycle._descriptor_from_log("normal startup")
 

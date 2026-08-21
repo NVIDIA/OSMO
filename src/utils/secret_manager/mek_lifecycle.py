@@ -425,13 +425,23 @@ class MekLifecycle:
     def _descriptor_from_log(log_text: str) -> Dict:
         matches = []
         for line in log_text.splitlines():
-            marker = line.find(_DESCRIPTOR_PREFIX)
-            if marker < 0:
-                continue
             try:
-                matches.append(json.loads(line[marker + len(_DESCRIPTOR_PREFIX):]))
+                structured = json.loads(line)
             except json.JSONDecodeError:
-                continue
+                structured = None
+            candidates = [line]
+            if isinstance(structured, dict) and isinstance(structured.get("message"), str):
+                candidates.append(structured["message"])
+            for candidate in candidates:
+                marker = candidate.find(_DESCRIPTOR_PREFIX)
+                if marker < 0:
+                    continue
+                try:
+                    descriptor = json.loads(candidate[marker + len(_DESCRIPTOR_PREFIX):])
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(descriptor, dict):
+                    matches.append(descriptor)
         if not matches:
             raise osmo_errors.OSMOError("Pod has no machine-readable MEK startup descriptor.")
         return matches[-1]
