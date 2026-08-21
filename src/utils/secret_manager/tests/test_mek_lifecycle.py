@@ -113,6 +113,26 @@ def _pod(owner_references, deletion_timestamp=None):
 class TestMekLifecycle(unittest.TestCase):
     """Validate the Kubernetes-only lifecycle state machine."""
 
+    def test_secret_json_patch_uses_generated_client_compatible_signature(self):
+        lifecycle = _lifecycle()
+        lifecycle._assert_lease = mock.Mock()  # type: ignore[method-assign]
+        calls = []
+
+        class CompatibleCore:
+            @staticmethod
+            def patch_namespaced_secret(name, namespace, body):
+                calls.append((name, namespace, body))
+                return "patched"
+
+        lifecycle.core = CompatibleCore()
+        keyring = _new_keyring("initial")
+        result = lifecycle._patch_secret(
+            _secret(keyring), keyring, {_PHASE: "prepared"})
+
+        self.assertEqual(result, "patched")
+        self.assertEqual(calls[0][0:2], ("osmo-mek", "osmo"))
+        self.assertEqual(calls[0][2][0]["op"], "test")
+
     def test_prepare_adds_exactly_one_key_and_keeps_current(self):
         original = _new_keyring("initial")
         prepared = _add_candidate(original, "rotate-1")

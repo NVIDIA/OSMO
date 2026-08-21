@@ -379,7 +379,6 @@ class MekLifecycle:
             self.config.secret_name,
             self.config.namespace,
             patch,
-            _content_type="application/json-patch+json",
         )
 
     def _create_secret(self, keyring: ParsedKeyring):
