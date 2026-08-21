@@ -30,6 +30,7 @@ services:
   masterEncryptionKey:
     managementMode: osmo
     bootstrap:
+      # Set false in a second sync immediately after the first install succeeds.
       enabled: true
 
   configFile:

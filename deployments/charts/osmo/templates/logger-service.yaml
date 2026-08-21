@@ -45,6 +45,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.logger "componentName" "logger") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.logger) | nindent 8 }}
+        {{- include "osmo.secrets.mekRolloutAnnotation" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.logger.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -123,8 +124,6 @@ spec:
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         env:
-        {{- include "osmo.secrets.mekConsumerEnv" "logger" | nindent 8 }}
-        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         {{- include "osmo.configuration.env" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.logger | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}

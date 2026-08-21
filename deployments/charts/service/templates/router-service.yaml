@@ -31,10 +31,12 @@ spec:
       labels:
         app: {{ .Values.services.router.serviceName }}
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/part-of: osmo
         {{- with .Values.services.router.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.mek-rollout-annotation" . | nindent 8 }}
         {{- with .Values.services.router.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -115,8 +117,6 @@ spec:
         {{- end }}
         {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.router) | nindent 8 }}
         env:
-        {{- include "osmo.mek-consumer-env" "router" | nindent 8 }}
-        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.targetSchema | default "public" }}
         {{- if .Values.services.postgres.password }}

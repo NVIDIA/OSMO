@@ -194,41 +194,23 @@ secrets:
       name: ''
       key: mek.yaml
     bootstrap:
+      # Must be set back to false immediately after a successful bootstrap.
       enabled: false
+      # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
       imagePullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
-    rebind:
-      enabled: false
-      attempt: "1"
-    ownershipRelease:
-      enabled: false
-      attempt: "1"
-    ownershipReacquire:
-      enabled: false
-      attempt: "1"
     rotation:
       requestId: ''
+      # Explicit operation: prepare, activate, or rewrap. Leave empty to
+      # perform the lifecycle manually without a chart Job.
+      phase: ''
       attempt: "1"
+      # Change this only after PREPARE and again after ACTIVATE. It is copied
+      # to every MEK consumer Pod template to produce startup-only rollouts.
+      rolloutRevision: ''
       imagePullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
-    # In external mode, set a unique requestId after completing PREPARE/ACTIVATE
-    # to run the read-only, restart-from-zero ciphertext rewrap Job.
-    rewrap:
-      requestId: ''
-      attempt: "1"
-      imagePullPolicy: IfNotPresent
-      activeDeadlineSeconds: 900
-    # Recovery is a separate, credential-fenced attempt. Before enabling it,
-    # clear rotation.requestId and upgrade once so Helm removes the failed
-    # rotation Job's ServiceAccount, Role, and RoleBinding.
-    recovery:
-      enabled: false
-      attempt: "1"
-      imagePullPolicy: IfNotPresent
-      activeDeadlineSeconds: 300
-    # Enable only for the first upgrade after every legacy OSMO writer is stopped.
-    allowExistingCiphertextAdoption: false
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false

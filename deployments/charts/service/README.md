@@ -81,17 +81,13 @@ OSMO services write logs to standard streams for collection by the platform log 
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
 | `services.masterEncryptionKey.existingSecret.name` | Existing Kubernetes Secret containing the MEK keyring | `osmo-mek` |
 | `services.masterEncryptionKey.existingSecret.key` | Key containing the MEK YAML | `mek.yaml` |
-| `services.masterEncryptionKey.managementMode` | `external` for an operator-owned read-only Secret; `osmo` for database-aware bootstrap and explicit rotation | `external` |
-| `services.masterEncryptionKey.bootstrap.enabled` | Populate the retained empty Secret for a new database; upgrades are validation-only | `false` |
-| `services.masterEncryptionKey.rebind.enabled` | Explicitly bind an identical recreated managed or external Secret UID | `false` |
-| `services.masterEncryptionKey.ownershipRelease.enabled` | Verify and hand an unchanged managed keyring back to external ownership | `false` |
-| `services.masterEncryptionKey.ownershipReacquire.enabled` | Explicitly restore managed ownership after a rolled-back handoff | `false` |
-| `services.masterEncryptionKey.rotation.requestId` | Unique non-secret ID that creates an on-demand rotation Job | `""` |
+| `services.masterEncryptionKey.managementMode` | `external` for an operator-owned read-only Secret; `osmo` for install bootstrap and explicit Secret mutation Jobs | `external` |
+| `services.masterEncryptionKey.bootstrap.enabled` | Atomically create the MEK Secret for a new, empty install | `false` |
+| `services.masterEncryptionKey.bootstrap.attempt` | Non-secret retry identity; increment after a failed GitOps bootstrap or credential correction | `"1"` |
+| `services.masterEncryptionKey.rotation.requestId` | Unique non-secret ID shared by all phases of one rotation | `""` |
+| `services.masterEncryptionKey.rotation.phase` | Explicit `prepare`, `activate`, or `rewrap` Job; empty disables Jobs | `""` |
 | `services.masterEncryptionKey.rotation.attempt` | Retry identity used to create an immutable Job name | `"1"` |
-| `services.masterEncryptionKey.rewrap.requestId` | In external mode, unique non-secret ID that creates a read-only rewrap Job after operator activation | `""` |
-| `services.masterEncryptionKey.rewrap.attempt` | Retry identity for the external rewrap Job | `"1"` |
-| `services.masterEncryptionKey.recovery.enabled` | Fence a failed rotation attempt after its old RBAC has been removed | `false` |
-| `services.masterEncryptionKey.allowExistingCiphertextAdoption` | One-time acknowledgement after stopping every legacy writer during an existing-install upgrade | `false` |
+| `services.masterEncryptionKey.rotation.rolloutRevision` | Operator-changed value that rolls every MEK consumer after PREPARE and ACTIVATE | `""` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
 
@@ -479,152 +475,80 @@ the typed `services.masterEncryptionKey.existingSecret` reference.
 
 Use `managementMode: external` when an operator owns the Secret. OSMO mounts it
 read-only and never creates, patches, or rotates it. Use `managementMode: osmo`
-only when this release should own that exact Secret. With
-`bootstrap.enabled: true`, Helm retains an empty placeholder and a
-namespace-scoped Job generates the initial 256-bit MEK only after proving that
-PostgreSQL has no protected ciphertext. It then commits the Secret UID, keyring
-identity, and fingerprint registry to PostgreSQL. Re-running an install cannot
-replace a retained database's MEK. On upgrade, the bootstrap Job is
-validation-only and its Role has `get`, not `patch`, access to the Secret.
+only when this release should create or update that exact Secret through an
+explicit lifecycle Job. With `bootstrap.enabled: true`, Helm renders no MEK
+Secret data. A create-only Job waits for PostgreSQL, proves that the database
+has no users, UEKs, or dynamic configuration, verifies that every chart
+consumer is blocked before its writer container starts, and atomically creates
+the full Secret. A retry accepts only the exact Secret owned by this
+installation and authenticates retained ciphertext; it never deletes or
+overwrites a Secret. Stop every non-chart database writer during bootstrap.
 
-If the Secret object must be recreated, restore the exact same keyring and run
-one upgrade with `services.masterEncryptionKey.rebind.enabled=true`. In managed
-mode, also restore the ownership annotations. The pre-upgrade Job has only
-exact-name Secret `get` access and accepts only identical registered key
-material before recording the new UID. To hand
-the unchanged keyring back to an operator, set `managementMode=external` and
-`ownershipRelease.enabled=true` in the same upgrade. The pre-upgrade Job checks
-the live UID and complete fingerprint registry before recording the explicit
-handoff. The release is idempotent, so retry the same upgrade if Helm fails
-after the hook. A rollback remains available with the released keyring, but
-rotation is blocked until an explicit upgrade sets `managementMode=osmo` and
-`ownershipReacquire.enabled=true`. Otherwise retry the external handoff. Disable
-the one-shot ownership flag on the following upgrade. None of these operations
-can change the Secret.
+Immediately after bootstrap succeeds, perform a second Helm upgrade or GitOps
+sync with `services.masterEncryptionKey.bootstrap.enabled=false`. This removes
+the bootstrap Secret-creation ServiceAccount/RoleBinding. The chart rejects a
+rotation phase until bootstrap is disabled.
+If bootstrap fails or its database credentials are corrected under Argo CD or
+Flux, increment the non-secret `services.masterEncryptionKey.bootstrap.attempt`
+before the next sync. Credential bytes never influence public lifecycle names.
 
-Rotation is explicit, not scheduled. Set a unique non-secret request ID:
+Every consumer loads the keyring once at process startup. Before becoming
+ready, it performs a bounded authenticated inventory of every UEK wrapper and
+registered direct-MEK configuration value. It logs a machine-readable
+`OSMO_MEK_DESCRIPTOR` containing only non-secret rollout identity. There are no
+MEK database tables, triggers, hot reloads, or background reconciliation loops.
 
-```bash
-helm upgrade <release> deployments/charts/service -n <namespace> \
-  --reuse-values --wait \
-  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-19
-```
-
-The Job first adds one key without changing `currentMek` (PREPARE), waits for
-the exact stable Pod set owned by every chart-defined MEK consumer Deployment
-to acknowledge the complete fingerprint registry, and then changes
-`currentMek` (ACTIVATE). After every pod acknowledges activation, it explicitly
-rewraps UEKs and direct-MEK configuration from the beginning in bounded,
-compare-and-swap batches. A PostgreSQL write epoch and a final authenticated
-inventory prove that no old-key reference was written behind the scan. User
-secret plaintext and UEK key material do not change; only their encrypted
-wrappers change. Normal application reads do not rewrite MEK-protected rows;
-the lifecycle Job is the sole MEK rewrap orchestrator.
-
-The Job is fenced by a fixed Kubernetes Lease, a PostgreSQL fencing epoch, and
-a unique Pod-bound ServiceAccount token. Before exit, it deletes its own exact
-RoleBinding. A direct Helm upgrade observes the completion annotation and does
-not render that request again. Clear `rotation.requestId` after a successful
-rotation. Previous MEKs remain in the Secret; this release
-deliberately does not retire keys. A keyring is capped at 32 MEKs, so further
-rotation stops safely at that limit rather than deleting a key.
-
-`managementMode=osmo` bootstrap and rotation require direct Helm lifecycle
-execution. They are not safe under an offline GitOps Helm renderer: `lookup`
-cannot see the retained Secret or completion annotation, so Argo CD or Flux can
-reapply the empty bootstrap placeholder or recreate mutation RBAC. For GitOps,
-use `managementMode=external`, create and update the Secret outside this chart,
-and use the read-only rewrap Job below. Do not continuously reconcile managed
-`bootstrap.enabled` or `rotation.requestId` unless the application explicitly
-excludes the MEK Secret and lifecycle resources. If that exception is used,
-perform two manual syncs and clear the request immediately after success;
-self-revocation alone cannot prevent GitOps from recreating the RoleBinding.
-
-With `managementMode=external`, the operator first updates the Secret with a
-PREPARE bundle (old key remains current), waits for all control-plane Pods to
-become ready, then updates it with ACTIVATE (the new key becomes current). On
-the following upgrade, set a unique rewrap request:
+Rotation is explicit, not scheduled. Use one unique non-secret request ID for
+three operator-driven phases:
 
 ```bash
 helm upgrade <release> deployments/charts/service -n <namespace> \
   --reuse-values --wait \
-  --set services.masterEncryptionKey.rewrap.requestId=rewrap-2026-08-20
+  --set services.masterEncryptionKey.bootstrap.enabled=false \
+  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-21 \
+  --set services.masterEncryptionKey.rotation.phase=prepare
 ```
 
-The rewrap-only Job requires fresh ACTIVATE acknowledgements from the exact
-consumer Pod set, pins the Secret UID/resourceVersion and keyring digest, and
-runs the same fenced restart-from-zero sweep. Its Role can only `get` the exact
-MEK Secret; it has no Secret mutation verbs. The completed Job intentionally
-has no TTL, preventing Argo CD from recreating it on every sync. Clear the
-request ID after success, or increment `rewrap.attempt` to retry safely. The
-first external rewrap also binds the previously unbound lifecycle row to this
-exact Secret UID and release identity. If GitOps later recreates the object
-with identical bytes, set `rebind.enabled=true` for one sync before another
-rewrap; the read-only Job verifies the registry and updates only the bound UID.
+1. PREPARE adds exactly one key while the old key remains `currentMek`. After
+   the Job succeeds, clear `phase`, change `rotation.rolloutRevision`, and sync
+   again to restart all six consumers.
+2. ACTIVATE first verifies that the complete Ready Pod cohort is owned by the
+   expected Deployments and logged the PREPARE descriptor, then selects the new
+   key. Clear `phase`, change `rolloutRevision` again, and sync the second
+   rollout.
+3. REWRAP verifies the ACTIVATE cohort, compare-and-swap rewraps every UEK and
+   registered direct-MEK configuration from the beginning, and runs two full
+   authenticated inventories. Clear `phase` after success.
 
-If an attempt terminates, do not reuse its credentials. First clear
-`rotation.requestId`, enable recovery, and upgrade. Helm removes the old Job,
-ServiceAccount, Role, and RoleBinding. The recovery Job verifies the old Pod UID
-is absent and uses a namespaced `LocalSubjectAccessReview` to prove that the old
-ServiceAccount can no longer read or patch the Secret before fencing it in
-PostgreSQL and releasing the Lease. Then disable recovery, restore the same
-request ID, and increment `rotation.attempt` to resume from the durable phase:
+The chart changes only Pod-template annotations for the rollouts; the Job never
+deletes Pods or patches Deployments. The same values sequence therefore works
+with direct Helm upgrades and separate Argo CD or Flux syncs.
+
+With `managementMode=external`, the operator updates the Secret with PREPARE,
+changes `rolloutRevision`, updates it with ACTIVATE, then changes
+`rolloutRevision` again. After both rollouts, request the read-only rewrap Job:
 
 ```bash
 helm upgrade <release> deployments/charts/service -n <namespace> \
   --reuse-values --wait \
-  --set services.masterEncryptionKey.rotation.requestId= \
-  --set services.masterEncryptionKey.recovery.enabled=true
-helm upgrade <release> deployments/charts/service -n <namespace> \
-  --reuse-values --wait \
-  --set services.masterEncryptionKey.recovery.enabled=false \
-  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-19 \
-  --set services.masterEncryptionKey.rotation.attempt=2
+  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-21 \
+  --set services.masterEncryptionKey.rotation.phase=rewrap
 ```
 
-If a fresh bootstrap container never starts (for example, an image pull
-failure), its self-revocation cannot run. The RBAC remains owned by the failed
-Helm release: uninstall that exact failed release before retrying the install.
-Do not reuse its lifecycle ServiceAccount from another Pod.
+The rewrap Role can only `get` the exact MEK Secret; it has no Secret mutation
+verbs. Every phase creates or reuses a release-scoped Kubernetes Lease directly.
+The Lease is absent from Helm desired state, so GitOps self-heal cannot clear a
+live holder. It is never stolen from another holder, even when its timestamp is
+old. For a terminated attempt, delete the old Job/Pod, verify it is absent,
+clear the Lease holder, increment `rotation.attempt`, and retry the same phase.
+Clear a successful phase promptly so GitOps removes its ServiceAccount and
+RoleBinding.
 
-For the first `external`-mode upgrade of an existing database to this registry, stop every
-legacy OSMO control-plane Deployment first. Start the new release once with
-`--set services.masterEncryptionKey.allowExistingCiphertextAdoption=true`, wait
-for every new Deployment to become ready, then immediately set the value back
-to `false`. Fresh installs do not need this acknowledgement. Existing
-ciphertext otherwise makes first adoption fail closed. PostgreSQL fences
-UEK/config writes across the adoption transaction, so an already in-flight
-legacy write is rolled back; the explicit scale-to-zero boundary prevents
-future writes from an old binary after the fence opens.
-
-```bash
-set -euo pipefail
-# If you overrode a services.*.serviceName value, replace its default below.
-MEK_SELECTOR='app in (osmo-service,osmo-worker,osmo-router,osmo-logger,osmo-agent,osmo-delayed-job-monitor)'
-kubectl delete horizontalpodautoscaler -n <namespace> \
-  -l "$MEK_SELECTOR" --ignore-not-found
-kubectl scale deployment -n <namespace> \
-  -l "$MEK_SELECTOR" --replicas=0
-kubectl wait pod -n <namespace> -l "$MEK_SELECTOR" \
-  --for=delete --timeout=10m
-remaining=$(kubectl get pod -n <namespace> -l "$MEK_SELECTOR" \
-  --field-selector='status.phase!=Succeeded,status.phase!=Failed' -o name)
-test -z "$remaining"
-helm upgrade <release> deployments/charts/service -n <namespace> \
-  --reuse-values --wait \
-  --set services.masterEncryptionKey.allowExistingCiphertextAdoption=true
-# After every new Deployment is Ready:
-helm upgrade <release> deployments/charts/service -n <namespace> \
-  --reuse-values --wait \
-  --set services.masterEncryptionKey.allowExistingCiphertextAdoption=false
-```
-
-Developer environments that ran an earlier, pre-merge version of this MEK PR
-are intentionally not migrated automatically. If startup reports an unsupported
-pre-merge MEK schema, keep every OSMO writer stopped, back up any data that must
-be retained, and recreate the development database before reinstalling. Never
-drop MEK metadata tables from a database containing ciphertext and then restart
-writers; that discards the durable key identity and rotation fences.
+Rewrap completion is point-in-time evidence, not a safe retirement proof.
+Because there are deliberately no database fences or lifecycle tables, every
+old MEK must remain in the Secret. User plaintext and UEK material do not
+change; only encrypted wrappers change. Normal reads never rewrite direct-MEK
+ciphertext; the explicit Job is the sole MEK rewrap orchestrator.
 
 ### Prometheus Metrics Settings
 

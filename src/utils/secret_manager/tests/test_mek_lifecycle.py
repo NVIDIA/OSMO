@@ -1,720 +1,347 @@
-"""Unit coverage for the Kubernetes-native MEK lifecycle controller."""
+"""Unit tests for the Kubernetes-only MEK state machine."""
 
-# These tests intentionally exercise private crash-boundary and fencing helpers.
+# SPDX-License-Identifier: Apache-2.0
 # pylint: disable=protected-access
 
 import base64
-import contextlib
-import copy
-import io
+import time
 import types
+from typing import Literal
 import unittest
 from unittest import mock
 
 from src.lib.utils import osmo_errors
-from src.utils.secret_manager import mek_lifecycle
-
-
-def _object(**values):
-    return types.SimpleNamespace(**values)
-
-
-class KeyringTest(unittest.TestCase):
-    """Validate lifecycle keyring generation without exposing key material."""
-
-    def test_prepare_adds_one_key_without_changing_current(self):
-        original = mek_lifecycle._new_keyring("initial")
-        prepared = mek_lifecycle._add_candidate(original, "rotation-1")
-
-        self.assertEqual(original.current_key_id, prepared.current_key_id)
-        self.assertEqual(set(original.fingerprints) | {"mek-rotation-1"},
-                         set(prepared.fingerprints))
-        self.assertNotEqual(original.registry_digest, prepared.registry_digest)
-
-    def test_duplicate_yaml_key_is_rejected_without_echoing_it(self):
-        marker = "do-not-log-this-marker"
-        encoded = (
-            f"currentMek: one\ncurrentMek: {marker}\nmeks: {{}}\n".encode("utf-8")
-        )
-
-        with self.assertRaises(osmo_errors.OSMOError) as context:
-            mek_lifecycle._parse_keyring(encoded)
-        self.assertNotIn(marker, str(context.exception))
-        self.assertIsNone(context.exception.__cause__)
-
-    def test_same_material_under_two_key_ids_is_rejected(self):
-        keyring = mek_lifecycle._new_keyring("one")
-        document = copy.deepcopy(keyring.document)
-        encoded_jwk = base64.b64decode(document["meks"]["mek-one"])
-        aliased_jwk = encoded_jwk.replace(b'"kid":"mek-one"', b'"kid":"mek-two"')
-        document["meks"]["mek-two"] = base64.b64encode(aliased_jwk).decode("ascii")
-
-        with self.assertRaises(osmo_errors.OSMOError):
-            mek_lifecycle._parse_keyring(mek_lifecycle._serialize_keyring(document))
-
-    def test_rotation_limit_keeps_old_keys_loaded(self):
-        keyring = mek_lifecycle._new_keyring("one")
-
-        with mock.patch.object(mek_lifecycle, "MAX_MEK_COUNT", 1):
-            with self.assertRaisesRegex(osmo_errors.OSMOError, "rotation limit"):
-                mek_lifecycle._add_candidate(keyring, "two")
-
-
-class LeaseNameTest(unittest.TestCase):
-    """Keep lifecycle fencing scoped to one release and full Secret identity."""
-
-    def test_same_secret_has_different_lease_per_release(self):
-        self.assertNotEqual(
-            mek_lifecycle._lease_name("osmo/release-a", "shared-mek"),
-            mek_lifecycle._lease_name("osmo/release-b", "shared-mek"),
-        )
-
-    def test_long_shared_prefixes_do_not_collide(self):
-        prefix = "a" * 63
-        first = mek_lifecycle._lease_name("osmo/release", f"{prefix}-one")
-        second = mek_lifecycle._lease_name("osmo/release", f"{prefix}-two")
-
-        self.assertNotEqual(first, second)
-        self.assertLessEqual(len(first), 63)
-
-
-class LeaseTest(unittest.TestCase):
-    """Validate the namespace Lease fence."""
-
-    def _lifecycle(self, holder="pod-new", renew_time=None):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(
-            pod_uid="pod-new", namespace="osmo", secret_name="mek")
-        lifecycle.lease_name = "mek-mek-lifecycle"
-        lifecycle.lease_resource_version = ""
-        lease = _object(
-            metadata=_object(resource_version="1"),
-            spec=_object(holder_identity=holder, lease_duration_seconds=30,
-                         acquire_time=None, renew_time=renew_time),
-        )
-        lifecycle.core = mock.Mock()
-        lifecycle.core.list_namespaced_pod.return_value = _object(items=[])
-        lifecycle.coordination = mock.Mock()
-        lifecycle.coordination.read_namespaced_lease.return_value = lease
-        lifecycle.coordination.replace_namespaced_lease.side_effect = (
-            lambda _name, _namespace, value: _object(
-                metadata=_object(resource_version="2"), spec=value.spec))
-        return lifecycle
-
-    def test_acquire_never_steals_another_holder(self):
-        lifecycle = self._lifecycle(holder="pod-old")
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "still owns"):
-            lifecycle.acquire_lease()
-        lifecycle.coordination.replace_namespaced_lease.assert_not_called()
-
-    def test_acquire_updates_the_precreated_lease(self):
-        lifecycle = self._lifecycle(holder="")
-
-        lifecycle.acquire_lease()
-
-        self.assertEqual("2", lifecycle.lease_resource_version)
-        lifecycle.coordination.replace_namespaced_lease.assert_called_once()
-
-    def test_expired_lease_is_not_stolen_from_a_live_pod(self):
-        lifecycle = self._lifecycle(
-            holder="pod-old",
-            renew_time=mek_lifecycle.datetime.datetime.now(
-                mek_lifecycle.datetime.timezone.utc) - mek_lifecycle.datetime.timedelta(
-                    minutes=5))
-        lifecycle.core.list_namespaced_pod.return_value = _object(items=[
-            _object(
-                metadata=_object(uid="pod-old"),
-                status=_object(phase="Running")),
-        ])
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "live Pod"):
-            lifecycle.acquire_lease(allow_expired=True)
-        lifecycle.coordination.replace_namespaced_lease.assert_not_called()
-
-    def test_release_clears_only_the_revision_owned_by_this_pod(self):
-        lifecycle = self._lifecycle(holder="pod-new")
-        lifecycle.lease_resource_version = "1"
-
-        lifecycle.release_lease()
-
-        replaced = lifecycle.coordination.replace_namespaced_lease.call_args.args[2]
-        self.assertEqual("", replaced.spec.holder_identity)
-        self.assertEqual("", lifecycle.lease_resource_version)
-
-
-class PodEnumerationTest(unittest.TestCase):
-    """Ensure acknowledgement gates enumerate exact Deployment-owned Pods."""
-
-    def _lifecycle(self, pod_owner="rs-uid"):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(
-            namespace="osmo", consumer_deployments=["osmo-api"])
-        deployment = _object(
-            metadata=_object(uid="deployment-uid", generation=3),
-            spec=_object(
-                replicas=1,
-                selector=_object(
-                    match_labels={"app": "osmo-api"}, match_expressions=[])),
-            status=_object(
-                observed_generation=3, replicas=1, updated_replicas=1,
-                available_replicas=1),
-        )
-        replica_set = _object(
-            metadata=_object(
-                uid="rs-uid",
-                owner_references=[_object(kind="Deployment", uid="deployment-uid")]))
-        pod = _object(
-            metadata=_object(
-                uid="pod-uid",
-                owner_references=[_object(kind="ReplicaSet", uid=pod_owner)]),
-            status=_object(phase="Running"),
-        )
-        lifecycle.apps = mock.Mock()
-        lifecycle.apps.read_namespaced_deployment.return_value = deployment
-        lifecycle.apps.list_namespaced_replica_set.return_value = _object(
-            items=[replica_set])
-        lifecycle.core = mock.Mock()
-        lifecycle.core.list_namespaced_pod.return_value = _object(items=[pod])
-        return lifecycle
-
-    def test_returns_only_pods_owned_by_exact_deployment(self):
-        lifecycle = self._lifecycle()
-
-        self.assertEqual(("pod-uid",), lifecycle._required_pod_uids())
-        lifecycle.core.list_namespaced_pod.assert_called_once_with(
-            "osmo", label_selector="app=osmo-api")
-
-    def test_rejects_selector_collision_from_another_deployment(self):
-        lifecycle = self._lifecycle(pod_owner="other-rs")
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "Pod set is changing"):
-            lifecycle._required_pod_uids()
-
-
-class AcknowledgementTest(unittest.TestCase):
-    """Use the PostgreSQL clock for freshness boundaries."""
-
-    def test_wait_uses_database_timestamp_not_job_clock(self):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        database_time = mek_lifecycle.datetime.datetime(
-            2040, 1, 1, tzinfo=mek_lifecycle.datetime.timezone.utc)
-        cursor = mock.MagicMock()
-        cursor.fetchone.return_value = (database_time,)
-        connection = mock.MagicMock()
-        connection.__enter__.return_value = connection
-        connection.cursor.return_value.__enter__.return_value = cursor
-        lifecycle.__dict__["_database"] = mock.Mock(return_value=connection)
-        lifecycle.__dict__["_check_deadline"] = mock.Mock()
-        acknowledged = mock.Mock(return_value=True)
-        lifecycle.__dict__["_acknowledged"] = acknowledged
-        keyring = mek_lifecycle._new_keyring("ack")
-
-        lifecycle._wait_for_acknowledgements(keyring, active=False)
-
-        self.assertEqual(2, acknowledged.call_count)
-        self.assertTrue(all(
-            call.args[2] == database_time
-            for call in acknowledged.call_args_list))
-
-
-class SecretPatchTest(unittest.TestCase):
-    """Validate exact-resource-version Secret writes."""
-
-    def test_patch_rejects_resource_version_change(self):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(secret_name="mek", secret_key="mek.yaml", namespace="osmo")
-        lifecycle.core = mock.Mock()
-        lifecycle.core.read_namespaced_secret.return_value = _object(
-            metadata=_object(
-                uid="secret-uid", resource_version="new",
-                annotations={mek_lifecycle._MANAGED_ANNOTATION: "osmo"}))
-        lifecycle.__dict__["_check_deadline"] = mock.Mock()
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "changed concurrently"):
-            lifecycle._patch_secret(
-                mek_lifecycle._new_keyring(), "old", {"example": "value"})
-        lifecycle.core.patch_namespaced_secret.assert_not_called()
-
-
-class LifecycleBoundaryTest(unittest.TestCase):
-    """Revoke one-shot RBAC and redact untrusted infrastructure failures."""
-
-    def test_revoke_deletes_exact_attempt_role_binding(self):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(
-            service_account="mek-attempt", namespace="osmo")
-        lifecycle.rbac = mock.Mock()
-
-        lifecycle.revoke_attempt_authority()
-
-        lifecycle.rbac.delete_namespaced_role_binding.assert_called_once_with(
-            "mek-attempt", "osmo")
-
-    def test_failure_still_revokes_attempt_role_binding(self):
-        config = _object(
-            operation="bootstrap", pod_uid="pod", service_account="mek-attempt")
-        lifecycle = mock.Mock()
-        lifecycle.lease_resource_version = ""
-        lifecycle.bootstrap.side_effect = RuntimeError("untrusted")
-
-        with mock.patch.object(
-            mek_lifecycle.MekLifecycleConfig, "load", return_value=config
-        ), mock.patch.object(
-            mek_lifecycle, "MekLifecycle", return_value=lifecycle
-        ), self.assertRaises(RuntimeError):
-            mek_lifecycle._run()
-
-        lifecycle.revoke_attempt_authority.assert_called_once_with()
-
-    def test_main_never_logs_api_exception_body(self):
-        marker = "do-not-log-mek-material"
-        error = mek_lifecycle.kubernetes_exceptions.ApiException(
-            status=422, reason=marker)
-        error.body = f'{{"data":{{"mek.yaml":"{marker}"}}}}'
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(
-            secret_name="mek", secret_key="mek.yaml", namespace="osmo",
-            installation_id="osmo/release")
-        lifecycle.__dict__["_check_deadline"] = mock.Mock()
-        lifecycle.core = mock.Mock()
-        lifecycle.core.read_namespaced_secret.return_value = _object(
-            metadata=_object(
-                uid="uid", resource_version="1",
-                annotations={
-                    mek_lifecycle._MANAGED_ANNOTATION: "osmo",
-                    mek_lifecycle._INSTALLATION_ANNOTATION: "osmo/release",
-                }))
-        lifecycle.core.patch_namespaced_secret.side_effect = error
-
-        def patch_secret():
-            lifecycle._patch_secret(
-                mek_lifecycle._new_keyring(), "1", {"example": "value"})
-
-        stdout, stderr = io.StringIO(), io.StringIO()
-
-        with mock.patch.object(mek_lifecycle, "_run", side_effect=patch_secret), \
-                contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr), \
-                self.assertLogs(level="ERROR") as captured, \
-                self.assertRaises(SystemExit) as context:
-            mek_lifecycle.main()
-
-        self.assertEqual(1, context.exception.code)
-        emitted = stdout.getvalue() + stderr.getvalue() + "\n".join(captured.output)
-        self.assertNotIn(marker, emitted)
-
-
-class RotationResumeTest(unittest.TestCase):
-    """Cover the two Kubernetes/SQL crash boundaries."""
-
-    def _lifecycle(self):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(request_id="rotation-1")
-        return lifecycle
-
-    def test_infers_prepare_patch_completed_before_phase_cas(self):
-        lifecycle = self._lifecycle()
-        predecessor = mek_lifecycle._new_keyring("initial")
-        prepared = mek_lifecycle._add_candidate(predecessor, "rotation-1")
-        row = {
-            "secret_uid": "uid", "secret_resource_version": "old",
-            "phase": "claimed", "predecessor_generation": predecessor.generation,
-            "candidate_generation": "", "registry_digest": predecessor.registry_digest,
-        }
-        secret = _object(metadata=_object(
-            uid="uid", resource_version="new",
-            annotations={mek_lifecycle._ROTATION_ANNOTATION: "rotation-1"}))
-
-        self.assertEqual(
-            ("prepare-written", prepared.generation),
-            lifecycle._validate_resumed_rotation(row, prepared, secret))
-
-    def test_infers_activate_patch_completed_before_phase_cas(self):
-        lifecycle = self._lifecycle()
-        prepared = mek_lifecycle._add_candidate(
-            mek_lifecycle._new_keyring("initial"), "rotation-1")
-        activated_document = copy.deepcopy(prepared.document)
-        activated_document["currentMek"] = "mek-rotation-1"
-        activated = mek_lifecycle._parse_keyring(
-            mek_lifecycle._serialize_keyring(activated_document))
-        row = {
-            "secret_uid": "uid", "secret_resource_version": "old",
-            "phase": "prepared", "predecessor_generation": "predecessor",
-            "candidate_generation": prepared.generation,
-            "registry_digest": prepared.registry_digest,
-        }
-        secret = _object(metadata=_object(
-            uid="uid", resource_version="new",
-            annotations={mek_lifecycle._ROTATION_ANNOTATION: "rotation-1"}))
-
-        self.assertEqual(
-            ("activate-written", activated.generation),
-            lifecycle._validate_resumed_rotation(row, activated, secret))
-
-    def test_rejects_unrecognized_secret_change(self):
-        lifecycle = self._lifecycle()
-        predecessor = mek_lifecycle._new_keyring("initial")
-        row = {
-            "secret_uid": "uid", "secret_resource_version": "old",
-            "phase": "claimed", "predecessor_generation": predecessor.generation,
-            "candidate_generation": "", "registry_digest": predecessor.registry_digest,
-        }
-        secret = _object(metadata=_object(
-            uid="uid", resource_version="unexpected", annotations={}))
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "outside"):
-            lifecycle._validate_resumed_rotation(row, predecessor, secret)
-
-    def test_phase_cas_rejects_same_revision_with_different_keyring(self):
-        lifecycle = self._lifecycle()
-        lifecycle.config = _object(
-            request_id="rotation-1", secret_key="mek.yaml", pod_uid="job-pod")
-        expected = mek_lifecycle._new_keyring("initial")
-        replacement = mek_lifecycle._new_keyring("other")
-        expected_secret = _object(metadata=_object(
-            uid="uid", resource_version="2",
-            annotations={mek_lifecycle._ROTATION_ANNOTATION: "rotation-1"}))
-        live_secret = _object(
-            metadata=expected_secret.metadata,
-            data={"mek.yaml": base64.b64encode(replacement.encoded).decode("ascii")})
-        lifecycle.__dict__["_secret"] = mock.Mock(return_value=live_secret)
-        lifecycle.__dict__["_database"] = mock.Mock()
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "phase keyring"):
-            lifecycle._advance_phase(
-                1, "claimed", "prepare-written", expected, expected_secret)
-        lifecycle._database.assert_not_called()
-
-    def test_completed_rotation_rerun_accepts_and_binds_marker_revision(self):
-        lifecycle = self._lifecycle()
-        lifecycle.config = _object(
-            request_id="rotation-1", secret_name="mek", secret_key="mek.yaml",
-            installation_id="osmo/release", pod_uid="retry-pod",
-            service_account="retry-sa")
-        keyring = mek_lifecycle._new_keyring("rotation-1")
-        secret = _object(metadata=_object(
-            uid="uid", resource_version="marker-rv",
-            annotations={
-                mek_lifecycle._ROTATION_ANNOTATION: "rotation-1",
-                mek_lifecycle._ROTATION_COMPLETE_ANNOTATION: "rotation-1",
+from src.utils.secret_manager import mek_lifecycle as lifecycle_module
+from src.utils.secret_manager.mek_lifecycle import (
+    MekLifecycle,
+    MekLifecycleConfig,
+    _ACTIVATE_GENERATION,
+    _BUNDLE_DIGEST,
+    _CANDIDATE,
+    _COMPLETED,
+    _INSTALLATION,
+    _PHASE,
+    _PREDECESSOR_CURRENT,
+    _PREPARE_GENERATION,
+    _REQUEST,
+    _add_candidate,
+    _new_keyring,
+    _parse_keyring,
+    _serialize_keyring,
+)
+
+
+def _config(
+    operation: Literal["bootstrap", "validate", "prepare", "activate", "rewrap"] = "prepare",
+    mode: Literal["external", "osmo"] = "osmo",
+) -> MekLifecycleConfig:
+    return MekLifecycleConfig.model_construct(
+        operation=operation,
+        namespace="osmo",
+        secret_name="osmo-mek",
+        secret_key="mek.yaml",
+        installation_id="osmo/release",
+        management_mode=mode,
+        request_id="rotate-1",
+        pod_uid="pod-1",
+        consumer_deployments=["api"],
+        active_deadline_seconds=900,
+        postgres_host="postgres",
+        postgres_port=5432,
+        postgres_user="osmo",
+        postgres_password="redacted",
+        postgres_database_name="osmo",
+    )
+
+
+def _secret(keyring, annotations=None):
+    return types.SimpleNamespace(
+        metadata=types.SimpleNamespace(
+            uid="secret-uid", resource_version="1", annotations=annotations or {}),
+        data={"mek.yaml": base64.b64encode(keyring.encoded).decode()},
+    )
+
+
+def _lifecycle(
+    operation: Literal["bootstrap", "validate", "prepare", "activate", "rewrap"] = "prepare",
+    mode: Literal["external", "osmo"] = "osmo",
+) -> MekLifecycle:
+    lifecycle = MekLifecycle.__new__(MekLifecycle)
+    lifecycle.config = _config(operation, mode)
+    lifecycle.deadline = time.monotonic() + 900
+    return lifecycle
+
+
+def _owner(kind: str, name: str, uid: str):
+    return types.SimpleNamespace(kind=kind, name=name, uid=uid, controller=True)
+
+
+def _deployment():
+    return types.SimpleNamespace(
+        metadata=types.SimpleNamespace(name="api", uid="deployment-uid", generation=2),
+        spec=types.SimpleNamespace(
+            replicas=1, selector=types.SimpleNamespace(match_labels={"app": "api"})),
+        status=types.SimpleNamespace(
+            observed_generation=2, updated_replicas=1, ready_replicas=1,
+            available_replicas=1),
+    )
+
+
+def _replica_set(name: str, uid: str, revision: int, owner_name: str = "api"):
+    return types.SimpleNamespace(
+        metadata=types.SimpleNamespace(
+            name=name, uid=uid,
+            annotations={"deployment.kubernetes.io/revision": str(revision)},
+            owner_references=[_owner(
+                "Deployment", owner_name,
+                "deployment-uid" if owner_name == "api" else "other-uid")]),
+    )
+
+
+def _pod(owner_references, deletion_timestamp=None):
+    return types.SimpleNamespace(
+        metadata=types.SimpleNamespace(
+            name="api-pod", uid="pod-uid", deletion_timestamp=deletion_timestamp,
+            owner_references=owner_references),
+        status=types.SimpleNamespace(
+            phase="Running",
+            conditions=[types.SimpleNamespace(type="Ready", status="True")]),
+        spec=types.SimpleNamespace(containers=[types.SimpleNamespace(name="api")]),
+    )
+
+
+class TestMekLifecycle(unittest.TestCase):
+    """Validate the Kubernetes-only lifecycle state machine."""
+
+    def test_prepare_adds_exactly_one_key_and_keeps_current(self):
+        original = _new_keyring("initial")
+        prepared = _add_candidate(original, "rotate-1")
+        self.assertEqual(prepared.current_key_id, original.current_key_id)
+        self.assertEqual(set(prepared.fingerprints) - set(original.fingerprints), {"mek-rotate-1"})
+        self.assertTrue(set(original.fingerprints).issubset(prepared.fingerprints))
+
+    def test_bootstrap_rejects_an_unowned_existing_secret(self):
+        lifecycle = _lifecycle("bootstrap")
+        lifecycle._optional_secret = mock.Mock(  # type: ignore[method-assign]
+            return_value=_secret(_new_keyring("initial")))
+        lifecycle._authenticate_existing_database = mock.Mock()  # type: ignore[method-assign]
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "exact bootstrap retry"):
+            lifecycle.bootstrap()
+        lifecycle._authenticate_existing_database.assert_not_called()
+
+    def test_bootstrap_retry_authenticates_exact_owned_secret_without_mutation(self):
+        lifecycle = _lifecycle("bootstrap")
+        keyring = _new_keyring("initial")
+        lifecycle._optional_secret = mock.Mock(  # type: ignore[method-assign]
+            return_value=_secret(keyring, {
+                _INSTALLATION: "osmo/release",
+                _PHASE: "idle",
+                _BUNDLE_DIGEST: keyring.registry_digest,
             }))
-        row = {
-            "rotation_id": "rotation-1", "fencing_epoch": 4, "phase": "complete",
-            "active_pod_uid": "old-pod", "active_service_account": "old-sa",
-            "credential_fenced": False, "predecessor_generation": "old",
-            "candidate_generation": keyring.generation,
-            "registry_digest": keyring.registry_digest, "secret_uid": "uid",
-            "secret_resource_version": "pre-marker-rv",
-        }
-        cursor = mock.MagicMock()
-        cursor.fetchone.side_effect = [
-            row, ("mek", "mek.yaml", "uid", "osmo/release", "osmo", True)]
-        cursor.rowcount = 1
-        connection = mock.MagicMock()
-        connection.__enter__.return_value = connection
-        connection.cursor.return_value.__enter__.return_value = cursor
-        lifecycle.__dict__["_database"] = mock.Mock(return_value=connection)
+        lifecycle._authenticate_existing_database = mock.Mock()  # type: ignore[method-assign]
+        lifecycle._create_secret = mock.Mock()  # type: ignore[method-assign]
+        lifecycle.bootstrap()
+        lifecycle._authenticate_existing_database.assert_called_once_with(keyring)
+        lifecycle._create_secret.assert_not_called()
 
-        claim = lifecycle._claim_rotation(keyring, secret)
+    def test_prepare_persists_strict_adjacent_annotations(self):
+        lifecycle = _lifecycle()
+        original = _new_keyring("initial")
+        secret = _secret(original, {_INSTALLATION: "osmo/release", _PHASE: "idle"})
+        lifecycle._secret = mock.Mock(return_value=secret)  # type: ignore[method-assign]
+        lifecycle._patch_secret = mock.Mock()  # type: ignore[method-assign]
+        lifecycle.prepare()
+        patched = lifecycle._patch_secret.call_args.args[1]
+        annotations = lifecycle._patch_secret.call_args.args[2]
+        self.assertEqual(patched.current_key_id, original.current_key_id)
+        self.assertEqual(annotations[_REQUEST], "rotate-1")
+        self.assertEqual(annotations[_PHASE], "prepared")
+        self.assertEqual(annotations[_PREDECESSOR_CURRENT], original.current_key_id)
+        self.assertEqual(annotations[_PREPARE_GENERATION], patched.generation)
+        self.assertEqual(annotations[_BUNDLE_DIGEST], patched.registry_digest)
 
-        self.assertEqual("complete", claim.phase)
-        self.assertTrue(any(
-            "SET rotation_secret_resource_version" in call.args[0]
-            for call in cursor.execute.call_args_list))
-
-
-class ExternalRewrapTest(unittest.TestCase):
-    """Require external rewrap to stay bound to one acknowledged Secret revision."""
-
-    def _lifecycle(self, live_resource_version="7"):
-        keyring = mek_lifecycle._new_keyring("external")
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(
-            request_id="rewrap-1", namespace="osmo", secret_name="mek",
-            secret_key="mek.yaml", installation_id="osmo/release",
-            consumer_deployments=["api"], mek_management_mode="external")
-        initial = _object(
-            metadata=_object(uid="uid", resource_version="7", annotations={}),
-            data={"mek.yaml": base64.b64encode(keyring.encoded).decode("ascii")})
-        live = _object(
-            metadata=_object(
-                uid="uid", resource_version=live_resource_version, annotations={}),
-            data=initial.data)
-        lifecycle.__dict__["_secret"] = mock.Mock(side_effect=[initial, live, live])
-        lifecycle.__dict__["_wait_for_acknowledgements"] = mock.Mock()
-        lifecycle.__dict__["_run_rewrap"] = mock.Mock()
-        cursor = mock.MagicMock()
-        cursor.fetchone.return_value = {
-            "bound_secret_name": "mek", "bound_secret_key": "mek.yaml",
-            "bound_secret_uid": "uid", "installation_id": "osmo/release",
-            "management_mode": "external", "ready": True,
-            "rotation_id": "", "phase": "idle",
-        }
-        cursor.fetchall.return_value = [
-            {"kid": kid, "fingerprint": fingerprint, "state": "current"}
-            for kid, fingerprint in keyring.fingerprints.items()
-        ]
-        connection = mock.MagicMock()
-        connection.__enter__.return_value = connection
-        connection.cursor.return_value.__enter__.return_value = cursor
-        lifecycle.__dict__["_database"] = mock.Mock(return_value=connection)
-        return lifecycle, keyring
-
-    def test_external_rewrap_waits_for_active_consumers_and_runs_once(self):
-        lifecycle, keyring = self._lifecycle()
-
-        lifecycle.rewrap()
-
-        lifecycle._wait_for_acknowledgements.assert_called_once_with(  # pylint: disable=protected-access
-            keyring, active=True)
-        lifecycle._run_rewrap.assert_called_once_with(keyring)  # pylint: disable=protected-access
-
-    def test_external_rewrap_rejects_concurrent_secret_change(self):
-        lifecycle, _ = self._lifecycle(live_resource_version="8")
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "changed during external rewrap"):
-            lifecycle.rewrap()
-
-    def test_external_rewrap_rejects_wrong_binding_before_ack_or_writes(self):
-        lifecycle, _ = self._lifecycle()
-        connection = lifecycle._database.return_value  # pylint: disable=protected-access
-        cursor = connection.cursor.return_value.__enter__.return_value
-        cursor.fetchone.return_value["management_mode"] = "osmo"
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "installation binding"):
-            lifecycle.rewrap()
-        lifecycle._wait_for_acknowledgements.assert_not_called()  # pylint: disable=protected-access
-        lifecycle._run_rewrap.assert_not_called()  # pylint: disable=protected-access
-
-    def test_first_external_rewrap_binds_a_completely_unbound_installation(self):
-        lifecycle, keyring = self._lifecycle()
-        connection = lifecycle._database.return_value
-        cursor = connection.cursor.return_value.__enter__.return_value
-        cursor.fetchone.return_value.update({
-            "bound_secret_name": "", "bound_secret_key": "",
-            "bound_secret_uid": "", "installation_id": "",
+    def test_prepare_resume_reuses_candidate(self):
+        lifecycle = _lifecycle()
+        prepared = _add_candidate(_new_keyring("initial"), "rotate-1")
+        secret = _secret(prepared, {
+            _INSTALLATION: "osmo/release",
+            _REQUEST: "rotate-1",
+            _PHASE: "prepared",
+            _PREPARE_GENERATION: prepared.generation,
+            _BUNDLE_DIGEST: prepared.registry_digest,
         })
-        cursor.rowcount = 1
+        lifecycle._secret = mock.Mock(return_value=secret)  # type: ignore[method-assign]
+        lifecycle._patch_secret = mock.Mock()  # type: ignore[method-assign]
+        lifecycle.prepare()
+        lifecycle._patch_secret.assert_not_called()
 
-        lifecycle.rewrap()
-
-        binding_calls = [
-            call for call in cursor.execute.call_args_list
-            if "SET\n                            bound_secret_name" in call.args[0]
-        ]
-        self.assertEqual(len(binding_calls), 1)
-        self.assertEqual(
-            binding_calls[0].args[1], ("mek", "mek.yaml", "uid", "osmo/release"))
-        lifecycle._run_rewrap.assert_called_once_with(keyring)
-
-    def test_external_rewrap_rejects_partial_identity_without_repair(self):
-        lifecycle, _ = self._lifecycle()
-        connection = lifecycle._database.return_value
-        cursor = connection.cursor.return_value.__enter__.return_value
-        cursor.fetchone.return_value.update({
-            "bound_secret_name": "mek", "bound_secret_key": "",
-            "bound_secret_uid": "", "installation_id": "",
+    def test_activate_requires_verified_prepare_cohort(self):
+        lifecycle = _lifecycle("activate")
+        prepared = _add_candidate(_new_keyring("initial"), "rotate-1")
+        candidate = "mek-rotate-1"
+        secret = _secret(prepared, {
+            _INSTALLATION: "osmo/release",
+            _REQUEST: "rotate-1",
+            _PHASE: "prepared",
+            _PREDECESSOR_CURRENT: prepared.current_key_id,
+            _PREPARE_GENERATION: prepared.generation,
+            _BUNDLE_DIGEST: prepared.registry_digest,
+            _CANDIDATE: candidate,
         })
+        lifecycle._secret = mock.Mock(return_value=secret)  # type: ignore[method-assign]
+        lifecycle.verify_rollout = mock.Mock()  # type: ignore[method-assign]
+        lifecycle._patch_secret = mock.Mock()  # type: ignore[method-assign]
+        lifecycle.activate()
+        lifecycle.verify_rollout.assert_called_once_with(prepared)
+        activated = lifecycle._patch_secret.call_args.args[1]
+        annotations = lifecycle._patch_secret.call_args.args[2]
+        self.assertEqual(activated.current_key_id, candidate)
+        self.assertEqual(annotations[_PHASE], "activated")
+        self.assertEqual(annotations[_ACTIVATE_GENERATION], activated.generation)
 
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "installation binding"):
-            lifecycle.rewrap()
-        self.assertFalse(any(
-            "SET\n                            bound_secret_name" in call.args[0]
-            for call in cursor.execute.call_args_list))
+    def test_activate_retry_accepts_already_committed_matching_state(self):
+        lifecycle = _lifecycle("activate")
+        prepared = _add_candidate(_new_keyring("initial"), "rotate-1")
+        document = dict(prepared.document)
+        document["currentMek"] = "mek-rotate-1"
+        activated = _parse_keyring(_serialize_keyring(document))
+        secret = _secret(activated, {
+            _INSTALLATION: "osmo/release",
+            _REQUEST: "rotate-1",
+            _PHASE: "activated",
+            _ACTIVATE_GENERATION: activated.generation,
+            _BUNDLE_DIGEST: activated.registry_digest,
+            _CANDIDATE: activated.current_key_id,
+        })
+        lifecycle._secret = mock.Mock(return_value=secret)  # type: ignore[method-assign]
+        lifecycle.verify_rollout = mock.Mock()  # type: ignore[method-assign]
+        lifecycle._patch_secret = mock.Mock()  # type: ignore[method-assign]
+        lifecycle.activate()
+        lifecycle.verify_rollout.assert_not_called()
+        lifecycle._patch_secret.assert_not_called()
 
-    def test_connector_rewrap_is_pinned_to_parsed_keyring_descriptor(self):
-        keyring = mek_lifecycle._new_keyring("external")
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.deadline = mek_lifecycle.time.monotonic() + 60
-        connector_config = mock.Mock()
-        lifecycle.config = mock.Mock(
-            secret_name="mek", secret_key="mek.yaml",
-            installation_id="osmo/release")
-        lifecycle.config.model_copy.return_value = connector_config
-        database = mock.Mock()
+    def test_external_mode_cannot_mutate_prepare_or_activate(self):
+        for operation in ("prepare", "activate"):
+            with self.subTest(operation=operation):
+                lifecycle = _lifecycle(operation, "external")
+                with self.assertRaisesRegex(osmo_errors.OSMOError, "managed mode"):
+                    getattr(lifecycle, operation)()
 
-        with mock.patch.object(
-            mek_lifecycle.connectors, "PostgresConnector", return_value=database
-        ):
-            lifecycle._run_rewrap(keyring)  # pylint: disable=protected-access
+    @mock.patch("src.utils.secret_manager.mek_lifecycle.connectors.PostgresConnector")
+    def test_managed_rewrap_retry_accepts_matching_completion(self, connector_class):
+        lifecycle = _lifecycle("rewrap")
+        prepared = _add_candidate(_new_keyring("initial"), "rotate-1")
+        document = dict(prepared.document)
+        document["currentMek"] = "mek-rotate-1"
+        activated = _parse_keyring(_serialize_keyring(document))
+        secret = _secret(activated, {
+            _INSTALLATION: "osmo/release",
+            _REQUEST: "rotate-1",
+            _PHASE: "complete",
+            _COMPLETED: "rotate-1",
+            _ACTIVATE_GENERATION: activated.generation,
+            _BUNDLE_DIGEST: activated.registry_digest,
+            _CANDIDATE: activated.current_key_id,
+        })
+        lifecycle._secret = mock.Mock(return_value=secret)  # type: ignore[method-assign]
+        lifecycle.verify_rollout = mock.Mock()  # type: ignore[method-assign]
+        lifecycle.rewrap()
+        connector_class.assert_not_called()
+        lifecycle.verify_rollout.assert_not_called()
 
-        database.rewrap_mek_references.assert_called_once()
-        kwargs = database.rewrap_mek_references.call_args.kwargs
-        self.assertEqual(kwargs["expected_generation"], keyring.generation)
-        self.assertEqual(kwargs["expected_current_kid"], keyring.current_key_id)
-        self.assertEqual(kwargs["expected_registry_digest"], keyring.registry_digest)
-        database.close.assert_called_once_with()
+    @mock.patch("src.utils.secret_manager.mek_lifecycle.connectors.PostgresConnector")
+    def test_external_rewrap_uses_live_activated_bundle_without_managed_annotations(
+            self, connector_class):
+        lifecycle = _lifecycle("rewrap", "external")
+        activated = _add_candidate(_new_keyring("initial"), "rotate-1")
+        secret = _secret(activated)
+        lifecycle._secret = mock.Mock(side_effect=[secret, secret])  # type: ignore[method-assign]
+        lifecycle.verify_rollout = mock.Mock()  # type: ignore[method-assign]
+        lifecycle._patch_secret = mock.Mock()  # type: ignore[method-assign]
+        lifecycle.rewrap()
+        self.assertEqual(lifecycle.verify_rollout.call_count, 2)
+        connector_class.return_value.rewrap_mek_references.assert_called_once_with(
+            deadline_seconds=mock.ANY,
+            expected_generation=activated.generation,
+            expected_current_kid=activated.current_key_id,
+            expected_registry_digest=activated.registry_digest,
+        )
+        lifecycle._patch_secret.assert_not_called()
 
+    def test_descriptor_log_is_exact_machine_readable_json(self):
+        descriptor = {
+            "currentKid": "key2",
+            "loadedKids": ["key1", "key2"],
+            "generation": "abc",
+            "digest": "def",
+        }
+        log = "prefix\nINFO OSMO_MEK_DESCRIPTOR " + __import__("json").dumps(descriptor)
+        self.assertEqual(MekLifecycle._descriptor_from_log(log), descriptor)
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "descriptor"):
+            MekLifecycle._descriptor_from_log("normal startup")
 
-class OwnershipTest(unittest.TestCase):
-    """Require explicit, content-preserving Secret ownership transitions."""
-
-    def _lifecycle(self, keyring):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(
-            namespace="osmo", secret_name="mek", secret_key="mek.yaml",
-            installation_id="osmo/release", mek_management_mode="osmo")
-        secret = _object(
-            metadata=_object(
-                uid="new-uid", resource_version="2",
-                annotations={
-                    mek_lifecycle._MANAGED_ANNOTATION: "osmo",
-                    mek_lifecycle._INSTALLATION_ANNOTATION: "osmo/release",
-                }),
-            data={"mek.yaml": base64.b64encode(keyring.encoded).decode("ascii")})
-        lifecycle.__dict__["_secret"] = mock.Mock(return_value=secret)
-        lifecycle.__dict__["_required_secret_keyring"] = mock.Mock(return_value=keyring)
-        cursor = mock.MagicMock()
-        connection = mock.MagicMock()
-        connection.__enter__.return_value = connection
-        connection.cursor.return_value.__enter__.return_value = cursor
-        lifecycle.__dict__["_database"] = mock.Mock(return_value=connection)
-        return lifecycle, cursor
-
-    def test_rebind_accepts_only_identical_recreated_secret(self):
-        keyring = mek_lifecycle._new_keyring("initial")
-        lifecycle, cursor = self._lifecycle(keyring)
-        cursor.fetchone.side_effect = [
-            ("mek", "mek.yaml", "old-uid", "osmo/release", "osmo", True),
-            ("rotate-old", "complete"),
-        ]
-        cursor.fetchall.return_value = [
-            (kid, fingerprint, "current")
-            for kid, fingerprint in keyring.fingerprints.items()
-        ]
-        cursor.rowcount = 1
-
-        lifecycle.rebind()
-
-        self.assertTrue(any(
-            "SET bound_secret_uid" in call.args[0]
-            for call in cursor.execute.call_args_list))
-
-    def test_release_records_explicit_external_ownership(self):
-        keyring = mek_lifecycle._new_keyring("initial")
-        lifecycle, cursor = self._lifecycle(keyring)
-        cursor.fetchone.side_effect = [
-            ("mek", "mek.yaml", "new-uid", "osmo/release", "osmo", True),
-            ("rotate-old", "complete"),
-        ]
-        cursor.fetchall.return_value = [
-            (kid, fingerprint, "current")
-            for kid, fingerprint in keyring.fingerprints.items()
-        ]
-        cursor.rowcount = 1
-
-        lifecycle.release_ownership()
-
-        self.assertTrue(any(
-            "management_mode = 'external'" in call.args[0]
-            for call in cursor.execute.call_args_list))
-
-    def test_release_retry_accepts_already_external_ownership(self):
-        keyring = mek_lifecycle._new_keyring("initial")
-        lifecycle, cursor = self._lifecycle(keyring)
-        cursor.fetchone.side_effect = [
-            ("mek", "mek.yaml", "new-uid", "osmo/release", "external", True),
-            ("rotate-old", "complete"),
-        ]
-        cursor.fetchall.return_value = [
-            (kid, fingerprint, "current")
-            for kid, fingerprint in keyring.fingerprints.items()
-        ]
-
-        lifecycle.release_ownership()
-
-        self.assertFalse(any(
-            "SET management_mode = 'external'" in call.args[0]
-            for call in cursor.execute.call_args_list))
-
-    def test_reacquire_restores_managed_mode_after_safe_rollback(self):
-        keyring = mek_lifecycle._new_keyring("initial")
-        lifecycle, cursor = self._lifecycle(keyring)
-        cursor.fetchone.side_effect = [
-            ("mek", "mek.yaml", "new-uid", "osmo/release", "external", True),
-            ("rotate-old", "complete"),
-        ]
-        cursor.fetchall.return_value = [
-            (kid, fingerprint, "current")
-            for kid, fingerprint in keyring.fingerprints.items()
-        ]
-        cursor.rowcount = 1
-
-        lifecycle.reacquire_ownership()
-
-        self.assertTrue(any(
-            "management_mode = 'osmo'" in call.args[0]
-            for call in cursor.execute.call_args_list))
-
-    def test_rebind_rejects_wrong_installation_annotation(self):
-        keyring = mek_lifecycle._new_keyring("initial")
-        lifecycle, cursor = self._lifecycle(keyring)
-        secret = lifecycle._secret()
-        secret.metadata.annotations[mek_lifecycle._INSTALLATION_ANNOTATION] = "other/release"
-
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "not OSMO managed"):
-            lifecycle.rebind()
-        cursor.execute.assert_not_called()
-
-
-class RecoveryTest(unittest.TestCase):
-    """Bind recovery to the exact installation and failed Lease holder."""
-
-    def _lifecycle(self):
-        lifecycle = mek_lifecycle.MekLifecycle.__new__(mek_lifecycle.MekLifecycle)
-        lifecycle.config = _object(
-            namespace="osmo", secret_name="mek", secret_key="mek.yaml",
-            installation_id="osmo/release")
-        lifecycle.lease_name = "mek-mek-lifecycle"
-        lifecycle.__dict__["_check_deadline"] = mock.Mock()
-        lifecycle.core = mock.Mock()
-        lifecycle.core.list_namespaced_pod.return_value = _object(items=[])
+    def test_lease_is_never_stolen_from_another_holder(self):
+        lifecycle = _lifecycle()
+        lifecycle.holder = "rotate-1:prepare:pod-1"
+        lifecycle.lease_name = "release-mek-deadbeef"
         lifecycle.coordination = mock.Mock()
-        cursor = mock.MagicMock()
-        connection = mock.MagicMock()
-        connection.__enter__.return_value = connection
-        connection.cursor.return_value.__enter__.return_value = cursor
-        lifecycle.__dict__["_database"] = mock.Mock(return_value=connection)
-        return lifecycle, cursor
+        lifecycle.coordination.read_namespaced_lease.return_value = types.SimpleNamespace(
+            spec=types.SimpleNamespace(holder_identity="old:prepare:pod-old"))
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "delete the old Job Pod"):
+            lifecycle.acquire_lease()
+        lifecycle.coordination.patch_namespaced_lease.assert_not_called()
 
-    def test_recovery_rejects_another_installation(self):
-        lifecycle, cursor = self._lifecycle()
-        cursor.fetchone.return_value = {
-            "secret_name": "other", "secret_key": "mek.yaml",
-            "installation_id": "other/release", "management_mode": "osmo",
-            "ready": True,
+    def test_missing_lease_is_created_outside_helm_desired_state(self):
+        lifecycle = _lifecycle()
+        lifecycle.holder = "rotate-1:prepare:pod-1"
+        lifecycle.lease_name = "release-mek-deadbeef"
+        lifecycle.coordination = mock.Mock()
+        missing = lifecycle_module.kubernetes_exceptions.ApiException(status=404)
+        created = types.SimpleNamespace(
+            metadata=types.SimpleNamespace(resource_version="1"),
+            spec=types.SimpleNamespace(holder_identity=""))
+        lifecycle.coordination.read_namespaced_lease.side_effect = missing
+        lifecycle.coordination.create_namespaced_lease.return_value = created
+        lifecycle.acquire_lease()
+        lifecycle.coordination.create_namespaced_lease.assert_called_once()
+        lifecycle.coordination.patch_namespaced_lease.assert_called_once()
+
+    def test_every_unexpected_selected_pod_blocks_attestation(self):
+        lifecycle = _lifecycle("activate")
+        lifecycle.apps = mock.Mock()
+        lifecycle.core = mock.Mock()
+        lifecycle.apps.read_namespaced_deployment.return_value = _deployment()
+        current = _replica_set("api-current", "rs-current", 2)
+        old = _replica_set("api-old", "rs-old", 1)
+        expected = _new_keyring("initial")
+        cases = {
+            "standalone": ([current], _pod([])),
+            "wrong-owner": ([current], _pod([_owner("ReplicaSet", "other", "other-rs")])),
+            "stale-rs-uid": (
+                [current], _pod([_owner("ReplicaSet", "api-current", "stale-uid")])),
+            "old-replica-set": (
+                [old, current], _pod([_owner("ReplicaSet", "api-old", "rs-old")])),
+            "terminating": (
+                [current], _pod(
+                    [_owner("ReplicaSet", "api-current", "rs-current")], "now")),
         }
+        for name, (replica_sets, pod) in cases.items():
+            with self.subTest(name=name):
+                lifecycle.apps.list_namespaced_replica_set.return_value = \
+                    types.SimpleNamespace(items=replica_sets)
+                lifecycle.core.list_namespaced_pod.return_value = \
+                    types.SimpleNamespace(items=[pod])
+                with self.assertRaises(osmo_errors.OSMOError):
+                    lifecycle._observe_pods_once(expected)
 
-        with self.assertRaisesRegex(osmo_errors.OSMOError, "installation binding"):
-            lifecycle.recover()
-        lifecycle.coordination.read_namespaced_lease.assert_not_called()
-
-    def test_recovery_never_clears_a_different_lease_holder(self):
-        lifecycle, cursor = self._lifecycle()
-        cursor.fetchone.side_effect = [
-            {
-                "secret_name": "mek", "secret_key": "mek.yaml",
-                "installation_id": "osmo/release", "management_mode": "osmo",
-                "ready": True,
-            },
-            {
-                "rotation_id": "rotation", "phase": "prepared",
-                "active_pod_uid": "old-pod", "active_service_account": "old-sa",
-            },
-        ]
-        cursor.rowcount = 1
-        lifecycle.coordination.read_namespaced_lease.return_value = _object(
-            metadata=_object(resource_version="3"),
-            spec=_object(holder_identity="new-pod", renew_time=None))
-        denied = _object(status=_object(allowed=False))
-        authorization = mock.Mock()
-        authorization.create_namespaced_local_subject_access_review.return_value = denied
-
-        with mock.patch.object(
-            mek_lifecycle.client, "AuthorizationV1Api", return_value=authorization
-        ), self.assertRaisesRegex(osmo_errors.OSMOError, "different attempt"):
-            lifecycle.recover()
-        lifecycle.coordination.replace_namespaced_lease.assert_not_called()
+    @mock.patch("src.utils.secret_manager.mek_lifecycle._run")
+    def test_unexpected_failure_boundary_never_logs_exception_text(self, run):
+        sentinel = "MEK-SENTINEL-DO-NOT-LOG"
+        run.side_effect = RuntimeError(sentinel)
+        with self.assertLogs(level="ERROR") as captured:
+            with self.assertRaises(SystemExit):
+                lifecycle_module.main()
+        self.assertNotIn(sentinel, "\n".join(captured.output))
 
 
 if __name__ == "__main__":

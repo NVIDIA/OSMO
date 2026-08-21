@@ -42,6 +42,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.secrets.mekRolloutAnnotation" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -150,8 +151,6 @@ spec:
         {{- end }}
         {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
         env:
-        {{- include "osmo.secrets.mekConsumerEnv" "api" | nindent 8 }}
-        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.api.disableTaskMetrics | quote }}
         {{- include "osmo.configuration.env" . | nindent 8 }}

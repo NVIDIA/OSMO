@@ -34,17 +34,6 @@ resource_document() {
     ' <<<"$rendered"
 }
 
-lease_name() {
-    awk '
-        /^kind: Lease$/ { lease = 1; metadata = 0; next }
-        lease && /^metadata:$/ { metadata = 1; next }
-        lease && metadata && /^  name: / {
-            sub(/^  name: /, ""); gsub(/^"|"$/, ""); print; exit
-        }
-        /^---$/ { lease = 0; metadata = 0 }
-    ' <<<"$1"
-}
-
 helm_args=(
     --namespace osmo
     --set 'services.backendApiTokens.enabled=true'
@@ -120,158 +109,119 @@ mek_bootstrap_render=$(helm template mek-bootstrap "$CHART_DIR" --namespace osmo
     --set 'services.masterEncryptionKey.bootstrap.enabled=true' \
     --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
     --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml')
-grep -q '^kind: Lease$' <<<"$mek_bootstrap_render"
-grep -q 'app.kubernetes.io/component: mek-bootstrap' <<<"$mek_bootstrap_render"
+if grep -q '^kind: Lease$\|^kind: Secret$' <<<"$mek_bootstrap_render"; then
+    echo 'MEK bootstrap rendered mutable lifecycle state into Helm desired state' >&2
+    exit 1
+fi
 grep -q 'command: \["mek-lifecycle"\]' <<<"$mek_bootstrap_render"
-grep -A1 -- '- --operation' <<<"$mek_bootstrap_render" | grep -q -- '- bootstrap'
+grep -A1 -- '- --operation' <<<"$mek_bootstrap_render" | grep -q -- '- "bootstrap"'
 grep -q 'resourceNames: \["test-mek"\]' <<<"$mek_bootstrap_render"
-grep -q 'verbs: \["get", "patch"\]' <<<"$mek_bootstrap_render"
-grep -q 'resources: \["rolebindings"\]' <<<"$mek_bootstrap_render"
-grep -q 'verbs: \["delete"\]' <<<"$mek_bootstrap_render"
-if grep -q 'resources: \["secrets"\].*create' <<<"$mek_bootstrap_render"; then
-    echo 'MEK bootstrap can create arbitrary Secrets' >&2
-    exit 1
-fi
-mek_bootstrap_placeholder=$(resource_document "$mek_bootstrap_render" Secret test-mek)
-grep -q 'osmo.nvidia.com/mek-management: osmo' \
-    <<<"$mek_bootstrap_placeholder"
-if ! grep -A1 '^data:' <<<"$mek_bootstrap_placeholder" \
-        | grep -q '  "keyring.yaml": ""'; then
-    echo 'MEK bootstrap did not render the retained empty placeholder' >&2
-    exit 1
-fi
-
-mek_bootstrap_upgrade_render=$(helm template mek-bootstrap-upgrade "$CHART_DIR" \
-    --namespace osmo --is-upgrade \
+grep -q 'verbs: \["create"\]' <<<"$mek_bootstrap_render"
+grep -q 'runAsUser: 1001' <<<"$mek_bootstrap_render"
+mek_bootstrap_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+    <<<"$mek_bootstrap_render")
+mek_bootstrap_changed=$(helm template mek-bootstrap "$CHART_DIR" --namespace osmo \
     --set 'services.masterEncryptionKey.managementMode=osmo' \
-    --set 'services.masterEncryptionKey.bootstrap.enabled=true')
-grep -A1 -- '- --operation' <<<"$mek_bootstrap_upgrade_render" | grep -q -- '- validate'
-if grep -A4 'resources: \["secrets"\]' <<<"$mek_bootstrap_upgrade_render" \
-        | grep -q patch; then
-    echo 'Upgrade validation can patch the MEK Secret' >&2
+    --set 'services.masterEncryptionKey.bootstrap.enabled=true' \
+    --set 'services.masterEncryptionKey.bootstrap.activeDeadlineSeconds=899' \
+    --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
+    --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml')
+mek_bootstrap_changed_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+    <<<"$mek_bootstrap_changed")
+if [[ "$mek_bootstrap_name" == "$mek_bootstrap_changed_name" ]]; then
+    echo 'MEK bootstrap immutable template change reused a completed Job name' >&2
     exit 1
 fi
-if grep -q '^kind: Secret$' <<<"$mek_bootstrap_upgrade_render"; then
-    echo 'MEK bootstrap rendered a placeholder Secret during upgrade' >&2
+mek_bootstrap_retry=$(helm template mek-bootstrap "$CHART_DIR" --namespace osmo \
+    --set 'services.masterEncryptionKey.managementMode=osmo' \
+    --set 'services.masterEncryptionKey.bootstrap.enabled=true' \
+    --set-string 'services.masterEncryptionKey.bootstrap.attempt=2' \
+    --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
+    --set 'services.masterEncryptionKey.existingSecret.key=keyring.yaml')
+mek_bootstrap_retry_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+    <<<"$mek_bootstrap_retry")
+if [[ "$mek_bootstrap_name" == "$mek_bootstrap_retry_name" ]]; then
+    echo 'MEK bootstrap attempt did not create a new GitOps retry Job name' >&2
     exit 1
 fi
-
-if helm template mek-bootstrap-disabled "$CHART_DIR" --namespace osmo \
-        | grep -q 'app.kubernetes.io/component: mek-bootstrap'; then
-    echo 'MEK bootstrap hook rendered while disabled' >&2
+mek_bootstrap_password_one=$(helm template mek-bootstrap "$CHART_DIR" --namespace osmo \
+    --set 'services.masterEncryptionKey.managementMode=osmo' \
+    --set 'services.masterEncryptionKey.bootstrap.enabled=true' \
+    --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
+    --set-string 'services.postgres.password=credential-sentinel-one')
+mek_bootstrap_password_two=$(helm template mek-bootstrap "$CHART_DIR" --namespace osmo \
+    --set 'services.masterEncryptionKey.managementMode=osmo' \
+    --set 'services.masterEncryptionKey.bootstrap.enabled=true' \
+    --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
+    --set-string 'services.postgres.password=credential-sentinel-two')
+mek_bootstrap_password_one_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+    <<<"$mek_bootstrap_password_one")
+mek_bootstrap_password_two_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+    <<<"$mek_bootstrap_password_two")
+if [[ "$mek_bootstrap_password_one_name" != "$mek_bootstrap_password_two_name" ]]; then
+    echo 'Inline credential bytes influenced a public MEK lifecycle resource name' >&2
     exit 1
 fi
-
-assert_invalid_mek_bootstrap_value() {
-    local description=$1
-    shift
-    if helm template invalid-mek-bootstrap "$CHART_DIR" --namespace osmo \
-            "$@" >/dev/null 2>&1; then
-        echo "Invalid MEK bootstrap $description was accepted" >&2
-        exit 1
-    fi
-}
-
-assert_invalid_mek_bootstrap_value object \
-    --set-string 'services.masterEncryptionKey.bootstrap=invalid'
-assert_invalid_mek_bootstrap_value enabled-type \
-    --set-string 'services.masterEncryptionKey.bootstrap.enabled=false'
-assert_invalid_mek_bootstrap_value image-pull-policy-type \
-    --set 'services.masterEncryptionKey.bootstrap.imagePullPolicy=123'
-assert_invalid_mek_bootstrap_value image-pull-policy-value \
-    --set-string 'services.masterEncryptionKey.bootstrap.imagePullPolicy=Sometimes'
-assert_invalid_mek_bootstrap_value deadline-type \
-    --set-string 'services.masterEncryptionKey.rotation.activeDeadlineSeconds=900'
-assert_invalid_mek_bootstrap_value fractional-deadline \
-    --set-json 'services.masterEncryptionKey.rotation.activeDeadlineSeconds=1.5'
-assert_invalid_mek_bootstrap_value ownership-bool-type \
-    --set-string 'services.masterEncryptionKey.ownershipRelease.enabled=false'
-
-validation_marker='do-not-echo-mek-contract-sentinel'
-validation_output=$(mktemp)
-trap 'rm -f "$validation_output"' EXIT
-if helm template invalid-mek-secret-name "$CHART_DIR" --namespace osmo \
-        --set-json "services.masterEncryptionKey.existingSecret.name={\"token\":\"$validation_marker\"}" \
-        >"$validation_output" 2>&1; then
-    echo 'Object-valued MEK Secret name was accepted' >&2
+if helm template mek-bootstrap "$CHART_DIR" --namespace osmo \
+        --set 'services.masterEncryptionKey.managementMode=osmo' \
+        --set 'services.masterEncryptionKey.bootstrap.enabled=true' \
+        --set 'services.masterEncryptionKey.rotation.requestId=rotate' \
+        --set 'services.masterEncryptionKey.rotation.phase=prepare' >/dev/null 2>&1; then
+    echo 'MEK rotation phase was accepted while bootstrap remained enabled' >&2
     exit 1
 fi
-if grep -q "$validation_marker" "$validation_output"; then
-    echo 'MEK contract validation echoed an untrusted value' >&2
+if grep -q 'name: mek-volume' <<<"$(resource_document "$mek_bootstrap_render" Job \
+        "$(awk '/^kind: Role$/{role=1; next} role && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+        <<<"$mek_bootstrap_render")")"; then
+    echo 'Create-only MEK bootstrap Job requires the not-yet-created Secret volume' >&2
     exit 1
 fi
 
 quick_start_render=$(helm template quick-start "$CHART_DIR" --namespace osmo \
     -f "$CHART_DIR/quick-start-values.yaml")
-grep -q 'app.kubernetes.io/component: mek-bootstrap' <<<"$quick_start_render"
+grep -q 'command: \["mek-lifecycle"\]' <<<"$quick_start_render"
 
-mek_rotation_render=$(helm template mek-rotate "$CHART_DIR" --namespace osmo \
+mek_prepare_render=$(helm template mek-prepare "$CHART_DIR" --namespace osmo \
     --is-upgrade \
     --set 'services.masterEncryptionKey.managementMode=osmo' \
     --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
     --set 'services.masterEncryptionKey.rotation.requestId=rotate-2026-08' \
+    --set 'services.masterEncryptionKey.rotation.phase=prepare' \
+    --set 'services.masterEncryptionKey.rotation.rolloutRevision=prepare-2026-08' \
     --set 'services.masterEncryptionKey.rotation.activeDeadlineSeconds=321')
-grep -q 'app.kubernetes.io/component: mek-rotation' <<<"$mek_rotation_render"
-grep -A1 -- '- --operation' <<<"$mek_rotation_render" | grep -q -- '- rotate'
-grep -q 'resources: \["pods"\]' <<<"$mek_rotation_render"
-grep -q 'resources: \["deployments", "replicasets"\]' <<<"$mek_rotation_render"
-grep -A1 -- '--active_deadline_seconds' <<<"$mek_rotation_render" \
-    | grep -q -- '"321"'
+grep -A1 -- '- --operation' <<<"$mek_prepare_render" | grep -q -- '- "prepare"'
+grep -q 'resources: \["pods/log"\]' <<<"$mek_prepare_render"
+grep -q 'resources: \["deployments", "replicasets"\]' <<<"$mek_prepare_render"
+mek_prepare_name=$(awk '/^kind: Role$/{role=1; next} role && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+    <<<"$mek_prepare_render")
+mek_prepare_job=$(resource_document "$mek_prepare_render" Job "$mek_prepare_name")
+if grep -q 'name: OSMO_POSTGRES_PASSWORD' <<<"$mek_prepare_job"; then
+    echo 'MEK PREPARE received unnecessary database credentials' >&2
+    exit 1
+fi
+grep -A1 -- '--active_deadline_seconds' <<<"$mek_prepare_render" | grep -q -- '"321"'
+if [[ $(grep -c 'osmo.nvidia.com/mek-rollout: "prepare-2026-08"' \
+        <<<"$mek_prepare_render") -ne 6 ]]; then
+    echo 'MEK rollout revision was not applied to all six consumers' >&2
+    exit 1
+fi
+if grep -q 'verbs: \["delete"\]' <<<"$mek_prepare_render"; then
+    echo 'MEK lifecycle received workload deletion authority' >&2
+    exit 1
+fi
 
 mek_rewrap_render=$(helm template mek-rewrap "$CHART_DIR" --namespace osmo \
     --is-upgrade \
     --set 'services.masterEncryptionKey.managementMode=external' \
     --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
-    --set 'services.masterEncryptionKey.rewrap.requestId=rewrap-2026-08' \
-    --set 'services.masterEncryptionKey.rewrap.activeDeadlineSeconds=432')
-grep -q 'app.kubernetes.io/component: mek-rewrap' <<<"$mek_rewrap_render"
-grep -A1 -- '- --operation' <<<"$mek_rewrap_render" | grep -q -- '- rewrap'
-grep -A1 -- '--active_deadline_seconds' <<<"$mek_rewrap_render" \
-    | grep -q -- '"432"'
-mek_rewrap_role=$(resource_document "$mek_rewrap_render" Role \
-    "$(awk '/app.kubernetes.io\/component: mek-rewrap/{found=1} found && /serviceAccountName:/{print $2; exit}' <<<"$mek_rewrap_render")")
-grep -q 'resourceNames: \["test-mek"\]' <<<"$mek_rewrap_role"
-grep -q 'verbs: \["get"\]' <<<"$mek_rewrap_role"
-if grep -qE 'verbs: .*\b(patch|update|create|deletecollection)\b' \
-        <<<"$(grep -A4 'resources: \["secrets"\]' <<<"$mek_rewrap_role")"; then
-    echo 'External MEK rewrap has Secret mutation permission' >&2
-    exit 1
-fi
-if grep -q 'ttlSecondsAfterFinished' \
-        <<<"$(resource_document "$mek_rewrap_render" Job \
-            "$(awk '/serviceAccountName: .*mek-rewrap/{print $2; exit}' <<<"$mek_rewrap_render")")"; then
-    echo 'External MEK rewrap Job would be recreated repeatedly by GitOps after TTL cleanup' >&2
-    exit 1
-fi
-if helm template invalid-mek-rewrap "$CHART_DIR" --namespace osmo --is-upgrade \
-        --set 'services.masterEncryptionKey.managementMode=osmo' \
-        --set 'services.masterEncryptionKey.rewrap.requestId=invalid' \
-        >/dev/null 2>&1; then
-    echo 'External MEK rewrap was accepted in OSMO-managed mode' >&2
-    exit 1
-fi
-
-mek_recovery_render=$(helm template mek-recover "$CHART_DIR" --namespace osmo \
-    --is-upgrade \
-    --set 'services.masterEncryptionKey.managementMode=osmo' \
-    --set 'services.masterEncryptionKey.existingSecret.name=test-mek' \
-    --set 'services.masterEncryptionKey.recovery.enabled=true')
-grep -q 'app.kubernetes.io/component: mek-recovery' <<<"$mek_recovery_render"
-grep -q 'resources: \["localsubjectaccessreviews"\]' <<<"$mek_recovery_render"
-grep -A1 'name: OSMO_SERVICE_ACCOUNT' <<<"$mek_recovery_render" \
-    | grep -q 'mek-recover'
-grep -q 'fieldPath: metadata.uid' <<<"$mek_recovery_render"
-if grep -A20 'app.kubernetes.io/component: mek-recovery' <<<"$mek_recovery_render" \
-        | grep -q 'resources: \["secrets"\]'; then
-    echo 'MEK recovery unexpectedly has Secret access' >&2
-    exit 1
-fi
-
-mek_external_rebind_render=$(helm template mek-rebind "$CHART_DIR" --namespace osmo \
-    --is-upgrade \
-    --set 'services.masterEncryptionKey.managementMode=external' \
-    --set 'services.masterEncryptionKey.rebind.enabled=true')
-grep -A1 -- '- --operation' <<<"$mek_external_rebind_render" | grep -q -- '- rebind'
+    --set 'services.masterEncryptionKey.rotation.requestId=rotate-2026-08' \
+    --set 'services.masterEncryptionKey.rotation.phase=rewrap' \
+    --set 'services.masterEncryptionKey.rotation.activeDeadlineSeconds=432')
+grep -A1 -- '- --operation' <<<"$mek_rewrap_render" | grep -q -- '- "rewrap"'
+grep -A1 -- '--active_deadline_seconds' <<<"$mek_rewrap_render" | grep -q -- '"432"'
+mek_rewrap_name=$(awk '/^kind: Role$/{role=1; next} role && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+    <<<"$mek_rewrap_render")
+mek_rewrap_role=$(resource_document "$mek_rewrap_render" Role "$mek_rewrap_name")
 awk '
     /resources: \["secrets"\]/ { secret_rule = 1; next }
     secret_rule && /verbs:/ {
@@ -280,68 +230,35 @@ awk '
         secret_rule = 0
     }
     END { if (!found) exit 1 }
-' <<<"$mek_external_rebind_render" || {
-    echo 'External MEK rebind has Secret mutation permission' >&2
+' <<<"$mek_rewrap_role" || {
+    echo 'External MEK rewrap has Secret mutation permission' >&2
     exit 1
 }
-
-mek_release_render=$(helm template mek-release "$CHART_DIR" --namespace osmo \
-    --is-upgrade \
-    --set 'services.masterEncryptionKey.managementMode=external' \
-    --set 'services.masterEncryptionKey.ownershipRelease.enabled=true')
-grep -A1 -- '- --operation' <<<"$mek_release_render" | grep -q -- '- release'
-grep -q 'verbs: \["get"\]' <<<"$mek_release_render"
-if grep -A4 'resources: \["secrets"\]' <<<"$mek_release_render" | grep -q patch; then
-    echo 'MEK ownership release can mutate the Secret' >&2
+mek_rewrap_job=$(resource_document "$mek_rewrap_render" Job "$mek_rewrap_name")
+grep -q 'runAsUser: 1001' <<<"$mek_rewrap_job"
+grep -q 'name: "db-secret"' <<<"$mek_rewrap_job"
+grep -q 'key: "db-password"' <<<"$mek_rewrap_job"
+if grep -q 'ttlSecondsAfterFinished' <<<"$mek_rewrap_job"; then
+    echo 'GitOps would recreate a TTL-cleaned MEK Job' >&2
     exit 1
 fi
-mek_settled_external_render=$(helm template mek-release "$CHART_DIR" --namespace osmo \
-    --is-upgrade \
-    --set 'services.masterEncryptionKey.managementMode=external' \
-    --set 'services.masterEncryptionKey.ownershipRelease.enabled=false')
-if helm template invalid-mek-release "$CHART_DIR" --namespace osmo --is-upgrade \
+
+if helm template invalid-external-prepare "$CHART_DIR" --namespace osmo --is-upgrade \
         --set 'services.masterEncryptionKey.managementMode=external' \
-        --set 'services.masterEncryptionKey.ownershipRelease.enabled=true' \
-        --set 'services.masterEncryptionKey.rebind.enabled=true' >/dev/null 2>&1; then
-    echo 'Conflicting MEK ownership operations were accepted' >&2
+        --set 'services.masterEncryptionKey.rotation.requestId=invalid' \
+        --set 'services.masterEncryptionKey.rotation.phase=prepare' >/dev/null 2>&1; then
+    echo 'External PREPARE Secret mutation was accepted' >&2
     exit 1
 fi
 
-mek_reacquire_render=$(helm template mek-release "$CHART_DIR" --namespace osmo \
+mek_settled_external_render=$(helm template mek-settled "$CHART_DIR" --namespace osmo \
     --is-upgrade \
-    --set 'services.masterEncryptionKey.managementMode=osmo' \
-    --set 'services.masterEncryptionKey.ownershipReacquire.enabled=true')
-grep -A1 -- '- --operation' <<<"$mek_reacquire_render" | grep -q -- '- reacquire'
-release_lease=$(lease_name "$mek_release_render")
-settled_lease=$(lease_name "$mek_settled_external_render")
-reacquire_lease=$(lease_name "$mek_reacquire_render")
-if [[ -z "$release_lease" || "$release_lease" != "$settled_lease" || \
-      "$release_lease" != "$reacquire_lease" ]]; then
-    echo 'MEK ownership handoff did not preserve one release-scoped Lease' >&2
-    exit 1
-fi
+    --set 'services.masterEncryptionKey.managementMode=external')
 if grep -q 'command: \["mek-lifecycle"\]' <<<"$mek_settled_external_render"; then
-    echo 'Settled external mode unexpectedly rendered lifecycle RBAC or a Job' >&2
+    echo 'Settled external mode rendered lifecycle RBAC or a Job' >&2
     exit 1
 fi
 
-shared_one=$(helm template release-one "$CHART_DIR" --namespace osmo \
-    --set 'services.masterEncryptionKey.existingSecret.name=shared-mek')
-shared_two=$(helm template release-two "$CHART_DIR" --namespace osmo \
-    --set 'services.masterEncryptionKey.existingSecret.name=shared-mek')
-if [[ $(lease_name "$shared_one") == $(lease_name "$shared_two") ]]; then
-    echo 'Two releases sharing a Secret rendered the same lifecycle Lease' >&2
-    exit 1
-fi
-long_prefix=$(printf 'a%.0s' {1..100})
-long_one=$(helm template lease-long "$CHART_DIR" --namespace osmo \
-    --set-string "services.masterEncryptionKey.existingSecret.name=${long_prefix}one")
-long_two=$(helm template lease-long "$CHART_DIR" --namespace osmo \
-    --set-string "services.masterEncryptionKey.existingSecret.name=${long_prefix}two")
-if [[ $(lease_name "$long_one") == $(lease_name "$long_two") ]]; then
-    echo 'Long Secret names with one prefix rendered the same lifecycle Lease' >&2
-    exit 1
-fi
 
 mek_render=$(helm template mek-test "$CHART_DIR" --namespace osmo \
     --set 'services.masterEncryptionKey.existingSecret.name=customer-mek' \
@@ -362,10 +279,8 @@ if [[ $(grep -c -- '- "/opt/osmo/mek/mek.yaml"' <<<"$mek_render") -ne 6 ]] || \
     echo 'MEK consumers do not use the fixed chart-owned path' >&2
     exit 1
 fi
-if [[ $(grep -c 'name: OSMO_POD_UID' <<<"$mek_render") -ne 6 ]] || \
-   [[ $(grep -c 'name: OSMO_MEK_CONSUMER' <<<"$mek_render") -ne 6 ]] || \
-   [[ $(grep -c 'name: OSMO_ALLOW_EXISTING_MEK_ADOPTION' <<<"$mek_render") -ne 6 ]]; then
-    echo 'Not every MEK consumer reports its projected keyring generation' >&2
+if grep -q 'name: OSMO_MEK_CONSUMER\|name: OSMO_ALLOW_EXISTING_MEK_ADOPTION' <<<"$mek_render"; then
+    echo 'Legacy database-backed MEK adoption environment is still rendered' >&2
     exit 1
 fi
 if grep -q 'subPath:.*mek' <<<"$mek_render"; then
@@ -388,28 +303,22 @@ mek_deployments=(
 for deployment in "${mek_deployments[@]}"; do
     document=$(resource_document "$mek_render" Deployment "$deployment")
     if ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
-        echo "MEK adoption selector is incomplete on Deployment/$deployment" >&2
+        echo "MEK rollout selector is incomplete on Deployment/$deployment" >&2
+        exit 1
+    fi
+    if ! grep -q 'app.kubernetes.io/part-of: osmo' <<<"$document"; then
+        echo "MEK consumer Deployment/$deployment lacks the standard part-of label" >&2
         exit 1
     fi
 done
 for hpa in osmo-service osmo-worker osmo-router osmo-logger osmo-agent; do
     document=$(resource_document "$mek_render" HorizontalPodAutoscaler "$hpa")
     if ! grep -q 'app.kubernetes.io/instance: "mek-test"' <<<"$document"; then
-        echo "MEK adoption selector is incomplete on HorizontalPodAutoscaler/$hpa" >&2
+        echo "MEK rollout selector is incomplete on HorizontalPodAutoscaler/$hpa" >&2
         exit 1
     fi
 done
 if grep -q 'osmo.nvidia.com/mek-consumer' <<<"$mek_render"; then
     echo 'Product chart rendered the KIND-only MEK consumer label' >&2
-    exit 1
-fi
-grep -q 'app in (osmo-service,osmo-worker,osmo-router,osmo-logger,osmo-agent,osmo-delayed-job-monitor)' \
-    "$CHART_DIR/README.md"
-grep -q 'kubectl delete horizontalpodautoscaler' "$CHART_DIR/README.md"
-grep -q 'kubectl wait pod' "$CHART_DIR/README.md"
-grep -q 'set -euo pipefail' "$CHART_DIR/README.md"
-grep -q 'remaining=$(kubectl get pod' "$CHART_DIR/README.md"
-if bash -c 'set -euo pipefail; kubectl() { return 1; }; remaining=$(kubectl get pod); test -z "$remaining"'; then
-    echo 'MEK adoption runbook would ignore a kubectl get failure' >&2
     exit 1
 fi

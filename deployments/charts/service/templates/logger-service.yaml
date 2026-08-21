@@ -32,10 +32,12 @@ spec:
       labels:
         app: {{ .Values.services.logger.serviceName }}
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/part-of: osmo
         {{- with .Values.services.logger.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.mek-rollout-annotation" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.logger | nindent 8 }}
     spec:
       {{- with .Values.services.logger.hostAliases }}
@@ -123,8 +125,6 @@ spec:
         {{- end }}
         {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         env:
-        {{- include "osmo.mek-consumer-env" "logger" | nindent 8 }}
-        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.logger | nindent 8 }}
         {{- if .Values.services.postgres.password }}

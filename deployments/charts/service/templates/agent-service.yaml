@@ -32,10 +32,12 @@ spec:
       labels:
         app: {{ .Values.services.agent.serviceName }}
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/part-of: osmo
         {{- with .Values.services.agent.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.mek-rollout-annotation" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.agent | nindent 8 }}
     spec:
       {{- with .Values.services.agent.hostAliases }}
@@ -128,8 +130,6 @@ spec:
         {{- end }}
         {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         env:
-        {{- include "osmo.mek-consumer-env" "agent" | nindent 8 }}
-        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}

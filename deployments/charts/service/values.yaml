@@ -112,51 +112,32 @@ services:
     path: /opt/osmo/config.yaml
 
   ## Master encryption key keyring. External mode is read-only. OSMO-managed
-  ## mode can populate a retained empty Secret for a new database and rotate it
+  ## mode can atomically create the Secret for a fresh database and rotate it
   ## only through an explicitly requested, fenced lifecycle Job.
   masterEncryptionKey:
-    # `external` is read-only. `osmo` enables database-aware initial generation
-    # and explicitly requested rotation for this exact Secret.
+    # `external` is read-only. `osmo` enables fresh-install generation and
+    # explicitly requested Kubernetes lifecycle Jobs for this exact Secret.
     managementMode: external
     existingSecret:
       name: osmo-mek
       key: mek.yaml
     bootstrap:
+      # Must be set back to false immediately after a successful bootstrap.
       enabled: false
+      # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
       imagePullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
-    rebind:
-      enabled: false
-      attempt: "1"
-    ownershipRelease:
-      enabled: false
-      attempt: "1"
-    ownershipReacquire:
-      enabled: false
-      attempt: "1"
     rotation:
       requestId: ""
+      # Explicit operation: prepare, activate, or rewrap. Leave empty to
+      # perform the lifecycle manually without a chart Job.
+      phase: ""
       attempt: "1"
+      # Change after PREPARE and again after ACTIVATE to restart every MEK consumer.
+      rolloutRevision: ""
       imagePullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
-    # In external mode, set a unique requestId after completing PREPARE/ACTIVATE
-    # to run the read-only, restart-from-zero ciphertext rewrap Job.
-    rewrap:
-      requestId: ""
-      attempt: "1"
-      imagePullPolicy: IfNotPresent
-      activeDeadlineSeconds: 900
-    # Recovery is a separate, credential-fenced attempt. Before enabling it,
-    # clear rotation.requestId and upgrade once so Helm removes the failed
-    # rotation Job's ServiceAccount, Role, and RoleBinding.
-    recovery:
-      enabled: false
-      attempt: "1"
-      imagePullPolicy: IfNotPresent
-      activeDeadlineSeconds: 300
-    # Enable only for the first upgrade after every legacy OSMO writer is stopped.
-    allowExistingCiphertextAdoption: false
 
   ## External self-hosted MCP service configuration
   ##

@@ -937,7 +937,7 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "attempt": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "minLength": 1, "maxLength": 32 },
             "imagePullPolicy": {
               "type": "string",
               "enum": ["Always", "IfNotPresent", "Never"]
@@ -945,76 +945,25 @@
             "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
           },
           "required": ["enabled", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
-        },
-        "rebind": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "attempt": { "type": "string", "minLength": 1 }
-          },
-          "required": ["enabled", "attempt"]
-        },
-        "ownershipRelease": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "attempt": { "type": "string", "minLength": 1 }
-          },
-          "required": ["enabled", "attempt"]
-        },
-        "ownershipReacquire": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "attempt": { "type": "string", "minLength": 1 }
-          },
-          "required": ["enabled", "attempt"]
         },
         "rotation": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "requestId": { "type": "string" },
-            "attempt": { "type": "string", "minLength": 1 },
+            "requestId": { "type": "string", "maxLength": 64 },
+            "phase": { "type": "string", "enum": ["", "prepare", "activate", "rewrap"] },
+            "attempt": { "type": "string", "minLength": 1, "maxLength": 32 },
+            "rolloutRevision": { "type": "string", "maxLength": 128 },
             "imagePullPolicy": {
               "type": "string",
               "enum": ["Always", "IfNotPresent", "Never"]
             },
             "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
           },
-          "required": ["requestId", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
-        },
-        "rewrap": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "requestId": { "type": "string" },
-            "attempt": { "type": "string", "minLength": 1 },
-            "imagePullPolicy": {
-              "type": "string",
-              "enum": ["Always", "IfNotPresent", "Never"]
-            },
-            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
-          },
-          "required": ["requestId", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
-        },
-        "recovery": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "attempt": { "type": "string", "minLength": 1 },
-            "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
-            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
-          },
-          "required": ["enabled", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
-        },
-        "allowExistingCiphertextAdoption": { "type": "boolean" }
+          "required": ["requestId", "phase", "attempt", "rolloutRevision", "imagePullPolicy", "activeDeadlineSeconds"]
+        }
       },
-      "required": ["managementMode", "existingSecret", "bootstrap", "rebind", "ownershipRelease", "ownershipReacquire", "rotation", "rewrap", "recovery", "allowExistingCiphertextAdoption"]
+      "required": ["managementMode", "existingSecret", "bootstrap", "rotation"]
     },
     "postgresqlSecretReference": {
       "type": "object",

@@ -42,6 +42,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.worker "componentName" "worker") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.worker) | nindent 8 }}
+        {{- include "osmo.secrets.mekRolloutAnnotation" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.worker.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -120,8 +121,6 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
-        {{- include "osmo.secrets.mekConsumerEnv" "worker" | nindent 8 }}
-        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         {{- include "osmo.configuration.env" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.worker | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}

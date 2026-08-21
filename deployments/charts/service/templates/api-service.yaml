@@ -51,10 +51,12 @@ spec:
       labels:
         app: {{ .Values.services.service.serviceName }}
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/part-of: osmo
         {{- with .Values.services.service.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.mek-rollout-annotation" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
         {{- if .Values.services.backendApiTokens.enabled }}
         osmo.nvidia.com/backend-token-rollout: {{ .Values.services.backendApiTokens.rolloutNonce | quote }}
@@ -179,8 +181,6 @@ spec:
         {{- end }}
         {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         env:
-        {{- include "osmo.mek-consumer-env" "api" | nindent 8 }}
-        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
         {{- include "osmo.configmap-env" . | nindent 8 }}

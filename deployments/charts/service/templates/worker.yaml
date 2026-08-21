@@ -29,10 +29,12 @@ spec:
       labels:
         app: {{ .Values.services.worker.serviceName }}
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/part-of: osmo
         {{- with .Values.services.worker.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.mek-rollout-annotation" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.worker | nindent 8 }}
     spec:
       topologySpreadConstraints:
@@ -120,8 +122,6 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
-        {{- include "osmo.mek-consumer-env" "worker" | nindent 8 }}
-        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}

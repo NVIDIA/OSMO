@@ -30,10 +30,12 @@ spec:
       labels:
         app: {{ .Values.services.delayedJobMonitor.serviceName }}
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/part-of: osmo
         {{- with .Values.services.delayedJobMonitor.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.mek-rollout-annotation" . | nindent 8 }}
       {{- include "osmo.extra-annotations" .Values.services.delayedJobMonitor | nindent 8 }}
     spec:
       nodeSelector:
@@ -109,8 +111,6 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
-        {{- include "osmo.mek-consumer-env" "delayed-job-monitor" | nindent 8 }}
-        {{- include "osmo.mek-adoption-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD

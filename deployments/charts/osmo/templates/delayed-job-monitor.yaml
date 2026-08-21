@@ -39,7 +39,8 @@ spec:
       labels:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.delayedJobMonitor "componentName" "delayed-job-monitor") | nindent 8 }}
       annotations:
-      {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.delayedJobMonitor) | nindent 8 }}
+        {{- include "osmo.secrets.mekRolloutAnnotation" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.delayedJobMonitor.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -114,8 +115,6 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
-        {{- include "osmo.secrets.mekConsumerEnv" "delayed-job-monitor" | nindent 8 }}
-        {{- include "osmo.secrets.mekAdoptionEnv" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
         resources:

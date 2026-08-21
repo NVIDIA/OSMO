@@ -27,7 +27,6 @@ import math
 import types
 import os
 import re
-import socket
 import threading
 import time
 import typing
@@ -49,7 +48,6 @@ from src.lib.utils import (common, credentials, jinja_sandbox, login,
                            osmo_errors, role, validation, version)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, Keyring, SecretManager
-from src.utils.secret_manager import mek_schema
 
 
 def backend_action_queue_name(backend_name: str) -> str:
@@ -81,9 +79,6 @@ MEK_RECONCILE_BATCH_SIZE = 100
 MEK_MAX_UEK_ROWS = 1000
 MEK_MAX_CONFIG_ROWS = 1000
 MEK_REWRAP_DEADLINE_SECONDS = 300
-MEK_CONSUMERS = frozenset({
-    'agent', 'api', 'delayed-job-monitor', 'logger', 'router', 'worker',
-})
 
 
 class ConfigHistoryType(enum.Enum):
@@ -186,43 +181,6 @@ class PostgresConfig(pydantic.BaseModel):
         default='/opt/osmo/mek/mek.yaml',
         description='Path to the file that stores master encryption keys',
         json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
-    allow_existing_mek_adoption: bool = pydantic.Field(
-        default=False,
-        description=(
-            'Acknowledge that every legacy OSMO writer was stopped before first-time MEK '
-            'registry adoption with existing ciphertext'),
-        json_schema_extra={
-            'command_line': 'allow_existing_mek_adoption',
-            'env': 'OSMO_ALLOW_EXISTING_MEK_ADOPTION',
-        })
-    mek_management_mode: Literal['external', 'osmo'] = pydantic.Field(
-        default='external',
-        description='Whether the MEK Secret is externally managed or OSMO managed.',
-        json_schema_extra={
-            'command_line': 'mek_management_mode',
-            'env': 'OSMO_MEK_MANAGEMENT_MODE',
-        })
-    mek_secret_name: str = pydantic.Field(
-        default='',
-        description='Expected OSMO-managed Kubernetes MEK Secret name.',
-        json_schema_extra={
-            'command_line': 'mek_secret_name',
-            'env': 'OSMO_MEK_SECRET_NAME',
-        })
-    mek_secret_key: str = pydantic.Field(
-        default='',
-        description='Expected OSMO-managed Kubernetes MEK Secret data key.',
-        json_schema_extra={
-            'command_line': 'mek_secret_key',
-            'env': 'OSMO_MEK_SECRET_KEY',
-        })
-    mek_installation_id: str = pydantic.Field(
-        default='',
-        description='Immutable namespace/release identity for an OSMO-managed MEK.',
-        json_schema_extra={
-            'command_line': 'mek_installation_id',
-            'env': 'OSMO_MEK_INSTALLATION_ID',
-        })
     method: Literal['dev'] | None = pydantic.Field(
         default=None,
         description='If set to "dev", use the default local mek file'
@@ -454,14 +412,7 @@ class PostgresConnector:
         logging.debug('Connecting to postgres server at %s:%s...', config.postgres_host,
                       config.postgres_port)
         self.config = config
-        self._mek_consumer_id = os.environ.get(
-            'OSMO_POD_UID', f'{socket.gethostname()}:{os.getpid()}')
-        self._mek_consumer_name = os.environ.get('OSMO_MEK_CONSUMER', 'unknown')
-        self._last_logged_mek_generation = ''
-        self._last_reported_mek_reload_failure = 0
         self._pool_lock = threading.Lock()
-        self._mek_monitor_stop = threading.Event()
-        self._mek_monitor_thread: threading.Thread | None = None
         self._create_pool()
         logging.debug('Finished connecting to postgres database')
 
@@ -472,15 +423,33 @@ class PostgresConnector:
             mek_file = os.path.join(os.path.dirname(__file__), '..', 'secret_manager', 'mek.yaml')
         self.secret_manager = SecretManager(
             mek_file,
-            self.read_uek, self.write_uek, self.read_current_kid, self.add_user,
-            prepare_meks=self.prepare_meks,
-            can_activate_mek=self.can_activate_mek)
+            self.read_uek, self.write_uek, self.read_current_kid, self.add_user)
+        logging.info(
+            'OSMO_MEK_DESCRIPTOR %s',
+            json.dumps({
+                'currentKid': self.secret_manager.current_mek_id,
+                'loadedKids': sorted(self.secret_manager.meks),
+                'generation': self.secret_manager.generation,
+                'digest': self.secret_manager.fingerprint_bundle_digest(),
+            }, separators=(',', ':'), sort_keys=True))
         logging.debug('Secret manager initialized')
 
         logging.debug('Initializing tables')
         self._init_tables()
-        self._init_mek_key_registry()
         logging.debug('Tables initialized')
+
+        # Startup is the rollout acknowledgement boundary. Before this process
+        # can become ready, authenticate every registered MEK persistence
+        # domain with the startup-only keyring. This prevents a replacement
+        # pod from joining a rollout with a keyring that cannot read existing
+        # data, without introducing lifecycle tables or triggers.
+        counts, blockers = self._scan_mek_references()
+        if blockers:
+            for blocker in blockers:
+                logging.error('MEK startup inventory blocker: %s', blocker)
+            raise osmo_errors.OSMOError(
+                'Mounted MEK keyring cannot authenticate persisted ciphertext.')
+        logging.info('MEK startup inventory references=%s', counts)
 
         logging.debug('Initializing configs')
         self._init_configs()
@@ -491,20 +460,11 @@ class PostgresConnector:
             logging.debug('Switching to pgroll schema: %s', self.config.schema_version)
             self.connect()
 
-        if self._mek_consumer_name in MEK_CONSUMERS:
-            self._mek_monitor_thread = threading.Thread(
-                target=self._run_mek_monitor, name='mek-monitor', daemon=True)
-            self._mek_monitor_thread.start()
-
         # Register cleanup on exit
         atexit.register(self.close)
 
     def close(self):
         """Close all connections in the pool."""
-        self._mek_monitor_stop.set()
-        if (self._mek_monitor_thread is not None and
-                self._mek_monitor_thread is not threading.current_thread()):
-            self._mek_monitor_thread.join()
         with self._pool_lock:
             if self._pool is not None:
                 try:
@@ -1248,11 +1208,6 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        with self._get_connection() as connection:
-            with connection.cursor() as cursor:
-                mek_schema.ensure_mek_schema(cursor)
-            connection.commit()
-
         # Creates table for user role assignments
         # Each assignment has a UUID that access_token_roles references for cascading deletes
         create_cmd = '''
@@ -1490,327 +1445,6 @@ class PostgresConnector:
                 description='Updated roles',
             )
 
-    def _init_mek_key_registry(self) -> None:
-        """Adopt or validate key fingerprints without exposing them outside PostgreSQL."""
-        fingerprints = self.secret_manager.key_fingerprints()
-        rows = self.execute_fetch_command(
-            'SELECT kid, fingerprint, state FROM public.mek_key_registry;', (), return_raw=True)
-        registered = {row['kid']: row for row in rows}
-        observed_empty_registry = not registered
-        adoption_rows = self.execute_fetch_command(
-            'SELECT adopted_generation, adopted_current_kid, adopted_kids, '
-            'bound_secret_name, bound_secret_key, bound_secret_uid, installation_id, '
-            'management_mode, ready FROM public.mek_lifecycle_state WHERE singleton;',
-            (), return_raw=True)
-        if (self.config.mek_management_mode == 'osmo'
-                and not registered and not adoption_rows):
-            raise osmo_errors.OSMOError(
-                'OSMO-managed MEK bootstrap has not committed its database binding.')
-        if not registered:
-            for _ in range(3):
-                scan_write_epoch = self._mek_write_epoch()
-                counts, blockers = self._scan_mek_references()
-                if blockers:
-                    raise osmo_errors.OSMOError(
-                        'Cannot adopt the mounted MEK keyring because persisted ciphertext '
-                        f'failed authentication ({len(blockers)} blocker(s)).')
-                if sum(counts.values()) and not self.config.allow_existing_mek_adoption:
-                    raise osmo_errors.OSMOError(
-                        'Existing ciphertext MEK adoption requires all legacy OSMO writers '
-                        'to be stopped and allow_existing_mek_adoption to be explicitly enabled.')
-                adoption_result = self._adopt_initial_mek_keyring(
-                    fingerprints, self.secret_manager.current_mek_id,
-                    self.secret_manager.generation, scan_write_epoch)
-                rows = self.execute_fetch_command(
-                    'SELECT kid, fingerprint, state FROM public.mek_key_registry;', (),
-                    return_raw=True)
-                registered = {row['kid']: row for row in rows}
-                adoption_rows = self.execute_fetch_command(
-                    'SELECT adopted_generation, adopted_current_kid, adopted_kids, '
-                    'bound_secret_name, bound_secret_key, bound_secret_uid, installation_id, '
-                    'management_mode, ready FROM public.mek_lifecycle_state WHERE singleton;',
-                    (), return_raw=True)
-                if registered or adoption_rows:
-                    break
-                if adoption_result != 'write_epoch_changed':
-                    break
-            else:
-                raise osmo_errors.OSMOError(
-                    'MEK registry adoption was repeatedly invalidated by database writes.')
-        if not adoption_rows:
-            raise osmo_errors.OSMOError(
-                'MEK registry has no canonical initial keyring adoption record.')
-        adoption = adoption_rows[0]
-        if (
-            not registered
-            or adoption['adopted_current_kid'] not in registered
-            or not set(adoption['adopted_kids']).issubset(registered)
-        ):
-            raise osmo_errors.OSMOError(
-                'MEK canonical adoption and fingerprint registry are inconsistent.')
-        if self.config.mek_management_mode == 'osmo' and not adoption['ready']:
-            raise osmo_errors.OSMOError(
-                'OSMO-managed MEK database binding is not ready.')
-        if (self.config.mek_management_mode == 'osmo'
-                and adoption['management_mode'] not in ('osmo', 'external')):
-            raise osmo_errors.OSMOError('MEK ownership mode is invalid.')
-        if self.config.mek_management_mode == 'osmo' and (
-            not self.config.mek_secret_name
-            or not self.config.mek_secret_key
-            or adoption['bound_secret_name'] != self.config.mek_secret_name
-            or adoption['bound_secret_key'] != self.config.mek_secret_key
-            or not adoption['bound_secret_uid']
-            or not self.config.mek_installation_id
-            or adoption['installation_id'] != self.config.mek_installation_id
-        ):
-            raise osmo_errors.OSMOError(
-                'Mounted MEK Secret reference does not match its database binding.')
-        if (self.config.mek_management_mode == 'external'
-                and adoption['management_mode'] != 'external'):
-            raise osmo_errors.OSMOError(
-                'OSMO-managed MEK ownership must be explicitly released before external mode.')
-        external_identity = (
-            adoption['bound_secret_name'], adoption['bound_secret_key'],
-            adoption['bound_secret_uid'], adoption['installation_id'])
-        if self.config.mek_management_mode == 'external' and any(external_identity) and (
-            not all(external_identity)
-            or external_identity[0] != self.config.mek_secret_name
-            or external_identity[1] != self.config.mek_secret_key
-            or external_identity[3] != self.config.mek_installation_id
-        ):
-            raise osmo_errors.OSMOError(
-                'Mounted external MEK Secret reference does not match its database binding.')
-        # External adoption may open only its own one-time pending fence. An established
-        # lifecycle fence belongs to an explicit rewrap attempt and must never be reopened
-        # by a consumer monitor.
-        if self.config.mek_management_mode == 'external':
-            self.execute_commit_command('''
-                WITH finalized AS (
-                    UPDATE public.mek_lifecycle_state SET ready = TRUE
-                    WHERE singleton AND NOT ready
-                    RETURNING singleton
-                )
-                UPDATE public.mek_write_epoch SET writes_allowed = TRUE
-                WHERE singleton AND NOT writes_allowed
-                  AND EXISTS (SELECT 1 FROM finalized);
-            ''', ())
-        if observed_empty_registry:
-            if (
-                adoption['adopted_generation'] != self.secret_manager.generation
-                or adoption['adopted_current_kid'] != self.secret_manager.current_mek_id
-                or adoption['adopted_kids'] != sorted(fingerprints)
-            ):
-                raise osmo_errors.OSMOError(
-                    'A concurrent process adopted a different initial MEK keyring bundle.')
-        if registered:
-            if len({row['fingerprint'] for row in registered.values()}) != len(registered):
-                raise osmo_errors.OSMOError(
-                    'MEK fingerprint registry contains aliased key material.')
-            missing = set(registered) - set(fingerprints)
-            if missing:
-                raise osmo_errors.OSMOError(
-                    f'Mounted MEK keyring is missing registered keys: {sorted(missing)}.')
-            for key_id, fingerprint in fingerprints.items():
-                existing = registered.get(key_id)
-                if existing is not None and existing['fingerprint'] != fingerprint:
-                    raise osmo_errors.OSMOError(
-                        f'MEK {key_id} does not match its registered key material.')
-                if existing is None and key_id == self.secret_manager.current_mek_id:
-                    raise osmo_errors.OSMOError(
-                        f'Current MEK {key_id} was not prepared before activation.')
-            unregistered = {
-                key_id: fingerprint for key_id, fingerprint in fingerprints.items()
-                if key_id not in registered
-            }
-            if unregistered and not self.prepare_meks(fingerprints):
-                raise osmo_errors.OSMOError(
-                    'Mounted MEK PREPARE conflicts with concurrently registered key material.')
-
-        registry_updates: List[Tuple[str, Tuple]] = []
-        for key_id, fingerprint in fingerprints.items():
-            registry_updates.append(('''
-                INSERT INTO public.mek_key_registry (kid, fingerprint, state)
-                VALUES (%s, %s, 'prepared')
-                ON CONFLICT (kid) DO NOTHING;
-            ''', (key_id, fingerprint)))
-        registry_updates.append(('''
-            UPDATE public.mek_key_registry SET state = CASE
-                WHEN kid = %s THEN 'current' ELSE 'prepared' END;
-        ''', (self.secret_manager.current_mek_id,)))
-        self.execute_commit_commands(registry_updates)
-
-    def _adopt_initial_mek_keyring(
-            self, fingerprints: Mapping[str, str], current_key_id: str,
-            generation: str, expected_write_epoch: int
-    ) -> Literal['adopted', 'existing', 'write_epoch_changed']:
-        """Elect exactly one canonical keyring bundle for an empty database registry."""
-        if current_key_id not in fingerprints:
-            raise osmo_errors.OSMOError('Initial current MEK is not in the mounted keyring.')
-        with self._get_connection() as connection:
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        'SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B41,))
-                    cursor.execute('''
-                        SELECT
-                            EXISTS (SELECT 1 FROM public.mek_lifecycle_state),
-                            EXISTS (SELECT 1 FROM public.mek_key_registry);
-                    ''')
-                    adoption_exists, registry_exists = cursor.fetchone()
-                    if adoption_exists or registry_exists:
-                        connection.rollback()
-                        return 'existing'
-                    cursor.execute('''
-                        SELECT epoch FROM public.mek_write_epoch
-                        WHERE singleton FOR UPDATE;
-                    ''')
-                    epoch_row = cursor.fetchone()
-                    if epoch_row is None:
-                        raise osmo_errors.OSMOError('MEK write epoch is not initialized.')
-                    if epoch_row[0] != expected_write_epoch:
-                        connection.rollback()
-                        return 'write_epoch_changed'
-                    cursor.execute('''
-                        UPDATE public.mek_write_epoch SET writes_allowed = FALSE
-                        WHERE singleton;
-                    ''')
-                    for key_id, fingerprint in sorted(fingerprints.items()):
-                        state = 'current' if key_id == current_key_id else 'prepared'
-                        cursor.execute('''
-                            INSERT INTO public.mek_key_registry (kid, fingerprint, state)
-                            VALUES (%s, %s, %s);
-                        ''', (key_id, fingerprint, state))
-                    cursor.execute('''
-                        INSERT INTO public.mek_lifecycle_state (
-                            singleton, adopted_generation, adopted_current_kid,
-                            adopted_kids, ready)
-                        VALUES (TRUE, %s, %s, %s, FALSE);
-                    ''', (generation, current_key_id, sorted(fingerprints)))
-                connection.commit()
-                return 'adopted'
-            except Exception:  # pylint: disable=broad-except
-                connection.rollback()
-                raise
-
-    def can_activate_mek(
-            self, fingerprints: Mapping[str, str], current_key_id: str) -> bool:
-        """Require ACTIVATE to contain the exact durable prepared key bundle."""
-        if self.config.mek_management_mode == 'external':
-            with self._get_connection() as connection:
-                try:
-                    with connection.cursor() as cursor:
-                        cursor.execute(
-                            'SELECT pg_advisory_xact_lock(%s);',
-                            (0x4F534D4F4D454B41,))
-                        cursor.execute('''
-                            SELECT management_mode, ready
-                            FROM public.mek_lifecycle_state WHERE singleton FOR UPDATE;
-                        ''')
-                        lifecycle = cursor.fetchone()
-                        if lifecycle != ('external', True):
-                            connection.rollback()
-                            return False
-                        cursor.execute('''
-                            SELECT kid, fingerprint FROM public.mek_key_registry
-                            ORDER BY kid FOR UPDATE;
-                        ''')
-                        registered = dict(cursor.fetchall())
-                        if (
-                            registered != dict(fingerprints)
-                            or current_key_id not in registered
-                            or len(set(registered.values())) != len(registered)
-                        ):
-                            connection.rollback()
-                            return False
-                        cursor.execute('''
-                            UPDATE public.mek_key_registry SET state = 'prepared'
-                            WHERE state = 'current' AND kid <> %s;
-                        ''', (current_key_id,))
-                        if cursor.rowcount not in (0, 1):
-                            raise osmo_errors.OSMOError(
-                                'MEK registry has more than one current key.')
-                        cursor.execute('''
-                            UPDATE public.mek_key_registry SET state = 'current'
-                            WHERE kid = %s AND fingerprint = %s;
-                        ''', (current_key_id, registered[current_key_id]))
-                        if cursor.rowcount != 1:
-                            raise osmo_errors.OSMOError(
-                                'MEK activation target changed during validation.')
-                    connection.commit()
-                    return True
-                except Exception:  # pylint: disable=broad-except
-                    connection.rollback()
-                    raise
-        rows = self.execute_fetch_command(
-            'SELECT kid, fingerprint FROM public.mek_key_registry;', (), return_raw=True)
-        registered = {row['kid']: row['fingerprint'] for row in rows}
-        return (
-            registered == dict(fingerprints)
-            and current_key_id in registered
-            and len(set(registered.values())) == len(registered)
-        )
-
-    def is_active_mek_registry(
-            self, fingerprints: Mapping[str, str], current_key_id: str) -> bool:
-        """Verify that the durable registry has exactly this activated keyring."""
-        rows = self.execute_fetch_command(
-            'SELECT kid, fingerprint, state FROM public.mek_key_registry;',
-            (), return_raw=True)
-        registered = {
-            row['kid']: (row['fingerprint'], row['state']) for row in rows
-        }
-        expected = {
-            key_id: (
-                fingerprint,
-                'current' if key_id == current_key_id else 'prepared',
-            )
-            for key_id, fingerprint in fingerprints.items()
-        }
-        return registered == expected
-
-    def prepare_meks(self, fingerprints: Mapping[str, str]) -> bool:
-        """Atomically extend the complete registered bundle without omissions or aliases."""
-        if not fingerprints:
-            return True
-        with self._get_connection() as connection:
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        'SELECT pg_advisory_xact_lock(%s);', (0x4F534D4F4D454B41,))
-                    cursor.execute(
-                        'SELECT 1 FROM public.mek_lifecycle_state WHERE singleton;')
-                    if cursor.fetchone() is None:
-                        connection.rollback()
-                        return False
-                    cursor.execute(
-                        'SELECT kid, fingerprint FROM public.mek_key_registry ORDER BY kid;')
-                    registered = dict(cursor.fetchall())
-                    candidate = dict(fingerprints)
-                    if (
-                        any(candidate.get(key_id) != fingerprint
-                            for key_id, fingerprint in registered.items())
-                        or len(set(candidate.values())) != len(candidate)
-                    ):
-                        connection.rollback()
-                        return False
-                    for key_id, fingerprint in sorted(fingerprints.items()):
-                        if key_id in registered:
-                            continue
-                        cursor.execute('''
-                            INSERT INTO public.mek_key_registry (kid, fingerprint, state)
-                            VALUES (%s, %s, 'prepared')
-                            ON CONFLICT DO NOTHING
-                            RETURNING kid;
-                        ''', (key_id, fingerprint))
-                        if cursor.fetchone() is None:
-                            connection.rollback()
-                            return False
-                connection.commit()
-                return True
-            except Exception:  # pylint: disable=broad-except
-                connection.rollback()
-                raise
-
     @staticmethod
     def _jwe_header(value: str) -> Mapping[str, Any] | None:
         if value.count('.') != 4:
@@ -1957,23 +1591,6 @@ class PostgresConnector:
                 blockers.append(f'configs/{config_type}: config schema validation failed')
         return counts, blockers
 
-    def _mek_write_epoch(self) -> int:
-        rows = self.execute_fetch_command(
-            'SELECT epoch FROM public.mek_write_epoch WHERE singleton;', (), return_raw=True)
-        if not rows:
-            raise osmo_errors.OSMOError('MEK write epoch is not initialized.')
-        return rows[0]['epoch']
-
-    def _set_mek_writes_allowed(self, allowed: bool) -> None:
-        """Fence protected-table statements and advance the durable boundary."""
-        updated = self.execute_commit_command('''
-            UPDATE public.mek_write_epoch
-            SET writes_allowed = %s, epoch = epoch + 1
-            WHERE singleton;
-        ''', (allowed,))
-        if updated != 1:
-            raise osmo_errors.OSMOError('MEK write fence is not initialized.')
-
     def _rewrap_ueks(self, snapshot: Keyring, deadline: float | None = None) -> bool:
         """Rewrap all UEKs in bounded pages, restarting from zero on every invocation."""
         cursor_uid, cursor_key = '', ''
@@ -1994,12 +1611,13 @@ class PostgresConnector:
             for row in rows:
                 try:
                     self.secret_manager.rewrap_uek(row['uid'], row['key'], snapshot)
-                except osmo_errors.OSMOError:
+                except osmo_errors.OSMOError as error:
                     logging.error(
-                        'UEK rewrap authentication failed for uid=%s slot=%s; '
-                        'continuing the batch.', row['uid'], row['key'])
-                    self._record_mek_blocker(
-                        'A persisted UEK wrapper failed authentication; inspect service logs.')
+                        'UEK rewrap authentication failed for uid=%s slot=%s.',
+                        row['uid'], row['key'])
+                    raise osmo_errors.OSMOError(
+                        'A persisted UEK wrapper failed authentication; inspect service logs.'
+                    ) from error
             if len(rows) < MEK_RECONCILE_BATCH_SIZE:
                 return True
             cursor_uid, cursor_key = rows[-1]['uid'], rows[-1]['key']
@@ -2034,21 +1652,19 @@ class PostgresConnector:
             header = self._jwe_header(value)
         except (JWException, ValueError, TypeError):
             logging.error(
-                'Config MEK rewrap found a malformed compact JWE at %s; '
-                'continuing the batch.', path)
-            self._record_mek_blocker(
+                'Config MEK rewrap found a malformed compact JWE at %s.', path)
+            raise osmo_errors.OSMOError(
                 'A persisted config ciphertext is malformed; inspect service logs.')
-            return value, False
         if header is None or header.get('kid') not in self.secret_manager.meks:
             return value, False
         try:
             rewrap_result = self.secret_manager.rewrap_direct_mek(value, snapshot)
-        except (JWException, osmo_errors.OSMOError, UnicodeError, ValueError, TypeError):
+        except (JWException, osmo_errors.OSMOError, UnicodeError, ValueError, TypeError) as error:
             logging.error(
-                'Config MEK rewrap authentication failed at %s; continuing the batch.', path)
-            self._record_mek_blocker(
-                'A persisted config ciphertext failed authentication; inspect service logs.')
-            return value, False
+                'Config MEK rewrap authentication failed at %s.', path)
+            raise osmo_errors.OSMOError(
+                'A persisted config ciphertext failed authentication; inspect service logs.'
+            ) from error
         return rewrap_result.value, rewrap_result.status == 'rewrapped'
 
     def _registered_config_rewrap_paths(
@@ -2141,65 +1757,15 @@ class PostgresConnector:
                     f'{config_type}/{config_key}.')
         return True
 
-    def _record_mek_scan(
-            self, counts: Dict[str, int], blockers: List[str], snapshot: Keyring) -> None:
-        current_key_id = snapshot.current_mek_id
-        generation = snapshot.generation
-        for blocker_detail in blockers:
-            logging.error('MEK inventory blocker: %s', blocker_detail)
-        blocker = (
-            f'{len(blockers)} ciphertext authentication blocker(s); inspect service logs.'
-            if blockers else '')
-        updated = self.execute_commit_command('''
-            UPDATE public.mek_lifecycle_state SET
-                observed_generation = %s,
-                observed_current_kid = %s,
-                persistence_registry_version = %s,
-                last_started_at = NOW(),
-                last_completed_at = NOW(),
-                blocker = %s
-            WHERE singleton AND ready;
-        ''', (generation, current_key_id, MEK_PERSISTENCE_REGISTRY_VERSION, blocker))
-        if updated != 1:
-            raise osmo_errors.OSMOError(
-                'MEK reconciliation requires an initialized lifecycle binding.')
-        for key_id, count in counts.items():
-            if key_id == current_key_id:
-                continue
-            command = '''
-                UPDATE public.mek_key_registry SET
-                    remaining_references = %s,
-                    last_scan_started_at = NOW(),
-                    last_scan_completed_at = NOW()
-                WHERE kid = %s;
-            '''
-            self.execute_commit_command(command, (count, key_id))
-        logging.info(
-            'MEK reconciliation status current_kid=%s references=%s '
-            'blockers=%d retirement_supported=false',
-            current_key_id, counts, len(blockers))
-
-    def _record_mek_blocker(self, blocker: str) -> None:
-        """Persist a redacted reconciliation blocker for operator inspection."""
-        updated = self.execute_commit_command('''
-            UPDATE public.mek_lifecycle_state SET
-                observed_generation = %s,
-                observed_current_kid = %s,
-                persistence_registry_version = %s,
-                last_started_at = NOW(),
-                blocker = %s
-            WHERE singleton AND ready;
-        ''', (self.secret_manager.generation, self.secret_manager.current_mek_id,
-              MEK_PERSISTENCE_REGISTRY_VERSION, blocker))
-        if updated != 1:
-            raise osmo_errors.OSMOError(
-                'MEK blocker recording requires an initialized lifecycle binding.')
-
     def rewrap_mek_references(
             self, deadline_seconds: int = MEK_REWRAP_DEADLINE_SECONDS,
             expected_generation: str = '', expected_current_kid: str = '',
             expected_registry_digest: str = '') -> Dict[str, int]:
-        """Perform one fenced restart-from-zero rewrap and stable inventory scan."""
+        """Restart from zero, CAS-rewrap every registered MEK reference, and inventory it.
+
+        This operation intentionally keeps every old MEK. The final inventory is
+        point-in-time completion evidence, not permission to retire a key.
+        """
         deadline = time.monotonic() + deadline_seconds
         snapshot = self.secret_manager.rewrap_snapshot()
         snapshot_digest = self.secret_manager.rewrap_snapshot_digest(snapshot)
@@ -2210,106 +1776,53 @@ class PostgresConnector:
         ):
             raise osmo_errors.OSMOError(
                 'Mounted MEK keyring does not match the requested rewrap snapshot.')
-        if not self.is_active_mek_registry(
-                snapshot.fingerprints, snapshot.current_mek_id):
-            raise osmo_errors.OSMOError(
-                'Mounted MEK keyring does not match the durable registry.')
+
         with self._get_reserved_reconciler_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute('SELECT pg_try_advisory_lock(%s);', (0x4F534D4F4D454B,))
                 if not cursor.fetchone()[0]:
-                    raise osmo_errors.OSMOError('Another MEK rotation is already running.')
+                    raise osmo_errors.OSMOError('Another MEK rewrap is already running.')
             try:
                 while time.monotonic() < deadline:
-                    self.secret_manager.validate_rewrap_snapshot(snapshot)
                     self._rewrap_ueks(snapshot, deadline)
                     self._rewrap_configs(snapshot, deadline)
-                    retry_required = False
-                    self._set_mek_writes_allowed(False)
-                    try:
-                        counts, blockers = self._scan_mek_references(deadline)
-                        self.secret_manager.validate_rewrap_snapshot(snapshot)
-                        if not self.is_active_mek_registry(
-                                snapshot.fingerprints, snapshot.current_mek_id):
-                            raise osmo_errors.OSMOError(
-                                'Durable MEK registry changed during rewrap.')
-                        if blockers:
-                            self._record_mek_scan(counts, blockers, snapshot)
-                            raise osmo_errors.OSMOError(
-                                'MEK inventory contains authenticated coverage blockers.')
-                        noncurrent_references = sum(
-                            count for key_id, count in counts.items()
-                            if key_id != snapshot.current_mek_id
-                        )
-                        if noncurrent_references:
-                            retry_required = True
-                        else:
-                            self._record_mek_scan(counts, [], snapshot)
-                            return counts
-                    finally:
-                        self._set_mek_writes_allowed(True)
-                    if retry_required:
+                    counts, blockers = self._scan_mek_references(deadline)
+                    if blockers:
+                        for blocker in blockers:
+                            logging.error('MEK inventory blocker: %s', blocker)
+                        raise osmo_errors.OSMOError(
+                            'MEK inventory contains authenticated coverage blockers.')
+                    noncurrent = sum(
+                        count for key_id, count in counts.items()
+                        if key_id != snapshot.current_mek_id)
+                    if noncurrent:
                         continue
+
+                    # A second restart-from-zero inventory makes completion
+                    # insensitive to page boundaries and confirms a stable
+                    # point-in-time result. Old keys remain mandatory because
+                    # there is deliberately no database write fence.
+                    confirmed, blockers = self._scan_mek_references(deadline)
+                    if blockers:
+                        for blocker in blockers:
+                            logging.error('MEK inventory blocker: %s', blocker)
+                        raise osmo_errors.OSMOError(
+                            'MEK inventory contains authenticated coverage blockers.')
+                    if any(
+                        count for key_id, count in confirmed.items()
+                        if key_id != snapshot.current_mek_id
+                    ):
+                        continue
+                    logging.info(
+                        'MEK rewrap complete current_kid=%s references=%s '
+                        'retirement_supported=false',
+                        snapshot.current_mek_id, confirmed)
+                    return confirmed
                 raise osmo_errors.OSMOError('MEK rewrap deadline exceeded.')
             finally:
                 with connection.cursor() as cursor:
                     cursor.execute('SELECT pg_advisory_unlock(%s);', (0x4F534D4F4D454B,))
 
-    def _record_mek_consumer(self) -> None:
-        self.execute_commit_command('''
-            INSERT INTO public.mek_consumer_status (
-                consumer_id, consumer_name, generation, current_kid, loaded_kids,
-                registry_digest, last_seen_at)
-            VALUES (%s, %s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (consumer_id) DO UPDATE SET
-                consumer_name = EXCLUDED.consumer_name,
-                generation = EXCLUDED.generation,
-                current_kid = EXCLUDED.current_kid,
-                loaded_kids = EXCLUDED.loaded_kids,
-                registry_digest = EXCLUDED.registry_digest,
-                last_seen_at = NOW();
-        ''', (self._mek_consumer_id, self._mek_consumer_name,
-              self.secret_manager.generation, self.secret_manager.current_mek_id,
-              sorted(self.secret_manager.meks),
-              self.secret_manager.fingerprint_bundle_digest()))
-        if self._last_logged_mek_generation != self.secret_manager.generation:
-            logging.info(
-                'MEK consumer status consumer=%s pod_uid=%s current_kid=%s '
-                'loaded_kids=%s',
-                self._mek_consumer_name, self._mek_consumer_id,
-                self.secret_manager.current_mek_id,
-                sorted(self.secret_manager.meks))
-            self._last_logged_mek_generation = self.secret_manager.generation
-
-    def _run_mek_monitor(self) -> None:
-        """Reload projected MEKs and publish redacted consumer acknowledgements."""
-        failure_backoff = 30
-        while not self._mek_monitor_stop.is_set():
-            try:
-                self.secret_manager.reload_if_changed()
-                if self.secret_manager.last_reload_error:
-                    failure_revision = self.secret_manager.reload_failure_revision
-                    if failure_revision != self._last_reported_mek_reload_failure:
-                        logging.error(
-                            'Rejected mounted MEK Secret update; retaining last-known-good '
-                            'keyring: %s', self.secret_manager.last_reload_error)
-                        self._record_mek_blocker(
-                            'Mounted MEK Secret update rejected; inspect service logs.')
-                        self._last_reported_mek_reload_failure = failure_revision
-                    self._mek_monitor_stop.wait(failure_backoff)
-                    continue
-                self._record_mek_consumer()
-                self._init_mek_key_registry()
-                failure_backoff = 30
-            except Exception as error:  # pylint: disable=broad-except
-                logging.error('MEK consumer monitoring failed: %s', error)
-                try:
-                    self._record_mek_blocker(
-                        'MEK consumer monitoring failed; inspect service logs.')
-                except Exception:  # pylint: disable=broad-except
-                    pass
-                failure_backoff = min(failure_backoff * 2, 300)
-            self._mek_monitor_stop.wait(failure_backoff)
 
     def read_uek(self, uid: str, kid: str) -> str:
         cmd = 'SELECT keys -> %s as value FROM ueks WHERE uid = %s;'
@@ -3662,10 +3175,8 @@ class DynamicConfig(ExtraArgBaseModel):
             if postgres.execute_commit_command(
                     cmd, (new_value, key, dynamic_config.get_type().value, old_value)) != 1:
                 logging.warning(
-                    'Concurrent config update deferred MEK rewrap for %s/%s.',
+                    'Concurrent config update deferred config encryption for %s/%s.',
                     dynamic_config.get_type().value, key)
-                postgres._record_mek_blocker(  # pylint: disable=protected-access
-                    'A concurrent config update deferred MEK rewrap; inspect service logs.')
         return dynamic_config
 
     def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,

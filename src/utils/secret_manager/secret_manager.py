@@ -19,12 +19,10 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import binascii
 import dataclasses
-import functools
 import hashlib
 import json
 import os
 import re
-import threading
 from types import MappingProxyType
 from typing import Callable, Dict, Literal, Mapping, Tuple
 import uuid
@@ -94,15 +92,6 @@ def _json_object_without_duplicates(pairs):
     return result
 
 
-def _with_keyring_lock(method):
-    @functools.wraps(method)
-    def locked(secret_manager, *args, **kwargs):
-        with secret_manager._keyring_lock:  # pylint: disable=protected-access
-            return method(secret_manager, *args, **kwargs)
-
-    return locked
-
-
 class Encrypted:
     """Represents an encrypted secret"""
 
@@ -133,8 +122,6 @@ class SecretManager:
         write_uek: Callable[[str, str, str, str], bool],
         read_current_kid: Callable[[str], str],
         add_user: Callable[[str, Dict], None],
-        prepare_meks: Callable[[Mapping[str, str]], bool] | None = None,
-        can_activate_mek: Callable[[Mapping[str, str], str], bool] | None = None,
         alg: str = "A256GCMKW",
         enc: str = "A256GCM",
     ):
@@ -156,10 +143,6 @@ class SecretManager:
             add_user (Callable[[str, Dict], None]): A function to insert new uek.
                 `add_user(uid, {'current': current_kid, current_kid: encrypted_key})` will be
                 called to add new uek.
-            prepare_meks (Callable[[Mapping[str, str]], bool] | None): Atomically validate and
-                register the complete mounted MEK fingerprint map during PREPARE.
-            can_activate_mek (Callable[[Mapping[str, str], str], bool] | None): Validate that the
-                complete mounted fingerprint map and selected current MEK are durably prepared.
             alg (str, optional): Cryptographic algorithm used to encrypt or determine the value of
                 the content encryption key. Defaults to 'A256GCMKW'.
             enc (str, optional): Content encryption algorithm used to encrypt plain text.
@@ -172,26 +155,9 @@ class SecretManager:
         self.write_uek = write_uek
         self.read_current_kid = read_current_kid
         self.add_user = add_user
-        self.prepare_meks = prepare_meks
-        self.can_activate_mek = can_activate_mek
-        self._keyring_lock = threading.RLock()
-        self._file_signature: Tuple[int, int, int, int] | None = None
-        self._rejected_file_signature: Tuple[int, int, int, int] | None = None
-        self._pending_file_signature: Tuple[int, int, int, int] | None = None
-        self._pending_keyring: Keyring | None = None
-        self._reload_failure_revision = 0
-        self._last_reload_error = ""
-
         if not os.path.isfile(mek_file):
             raise osmo_errors.OSMOError(f"MEK file {mek_file} does not exist.")
-        for _ in range(3):
-            self._keyring, self._file_signature = self._read_keyring()
-            if self._stat_file() == self._file_signature:
-                break
-        else:
-            raise osmo_errors.OSMOError(
-                f"MEK file {self.mek_file} changed repeatedly while it was being initialized."
-            )
+        self._keyring, _ = self._read_keyring()
 
     @property
     def current_mek_id(self) -> str:
@@ -206,33 +172,20 @@ class SecretManager:
         """Return a non-secret identifier for the loaded keyring revision."""
         return self._keyring.generation
 
-    @property
-    def last_reload_error(self) -> str:
-        return self._last_reload_error
-
-    @property
-    def reload_failure_revision(self) -> int:
-        """Return a monotonic, non-secret identifier for a rejected file revision."""
-        return self._reload_failure_revision
-
     def key_fingerprints(self) -> Dict[str, str]:
-        """Return a copy for restricted database identity validation."""
-        with self._keyring_lock:
-            return dict(self._keyring.fingerprints)
+        """Return a copy of the non-secret key fingerprints."""
+        return dict(self._keyring.fingerprints)
 
     def fingerprint_bundle_digest(self) -> str:
         """Return a stable, non-secret identity for the complete loaded MEK bundle."""
-        with self._keyring_lock:
-            descriptor = json.dumps(
-                dict(self._keyring.fingerprints), separators=(",", ":"), sort_keys=True
-            ).encode("utf-8")
+        descriptor = json.dumps(
+            dict(self._keyring.fingerprints), separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
         return hashlib.sha256(descriptor).hexdigest()
 
     def rewrap_snapshot(self) -> Keyring:
         """Capture the immutable activated keyring used by one explicit rewrap run."""
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            return self._keyring
+        return self._keyring
 
     @staticmethod
     def rewrap_snapshot_digest(snapshot: Keyring) -> str:
@@ -243,21 +196,13 @@ class SecretManager:
 
     def validate_rewrap_snapshot(self, snapshot: Keyring) -> None:
         """Fail if the live keyring no longer matches the pinned rewrap authority."""
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            live = self._keyring
-            if (
-                live.generation != snapshot.generation
-                or live.current_mek_id != snapshot.current_mek_id
-                or dict(live.fingerprints) != dict(snapshot.fingerprints)
-            ):
-                raise osmo_errors.OSMOError(
-                    "Active MEK keyring changed during explicit rewrap."
-                )
-
-    def _stat_file(self) -> Tuple[int, int, int, int]:
-        file_stat = os.stat(self.mek_file)
-        return (file_stat.st_dev, file_stat.st_ino, file_stat.st_mtime_ns, file_stat.st_size)
+        live = self._keyring
+        if (
+            live.generation != snapshot.generation
+            or live.current_mek_id != snapshot.current_mek_id
+            or dict(live.fingerprints) != dict(snapshot.fingerprints)
+        ):
+            raise osmo_errors.OSMOError("Active MEK keyring changed during explicit rewrap.")
 
     @staticmethod
     def _file_stat_signature(file_stat: os.stat_result) -> Tuple[int, int, int, int]:
@@ -327,7 +272,7 @@ class SecretManager:
                     "MEK identifiers must use 1-64 letters, digits, dots, underscores, or dashes."
                 )
             if not isinstance(encoded_jwk, str) or not encoded_jwk:
-                raise osmo_errors.OSMOError(f"MEK {mek_id} must be a base64 encoded JWK.")
+                raise osmo_errors.OSMOError("Every MEK must be a base64 encoded JWK.")
             try:
                 jwk_json = base64.b64decode(encoded_jwk.encode("ascii"), validate=True).decode(
                     "utf-8"
@@ -371,13 +316,13 @@ class SecretManager:
                 binascii.Error,
                 jwk.InvalidJWKValue,
             ):
-                raise osmo_errors.OSMOError(f"MEK {mek_id} is invalid.") from None
+                raise osmo_errors.OSMOError("A MEK entry is invalid.") from None
 
         if len(set(fingerprints.values())) != len(fingerprints):
             raise osmo_errors.OSMOError("Each MEK identifier must contain unique key material.")
 
         if current_mek_id not in parsed_meks:
-            raise osmo_errors.OSMOError(f"currentMek {current_mek_id} is not in meks.")
+            raise osmo_errors.OSMOError("currentMek is not present in meks.")
 
         descriptor = json.dumps(
             {
@@ -397,51 +342,6 @@ class SecretManager:
             signature,
         )
 
-    def _validate_transition(self, candidate: Keyring) -> None:
-        previous = self._keyring
-        previous_ids = set(previous.meks)
-        candidate_ids = set(candidate.meks)
-        retained_ids = previous_ids & candidate_ids
-        changed_ids = {
-            mek_id
-            for mek_id in retained_ids
-            if previous.fingerprints[mek_id] != candidate.fingerprints[mek_id]
-        }
-        if changed_ids:
-            raise osmo_errors.OSMOError(
-                f"MEK material changed for existing ids: {sorted(changed_ids)}."
-            )
-
-        added_ids = candidate_ids - previous_ids
-        removed_ids = previous_ids - candidate_ids
-        current_changed = candidate.current_mek_id != previous.current_mek_id
-        if removed_ids:
-            raise osmo_errors.OSMOError(
-                f"MEK removal is not supported; retain keys: {sorted(removed_ids)}."
-            )
-        if added_ids and current_changed and added_ids != {candidate.current_mek_id}:
-            raise osmo_errors.OSMOError(
-                "MEK activation may add only its already-registered currentMek."
-            )
-        if added_ids and not current_changed:
-            if self.prepare_meks is None or not self.prepare_meks(candidate.fingerprints):
-                raise osmo_errors.OSMOError(
-                    "MEK prepare conflicts with the registered key material."
-                )
-        if (
-            current_changed
-            and (
-                self.can_activate_mek is None
-                or not self.can_activate_mek(
-                    candidate.fingerprints,
-                    candidate.current_mek_id,
-                )
-            )
-        ):
-            raise osmo_errors.OSMOError(
-                "MEK activation does not match a prepared database key."
-            )
-
     def _validate_jwe_header(self, header: Mapping[str, object]) -> str:
         if header.get("alg") != self.alg or header.get("enc") != self.enc:
             raise osmo_errors.OSMOError("Encrypted secret uses an unsupported JWE algorithm.")
@@ -455,84 +355,20 @@ class SecretManager:
             raise osmo_errors.OSMOError("Encrypted secret does not contain a valid kid.")
         return kid
 
-    def reload_if_changed(self, retry_pending: bool = True) -> bool:
-        """Atomically adopt a safe kubelet-projected keyring revision."""
-        with self._keyring_lock:
-            signature = None
-            try:
-                signature = self._stat_file()
-                if signature == self._file_signature:
-                    self._rejected_file_signature = None
-                    self._pending_file_signature = None
-                    self._pending_keyring = None
-                    self._last_reload_error = ""
-                    return False
-                if signature == self._rejected_file_signature:
-                    return False
-                if signature == self._pending_file_signature and self._pending_keyring is not None:
-                    if not retry_pending:
-                        return False
-                    candidate = self._pending_keyring
-                else:
-                    try:
-                        for _ in range(3):
-                            candidate, read_signature = self._read_keyring()
-                            current_signature = self._stat_file()
-                            if read_signature == signature == current_signature:
-                                break
-                            # Kubelet switches projected Secrets by replacing the ..data symlink.
-                            # Retry until the path and open descriptor identify one revision.
-                            signature = current_signature
-                        else:
-                            raise osmo_errors.OSMOError(
-                                f"MEK file {self.mek_file} changed repeatedly while being read."
-                            )
-                    except (OSError, osmo_errors.OSMOError) as error:
-                        self._rejected_file_signature = signature
-                        self._reload_failure_revision += 1
-                        self._last_reload_error = str(error)
-                        return False
-                try:
-                    self._validate_transition(candidate)
-                except osmo_errors.OSMOError as error:
-                    if signature != self._pending_file_signature:
-                        self._reload_failure_revision += 1
-                    self._pending_file_signature = signature
-                    self._pending_keyring = candidate
-                    self._last_reload_error = str(error)
-                    return False
-                self._keyring = candidate
-                self._file_signature = signature
-                self._rejected_file_signature = None
-                self._pending_file_signature = None
-                self._pending_keyring = None
-                self._last_reload_error = ""
-                return True
-            except (OSError, osmo_errors.OSMOError) as error:
-                if signature is None:
-                    self._reload_failure_revision += 1
-                self._last_reload_error = str(error)
-                return False
-
-    @_with_keyring_lock
     def get_mek(self, kid: str = "") -> jwk.JWK:
         """Returns master key according to kid. Returns the current master key if kid is empty"""
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            if not kid:
-                kid = self.current_mek_id
-            if kid not in self.meks:
-                raise osmo_errors.OSMONotFoundError(f"Cannot find mek whose kid is {kid}.")
-            return self.meks[kid]
+        if not kid:
+            kid = self.current_mek_id
+        if kid not in self.meks:
+            raise osmo_errors.OSMONotFoundError(f"Cannot find mek whose kid is {kid}.")
+        return self.meks[kid]
 
     def get_uek(self, uid: str, kid: str = "") -> Tuple[jwk.JWK, bool]:
         """Returns user key according to kid and uid. Returns master key if uid is empty.
         Returns current user key if kid is empty"""
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            if not uid:
-                is_current = not kid or kid == self.current_mek_id
-                return (self.get_mek(kid), is_current)
+        if not uid:
+            is_current = not kid or kid == self.current_mek_id
+            return (self.get_mek(kid), is_current)
 
         # Get Encrypted UEK
         try:
@@ -547,13 +383,9 @@ class SecretManager:
 
         except Exception as exc:
             raise osmo_errors.OSMOError(f"Cannot find user key for user {uid}.") from exc
-        # Snapshot immutable keys while locked; database callbacks and crypto run outside it.
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            if mek_kid not in self._keyring.meks:
-                raise osmo_errors.OSMONotFoundError(
-                    f"Cannot find mek whose kid is {mek_kid}.")
-            mek = self._keyring.meks[mek_kid]
+        if mek_kid not in self._keyring.meks:
+            raise osmo_errors.OSMONotFoundError(f"Cannot find mek whose kid is {mek_kid}.")
+        mek = self._keyring.meks[mek_kid]
         jwetoken.decrypt(mek)
 
         jwk_json = jwetoken.payload.decode("utf-8")
@@ -673,10 +505,8 @@ class SecretManager:
         kid = uuid.uuid4().hex
         return jwk.JWK.generate(kty="oct", size=256, kid=kid)
 
-    @_with_keyring_lock
     def authenticate_mek_encrypted(self, value: str) -> str:
         """Authenticate direct-MEK ciphertext without exposing its plaintext."""
-        self.reload_if_changed(retry_pending=False)
         try:
             if value.count(".") != 4:
                 raise ValueError("ciphertext is not compact JWE")
@@ -691,10 +521,8 @@ class SecretManager:
                 "Persisted direct-MEK ciphertext failed authentication."
             ) from error
 
-    @_with_keyring_lock
     def authenticate_uek_wrapper(self, value: str, expected_uek_id: str = "") -> str:
         """Authenticate a persisted UEK wrapper and validate its JWK payload."""
-        self.reload_if_changed(retry_pending=False)
         try:
             if value.count(".") != 4:
                 raise ValueError("ciphertext is not compact JWE")
@@ -726,19 +554,17 @@ class SecretManager:
 
     def add_new_user(self, uid: str):
         """Add uek for a new user"""
-        with self._keyring_lock:
-            self.reload_if_changed(retry_pending=False)
-            uek = self.generate_uek()
-            mek = self.get_mek()
+        uek = self.generate_uek()
+        mek = self.get_mek()
 
-            # Encrypt uek by mek
-            jwetoken = jwe.JWE(
-                uek.export().encode("utf-8"),
-                json_encode({"alg": self.alg, "enc": self.enc, "kid": mek.key_id}),
-            )
-            jwetoken.add_recipient(mek)
+        # Encrypt uek by mek
+        jwetoken = jwe.JWE(
+            uek.export().encode("utf-8"),
+            json_encode({"alg": self.alg, "enc": self.enc, "kid": mek.key_id}),
+        )
+        jwetoken.add_recipient(mek)
 
-            ueks = {"current": uek.key_id, uek.key_id: jwetoken.serialize(True)}
+        ueks = {"current": uek.key_id, uek.key_id: jwetoken.serialize(True)}
         self.add_user(uid, ueks)
 
     def encrypt(self, plain_text: str, uid: str) -> Encrypted:
