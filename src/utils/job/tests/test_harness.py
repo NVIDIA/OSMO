@@ -120,6 +120,7 @@ class TestHarness:
             redis=self.config)
 
         # Create credentials
+        connectors.upsert_user(self.database, 'user')
         self.database.secret_manager.add_new_user('user')
         self.database.execute_commit_command('insert into credential (user_name, cred_name, ' \
             "cred_type, profile, payload) values ('user', 'swift', 'DATA', " \

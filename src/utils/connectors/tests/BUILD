@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 py_test(
@@ -95,4 +95,16 @@ py_test(
         "//src/utils/connectors:connectors",
     ],
     size = "small",
+)
+
+osmo_py_test(
+    name = "test_user_names_db",
+    srcs = ["test_user_names_db.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/tests/common",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "large",
+    tags = ["requires-network"],
 )

@@ -54,7 +54,11 @@ func insertRoleMapping(t *testing.T, fixture *database.PostgresFixture,
 func insertUser(t *testing.T, fixture *database.PostgresFixture, userID string) {
 	t.Helper()
 	fixture.ExecSQL(t,
-		`INSERT INTO users (id, created_by) VALUES ($1, $1)`, userID)
+		`WITH inserted_identity AS (
+			INSERT INTO user_identities (id) VALUES ($1)
+			ON CONFLICT (id) DO NOTHING
+		)
+		INSERT INTO users (id, created_by) VALUES ($1, $1)`, userID)
 }
 
 // insertUserRole writes a user_roles row directly.
@@ -88,6 +92,23 @@ func readUserRoleNames(t *testing.T, fixture *database.PostgresFixture,
 		names = append(names, name)
 	}
 	return names
+}
+
+func readIdentityAndUserCounts(t *testing.T, fixture *database.PostgresFixture,
+	userID string) (int, int) {
+	t.Helper()
+	// The durable identity remains while the current user is deleted and recreated.
+	var identityCount int
+	var userCount int
+	err := fixture.Pool.QueryRow(context.Background(),
+		`SELECT
+			(SELECT COUNT(*) FROM user_identities WHERE id = $1) AS identity_count,
+			(SELECT COUNT(*) FROM users WHERE id = $1) AS user_count`,
+		userID).Scan(&identityCount, &userCount)
+	if err != nil {
+		t.Fatalf("failed to query identity and user counts: %v", err)
+	}
+	return identityCount, userCount
 }
 
 // containsString reports whether slice contains target. Helper kept outside
@@ -143,6 +164,45 @@ func TestSyncUserRoles_Integration_ImportMode_AddsMappedRole(t *testing.T) {
 	if !containsString(stored, "osmo-admin") {
 		t.Errorf("expected user_roles to contain %q after sync, got: %v",
 			"osmo-admin", stored)
+	}
+
+	identityCount, userCount := readIdentityAndUserCounts(t, fixture, "alice")
+	if identityCount != 1 || userCount != 1 {
+		t.Errorf("expected one identity and one user, got identities=%d users=%d",
+			identityCount, userCount)
+	}
+}
+
+func TestSyncUserRoles_Integration_RecreatesDeletedUser(t *testing.T) {
+	fixture := database.StartPostgresWithSchema(t)
+
+	insertRoleWithSyncMode(t, fixture, "osmo-admin", roles.SyncModeImport)
+	insertRoleMapping(t, fixture, "osmo-admin", "idp-admins")
+	_, err := roles.SyncUserRoles(context.Background(), fixture.Client,
+		"alice", []string{"idp-admins"}, silentLogger())
+	if err != nil {
+		t.Fatalf("initial sync failed: %v", err)
+	}
+	fixture.ExecSQL(t, `DELETE FROM users WHERE id = $1`, "alice")
+
+	identityCount, userCount := readIdentityAndUserCounts(t, fixture, "alice")
+	if identityCount != 1 || userCount != 0 {
+		t.Fatalf("expected retained identity without user, got identities=%d users=%d",
+			identityCount, userCount)
+	}
+
+	result, err := roles.SyncUserRoles(context.Background(), fixture.Client,
+		"alice", []string{"idp-admins"}, silentLogger())
+	if err != nil {
+		t.Fatalf("recreation sync failed: %v", err)
+	}
+	if !containsString(result, "osmo-admin") {
+		t.Errorf("expected recreated user to receive osmo-admin, got: %v", result)
+	}
+	identityCount, userCount = readIdentityAndUserCounts(t, fixture, "alice")
+	if identityCount != 1 || userCount != 1 {
+		t.Errorf("expected one identity and recreated user, got identities=%d users=%d",
+			identityCount, userCount)
 	}
 }
 

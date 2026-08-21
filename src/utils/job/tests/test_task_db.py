@@ -69,6 +69,11 @@ class TaskDbFixture(
     def _get_db(self) -> postgres.PostgresConnector:
         return postgres.PostgresConnector.get_instance()
 
+    def setUp(self):
+        super().setUp()
+        connectors.upsert_user(self._get_db(), 'user@nvidia.com')
+        connectors.upsert_user(self._get_db(), 'alice')
+
     def _insert_workflow(self) -> None:
         self._get_db().execute_commit_command(
             '''INSERT INTO workflows
