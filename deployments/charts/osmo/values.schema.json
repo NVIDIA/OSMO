@@ -69,6 +69,7 @@
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
         "valkey": { "$ref": "#/definitions/secretReference" },
         "objectStorage": { "$ref": "#/definitions/secretReference" },
+        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeySecretReference" },
         "defaultAdmin": { "$ref": "#/definitions/secretReference" }
       }
@@ -85,7 +86,6 @@
         "agent": { "$ref": "#/definitions/agentComponent" },
         "delayedJobMonitor": { "$ref": "#/definitions/delayedJobMonitorComponent" },
         "mcp": { "$ref": "#/definitions/mcpComponent" },
-        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "backendListener": { "$ref": "#/definitions/backendListenerComponent" },
         "backendWorker": { "$ref": "#/definitions/backendWorkerComponent" },
         "backendTestRunner": { "$ref": "#/definitions/backendTestRunnerComponent" }
@@ -119,13 +119,12 @@
         "backendTestNamespace": { "type": "string" },
         "authentication": { "$ref": "#/definitions/computeAuthentication" },
         "nodeConditionPrefix": { "type": "string" },
-        "usageNamespaces": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "rbac": { "$ref": "#/definitions/computeRbac" },
         "workflowNetworkPolicy": { "$ref": "#/definitions/computeNetworkPolicy" },
         "priorityClasses": { "$ref": "#/definitions/computePriorityClasses" },
         "extraConfigMaps": { "$ref": "#/definitions/computeExtraConfigMaps" }
       },
-      "required": ["workloadNamespace", "backendName", "backendTestNamespace", "authentication", "nodeConditionPrefix", "usageNamespaces", "rbac", "workflowNetworkPolicy", "priorityClasses", "extraConfigMaps"]
+      "required": ["workloadNamespace", "backendName", "backendTestNamespace", "authentication", "nodeConditionPrefix", "rbac", "workflowNetworkPolicy", "priorityClasses", "extraConfigMaps"]
     },
     "computeAuthentication": {
       "type": "object",
@@ -220,13 +219,9 @@
         {
           "type": "object",
           "properties": {
-            "enableNodeLabelUpdate": { "type": "boolean" },
-            "maxUnackedMessages": { "type": "integer", "minimum": 0 },
-            "podCacheTtlSeconds": { "type": "integer", "minimum": 0 },
-            "apiQps": { "type": "number", "minimum": 0 },
-            "apiBurst": { "type": "integer", "minimum": 0 }
+            "enableNodeLabelUpdate": { "type": "boolean" }
           },
-          "required": ["enableNodeLabelUpdate", "maxUnackedMessages", "podCacheTtlSeconds", "apiQps", "apiBurst"]
+          "required": ["enableNodeLabelUpdate"]
         }
       ]
     },
@@ -236,10 +231,9 @@
         {
           "type": "object",
           "properties": {
-            "progressIterFrequency": { "type": "string", "minLength": 1 },
             "extraRBACRules": { "type": "array", "items": { "type": "object" } }
           },
-          "required": ["progressIterFrequency", "extraRBACRules"]
+          "required": ["extraRBACRules"]
         }
       ]
     },
@@ -280,10 +274,9 @@
     "backendTestRunnerContainer": {
       "type": "object",
       "properties": {
-        "args": { "type": "array", "items": { "type": "string" } },
         "resources": { "type": "object" }
       },
-      "required": ["args", "resources"]
+      "required": ["resources"]
     },
     "backendTestRunnerConfigMap": {
       "type": "object",
@@ -324,6 +317,7 @@
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
+        "extraArgs": { "type": "array", "items": { "type": "string" } },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "image": { "$ref": "#/definitions/componentImage" },
         "cronJob": { "$ref": "#/definitions/backendTestRunnerCronJob" },
@@ -338,7 +332,7 @@
         "pod": { "$ref": "#/definitions/backendTestRunnerPod" },
         "extraRoles": { "type": "array", "items": { "type": "object" } }
       },
-      "required": ["enabled", "serviceAccount", "image", "cronJob", "jobTemplate", "initContainer", "container", "configMap", "testConfigVolume", "extraEnv", "labels", "annotations", "pod", "extraRoles"]
+      "required": ["enabled", "extraArgs", "serviceAccount", "image", "cronJob", "jobTemplate", "initContainer", "container", "configMap", "testConfigVolume", "extraEnv", "labels", "annotations", "pod", "extraRoles"]
     },
     "embeddedObjectStorage": {
       "type": "object",
@@ -1211,8 +1205,7 @@
             "properties": {
               "name": { "type": "string" },
               "existingSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
-              "managedSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
-              "secretName": { "type": "string" }
+              "managedSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" }
             }
           }
         }

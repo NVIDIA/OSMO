@@ -111,7 +111,13 @@ data:
                 imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "component" $component) }}
                 command: ["backend_test_runner"]
                 args:
-                  {{- toYaml $component.container.args | nindent 18 }}
+                - --read_from_osmo
+                - "false"
+                - --read_from_file
+                - {{ $component.testConfigVolume.mountPath }}/test_config.json
+                {{- range $component.extraArgs }}
+                - {{ . | quote }}
+                {{- end }}
                 env:
                 - name: BACKEND
                   value: "{{ "{{" }} backend_name {{ "}}" }}"

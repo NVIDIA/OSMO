@@ -380,7 +380,7 @@ above.
   chart-protected identity labels and annotations take final precedence.
   Configure dependency metadata in the dependency's native values block.
 - Configure hook and init-container images with their image objects under
-  `services.backendApiTokens.bootstrap.image`,
+  `secrets.backendApiTokens.bootstrap.image`,
   `secrets.masterEncryptionKey.bootstrap.image`,
   `embeddedDependencies.objectStorage.bootstrap.image`, and
   `services.backendTestRunner.initContainer.image`. Digest references take
@@ -391,15 +391,19 @@ See [`values.yaml`](values.yaml) for the complete configuration reference.
 
 ## Compute resource ownership
 
-`compute.usageNamespaces` is an array of namespaces whose usage the backend
-listener reports. `compute.rbac.create=false` disables all chart-owned compute
-Roles and RoleBindings in the workflow and test namespaces. Cluster RBAC is
-controlled separately. When namespaced RBAC is chart-owned but cluster policy
-is centrally managed, set `compute.rbac.clusterRoles.create=false` and provide
-`listenerName`, `workerName`, and, when the test runner is enabled,
-`testRunnerName` under `compute.rbac.clusterRoles`. Chart-owned cluster RBAC
-names include a stable hash of the Helm release namespace so equal release names
-in different namespaces do not collide.
+Binary defaults are not duplicated as individual Helm values. Override
+listener, worker, or test-runner command-line tuning with the component's
+`extraArgs`. `services.backendListener.enableNodeLabelUpdate` remains explicit
+because enabling it also grants the listener permission to patch Node labels.
+
+`compute.rbac.create=false` disables all chart-owned compute Roles and
+RoleBindings in the workflow and test namespaces. Cluster RBAC is controlled
+separately. When namespaced RBAC is chart-owned but cluster policy is centrally
+managed, set `compute.rbac.clusterRoles.create=false` and provide `listenerName`,
+`workerName`, and, when the test runner is enabled, `testRunnerName` under
+`compute.rbac.clusterRoles`. Chart-owned cluster RBAC names include a stable
+hash of the Helm release namespace so equal release names in different
+namespaces do not collide.
 
 `compute.workflowNetworkPolicy` owns a namespace-wide egress policy for every
 Pod in `compute.workloadNamespace`; it is not limited to OSMO Pods. Enabling it
@@ -424,7 +428,7 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.valkey` | `redis-password` | Valkey clients |
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
-| `services.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
+| `secrets.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
 
 Generated backend-token and MEK Secrets are intentionally retained because
 replacing either can disconnect the compute plane or make encrypted database

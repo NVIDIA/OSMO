@@ -37,17 +37,17 @@ secrets:
   objectStorage:
     generate: true
     existingSecret: ''
-  masterEncryptionKey:
-    generate: true
-    existingSecret: ''
-
-services:
   backendApiTokens:
     enabled: true
     credentials:
     - name: default
       managedSecret:
         name: osmo-backend-token
+  masterEncryptionKey:
+    generate: true
+    existingSecret: ''
+
+services:
   mcp:
     enabled: false
   ui:

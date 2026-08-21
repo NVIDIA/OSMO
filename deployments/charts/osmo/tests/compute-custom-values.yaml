@@ -29,8 +29,6 @@ compute:
   authentication:
     existingSecret: custom-backend-token
     tokenKey: token
-  usageNamespaces:
-  - custom-workflows
 
 services:
   backendListener:
@@ -42,6 +40,9 @@ services:
     extraEnv:
     - name: CUSTOM_LISTENER
       value: enabled
+    extraArgs:
+    - --include_namespace_usage
+    - custom-workflows
     pod:
       annotations:
         example.com/listener-annotation: custom

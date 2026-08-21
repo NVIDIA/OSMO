@@ -78,7 +78,7 @@ chart interfaces required by an existing deployment:
   Converged compute uses the release gateway Service DNS automatically.
 - Provision one backend bootstrap Secret per compute plane in both the control
   and compute clusters. Configure the unified chart's
-  `services.backendApiTokens.credentials[].existingSecret.name`
+  `secrets.backendApiTokens.credentials[].existingSecret.name`
   and `compute.authentication.existingSecret` to consume the matching Secret.
   Managed backend-token and MEK generation is intended only for single-cluster
   development where both planes consume namespace-local Secrets.

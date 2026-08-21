@@ -97,8 +97,6 @@ spec:
         - "true"
         - --node_condition_prefix
         - {{ .Values.compute.nodeConditionPrefix | quote }}
-        - --progress_iter_frequency
-        - {{ $component.progressIterFrequency | quote }}
         - --test_runner_namespace
         - {{ .Values.compute.backendTestNamespace | quote }}
         {{- if .Values.services.backendTestRunner.enabled }}

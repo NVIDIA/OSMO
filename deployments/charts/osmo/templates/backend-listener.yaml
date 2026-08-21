@@ -99,16 +99,6 @@ spec:
         - {{ $component.enableNodeLabelUpdate | quote }}
         - --node_condition_prefix
         - {{ .Values.compute.nodeConditionPrefix | quote }}
-        - --max_unacked_messages
-        - {{ $component.maxUnackedMessages | quote }}
-        - --pod_event_cache_ttl
-        - {{ $component.podCacheTtlSeconds | quote }}
-        - --include_namespace_usage
-        - {{ join "," .Values.compute.usageNamespaces | quote }}
-        - --api_qps
-        - {{ $component.apiQps | quote }}
-        - --api_burst
-        - {{ $component.apiBurst | quote }}
         {{- range $component.extraArgs }}
         - {{ . | quote }}
         {{- end }}

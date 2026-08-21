@@ -450,6 +450,24 @@ test_control_umbrella() {
         "https://osmo.example.com"
     require_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "secretName: osmo-backend-token"
+    resource_document "$TEST_DIRECTORY/split-compute.yaml" Deployment \
+        split-compute-osmo-backend-listener \
+        >"$TEST_DIRECTORY/split-compute-listener.yaml"
+    resource_document "$TEST_DIRECTORY/split-compute.yaml" Deployment \
+        split-compute-osmo-backend-worker \
+        >"$TEST_DIRECTORY/split-compute-worker.yaml"
+    local redundant_compute_arg
+    for redundant_compute_arg in \
+            --max_unacked_messages \
+            --pod_event_cache_ttl \
+            --include_namespace_usage \
+            --api_qps \
+            --api_burst; do
+        require_not_contains "$TEST_DIRECTORY/split-compute-listener.yaml" \
+            "$redundant_compute_arg"
+    done
+    require_not_contains "$TEST_DIRECTORY/split-compute-worker.yaml" \
+        "--progress_iter_frequency"
 
     helm_template split-custom "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -489,6 +507,8 @@ test_control_umbrella() {
         --set compute.backendTestNamespace=backend-tests \
         --set monitoring.podMonitor.compute.enabled=true \
         --set services.backendTestRunner.enabled=true \
+        --set services.backendTestRunner.extraArgs[0]=--prefix \
+        --set services.backendTestRunner.extraArgs[1]=convention \
         >"$TEST_DIRECTORY/compute-features.yaml"
     require_resource "$TEST_DIRECTORY/compute-features.yaml" NetworkPolicy \
         compute-features-osmo-workflow-network-policy
@@ -517,6 +537,14 @@ test_control_umbrella() {
         "example.com/pod-annotation: compute"
     require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
         "fsGroupChangePolicy: OnRootMismatch"
+    require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "--read_from_osmo"
+    require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "--read_from_file"
+    require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "--prefix"
+    require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "convention"
 
     helm_template osmo "$charts_copy/osmo" \
         --namespace osmo \
@@ -938,9 +966,9 @@ test_control_umbrella() {
     helm_template managed-backend-token "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set services.backendApiTokens.enabled=true \
-        --set services.backendApiTokens.credentials[0].name=default \
-        --set services.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
+        --set secrets.backendApiTokens.enabled=true \
+        --set secrets.backendApiTokens.credentials[0].name=default \
+        --set secrets.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
         >"$TEST_DIRECTORY/managed-backend-token.yaml"
     require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
         "managed-backend-token-backend-token-bootstrap"
@@ -964,10 +992,10 @@ test_control_umbrella() {
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set services.backendApiTokens.enabled=true \
-        --set services.backendApiTokens.rolloutNonce=rotation-1 \
-        --set services.backendApiTokens.credentials[0].name=default \
-        --set services.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
+        --set secrets.backendApiTokens.enabled=true \
+        --set secrets.backendApiTokens.rolloutNonce=rotation-1 \
+        --set secrets.backendApiTokens.credentials[0].name=default \
+        --set secrets.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
         >"$TEST_DIRECTORY/upgraded-backend-token.yaml"
     require_contains "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
         "--fail-if-missing"
@@ -980,9 +1008,9 @@ test_control_umbrella() {
     helm_template existing-backend-token "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set services.backendApiTokens.enabled=true \
-        --set services.backendApiTokens.credentials[0].name=default \
-        --set services.backendApiTokens.credentials[0].existingSecret.name=osmo-existing-backend-token \
+        --set secrets.backendApiTokens.enabled=true \
+        --set secrets.backendApiTokens.credentials[0].name=default \
+        --set secrets.backendApiTokens.credentials[0].existingSecret.name=osmo-existing-backend-token \
         >"$TEST_DIRECTORY/existing-backend-token.yaml"
     require_no_resource "$TEST_DIRECTORY/existing-backend-token.yaml" Job \
         "existing-backend-token-backend-token-bootstrap"
@@ -990,18 +1018,6 @@ test_control_umbrella() {
         ServiceAccount "existing-backend-token-backend-token-bootstrap"
     require_contains "$TEST_DIRECTORY/existing-backend-token.yaml" \
         "secretName: osmo-existing-backend-token"
-
-    helm_template deprecated-backend-token "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set services.backendApiTokens.enabled=true \
-        --set services.backendApiTokens.credentials[0].name=legacy \
-        --set services.backendApiTokens.credentials[0].secretName=osmo-legacy-backend-token \
-        >"$TEST_DIRECTORY/deprecated-backend-token.yaml"
-    require_no_resource "$TEST_DIRECTORY/deprecated-backend-token.yaml" Job \
-        "deprecated-backend-token-backend-token-bootstrap"
-    require_contains "$TEST_DIRECTORY/deprecated-backend-token.yaml" \
-        "secretName: osmo-legacy-backend-token"
 
     local invalid_backend_token_case
     local invalid_backend_token_values
@@ -1012,7 +1028,7 @@ test_control_umbrella() {
                 "$charts_copy/osmo" \
                 -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
                 -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-                --set services.backendApiTokens.enabled=true \
+                --set secrets.backendApiTokens.enabled=true \
                 $invalid_backend_token_values \
                 >"$TEST_DIRECTORY/invalid-backend-token-$invalid_backend_token_case.out" \
                 2>&1; then
@@ -1022,13 +1038,14 @@ test_control_umbrella() {
             "$TEST_DIRECTORY/invalid-backend-token-$invalid_backend_token_case.out" \
             "$invalid_backend_token_error"
     done <<'EOF'
-empty||services.backendApiTokens.credentials must not be empty when backend API tokens are enabled
-invalid-name|--set services.backendApiTokens.credentials[0].name=INVALID --set services.backendApiTokens.credentials[0].existingSecret.name=token-one|invalid backend API token credential name "INVALID"
-duplicate-name|--set services.backendApiTokens.credentials[0].name=duplicate --set services.backendApiTokens.credentials[0].existingSecret.name=token-one --set services.backendApiTokens.credentials[1].name=duplicate --set services.backendApiTokens.credentials[1].existingSecret.name=token-two|duplicate backend API token credential name "duplicate"
-missing-source|--set services.backendApiTokens.credentials[0].name=default|backend API token credential "default" must configure exactly one of existingSecret, managedSecret, or deprecated secretName
-conflicting-source|--set services.backendApiTokens.credentials[0].name=default --set services.backendApiTokens.credentials[0].existingSecret.name=token-one --set services.backendApiTokens.credentials[0].managedSecret.name=token-two|backend API token credential "default" must configure exactly one of existingSecret, managedSecret, or deprecated secretName
-duplicate-secret|--set services.backendApiTokens.credentials[0].name=one --set services.backendApiTokens.credentials[0].existingSecret.name=shared-token --set services.backendApiTokens.credentials[1].name=two --set services.backendApiTokens.credentials[1].managedSecret.name=shared-token|duplicate backend API token Secret name "shared-token"
-invalid-secret|--set services.backendApiTokens.credentials[0].name=default --set services.backendApiTokens.credentials[0].existingSecret.name=INVALID_SECRET|invalid backend API token Secret name "INVALID_SECRET"
+empty||secrets.backendApiTokens.credentials must not be empty when backend API tokens are enabled
+invalid-name|--set secrets.backendApiTokens.credentials[0].name=INVALID --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one|invalid backend API token credential name "INVALID"
+duplicate-name|--set secrets.backendApiTokens.credentials[0].name=duplicate --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one --set secrets.backendApiTokens.credentials[1].name=duplicate --set secrets.backendApiTokens.credentials[1].existingSecret.name=token-two|duplicate backend API token credential name "duplicate"
+missing-source|--set secrets.backendApiTokens.credentials[0].name=default|backend API token credential "default" must configure exactly one of existingSecret or managedSecret
+conflicting-source|--set secrets.backendApiTokens.credentials[0].name=default --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one --set secrets.backendApiTokens.credentials[0].managedSecret.name=token-two|backend API token credential "default" must configure exactly one of existingSecret or managedSecret
+legacy-source|--set secrets.backendApiTokens.credentials[0].name=legacy --set secrets.backendApiTokens.credentials[0].secretName=osmo-legacy-backend-token|backend API token credential "legacy" must configure exactly one of existingSecret or managedSecret
+duplicate-secret|--set secrets.backendApiTokens.credentials[0].name=one --set secrets.backendApiTokens.credentials[0].existingSecret.name=shared-token --set secrets.backendApiTokens.credentials[1].name=two --set secrets.backendApiTokens.credentials[1].managedSecret.name=shared-token|duplicate backend API token Secret name "shared-token"
+invalid-secret|--set secrets.backendApiTokens.credentials[0].name=default --set secrets.backendApiTokens.credentials[0].existingSecret.name=INVALID_SECRET|invalid backend API token Secret name "INVALID_SECRET"
 EOF
 
     helm_template generated-mek "$charts_copy/osmo" \

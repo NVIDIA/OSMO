@@ -47,13 +47,13 @@
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
 {{- if .Values.planes.control.enabled -}}
-{{- if .Values.services.backendApiTokens.enabled -}}
-{{- if not .Values.services.backendApiTokens.credentials -}}
-{{- fail "services.backendApiTokens.credentials must not be empty when backend API tokens are enabled" -}}
+{{- if .Values.secrets.backendApiTokens.enabled -}}
+{{- if not .Values.secrets.backendApiTokens.credentials -}}
+{{- fail "secrets.backendApiTokens.credentials must not be empty when backend API tokens are enabled" -}}
 {{- end -}}
 {{- $backendTokenCredentialNames := dict -}}
 {{- $backendTokenSecretNames := dict -}}
-{{- range .Values.services.backendApiTokens.credentials -}}
+{{- range .Values.secrets.backendApiTokens.credentials -}}
 {{- $credentialName := required "backend API token credential name is required" .name -}}
 {{- if or
   (gt (len $credentialName) 49)

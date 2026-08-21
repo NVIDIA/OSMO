@@ -23,9 +23,6 @@ compute:
   authentication:
     existingSecret: convention-backend-token
     tokenKey: convention-token
-  usageNamespaces:
-  - team-a
-  - team-b
   backendTestNamespace: convention-backend-tests
 
 embeddedDependencies:
@@ -39,6 +36,14 @@ embeddedDependencies:
         pullPolicy: Always
 
 secrets:
+  backendApiTokens:
+    bootstrap:
+      image:
+        registry: registry.example.com
+        repository: conventions/backend-token-bootstrap
+        tag: ignored
+        digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        pullPolicy: Always
   masterEncryptionKey:
     bootstrap:
       image:
@@ -49,14 +54,6 @@ secrets:
         pullPolicy: Always
 
 services:
-  backendApiTokens:
-    bootstrap:
-      image:
-        registry: registry.example.com
-        repository: conventions/backend-token-bootstrap
-        tag: ignored
-        digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        pullPolicy: Always
   api:
     extraEnv:
     - name: API_CONVENTION
@@ -99,6 +96,9 @@ services:
       annotations:
         example.com/service-annotation: mcp
   backendListener:
+    extraArgs:
+    - --include_namespace_usage
+    - team-a,team-b
     extraEnv:
     - name: COMPUTE_CONVENTION
       value: listener
@@ -113,6 +113,9 @@ services:
       automountServiceAccountToken: false
   backendTestRunner:
     enabled: true
+    extraArgs:
+    - --prefix
+    - convention
     initContainer:
       image:
         registry: registry.example.com

@@ -327,20 +327,16 @@ data:
 {{- define "osmo.backendApiTokenSecretName" -}}
 {{- $hasExistingSecret := hasKey . "existingSecret" -}}
 {{- $hasManagedSecret := hasKey . "managedSecret" -}}
-{{- $hasLegacySecretName := hasKey . "secretName" -}}
 {{- $sourceCount := add
       (ternary 1 0 $hasExistingSecret)
-      (ternary 1 0 $hasManagedSecret)
-      (ternary 1 0 $hasLegacySecretName) -}}
+      (ternary 1 0 $hasManagedSecret) -}}
 {{- if ne $sourceCount 1 -}}
-{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret, managedSecret, or deprecated secretName" (.name | default "")) -}}
+{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret or managedSecret" (.name | default "")) -}}
 {{- end -}}
 {{- if $hasExistingSecret -}}
 {{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
-{{- else if $hasManagedSecret -}}
-{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
 {{- else -}}
-{{- required "backend API token secretName is required" .secretName -}}
+{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
 {{- end -}}
 {{- end -}}
 

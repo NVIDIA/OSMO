@@ -23,7 +23,6 @@ compute:
     existingSecret: ''
     tokenKey: token
   nodeConditionPrefix: ''
-  usageNamespaces: []
   rbac:
     create: true
     clusterRoles:
@@ -257,6 +256,30 @@ secrets:
     existingSecret: ''
     keys:
       credentials: object-storage.yaml
+  # Backend compute-plane authentication. Each credential selects exactly one
+  # Kubernetes Secret source. Existing Secrets are the production interface;
+  # managed Secrets are generated and retained by a development-only Helm hook
+  # without placing token material in rendered manifests or Helm release state.
+  # Every Secret contains `token` and may contain `previous-token` for rotation.
+  backendApiTokens:
+    enabled: false
+    bootstrap:
+      image:
+        registry: ''
+        repository: alpine/k8s
+        tag: 1.30.14
+        digest: ''
+        pullPolicy: IfNotPresent
+    # Change this non-secret value to roll the API after an externally managed
+    # token Secret changes.
+    rolloutNonce: ''
+    credentials: []
+    # - name: default
+    #   existingSecret:
+    #     name: osmo-backend-token
+    # - name: local
+    #   managedSecret:
+    #     name: osmo-backend-token-local
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
     generate: false
@@ -285,34 +308,6 @@ secrets:
 # commands, ports, Service names, and required connection arguments remain
 # chart-managed implementation details.
 services:
-  # Backend compute-plane authentication. Each credential selects exactly one
-  # Kubernetes Secret source. Existing Secrets are the production interface;
-  # managed Secrets are generated and retained by a development-only Helm hook
-  # without placing token material in rendered manifests or Helm release state.
-  # Every Secret contains `token` and may contain `previous-token` for rotation.
-  backendApiTokens:
-    enabled: false
-    bootstrap:
-      image:
-        registry: ''
-        repository: alpine/k8s
-        tag: 1.30.14
-        digest: ''
-        pullPolicy: IfNotPresent
-    # Change this non-secret value to roll the API after an externally managed
-    # token Secret changes.
-    rolloutNonce: ''
-    credentials: []
-    # - name: default
-    #   existingSecret:
-    #     name: osmo-backend-token
-    # - name: local
-    #   managedSecret:
-    #     name: osmo-backend-token-local
-    # Deprecated compatibility form (equivalent to existingSecret.name):
-    # - name: legacy
-    #   secretName: osmo-backend-token-legacy
-
   # Compute-plane listener that streams cluster state to the control plane.
   backendListener:
     enabled: true
@@ -324,10 +319,6 @@ services:
       digest: ''
       pullPolicy: IfNotPresent
     enableNodeLabelUpdate: false
-    maxUnackedMessages: 100
-    podCacheTtlSeconds: 15
-    apiQps: 20
-    apiBurst: 30
     serviceAccount:
       name: ''
       create: true
@@ -391,7 +382,6 @@ services:
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
-    progressIterFrequency: 15s
     extraRBACRules: []
     serviceAccount:
       name: ''
@@ -449,6 +439,7 @@ services:
   # Template and RBAC for optional backend validation CronJobs.
   backendTestRunner:
     enabled: false
+    extraArgs: []
     serviceAccount:
       name: ''
       create: true
@@ -491,13 +482,6 @@ services:
           cpu: 100m
           memory: 128Mi
     container:
-      args:
-      - --read_from_osmo
-      - "false"
-      - --read_from_file
-      - /test-config/test_config.json
-      - --prefix
-      - osmo
       resources:
         requests:
           cpu: 100m

@@ -1,9 +1,9 @@
 {{- if .Values.planes.control.enabled }}
 {{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- if .Values.services.backendApiTokens.enabled }}
+{{- if .Values.secrets.backendApiTokens.enabled }}
 {{- $managedCredentials := list }}
-{{- range .Values.services.backendApiTokens.credentials }}
+{{- range .Values.secrets.backendApiTokens.credentials }}
 {{- if hasKey . "managedSecret" }}
 {{- $managedCredentials = append $managedCredentials . }}
 {{- end }}
@@ -96,8 +96,8 @@ spec:
         {{- toYaml .Values.podDefaults.tolerations | nindent 8 }}
       containers:
       - name: backend-token-bootstrap
-        image: {{ include "osmo.image" (dict "root" . "image" .Values.services.backendApiTokens.bootstrap.image "useSharedRegistry" false "useSharedTag" false) | quote }}
-        imagePullPolicy: {{ .Values.services.backendApiTokens.bootstrap.image.pullPolicy }}
+        image: {{ include "osmo.image" (dict "root" . "image" .Values.secrets.backendApiTokens.bootstrap.image "useSharedRegistry" false "useSharedTag" false) | quote }}
+        imagePullPolicy: {{ .Values.secrets.backendApiTokens.bootstrap.image.pullPolicy }}
         command:
         - /bin/ash
         args:

@@ -17,8 +17,8 @@
 {{- if and .Values.planes.control.enabled .Values.services.api.enabled }}
 {{- $name := include "osmo.api.fullname" . }}
 {{- $protectedPodAnnotations := dict }}
-{{- if .Values.services.backendApiTokens.enabled }}
-{{- $_ := set $protectedPodAnnotations "osmo.nvidia.com/backend-token-rollout" .Values.services.backendApiTokens.rolloutNonce }}
+{{- if .Values.secrets.backendApiTokens.enabled }}
+{{- $_ := set $protectedPodAnnotations "osmo.nvidia.com/backend-token-rollout" .Values.secrets.backendApiTokens.rolloutNonce }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -149,7 +149,7 @@ spec:
         - --default_admin_username
         - {{ .Values.secrets.defaultAdmin.username | quote }}
         {{- end }}
-        {{- if .Values.services.backendApiTokens.enabled }}
+        {{- if .Values.secrets.backendApiTokens.enabled }}
         - --backend_token_directory
         - /etc/osmo/backend-tokens
         {{- end }}
@@ -185,8 +185,8 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- if .Values.services.backendApiTokens.enabled }}
-        {{- range .Values.services.backendApiTokens.credentials }}
+        {{- if .Values.secrets.backendApiTokens.enabled }}
+        {{- range .Values.secrets.backendApiTokens.credentials }}
         - name: backend-token-{{ .name }}
           mountPath: /etc/osmo/backend-tokens/{{ .name }}
           readOnly: true
@@ -221,8 +221,8 @@ spec:
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
-        {{- if .Values.services.backendApiTokens.enabled }}
-        {{- range .Values.services.backendApiTokens.credentials }}
+        {{- if .Values.secrets.backendApiTokens.enabled }}
+        {{- range .Values.secrets.backendApiTokens.credentials }}
         - name: backend-token-{{ .name }}
           secret:
             secretName: {{ include "osmo.backendApiTokenSecretName" . }}
