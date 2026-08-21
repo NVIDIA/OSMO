@@ -340,10 +340,6 @@ data:
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.backendApiTokenBootstrapName" -}}
-{{- printf "%s-backend-token-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
 {{- define "osmo.configuration.args" -}}
 {{- if .Values.configuration.enabled }}
 - --config_file

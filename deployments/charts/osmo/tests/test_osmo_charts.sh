@@ -545,6 +545,8 @@ test_control_umbrella() {
         "--prefix"
     require_contains "$TEST_DIRECTORY/compute-features-test-template.yaml" \
         "convention"
+    require_occurrences "$TEST_DIRECTORY/compute-features-test-template.yaml" \
+        "imagePullSecrets:" 1
 
     helm_template osmo "$charts_copy/osmo" \
         --namespace osmo \
@@ -603,6 +605,30 @@ test_control_umbrella() {
         "https://public-control.example.com"
     require_not_contains "$TEST_DIRECTORY/kind-self-contained-ui.yaml" \
         "scheme: HTTPS"
+
+    if helm_template mismatched-converged-backend-token "$charts_copy/osmo" \
+            --namespace osmo \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+            --set compute.authentication.existingSecret=other-backend-token \
+            >"$TEST_DIRECTORY/mismatched-converged-backend-token.out" 2>&1; then
+        fail "expected converged backend token Secret mismatch to fail"
+    fi
+    require_contains \
+        "$TEST_DIRECTORY/mismatched-converged-backend-token.out" \
+        "compute.authentication.existingSecret must match a configured backend API token Secret in a converged release"
+
+    if helm_template disabled-converged-backend-tokens "$charts_copy/osmo" \
+            --namespace osmo \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+            --set secrets.backendApiTokens.enabled=false \
+            >"$TEST_DIRECTORY/disabled-converged-backend-tokens.out" 2>&1; then
+        fail "expected disabled backend API tokens in a converged release to fail"
+    fi
+    require_contains \
+        "$TEST_DIRECTORY/disabled-converged-backend-tokens.out" \
+        "secrets.backendApiTokens.enabled must be true when both planes are enabled"
 
     helm_template conventions "$charts_copy/osmo" \
         --namespace osmo \
@@ -707,6 +733,8 @@ test_control_umbrella() {
         --namespace compute-b \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         >"$TEST_DIRECTORY/compute-b.yaml"
+    local compute_a_cluster_roles
+    local compute_b_cluster_roles
     compute_a_cluster_roles=$(resource_names \
         "$TEST_DIRECTORY/compute-a.yaml" ClusterRole)
     compute_b_cluster_roles=$(resource_names \
@@ -732,6 +760,8 @@ test_control_umbrella() {
     long_name_cluster_resources=$(resource_names \
         "$TEST_DIRECTORY/compute-long-name.yaml" ClusterRole; \
         resource_names "$TEST_DIRECTORY/compute-long-name.yaml" ClusterRoleBinding)
+    [[ -n "$long_name_cluster_resources" ]] || \
+        fail "expected long release names to render compute cluster-scoped RBAC"
     awk '!seen[$0]++ { unique += 1 } END { exit unique != NR }' \
         <<<"$long_name_cluster_resources" || \
         fail "expected long release names to produce unique cluster-scoped RBAC names"
@@ -806,7 +836,7 @@ test_control_umbrella() {
         control-monitor-osmo-backend-monitor
 
     resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
-        conventions-backend-token-bootstrap \
+        osmo-backend-token-bootstrap \
         >"$TEST_DIRECTORY/conventions-backend-token-bootstrap.yaml"
     resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
         osmo-mek-bootstrap \
@@ -971,7 +1001,27 @@ test_control_umbrella() {
         --set secrets.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
         >"$TEST_DIRECTORY/managed-backend-token.yaml"
     require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
-        "managed-backend-token-backend-token-bootstrap"
+        "managed-backend-token-osmo-backend-token-bootstrap"
+    require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" ConfigMap \
+        "managed-backend-token-osmo-backend-token-bootstrap-state"
+    resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
+        managed-backend-token-osmo-backend-token-bootstrap \
+        >"$TEST_DIRECTORY/managed-backend-token-job.yaml"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        "--api-deployment-name"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        '"managed-backend-token-osmo-api"'
+    require_occurrences "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        "        - --is-upgrade" 0
+    resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Role \
+        managed-backend-token-osmo-backend-token-bootstrap \
+        >"$TEST_DIRECTORY/managed-backend-token-role.yaml"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
+        'apiGroups: ["apps"]'
+    require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
+        'resources: ["deployments"]'
+    require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
+        'resourceNames: ["managed-backend-token-osmo-api"]'
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Deployment \
         managed-backend-token-osmo-api \
         >"$TEST_DIRECTORY/managed-backend-token-api.yaml"
@@ -998,7 +1048,9 @@ test_control_umbrella() {
         --set secrets.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
         >"$TEST_DIRECTORY/upgraded-backend-token.yaml"
     require_contains "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
-        "--fail-if-missing"
+        "--state-config-map"
+    require_occurrences "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
+        "        - --is-upgrade" 1
     resource_document "$TEST_DIRECTORY/upgraded-backend-token.yaml" Deployment \
         upgraded-backend-token-osmo-api \
         >"$TEST_DIRECTORY/upgraded-backend-token-api.yaml"
@@ -1013,11 +1065,23 @@ test_control_umbrella() {
         --set secrets.backendApiTokens.credentials[0].existingSecret.name=osmo-existing-backend-token \
         >"$TEST_DIRECTORY/existing-backend-token.yaml"
     require_no_resource "$TEST_DIRECTORY/existing-backend-token.yaml" Job \
-        "existing-backend-token-backend-token-bootstrap"
+        "existing-backend-token-osmo-backend-token-bootstrap"
     require_no_resource "$TEST_DIRECTORY/existing-backend-token.yaml" \
-        ServiceAccount "existing-backend-token-backend-token-bootstrap"
+        ServiceAccount "existing-backend-token-osmo-backend-token-bootstrap"
     require_contains "$TEST_DIRECTORY/existing-backend-token.yaml" \
         "secretName: osmo-existing-backend-token"
+
+    if helm_template empty-backend-token-name "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.backendApiTokens.enabled=true \
+            --set-string secrets.backendApiTokens.credentials[0].name= \
+            --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one \
+            >"$TEST_DIRECTORY/empty-backend-token-name.out" 2>&1; then
+        fail "expected an empty backend token credential name to fail schema validation"
+    fi
+    require_contains "$TEST_DIRECTORY/empty-backend-token-name.out" \
+        "minLength: got 0, want 1"
 
     local invalid_backend_token_case
     local invalid_backend_token_values

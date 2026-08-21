@@ -9,7 +9,9 @@
 {{- end }}
 {{- end }}
 {{- if $managedCredentials }}
-{{- $bootstrapName := include "osmo.backendApiTokenBootstrapName" . }}
+{{- $bootstrapName := include "osmo.component.fullname" (dict "root" . "suffix" "backend-token-bootstrap") }}
+{{- $stateConfigMapName := include "osmo.component.fullname" (dict "root" . "suffix" "backend-token-bootstrap-state") }}
+{{- $apiDeploymentName := include "osmo.api.fullname" . }}
 {{- $hookResourceAnnotations := dict
       "helm.sh/hook" "pre-install,pre-upgrade"
       "helm.sh/hook-weight" "-20"
@@ -44,6 +46,14 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["create"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: [{{ $stateConfigMapName | quote }}]
+  verbs: ["get"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  resourceNames: [{{ $apiDeploymentName | quote }}]
+  verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -109,8 +119,12 @@ spec:
         - {{ .Release.Namespace | quote }}
         - --release-name
         - {{ .Release.Name | quote }}
+        - --state-config-map
+        - {{ $stateConfigMapName | quote }}
+        - --api-deployment-name
+        - {{ $apiDeploymentName | quote }}
         {{- if .Release.IsUpgrade }}
-        - --fail-if-missing
+        - --is-upgrade
         {{- end }}
         {{- range $managedCredentials }}
         - --secret-name
@@ -140,6 +154,23 @@ spec:
       volumes:
       - name: bootstrap-tmp
         emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $stateConfigMapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "backend-token-bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  managed-secrets: |-
+    {{- range $managedCredentials }}
+    {{ include "osmo.backendApiTokenSecretName" . }}
+    {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

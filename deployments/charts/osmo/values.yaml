@@ -18,6 +18,7 @@ compute:
   workloadNamespace: ''
   backendName: default
   # Empty disables backend-test synchronization and test-namespace RBAC.
+  # Enabling services.backendTestRunner requires this namespace to be non-empty.
   backendTestNamespace: ''
   authentication:
     existingSecret: ''

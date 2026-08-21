@@ -23,6 +23,33 @@ set -eu
 printf '%s\n' "$*" >>"$FAKE_STATE_DIRECTORY/commands"
 
 if [ "$1" = get ]; then
+    if [ "$2" = configmap ]; then
+        config_map_name="$3"
+        state_file="$FAKE_STATE_DIRECTORY/$config_map_name.managed-secrets"
+        if [ ! -f "$state_file" ]; then
+            case "$*" in
+                *--ignore-not-found=true*) exit 0 ;;
+                *) exit 1 ;;
+            esac
+        fi
+        cat "$state_file"
+        exit 0
+    fi
+    if [ "$2" = deployment ]; then
+        deployment_name="$3"
+        state_file="$FAKE_STATE_DIRECTORY/$deployment_name.backend-token-volumes"
+        if [ ! -f "$state_file" ]; then
+            case "$*" in
+                *--ignore-not-found=true*) exit 0 ;;
+                *) exit 1 ;;
+            esac
+        fi
+        case "$*" in
+            *metadata.name*) printf '%s' "$deployment_name" ;;
+            *) cat "$state_file" ;;
+        esac
+        exit 0
+    fi
     secret_name="$3"
     output_arguments="$*"
     if [ ! -f "$FAKE_STATE_DIRECTORY/$secret_name.token" ]; then
@@ -92,6 +119,8 @@ run_bootstrap() {
     bash "$BOOTSTRAP_SCRIPT" \
         --namespace osmo \
         --release-name test-release \
+        --state-config-map backend-token-bootstrap-state \
+        --api-deployment-name osmo-api \
         "$@"
 }
 
@@ -148,12 +177,51 @@ if [[ "$output" != *'key token has invalid format'* ]]; then
     exit 1
 fi
 
-if output=$(run_bootstrap --fail-if-missing --secret-name missing-token 2>&1); then
+printf '%s\n' generated-token missing-token \
+    >"$FAKE_STATE_DIRECTORY/backend-token-bootstrap-state.managed-secrets"
+output=$(run_bootstrap --is-upgrade \
+    --secret-name generated-token \
+    --secret-name newly-added-token)
+if [[ "$output" != *'already exists; preserving it'* ]] || \
+        [[ "$output" != *'Created backend token Secret newly-added-token'* ]]; then
+    echo 'Upgrade did not preserve an existing token and create a newly added token' >&2
+    exit 1
+fi
+
+if output=$(run_bootstrap --is-upgrade --secret-name missing-token 2>&1); then
     echo 'Upgrade unexpectedly regenerated a missing backend token' >&2
     exit 1
 fi
 if [[ "$output" != *'missing during upgrade'* ]]; then
     echo 'Missing-upgrade failure did not explain the recovery action' >&2
+    exit 1
+fi
+
+rm -f "$FAKE_STATE_DIRECTORY/backend-token-bootstrap-state.managed-secrets"
+printf '%s\n' \
+    'backend-token-prior missing-migration-token' \
+    >"$FAKE_STATE_DIRECTORY/osmo-api.backend-token-volumes"
+if output=$(run_bootstrap --is-upgrade --secret-name missing-migration-token 2>&1); then
+    echo 'Migration upgrade regenerated a missing previously mounted backend token' >&2
+    exit 1
+fi
+if [[ "$output" != *'missing during upgrade'* ]]; then
+    echo 'Migration failure did not explain the backend token recovery action' >&2
+    exit 1
+fi
+output=$(run_bootstrap --is-upgrade --secret-name migration-new-token)
+if [[ "$output" != *'Created backend token Secret migration-new-token'* ]]; then
+    echo 'Migration upgrade did not create a newly added backend token' >&2
+    exit 1
+fi
+
+rm -f "$FAKE_STATE_DIRECTORY/osmo-api.backend-token-volumes"
+if output=$(run_bootstrap --is-upgrade --secret-name missing-history-token 2>&1); then
+    echo 'Upgrade without state or an API Deployment regenerated a backend token' >&2
+    exit 1
+fi
+if [[ "$output" != *'No backend token state or API Deployment osmo-api was found during upgrade'* ]]; then
+    echo 'Missing-history failure did not explain the recovery action' >&2
     exit 1
 fi
 

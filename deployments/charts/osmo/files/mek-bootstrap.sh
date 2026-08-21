@@ -42,25 +42,73 @@ decode_mek() {
 validate_mek_file() {
     mek_file="$1"
     current_mek_field="current""Mek"
-    if [ "$(wc -l <"$mek_file" | tr -d ' ')" -ne 3 ] || \
-            ! grep -Fxq "$current_mek_field: key1" "$mek_file" || \
-            ! grep -Fxq 'meks:' "$mek_file" || \
-            ! grep -Eq '^  key1: [A-Za-z0-9+/]+={0,2}$' "$mek_file"; then
+    entries_file="$mek_file.entries"
+    if ! awk -v current_mek_field="$current_mek_field" '
+        BEGIN {
+            current_count = 0
+            meks_count = 0
+            entry_count = 0
+            in_meks = 0
+            valid = 1
+        }
+        $0 ~ ("^" current_mek_field ": [A-Za-z0-9._-]+$") {
+            current_count += 1
+            next
+        }
+        $0 == "meks:" {
+            meks_count += 1
+            in_meks = 1
+            next
+        }
+        in_meks && $0 ~ /^  [A-Za-z0-9._-]+: [A-Za-z0-9+\/=]+$/ {
+            entry = substr($0, 3)
+            separator = index(entry, ": ")
+            key = substr(entry, 1, separator - 1)
+            value = substr(entry, separator + 2)
+            print key " " value
+            entry_count += 1
+            next
+        }
+        { valid = 0 }
+        END {
+            if (!valid || current_count != 1 || meks_count != 1 || entry_count == 0) {
+                exit 1
+            }
+        }
+    ' "$mek_file" >"$entries_file"; then
+        rm -f "$entries_file"
         return 1
     fi
 
-    encoded_jwk=$(sed -n 's/^  key1: //p' "$mek_file")
+    current_key=$(sed -n "s/^$current_mek_field: \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p" \
+        "$mek_file")
+    if ! awk -v current_key="$current_key" '$1 == current_key { found = 1 } END { exit !found }' \
+            "$entries_file"; then
+        rm -f "$entries_file"
+        return 1
+    fi
+
     temporary_jwk="$mek_file.jwk"
-    if ! printf '%s' "$encoded_jwk" | base64 -d >"$temporary_jwk"; then
-        rm -f "$temporary_jwk"
-        return 1
-    fi
-    if ! grep -Eq '^\{"k":"[A-Za-z0-9_-]{43}","kid":"key1","kty":"oct"\}$' \
-            "$temporary_jwk"; then
-        rm -f "$temporary_jwk"
-        return 1
-    fi
-    rm -f "$temporary_jwk"
+    valid_entries=true
+    while read -r key encoded_jwk; do
+        if ! printf '%s' "$encoded_jwk" | base64 -d >"$temporary_jwk"; then
+            valid_entries=false
+            break
+        fi
+        if ! grep -Eq '^\{"k":"[A-Za-z0-9_-]{43}","kid":"[A-Za-z0-9._-]+","kty":"oct"\}$' \
+                "$temporary_jwk"; then
+            valid_entries=false
+            break
+        fi
+        jwk_key=$(sed -n 's/^.*"kid":"\([A-Za-z0-9._-][A-Za-z0-9._-]*\)".*$/\1/p' \
+            "$temporary_jwk")
+        if [ "$jwk_key" != "$key" ]; then
+            valid_entries=false
+            break
+        fi
+    done <"$entries_file"
+    rm -f "$entries_file" "$temporary_jwk"
+    [ "$valid_entries" = true ]
 }
 
 validate_secret() {

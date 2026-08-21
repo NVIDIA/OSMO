@@ -44,6 +44,10 @@ secrets:
         tag: ignored
         digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         pullPolicy: Always
+    credentials:
+    - name: convention
+      managedSecret:
+        name: convention-backend-token
   masterEncryptionKey:
     bootstrap:
       image:

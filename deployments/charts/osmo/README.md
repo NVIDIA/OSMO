@@ -432,10 +432,12 @@ may reference a separate Secret. The defaults expect these keys:
 
 Generated backend-token and MEK Secrets are intentionally retained because
 replacing either can disconnect the compute plane or make encrypted database
-fields unreadable. Upgrades fail when a managed Secret is missing. Restore the
-original Secret under the same name; do not generate a replacement against a
-retained database. Back up the generated Valkey and RustFS Secrets with their
-PVCs for the same reason.
+fields unreadable. A release-owned, non-secret ConfigMap records the managed
+backend-token Secret names so upgrades can create newly added credentials while
+still failing when a retained credential disappears. Restore the original
+Secret under the same name; do not generate a replacement against a retained
+database. Back up the generated Valkey and RustFS Secrets with their PVCs for
+the same reason.
 
 `helm --kube-context kind-osmo uninstall osmo --namespace osmo` removes
 release-owned workloads but does

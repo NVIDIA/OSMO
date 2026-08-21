@@ -69,7 +69,6 @@ data:
               activeDeadlineSeconds: {{ $component.jobTemplate.activeDeadlineSeconds }}
               serviceAccountName: {{ include "osmo.compute.testRunnerServiceAccountName" . }}
               automountServiceAccountToken: {{ $component.pod.automountServiceAccountToken }}
-              {{- include "osmo.component.imagePullSecrets" . | nindent 14 }}
               securityContext:
                 {{- include "osmo.pod.securityContext" (dict "root" . "component" $component) | nindent 16 }}
               {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" $component)) }}

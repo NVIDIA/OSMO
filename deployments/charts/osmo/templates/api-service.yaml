@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-{{- if and .Values.planes.control.enabled .Values.services.api.enabled }}
+{{- if .Values.services.api.enabled }}
 {{- $name := include "osmo.api.fullname" . }}
 {{- $protectedPodAnnotations := dict }}
 {{- if .Values.secrets.backendApiTokens.enabled }}

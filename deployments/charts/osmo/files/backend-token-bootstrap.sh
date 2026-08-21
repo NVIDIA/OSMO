@@ -6,10 +6,13 @@
 set -eu
 set -o pipefail
 
-fail_if_missing=false
+is_upgrade=false
 namespace=""
 release_name=""
+state_config_map=""
+api_deployment_name=""
 secret_names=""
+previously_managed_secret_names=""
 
 log_error() {
     printf 'ERROR %s\n' "$*" >&2
@@ -20,6 +23,32 @@ read_secret_name() {
         --namespace "$namespace" \
         --ignore-not-found=true \
         -o go-template='{{.metadata.name}}'
+}
+
+read_managed_secret_state() {
+    kubectl get configmap "$state_config_map" \
+        --namespace "$namespace" \
+        --ignore-not-found=true \
+        -o go-template='{{with index .data "managed-secrets"}}{{.}}{{end}}'
+}
+
+read_pre_state_managed_secrets() {
+    kubectl get deployment "$api_deployment_name" \
+        --namespace "$namespace" \
+        --ignore-not-found=true \
+        -o go-template='{{range .spec.template.spec.volumes}}{{.name}} {{with .secret}}{{.secretName}}{{end}}{{"\n"}}{{end}}' \
+        | awk '$1 ~ /^backend-token-/ && NF == 2 { print $2 }'
+}
+
+read_api_deployment_name() {
+    kubectl get deployment "$api_deployment_name" \
+        --namespace "$namespace" \
+        --ignore-not-found=true \
+        -o go-template='{{.metadata.name}}'
+}
+
+was_previously_managed() {
+    printf '%s\n' "$previously_managed_secret_names" | grep -Fxq -- "$1"
 }
 
 decode_token() {
@@ -169,7 +198,7 @@ ensure_secret() {
         printf 'INFO Backend token Secret %s already exists; preserving it\n' "$secret_name"
         return
     fi
-    if [ "$fail_if_missing" = true ]; then
+    if was_previously_managed "$secret_name"; then
         log_error "Backend token Secret $secret_name is missing during upgrade; restore it instead of generating a new credential"
         return 1
     fi
@@ -178,8 +207,8 @@ ensure_secret() {
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --fail-if-missing)
-            fail_if_missing=true
+        --is-upgrade)
+            is_upgrade=true
             shift
             ;;
         --namespace)
@@ -198,6 +227,22 @@ while [ "$#" -gt 0 ]; do
             release_name="$2"
             shift 2
             ;;
+        --state-config-map)
+            if [ "$#" -lt 2 ]; then
+                log_error 'Missing value for --state-config-map'
+                exit 2
+            fi
+            state_config_map="$2"
+            shift 2
+            ;;
+        --api-deployment-name)
+            if [ "$#" -lt 2 ]; then
+                log_error 'Missing value for --api-deployment-name'
+                exit 2
+            fi
+            api_deployment_name="$2"
+            shift 2
+            ;;
         --secret-name)
             if [ "$#" -lt 2 ]; then
                 log_error 'Missing value for --secret-name'
@@ -213,13 +258,36 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-if [ -z "$namespace" ] || [ -z "$release_name" ]; then
-    log_error 'Namespace and release name are required'
+if [ -z "$namespace" ] || [ -z "$release_name" ] || \
+        [ -z "$state_config_map" ] || [ -z "$api_deployment_name" ]; then
+    log_error 'Namespace, release name, state ConfigMap, and API Deployment are required'
     exit 2
 fi
 if [ -z "$secret_names" ]; then
     log_error 'At least one Secret name is required'
     exit 2
+fi
+
+previously_managed_secret_names=$(read_managed_secret_state) || {
+    log_error "Unable to read backend token state ConfigMap $state_config_map"
+    exit 1
+}
+if [ -z "$previously_managed_secret_names" ]; then
+    existing_api_deployment_name=$(read_api_deployment_name) || {
+        log_error "Unable to read API Deployment $api_deployment_name"
+        exit 1
+    }
+    if [ -z "$existing_api_deployment_name" ]; then
+        if [ "$is_upgrade" = true ]; then
+            log_error "No backend token state or API Deployment $api_deployment_name was found during upgrade; restore the release state before retrying"
+            exit 1
+        fi
+    else
+        previously_managed_secret_names=$(read_pre_state_managed_secrets) || {
+            log_error "Unable to read backend token volumes from API Deployment $api_deployment_name"
+            exit 1
+        }
+    fi
 fi
 
 for secret_name in $secret_names; do

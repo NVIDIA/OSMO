@@ -47,6 +47,9 @@
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
 {{- if .Values.planes.control.enabled -}}
+{{- if and .Values.planes.compute.enabled (not .Values.secrets.backendApiTokens.enabled) -}}
+{{- fail "secrets.backendApiTokens.enabled must be true when both planes are enabled" -}}
+{{- end -}}
 {{- if .Values.secrets.backendApiTokens.enabled -}}
 {{- if not .Values.secrets.backendApiTokens.credentials -}}
 {{- fail "secrets.backendApiTokens.credentials must not be empty when backend API tokens are enabled" -}}
@@ -74,6 +77,11 @@
 {{- fail (printf "duplicate backend API token Secret name %q" $secretName) -}}
 {{- end -}}
 {{- $_ := set $backendTokenSecretNames $secretName true -}}
+{{- end -}}
+{{- if and
+  .Values.planes.compute.enabled
+  (not (hasKey $backendTokenSecretNames .Values.compute.authentication.existingSecret)) -}}
+{{- fail "compute.authentication.existingSecret must match a configured backend API token Secret in a converged release" -}}
 {{- end -}}
 {{- end -}}
 {{- $objectStorageCredentialsKey := .Values.secrets.objectStorage.keys.credentials -}}

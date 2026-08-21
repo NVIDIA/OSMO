@@ -119,6 +119,39 @@ if [[ "$output" != *'already exists; preserving it'* ]]; then
     exit 1
 fi
 
+rotated_key=$(printf 'r%.0s' {1..43})
+rotated_jwk=$(printf '{"k":"%s","kid":"key2","kty":"oct"}' "$rotated_key" \
+    | base64 | tr -d '\n')
+printf '%s\n' \
+    'currentMek: key2' \
+    'meks:' \
+    "  key1: $encoded_jwk" \
+    "  key2: $rotated_jwk" >"$generated_mek"
+output=$(run_bootstrap)
+if [[ "$output" != *'already exists; preserving it'* ]]; then
+    echo 'Rotated multi-key MEK was not preserved' >&2
+    exit 1
+fi
+
+printf '%s\n' \
+    'currentMek: key2' \
+    'meks:' \
+    '  key1: definitely-not-a-jwk' \
+    "  key2: $rotated_jwk" >"$generated_mek"
+if output=$(run_bootstrap 2>&1); then
+    echo 'Rotated MEK with an invalid historical key was accepted' >&2
+    exit 1
+fi
+if [[ "$output" != *'has invalid format'* ]]; then
+    echo 'Invalid rotated MEK failure did not identify the affected Secret' >&2
+    exit 1
+fi
+
+printf '%s\n' \
+    'currentMek: key1' \
+    'meks:' \
+    "  key1: $encoded_jwk" >"$generated_mek"
+
 rm -f "$generated_mek"
 if output=$(run_bootstrap --fail-if-missing 2>&1); then
     echo 'Upgrade unexpectedly regenerated a missing MEK' >&2
