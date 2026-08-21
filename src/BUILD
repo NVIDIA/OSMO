@@ -51,6 +51,7 @@ pkg_files(
 
 pkg_tar(
     name = "python_runtime_tar_amd64",
+    extension = "tar.gz",
     srcs = [
         ":python_runtime_binary_package_amd64",
         ":python_runtime_stdlib_package_amd64",
@@ -87,6 +88,7 @@ pkg_files(
 
 pkg_tar(
     name = "python_runtime_tar_arm64",
+    extension = "tar.gz",
     srcs = [
         ":python_runtime_binary_package_arm64",
         ":python_runtime_stdlib_package_arm64",
