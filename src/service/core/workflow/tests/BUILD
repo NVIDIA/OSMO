@@ -76,6 +76,7 @@ py_test(
         "//src/lib/utils:osmo_errors",
         "//src/service/core/workflow",
         "//src/utils/job",
+        osmo_requirement("starlette"),
     ],
 )
 

@@ -17,12 +17,14 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import asyncio
+import contextlib
 import datetime
 import enum
 import logging
 from typing import AsyncGenerator, Dict, Optional
 
 import aiofiles  # type: ignore
+import anyio
 import kombu  # type: ignore
 import pydantic
 import redis.asyncio  # type: ignore
@@ -203,7 +205,8 @@ async def redis_log_streamer(
     Yields:
         AsyncGenerator[connectors.LogStreamBody]: The logs line.
     """
-    async with redis.asyncio.from_url(url) as redis_client:
+    redis_client = redis.asyncio.from_url(url)
+    try:
         # Continue to fetch log lines until the end control message is met
         start_id = 0
         skip_streaming = False
@@ -227,6 +230,9 @@ async def redis_log_streamer(
                 yield log
             except IndexError:  # No new line
                 await asyncio.sleep(1)  # Otherwise the stream will hang
+    finally:
+        with anyio.CancelScope(shield=True):
+            await redis_client.aclose()
 
 
 async def redis_log_formatter(url: str, name: str, last_n_lines: int | None = None) -> \
@@ -241,20 +247,21 @@ async def redis_log_formatter(url: str, name: str, last_n_lines: int | None = No
     Yields:
         Iterator[AsyncGenerator[str]]: Formatted logs.
     """
-    async for line in redis_log_streamer(url, name, last_n_lines):
-        # Align Lines
-        date = str(line.time.replace(tzinfo=None, microsecond=0)).replace('-', '/')
-        if line.io_type.ctrl_logs():
-            # Occassionally CTRL may send an empty string due to tdqm
-            if line.text:
-                if line.retry_id > 0:
-                    yield f'{date} [{line.source} retry-{line.retry_id}][osmo] {line.text}\n'
-                else:
-                    yield f'{date} [{line.source}][osmo] {line.text}\n'
-        elif line.io_type == IOType.DUMP:
-            yield f'{line.text}\n'
-        else:
-            if line.retry_id > 0:
+    async with contextlib.aclosing(
+            redis_log_streamer(url, name, last_n_lines)) as log_stream:
+        async for line in log_stream:
+            # Align Lines
+            date = str(line.time.replace(tzinfo=None, microsecond=0)).replace('-', '/')
+            if line.io_type.ctrl_logs():
+                # Occassionally CTRL may send an empty string due to tdqm
+                if line.text:
+                    if line.retry_id > 0:
+                        yield f'{date} [{line.source} retry-{line.retry_id}][osmo] {line.text}\n'
+                    else:
+                        yield f'{date} [{line.source}][osmo] {line.text}\n'
+            elif line.io_type == IOType.DUMP:
+                yield f'{line.text}\n'
+            elif line.retry_id > 0:
                 yield f'{date} [{line.source} retry-{line.retry_id}] {line.text}\n'
             else:
                 yield f'{date} [{line.source}] {line.text}\n'

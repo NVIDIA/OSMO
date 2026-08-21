@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import collections
+import contextlib
 import dataclasses
 import datetime
 import enum
@@ -32,6 +33,7 @@ import yaml
 import fastapi
 import fastapi.responses
 import fastapi.staticfiles
+from starlette.requests import ClientDisconnect
 
 from src.lib.data import storage
 from src.lib.utils import common, credentials, login, osmo_errors, priority as wf_priority
@@ -48,6 +50,34 @@ router_pool = fastapi.APIRouter(tags = ['Pool API'])
 
 
 FETCH_TASK_LIMIT = 1000
+
+
+class _ClosingStreamingResponse(fastapi.responses.StreamingResponse):
+    """Streaming response that closes its async body iterator on teardown."""
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        # Starlette relies only on send failures for ASGI 2.4 responses. Redis
+        # streams can be quiet indefinitely, so keep its disconnect listener
+        # active even when there is no log body to send.
+        disconnect_scope = dict(scope)
+        disconnect_scope['asgi'] = {
+            **scope.get('asgi', {}),
+            'spec_version': '2.3',
+        }
+
+        async def send_with_disconnect(message: Any) -> None:
+            try:
+                await send(message)
+            except OSError as exc:
+                raise ClientDisconnect() from exc
+
+        try:
+            await super().__call__(disconnect_scope, receive, send_with_disconnect)
+        finally:
+            close = getattr(self.body_iterator, 'aclose', None)
+            if close:
+                await close()
+
 
 class ActionType(enum.Enum):
     EXEC = 'exec'
@@ -771,10 +801,11 @@ def get_file_info(name: str, redis_name: str, file_name: str,
     async def async_filter_log(log_generator: AsyncGenerator[str, None])\
         -> AsyncGenerator[str, None]:
         ''' Returns whether to send the log '''
-        async for line in log_generator:
-            if not regexes or \
-                all(compiled_regex.search(line) for compiled_regex in compiled_regexes):
-                yield line
+        async with contextlib.aclosing(log_generator):
+            async for line in log_generator:
+                if not regexes or \
+                    all(compiled_regex.search(line) for compiled_regex in compiled_regexes):
+                    yield line
 
     def filter_log(log_generator: storage.LinesStream) -> Generator[str, None, None]:
         ''' Returns whether to send the log '''
@@ -783,8 +814,9 @@ def get_file_info(name: str, redis_name: str, file_name: str,
                 all(compiled_regex.search(line) for compiled_regex in compiled_regexes):
                 yield line
 
+    response: fastapi.responses.StreamingResponse
     if parsed_result.scheme in ('redis', 'rediss') and not download:
-        response = fastapi.responses.StreamingResponse(
+        response = _ClosingStreamingResponse(
             async_filter_log(
                 connectors.redis_log_formatter(log_info.logs, redis_name, last_n_lines)))
     else:

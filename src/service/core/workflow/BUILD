@@ -29,6 +29,7 @@ osmo_py_library(
     ],
     deps = [
         requirement("fastapi"),
+        requirement("starlette"),
         requirement("redis"),
         requirement("pyjwt"),
         requirement("kubernetes"),

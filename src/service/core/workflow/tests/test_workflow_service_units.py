@@ -15,10 +15,16 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import asyncio
 import http
 import unittest
 from types import SimpleNamespace
 from unittest import mock
+
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import ClientDisconnect
+from starlette.routing import Route
 
 from src.lib.utils import osmo_errors
 from src.service.core.workflow import objects, workflow_service
@@ -2015,6 +2021,174 @@ class TestGetFileInfo(unittest.TestCase):
                 storage_client=mock.Mock(),
                 last_n_lines=10)
         self.assertIsNotNone(response)
+
+
+class TestRedisLogDisconnect(unittest.IsolatedAsyncioTestCase):
+    """Covers cleanup when a Redis-backed log response loses its client."""
+
+    async def test_redis_disconnect_closes_formatter(self):
+        context = mock.Mock()
+        log_info = SimpleNamespace(logs='redis://localhost/wf-1')
+        formatter_closed = asyncio.Event()
+
+        async def tracked_formatter(*_args):
+            try:
+                yield 'first log line\n'
+                await asyncio.Future()
+            finally:
+                formatter_closed.set()
+
+        async def receive():
+            await asyncio.Future()
+
+        async def send(message):
+            if message['type'] == 'http.response.body':
+                raise OSError('client disconnected')
+
+        with mock.patch.object(workflow_service.objects.WorkflowServiceContext,
+                               'get', return_value=context), \
+             mock.patch.object(workflow_service.workflow.LogInfo,
+                               'fetch_log_info_from_db',
+                               return_value=log_info), \
+             mock.patch.object(workflow_service.connectors,
+                               'redis_log_formatter',
+                               side_effect=tracked_formatter):
+            response = workflow_service.get_file_info(
+                'wf-1', 'redis-key', 'log.txt', storage_client=mock.Mock())
+
+            with self.assertRaises(ClientDisconnect):
+                await response(
+                    {
+                        'type': 'http',
+                        'asgi': {'version': '3.0', 'spec_version': '2.4'},
+                    },
+                    receive,
+                    send,
+                )
+
+        self.assertTrue(
+            formatter_closed.is_set(),
+            'Redis log formatter was not closed after the client disconnected.',
+        )
+
+    async def test_redis_disconnect_before_first_log_closes_formatter(self):
+        formatter_started = asyncio.Event()
+        formatter_closed = asyncio.Event()
+
+        async def tracked_formatter():
+            try:
+                formatter_started.set()
+                await asyncio.Future()
+                yield 'unreachable\n'
+            finally:
+                formatter_closed.set()
+
+        async def receive():
+            await formatter_started.wait()
+            return {'type': 'http.disconnect'}
+
+        async def send(_message):
+            return None
+
+        response = workflow_service._ClosingStreamingResponse(tracked_formatter())  # pylint: disable=protected-access
+        await asyncio.wait_for(
+            response(
+                {
+                    'type': 'http',
+                    'asgi': {'version': '3.0', 'spec_version': '2.4'},
+                },
+                receive,
+                send,
+            ),
+            timeout=1,
+        )
+
+        self.assertTrue(
+            formatter_closed.is_set(),
+            'Redis log formatter was not closed before its first log line.',
+        )
+
+    async def test_redis_reader_oserror_is_not_a_client_disconnect(self):
+
+        async def failing_formatter():
+            if False:
+                yield 'unreachable\n'
+            raise OSError('redis read failed')
+
+        async def receive():
+            await asyncio.Future()
+
+        async def send(_message):
+            return None
+
+        response = workflow_service._ClosingStreamingResponse(failing_formatter())  # pylint: disable=protected-access
+        with self.assertRaisesRegex(OSError, 'redis read failed'):
+            await response(
+                {
+                    'type': 'http',
+                    'asgi': {'version': '3.0', 'spec_version': '2.4'},
+                },
+                receive,
+                send,
+            )
+
+    async def test_redis_disconnect_closes_formatter_through_http_middleware(self):
+        formatter_started = asyncio.Event()
+        formatter_closed = asyncio.Event()
+        request_count = 0
+
+        async def tracked_formatter():
+            try:
+                formatter_started.set()
+                await asyncio.Future()
+                yield 'unreachable\n'
+            finally:
+                formatter_closed.set()
+
+        async def endpoint(_request):
+            return workflow_service._ClosingStreamingResponse(tracked_formatter())  # pylint: disable=protected-access
+
+        async def pass_through_middleware(request, call_next):
+            return await call_next(request)
+
+        async def receive():
+            nonlocal request_count
+            if request_count == 0:
+                request_count += 1
+                return {'type': 'http.request', 'body': b'', 'more_body': False}
+            await formatter_started.wait()
+            return {'type': 'http.disconnect'}
+
+        async def send(_message):
+            return None
+
+        app = Starlette(routes=[Route('/logs', endpoint)])
+        app.add_middleware(BaseHTTPMiddleware, dispatch=pass_through_middleware)
+        await asyncio.wait_for(
+            app(
+                {
+                    'type': 'http',
+                    'asgi': {'version': '3.0', 'spec_version': '2.4'},
+                    'http_version': '1.1',
+                    'method': 'GET',
+                    'scheme': 'http',
+                    'path': '/logs',
+                    'raw_path': b'/logs',
+                    'query_string': b'',
+                    'headers': [],
+                    'client': ('127.0.0.1', 12345),
+                    'server': ('testserver', 80),
+                },
+                receive,
+                send,
+            ),
+            timeout=1,
+        )
+
+        self.assertTrue(
+            formatter_closed.is_set(),
+            'Redis log formatter was not closed through HTTP middleware.',
+        )
 
 
 class TestGetWorkflowSpec(unittest.TestCase):
