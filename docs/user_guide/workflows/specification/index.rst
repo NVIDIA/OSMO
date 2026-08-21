@@ -69,13 +69,12 @@ Workflow
 Workflow Labels
 ---------------
 
-Labels identify a workflow independently of mutable tags. Keys and values use
-Kubernetes label syntax, values must be non-empty, and a workflow can define
-at most 16 labels. Labels are stored with the submitted specification and
-copied only to task pods, not to Services, Secrets, scheduler groups, or
-other objects. Any syntactically valid key is accepted; where a workflow
-label collides with a system-owned pod label (the ``osmo.`` selectors or
-scheduler queue labels), the system value wins on the pod.
+Labels are immutable metadata for a workflow, set at submission. Keys and
+values use Kubernetes label syntax, values must be non-empty, and a workflow
+can define at most 16 labels. Labels are stored with the submitted
+specification and copied to task pods only. Any syntactically valid key is
+accepted; if a key collides with a system-owned pod label (an ``osmo.``
+selector or a scheduler queue label), the system value wins on the pod.
 
 .. code-block:: yaml
 
@@ -90,10 +89,14 @@ scheduler queue labels), the system value wins on the pod.
        command: [bash]
        args: [-lc, "echo training"]
 
-Your administrator may configure particular keys in ``off``, ``warn``, or
-``enforce`` mode. A submission can succeed and still print a warning while an
-administrator is rolling out a requirement. Use :ref:`workflow_submission` to
-validate and override labels without editing a shared specification.
+Your administrator may require particular keys. In ``warn`` mode a submission
+succeeds but prints a warning, so a requirement can be announced before it is
+enforced; in ``enforce`` mode it is rejected. Use :ref:`workflow_submission` to
+validate labels, or to override them without editing a shared specification.
+
+Your administrator may also configure a prefix added to label keys on task
+pods, so a pod can show ``example.com/team`` where the specification said
+``team``.
 
 .. _workflow_spec_task:
 

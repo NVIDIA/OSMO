@@ -70,6 +70,12 @@ This section provides additional advanced configurations to customize and optimi
 
           Grant shared cloud bucket access to every workflow in a pool, so team members don't supply credentials per workflow.
 
+      .. grid-item-card:: :octicon:`tag` Workflow Labels
+          :link: ./workflow_labels
+          :link-type: doc
+
+          Require and constrain workflow label keys, and namespace the label keys stamped onto task pods.
+
       .. grid-item-card:: :octicon:`plug` MCP
           :link: ./mcp
           :link-type: doc
