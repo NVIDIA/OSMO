@@ -27,3 +27,10 @@ py_test(
     args = ["$(rootpath //src/service/router:router_image_x86_64)"],
     data = ["//src/service/router:router_image_x86_64"],
 )
+
+py_test(
+    name = "oci_image_contract_test",
+    srcs = ["oci_image_contract_test.py"],
+    args = ["$(rootpath //src/service/router:router_image_x86_64)"],
+    data = ["//src/service/router:router_image_x86_64"],
+)

@@ -21,8 +21,8 @@ import json
 import pathlib
 import sys
 import tarfile
-from typing import Any
 import unittest
+from typing import Any
 
 
 _EXPECTED_BINARY = "opt/osmo-python/bin/python3.14"
