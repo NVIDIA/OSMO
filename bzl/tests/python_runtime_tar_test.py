@@ -26,6 +26,7 @@ import unittest
 
 _BINARY_PATH = "opt/osmo-python/bin/python3.14"
 _STDLIB_PREFIX = "opt/osmo-python/lib/python3.14/"
+_MAXIMUM_COMPRESSED_SIZE = 60_000_000
 _MAXIMUM_UNPACKED_SIZE = 160_000_000
 
 
@@ -57,6 +58,9 @@ class PythonRuntimeTarTest(unittest.TestCase):
             sum(member.size for member in self.members.values()),
             _MAXIMUM_UNPACKED_SIZE,
         )
+
+    def test_is_compressed_for_registry_transfer(self) -> None:
+        self.assertLess(pathlib.Path(sys.argv[1]).stat().st_size, _MAXIMUM_COMPRESSED_SIZE)
 
     def test_contains_executable_used_by_bazel(self) -> None:
         runtime_binary = self.archive.extractfile(self.members[_BINARY_PATH])
