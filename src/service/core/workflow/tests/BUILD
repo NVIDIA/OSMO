@@ -79,6 +79,18 @@ py_test(
     ],
 )
 
+osmo_py_test(
+    name = "test_objects",
+    srcs = ["test_objects.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:priority",
+        "//src/service/core/workflow",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+)
+
 py_test(
     name = "test_workflow_labels",
     srcs = ["test_workflow_labels.py"],

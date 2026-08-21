@@ -59,6 +59,16 @@ py_test(
     ]
 )
 
+osmo_py_test(
+    name = "test_config",
+    srcs = [
+        "test_config.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
+
 py_test(
     name = "test_access_token",
     srcs = [
