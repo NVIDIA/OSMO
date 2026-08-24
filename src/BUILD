@@ -218,11 +218,8 @@ oci_image(
     entrypoint = ["/usr/bin/shelless_ulimit"],
     env = {
         "LANG": "C.UTF-8",
-        "PIP_BREAK_SYSTEM_PACKAGES": "1",
         "PYTHONNOUSERSITE": "1",
-        "PYTHONPATH": "/usr/local/lib/python3.14/dist-packages:/app:",
         "PYTHONUNBUFFERED": "1",
-        "PY_VERSION": "3.14",
     },
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -242,11 +239,8 @@ oci_image(
     entrypoint = ["/usr/bin/shelless_ulimit"],
     env = {
         "LANG": "C.UTF-8",
-        "PIP_BREAK_SYSTEM_PACKAGES": "1",
         "PYTHONNOUSERSITE": "1",
-        "PYTHONPATH": "/usr/local/lib/python3.14/dist-packages:/app:",
         "PYTHONUNBUFFERED": "1",
-        "PY_VERSION": "3.14",
     },
     target_compatible_with = [
         "@platforms//cpu:arm64",

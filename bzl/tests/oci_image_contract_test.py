@@ -27,12 +27,14 @@ from typing import Any
 
 _REQUIRED_ENVIRONMENT = {
     "LANG=C.UTF-8",
-    "PIP_BREAK_SYSTEM_PACKAGES=1",
     "PYTHONNOUSERSITE=1",
-    "PYTHONPATH=/usr/local/lib/python3.14/dist-packages:/app:",
     "PYTHONUNBUFFERED=1",
-    "PY_VERSION=3.14",
 }
+_OMITTED_ENVIRONMENT_PREFIXES = (
+    "PIP_BREAK_SYSTEM_PACKAGES=",
+    "PYTHONPATH=",
+    "PY_VERSION=",
+)
 _PYTHON_SYMLINKS = {
     "usr/bin/python": "/opt/osmo-python/bin/python3.14",
     "usr/bin/python3": "/opt/osmo-python/bin/python3.14",
@@ -63,6 +65,19 @@ class OCIImageContractTest(unittest.TestCase):
         self.assertEqual(config["WorkingDir"], "/app")
         self.assertLessEqual(_REQUIRED_ENVIRONMENT, set(config["Env"]))
         self.assertFalse(any(value.startswith("PYTHONHOME=") for value in config["Env"]))
+
+    def test_omits_build_time_and_legacy_python_environment(self) -> None:
+        layout = pathlib.Path(sys.argv[1])
+        index = json.loads((layout / "index.json").read_text())
+        manifest = _read_json_blob(layout, index["manifests"][0]["digest"])
+        image = _read_json_blob(layout, manifest["config"]["digest"])
+
+        self.assertFalse(
+            any(
+                value.startswith(_OMITTED_ENVIRONMENT_PREFIXES)
+                for value in image["config"]["Env"]
+            )
+        )
 
     def test_preserves_python_executable_paths(self) -> None:
         layout = pathlib.Path(sys.argv[1])
