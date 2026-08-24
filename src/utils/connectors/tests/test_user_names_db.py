@@ -70,8 +70,6 @@ class UserNamesDatabaseTest(
         super().setUp()
         for user_name in CURRENT_USERS:
             postgres.upsert_user(self.database, user_name)
-        self.database.execute_commit_command(
-            'INSERT INTO user_identities (id) VALUES (%s)', (HISTORICAL_USER,))
 
     def _resolver_sql(self) -> str:
         with mock.patch.object(

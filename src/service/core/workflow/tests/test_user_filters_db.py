@@ -24,6 +24,7 @@ from src.utils import connectors
 
 CURRENT_USERS = ('ecolter', 'ecolter@nvidia.com')
 HISTORICAL_USER = 'historical@nvidia.com'
+RECREATED_USER = 'recreated@nvidia.com'
 
 
 class UserFiltersDatabaseTest(fixture.ServiceTestFixture):
@@ -34,8 +35,6 @@ class UserFiltersDatabaseTest(fixture.ServiceTestFixture):
         self.database = connectors.PostgresConnector.get_instance()
         for user_name in CURRENT_USERS:
             connectors.upsert_user(self.database, user_name)
-        self.database.execute_commit_command(
-            'INSERT INTO user_identities (id) VALUES (%s)', (HISTORICAL_USER,))
         for index, user_name in enumerate((*CURRENT_USERS, HISTORICAL_USER), start=1):
             self._insert_resources(index, user_name)
 
@@ -142,6 +141,62 @@ class UserFiltersDatabaseTest(fixture.ServiceTestFixture):
                     f'Invalid user(s): {HISTORICAL_USER} not found',
                     response.json()['message'],
                 )
+
+    def test_deleted_user_history_is_filterable_after_recreation(self):
+        connectors.upsert_user(self.database, RECREATED_USER)
+        self._insert_resources(4, RECREATED_USER)
+
+        self.database.execute_commit_command(
+            'DELETE FROM users WHERE id = %s', (RECREATED_USER,))
+
+        cases = (
+            ('/api/workflow', [('all_users', 'true'), ('all_pools', 'true')]),
+            ('/api/task', [('all_users', 'true'), ('all_pools', 'true')]),
+            ('/api/app', [('all_users', 'true')]),
+        )
+        for path, extra_parameters in cases:
+            with self.subTest(path=path, state='deleted'):
+                response = self.client.get(
+                    path,
+                    params=[('users', RECREATED_USER), *extra_parameters],
+                )
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertIn(
+                    f'Invalid user(s): {RECREATED_USER} not found',
+                    response.json()['message'],
+                )
+
+        workflow_response = self.client.get(
+            '/api/workflow',
+            params=[('all_users', 'true'), ('all_pools', 'true')],
+        )
+        task_response = self.client.get(
+            '/api/task',
+            params=[('all_users', 'true'), ('all_pools', 'true')],
+        )
+        app_response = self.client.get(
+            '/api/app', params=[('all_users', 'true')])
+        self.assertEqual(workflow_response.status_code, 200)
+        self.assertEqual(task_response.status_code, 200)
+        self.assertEqual(app_response.status_code, 200)
+        self.assertIn(
+            RECREATED_USER,
+            {entry['user'] for entry in workflow_response.json()['workflows']},
+        )
+        self.assertIn(
+            RECREATED_USER,
+            {entry['user'] for entry in task_response.json()['tasks']},
+        )
+        self.assertIn(
+            RECREATED_USER,
+            {entry['owner'] for entry in app_response.json()['apps']},
+        )
+
+        connectors.upsert_user(self.database, RECREATED_USER)
+        recreated_resources = self._get_filtered_resources(RECREATED_USER)
+        for resource_type, owners in recreated_resources.items():
+            with self.subTest(resource_type=resource_type, state='recreated'):
+                self.assertEqual(owners, {RECREATED_USER})
 
 
 if __name__ == '__main__':
