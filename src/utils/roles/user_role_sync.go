@@ -81,12 +81,7 @@ func SyncUserRoles(
 }
 
 func upsertUser(ctx context.Context, client *postgres.PostgresClient, userName string) error {
-	query := `WITH inserted_identity AS (
-	              INSERT INTO user_identities (id)
-	              VALUES ($1)
-	              ON CONFLICT (id) DO NOTHING
-	          )
-	          INSERT INTO users (id, created_at, created_by)
+	query := `INSERT INTO users (id, created_at, created_by)
 	          VALUES ($1, NOW(), $1)
 	          ON CONFLICT (id) DO NOTHING`
 	_, err := client.Pool().Exec(ctx, query, userName)

@@ -155,16 +155,23 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(user['id'], 'newuser@example.com')
         self.assertIsNotNone(user['created_at'])
 
-    def test_create_user_persists_identity(self):
-        """Creating a current user also records its durable identity."""
-        user_id = 'identity@example.com'
+    def test_create_user_uses_single_users_table(self):
+        """Creating a current user requires no separate identity record."""
+        user_id = 'single-table@example.com'
 
         self._create_user(user_id)
 
         postgres = connectors.PostgresConnector.get_instance()
-        rows = postgres.execute_fetch_command(
-            'SELECT id FROM user_identities WHERE id = %s', (user_id,), True)
-        self.assertEqual([row['id'] for row in rows], [user_id])
+        row = postgres.execute_fetch_command(
+            '''
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE id = %s) AS users,
+                to_regclass('public.user_identities') AS user_identities
+            ''',
+            (user_id,),
+            True,
+        )[0]
+        self.assertEqual(dict(row), {'users': 1, 'user_identities': None})
 
     def test_create_user_with_roles(self):
         """Test creating a user with initial roles."""
@@ -307,7 +314,7 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(result[0]['cnt'], 0)
 
     def test_delete_retains_history_and_recreation_starts_clean(self):
-        """Deletion retains durable records while recreation restores only the user."""
+        """Deletion retains historical text while recreation starts clean."""
         user_id = 'historical-user@example.com'
         self._create_user(user_id, roles=['osmo-user'])
         postgres = connectors.PostgresConnector.get_instance()
@@ -351,7 +358,6 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         counts = postgres.execute_fetch_command(
             '''
             SELECT
-                (SELECT COUNT(*) FROM user_identities WHERE id = %s) AS identities,
                 (SELECT COUNT(*) FROM users WHERE id = %s) AS users,
                 (SELECT COUNT(*) FROM profile WHERE user_name = %s) AS profiles,
                 (SELECT COUNT(*) FROM ueks WHERE uid = %s) AS ueks,
@@ -363,13 +369,12 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
                 (SELECT COUNT(*) FROM apps WHERE owner = %s) AS apps,
                 (SELECT COUNT(*) FROM app_versions WHERE created_by = %s) AS app_versions
             ''',
-            (user_id,) * 11,
+            (user_id,) * 10,
             True,
         )[0]
         self.assertEqual(
             dict(counts),
             {
-                'identities': 1,
                 'users': 0,
                 'profiles': 0,
                 'ueks': 0,
@@ -388,12 +393,12 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         clean_counts = postgres.execute_fetch_command(
             '''
             SELECT
-                (SELECT COUNT(*) FROM user_identities WHERE id = %s) AS identities,
                 (SELECT COUNT(*) FROM users WHERE id = %s) AS users,
                 (SELECT COUNT(*) FROM profile WHERE user_name = %s) AS profiles,
                 (SELECT COUNT(*) FROM ueks WHERE uid = %s) AS ueks,
                 (SELECT COUNT(*) FROM user_roles WHERE user_id = %s) AS roles,
                 (SELECT COUNT(*) FROM access_token WHERE user_name = %s) AS tokens,
+                (SELECT COUNT(*) FROM access_token_roles WHERE user_name = %s) AS token_roles,
                 (SELECT COUNT(*) FROM credential WHERE user_name = %s) AS credentials,
                 (SELECT COUNT(*) FROM workflows WHERE submitted_by = %s) AS workflows,
                 (SELECT COUNT(*) FROM apps WHERE owner = %s) AS apps,
@@ -405,12 +410,12 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(
             dict(clean_counts),
             {
-                'identities': 1,
                 'users': 1,
                 'profiles': 0,
                 'ueks': 0,
                 'roles': 0,
                 'tokens': 0,
+                'token_roles': 0,
                 'credentials': 0,
                 'workflows': 1,
                 'apps': 1,

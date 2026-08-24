@@ -602,18 +602,13 @@ def create_user(
 
     # Insert user
     insert_cmd = '''
-        WITH inserted_identity AS (
-            INSERT INTO user_identities (id)
-            VALUES (%s)
-            ON CONFLICT (id) DO NOTHING
-        )
         INSERT INTO users (id, created_at, created_by)
         VALUES (%s, %s, %s)
         RETURNING id, created_at, created_by;
     '''
     result = postgres.execute_fetch_command(
         insert_cmd,
-        (request.id, request.id, now, created_by),
+        (request.id, now, created_by),
         True
     )
 

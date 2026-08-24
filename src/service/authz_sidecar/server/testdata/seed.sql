@@ -44,11 +44,6 @@ INSERT INTO roles (name, description, policies, immutable) VALUES (
 INSERT INTO pools (name) VALUES ('production'), ('staging'), ('development');
 
 -- Users
-INSERT INTO user_identities (id) VALUES
-    ('admin@example.com'),
-    ('user@example.com'),
-    ('restricted@example.com');
-
 INSERT INTO users (id, created_at, created_by) VALUES
     ('admin@example.com', NOW(), 'seed'),
     ('user@example.com', NOW(), 'seed'),

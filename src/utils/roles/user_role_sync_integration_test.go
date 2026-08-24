@@ -54,11 +54,7 @@ func insertRoleMapping(t *testing.T, fixture *database.PostgresFixture,
 func insertUser(t *testing.T, fixture *database.PostgresFixture, userID string) {
 	t.Helper()
 	fixture.ExecSQL(t,
-		`WITH inserted_identity AS (
-			INSERT INTO user_identities (id) VALUES ($1)
-			ON CONFLICT (id) DO NOTHING
-		)
-		INSERT INTO users (id, created_by) VALUES ($1, $1)`, userID)
+		`INSERT INTO users (id, created_by) VALUES ($1, $1)`, userID)
 }
 
 // insertUserRole writes a user_roles row directly.
@@ -94,21 +90,16 @@ func readUserRoleNames(t *testing.T, fixture *database.PostgresFixture,
 	return names
 }
 
-func readIdentityAndUserCounts(t *testing.T, fixture *database.PostgresFixture,
-	userID string) (int, int) {
+func readUserCount(t *testing.T, fixture *database.PostgresFixture,
+	userID string) int {
 	t.Helper()
-	// The durable identity remains while the current user is deleted and recreated.
-	var identityCount int
 	var userCount int
 	err := fixture.Pool.QueryRow(context.Background(),
-		`SELECT
-			(SELECT COUNT(*) FROM user_identities WHERE id = $1) AS identity_count,
-			(SELECT COUNT(*) FROM users WHERE id = $1) AS user_count`,
-		userID).Scan(&identityCount, &userCount)
+		`SELECT COUNT(*) FROM users WHERE id = $1`, userID).Scan(&userCount)
 	if err != nil {
-		t.Fatalf("failed to query identity and user counts: %v", err)
+		t.Fatalf("failed to query user count: %v", err)
 	}
-	return identityCount, userCount
+	return userCount
 }
 
 // containsString reports whether slice contains target. Helper kept outside
@@ -166,10 +157,8 @@ func TestSyncUserRoles_Integration_ImportMode_AddsMappedRole(t *testing.T) {
 			"osmo-admin", stored)
 	}
 
-	identityCount, userCount := readIdentityAndUserCounts(t, fixture, "alice")
-	if identityCount != 1 || userCount != 1 {
-		t.Errorf("expected one identity and one user, got identities=%d users=%d",
-			identityCount, userCount)
+	if userCount := readUserCount(t, fixture, "alice"); userCount != 1 {
+		t.Errorf("expected one user, got users=%d", userCount)
 	}
 }
 
@@ -185,10 +174,8 @@ func TestSyncUserRoles_Integration_RecreatesDeletedUser(t *testing.T) {
 	}
 	fixture.ExecSQL(t, `DELETE FROM users WHERE id = $1`, "alice")
 
-	identityCount, userCount := readIdentityAndUserCounts(t, fixture, "alice")
-	if identityCount != 1 || userCount != 0 {
-		t.Fatalf("expected retained identity without user, got identities=%d users=%d",
-			identityCount, userCount)
+	if userCount := readUserCount(t, fixture, "alice"); userCount != 0 {
+		t.Fatalf("expected deleted user to be absent, got users=%d", userCount)
 	}
 
 	result, err := roles.SyncUserRoles(context.Background(), fixture.Client,
@@ -199,10 +186,8 @@ func TestSyncUserRoles_Integration_RecreatesDeletedUser(t *testing.T) {
 	if !containsString(result, "osmo-admin") {
 		t.Errorf("expected recreated user to receive osmo-admin, got: %v", result)
 	}
-	identityCount, userCount = readIdentityAndUserCounts(t, fixture, "alice")
-	if identityCount != 1 || userCount != 1 {
-		t.Errorf("expected one identity and recreated user, got identities=%d users=%d",
-			identityCount, userCount)
+	if userCount := readUserCount(t, fixture, "alice"); userCount != 1 {
+		t.Errorf("expected one recreated user, got users=%d", userCount)
 	}
 }
 

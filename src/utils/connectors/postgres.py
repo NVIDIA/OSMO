@@ -1622,17 +1622,11 @@ def upsert_user(database: PostgresConnector, user_name: str) -> None:
     If the user already exists, this is a no-op.
     """
     upsert_cmd = '''
-        WITH inserted_identity AS (
-            INSERT INTO user_identities (id)
-            VALUES (%s)
-            ON CONFLICT (id) DO NOTHING
-        )
         INSERT INTO users (id, created_at, created_by)
         VALUES (%s, NOW(), %s)
         ON CONFLICT (id) DO NOTHING;
     '''
-    database.execute_commit_command(
-        upsert_cmd, (user_name, user_name, user_name))
+    database.execute_commit_command(upsert_cmd, (user_name, user_name))
 
 
 

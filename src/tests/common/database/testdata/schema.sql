@@ -2,17 +2,10 @@
 -- This creates the minimal set of tables needed by the roles and authz packages.
 -- The source of truth for the schema is in the src/utils/connectors/postgres.py file
 
-CREATE TABLE IF NOT EXISTS user_identities (
-    id TEXT NOT NULL PRIMARY KEY,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS users (
     id TEXT NOT NULL PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by TEXT NOT NULL DEFAULT '',
-    CONSTRAINT users_identity_fkey
-        FOREIGN KEY (id) REFERENCES user_identities(id)
+    created_by TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS roles (
