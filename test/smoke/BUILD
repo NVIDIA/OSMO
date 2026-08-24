@@ -8,6 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
+load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("//test/oetf/bzl:oetf.bzl", "oetf_smoke_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -44,4 +45,14 @@ oetf_smoke_test(
     name = "websocket-checks",
     src = "websocket_checks.py",
     tags = ["websocket", "kind"],
+)
+
+oetf_smoke_test(
+    name = "mek-rotation-kind",
+    src = "mek_rotation_kind.py",
+    data = ["//deployments/charts:service"],
+    extra_deps = [requirement("pyyaml")],
+    size = "large",
+    tags = ["database", "kind"],
+    timeout = "long",
 )

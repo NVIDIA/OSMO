@@ -189,7 +189,13 @@ jobs:
             df -h /
             echo "::endgroup::"
           ' EXIT
+          # Keep this below the job's 60-minute ceiling. Without an inner
+          # deadline, a stuck Helm/Kubernetes wait consumes the whole job and
+          # GitHub kills it before the diagnostic and artifact steps can run.
+          # `timeout` returns 124, which is an ordinary step failure, leaving
+          # roughly ten minutes for cluster state and logs to be collected.
           /usr/bin/time -p -o /tmp/oetf.time \
+            timeout --signal=TERM --kill-after=30s 40m \
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
               --target-pattern //test/smoke/... \

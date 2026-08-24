@@ -282,18 +282,28 @@ secrets:
     #     name: osmo-backend-token-local
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
-    generate: false
-    existingSecret: ''
-    mountPath: /opt/osmo/config.yaml
-    keys:
-      config: mek.yaml
+    managementMode: external
+    existingSecret:
+      name: ''
+      key: mek.yaml
     bootstrap:
-      image:
-        registry: ''
-        repository: alpine/k8s
-        tag: 1.30.14
-        digest: ''
-        pullPolicy: IfNotPresent
+      # Must be set back to false immediately after a successful bootstrap.
+      enabled: false
+      # Increment after a failed GitOps attempt or credential correction.
+      attempt: "1"
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
+    rotation:
+      requestId: ''
+      # Explicit operation: prepare, activate, or rewrap. Leave empty to
+      # perform the lifecycle manually without a chart Job.
+      phase: ''
+      attempt: "1"
+      # Change this only after PREPARE and again after ACTIVATE. It is copied
+      # to every MEK consumer Pod template to produce startup-only rollouts.
+      rolloutRevision: ''
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false

@@ -70,7 +70,7 @@
         "valkey": { "$ref": "#/definitions/secretReference" },
         "objectStorage": { "$ref": "#/definitions/secretReference" },
         "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
-        "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeySecretReference" },
+        "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
         "defaultAdmin": { "$ref": "#/definitions/secretReference" }
       }
     },
@@ -1220,28 +1220,52 @@
       },
       "required": ["name"]
     },
-    "masterEncryptionKeySecretReference": {
+    "masterEncryptionKeyReference": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "generate": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "mountPath": { "type": "string", "minLength": 1 },
-        "keys": {
+        "managementMode": { "type": "string", "enum": ["external", "osmo"] },
+        "existingSecret": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "config": { "type": "string" }
+            "name": { "type": "string" },
+            "key": { "type": "string", "minLength": 1 }
           },
-          "required": ["config"]
+          "required": ["name", "key"]
         },
         "bootstrap": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "image": { "$ref": "#/definitions/componentImage" }
+            "enabled": { "type": "boolean" },
+            "attempt": { "type": "string", "minLength": 1, "maxLength": 32 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
           },
-          "required": ["image"]
+          "required": ["enabled", "attempt", "imagePullPolicy", "activeDeadlineSeconds"]
+        },
+        "rotation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requestId": { "type": "string", "maxLength": 64 },
+            "phase": { "type": "string", "enum": ["", "prepare", "activate", "rewrap"] },
+            "attempt": { "type": "string", "minLength": 1, "maxLength": 32 },
+            "rolloutRevision": { "type": "string", "maxLength": 128 },
+            "imagePullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["requestId", "phase", "attempt", "rolloutRevision", "imagePullPolicy", "activeDeadlineSeconds"]
         }
       },
-      "required": ["generate", "existingSecret", "mountPath", "keys", "bootstrap"]
+      "required": ["managementMode", "existingSecret", "bootstrap", "rotation"]
     },
     "postgresqlSecretReference": {
       "type": "object",

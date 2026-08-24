@@ -48,15 +48,6 @@ secrets:
     - name: convention
       managedSecret:
         name: convention-backend-token
-  masterEncryptionKey:
-    bootstrap:
-      image:
-        registry: registry.example.com
-        repository: conventions/mek-bootstrap
-        tag: ignored
-        digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-        pullPolicy: Always
-
 services:
   api:
     extraEnv:

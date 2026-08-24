@@ -161,6 +161,7 @@ resource_document() {
         in_metadata && /^  name: / && document_name == "" {
             document_name = $0
             sub(/^  name: /, "", document_name)
+            gsub(/^"|"$/, "", document_name)
             next
         }
         in_metadata && /^[^ ]/ {
@@ -185,6 +186,19 @@ secret_data_value() {
             print $2
             exit
         }
+    ' "$file"
+}
+
+first_resource_name() {
+    local file=$1
+    local kind=$2
+    awk -v expected_kind="$kind" '
+        $0 == "kind: " expected_kind { resource = 1; metadata = 0; next }
+        resource && /^metadata:$/ { metadata = 1; next }
+        resource && metadata && /^  name: / {
+            sub(/^  name: /, ""); gsub(/^"|"$/, ""); print; exit
+        }
+        /^---$/ { resource = 0; metadata = 0 }
     ' "$file"
 }
 
@@ -592,8 +606,8 @@ test_control_umbrella() {
         "osmo-rustfs-svc"
     require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
         "osmo-backend-token-bootstrap"
-    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
-        "osmo-mek-bootstrap"
+    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        'name: "osmo-mek-bootstrap-'
     require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
         "osmo-object-storage-bootstrap"
     require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
@@ -860,9 +874,6 @@ test_control_umbrella() {
         osmo-backend-token-bootstrap \
         >"$TEST_DIRECTORY/conventions-backend-token-bootstrap.yaml"
     resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
-        osmo-mek-bootstrap \
-        >"$TEST_DIRECTORY/conventions-mek-bootstrap.yaml"
-    resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
         osmo-object-storage-bootstrap \
         >"$TEST_DIRECTORY/conventions-object-storage-bootstrap.yaml"
     resource_document "$TEST_DIRECTORY/conventions.yaml" ConfigMap \
@@ -873,14 +884,11 @@ test_control_umbrella() {
     local convention_image_resource
     local convention_image_repository
     for convention_image_resource in \
-            backend-token-bootstrap mek-bootstrap object-storage-bootstrap \
+            backend-token-bootstrap object-storage-bootstrap \
             test-runner-template; do
         case "$convention_image_resource" in
             backend-token-bootstrap)
                 convention_image_repository=backend-token-bootstrap
-                ;;
-            mek-bootstrap)
-                convention_image_repository=mek-bootstrap
                 ;;
             object-storage-bootstrap)
                 convention_image_repository=object-storage-bootstrap
@@ -1133,62 +1141,16 @@ duplicate-secret|--set secrets.backendApiTokens.credentials[0].name=one --set se
 invalid-secret|--set secrets.backendApiTokens.credentials[0].name=default --set secrets.backendApiTokens.credentials[0].existingSecret.name=INVALID_SECRET|invalid backend API token Secret name "INVALID_SECRET"
 EOF
 
-    helm_template generated-mek "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.generate=true \
-        --set secrets.masterEncryptionKey.existingSecret= \
-        >"$TEST_DIRECTORY/generated-mek.yaml"
-    require_resource "$TEST_DIRECTORY/generated-mek.yaml" Job \
-        "generated-mek-osmo-mek-bootstrap"
-    require_no_resource "$TEST_DIRECTORY/generated-mek.yaml" Secret \
-        "generated-mek-osmo-master-encryption-key"
-    require_contains "$TEST_DIRECTORY/generated-mek.yaml" \
-        'image: "alpine/k8s:1.30.14"'
-    require_not_contains "$TEST_DIRECTORY/generated-mek.yaml" "currentMek:"
-    local mek_consumer
-    for mek_consumer in \
-            api router worker logger agent delayed-job-monitor; do
-        resource_document "$TEST_DIRECTORY/generated-mek.yaml" Deployment \
-            "generated-mek-osmo-$mek_consumer" \
-            >"$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml"
-        require_contains "$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml" \
-            "secretName: generated-mek-osmo-master-encryption-key"
-        require_contains "$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml" \
-            "mountPath: /opt/osmo/config.yaml"
-        require_contains "$TEST_DIRECTORY/generated-mek-$mek_consumer.yaml" \
-            "--mek_file"
+    local mek_component
+    for mek_component in api worker router logger agent delayed-job-monitor; do
+        resource_document "$rendered" Deployment "osmo-$mek_component" \
+            >"$TEST_DIRECTORY/mek-$mek_component-deployment.yaml"
+        require_contains "$TEST_DIRECTORY/mek-$mek_component-deployment.yaml" \
+            "app.kubernetes.io/instance: osmo"
+        require_contains "$TEST_DIRECTORY/mek-$mek_component-deployment.yaml" \
+            "app.kubernetes.io/part-of: osmo"
     done
-
-    helm_template upgraded-mek "$charts_copy/osmo" \
-        --is-upgrade \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.generate=true \
-        --set secrets.masterEncryptionKey.existingSecret= \
-        >"$TEST_DIRECTORY/upgraded-mek.yaml"
-    require_contains "$TEST_DIRECTORY/upgraded-mek.yaml" "--fail-if-missing"
-
-    require_no_resource "$rendered" Job "osmo-mek-bootstrap"
-    if helm_template conflicting-mek "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set secrets.masterEncryptionKey.generate=true \
-            >"$TEST_DIRECTORY/conflicting-mek.out" 2>&1; then
-        fail "expected generated and existing MEK ownership to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/conflicting-mek.out" \
-        "secrets.masterEncryptionKey.generate and existingSecret are mutually exclusive"
-    if helm_template invalid-mek-key "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set secrets.masterEncryptionKey.keys.config=invalid/key \
-            >"$TEST_DIRECTORY/invalid-mek-key.out" 2>&1; then
-        fail "expected an invalid MEK Secret key to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/invalid-mek-key.out" \
-        "secrets.masterEncryptionKey.keys.config must be a non-empty valid Kubernetes Secret data key"
-
+    require_not_contains "$rendered" "osmo.nvidia.com/mek-consumer"
     local hardened_component
     for hardened_component in \
         api worker router logger agent delayed-job-monitor ui gateway-envoy; do
@@ -1246,7 +1208,206 @@ EOF
     require_contains "$rendered" "name: external-postgresql-secret"
     require_contains "$rendered" "name: external-valkey-secret"
     require_contains "$rendered" "secretName: external-object-storage-secret"
-    require_contains "$rendered" "secretName: external-master-encryption-key-secret"
+    require_contains "$rendered" 'secretName: "external-master-encryption-key-secret"'
+    require_occurrences "$rendered" 'secretName: "external-master-encryption-key-secret"' 6
+    require_occurrences "$rendered" 'key: "keyring.yaml"' 6
+    require_occurrences "$rendered" 'mountPath: "/opt/osmo/mek"' 6
+    require_not_contains "$rendered" "name: OSMO_POD_UID"
+    require_not_contains "$rendered" "name: OSMO_MEK_CONSUMER"
+    require_not_contains "$rendered" "name: OSMO_ALLOW_EXISTING_MEK_ADOPTION"
+    require_not_contains "$rendered" "subPath: mek.yaml"
+    require_not_contains "$rendered" "command: [\"mek-lifecycle\"]"
+
+    helm_template bootstrap-osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        >"$TEST_DIRECTORY/mek-bootstrap.yaml"
+    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'command: ["mek-lifecycle"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '- "bootstrap"'
+    require_not_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'kind: Lease'
+    require_not_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'kind: Secret'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'verbs: ["create"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'runAsUser: 1001'
+    helm_template bootstrap-osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        --set secrets.masterEncryptionKey.bootstrap.activeDeadlineSeconds=899 \
+        >"$TEST_DIRECTORY/mek-bootstrap-changed.yaml"
+    local mek_bootstrap_name mek_bootstrap_changed_name
+    mek_bootstrap_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+        "$TEST_DIRECTORY/mek-bootstrap.yaml")
+    mek_bootstrap_changed_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+        "$TEST_DIRECTORY/mek-bootstrap-changed.yaml")
+    if [[ "$mek_bootstrap_name" == "$mek_bootstrap_changed_name" ]]; then
+        echo 'MEK bootstrap immutable template change reused a completed Job name' >&2
+        exit 1
+    fi
+    helm_template bootstrap-osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        --set-string secrets.masterEncryptionKey.bootstrap.attempt=2 \
+        >"$TEST_DIRECTORY/mek-bootstrap-retry.yaml"
+    local mek_bootstrap_retry_name
+    mek_bootstrap_retry_name=$(awk '/^kind: Job$/{job=1; next} job && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+        "$TEST_DIRECTORY/mek-bootstrap-retry.yaml")
+    if [[ "$mek_bootstrap_name" == "$mek_bootstrap_retry_name" ]]; then
+        echo 'MEK bootstrap attempt did not create a new GitOps retry Job name' >&2
+        exit 1
+    fi
+    if helm_template invalid-bootstrap-rotation "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.masterEncryptionKey.managementMode=osmo \
+            --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+            --set secrets.masterEncryptionKey.rotation.requestId=rotate \
+            --set secrets.masterEncryptionKey.rotation.phase=prepare \
+            >/dev/null 2>&1; then
+        echo 'MEK rotation phase was accepted while bootstrap remained enabled' >&2
+        exit 1
+    fi
+
+    helm_template prepare-osmo "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.rotation.requestId=rotate-2026-08 \
+        --set secrets.masterEncryptionKey.rotation.phase=prepare \
+        --set secrets.masterEncryptionKey.rotation.rolloutRevision=prepare-2026-08 \
+        --set secrets.masterEncryptionKey.rotation.activeDeadlineSeconds=321 \
+        >"$TEST_DIRECTORY/mek-prepare.yaml"
+    require_contains "$TEST_DIRECTORY/mek-prepare.yaml" '- "prepare"'
+    require_contains "$TEST_DIRECTORY/mek-prepare.yaml" '- "321"'
+    require_contains "$TEST_DIRECTORY/mek-prepare.yaml" 'resources: ["pods/log"]'
+    require_contains "$TEST_DIRECTORY/mek-prepare.yaml" 'resources: ["deployments", "replicasets"]'
+    local mek_prepare_name
+    mek_prepare_name=$(awk '/^kind: Role$/{role=1; next} role && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
+        "$TEST_DIRECTORY/mek-prepare.yaml")
+    resource_document "$TEST_DIRECTORY/mek-prepare.yaml" Job "$mek_prepare_name" \
+        >"$TEST_DIRECTORY/mek-prepare-job.yaml"
+    require_not_contains "$TEST_DIRECTORY/mek-prepare-job.yaml" 'name: OSMO_POSTGRES_PASSWORD'
+    require_occurrences "$TEST_DIRECTORY/mek-prepare.yaml" \
+        'osmo.nvidia.com/mek-rollout: "prepare-2026-08"' 6
+    require_not_contains "$TEST_DIRECTORY/mek-prepare.yaml" 'verbs: ["delete"]'
+
+    helm_template activate-osmo "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.rotation.requestId=rotate-2026-08 \
+        --set secrets.masterEncryptionKey.rotation.phase=activate \
+        >"$TEST_DIRECTORY/mek-activate.yaml"
+    require_contains "$TEST_DIRECTORY/mek-activate.yaml" '- "activate"'
+
+    helm_template rewrap-external "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=external \
+        --set secrets.masterEncryptionKey.rotation.requestId=rotate-2026-08 \
+        --set secrets.masterEncryptionKey.rotation.phase=rewrap \
+        >"$TEST_DIRECTORY/mek-rewrap.yaml"
+    require_contains "$TEST_DIRECTORY/mek-rewrap.yaml" '- "rewrap"'
+    rewrap_role_name=$(first_resource_name "$TEST_DIRECTORY/mek-rewrap.yaml" Role)
+    resource_document "$TEST_DIRECTORY/mek-rewrap.yaml" Role "$rewrap_role_name" \
+        >"$TEST_DIRECTORY/mek-rewrap-role.yaml"
+    awk '
+        /resources: \["secrets"\]/ { secret_rule = 1; next }
+        secret_rule && /verbs:/ {
+            if ($0 != "  verbs: [\"get\"]") exit 1
+            found = 1
+            secret_rule = 0
+        }
+        END { if (!found) exit 1 }
+    ' "$TEST_DIRECTORY/mek-rewrap-role.yaml" || \
+        fail "external MEK rewrap has Secret mutation permission"
+
+    if helm_template invalid-external-prepare "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=external \
+        --set secrets.masterEncryptionKey.rotation.requestId=invalid \
+        --set secrets.masterEncryptionKey.rotation.phase=prepare \
+        >"$TEST_DIRECTORY/mek-invalid.out" 2>&1; then
+        fail "external PREPARE Secret mutation was accepted"
+    fi
+    require_contains "$TEST_DIRECTORY/mek-invalid.out" \
+        'prepare and activate require managementMode=osmo'
+
+    helm_template prepare-disabled-consumer "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.rotation.requestId=rotate-disabled \
+        --set secrets.masterEncryptionKey.rotation.phase=prepare \
+        --set services.logger.enabled=false \
+        >"$TEST_DIRECTORY/mek-disabled-consumer.yaml"
+    if grep -A1 -- '--consumer_deployments' "$TEST_DIRECTORY/mek-disabled-consumer.yaml" \
+            | grep -q 'logger'; then
+        fail "disabled logger was included in the MEK consumer set"
+    fi
+
+    if helm_template prepare-empty "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.rotation.requestId=rotate-empty \
+        --set secrets.masterEncryptionKey.rotation.phase=prepare \
+        --set services.api.enabled=false \
+        --set services.worker.enabled=false \
+        --set services.router.enabled=false \
+        --set services.logger.enabled=false \
+        --set services.agent.enabled=false \
+        --set services.delayedJobMonitor.enabled=false \
+        >"$TEST_DIRECTORY/mek-empty.out" 2>&1; then
+        fail "expected MEK lifecycle with no enabled consumers to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/mek-empty.out" \
+        'requires at least one enabled control-plane consumer'
+
+    helm_template mek-string-sentinels "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.masterEncryptionKey.existingSecret.name=true \
+        --set-string secrets.masterEncryptionKey.existingSecret.key=null \
+        >"$TEST_DIRECTORY/mek-string-sentinels.yaml"
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
+        'secretName: "true"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" 'key: "null"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" 'path: "mek.yaml"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
+        'mountPath: "/opt/osmo/mek"' 6
+    require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
+        '- "/opt/osmo/mek/mek.yaml"' 6
+
+    if helm_template invalid-mek-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.masterEncryptionKey.existingSecret=legacy-secret \
+        >"$TEST_DIRECTORY/invalid-mek-secret.out" 2>&1; then
+        fail "expected legacy scalar MEK existingSecret to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-mek-secret.out" \
+        "secrets.masterEncryptionKey.existingSecret"
+    if helm_template invalid-mek-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.masterEncryptionKey.bootstrap.imagePullPolicy=Sometimes \
+        >"$TEST_DIRECTORY/invalid-mek-bootstrap.out" 2>&1; then
+        fail "expected invalid MEK bootstrap imagePullPolicy to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-mek-bootstrap.out" \
+        "secrets.masterEncryptionKey.bootstrap.imagePullPolicy"
     require_contains "$rendered" "https://s3.external.example.com"
     resource_document "$rendered" ConfigMap osmo-api-config \
         >"$TEST_DIRECTORY/osmo-external-object-storage-config.yaml"

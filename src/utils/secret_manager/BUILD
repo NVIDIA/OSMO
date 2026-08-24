@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_library")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_library(
@@ -32,6 +32,24 @@ osmo_py_library(
         requirement("jwcrypto"),
         requirement("pyyaml"),
         "//src/lib/utils:osmo_errors",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_binary(
+    name = "mek_lifecycle",
+    srcs = ["mek_lifecycle.py"],
+    main = "mek_lifecycle.py",
+    deps = [
+        requirement("jwcrypto"),
+        requirement("kubernetes"),
+        requirement("psycopg2-binary"),
+        requirement("pydantic"),
+        requirement("pyyaml"),
+        "//src/lib/utils:osmo_errors",
+        "//src/utils:static_config",
+        "//src/utils/connectors",
+        ":secret_manager",
     ],
     visibility = ["//visibility:public"],
 )

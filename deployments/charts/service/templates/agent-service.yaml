@@ -22,6 +22,7 @@ metadata:
   name: {{ .Values.services.agent.serviceName }}
   labels:
     app: {{ .Values.services.agent.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
 spec:
   selector:
     matchLabels:
@@ -30,10 +31,13 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.agent.serviceName }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/part-of: osmo
         {{- with .Values.services.agent.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- include "osmo.mek-rollout-annotation" . | nindent 8 }}
         {{- include "osmo.extra-annotations" .Values.services.agent | nindent 8 }}
     spec:
       {{- with .Values.services.agent.hostAliases }}
@@ -106,10 +110,8 @@ spec:
         - {{ .Values.services.postgres.port | quote }}
         - --postgres_database_name
         - {{ .Values.services.postgres.db}}
-        {{- if .Values.services.configFile.enabled }}
         - --mek_file
-        - {{ .Values.services.configFile.path }}
-        {{- end}}
+        - {{ include "osmo.mek-file" . }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -151,14 +153,8 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.agent.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) }}
         volumeMounts:
-        {{- end }}
-        {{- if .Values.services.configFile.enabled}}
-        - mountPath: {{ .Values.services.configFile.path }}
-          name: mek-volume
-          subPath: mek.yaml
-        {{- end }}
+        {{- include "osmo.mek-volume-mount" . | nindent 8 }}
         {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- include "osmo.extra-volume-mounts" .Values.services.agent | nindent 8 }}
         {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
@@ -198,15 +194,7 @@ spec:
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.agent | nindent 8 }}
         {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
-        {{- if .Values.services.configFile.enabled}}
-        - configMap:
-            defaultMode: 420
-            items:
-            - key: mek.yaml
-              path: mek.yaml
-            name: mek-config
-          name: mek-volume
-        {{- end}}
+        {{- include "osmo.mek-volume" . | nindent 8 }}
         {{- include "osmo.configmap-volumes" . | nindent 8 }}
 
 ---
@@ -234,6 +222,7 @@ metadata:
   name: {{ .Values.services.agent.serviceName }}
   labels:
     app: {{ .Values.services.agent.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
   annotations:
 spec:
   scaleTargetRef:

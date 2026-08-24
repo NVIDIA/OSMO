@@ -73,6 +73,28 @@ osmo_python_wrapper(
     include_progress_check = True,
 )
 
+py_image_layer(
+    name = "mek_lifecycle_layer",
+    binary = "//src/utils/secret_manager:mek_lifecycle",
+)
+
+osmo_python_wrapper(
+    name = "mek_lifecycle_wrapper",
+    bin_name = "mek-lifecycle",
+    main = "/src/utils/secret_manager/mek_lifecycle.py",
+    runfiles_dir = "/src/utils/secret_manager/mek_lifecycle.runfiles",
+)
+
+filegroup(
+    name = "mek_lifecycle_image_layers",
+    srcs = [
+        ":mek_lifecycle_layer_default",
+        ":mek_lifecycle_layer_interpreter",
+        ":mek_lifecycle_layer_packages",
+        ":mek_lifecycle_wrapper",
+    ],
+)
+
 filegroup(
     name = "service_image_layers",
     srcs = [
@@ -91,6 +113,7 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
         ":service_image_layers",
+        ":mek_lifecycle_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -131,6 +154,7 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
         ":service_image_layers",
+        ":mek_lifecycle_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

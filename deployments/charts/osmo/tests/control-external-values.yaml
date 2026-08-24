@@ -31,7 +31,9 @@ secrets:
   objectStorage:
     existingSecret: external-object-storage-secret
   masterEncryptionKey:
-    existingSecret: external-master-encryption-key-secret
+    existingSecret:
+      name: external-master-encryption-key-secret
+      key: keyring.yaml
 
 services:
   api:

@@ -44,6 +44,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.router "componentName" "router") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.router) | nindent 8 }}
+        {{- include "osmo.secrets.mekRolloutAnnotation" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.router.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -94,12 +95,9 @@ spec:
         - --postgres_user
         - {{ . }}
         {{- end }}
-        {{- if (include "osmo.masterEncryptionKey.secretName" .) }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - --mek_file
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
-        {{- else }}
-        - --config
-        - {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        - {{ include "osmo.secrets.mekFile" . | quote }}
         {{- end }}
         {{- if .Values.logging.enabled }}
         - --log_level
@@ -145,10 +143,10 @@ spec:
         volumeMounts:
         - name: osmo-runtime-tmp
           mountPath: /tmp
-        {{- if (include "osmo.masterEncryptionKey.secretName" .) }}
-        - mountPath: {{ .Values.secrets.masterEncryptionKey.mountPath }}
+        {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
+        - mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
           name: mek-volume
-          subPath: mek.yaml
+          readOnly: true
         {{- end }}
         {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
