@@ -1,0 +1,25 @@
+{{- if .Values.planes.compute.enabled }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- range $configMapName, $configMapData := .Values.compute.extraConfigMaps }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "osmo.component.fullname" (dict "root" $ "suffix" $configMapName) }}
+  namespace: {{ include "osmo.compute.agentNamespace" $ }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" $ "component" "compute-config") | nindent 4 }}
+    {{- with $configMapData.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" $ "annotations" (dig "annotations" dict $configMapData))) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+{{- with $configMapData.data }}
+data:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}

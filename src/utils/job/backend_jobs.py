@@ -896,6 +896,11 @@ class BackendSynchronizeBackendTest(backend_job_defs.BackendSynchronizeBackendTe
             logging.info('Starting BackendSynchronizeBackendTest execution',
                         extra={'workflow_uuid': getattr(self, 'workflow_uuid', None)})
 
+            if not context.get_test_runner_namespace():
+                logging.info('No backend test namespace configured, skipping execution',
+                             extra={'workflow_uuid': getattr(self, 'workflow_uuid', None)})
+                return JobResult()
+
             spec_file_path = context.get_test_runner_cronjob_spec_file()
             if not spec_file_path:
                 logging.info('No CronJob spec file provided, skipping execution',

@@ -33,8 +33,9 @@ metricRelabelings:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end -}}
+{{- if .Values.planes.control.enabled }}
 {{- $monitor := .Values.monitoring.podMonitor -}}
-{{- if $monitor.enabled }}
+{{- if $monitor.control.enabled }}
 {{- $root := . }}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -63,7 +64,7 @@ spec:
         values: [agent, api, worker, logger, delayed-job-monitor]
       }
 {{- end }}
-{{- if and $monitor.enabled .Values.gateway.envoy.enabled }}
+{{- if and $monitor.control.enabled .Values.gateway.envoy.enabled }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -87,7 +88,7 @@ spec:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-envoy") | nindent 6 }}
 {{- end }}
-{{- if and $monitor.enabled .Values.gateway.oauth2Proxy.enabled }}
+{{- if and $monitor.control.enabled .Values.gateway.oauth2Proxy.enabled }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -110,4 +111,5 @@ spec:
   selector:
     matchLabels:
       {{- include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-oauth2-proxy") | nindent 6 }}
+{{- end }}
 {{- end }}

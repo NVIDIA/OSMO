@@ -22,7 +22,8 @@ httproute:
 
 monitoring:
   podMonitor:
-    enabled: true
+    control:
+      enabled: true
     labels:
       prometheus: platform
     annotations:

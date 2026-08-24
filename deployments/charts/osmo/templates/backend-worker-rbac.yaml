@@ -1,0 +1,153 @@
+{{- if and .Values.planes.compute.enabled .Values.services.backendWorker.enabled }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+{{- $component := .Values.services.backendWorker }}
+{{- $componentName := "backend-worker" }}
+{{- $name := include "osmo.compute.workerName" . }}
+{{- $clusterRoleName := include "osmo.compute.workerClusterRoleName" . }}
+{{- $clusterRoleBindingName := include "osmo.compute.clusterResourceName" (dict "root" . "suffix" "backend-worker-binding") }}
+{{- if $component.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "osmo.compute.workerServiceAccountName" . }}
+  namespace: {{ include "osmo.compute.agentNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" $component.serviceAccount.annotations)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: {{ $component.serviceAccount.automountServiceAccountToken }}
+{{- end }}
+{{- if .Values.compute.rbac.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "osmo.compute.backendNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets", "pods", "services"]
+  verbs: ["list", "delete", "create", "patch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: ["scheduling.run.ai"]
+  resources: ["podgroups"]
+  verbs: ["list", "delete", "create"]
+{{- with $component.extraRBACRules }}
+{{ toYaml . }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "osmo.compute.backendNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "osmo.compute.workerServiceAccountName" . }}
+  namespace: {{ include "osmo.compute.agentNamespace" . }}
+roleRef:
+  kind: Role
+  name: {{ $name }}
+  apiGroup: rbac.authorization.k8s.io
+{{- if and .Values.services.backendTestRunner.enabled .Values.compute.backendTestNamespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-backend-tests
+  namespace: {{ .Values.compute.backendTestNamespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["list", "delete", "create", "patch"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs"]
+  verbs: ["list", "delete", "create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-backend-tests
+  namespace: {{ .Values.compute.backendTestNamespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "osmo.compute.workerServiceAccountName" . }}
+  namespace: {{ include "osmo.compute.agentNamespace" . }}
+roleRef:
+  kind: Role
+  name: {{ $name }}-backend-tests
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}
+{{- if .Values.compute.rbac.clusterRoles.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $clusterRoleName }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get"]
+- apiGroups: ["scheduling.run.ai"]
+  resources: ["queues"]
+  verbs: ["list", "delete", "create", "update", "get"]
+- apiGroups: ["kai.scheduler"]
+  resources: ["topologies"]
+  verbs: ["list", "delete", "create", "update", "get"]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $clusterRoleBindingName }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $componentName) | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "osmo.compute.workerServiceAccountName" . }}
+  namespace: {{ include "osmo.compute.agentNamespace" . }}
+roleRef:
+  kind: ClusterRole
+  name: {{ $clusterRoleName }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

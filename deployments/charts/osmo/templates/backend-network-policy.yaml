@@ -1,0 +1,49 @@
+{{- if and .Values.planes.compute.enabled .Values.compute.workflowNetworkPolicy.enabled }}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "workflow-network-policy") }}
+  namespace: {{ include "osmo.compute.backendNamespace" . }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "compute-network-policy") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        {{- with .Values.compute.workflowNetworkPolicy.clusterCIDRs }}
+        except:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "osmo.compute.backendNamespace" . }}
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.compute.workflowNetworkPolicy.dnsNamespace }}
+  {{- range .Values.compute.workflowNetworkPolicy.allowedNamespaces }}
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ . }}
+  {{- end }}
+  {{- with .Values.compute.workflowNetworkPolicy.additionalEgressRules }}
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

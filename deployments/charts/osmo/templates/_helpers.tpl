@@ -70,6 +70,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- with $annotations }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
+{{- define "osmo.service.labels" -}}
+{{- $labels := mergeOverwrite (deepCopy .root.Values.commonLabels) .service.labels -}}
+{{- $identity := include "osmo.component.standardLabels" (dict "root" .root "component" .component) | fromYaml -}}
+{{- toYaml (mergeOverwrite $labels $identity) -}}
+{{- end -}}
+
 {{- define "osmo.component.fullname" -}}
 {{- $root := .root -}}
 {{- $suffix := .suffix -}}
@@ -80,17 +86,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{- define "osmo.component.image" -}}
+{{- define "osmo.image" -}}
 {{- $root := .root -}}
-{{- $component := .component -}}
-{{- $registry := $root.Values.imageRegistry | default $component.image.registry -}}
-{{- $repository := required "component image.repository is required" $component.image.repository -}}
-{{- $base := ternary (printf "%s/%s" $registry $repository) $repository (ne $registry "") -}}
-{{- if $component.image.digest -}}
-{{- printf "%s@%s" $base $component.image.digest -}}
-{{- else -}}
-{{- printf "%s:%s" $base ($component.image.tag | default $root.Chart.AppVersion) -}}
+{{- $image := .image -}}
+{{- $registry := $image.registry -}}
+{{- if .useSharedRegistry -}}
+{{- $registry = $root.Values.imageRegistry | default $registry -}}
 {{- end -}}
+{{- $repository := required "image.repository is required" $image.repository -}}
+{{- $base := ternary (printf "%s/%s" $registry $repository) $repository (ne $registry "") -}}
+{{- if $image.digest -}}
+{{- printf "%s@%s" $base $image.digest -}}
+{{- else -}}
+{{- $tag := $image.tag -}}
+{{- if .useSharedTag -}}
+{{- $tag = $tag | default $root.Values.imageTag | default $root.Chart.AppVersion -}}
+{{- end -}}
+{{- printf "%s:%s" $base (required "image.tag is required when digest is empty" $tag) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.component.image" -}}
+{{- include "osmo.image" (dict "root" .root "image" .component.image "useSharedRegistry" true "useSharedTag" true) -}}
 {{- end -}}
 
 {{- define "osmo.component.imageRepository" -}}
@@ -100,6 +117,72 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "osmo.component.imageTag" -}}
 {{- .Values.runtimeImage.tag | default .Chart.AppVersion -}}
+{{- end -}}
+
+{{- define "osmo.compute.agentNamespace" -}}
+{{- .Release.Namespace -}}
+{{- end -}}
+
+{{- define "osmo.compute.backendNamespace" -}}
+{{- .Values.compute.workloadNamespace | default .Release.Namespace -}}
+{{- end -}}
+
+{{- define "osmo.compute.serviceUrl" -}}
+{{- if .Values.planes.control.enabled -}}
+{{- printf "http://%s:%v" (include "osmo.gateway.fullname" .) .Values.gateway.envoy.service.port -}}
+{{- else -}}
+{{- required "externalUrl is required when the compute plane connects to an external control plane" (.Values.externalUrl | trimSuffix "/") -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.compute.listenerName" -}}
+{{- include "osmo.component.fullname" (dict "root" . "suffix" "backend-listener") -}}
+{{- end -}}
+
+{{- define "osmo.compute.workerName" -}}
+{{- include "osmo.component.fullname" (dict "root" . "suffix" "backend-worker") -}}
+{{- end -}}
+
+{{- define "osmo.compute.clusterResourceName" -}}
+{{- $base := include "osmo.component.fullname" (dict "root" .root "suffix" .suffix) | trunc 54 | trimSuffix "-" -}}
+{{- $identity := printf "%s/%s/%s" (include "osmo.fullname" .root) .root.Release.Namespace .suffix -}}
+{{- printf "%s-%s" $base (sha256sum $identity | trunc 8) -}}
+{{- end -}}
+
+{{- define "osmo.compute.listenerClusterRoleName" -}}
+{{- if .Values.compute.rbac.clusterRoles.create -}}
+{{- include "osmo.compute.clusterResourceName" (dict "root" . "suffix" "backend-listener") -}}
+{{- else -}}
+{{- required "compute.rbac.clusterRoles.listenerName is required when cluster role creation is disabled" .Values.compute.rbac.clusterRoles.listenerName -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.compute.workerClusterRoleName" -}}
+{{- if .Values.compute.rbac.clusterRoles.create -}}
+{{- include "osmo.compute.clusterResourceName" (dict "root" . "suffix" "backend-worker") -}}
+{{- else -}}
+{{- required "compute.rbac.clusterRoles.workerName is required when cluster role creation is disabled" .Values.compute.rbac.clusterRoles.workerName -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.compute.testRunnerClusterRoleName" -}}
+{{- if .Values.compute.rbac.clusterRoles.create -}}
+{{- include "osmo.compute.clusterResourceName" (dict "root" . "suffix" "backend-test-runner") -}}
+{{- else -}}
+{{- required "compute.rbac.clusterRoles.testRunnerName is required when cluster role creation is disabled and the backend test runner is enabled" .Values.compute.rbac.clusterRoles.testRunnerName -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.compute.listenerServiceAccountName" -}}
+{{- include "osmo.component.serviceAccountName" (dict "root" . "component" .Values.services.backendListener "suffix" "backend-listener") -}}
+{{- end -}}
+
+{{- define "osmo.compute.workerServiceAccountName" -}}
+{{- include "osmo.component.serviceAccountName" (dict "root" . "component" .Values.services.backendWorker "suffix" "backend-worker") -}}
+{{- end -}}
+
+{{- define "osmo.compute.testRunnerServiceAccountName" -}}
+{{- include "osmo.component.serviceAccountName" (dict "root" . "component" .Values.services.backendTestRunner "suffix" "backend-test-runner") -}}
 {{- end -}}
 
 {{- define "osmo.hostname" -}}
@@ -142,14 +225,25 @@ default
 {{- end -}}
 
 {{- define "osmo.pod.topologySpreadConstraints" -}}
+{{- $pod := dig "pod" dict .component -}}
 {{- $constraints := list -}}
+{{- $configuredConstraints := .root.Values.podDefaults.topologySpreadConstraints -}}
+{{- if hasKey $pod "topologySpreadConstraints" -}}
+{{- $configuredConstraints = $pod.topologySpreadConstraints -}}
+{{- end -}}
 {{- $selectorLabels := include "osmo.component.selectorLabels" (dict "root" .root "component" .componentName) | fromYaml -}}
-{{- range .constraints -}}
+{{- range $configuredConstraints -}}
 {{- $constraint := omit (deepCopy .) "labelSelector" -}}
 {{- $_ := set $constraint "labelSelector" (dict "matchLabels" (deepCopy $selectorLabels)) -}}
 {{- $constraints = append $constraints $constraint -}}
 {{- end -}}
 {{- with $constraints }}{{ toYaml . }}{{- end -}}
+{{- end -}}
+
+{{- define "osmo.probe" -}}
+{{- if .probe.enabled -}}
+{{- toYaml .probe.spec -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "osmo.pod.tolerations" -}}
@@ -191,7 +285,7 @@ default
 {{- end -}}
 
 {{- define "osmo.component.extraEnv" -}}
-{{- with .env }}{{ toYaml . }}{{- end -}}
+{{- with .extraEnv }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
 {{- define "osmo.component.extraVolumeMounts" -}}
@@ -202,8 +296,8 @@ default
 {{- with (dig "pod" "extraVolumes" list .) }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
-{{- define "osmo.pod.extraSidecars" -}}
-{{- with (dig "pod" "sidecars" list .) }}{{ toYaml . }}{{- end -}}
+{{- define "osmo.pod.extraContainers" -}}
+{{- with (dig "pod" "extraContainers" list .) }}{{ toYaml . }}{{- end -}}
 {{- end -}}
 
 {{- define "osmo.configuration.extraConfigMaps" -}}
@@ -229,6 +323,23 @@ data:
 {{- include "osmo.component.fullname" (dict "root" . "suffix" "api") -}}
 {{- end -}}
 
+{{/* Resolve the Secret selected by one backend API token credential. */}}
+{{- define "osmo.backendApiTokenSecretName" -}}
+{{- $hasExistingSecret := hasKey . "existingSecret" -}}
+{{- $hasManagedSecret := hasKey . "managedSecret" -}}
+{{- $sourceCount := add
+      (ternary 1 0 $hasExistingSecret)
+      (ternary 1 0 $hasManagedSecret) -}}
+{{- if ne $sourceCount 1 -}}
+{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret or managedSecret" (.name | default "")) -}}
+{{- end -}}
+{{- if $hasExistingSecret -}}
+{{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
+{{- else -}}
+{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "osmo.configuration.args" -}}
 {{- if .Values.configuration.enabled }}
 - --config_file
@@ -236,7 +347,7 @@ data:
 {{- end }}
 {{- end -}}
 
-{{- define "osmo.configuration.env" -}}
+{{- define "osmo.configuration.extraEnv" -}}
 {{- if .Values.configuration.enabled }}
 - name: POD_NAMESPACE
   valueFrom:
@@ -282,7 +393,7 @@ data:
 {{- end -}}
 
 {{- define "osmo.secrets.mekVolume" -}}
-{{- with .Values.secrets.masterEncryptionKey.existingSecret }}
+{{- with (include "osmo.masterEncryptionKey.secretName" .) }}
 - name: mek-volume
   secret:
     secretName: {{ . }}
@@ -290,6 +401,18 @@ data:
     - key: {{ $.Values.secrets.masterEncryptionKey.keys.config }}
       path: mek.yaml
 {{- end }}
+{{- end -}}
+
+{{- define "osmo.masterEncryptionKey.secretName" -}}
+{{- if .Values.secrets.masterEncryptionKey.generate -}}
+{{- printf "%s-master-encryption-key" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- .Values.secrets.masterEncryptionKey.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.masterEncryptionKey.bootstrapName" -}}
+{{- printf "%s-mek-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "osmo.valkey.fullname" -}}

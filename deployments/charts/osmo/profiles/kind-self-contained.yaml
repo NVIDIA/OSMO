@@ -1,0 +1,210 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Development-only converged profile for a kind cluster where KAI Scheduler and
+# the CloudNativePG operator are already installed. The OSMO release owns the
+# control plane, compute plane, database Cluster, Valkey, and RustFS.
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: true
+
+# Keep the in-cluster development endpoints below valid for any Helm release
+# name. This profile intentionally supports one OSMO installation per namespace.
+fullnameOverride: osmo
+
+imageTag: latest
+runtimeImage:
+  tag: latest
+
+externalUrl: http://osmo-gateway
+
+embeddedDependencies:
+  postgresql:
+    enabled: true
+  valkey:
+    enabled: true
+  objectStorage:
+    enabled: true
+
+secrets:
+  postgresql:
+    existingSecret: ''
+  valkey:
+    generate: true
+    existingSecret: ''
+  objectStorage:
+    generate: true
+    existingSecret: ''
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: default
+      managedSecret:
+        name: osmo-backend-token
+  masterEncryptionKey:
+    generate: true
+    existingSecret: ''
+
+services:
+  mcp:
+    enabled: false
+  ui:
+    replicas: 1
+  worker:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  api:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  router:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  logger:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  agent:
+    replicas: 1
+    autoscaling:
+      enabled: false
+  delayedJobMonitor:
+    replicas: 1
+  backendListener:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 1Gi
+  backendWorker:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 1Gi
+  backendTestRunner:
+    enabled: false
+
+gateway:
+  envoy:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    defaultIdentity:
+      user: testuser
+      roles: osmo-admin
+      allowedPools: default
+    service:
+      type: ClusterIP
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
+  rateLimit:
+    enabled: false
+
+monitoring:
+  podMonitor:
+    control:
+      enabled: false
+    compute:
+      enabled: false
+
+configuration:
+  enabled: true
+  podTemplates:
+    # KAI treats even a zero-valued nvidia.com/gpu resource key as a GPU pod
+    # and injects the NVIDIA RuntimeClass. This CPU-only profile omits the key.
+    default_user:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+            requests:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+    kind_dev_auth:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
+        - name: osmo-ctrl
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
+  pools:
+    default:
+      common_pod_template:
+      - default_ctrl
+      - default_user
+      - kind_dev_auth
+
+postgresql:
+  cluster:
+    instances: 1
+    storage:
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    enablePDB: false
+    postgresql:
+      synchronous: null
+
+valkey:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  dataStorage:
+    requestedSize: 1Gi
+  replica:
+    enabled: false
+    minReplicasToWrite: 0
+  podDisruptionBudget:
+    enabled: false
+
+rustfs:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storageclass:
+    dataStorageSize: 2Gi
+
+compute:
+  workloadNamespace: ''
+  backendTestNamespace: ''
+  authentication:
+    existingSecret: osmo-backend-token
+    tokenKey: token

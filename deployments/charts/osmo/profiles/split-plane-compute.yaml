@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Compute-only example for a backend that connects to an externally managed
+# OSMO control plane. Provision osmo-backend-token in the release namespace
+# before installing this profile.
+planes:
+  control:
+    enabled: false
+  compute:
+    enabled: true
+
+embeddedDependencies:
+  postgresql:
+    enabled: false
+  valkey:
+    enabled: false
+  objectStorage:
+    enabled: false
+
+externalUrl: https://osmo.example.com
+
+compute:
+  workloadNamespace: ''
+  backendTestNamespace: ''
+  authentication:
+    existingSecret: osmo-backend-token
+    tokenKey: token
+
+services:
+  backendTestRunner:
+    enabled: false
