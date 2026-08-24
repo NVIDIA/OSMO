@@ -848,19 +848,12 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Creates durable user identities and current users.
+        # Creates current users.
         create_cmd = '''
-            CREATE TABLE IF NOT EXISTS user_identities (
-                id TEXT NOT NULL PRIMARY KEY,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT NOT NULL PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                created_by TEXT,
-                CONSTRAINT users_identity_fkey
-                    FOREIGN KEY (id) REFERENCES user_identities(id)
+                created_by TEXT
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -902,9 +895,7 @@ class PostgresConnector:
                 priority TEXT DEFAULT 'NORMAL',
                 PRIMARY KEY (workflow_uuid),
                 CONSTRAINT workflows_name_job UNIQUE(workflow_name, job_id),
-                CONSTRAINT workflows_workflow_id UNIQUE(workflow_id),
-                CONSTRAINT workflows_submitted_by_identity_fkey
-                    FOREIGN KEY (submitted_by) REFERENCES user_identities(id)
+                CONSTRAINT workflows_workflow_id UNIQUE(workflow_id)
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -1046,9 +1037,7 @@ class PostgresConnector:
                 created_date TIMESTAMP,
                 description TEXT,
                 PRIMARY KEY (uuid),
-                CONSTRAINT apps_name UNIQUE(name),
-                CONSTRAINT apps_owner_identity_fkey
-                    FOREIGN KEY (owner) REFERENCES user_identities(id)
+                CONSTRAINT apps_name UNIQUE(name)
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -1065,9 +1054,7 @@ class PostgresConnector:
                 PRIMARY KEY (uuid, version),
                 FOREIGN KEY (uuid)
                     REFERENCES apps (uuid)
-                    ON DELETE CASCADE,
-                CONSTRAINT app_versions_created_by_identity_fkey
-                    FOREIGN KEY (created_by) REFERENCES user_identities(id)
+                    ON DELETE CASCADE
             );
         '''
         self.execute_commit_command(create_cmd, ())

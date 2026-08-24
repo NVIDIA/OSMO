@@ -18,8 +18,8 @@ load("//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
-    name = "test_user_identities_migration",
-    srcs = ["test_user_identities_migration.py"],
+    name = "test_users_backfill_migration",
+    srcs = ["test_users_backfill_migration.py"],
     data = ["//deployments/charts/service/migrations:migration_files"],
     deps = [
         "//src/tests/common",

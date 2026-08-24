@@ -1,9 +1,0 @@
-{
-  "operations": [
-    {
-      "sql": {
-        "up": "CREATE TABLE IF NOT EXISTS public.user_identities (id TEXT NOT NULL PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW())"
-      }
-    }
-  ]
-}

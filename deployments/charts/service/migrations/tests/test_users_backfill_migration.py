@@ -29,13 +29,12 @@ from src.utils.connectors import postgres
 
 
 MIGRATION_RUNFILE_PREFIX = 'osmo_workspace/deployments/charts/service/migrations'
-SCHEMA_MIGRATION = '007_v6_4_0_user_identities_schema.json'
-DATA_MIGRATION = '008_v6_4_0_user_identities_data.json'
+MIGRATION = '007_v6_4_0_users_backfill.json'
 
 
-class UserIdentitiesMigrationTest(
+class UsersBackfillMigrationTest(
         fixtures.PostgresFixture, fixtures.OsmoTestFixture):
-    """Runs the shipped identity migrations against a legacy schema."""
+    """Runs the shipped users backfill migration against a legacy schema."""
 
     def setUp(self):
         super().setUp()
@@ -99,15 +98,15 @@ class UserIdentitiesMigrationTest(
             migration = json.load(migration_file)
         return migration['operations'][0]['sql']['up']
 
-    def _run_migrations(self):
+    def _run_migration(self):
         with self.connection.cursor() as cursor:
-            cursor.execute(self._migration_sql(SCHEMA_MIGRATION))
-            cursor.execute(self._migration_sql(DATA_MIGRATION))
+            cursor.execute(self._migration_sql(MIGRATION))
 
-    def test_backfills_references_adds_constraints_and_is_idempotent(self):
+    def test_backfills_users_adds_credential_constraint_and_is_idempotent(self):
         with self.connection.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO users (id) VALUES ('active@nvidia.com')")
+                "INSERT INTO users (id, created_by) "
+                "VALUES ('active@nvidia.com', 'existing-creator')")
             cursor.execute(
                 "INSERT INTO workflows VALUES ('workflow', 'historical@nvidia.com')")
             cursor.execute(
@@ -118,66 +117,106 @@ class UserIdentitiesMigrationTest(
                 "INSERT INTO credential VALUES ('active@nvidia.com', 'active')")
             cursor.execute(
                 "INSERT INTO credential VALUES ('orphan@nvidia.com', 'orphan')")
+            cursor.execute("INSERT INTO workflows VALUES ('null-workflow', NULL)")
+            cursor.execute("INSERT INTO apps VALUES ('null-app', NULL)")
+            cursor.execute("INSERT INTO app_versions VALUES ('null-app', 1, NULL)")
 
-        self._run_migrations()
-        self._run_migrations()
+        self._run_migration()
+        self._run_migration()
 
         with self.connection.cursor() as cursor:
-            cursor.execute('SELECT id FROM user_identities ORDER BY id')
+            cursor.execute('SELECT id, created_by FROM users ORDER BY id')
             self.assertEqual(
-                [row[0] for row in cursor.fetchall()],
+                cursor.fetchall(),
                 [
-                    'active@nvidia.com',
-                    'creator@nvidia.com',
-                    'historical@nvidia.com',
-                    'owner@nvidia.com',
+                    ('active@nvidia.com', 'existing-creator'),
+                    ('creator@nvidia.com', 'migration'),
+                    ('historical@nvidia.com', 'migration'),
+                    ('owner@nvidia.com', 'migration'),
                 ],
             )
             cursor.execute('SELECT user_name FROM credential ORDER BY user_name')
             self.assertEqual(cursor.fetchall(), [('active@nvidia.com',)])
             cursor.execute(
                 '''
-                SELECT conname, convalidated
+                SELECT
+                    conname,
+                    convalidated,
+                    confrelid::regclass::text,
+                    confdeltype
                 FROM pg_constraint
-                WHERE conname = ANY(%s)
-                ORDER BY conname
+                WHERE conrelid = 'public.credential'::regclass
+                  AND conname = %s
                 ''',
-                ([
-                    'app_versions_created_by_identity_fkey',
-                    'apps_owner_identity_fkey',
-                    'credential_user_name_fkey',
-                    'users_identity_fkey',
-                    'workflows_submitted_by_identity_fkey',
-                ],),
+                ('credential_user_name_fkey',),
             )
             self.assertEqual(
                 cursor.fetchall(),
-                [
-                    ('app_versions_created_by_identity_fkey', True),
-                    ('apps_owner_identity_fkey', True),
-                    ('credential_user_name_fkey', True),
-                    ('users_identity_fkey', True),
-                    ('workflows_submitted_by_identity_fkey', True),
-                ],
+                [('credential_user_name_fkey', True, 'users', 'c')],
             )
+            cursor.execute("SELECT to_regclass('public.user_identities')")
+            self.assertIsNone(cursor.fetchone()[0])
             cursor.execute(
                 'SELECT COUNT(*) FROM pg_indexes WHERE indexname = %s',
                 ('users_base_username_id_idx',),
             )
             self.assertEqual(cursor.fetchone()[0], 1)
 
-    def test_rejects_empty_persistent_identity(self):
+    def test_deleting_user_cascades_credentials_but_retains_history(self):
         with self.connection.cursor() as cursor:
-            cursor.execute("INSERT INTO workflows VALUES ('workflow', '')")
-            cursor.execute(self._migration_sql(SCHEMA_MIGRATION))
-            with self.assertRaisesRegex(
-                    psycopg2.Error, 'empty persistent user identity'):
-                cursor.execute(self._migration_sql(DATA_MIGRATION))
+            cursor.execute("INSERT INTO users (id) VALUES ('owner@nvidia.com')")
+            cursor.execute(
+                "INSERT INTO workflows VALUES ('workflow', 'owner@nvidia.com')")
+            cursor.execute("INSERT INTO apps VALUES ('app', 'owner@nvidia.com')")
+            cursor.execute(
+                "INSERT INTO app_versions VALUES ('app', 1, 'owner@nvidia.com')")
+            cursor.execute(
+                "INSERT INTO credential VALUES ('owner@nvidia.com', 'credential')")
 
-    def test_data_migration_blocks_concurrent_persistent_writes(self):
+        self._run_migration()
+
         with self.connection.cursor() as cursor:
-            cursor.execute(self._migration_sql(SCHEMA_MIGRATION))
+            cursor.execute("DELETE FROM users WHERE id = 'owner@nvidia.com'")
+            cursor.execute(
+                '''
+                SELECT
+                    (SELECT COUNT(*) FROM credential
+                     WHERE user_name = 'owner@nvidia.com'),
+                    (SELECT COUNT(*) FROM workflows
+                     WHERE submitted_by = 'owner@nvidia.com'),
+                    (SELECT COUNT(*) FROM apps
+                     WHERE owner = 'owner@nvidia.com'),
+                    (SELECT COUNT(*) FROM app_versions
+                     WHERE created_by = 'owner@nvidia.com')
+                ''')
+            self.assertEqual(cursor.fetchone(), (0, 1, 1, 1))
 
+    def test_rejects_empty_persistent_identities(self):
+        cases = (
+            ("INSERT INTO users (id) VALUES ('')", "DELETE FROM users WHERE id = ''"),
+            (
+                "INSERT INTO workflows VALUES ('empty-workflow', '')",
+                "DELETE FROM workflows WHERE workflow_uuid = 'empty-workflow'",
+            ),
+            (
+                "INSERT INTO apps VALUES ('empty-app', '')",
+                "DELETE FROM apps WHERE uuid = 'empty-app'",
+            ),
+            (
+                "INSERT INTO app_versions VALUES ('empty-app', 1, '')",
+                "DELETE FROM app_versions WHERE uuid = 'empty-app' AND version = 1",
+            ),
+        )
+        for insert_sql, cleanup_sql in cases:
+            with self.subTest(insert_sql=insert_sql):
+                with self.connection.cursor() as cursor:
+                    cursor.execute(insert_sql)
+                    with self.assertRaisesRegex(
+                            psycopg2.Error, 'empty persistent user identity'):
+                        cursor.execute(self._migration_sql(MIGRATION))
+                    cursor.execute(cleanup_sql)
+
+    def test_migration_blocks_concurrent_persistent_writes(self):
         connection_parameters = {
             'host': self.postgres_container.get_container_host_ip(),
             'port': self.postgres_container.get_database_port(),
@@ -192,21 +231,20 @@ class UserIdentitiesMigrationTest(
         migration_thread: threading.Thread | None = None
         try:
             with blocker.cursor() as cursor:
-                cursor.execute(
-                    'LOCK TABLE user_identities IN ACCESS EXCLUSIVE MODE')
+                cursor.execute('LOCK TABLE credential IN ACCESS EXCLUSIVE MODE')
             with migrator.cursor() as cursor:
                 cursor.execute('SELECT pg_backend_pid()')
                 migrator_process_id = cursor.fetchone()[0]
 
-            def run_data_migration() -> None:
+            def run_migration() -> None:
                 try:
                     with migrator.cursor() as cursor:
-                        cursor.execute(self._migration_sql(DATA_MIGRATION))
+                        cursor.execute(self._migration_sql(MIGRATION))
                     migrator.commit()
                 except Exception as error:  # pylint: disable=broad-exception-caught
                     migration_errors.append(error)
 
-            migration_thread = threading.Thread(target=run_data_migration)
+            migration_thread = threading.Thread(target=run_migration)
             migration_thread.start()
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
@@ -224,7 +262,7 @@ class UserIdentitiesMigrationTest(
                     break
                 time.sleep(0.01)
             else:
-                self.fail('data migration did not reach the controlled lock wait')
+                self.fail('migration did not reach the controlled lock wait')
 
             with writer.cursor() as cursor:
                 cursor.execute("SET LOCAL lock_timeout = '200ms'")
@@ -248,7 +286,7 @@ class UserIdentitiesMigrationTest(
             migrator.close()
             writer.close()
 
-    def test_fresh_database_schema_has_identity_relationships(self):
+    def test_fresh_database_schema_uses_users_and_historical_text(self):
         with self.connection.cursor() as cursor:
             cursor.execute('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
 
@@ -264,19 +302,19 @@ class UserIdentitiesMigrationTest(
 
         with self.connection.cursor() as cursor:
             cursor.execute("SELECT to_regclass('public.user_identities')")
-            self.assertEqual(cursor.fetchone()[0], 'user_identities')
+            self.assertIsNone(cursor.fetchone()[0])
             cursor.execute(
                 '''
                 SELECT table_name, is_nullable
                 FROM information_schema.columns
                 WHERE table_schema = 'public'
-                  AND table_name IN ('user_identities', 'users')
+                  AND table_name = 'users'
                   AND column_name = 'id'
                 ORDER BY table_name
                 ''')
             self.assertEqual(
                 cursor.fetchall(),
-                [('user_identities', 'NO'), ('users', 'NO')],
+                [('users', 'NO')],
             )
             cursor.execute(
                 '''
@@ -286,22 +324,16 @@ class UserIdentitiesMigrationTest(
                 ORDER BY conname
                 ''',
                 ([
-                    'app_versions_created_by_identity_fkey',
-                    'apps_owner_identity_fkey',
                     'credential_user_name_fkey',
                     'users_identity_fkey',
+                    'app_versions_created_by_identity_fkey',
+                    'apps_owner_identity_fkey',
                     'workflows_submitted_by_identity_fkey',
                 ],),
             )
             self.assertEqual(
                 [row[0] for row in cursor.fetchall()],
-                [
-                    'app_versions_created_by_identity_fkey',
-                    'apps_owner_identity_fkey',
-                    'credential_user_name_fkey',
-                    'users_identity_fkey',
-                    'workflows_submitted_by_identity_fkey',
-                ],
+                ['credential_user_name_fkey'],
             )
             cursor.execute(
                 'SELECT COUNT(*) FROM pg_indexes WHERE indexname = %s',
