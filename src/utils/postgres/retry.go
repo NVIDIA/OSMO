@@ -1,0 +1,189 @@
+/*
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+*/
+
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"math/rand/v2"
+	"net"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	retryBaseDelay   = 100 * time.Millisecond
+	retryMaxDelay    = 2 * time.Second
+	retryMaxExponent = 5
+)
+
+// ReplaySafety describes whether an operation can be safely replayed after an ambiguous failure.
+type ReplaySafety int
+
+const (
+	// ReplayReadOnly identifies operations that do not change database state.
+	ReplayReadOnly ReplaySafety = iota
+	// ReplayIdempotent identifies writes whose repeated execution converges to the same state.
+	ReplayIdempotent
+	// ReplaySafeOnly identifies writes that must not be replayed after an ambiguous failure.
+	ReplaySafeOnly
+)
+
+func (s ReplaySafety) String() string {
+	switch s {
+	case ReplayReadOnly:
+		return "read_only"
+	case ReplayIdempotent:
+		return "idempotent"
+	case ReplaySafeOnly:
+		return "safe_only"
+	default:
+		return "unknown"
+	}
+}
+
+// RunWithRetry runs an operation with bounded retries appropriate for its replay safety.
+// Each attempt receives the client's connection pool.
+func (c *PostgresClient) RunWithRetry(
+	ctx context.Context,
+	operationName string,
+	replaySafety ReplaySafety,
+	operation func(context.Context, *pgxpool.Pool) error,
+) error {
+	for attempt := 1; attempt <= c.retryAttempts; attempt++ {
+		err := operation(ctx, c.pool)
+		if err == nil {
+			return nil
+		}
+		if contextError := ctx.Err(); contextError != nil {
+			if errors.Is(err, contextError) {
+				return err
+			}
+			return contextError
+		}
+		retryable := canRetry(err, replaySafety)
+		if attempt == c.retryAttempts {
+			if retryable {
+				c.logger.Error("PostgreSQL retry exhausted",
+					slog.String("operation", operationName),
+					slog.Int("attempt", attempt),
+					slog.Int("max_attempts", c.retryAttempts),
+					slog.String("error_type", fmt.Sprintf("%T", err)),
+					slog.String("sqlstate", postgresSQLState(err)),
+					slog.String("replay_safety", replaySafety.String()),
+				)
+			}
+			return err
+		}
+		if !retryable {
+			return err
+		}
+
+		delay := c.retryDelay(attempt)
+		c.logger.Warn("retrying PostgreSQL operation",
+			slog.String("operation", operationName),
+			slog.Int("attempt", attempt),
+			slog.Int("max_attempts", c.retryAttempts),
+			slog.Duration("delay", delay),
+			slog.String("error_type", fmt.Sprintf("%T", err)),
+			slog.String("sqlstate", postgresSQLState(err)),
+			slog.String("replay_safety", replaySafety.String()),
+		)
+		if err := c.waitForRetry(ctx, delay); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *PostgresClient) retryDelay(attempt int) time.Duration {
+	exponent := min(attempt-1, retryMaxExponent)
+	window := min(retryBaseDelay*time.Duration(1<<exponent), retryMaxDelay)
+	halfWindow := window / 2
+	return halfWindow + time.Duration(c.randomFloat()*float64(halfWindow))
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func canRetry(err error, replaySafety ReplaySafety) bool {
+	if pgconn.SafeToRetry(err) {
+		return true
+	}
+
+	sqlState := postgresSQLState(err)
+	if isDefinitiveRetryableSQLState(sqlState) {
+		return true
+	}
+
+	return permitsAmbiguousReplay(replaySafety) && isConnectionFailure(err, sqlState)
+}
+
+func isDefinitiveRetryableSQLState(sqlState string) bool {
+	switch sqlState {
+	case "40001", "40P01", "57P01", "57P02", "57P03":
+		return true
+	default:
+		return false
+	}
+}
+
+func permitsAmbiguousReplay(replaySafety ReplaySafety) bool {
+	return replaySafety == ReplayReadOnly || replaySafety == ReplayIdempotent
+}
+
+func isConnectionFailure(err error, sqlState string) bool {
+	if strings.HasPrefix(sqlState, "08") || pgconn.Timeout(err) ||
+		errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+
+	var networkError net.Error
+	return errors.As(err, &networkError) && networkError.Timeout()
+}
+
+func postgresSQLState(err error) string {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		return postgresError.Code
+	}
+	return ""
+}
+
+func defaultRandomFloat() float64 {
+	return rand.Float64()
+}

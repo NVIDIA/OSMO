@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
@@ -84,8 +85,11 @@ func upsertUser(ctx context.Context, client *postgres.PostgresClient, userName s
 	query := `INSERT INTO users (id, created_at, created_by)
 	          VALUES ($1, NOW(), $1)
 	          ON CONFLICT (id) DO NOTHING`
-	_, err := client.Pool().Exec(ctx, query, userName)
-	return err
+	return client.RunWithRetry(ctx, "upsert user", postgres.ReplayIdempotent,
+		func(attemptContext context.Context, pool *pgxpool.Pool) error {
+			_, err := pool.Exec(attemptContext, query, userName)
+			return err
+		})
 }
 
 type syncResult struct {
@@ -166,28 +170,41 @@ func syncAndReturnRoles(
 		  AND role_name NOT IN (SELECT role_name FROM inserted)
 		  AND role_name NOT IN (SELECT role_name FROM deleted)`
 
-	rows, err := client.Pool().Query(
-		ctx, query, userName, externalRoles, SyncModeIgnore, idpSyncAssigner)
-	if err != nil {
-		return nil, fmt.Errorf("exec sync query: %w", err)
-	}
-	defer rows.Close()
+	var result *syncResult
+	err := client.RunWithRetry(ctx, "sync user roles", postgres.ReplayIdempotent,
+		func(attemptContext context.Context, pool *pgxpool.Pool) error {
+			rows, err := pool.Query(
+				attemptContext, query, userName, externalRoles, SyncModeIgnore, idpSyncAssigner)
+			if err != nil {
+				return fmt.Errorf("exec sync query: %w", err)
+			}
+			defer rows.Close()
 
-	res := &syncResult{}
-	for rows.Next() {
-		var name, changeType string
-		if err := rows.Scan(&name, &changeType); err != nil {
-			return nil, fmt.Errorf("scan sync result: %w", err)
-		}
-		switch changeType {
-		case "added":
-			res.Added = append(res.Added, name)
-			res.RoleNames = append(res.RoleNames, name)
-		case "removed":
-			res.Removed = append(res.Removed, name)
-		case "existing":
-			res.RoleNames = append(res.RoleNames, name)
-		}
+			attemptResult := &syncResult{}
+			for rows.Next() {
+				var name, changeType string
+				if err := rows.Scan(&name, &changeType); err != nil {
+					return fmt.Errorf("scan sync result: %w", err)
+				}
+				switch changeType {
+				case "added":
+					attemptResult.Added = append(attemptResult.Added, name)
+					attemptResult.RoleNames = append(attemptResult.RoleNames, name)
+				case "removed":
+					attemptResult.Removed = append(attemptResult.Removed, name)
+				case "existing":
+					attemptResult.RoleNames = append(attemptResult.RoleNames, name)
+				}
+			}
+			if err := rows.Err(); err != nil {
+				return err
+			}
+
+			result = attemptResult
+			return nil
+		})
+	if err != nil {
+		return nil, err
 	}
-	return res, rows.Err()
+	return result, nil
 }

@@ -204,6 +204,7 @@ func StartPostgres(t testing.TB, opts ...PostgresOption) *PostgresFixture {
 		MinConns:        1,
 		MaxConnLifetime: 5 * time.Minute,
 		SSLMode:         "disable",
+		RetryAttempts:   5,
 	}, logger)
 	if err != nil {
 		t.Fatalf("failed to create osmo postgres client: %v", err)
