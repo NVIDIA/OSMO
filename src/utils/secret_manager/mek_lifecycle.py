@@ -691,14 +691,19 @@ class MekLifecycle:
                 "Validated existing bootstrap MEK Secret current_kid=%s",
                 existing.current_key_id)
             return
+        logging.info("MEK bootstrap is waiting for PostgreSQL readiness.")
         connection = self._connect_database_ready()
         try:
+            logging.info("MEK bootstrap connected to PostgreSQL; acquiring its lock.")
             with connection.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_lock(%s);", (0x4F534D4F4D454B,))
+            logging.info("MEK bootstrap acquired the PostgreSQL lock.")
             if not self._database_is_fresh(connection):
                 raise osmo_errors.OSMOError(
                     "Automatic MEK generation is allowed only for a fresh OSMO database.")
+            logging.info("MEK bootstrap verified that the database is fresh.")
             self._verify_bootstrap_quiescence()
+            logging.info("MEK bootstrap verified the consumer cohort is quiescent.")
             if self._optional_secret() is not None:
                 raise osmo_errors.OSMOError(
                     "MEK Secret appeared during bootstrap; retry exact-state validation.")

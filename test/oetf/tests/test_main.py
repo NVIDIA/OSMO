@@ -165,6 +165,27 @@ class BuildBazelCommandTest(unittest.TestCase):
         "_resolve_targets_via_query",
         return_value=["//test/smoke:mek-rotation-kind"],
     )
+    def test_kind_passes_installed_quick_start_chart_into_bazel(self, resolve_mock):
+        self.assertIsNotNone(resolve_mock)
+        with mock.patch.dict(
+            oetf_main.os.environ,
+            {"OETF_HELM_CHART_PATH": "/tmp/installed-quick-start"},
+            clear=True,
+        ):
+            command = oetf_main.build_bazel_command(
+                self._args("kind"), self._env(), "/tmp/bep.json",
+            )
+
+        self.assertIn(
+            "--test_env=OETF_HELM_CHART_PATH=/tmp/installed-quick-start",
+            command,
+        )
+
+    @mock.patch.object(
+        oetf_main,
+        "_resolve_targets_via_query",
+        return_value=["//test/smoke:mek-rotation-kind"],
+    )
     def test_kind_passes_default_home_kubeconfig_into_bazel(self, resolve_mock):
         self.assertIsNotNone(resolve_mock)
         with mock.patch.dict(oetf_main.os.environ, {}, clear=True), \
@@ -191,7 +212,10 @@ class BuildBazelCommandTest(unittest.TestCase):
         self.assertIsNotNone(resolve_mock)
         with mock.patch.dict(
             oetf_main.os.environ,
-            {"KUBECONFIG": "/runner/unrelated-kubeconfig"},
+            {
+                "KUBECONFIG": "/runner/unrelated-kubeconfig",
+                "OETF_HELM_CHART_PATH": "/tmp/unrelated-quick-start",
+            },
             clear=True,
         ):
             command = oetf_main.build_bazel_command(
@@ -200,6 +224,10 @@ class BuildBazelCommandTest(unittest.TestCase):
 
         self.assertFalse(any(
             argument.startswith("--test_env=KUBECONFIG=")
+            for argument in command
+        ))
+        self.assertFalse(any(
+            argument.startswith("--test_env=OETF_HELM_CHART_PATH=")
             for argument in command
         ))
 

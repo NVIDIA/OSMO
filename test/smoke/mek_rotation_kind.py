@@ -37,8 +37,8 @@ class MekRotationKind(SmokeFixture):
     def _json(self, *args):
         return json.loads(self._kubectl(*args, "-o", "json"))
 
-    def _wait(self, description, predicate):
-        deadline = time.monotonic() + self.timeout_seconds
+    def _wait(self, description, predicate, timeout_seconds=None):
+        deadline = time.monotonic() + (timeout_seconds or self.timeout_seconds)
         while time.monotonic() < deadline:
             value = predicate()
             if value is not None:
@@ -73,26 +73,77 @@ class MekRotationKind(SmokeFixture):
         return self._kubectl(*command, input_text=f"{query}\n").strip()
 
     @staticmethod
-    def _chart_path():
+    def _service_chart_path():
         return os.path.join(
             os.environ["TEST_SRCDIR"], os.environ["TEST_WORKSPACE"],
             "deployments", "charts", "service")
 
+    @staticmethod
+    def _quick_start_chart_path():
+        chart = os.environ.get("OETF_HELM_CHART_PATH", "")
+        if not os.path.isfile(os.path.join(chart, "Chart.yaml")):
+            raise RuntimeError(
+                "OETF_HELM_CHART_PATH does not identify the quick-start chart "
+                "used to install this KIND release")
+        return chart
+
     def _helm_sync(self, *values):
+        phase_prefix = "services.masterEncryptionKey.rotation.phase="
+        phase = next(
+            (value[len(phase_prefix):] for value in values
+             if value.startswith(phase_prefix)), "")
+        existing_jobs = {
+            job["metadata"]["uid"]
+            for job in self._json(
+                "get", "jobs", "-l",
+                "app.kubernetes.io/component=mek-lifecycle")["items"]
+        }
         command = [
-            "helm", "upgrade", self.release, self._chart_path(),
+            "helm", "upgrade", self.release, self._quick_start_chart_path(),
             "--namespace", self.namespace, "--reuse-values", "--wait",
-            "--wait-for-jobs", "--timeout", "10m",
-            "--set", "services.masterEncryptionKey.bootstrap.enabled=false",
+            "--timeout", "10m",
+            "--set", "service.services.masterEncryptionKey.bootstrap.enabled=false",
+            # The quick-start bucket initializer is unrelated to MEK and has
+            # a 30-second TTL. Leaving it in a wait-for-jobs phase upgrade
+            # races Helm's waiter against the TTL controller and produces a
+            # spurious `Job not found` after successful bucket creation.
+            "--set-json", "service.services.localstackS3.buckets=[]",
         ]
         for value in values:
-            command.extend(["--set-string", value])
+            command.extend(["--set-string", f"service.{value}"])
         result = subprocess.run(
             command, check=False, capture_output=True, text=True, timeout=900)
         if result.returncode:
             command_text = " ".join(command)
             raise RuntimeError(
                 f"{command_text} exited {result.returncode}: {result.stderr.strip()}")
+        if not phase:
+            return
+
+        def lifecycle_job_complete():
+            jobs = [
+                job for job in self._json(
+                    "get", "jobs", "-l",
+                    "app.kubernetes.io/component=mek-lifecycle")["items"]
+                if job["metadata"]["uid"] not in existing_jobs
+            ]
+            if len(jobs) > 1:
+                raise RuntimeError(
+                    f"MEK phase {phase} created an unexpected Job cohort")
+            if not jobs:
+                return None
+            job = jobs[0]
+            status = job.get("status", {})
+            if status.get("failed"):
+                name = job["metadata"]["name"]
+                logs = self._kubectl("logs", f"job/{name}")
+                raise RuntimeError(
+                    f"MEK phase {phase} Job {name} failed: {logs.strip()}")
+            return job if status.get("succeeded") else None
+
+        self._wait(
+            f"MEK {phase} Job completion", lifecycle_job_complete,
+            timeout_seconds=660)
 
     @staticmethod
     def _jwe_kid(value):
@@ -238,13 +289,14 @@ class MekRotationKind(SmokeFixture):
         namespace = f"mek-bootstrap-{suffix}"
         release = f"mek-bootstrap-{suffix}"
         secret_name = f"{release}-mek"
+        database_name = f"mek_bootstrap_{suffix}"
         deployment = self._api_deployment()
         service_container = next(
             container for container in deployment["spec"]["template"]["spec"]["containers"]
             if container.get("command") == ["service"])
         image_location, image_name, image_tag = self._split_image(
             service_container["image"])
-        chart = self._chart_path()
+        chart = self._service_chart_path()
         quick_start = os.path.join(chart, "quick-start-values.yaml")
         common = [
             "-f", quick_start,
@@ -252,11 +304,28 @@ class MekRotationKind(SmokeFixture):
             "--set", f"global.osmoImageTag={image_tag}",
             "--set", f"services.service.imageName={image_name}",
             "--set", f"services.masterEncryptionKey.existingSecret.name={secret_name}",
+            "--set", "services.masterEncryptionKey.bootstrap.activeDeadlineSeconds=300",
             # The main KIND release already owns quick-start's fixed,
             # cluster-scoped localstack PV. This isolated lifecycle release
             # does not need object storage and must not collide with it before
             # Helm creates the namespaced bootstrap resources under test.
             "--set", "services.localstackS3.enabled=false",
+            # Use a fresh database on the already-ready KIND PostgreSQL. The
+            # primary quick-start release exercises embedded bootstrap; this
+            # isolated release exercises the external-PostgreSQL Helm
+            # failure/retry path without adding a competing stateful pod.
+            "--set", "services.postgres.enabled=false",
+            "--set", f"services.postgres.db={database_name}",
+            # NodePorts are cluster-wide. The main quick-start release owns
+            # Redis's development NodePort already; the isolated lifecycle
+            # release only needs its namespaced ClusterIP Redis service.
+            "--set", "services.redis.enableNodePort=false",
+            # This test exercises the MEK lifecycle only. Removing the
+            # independent pre-install token hook makes any failed install
+            # unambiguously attributable to the intended missing UI image or
+            # to the normal MEK resources under test.
+            "--set", "services.backendApiTokens.enabled=false",
+            "--set", "services.defaultAdmin.enabled=false",
             "--set", "gateway.envoy.service.type=ClusterIP",
             "--set", "gateway.envoy.service.nodePort=null",
         ]
@@ -271,6 +340,55 @@ class MekRotationKind(SmokeFixture):
             result = kubectl_in("get", "secret", secret_name, "-o", "json")
             return json.loads(result.stdout) if result.returncode == 0 else None
 
+        failed_install = None
+
+        def secret_or_bootstrap_failure():
+            secret = secret_json()
+            if secret is not None:
+                return secret
+            jobs_result = kubectl_in(
+                "get", "jobs", "-l", "app.kubernetes.io/component=mek-lifecycle",
+                "-o", "json")
+            if jobs_result.returncode:
+                raise RuntimeError(
+                    f"could not inspect MEK bootstrap Jobs: {jobs_result.stderr.strip()}")
+            jobs = json.loads(jobs_result.stdout)["items"]
+            if not jobs:
+                detail = failed_install.stderr.strip() if failed_install else ""
+                raise RuntimeError(
+                    "failed Helm install did not create the MEK bootstrap Job: " + detail)
+            job = jobs[0]
+            status = job.get("status", {})
+            if status.get("failed"):
+                name = job["metadata"]["name"]
+                logs = kubectl_in("logs", f"job/{name}")
+                pods = kubectl_in(
+                    "get", "pods", "-l", f"job-name={name}", "-o", "json")
+                events = kubectl_in(
+                    "get", "events", "--sort-by=.lastTimestamp")
+                pod_statuses = []
+                if pods.returncode == 0:
+                    for pod in json.loads(pods.stdout)["items"]:
+                        pod_statuses.append({
+                            "name": pod["metadata"]["name"],
+                            "phase": pod.get("status", {}).get("phase"),
+                            "reason": pod.get("status", {}).get("reason"),
+                            "message": pod.get("status", {}).get("message"),
+                            "containerStatuses": pod.get("status", {}).get(
+                                "containerStatuses", []),
+                        })
+                raise RuntimeError(
+                    f"MEK bootstrap Job {name} failed: "
+                    f"logs={logs.stdout.strip()} {logs.stderr.strip()}; "
+                    f"pod_statuses={pod_statuses!r} {pods.stderr.strip()}; "
+                    f"events={events.stdout.strip()} {events.stderr.strip()}")
+            return None
+
+        self.addCleanup(
+            self._kubectl,
+            "exec", "deployment/postgres", "--", "psql",
+            "--username=postgres", "--dbname=postgres", "--set", "ON_ERROR_STOP=1",
+            "--command", f'DROP DATABASE IF EXISTS "{database_name}" WITH (FORCE);')
         self.addCleanup(
             subprocess.run,
             ["kubectl", "delete", "namespace", namespace, "--ignore-not-found=true"],
@@ -278,24 +396,33 @@ class MekRotationKind(SmokeFixture):
         self._run_checked([
             "kubectl", "create", "namespace", namespace,
         ])
-        admin_secret = {
-            "apiVersion": "v1", "kind": "Secret",
-            "metadata": {"name": "local-admin-password", "namespace": namespace},
-            "stringData": {"password": secrets.token_urlsafe(32)},
+        self._kubectl(
+            "exec", "deployment/postgres", "--", "psql",
+            "--username=postgres", "--dbname=postgres", "--set", "ON_ERROR_STOP=1",
+            "--command", f'CREATE DATABASE "{database_name}";')
+        postgres_service = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "postgres", "namespace": namespace},
+            "spec": {
+                "type": "ExternalName",
+                "externalName": f"postgres.{self.namespace}.svc.cluster.local",
+            },
         }
-        applied = subprocess.run(
-            ["kubectl", "apply", "-f", "-"], input=yaml.safe_dump(admin_secret),
-            check=False, capture_output=True, text=True)
-        if applied.returncode:
-            self.fail(applied.stderr)
-
+        service_result = kubectl_in(
+            "apply", "-f", "-", input_text=yaml.safe_dump(postgres_service))
+        if service_result.returncode:
+            self.fail(service_result.stderr)
         failed = [
             "helm", "install", release, chart, "--namespace", namespace,
             "--wait", "--wait-for-jobs", "--timeout", "90s",
             *common, "--set", "services.ui.imageName=definitely-missing",
         ]
-        self._run_checked(failed, expected_success=False, timeout=180)
-        first = self._wait("create-only bootstrap Secret", secret_json)
+        failed_install = self._run_checked(
+            failed, expected_success=False, timeout=180)
+        first = self._wait(
+            "create-only bootstrap Secret", secret_or_bootstrap_failure,
+            timeout_seconds=330)
         first_uid = first["metadata"]["uid"]
         first_data = first["data"]["mek.yaml"]
         manifest = self._run_checked([

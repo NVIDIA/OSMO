@@ -62,6 +62,7 @@ OSMO_HELM_REPO_URL = "https://helm.ngc.nvidia.com/nvidia/osmo"
 OSMO_CHART_REF = "osmo/quick-start"
 OSMO_NAMESPACE = "osmo"
 OSMO_GATEWAY_SERVICE = "osmo-gateway"
+OETF_HELM_CHART_PATH = "OETF_HELM_CHART_PATH"
 
 # kai-scheduler is a soft dependency of osmo/quick-start — its pods have
 # schedulerName=kai-scheduler and won't schedule without it installed. Version
@@ -362,6 +363,9 @@ class KindAdapter:
     # Injected for tests — callables matching subprocess.run / urllib.request.urlopen.
     subprocess_runner: Optional[Callable[..., Any]] = None
     url_opener: Optional[Callable[..., Any]] = None
+    _retained_quick_start_directory: Optional[
+        tempfile.TemporaryDirectory[str]
+    ] = dataclasses.field(default=None, init=False, repr=False)
 
     # --- Lifecycle -------------------------------------------------------- #
 
@@ -575,7 +579,10 @@ class KindAdapter:
 
     def teardown(self, params: DeployParams) -> None:
         cluster_name = params.cluster_name or DEFAULT_CLUSTER_NAME
-        self._kind_delete(cluster_name)
+        try:
+            self._kind_delete(cluster_name)
+        finally:
+            self._cleanup_retained_quick_start_chart()
 
     # --- Steps ------------------------------------------------------------ #
 
@@ -781,8 +788,40 @@ class KindAdapter:
         with self._quick_start_chart_ref() as chart_ref:
             self._helm_install_chart(chart_ref)
 
+    def _retain_quick_start_chart(self, chart_ref: str) -> str:
+        """Keep the exact installed umbrella chart available to live tests.
+
+        Local KIND installs substitute PR-local dependencies into a temporary
+        copy of the published quick-start chart. MEK phase tests must upgrade
+        that same umbrella release; using the standalone service subchart
+        changes the values shape and would also make Helm prune the umbrella's
+        other resources. Retain a second copy until the deploy/test session
+        ends and pass its path to Bazel through a dedicated environment value.
+        """
+        self._cleanup_retained_quick_start_chart()
+        retained_directory = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
+            prefix="osmo-oetf-quick-start-",
+        )
+        retained_chart = os.path.join(retained_directory.name, "quick-start")
+        shutil.copytree(chart_ref, retained_chart)
+        self._retained_quick_start_directory = retained_directory
+        os.environ[OETF_HELM_CHART_PATH] = retained_chart
+        return retained_chart
+
+    def _cleanup_retained_quick_start_chart(self) -> None:
+        retained_directory = self._retained_quick_start_directory
+        if retained_directory is None:
+            return
+        retained_chart = os.path.join(retained_directory.name, "quick-start")
+        if os.environ.get(OETF_HELM_CHART_PATH) == retained_chart:
+            os.environ.pop(OETF_HELM_CHART_PATH, None)
+        retained_directory.cleanup()
+        self._retained_quick_start_directory = None
+
     def _helm_install_chart(self, chart_ref: str) -> None:
         """Install one resolved quick-start chart reference."""
+        if self.build_local and chart_ref != OSMO_CHART_REF:
+            chart_ref = self._retain_quick_start_chart(chart_ref)
         args = [
             "helm", "upgrade", "--install", "osmo", chart_ref,
             "--namespace", OSMO_NAMESPACE, "--create-namespace",

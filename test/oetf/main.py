@@ -268,6 +268,12 @@ def build_bazel_command(
         if not kubeconfig:
             kubeconfig = str(Path.home() / ".kube" / "config")
         cmd.append(f"--test_env=KUBECONFIG={kubeconfig}")
+        # Local-source deploys install a temporary quick-start umbrella chart
+        # with PR-local dependencies. Live phase tests must upgrade that same
+        # chart, rather than replacing the release with a standalone subchart.
+        helm_chart_path = os.environ.get("OETF_HELM_CHART_PATH")
+        if helm_chart_path:
+            cmd.append(f"--test_env=OETF_HELM_CHART_PATH={helm_chart_path}")
     cmd.extend(test_args)
     cmd.extend(args.bazel_arg)
     return cmd

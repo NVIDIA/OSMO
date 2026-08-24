@@ -208,7 +208,30 @@ class TestKindAdapter(unittest.TestCase):
             adapter._quick_start_chart_ref = (  # type: ignore[method-assign]  # pylint: disable=protected-access
                 fake_chart_ref
             )
+            adapter._retain_quick_start_chart = (  # type: ignore[method-assign]  # pylint: disable=protected-access
+                lambda chart_ref: chart_ref
+            )
         return adapter, calls
+
+    def test_local_install_retains_exact_quick_start_chart_for_live_tests(self):
+        adapter = KindAdapter(build_local=True)
+        with unittest.mock.patch.dict(os.environ, {}, clear=True):
+            with tempfile.TemporaryDirectory() as source_directory:
+                chart = os.path.join(source_directory, "quick-start")
+                os.makedirs(chart)
+                with open(
+                    os.path.join(chart, "Chart.yaml"), "w", encoding="utf-8",
+                ) as chart_file:
+                    chart_file.write(
+                        "apiVersion: v2\nname: quick-start\nversion: 0.0.0\n")
+                retained = adapter._retain_quick_start_chart(  # pylint: disable=protected-access
+                    chart)
+
+            self.assertTrue(os.path.isfile(os.path.join(retained, "Chart.yaml")))
+            self.assertEqual(retained, os.environ.get("OETF_HELM_CHART_PATH"))
+            adapter._cleanup_retained_quick_start_chart()  # pylint: disable=protected-access
+            self.assertFalse(os.path.exists(retained))
+            self.assertNotIn("OETF_HELM_CHART_PATH", os.environ)
 
     def test_deploy_creates_cluster_then_helm_installs(self):
         adapter, calls = self._adapter(capture_stdouts=["", "", ""])
