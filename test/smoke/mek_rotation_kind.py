@@ -252,6 +252,11 @@ class MekRotationKind(SmokeFixture):
             "--set", f"global.osmoImageTag={image_tag}",
             "--set", f"services.service.imageName={image_name}",
             "--set", f"services.masterEncryptionKey.existingSecret.name={secret_name}",
+            # The main KIND release already owns quick-start's fixed,
+            # cluster-scoped localstack PV. This isolated lifecycle release
+            # does not need object storage and must not collide with it before
+            # Helm creates the namespaced bootstrap resources under test.
+            "--set", "services.localstackS3.enabled=false",
             "--set", "gateway.envoy.service.type=ClusterIP",
             "--set", "gateway.envoy.service.nodePort=null",
         ]
