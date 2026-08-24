@@ -49,6 +49,7 @@ osmo_py_test(
     name = "test_workflow_python_version",
     srcs = ["test_workflow_python_version.py"],
     data = [
+        "//:.python-version",
         "//:MODULE.bazel",
         "//.github/workflows:workflows",
     ],

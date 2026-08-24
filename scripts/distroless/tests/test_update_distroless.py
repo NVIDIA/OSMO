@@ -26,18 +26,41 @@ SPEC.loader.exec_module(update_distroless)
 
 
 class UpdateDistrolessTest(unittest.TestCase):
+    def test_read_state_supports_cc_runtime_with_python_debug_image(self):
+        module_text = '''oci.pull(
+    name = "distroless_cc",
+    digest = "sha256:49751a52c1b4f59e0b68d6caf6728f305afc9e47c507008f8a9e8e1253929676",
+    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.0.8",
+)
+
+# oci.pull(
+#     name = "distroless_python3_14_dev",
+#     digest = "sha256:84aef61c2e737ac04e38e0945d423af8e9121774f223f1650b71be8a6968abba",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.8-dev",
+# )
+'''
+        dockerfile_text = (
+            "ARG NODE_DISTROLESS_IMAGE=nvcr.io/nvidia/distroless/node:24-v4.0.8\n"
+        )
+
+        state = update_distroless.read_state(module_text, dockerfile_text)
+
+        self.assertEqual(state.cc_version, "4.0.8")
+        self.assertEqual(state.python_dev_version, "4.0.8")
+        self.assertEqual(state.node_version, "4.0.8")
+
     def test_fetch_latest_probes_manifest_tags_omitted_from_catalog(self):
         catalog_tags = {
+            update_distroless.CC_REPO: ["v4.0.9"],
             update_distroless.PYTHON_REPO: [
-                "3.14-v4.0.9",
                 "3.14-v4.0.9-dev",
             ],
             update_distroless.NODE_REPO: ["24-v4.0.9"],
         }
         available_tags = {
-            (update_distroless.PYTHON_REPO, "3.14-v4.0.9"),
+            (update_distroless.CC_REPO, "v4.0.9"),
+            (update_distroless.CC_REPO, "v4.0.10"),
             (update_distroless.PYTHON_REPO, "3.14-v4.0.9-dev"),
-            (update_distroless.PYTHON_REPO, "3.14-v4.0.10"),
             (update_distroless.PYTHON_REPO, "3.14-v4.0.10-dev"),
             (update_distroless.NODE_REPO, "24-v4.0.9"),
             (update_distroless.NODE_REPO, "24-v4.0.10"),
@@ -69,11 +92,13 @@ class UpdateDistrolessTest(unittest.TestCase):
         ):
             latest = update_distroless.fetch_latest()
 
-        self.assertEqual(latest.python_version, "4.0.10")
+        self.assertEqual(latest.cc_version, "4.0.10")
+        self.assertEqual(latest.python_dev_version, "4.0.10")
         self.assertEqual(latest.node_version, "4.0.11")
 
     def test_latest_version_for_prefix_ignores_attestations_and_dev_tags(self):
         tags = [
+            "v4.0.11",
             "3.14-v4.0.8-dev",
             "3.14-v4.0.7",
             "3.14-v4.0.10",
@@ -81,6 +106,10 @@ class UpdateDistrolessTest(unittest.TestCase):
             "sha256-deadbeef.sig",
         ]
 
+        self.assertEqual(
+            update_distroless.latest_version_for_prefix(tags, ""),
+            "4.0.11",
+        )
         self.assertEqual(
             update_distroless.latest_version_for_prefix(tags, "3.14"),
             "4.0.10",
@@ -96,15 +125,16 @@ class UpdateDistrolessTest(unittest.TestCase):
 
     def test_update_text_rewrites_only_distroless_pins(self):
         latest = update_distroless.DistrolessLatest(
-            python_version="4.0.9",
-            python_digest="sha256:" + "a" * 64,
+            cc_version="4.0.9",
+            cc_digest="sha256:" + "a" * 64,
+            python_dev_version="4.0.9",
             python_dev_digest="sha256:" + "b" * 64,
             node_version="4.0.9",
         )
         module_text = '''oci.pull(
-    name = "distroless_python3_14",
+    name = "distroless_cc",
     digest = "sha256:49751a52c1b4f59e0b68d6caf6728f305afc9e47c507008f8a9e8e1253929676",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.8",
+    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.0.8",
 )
 
 # oci.pull(
@@ -124,7 +154,7 @@ class UpdateDistrolessTest(unittest.TestCase):
             latest,
         )
 
-        self.assertIn('python:3.14-v4.0.9"', new_module)
+        self.assertIn('cc:v4.0.9"', new_module)
         self.assertIn('python:3.14-v4.0.9-dev"', new_module)
         self.assertIn("sha256:" + "a" * 64, new_module)
         self.assertIn("sha256:" + "b" * 64, new_module)
@@ -133,15 +163,16 @@ class UpdateDistrolessTest(unittest.TestCase):
 
     def test_python_image_version_is_single_target_knob(self):
         latest = update_distroless.DistrolessLatest(
-            python_version="4.0.9",
-            python_digest="sha256:" + "a" * 64,
+            cc_version="4.0.9",
+            cc_digest="sha256:" + "a" * 64,
+            python_dev_version="4.0.9",
             python_dev_digest="sha256:" + "b" * 64,
             node_version="4.0.9",
         )
         module_text = '''oci.pull(
-    name = "distroless_python3_14",
+    name = "distroless_cc",
     digest = "sha256:49751a52c1b4f59e0b68d6caf6728f305afc9e47c507008f8a9e8e1253929676",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.8",
+    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.0.8",
 )
 
 # oci.pull(
@@ -157,13 +188,13 @@ class UpdateDistrolessTest(unittest.TestCase):
         finally:
             update_distroless.PYTHON_IMAGE_VERSION = original_python_version
 
-        self.assertIn('python:3.15-v4.0.9"', new_module)
         self.assertIn('python:3.15-v4.0.9-dev"', new_module)
 
     def test_branch_name_uses_shared_distroless_version_when_possible(self):
         latest = update_distroless.DistrolessLatest(
-            python_version="4.0.9",
-            python_digest="sha256:" + "a" * 64,
+            cc_version="4.0.9",
+            cc_digest="sha256:" + "a" * 64,
+            python_dev_version="4.0.9",
             python_dev_digest="sha256:" + "b" * 64,
             node_version="4.0.9",
         )

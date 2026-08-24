@@ -33,6 +33,7 @@ from typing import Iterable
 
 
 REGISTRY = "https://nvcr.io"
+CC_REPO = "nvidia/distroless/cc"
 PYTHON_REPO = "nvidia/distroless/python"
 NODE_REPO = "nvidia/distroless/node"
 
@@ -40,11 +41,10 @@ NODE_REPO = "nvidia/distroless/node"
 PYTHON_IMAGE_VERSION = "3.14"
 NODE_IMAGE_VERSION = "24"
 
-PYTHON_ACTIVE_RE = re.compile(
+CC_ACTIVE_RE = re.compile(
     r'(?P<indent>    )digest = "(?P<digest>sha256:[a-f0-9]+)",\n'
     r'(?P=indent)image = BASE_DISTROLESS_IMAGE_URL \+ '
-    r'"(?P<image>python:(?P<prefix>[0-9]+\.[0-9]+)-v'
-    r'(?P<version>[0-9]+\.[0-9]+\.[0-9]+))",'
+    r'"(?P<image>cc:v(?P<version>[0-9]+\.[0-9]+\.[0-9]+))",'
 )
 PYTHON_DEV_RE = re.compile(
     r'(?P<indent>#     )digest = "(?P<digest>sha256:[a-f0-9]+)",\n'
@@ -60,9 +60,8 @@ NODE_IMAGE_RE = re.compile(
 
 @dataclass(frozen=True)
 class DistrolessState:
-    python_prefix: str
-    python_version: str
-    python_digest: str
+    cc_version: str
+    cc_digest: str
     python_dev_prefix: str
     python_dev_version: str
     python_dev_digest: str
@@ -72,8 +71,9 @@ class DistrolessState:
 
 @dataclass(frozen=True)
 class DistrolessLatest:
-    python_version: str
-    python_digest: str
+    cc_version: str
+    cc_digest: str
+    python_dev_version: str
     python_dev_digest: str
     node_version: str
 
@@ -87,8 +87,9 @@ def _version_tuple(version: str) -> tuple[int, int, int]:
 
 def latest_version_for_prefix(tags: Iterable[str], prefix: str, dev: bool = False) -> str:
     suffix = "-dev" if dev else ""
+    tag_prefix = f"{prefix}-" if prefix else ""
     pattern = re.compile(
-        rf"^{re.escape(prefix)}-v(?P<version>[0-9]+\.[0-9]+\.[0-9]+){re.escape(suffix)}$"
+        rf"^{re.escape(tag_prefix)}v(?P<version>[0-9]+\.[0-9]+\.[0-9]+){re.escape(suffix)}$"
     )
     versions = [
         match.group("version")
@@ -96,7 +97,7 @@ def latest_version_for_prefix(tags: Iterable[str], prefix: str, dev: bool = Fals
         if (match := pattern.fullmatch(tag))
     ]
     if not versions:
-        raise ValueError(f"no tags found for {prefix}-v*{suffix}")
+        raise ValueError(f"no tags found for {tag_prefix}v*{suffix}")
     return max(versions, key=_version_tuple)
 
 
@@ -108,12 +109,13 @@ def latest_manifest_version_for_prefix(
 ) -> str:
     """Return the latest contiguous patch version resolvable from the registry."""
     suffix = "-dev" if dev else ""
+    tag_prefix = f"{prefix}-" if prefix else ""
     latest_version = catalog_version
 
     while True:
         major, minor, patch = _version_tuple(latest_version)
         candidate_version = f"{major}.{minor}.{patch + 1}"
-        candidate_tag = f"{prefix}-v{candidate_version}{suffix}"
+        candidate_tag = f"{tag_prefix}v{candidate_version}{suffix}"
         try:
             _manifest_digest(repo, candidate_tag)
         except urllib.error.HTTPError as error:
@@ -174,13 +176,14 @@ def _repo_tags(repo: str) -> list[str]:
 
 
 def fetch_latest() -> DistrolessLatest:
+    cc_tags = _repo_tags(CC_REPO)
     python_tags = _repo_tags(PYTHON_REPO)
     node_tags = _repo_tags(NODE_REPO)
 
-    python_version = latest_manifest_version_for_prefix(
-        PYTHON_REPO,
-        PYTHON_IMAGE_VERSION,
-        latest_version_for_prefix(python_tags, PYTHON_IMAGE_VERSION),
+    cc_version = latest_manifest_version_for_prefix(
+        CC_REPO,
+        "",
+        latest_version_for_prefix(cc_tags, ""),
     )
     python_dev_version = latest_manifest_version_for_prefix(
         PYTHON_REPO,
@@ -192,33 +195,28 @@ def fetch_latest() -> DistrolessLatest:
         ),
         dev=True,
     )
-    if python_dev_version != python_version:
-        raise RuntimeError(
-            "latest Python distroless dev tag does not match runtime tag: "
-            f"runtime={python_version} dev={python_dev_version}"
-        )
-
     node_version = latest_manifest_version_for_prefix(
         NODE_REPO,
         NODE_IMAGE_VERSION,
         latest_version_for_prefix(node_tags, NODE_IMAGE_VERSION),
     )
 
-    python_tag = f"{PYTHON_IMAGE_VERSION}-v{python_version}"
-    python_dev_tag = f"{PYTHON_IMAGE_VERSION}-v{python_version}-dev"
+    cc_tag = f"v{cc_version}"
+    python_dev_tag = f"{PYTHON_IMAGE_VERSION}-v{python_dev_version}-dev"
 
     return DistrolessLatest(
-        python_version=python_version,
-        python_digest=_manifest_digest(PYTHON_REPO, python_tag),
+        cc_version=cc_version,
+        cc_digest=_manifest_digest(CC_REPO, cc_tag),
+        python_dev_version=python_dev_version,
         python_dev_digest=_manifest_digest(PYTHON_REPO, python_dev_tag),
         node_version=node_version,
     )
 
 
 def read_state(module_text: str, dockerfile_text: str) -> DistrolessState:
-    python_match = PYTHON_ACTIVE_RE.search(module_text)
-    if not python_match:
-        raise RuntimeError("could not find active Python distroless image in MODULE.bazel")
+    cc_match = CC_ACTIVE_RE.search(module_text)
+    if not cc_match:
+        raise RuntimeError("could not find active CC distroless image in MODULE.bazel")
 
     python_dev_match = PYTHON_DEV_RE.search(module_text)
     if not python_dev_match:
@@ -228,19 +226,10 @@ def read_state(module_text: str, dockerfile_text: str) -> DistrolessState:
     if not node_match:
         raise RuntimeError("could not find Node distroless image in src/ui/Dockerfile")
 
-    python_prefix = python_match.group("prefix")
-    python_dev_prefix = python_dev_match.group("prefix")
-    if python_dev_prefix != python_prefix:
-        raise RuntimeError(
-            "debug Python distroless image version does not match runtime: "
-            f"runtime={python_prefix} dev={python_dev_prefix}"
-        )
-
     return DistrolessState(
-        python_prefix=python_prefix,
-        python_version=python_match.group("version"),
-        python_digest=python_match.group("digest"),
-        python_dev_prefix=python_dev_prefix,
+        cc_version=cc_match.group("version"),
+        cc_digest=cc_match.group("digest"),
+        python_dev_prefix=python_dev_match.group("prefix"),
         python_dev_version=python_dev_match.group("version"),
         python_dev_digest=python_dev_match.group("digest"),
         node_prefix=node_match.group("prefix"),
@@ -249,17 +238,17 @@ def read_state(module_text: str, dockerfile_text: str) -> DistrolessState:
 
 
 def update_module_text(module_text: str, latest: DistrolessLatest) -> str:
-    active_replacement = (
-        f'    digest = "{latest.python_digest}",\n'
-        f'    image = BASE_DISTROLESS_IMAGE_URL + "python:{PYTHON_IMAGE_VERSION}-v{latest.python_version}",'
+    cc_replacement = (
+        f'    digest = "{latest.cc_digest}",\n'
+        f'    image = BASE_DISTROLESS_IMAGE_URL + "cc:v{latest.cc_version}",'
     )
-    module_text, active_count = PYTHON_ACTIVE_RE.subn(active_replacement, module_text, count=1)
-    if active_count != 1:
-        raise RuntimeError("failed to update active Python distroless image")
+    module_text, cc_count = CC_ACTIVE_RE.subn(cc_replacement, module_text, count=1)
+    if cc_count != 1:
+        raise RuntimeError("failed to update active CC distroless image")
 
     dev_replacement = (
         f'#     digest = "{latest.python_dev_digest}",\n'
-        f'#     image = BASE_DISTROLESS_IMAGE_URL + "python:{PYTHON_IMAGE_VERSION}-v{latest.python_version}-dev",'
+        f'#     image = BASE_DISTROLESS_IMAGE_URL + "python:{PYTHON_IMAGE_VERSION}-v{latest.python_dev_version}-dev",'
     )
     module_text, dev_count = PYTHON_DEV_RE.subn(dev_replacement, module_text, count=1)
     if dev_count != 1:
@@ -280,9 +269,12 @@ def update_dockerfile_text(dockerfile_text: str, latest: DistrolessLatest) -> st
 
 
 def label_for(latest: DistrolessLatest) -> str:
-    if latest.python_version == latest.node_version:
-        return f"v{latest.python_version}"
-    return f"python-v{latest.python_version}-node-v{latest.node_version}"
+    if latest.cc_version == latest.python_dev_version == latest.node_version:
+        return f"v{latest.cc_version}"
+    return (
+        f"cc-v{latest.cc_version}-python-dev-v{latest.python_dev_version}"
+        f"-node-v{latest.node_version}"
+    )
 
 
 def branch_name_for(latest: DistrolessLatest) -> str:
@@ -348,15 +340,17 @@ def main() -> int:
         "branch_name": branch_name_for(latest),
         "pr_title": title_for(latest),
         "version_label": label_for(latest),
-        "current_python_tag": f"{current.python_prefix}-v{current.python_version}",
-        "current_python_version": current.python_version,
+        "current_cc_tag": f"v{current.cc_version}",
+        "current_cc_version": current.cc_version,
         "current_python_dev_tag": (
             f"{current.python_dev_prefix}-v{current.python_dev_version}-dev"
         ),
-        "latest_python_tag": f"{PYTHON_IMAGE_VERSION}-v{latest.python_version}",
-        "latest_python_version": latest.python_version,
-        "latest_python_dev_tag": f"{PYTHON_IMAGE_VERSION}-v{latest.python_version}-dev",
-        "latest_python_digest": latest.python_digest,
+        "latest_cc_tag": f"v{latest.cc_version}",
+        "latest_cc_version": latest.cc_version,
+        "latest_cc_digest": latest.cc_digest,
+        "latest_python_dev_tag": (
+            f"{PYTHON_IMAGE_VERSION}-v{latest.python_dev_version}-dev"
+        ),
         "latest_python_dev_digest": latest.python_dev_digest,
         "current_node_tag": f"{current.node_prefix}-v{current.node_version}",
         "current_node_version": current.node_version,
@@ -367,12 +361,14 @@ def main() -> int:
 
     print(
         "Current distroless: "
-        f"python={current.python_prefix}-v{current.python_version} "
+        f"cc=v{current.cc_version} "
+        f"python-dev={current.python_dev_prefix}-v{current.python_dev_version}-dev "
         f"node={current.node_prefix}-v{current.node_version}",
     )
     print(
         "Latest distroless: "
-        f"python={PYTHON_IMAGE_VERSION}-v{latest.python_version} "
+        f"cc=v{latest.cc_version} "
+        f"python-dev={PYTHON_IMAGE_VERSION}-v{latest.python_dev_version}-dev "
         f"node={NODE_IMAGE_VERSION}-v{latest.node_version}",
     )
     print(f"updated={str(updated).lower()}")
