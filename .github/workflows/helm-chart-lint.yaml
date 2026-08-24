@@ -128,10 +128,12 @@ jobs:
               -f deployments/charts/osmo/tests/control-external-values.yaml
             helm lint deployments/charts/osmo \
               --kube-version 1.30.0 \
-              -f deployments/charts/osmo/profiles/split-plane-compute.yaml
+              -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
+              --set-string compute.backendName=test-backend
             helm lint deployments/charts/osmo \
               --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/kind-self-contained.yaml \
+              --set-string compute.backendName=test-backend \
               --set embeddedDependencies.postgresql.enabled=false \
               --set externalDependencies.postgresql.host=lint-postgresql \
               --set secrets.postgresql.existingSecret=lint-postgresql
@@ -163,11 +165,13 @@ jobs:
             helm template test-compute deployments/charts/osmo \
               --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
+              --set-string compute.backendName=test-backend \
               >/dev/null
             helm template test-kind deployments/charts/osmo \
               --kube-version 1.30.0 \
               --api-versions postgresql.cnpg.io/v1 \
               -f deployments/charts/osmo/profiles/kind-self-contained.yaml \
+              --set-string compute.backendName=test-backend \
               >/dev/null
           fi
 
