@@ -1707,7 +1707,8 @@ class PostgresConnector:
             logging.error(
                 'Config MEK rewrap found a malformed compact JWE at %s.', path)
             raise osmo_errors.OSMOError(
-                'A persisted config ciphertext is malformed; inspect service logs.')
+                'A persisted config ciphertext is malformed; inspect service logs.'
+            ) from None
         if header is None or header.get('kid') not in self.secret_manager.meks:
             return value, False
         try:

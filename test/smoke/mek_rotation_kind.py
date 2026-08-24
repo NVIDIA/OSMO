@@ -28,8 +28,9 @@ class MekRotationKind(SmokeFixture):
         result = subprocess.run(
             command, input=input_text, check=False, capture_output=True, text=True)
         if result.returncode:
+            command_text = " ".join(command)
             raise RuntimeError(
-                f"{' '.join(command)} failed with exit code {result.returncode}: "
+                f"{command_text} failed with exit code {result.returncode}: "
                 f"{result.stderr.strip()}")
         return result.stdout
 
@@ -50,8 +51,9 @@ class MekRotationKind(SmokeFixture):
         result = subprocess.run(
             command, check=False, capture_output=True, text=True, timeout=timeout)
         if (result.returncode == 0) != expected_success:
+            command_text = " ".join(command)
             raise RuntimeError(
-                f"{' '.join(command)} exited {result.returncode}: {result.stderr.strip()}")
+                f"{command_text} exited {result.returncode}: {result.stderr.strip()}")
         return result
 
     @staticmethod
@@ -88,8 +90,9 @@ class MekRotationKind(SmokeFixture):
         result = subprocess.run(
             command, check=False, capture_output=True, text=True, timeout=900)
         if result.returncode:
+            command_text = " ".join(command)
             raise RuntimeError(
-                f"{' '.join(command)} exited {result.returncode}: {result.stderr.strip()}")
+                f"{command_text} exited {result.returncode}: {result.stderr.strip()}")
 
     @staticmethod
     def _jwe_kid(value):

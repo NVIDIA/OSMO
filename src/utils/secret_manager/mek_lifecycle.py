@@ -226,7 +226,8 @@ def _lease_name(installation_id: str, secret_name: str) -> str:
     prefix = re.sub(r"[^a-z0-9-]", "-", release.lower()).strip("-") or "osmo"
     digest = hashlib.sha256(
         f"{installation_id}:{secret_name}".encode("utf-8")).hexdigest()[:10]
-    return f"{prefix[:46].rstrip('-')}-mek-{digest}"
+    trimmed_prefix = prefix[:46].rstrip("-")
+    return f"{trimmed_prefix}-mek-{digest}"
 
 
 class MekLifecycle:
@@ -366,14 +367,14 @@ class MekLifecycle:
         annotations = dict(secret.metadata.annotations or {})
         annotations.update(annotation_updates)
         encoded = base64.b64encode(keyring.encoded).decode("ascii")
+        escaped_key = self.config.secret_key.replace("~", "~0").replace("/", "~1")
         patch = [
             {"op": "test", "path": "/metadata/uid", "value": secret.metadata.uid},
             {"op": "test", "path": "/metadata/resourceVersion",
              "value": secret.metadata.resource_version},
             {"op": "add", "path": "/metadata/annotations", "value": annotations},
             {"op": "add", "path": "/data", "value": dict(secret.data or {})},
-            {"op": "add", "path": f"/data/{self.config.secret_key.replace('~', '~0').replace('/', '~1')}",
-             "value": encoded},
+            {"op": "add", "path": f"/data/{escaped_key}", "value": encoded},
         ]
         return self.core.patch_namespaced_secret(
             self.config.secret_name,
@@ -773,7 +774,10 @@ class MekLifecycle:
                 raise osmo_errors.OSMOError(
                     "Existing ACTIVATE state does not match Secret data.")
             return
-        if annotations.get(_REQUEST) != self.config.request_id or annotations.get(_PHASE) != "prepared":
+        if (
+            annotations.get(_REQUEST) != self.config.request_id
+            or annotations.get(_PHASE) != "prepared"
+        ):
             raise osmo_errors.OSMOError("ACTIVATE requires the matching completed PREPARE phase.")
         prepared = self._required_keyring_from_secret(secret)
         if (

@@ -813,6 +813,8 @@ class KindAdapter:
             args += _build_local_helm_args()
             args += [
                 "--set",
+                "service.services.masterEncryptionKey.managementMode=osmo",
+                "--set",
                 "service.services.masterEncryptionKey.bootstrap.enabled=true",
             ]
         for extra in self.extra_helm_sets:

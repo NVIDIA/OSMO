@@ -427,6 +427,10 @@ class TestKindAdapter(unittest.TestCase):
         )
         osmo_helm_args = next(cmd for cmd in cmds if "/tmp/local-quick-start" in cmd)
         self.assertIn(
+            "service.services.masterEncryptionKey.managementMode=osmo",
+            osmo_helm_args,
+        )
+        self.assertIn(
             "service.services.masterEncryptionKey.bootstrap.enabled=true",
             osmo_helm_args,
         )
