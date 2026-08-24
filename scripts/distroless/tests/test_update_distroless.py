@@ -10,6 +10,7 @@ import importlib.util
 import sys
 import urllib.error
 import unittest
+from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
 
@@ -73,7 +74,7 @@ class UpdateDistrolessTest(unittest.TestCase):
                     url="https://nvcr.io",
                     code=404,
                     msg="Not Found",
-                    hdrs=None,
+                    hdrs=Message(),
                     fp=io.BytesIO(),
                 )
             return "sha256:" + "a" * 64
@@ -181,12 +182,19 @@ class UpdateDistrolessTest(unittest.TestCase):
 #     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.8-dev",
 # )
 '''
-        original_python_version = update_distroless.PYTHON_IMAGE_VERSION
+        original_python_version = getattr(
+            update_distroless,
+            "PYTHON_IMAGE_VERSION",
+        )
         try:
-            update_distroless.PYTHON_IMAGE_VERSION = "3.15"
+            setattr(update_distroless, "PYTHON_IMAGE_VERSION", "3.15")
             new_module = update_distroless.update_module_text(module_text, latest)
         finally:
-            update_distroless.PYTHON_IMAGE_VERSION = original_python_version
+            setattr(
+                update_distroless,
+                "PYTHON_IMAGE_VERSION",
+                original_python_version,
+            )
 
         self.assertIn('python:3.15-v4.0.9-dev"', new_module)
 

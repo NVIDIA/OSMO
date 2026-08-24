@@ -73,9 +73,18 @@ jobs:
           git config user.name "svc-osmo-ci"
           git config user.email "svc-osmo-ci@users.noreply.github.com"
 
+      - name: Setup Bazel
+        if: steps.schedule-gate.outputs.should_run == 'true'
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
       - name: Validate distroless updater
         if: steps.schedule-gate.outputs.should_run == 'true'
-        run: python3 -m unittest scripts/distroless/tests/test_update_distroless.py
+        run: bazel test --test_output=errors -- //scripts/distroless:test_update_distroless
 
       - name: Check latest distroless images
         if: steps.schedule-gate.outputs.should_run == 'true'
