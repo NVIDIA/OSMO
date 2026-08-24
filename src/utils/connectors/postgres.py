@@ -1629,7 +1629,17 @@ class PostgresConnector:
                         key_id = self.secret_manager.authenticate_mek_encrypted(encrypted_value)
                         counts[key_id] += 1
                     except (KeyError, osmo_errors.OSMOError):
-                        blockers.append(f'configs/{config_type}/{path}: authentication failed')
+                        try:
+                            header = self._jwe_header(encrypted_value) or {}
+                            failed_key_id = header.get('kid')
+                        except (JWException, ValueError, TypeError):
+                            failed_key_id = None
+                        key_context = (
+                            f' (kid={failed_key_id})'
+                            if isinstance(failed_key_id, str) else '')
+                        blockers.append(
+                            f'configs/{config_type}/{path}: authentication failed'
+                            f'{key_context}')
                 for config_key, raw_value in raw_by_type[config_type].items():
                     try:
                         for path, _ in self._walk_jwe_values(raw_value, config_key):

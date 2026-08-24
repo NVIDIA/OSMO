@@ -248,6 +248,13 @@ jobs:
           done
           echo "::endgroup::"
 
+          echo "::group::All OSMO pod logs (last 80 lines)"
+          for pod in $(kubectl get pods -n osmo -o name 2>/dev/null || true); do
+            echo "--- osmo/$pod ---"
+            kubectl logs -n osmo "$pod" --all-containers --tail=80 2>/dev/null || true
+          done
+          echo "::endgroup::"
+
           echo "::group::Helm releases (helm list -A)"
           helm list -A || true
           echo "::endgroup::"
