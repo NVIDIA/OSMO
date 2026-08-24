@@ -21,6 +21,7 @@ embeddedDependencies:
 externalUrl: https://osmo.example.com
 
 compute:
+  # Use a unique name for each compute release attached to the same control plane.
   backendName: default
   workloadNamespace: ''
   backendTestNamespace: ''
