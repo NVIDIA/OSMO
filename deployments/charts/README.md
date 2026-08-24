@@ -44,6 +44,7 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
   --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --set-string compute.backendName=default \
   --wait \
   --timeout 20m
 ```

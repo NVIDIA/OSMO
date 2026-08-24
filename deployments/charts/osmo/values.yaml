@@ -16,7 +16,6 @@ compute:
   # Workflow resources are created in this namespace. Empty uses the Helm
   # release namespace.
   workloadNamespace: ''
-  backendName: default
   # Empty disables backend-test synchronization and test-namespace RBAC.
   # Enabling services.backendTestRunner requires this namespace to be non-empty.
   backendTestNamespace: ''

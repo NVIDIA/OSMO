@@ -49,6 +49,7 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
   --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --set-string compute.backendName=default \
   --wait \
   --timeout 20m
 ```
@@ -220,10 +221,10 @@ referenced Secret in the compute release namespace. Its `token` key must contain
 the current 43- or 64-character URL-safe backend token; `previous-token` may
 contain a distinct old token during rotation.
 
-Copy the profile and replace its example `externalUrl`,
-`compute.authentication.existingSecret`, and `compute.backendName` values, then
-install it. The `default` backend name is suitable for a single backend; each
-compute release attached to the same control plane must use a unique name.
+Copy the profile and replace its example `externalUrl` and
+`compute.authentication.existingSecret` values, then install it with an
+explicit backend name. Each compute release attached to the same control plane
+must use a unique name.
 
 ```bash
 helm dependency build deployments/charts/osmo

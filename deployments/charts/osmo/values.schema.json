@@ -124,7 +124,7 @@
         "priorityClasses": { "$ref": "#/definitions/computePriorityClasses" },
         "extraConfigMaps": { "$ref": "#/definitions/computeExtraConfigMaps" }
       },
-      "required": ["workloadNamespace", "backendName", "backendTestNamespace", "authentication", "nodeConditionPrefix", "rbac", "workflowNetworkPolicy", "priorityClasses", "extraConfigMaps"]
+      "required": ["workloadNamespace", "backendTestNamespace", "authentication", "nodeConditionPrefix", "rbac", "workflowNetworkPolicy", "priorityClasses", "extraConfigMaps"]
     },
     "computeAuthentication": {
       "type": "object",

@@ -27,6 +27,10 @@ helm_template() {
     helm template "$@" --kube-version 1.30.0
 }
 
+helm_template_with_backend() {
+    helm_template "$@" --set-string compute.backendName=test-backend
+}
+
 require_contains() {
     local file=$1
     local expected=$2
@@ -433,7 +437,24 @@ test_control_umbrella() {
         fail "expected chart defaults to pass helm lint"
     fi
 
-    helm_template split-compute "$charts_copy/osmo" \
+    if helm_template missing-split-backend-name "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+            >"$TEST_DIRECTORY/missing-split-backend-name.out" 2>&1; then
+        fail "expected a split compute release without a backend name to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/missing-split-backend-name.out" \
+        "compute.backendName is required when planes.compute.enabled=true"
+
+    if helm_template missing-converged-backend-name "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+            >"$TEST_DIRECTORY/missing-converged-backend-name.out" 2>&1; then
+        fail "expected a converged release without a backend name to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/missing-converged-backend-name.out" \
+        "compute.backendName is required when planes.compute.enabled=true"
+
+    helm_template_with_backend split-compute "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         >"$TEST_DIRECTORY/split-compute.yaml"
     require_deployment "$TEST_DIRECTORY/split-compute.yaml" \
@@ -469,7 +490,7 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/split-compute-worker.yaml" \
         "--progress_iter_frequency"
 
-    helm_template split-custom "$charts_copy/osmo" \
+    helm_template_with_backend split-custom "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/compute-custom-values.yaml" \
         >"$TEST_DIRECTORY/split-custom.yaml"
@@ -495,7 +516,7 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/split-custom.yaml" Role \
         split-custom-osmo-backend-worker-backend-tests
 
-    helm_template compute-features "$charts_copy/osmo" \
+    helm_template_with_backend compute-features "$charts_copy/osmo" \
         --namespace compute-system \
         --api-versions monitoring.coreos.com/v1 \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -548,7 +569,7 @@ test_control_umbrella() {
     require_occurrences "$TEST_DIRECTORY/compute-features-test-template.yaml" \
         "imagePullSecrets:" 1
 
-    helm_template osmo "$charts_copy/osmo" \
+    helm_template_with_backend osmo "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
@@ -606,7 +627,7 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/kind-self-contained-ui.yaml" \
         "scheme: HTTPS"
 
-    if helm_template mismatched-converged-backend-token "$charts_copy/osmo" \
+    if helm_template_with_backend mismatched-converged-backend-token "$charts_copy/osmo" \
             --namespace osmo \
             --api-versions postgresql.cnpg.io/v1 \
             -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
@@ -618,7 +639,7 @@ test_control_umbrella() {
         "$TEST_DIRECTORY/mismatched-converged-backend-token.out" \
         "compute.authentication.existingSecret must match a configured backend API token Secret in a converged release"
 
-    if helm_template disabled-converged-backend-tokens "$charts_copy/osmo" \
+    if helm_template_with_backend disabled-converged-backend-tokens "$charts_copy/osmo" \
             --namespace osmo \
             --api-versions postgresql.cnpg.io/v1 \
             -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
@@ -630,7 +651,7 @@ test_control_umbrella() {
         "$TEST_DIRECTORY/disabled-converged-backend-tokens.out" \
         "secrets.backendApiTokens.enabled must be true when both planes are enabled"
 
-    helm_template conventions "$charts_copy/osmo" \
+    helm_template_with_backend conventions "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
@@ -725,11 +746,11 @@ test_control_umbrella() {
             "example.com/common-annotation: unified"
     done
 
-    helm_template same-name "$charts_copy/osmo" \
+    helm_template_with_backend same-name "$charts_copy/osmo" \
         --namespace compute-a \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         >"$TEST_DIRECTORY/compute-a.yaml"
-    helm_template same-name "$charts_copy/osmo" \
+    helm_template_with_backend same-name "$charts_copy/osmo" \
         --namespace compute-b \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         >"$TEST_DIRECTORY/compute-b.yaml"
@@ -752,7 +773,7 @@ test_control_umbrella() {
         fail "expected same-named compute releases in different namespaces to use distinct ClusterRoleBindings"
 
     local long_release_name=conventions-release-name-that-is-forty-chars
-    helm_template "$long_release_name" "$charts_copy/osmo" \
+    helm_template_with_backend "$long_release_name" "$charts_copy/osmo" \
         --namespace compute-long-name \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         >"$TEST_DIRECTORY/compute-long-name.yaml"
@@ -766,7 +787,7 @@ test_control_umbrella() {
         <<<"$long_name_cluster_resources" || \
         fail "expected long release names to produce unique cluster-scoped RBAC names"
 
-    helm_template external-rbac "$charts_copy/osmo" \
+    helm_template_with_backend external-rbac "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set compute.rbac.clusterRoles.create=false \
         --set compute.rbac.clusterRoles.listenerName=platform-listener \
@@ -779,7 +800,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/external-rbac.yaml" \
         "name: platform-worker"
 
-    helm_template no-namespaced-rbac "$charts_copy/osmo" \
+    helm_template_with_backend no-namespaced-rbac "$charts_copy/osmo" \
         --namespace compute-system \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
@@ -790,14 +811,14 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/no-namespaced-rbac.yaml" Role \
         convention-extra-role
 
-    helm_template no-priority-classes "$charts_copy/osmo" \
+    helm_template_with_backend no-priority-classes "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set compute.priorityClasses.create=false \
         >"$TEST_DIRECTORY/no-priority-classes.yaml"
     require_no_resource "$TEST_DIRECTORY/no-priority-classes.yaml" \
         PriorityClass osmo-high
 
-    if helm_template unsafe-workflow-policy "$charts_copy/osmo" \
+    if helm_template_with_backend unsafe-workflow-policy "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set compute.workflowNetworkPolicy.enabled=true \
         >"$TEST_DIRECTORY/unsafe-workflow-policy.out" 2>&1; then
@@ -806,7 +827,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/unsafe-workflow-policy.out" \
         "compute.workflowNetworkPolicy.clusterCIDRs"
 
-    helm_template acknowledged-workflow-policy "$charts_copy/osmo" \
+    helm_template_with_backend acknowledged-workflow-policy "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set compute.workflowNetworkPolicy.enabled=true \
         --set compute.workflowNetworkPolicy.allowAllClusterEgress=true \
@@ -814,7 +835,7 @@ test_control_umbrella() {
     require_resource "$TEST_DIRECTORY/acknowledged-workflow-policy.yaml" \
         NetworkPolicy acknowledged-workflow-policy-osmo-workflow-network-policy
 
-    helm_template compute-monitor "$charts_copy/osmo" \
+    helm_template_with_backend compute-monitor "$charts_copy/osmo" \
         --api-versions monitoring.coreos.com/v1 \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set monitoring.podMonitor.compute.enabled=true \
@@ -931,7 +952,7 @@ test_control_umbrella() {
         "currentMek:"
     require_contains "$charts_copy/osmo/Chart.yaml" 'appVersion: "6.3.1"'
 
-    helm_template portable-kind "$charts_copy/osmo" \
+    helm_template_with_backend portable-kind "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
@@ -3436,7 +3457,7 @@ EOF
     require_contains "$TEST_DIRECTORY/invalid-pdb.out" \
         "services.api.podDisruptionBudget cannot set both minAvailable and maxUnavailable"
 
-    helm_template compute-only "$charts_copy/osmo" \
+    helm_template_with_backend compute-only "$charts_copy/osmo" \
         --namespace compute-system \
         --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
@@ -3452,7 +3473,7 @@ EOF
     require_not_contains "$TEST_DIRECTORY/compute-only.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
 
-    if helm_template invalid-test-runner-enabled "$charts_copy/osmo" \
+    if helm_template_with_backend invalid-test-runner-enabled "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set compute.backendTestNamespace=backend-tests \
         --set-string services.backendTestRunner.enabled=not-a-boolean \
@@ -3471,7 +3492,7 @@ EOF
     require_contains "$TEST_DIRECTORY/no-planes.out" \
         "at least one of planes.control.enabled or planes.compute.enabled must be true"
 
-    if helm_template compute-with-embedded "$charts_copy/osmo" \
+    if helm_template_with_backend compute-with-embedded "$charts_copy/osmo" \
         --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
         --set embeddedDependencies.valkey.enabled=true \

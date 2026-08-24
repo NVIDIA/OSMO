@@ -11,9 +11,9 @@ values take precedence.
 
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
-| `kind-self-contained.yaml` | Yes, on kind | KAI Scheduler and the CloudNativePG operator installed separately |
+| `kind-self-contained.yaml` | Yes, on kind | KAI Scheduler and the CloudNativePG operator installed separately; `compute.backendName` set explicitly at install time |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
-| `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl` and a compute authentication Secret |
+| `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
 The kind profile is development-only and intentionally uses `latest` OSMO
 images, one replica per component, retained generated credentials, and embedded

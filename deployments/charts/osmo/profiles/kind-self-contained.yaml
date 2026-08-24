@@ -203,7 +203,6 @@ rustfs:
     dataStorageSize: 2Gi
 
 compute:
-  backendName: default
   workloadNamespace: ''
   backendTestNamespace: ''
   authentication:

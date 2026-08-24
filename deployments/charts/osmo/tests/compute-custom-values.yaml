@@ -23,7 +23,6 @@ podDefaults:
     example.com/node-pool: compute
 
 compute:
-  backendName: custom
   workloadNamespace: custom-workflows
   # Intentionally unused because the backend test runner is disabled below.
   backendTestNamespace: disabled-backend-tests
