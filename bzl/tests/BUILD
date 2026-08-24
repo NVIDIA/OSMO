@@ -17,8 +17,28 @@
 py_test(
     name = "python_runtime_tar_test",
     srcs = ["python_runtime_tar_test.py"],
-    args = ["$(rootpath //src:python_runtime_tar_amd64)"],
-    data = ["//src:python_runtime_tar_amd64"],
+    args = [
+        "$(rootpath //src:python_runtime_tar_amd64)",
+        "$(rootpath //src:python_runtime_binary_amd64)",
+    ],
+    data = [
+        "//src:python_runtime_binary_amd64",
+        "//src:python_runtime_tar_amd64",
+    ],
+)
+
+py_test(
+    name = "python_runtime_tar_arm64_test",
+    srcs = ["python_runtime_tar_test.py"],
+    args = [
+        "$(rootpath //src:python_runtime_tar_arm64)",
+        "$(rootpath //src:python_runtime_binary_arm64)",
+    ],
+    data = [
+        "//src:python_runtime_binary_arm64",
+        "//src:python_runtime_tar_arm64",
+    ],
+    main = "python_runtime_tar_test.py",
 )
 
 py_test(

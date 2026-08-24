@@ -62,16 +62,16 @@ class PythonRuntimeTarTest(unittest.TestCase):
     def test_is_compressed_for_registry_transfer(self) -> None:
         self.assertLess(pathlib.Path(sys.argv[1]).stat().st_size, _MAXIMUM_COMPRESSED_SIZE)
 
-    def test_contains_executable_used_by_bazel(self) -> None:
+    def test_contains_expected_interpreter(self) -> None:
         runtime_binary = self.archive.extractfile(self.members[_BINARY_PATH])
         if runtime_binary is None:
             self.fail(f"{_BINARY_PATH} is not a regular file")
 
         image_digest = hashlib.sha256(runtime_binary.read()).digest()
-        bazel_digest = hashlib.sha256(pathlib.Path(sys.executable).resolve().read_bytes()).digest()
+        expected_digest = hashlib.sha256(pathlib.Path(sys.argv[2]).read_bytes()).digest()
 
         self.assertNotEqual(self.members[_BINARY_PATH].mode & 0o111, 0)
-        self.assertEqual(image_digest, bazel_digest)
+        self.assertEqual(image_digest, expected_digest)
 
 
 if __name__ == "__main__":
