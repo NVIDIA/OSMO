@@ -82,7 +82,6 @@ filegroup(
     name = "logger_image_layers",
     srcs = [
         ":logger_layer_default",
-        ":logger_layer_interpreter",
         ":logger_layer_packages",
         ":logger_wrapper",
     ],

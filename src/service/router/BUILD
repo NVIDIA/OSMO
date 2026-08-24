@@ -66,7 +66,6 @@ filegroup(
     name = "router_image_layers",
     srcs = [
         ":router_layer_default",
-        ":router_layer_interpreter",
         ":router_layer_packages",
         ":router_wrapper",
     ],
