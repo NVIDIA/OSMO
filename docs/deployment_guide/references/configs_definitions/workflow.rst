@@ -72,7 +72,8 @@ Top-Level Configuration
      - See Plugins section
    * - ``labels_config``
      - `Workflow Labels`_
-     - Workflow-label policies, accepted values, and staged enforcement.
+     - Workflow-label policies, accepted values, staged enforcement, and the
+       optional pod-label prefix.
      - ``policy: []``
    * - ``max_num_tasks``
      - Integer
@@ -247,29 +248,31 @@ Workflow Information
 Workflow Labels
 ===============
 
-Workflow labels are optional and format-checked even when no label is required.
-The default configuration applies no label policies:
+Policy and prefix behavior, enforcement rollout, and the exported metrics are
+described in :ref:`workflow_labels_config`.
 
-.. code-block:: yaml
+.. list-table::
+   :header-rows: 1
+   :widths: 25 12 43 20
 
-   labels_config:
-     policy: []
+   * - **Field**
+     - **Type**
+     - **Description**
+     - **Default Values**
+   * - ``policy``
+     - List of `Label Policy`_
+     - One entry per label key to check. At most 16 entries; duplicate keys are
+       rejected.
+     - ``[]``
+   * - ``pod_label_prefix``
+     - String
+     - Prepended to each workflow label key on task pods only. Empty disables
+       it. Rejected at configuration time if it contains a space, tab, or line
+       break, or exceeds 253 characters.
+     - ``""``
 
-Each entry in ``policy`` controls one key independently. Use ``off`` or omit a
-key from ``policy`` to disable both warnings and enforcement for that key:
-
-.. code-block:: yaml
-
-   labels_config:
-     policy:
-     - key: team
-       allow_list:
-       - robotics
-       - simulation
-       enforcement: warn
-     - key: cost-center
-       allow_list: []
-       enforcement: enforce
+Label Policy
+============
 
 .. list-table::
    :header-rows: 1
@@ -281,8 +284,7 @@ key from ``policy`` to disable both warnings and enforcement for that key:
      - **Default Values**
    * - ``key``
      - String
-     - Kubernetes label key to check. Duplicate policy keys are rejected,
-       and at most 16 keys can be configured.
+     - Kubernetes label key to check.
      - Required
    * - ``allow_list``
      - List of Strings
@@ -290,45 +292,10 @@ key from ``policy`` to disable both warnings and enforcement for that key:
      - ``[]``
    * - ``enforcement``
      - String (``"off"``, ``warn``, ``enforce``)
-     - ``off`` accepts without policy warnings. ``warn`` accepts but warns
-       when the key is missing or its value is outside a non-empty allow-list.
+     - ``off`` accepts without policy warnings. ``warn`` accepts but warns when
+       the key is missing or its value is outside a non-empty allow-list.
        ``enforce`` rejects those violations.
      - ``"off"``
-
-The same policy applies to new submissions, resubmission by ID, restart, and
-validation-only requests. An ``enforcement: enforce`` rejection creates
-neither a workflow row nor a stored specification. Submit responses carry
-warnings from that admission check. Warnings are not stored with the
-workflow: detail responses recompute warn-mode violations from the stored
-labels and the current configuration, so displayed warnings track policy
-changes even for completed workflows.
-
-To roll back enforcement immediately, use ``enforcement: warn``. To disable both
-warnings and enforcement, use ``enforcement: "off"`` (quoted: unquoted YAML
-``off`` parses as boolean false) or remove the policy entry.
-Existing and in-flight workflows are not modified, although their detail-page
-warnings always reflect the current warn policy. In ConfigMap mode, an invalid
-edit is rejected and the previous valid snapshot remains active.
-
-Only configured policy keys become workflow-label dimensions on
-``osmo_tasks_count``. Attribute names start with ``workflow_label_``. Letters
-and numbers are unchanged; ``_``, ``-``, ``.``, and ``/`` are encoded as
-``__``, ``_dash_``, ``_dot_``, and ``_slash_`` respectively. For example,
-``project`` is exported as ``workflow_label_project``. Values in the configured
-allow-list are exported verbatim; a present value outside that list is clamped
-to ``<other>``, and a missing key is reported as ``<missing>``. Angle
-brackets are not valid in label values, so the sentinels never collide with
-real values. An empty allow-list exports every present value as ``<other>``.
-This keeps the number of series bounded to the allow-list plus two sentinels
-per key.
-
-Admission also emits
-``osmo_label_validation_total{key, outcome}``, where ``outcome`` is ``ok``,
-``missing``, ``invalid``, or ``rejected``. The counter covers rejected
-submissions that do not create a workflow row. Keep the policy list small to
-control metric cardinality. Exporting a Pod label through ``kube_pod_labels`` is a
-separate kube-state-metrics allow-list decision; see
-:ref:`adding_observability`.
 
 Backend Images
 ==============
