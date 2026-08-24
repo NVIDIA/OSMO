@@ -169,6 +169,35 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             (), return_raw=True)
         self.assertEqual(trigger_rows, [])
 
+    def test_default_config_secrets_are_encrypted_before_insert(self) -> None:
+        probe = self.database.secret_manager.encrypt("", "").value
+        self.assertEqual(
+            self.database.secret_manager.authenticate_mek_encrypted(probe), "old")
+        self.database._init_default_configs()
+
+        rows = self.database.execute_fetch_command(
+            "SELECT key, value FROM configs WHERE type = 'WORKFLOW' "
+            "AND key IN ('backend_images', 'workflow_alerts');",
+            (), return_raw=True)
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            self.assertNotIn('**********', row["value"])
+        persisted = {row["key"]: json.loads(row["value"]) for row in rows}
+        for encrypted in (
+            persisted["backend_images"]["credential"]["auth"],
+            persisted["workflow_alerts"]["slack_token"],
+            persisted["workflow_alerts"]["smtp_settings"]["password"],
+        ):
+            self.assertEqual(
+                self.database.secret_manager.authenticate_mek_encrypted(encrypted), "old")
+
+        counts, blockers = self.database._scan_mek_references()
+        self.assertEqual(blockers, [])
+        # Registry auth, Slack, and SMTP defaults are all persisted as
+        # authenticated direct-MEK ciphertext even when no application read
+        # performs the historical lazy-encryption step.
+        self.assertGreaterEqual(counts["old"], 3)
+
     def test_startup_inventory_rejects_a_missing_historical_key(self) -> None:
         _write_keyring(self.keyring_path, "new", {"new": self.new_mek})
         self.database.secret_manager = SecretManager(

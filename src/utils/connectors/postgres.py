@@ -443,17 +443,16 @@ class PostgresConnector:
         # domain with the startup-only keyring. This prevents a replacement
         # pod from joining a rollout with a keyring that cannot read existing
         # data, without introducing lifecycle tables or triggers.
-        counts, blockers = self._scan_mek_references()
-        if blockers:
-            for blocker in blockers:
-                logging.error('MEK startup inventory blocker: %s', blocker)
-            raise osmo_errors.OSMOError(
-                'Mounted MEK keyring cannot authenticate persisted ciphertext.')
-        logging.info('MEK startup inventory references=%s', counts)
+        self._assert_mek_inventory('startup')
 
         logging.debug('Initializing configs')
         self._init_configs()
         logging.debug('Configs initialized')
+
+        # Default SecretStr values are inserted under the mounted MEK. Verify
+        # those writes, plus any concurrent initializer's winners, before this
+        # process can become ready.
+        self._assert_mek_inventory('post-initialization')
 
         # Recreate pool with search_path set to the pgroll versioned schema
         if self.config.schema_version != 'public':
@@ -1375,15 +1374,13 @@ class PostgresConnector:
         self.execute_commit_command(create_cmd, ())
 
 
-    def _init_configs(self):
-        """ Initializes configs table. """
-        # Create config objects with deployment values if provided
+    def _init_default_configs(self):
+        """Insert missing defaults with every SecretStr already MEK-encrypted."""
         service_configs = ServiceConfig()
-
         workflow_configs = WorkflowConfig()
 
         def set_default_values(configs: 'DynamicConfig', config_type: ConfigType):
-            for key, value in configs.plaintext_dict(by_alias=True).items():
+            for key, value in configs.serialize(self, exclude_unset=False).items():
                 if isinstance(value, str):
                     self._set_default_config(key, value, config_type)
                 else:
@@ -1391,6 +1388,10 @@ class PostgresConnector:
 
         set_default_values(service_configs, ConfigType.SERVICE)
         set_default_values(workflow_configs, ConfigType.WORKFLOW)
+
+    def _init_configs(self):
+        """ Initializes configs table. """
+        self._init_default_configs()
 
         self.create_default_roles()
 
@@ -1653,6 +1654,16 @@ class PostgresConnector:
             except (pydantic.ValidationError, ValueError, TypeError):
                 blockers.append(f'configs/{config_type}: config schema validation failed')
         return counts, blockers
+
+    def _assert_mek_inventory(self, boundary: str) -> None:
+        """Fail readiness when any registered persistence location is unreadable."""
+        counts, blockers = self._scan_mek_references()
+        if blockers:
+            for blocker in blockers:
+                logging.error('MEK %s inventory blocker: %s', boundary, blocker)
+            raise osmo_errors.OSMOError(
+                'Mounted MEK keyring cannot authenticate persisted ciphertext.')
+        logging.info('MEK %s inventory references=%s', boundary, counts)
 
     def _rewrap_ueks(self, snapshot: Keyring, deadline: float | None = None) -> bool:
         """Rewrap all UEKs in bounded pages, restarting from zero on every invocation."""

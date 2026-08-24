@@ -144,6 +144,20 @@ class TestSecretManager(unittest.TestCase):
             replacement.decrypt(new)
             self.assertEqual(replacement.payload, b"secret")
 
+    def test_empty_direct_mek_ciphertext_authenticates_and_decrypts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "mek.yaml"
+            key = _key("key1")
+            _write(path, "key1", {"key1": key})
+            manager = _manager(path, Store())
+
+            encrypted = manager.encrypt("", "")
+            self.assertEqual(manager.authenticate_mek_encrypted(encrypted.value), "key1")
+            callbacks: list[str] = []
+            self.assertEqual(
+                manager.decrypt(encrypted, "", callbacks.append).value, "")
+            self.assertEqual(callbacks, [])
+
     def test_uek_rewrap_is_cas_and_preserves_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "mek.yaml"

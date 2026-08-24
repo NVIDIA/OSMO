@@ -355,6 +355,26 @@ class SecretManager:
             raise osmo_errors.OSMOError("Encrypted secret does not contain a valid kid.")
         return kid
 
+    @staticmethod
+    def _decrypt_token(token: jwe.JWE, key: jwk.JWK) -> bytes:
+        """Decrypt an authenticated JWE, including a valid empty payload.
+
+        jwcrypto raises ``InvalidJWEData`` after a successful decrypt when
+        the authenticated plaintext is ``b""`` because its public method
+        tests plaintext truthiness. It still sets ``plaintext`` only after
+        unwrap and tag verification, so that exact value is a successful
+        authenticated empty secret; ``None`` remains a real failure.
+        """
+        try:
+            token.decrypt(key)
+        except JWException:
+            if token.plaintext != b"":
+                raise
+        plaintext = token.plaintext
+        if plaintext is None:
+            raise osmo_errors.OSMOError("Encrypted secret authentication failed.")
+        return plaintext
+
     def get_mek(self, kid: str = "") -> jwk.JWK:
         """Returns master key according to kid. Returns the current master key if kid is empty"""
         if not kid:
@@ -386,9 +406,7 @@ class SecretManager:
         if mek_kid not in self._keyring.meks:
             raise osmo_errors.OSMONotFoundError(f"Cannot find mek whose kid is {mek_kid}.")
         mek = self._keyring.meks[mek_kid]
-        jwetoken.decrypt(mek)
-
-        jwk_json = jwetoken.payload.decode("utf-8")
+        jwk_json = self._decrypt_token(jwetoken, mek).decode("utf-8")
         user_key = jwk.JWK.from_json(jwk_json)
         if user_key.key_id != kid:
             raise osmo_errors.OSMOError(
@@ -408,8 +426,7 @@ class SecretManager:
             wrapping_mek = snapshot.meks.get(wrapping_kid)
             if wrapping_mek is None:
                 raise osmo_errors.OSMOError("UEK wrapper references an unavailable MEK.")
-            token.decrypt(wrapping_mek)
-            payload = token.payload
+            payload = self._decrypt_token(token, wrapping_mek)
             user_key = jwk.JWK.from_json(payload.decode("utf-8"))
             if user_key.key_id != kid:
                 raise osmo_errors.OSMOError("UEK wrapper does not match its persisted slot.")
@@ -449,9 +466,11 @@ class SecretManager:
                 raise osmo_errors.OSMOError(
                     "Concurrent UEK rewrap did not use the pinned target MEK."
                 )
-            concurrent_token.decrypt(snapshot.meks[concurrent_kid])
+            concurrent_payload = self._decrypt_token(
+                concurrent_token, snapshot.meks[concurrent_kid]
+            )
             concurrent_key = jwk.JWK.from_json(
-                concurrent_token.payload.decode("utf-8"))
+                concurrent_payload.decode("utf-8"))
             if (
                 concurrent_key.key_id != kid
                 or concurrent_key.export(as_dict=True) != user_key.export(as_dict=True)
@@ -478,8 +497,7 @@ class SecretManager:
                 raise osmo_errors.OSMOError(
                     "Direct-MEK ciphertext references an unavailable MEK."
                 )
-            token.decrypt(wrapping_mek)
-            plaintext = token.payload
+            plaintext = self._decrypt_token(token, wrapping_mek)
             plaintext.decode("utf-8")
         except (JWException, UnicodeError, ValueError) as error:
             raise osmo_errors.OSMOError(
@@ -513,8 +531,7 @@ class SecretManager:
             token = jwe.JWE()
             token.deserialize(value)
             key_id = self._validate_jwe_header(token.jose_header)
-            token.decrypt(self.get_mek(key_id))
-            token.payload.decode("utf-8")
+            self._decrypt_token(token, self.get_mek(key_id)).decode("utf-8")
             return key_id
         except (JWException, UnicodeError, ValueError, osmo_errors.OSMOError) as error:
             raise osmo_errors.OSMOError(
@@ -529,8 +546,8 @@ class SecretManager:
             token = jwe.JWE()
             token.deserialize(value)
             key_id = self._validate_jwe_header(token.jose_header)
-            token.decrypt(self.get_mek(key_id))
-            user_key = jwk.JWK.from_json(token.payload.decode("utf-8"))
+            plaintext = self._decrypt_token(token, self.get_mek(key_id))
+            user_key = jwk.JWK.from_json(plaintext.decode("utf-8"))
             exported = user_key.export(as_dict=True)
             if exported.get("kty") != "oct" or not exported.get("kid"):
                 raise ValueError("invalid UEK JWK")
@@ -595,8 +612,7 @@ class SecretManager:
         jwetoken.deserialize(enc.value)
         kid = self._validate_jwe_header(jwetoken.jose_header)
         uek, is_current = self.get_uek(uid, kid)
-        jwetoken.decrypt(uek)
-        decrypted = jwetoken.payload.decode("utf-8")
+        decrypted = self._decrypt_token(jwetoken, uek).decode("utf-8")
 
         # MEK migration is an explicit lifecycle Job responsibility. Preserve
         # the historical lazy UEK-to-UEK migration for user-owned ciphertext,
