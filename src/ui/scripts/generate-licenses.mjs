@@ -92,7 +92,7 @@ function generateMarkdown(licenseData) {
   const sortedLicenses = sortLicenses(Object.keys(licenseData));
   for (const license of sortedLicenses) {
     const count = licenseData[license].length;
-    const anchor = license.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const anchor = license.toLowerCase().replaceAll(".", "");
     lines.push(`- [${license} (${count} packages)](#${anchor}-${count}-packages)`);
   }
   lines.push("");
