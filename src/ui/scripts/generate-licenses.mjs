@@ -26,6 +26,9 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// eslint-disable-next-line no-restricted-imports -- Node scripts cannot use the UI's @ alias.
+import { githubHeadingSlug } from "./github-heading-slug.mjs";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const OUTPUT = join(ROOT, "THIRD_PARTY_LICENSES.md");
@@ -92,8 +95,8 @@ function generateMarkdown(licenseData) {
   const sortedLicenses = sortLicenses(Object.keys(licenseData));
   for (const license of sortedLicenses) {
     const count = licenseData[license].length;
-    const anchor = license.toLowerCase().replaceAll(".", "");
-    lines.push(`- [${license} (${count} packages)](#${anchor}-${count}-packages)`);
+    const heading = `${license} (${count} packages)`;
+    lines.push(`- [${heading}](#${githubHeadingSlug(heading)})`);
   }
   lines.push("");
 
