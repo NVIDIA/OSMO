@@ -276,15 +276,22 @@ class ConfigMapWatcher:
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
         if self._enable_reconciliation:
+            roles_reconciled = False
+            backends_reconciled = False
             try:
-                reconciled = _reconcile_backend_side_effects(
-                    reconciliation_baseline, managed_configs, self._postgres,
+                roles_reconciled = _reconcile_user_role_assignments(
+                    managed_configs, self._postgres)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logging.exception('ConfigMap user role reconciliation failed')
+            try:
+                backends_reconciled = _reconcile_backend_side_effects(
+                    reconciliation_baseline, managed_configs,
                     self._backend_queue_updater, self._backend_test_updater)
-                if reconciled:
-                    self._last_reconciled_snapshot = copy.deepcopy(managed_configs)
             except Exception:  # pylint: disable=broad-exception-caught
                 logging.exception(
                     'ConfigMap backend side-effect reconciliation failed')
+            if roles_reconciled and backends_reconciled:
+                self._last_reconciled_snapshot = copy.deepcopy(managed_configs)
         self._record_success()
 
         return LoadResult.SUCCESS
@@ -562,21 +569,10 @@ def _affected_backends_for_test_sync(
 def _reconcile_backend_side_effects(
     previous: Dict[str, Any] | None,
     current: Dict[str, Any],
-    postgres: connectors.PostgresConnector | None,
     backend_queue_updater: Callable[..., bool] | None,
     backend_test_updater: Callable[..., bool] | None,
 ) -> bool:
     """Queue backend sync jobs for ConfigMap-driven config changes."""
-    if postgres is None:
-        logging.warning(
-            'ConfigMap backend reconciliation enabled without Postgres')
-        return False
-
-    role_names = list(current.get('roles', {}))
-    postgres.execute_commit_command(
-        'DELETE FROM user_roles WHERE NOT (role_name = ANY(%s));',
-        (role_names,))
-
     if backend_queue_updater is None or backend_test_updater is None:
         logging.warning(
             'ConfigMap backend reconciliation enabled without enqueue callbacks')
@@ -671,6 +667,24 @@ def _reconcile_backend_side_effects(
                 backend_name)
 
     return success
+
+
+def _reconcile_user_role_assignments(
+    current: Dict[str, Any], postgres: connectors.PostgresConnector | None,
+) -> bool:
+    """Remove assignments for roles absent from the current ConfigMap."""
+    if postgres is None:
+        logging.warning(
+            'ConfigMap user role reconciliation enabled without Postgres')
+        return False
+
+    roles = current.get('roles')
+    role_names = [role_name for role_name in roles
+                  if isinstance(role_name, str)] if isinstance(roles, dict) else []
+    postgres.execute_commit_command(
+        'DELETE FROM user_roles WHERE NOT (role_name = ANY(%s::text[]));',
+        (role_names,))
+    return True
 
 
 def _resolve_backend_test_computed_fields(managed_configs: Dict[str, Any]) -> None:

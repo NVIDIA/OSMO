@@ -1910,6 +1910,22 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_user_role_reconcile_normalizes_invalid_role_keys(self):
+        postgres = mock.MagicMock()
+
+        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
+            {'roles': {None: {}, 1: {}, 'current-role': {}}}, postgres))
+        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
+            {'roles': None}, postgres))
+        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
+            {}, postgres))
+
+        calls = postgres.execute_commit_command.call_args_list
+        self.assertEqual(calls[0].args[1], (['current-role'],))
+        self.assertEqual(calls[1].args[1], ([],))
+        self.assertEqual(calls[2].args[1], ([],))
+        self.assertIn('%s::text[]', calls[0].args[0])
+
     def test_api_reconcile_removed_backend_queues_cleanup(self):
         now = datetime.datetime.now(datetime.timezone.utc)
         old_snapshot: Dict[str, Any] = {

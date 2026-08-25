@@ -406,6 +406,18 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
             INSERT INTO user_roles (user_id, role_name, assigned_by)
             VALUES (%s, %s, %s), (%s, %s, %s);
         ''', (user_id, 'current-role', 'test', user_id, 'stale-role', 'test'))
+        role_rows = postgres.execute_fetch_command(
+            'SELECT id, role_name FROM user_roles WHERE user_id = %s;',
+            (user_id,), True)
+        role_ids = {row['role_name']: row['id'] for row in role_rows}
+        postgres.execute_commit_command('''
+            INSERT INTO access_token (user_name, token_name, access_token)
+            VALUES (%s, %s, %s);
+            INSERT INTO access_token_roles (user_name, token_name, user_role_id, assigned_by)
+            VALUES (%s, %s, %s, %s), (%s, %s, %s, %s);
+        ''', (user_id, 'configmap-token', b'token',
+              user_id, 'configmap-token', role_ids['current-role'], 'test',
+              user_id, 'configmap-token', role_ids['stale-role'], 'test'))
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp_file:
             yaml.dump(_with_service_auth({
@@ -423,6 +435,12 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
             rows = postgres.execute_fetch_command(
                 'SELECT role_name FROM user_roles WHERE user_id = %s;',
                 (user_id,), True)
+            self.assertEqual([row['role_name'] for row in rows], ['current-role'])
+            rows = postgres.execute_fetch_command('''
+                SELECT ur.role_name FROM access_token_roles atr
+                JOIN user_roles ur ON ur.id = atr.user_role_id
+                WHERE atr.user_name = %s AND atr.token_name = %s;
+            ''', (user_id, 'configmap-token'), True)
             self.assertEqual([row['role_name'] for row in rows], ['current-role'])
 
             with open(temp_file.name, 'w', encoding='utf-8') as config_file:
