@@ -105,8 +105,10 @@ class UsersBackfillMigrationTest(
     def test_backfills_users_adds_credential_constraint_and_is_idempotent(self):
         with self.connection.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO users (id, created_by) "
-                "VALUES ('active@example.com', 'existing-creator')")
+                '''
+                INSERT INTO users (id, created_by)
+                VALUES ('active@example.com', 'existing-creator')
+                ''')
             cursor.execute(
                 "INSERT INTO workflows VALUES ('workflow', 'historical@example.com')")
             cursor.execute(
