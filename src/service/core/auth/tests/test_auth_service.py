@@ -425,6 +425,29 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertIn('osmo-user', token_roles)
         self.assertIn('osmo-ml-team', token_roles)
 
+    def test_delete_role_removes_assignments_and_access_token_grants(self):
+        self._create_user(self.TEST_USER, roles=['osmo-admin'])
+        self._create_access_token('deleted-role-token')
+        postgres = connectors.PostgresConnector.get_instance()
+
+        connectors.Role.delete_from_db(postgres, 'osmo-admin')
+
+        self.assertNotIn(
+            'osmo-admin',
+            [role['role_name'] for role in self._get_user(self.TEST_USER)['roles']])
+        self.assertNotIn(
+            'osmo-admin',
+            self._get_access_token_roles(self.TEST_USER, 'deleted-role-token'))
+
+        self._create_test_role('osmo-admin', 'Recreated admin role')
+
+        self.assertNotIn(
+            'osmo-admin',
+            [role['role_name'] for role in self._get_user(self.TEST_USER)['roles']])
+        self.assertNotIn(
+            'osmo-admin',
+            self._get_access_token_roles(self.TEST_USER, 'deleted-role-token'))
+
     def test_remove_role_cascades_to_multiple_access_tokens(self):
         """Test that removing a role cascades to all of user's access tokens."""
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin'])

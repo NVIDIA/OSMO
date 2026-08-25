@@ -309,8 +309,8 @@ func TestSyncUserRoles_Integration_CanceledContext_UpsertError(t *testing.T) {
 func TestSyncUserRoles_Integration_SyncQueryError(t *testing.T) {
 	fixture := database.StartPostgresWithSchema(t)
 
-	// CASCADE also drops user_roles and role_external_mappings (both FK into
-	// roles), so syncAndReturnRoles' query references missing tables.
+	// CASCADE drops role_external_mappings, so syncAndReturnRoles' query
+	// references a missing table.
 	fixture.ExecSQL(t, `DROP TABLE roles CASCADE`)
 
 	result, err := roles.SyncUserRoles(context.Background(), fixture.Client,

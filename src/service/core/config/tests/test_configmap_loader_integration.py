@@ -266,6 +266,25 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         self.assertEqual(
             result, ['role-b', 'role-default', 'role-empty', 'role-null'])
 
+    def test_scalar_external_roles_uses_default_mapping_from_snapshot(self):
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'roles': {
+                'role-scalar': {
+                    'description': 'Scalar mapping',
+                    'policies': [],
+                    'external_roles': 'external-scalar',
+                },
+            },
+        })
+
+        self.assertEqual(
+            connectors.Role.get_roles_by_external_roles(postgres, ['a']), [])
+        self.assertEqual(
+            connectors.Role.get_roles_by_external_roles(
+                postgres, ['role-scalar']),
+            ['role-scalar'])
+
     def test_backend_list_from_snapshot(self):
         """Backend.list_from_db returns backends from snapshot."""
         postgres = self._get_postgres()

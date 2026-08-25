@@ -4627,12 +4627,19 @@ class Role(role.Role):
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
             requested_roles = set(external_roles)
+
+            def mapped_external_roles(role_name: str, role_data: Dict) -> List[str]:
+                configured_roles = role_data.get('external_roles')
+                if isinstance(configured_roles, list) and configured_roles:
+                    return configured_roles
+                return [role_name]
+
             return sorted(
                 role_name
                 for role_name, role_data in snapshot.get('roles', {}).items()
                 if isinstance(role_data, dict)
                 and requested_roles.intersection(
-                    role_data.get('external_roles') or [role_name])
+                    mapped_external_roles(role_name, role_data))
             )
 
         fetch_cmd = '''
@@ -4647,10 +4654,10 @@ class Role(role.Role):
     def delete_from_db(cls, database: PostgresConnector, name: str):
         cls.fetch_from_db(database, name)
 
-        delete_cmd = '''
-            DELETE FROM roles WHERE name = %s;
-            '''
-        database.execute_commit_command(delete_cmd, (name,))
+        database.execute_commit_commands([
+            ('DELETE FROM user_roles WHERE role_name = %s;', (name,)),
+            ('DELETE FROM roles WHERE name = %s;', (name,)),
+        ])
 
     def insert_into_db(self, database: PostgresConnector, force: bool = False):
         """
