@@ -60,6 +60,17 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_responses",
+    srcs = ["test_responses.py"],
+    deps = [
+        "//src/service/core:responses",
+        osmo_requirement("starlette"),
+    ],
+    size = "small",
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
     name = "test_asyncio_startup",
     srcs = ["test_asyncio_startup.py"],
     deps = [
