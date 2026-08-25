@@ -655,7 +655,10 @@ def create_user(
     # Assign initial roles if provided
     if request.roles:
         for role_name in request.roles:
-            _insert_user_role(postgres, request.id, role_name, created_by, now)
+            assignment_result = _insert_user_role(
+                postgres, request.id, role_name, created_by, now)
+            if not assignment_result:
+                raise osmo_errors.OSMOUserError(f'Role {role_name} does not exist.')
 
     row = result[0]
     return objects.User(

@@ -24,6 +24,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"go.corp.nvidia.com/osmo/tests/common/database"
 	"go.corp.nvidia.com/osmo/utils/roles"
@@ -143,6 +144,54 @@ func TestSyncUserRoles_Integration_ImportMode_AddsMappedRole(t *testing.T) {
 	if !containsString(stored, "osmo-admin") {
 		t.Errorf("expected user_roles to contain %q after sync, got: %v",
 			"osmo-admin", stored)
+	}
+}
+
+func TestSyncUserRoles_Integration_RoleDeletionPreventsOrphan(t *testing.T) {
+	fixture := database.StartPostgresWithSchema(t)
+	insertRoleWithSyncMode(t, fixture, "osmo-admin", roles.SyncModeImport)
+	insertRoleMapping(t, fixture, "osmo-admin", "idp-admins")
+
+	tx, err := fixture.Pool.Begin(context.Background())
+	if err != nil {
+		t.Fatalf("begin deletion transaction: %v", err)
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(context.Background(),
+		`SELECT name FROM roles WHERE name = $1 FOR UPDATE`, "osmo-admin"); err != nil {
+		t.Fatalf("lock role for deletion: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, syncErr := roles.SyncUserRoles(context.Background(), fixture.Client,
+			"alice", []string{"idp-admins"}, silentLogger())
+		done <- syncErr
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+	if _, err := tx.Exec(context.Background(),
+		`DELETE FROM role_external_mappings WHERE role_name = $1`, "osmo-admin"); err != nil {
+		t.Fatalf("delete role mappings: %v", err)
+	}
+	if _, err := tx.Exec(context.Background(),
+		`DELETE FROM user_roles WHERE role_name = $1`, "osmo-admin"); err != nil {
+		t.Fatalf("delete role assignments: %v", err)
+	}
+	if _, err := tx.Exec(context.Background(),
+		`DELETE FROM roles WHERE name = $1`, "osmo-admin"); err != nil {
+		t.Fatalf("delete role: %v", err)
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		t.Fatalf("commit deletion: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("sync roles: %v", err)
+	}
+
+	stored := readUserRoleNames(t, fixture, "alice")
+	if containsString(stored, "osmo-admin") {
+		t.Errorf("orphan role assignment survived deletion: %v", stored)
 	}
 }
 

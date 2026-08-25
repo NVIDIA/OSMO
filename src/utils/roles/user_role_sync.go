@@ -101,34 +101,28 @@ type syncResult struct {
 //  3. Applies the inserts and deletes.
 //  4. Returns which roles were added, removed, and the final set.
 //
-// Because the entire operation is one statement, concurrent calls for the same
-// user serialise naturally via PostgreSQL row-level locks; no TOCTOU gap exists.
+// The locked CTE takes a KEY SHARE lock on roles eligible for insertion, so a
+// concurrent role deletion either removes the assignment or prevents its insert.
 func syncAndReturnRoles(
 	ctx context.Context,
 	client *postgres.PostgresClient,
 	userName string,
 	externalRoles []string,
 ) (*syncResult, error) {
-	tx, err := client.Pool().Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin sync transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	lockRows, err := tx.Query(ctx, `
-		SELECT name FROM roles WHERE sync_mode != $1 FOR KEY SHARE`, SyncModeIgnore)
-	if err != nil {
-		return nil, fmt.Errorf("lock sync roles: %w", err)
-	}
-	lockRows.Close()
-	if err := lockRows.Err(); err != nil {
-		return nil, fmt.Errorf("lock sync roles: %w", err)
-	}
-
 	// Each row comes back as (role_name, change_type) where change_type is
 	// 'added', 'removed', or 'existing'.
 	query := `
-		WITH sync_info AS (
+		WITH locked AS (
+			SELECT r.name
+			FROM roles r
+			WHERE r.sync_mode != $3
+			  AND EXISTS (
+				  SELECT 1 FROM role_external_mappings rem
+				  WHERE rem.role_name = r.name AND rem.external_role = ANY($2)
+			  )
+			FOR KEY SHARE
+		),
+		sync_info AS (
 			SELECT
 				r.name,
 				r.sync_mode,
@@ -151,6 +145,7 @@ func syncAndReturnRoles(
 			WHERE si.in_header
 			  AND si.sync_mode IN ('import', 'force')
 			  AND si.name NOT IN (SELECT role_name FROM current_roles)
+			  AND si.name IN (SELECT name FROM locked)
 		),
 		to_remove AS (
 			SELECT si.name
@@ -182,7 +177,7 @@ func syncAndReturnRoles(
 		  AND role_name NOT IN (SELECT role_name FROM inserted)
 		  AND role_name NOT IN (SELECT role_name FROM deleted)`
 
-	rows, err := tx.Query(
+	rows, err := client.Pool().Query(
 		ctx, query, userName, externalRoles, SyncModeIgnore, idpSyncAssigner)
 	if err != nil {
 		return nil, fmt.Errorf("exec sync query: %w", err)
@@ -207,8 +202,5 @@ func syncAndReturnRoles(
 		return nil, err
 	}
 	rows.Close()
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit sync transaction: %w", err)
-	}
 	return res, nil
 }
