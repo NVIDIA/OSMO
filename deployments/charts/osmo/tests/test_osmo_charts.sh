@@ -627,6 +627,71 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/kind-self-contained-ui.yaml" \
         "scheme: HTTPS"
 
+    helm_template_with_backend quick-start "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
+        >"$TEST_DIRECTORY/quickstart.yaml"
+    local quickstart_deployment
+    for quickstart_deployment in \
+            api worker router logger agent delayed-job-monitor gateway-envoy \
+            backend-listener backend-worker valkey rustfs; do
+        require_deployment "$TEST_DIRECTORY/quickstart.yaml" \
+            "osmo-$quickstart_deployment"
+        resource_document "$TEST_DIRECTORY/quickstart.yaml" Deployment \
+            "osmo-$quickstart_deployment" \
+            >"$TEST_DIRECTORY/quickstart-$quickstart_deployment.yaml"
+        require_contains "$TEST_DIRECTORY/quickstart-$quickstart_deployment.yaml" \
+            "replicas: 1"
+        require_contains "$TEST_DIRECTORY/quickstart-$quickstart_deployment.yaml" \
+            "imagePullPolicy: IfNotPresent"
+        require_not_contains "$TEST_DIRECTORY/quickstart-$quickstart_deployment.yaml" \
+            "topologySpreadConstraints:"
+    done
+    require_resource "$TEST_DIRECTORY/quickstart.yaml" Cluster "osmo-pg"
+    require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
+        "osmo-backend-token-bootstrap"
+    require_resource "$TEST_DIRECTORY/quickstart.yaml" Job "osmo-mek-bootstrap"
+    require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
+        "osmo-object-storage-bootstrap"
+    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-ui"
+    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-mcp"
+    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" \
+        "osmo-gateway-oauth2-proxy"
+    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-gateway-authz"
+    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" \
+        "osmo-gateway-ratelimit"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" \
+        "backend-test-runner"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" \
+        "kind: HorizontalPodAutoscaler"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" \
+        "kind: PodDisruptionBudget"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: PodMonitor"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: HTTPRoute"
+    require_contains "$TEST_DIRECTORY/quickstart.yaml" "OSMO_LOGIN_DEV"
+    require_contains "$TEST_DIRECTORY/quickstart.yaml" "http://osmo-gateway"
+    require_contains "$TEST_DIRECTORY/quickstart.yaml" \
+        "secretName: osmo-backend-token"
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/quickstart-config.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
+        "cpu: '{{USER_CPU}}'"
+    require_not_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
+        "nvidia.com/gpu"
+    local quickstart_osmo_image
+    for quickstart_osmo_image in \
+            agent service backend-listener backend-worker delayed-job-monitor \
+            logger router worker; do
+        require_contains "$TEST_DIRECTORY/quickstart.yaml" \
+            "image: nvcr.io/nvidia/osmo/$quickstart_osmo_image:latest"
+    done
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "hostPath:"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind-osmo"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "/home/"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "currentMek:"
+
     if helm_template_with_backend mismatched-converged-backend-token "$charts_copy/osmo" \
             --namespace osmo \
             --api-versions postgresql.cnpg.io/v1 \
