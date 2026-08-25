@@ -162,14 +162,6 @@ func TestSyncUserRoles_Integration_RoleDeletionPreventsOrphan(t *testing.T) {
 		t.Fatalf("lock role for deletion: %v", err)
 	}
 
-	done := make(chan error, 1)
-	go func() {
-		_, syncErr := roles.SyncUserRoles(context.Background(), fixture.Client,
-			"alice", []string{"idp-admins"}, silentLogger())
-		done <- syncErr
-	}()
-
-	time.Sleep(200 * time.Millisecond)
 	if _, err := tx.Exec(context.Background(),
 		`DELETE FROM role_external_mappings WHERE role_name = $1`, "osmo-admin"); err != nil {
 		t.Fatalf("delete role mappings: %v", err)
@@ -182,6 +174,19 @@ func TestSyncUserRoles_Integration_RoleDeletionPreventsOrphan(t *testing.T) {
 		`DELETE FROM roles WHERE name = $1`, "osmo-admin"); err != nil {
 		t.Fatalf("delete role: %v", err)
 	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, syncErr := roles.SyncUserRoles(context.Background(), fixture.Client,
+			"alice", []string{"idp-admins"}, silentLogger())
+		done <- syncErr
+	}()
+	select {
+	case syncErr := <-done:
+		t.Fatalf("sync completed before role deletion committed: %v", syncErr)
+	case <-time.After(200 * time.Millisecond):
+	}
+
 	if err := tx.Commit(context.Background()); err != nil {
 		t.Fatalf("commit deletion: %v", err)
 	}
