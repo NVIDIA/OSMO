@@ -851,7 +851,7 @@ class PostgresConnector:
         # Creates current users.
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS users (
-                id TEXT NOT NULL PRIMARY KEY,
+                id TEXT PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 created_by TEXT
             );

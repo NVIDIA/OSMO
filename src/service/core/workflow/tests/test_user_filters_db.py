@@ -22,9 +22,9 @@ from src.service.core.tests import fixture
 from src.utils import connectors
 
 
-CURRENT_USERS = ('ecolter', 'ecolter@nvidia.com')
-HISTORICAL_USER = 'historical@nvidia.com'
-RECREATED_USER = 'recreated@nvidia.com'
+CURRENT_USERS = ('alice', 'alice@example.com')
+HISTORICAL_USER = 'historical@example.com'
+RECREATED_USER = 'recreated@example.com'
 
 
 class UserFiltersDatabaseTest(fixture.ServiceTestFixture):
@@ -111,18 +111,18 @@ class UserFiltersDatabaseTest(fixture.ServiceTestFixture):
         }
 
     def test_base_user_expands_across_workflow_task_and_app_filters(self):
-        filtered_resources = self._get_filtered_resources('ecolter')
+        filtered_resources = self._get_filtered_resources('alice')
 
         for resource_type, owners in filtered_resources.items():
             with self.subTest(resource_type=resource_type):
                 self.assertEqual(owners, set(CURRENT_USERS))
 
     def test_qualified_user_remains_exact_across_all_filters(self):
-        filtered_resources = self._get_filtered_resources('ecolter@nvidia.com')
+        filtered_resources = self._get_filtered_resources('alice@example.com')
 
         for resource_type, owners in filtered_resources.items():
             with self.subTest(resource_type=resource_type):
-                self.assertEqual(owners, {'ecolter@nvidia.com'})
+                self.assertEqual(owners, {'alice@example.com'})
 
     def test_historical_user_is_rejected_across_all_filters(self):
         cases = (

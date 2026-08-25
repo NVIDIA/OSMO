@@ -25,13 +25,13 @@ from src.utils.connectors import postgres
 
 
 CURRENT_USERS = (
-    'ecolter',
-    'ecolter@nvidia.com',
-    'ecolter@osmo.nvidia.com',
-    'exact@nvidia.com',
-    'unique@nvidia.com',
+    'alice',
+    'alice@example.com',
+    'alice@osmo.example.com',
+    'exact@example.com',
+    'unique@example.com',
 )
-HISTORICAL_USER = 'historical@nvidia.com'
+HISTORICAL_USER = 'historical@example.com'
 
 
 class UserNamesDatabaseTest(
@@ -79,39 +79,39 @@ class UserNamesDatabaseTest(
 
     def test_qualified_identity_matches_only_itself(self):
         self.assertEqual(
-            self.database.fetch_user_names(['ecolter@nvidia.com']),
-            ['ecolter@nvidia.com'],
+            self.database.fetch_user_names(['alice@example.com']),
+            ['alice@example.com'],
         )
 
     def test_unique_base_identity_resolves_to_qualified_user(self):
         self.assertEqual(
             self.database.fetch_user_names(['unique']),
-            ['unique@nvidia.com'],
+            ['unique@example.com'],
         )
 
     def test_ambiguous_base_expands_to_every_current_identity(self):
         self.assertEqual(
-            set(self.database.fetch_user_names(['ecolter'])),
+            set(self.database.fetch_user_names(['alice'])),
             {
-                'ecolter',
-                'ecolter@nvidia.com',
-                'ecolter@osmo.nvidia.com',
+                'alice',
+                'alice@example.com',
+                'alice@osmo.example.com',
             },
         )
 
     def test_historical_identity_is_not_a_current_user(self):
         with self.assertRaisesRegex(
                 osmo_errors.OSMOUserError,
-                r'Invalid user\(s\): historical@nvidia.com not found'):
+                r'Invalid user\(s\): historical@example.com not found'):
             self.database.fetch_user_names([HISTORICAL_USER])
 
     def test_multiple_duplicate_and_overlapping_inputs_are_deduplicated(self):
         resolved = self.database.fetch_user_names([
             'unique',
-            'exact@nvidia.com',
+            'exact@example.com',
             'unique',
-            'ecolter',
-            'ecolter@nvidia.com',
+            'alice',
+            'alice@example.com',
         ])
 
         self.assertEqual(
@@ -123,8 +123,8 @@ class UserNamesDatabaseTest(
     def test_all_missing_inputs_are_reported_deterministically(self):
         with self.assertRaisesRegex(
                 osmo_errors.OSMOUserError,
-                r'Invalid user\(s\): absent not found, missing@nvidia.com not found'):
-            self.database.fetch_user_names(['missing@nvidia.com', 'absent', 'absent'])
+                r'Invalid user\(s\): absent not found, missing@example.com not found'):
+            self.database.fetch_user_names(['missing@example.com', 'absent', 'absent'])
 
     def test_resolver_sql_does_not_read_historical_resource_tables(self):
         resolver_sql = self._resolver_sql().lower()
@@ -160,7 +160,7 @@ class UserNamesDatabaseTest(
             EXPLAIN (FORMAT JSON, COSTS OFF)
             {resolver_sql}
             ''',
-            (['exact@nvidia.com'],),
+            (['exact@example.com'],),
             True,
         )
         base_plan = self.database.execute_fetch_command(
@@ -169,7 +169,7 @@ class UserNamesDatabaseTest(
             EXPLAIN (FORMAT JSON, COSTS OFF)
             {resolver_sql}
             ''',
-            (['ecolter'],),
+            (['alice'],),
             True,
         )
 

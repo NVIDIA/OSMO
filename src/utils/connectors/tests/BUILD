@@ -105,6 +105,6 @@ osmo_py_test(
         "//src/tests/common",
         "//src/utils/connectors:connectors",
     ],
-    size = "large",
+    size = "medium",
     tags = ["requires-network"],
 )

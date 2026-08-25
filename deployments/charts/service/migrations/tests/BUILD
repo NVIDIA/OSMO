@@ -27,6 +27,6 @@ osmo_py_test(
         "@rules_python//python/runfiles",
         requirement("psycopg2-binary"),
     ],
-    size = "large",
+    size = "medium",
     tags = ["requires-network"],
 )

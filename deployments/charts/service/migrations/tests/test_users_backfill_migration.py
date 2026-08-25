@@ -106,17 +106,17 @@ class UsersBackfillMigrationTest(
         with self.connection.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO users (id, created_by) "
-                "VALUES ('active@nvidia.com', 'existing-creator')")
+                "VALUES ('active@example.com', 'existing-creator')")
             cursor.execute(
-                "INSERT INTO workflows VALUES ('workflow', 'historical@nvidia.com')")
+                "INSERT INTO workflows VALUES ('workflow', 'historical@example.com')")
             cursor.execute(
-                "INSERT INTO apps VALUES ('app', 'owner@nvidia.com')")
+                "INSERT INTO apps VALUES ('app', 'owner@example.com')")
             cursor.execute(
-                "INSERT INTO app_versions VALUES ('app', 1, 'creator@nvidia.com')")
+                "INSERT INTO app_versions VALUES ('app', 1, 'creator@example.com')")
             cursor.execute(
-                "INSERT INTO credential VALUES ('active@nvidia.com', 'active')")
+                "INSERT INTO credential VALUES ('active@example.com', 'active')")
             cursor.execute(
-                "INSERT INTO credential VALUES ('orphan@nvidia.com', 'orphan')")
+                "INSERT INTO credential VALUES ('orphan@example.com', 'orphan')")
             cursor.execute("INSERT INTO workflows VALUES ('null-workflow', NULL)")
             cursor.execute("INSERT INTO apps VALUES ('null-app', NULL)")
             cursor.execute("INSERT INTO app_versions VALUES ('null-app', 1, NULL)")
@@ -129,14 +129,14 @@ class UsersBackfillMigrationTest(
             self.assertEqual(
                 cursor.fetchall(),
                 [
-                    ('active@nvidia.com', 'existing-creator'),
-                    ('creator@nvidia.com', 'migration'),
-                    ('historical@nvidia.com', 'migration'),
-                    ('owner@nvidia.com', 'migration'),
+                    ('active@example.com', 'existing-creator'),
+                    ('creator@example.com', 'migration'),
+                    ('historical@example.com', 'migration'),
+                    ('owner@example.com', 'migration'),
                 ],
             )
             cursor.execute('SELECT user_name FROM credential ORDER BY user_name')
-            self.assertEqual(cursor.fetchall(), [('active@nvidia.com',)])
+            self.assertEqual(cursor.fetchall(), [('active@example.com',)])
             cursor.execute(
                 '''
                 SELECT
@@ -164,30 +164,30 @@ class UsersBackfillMigrationTest(
 
     def test_deleting_user_cascades_credentials_but_retains_history(self):
         with self.connection.cursor() as cursor:
-            cursor.execute("INSERT INTO users (id) VALUES ('owner@nvidia.com')")
+            cursor.execute("INSERT INTO users (id) VALUES ('owner@example.com')")
             cursor.execute(
-                "INSERT INTO workflows VALUES ('workflow', 'owner@nvidia.com')")
-            cursor.execute("INSERT INTO apps VALUES ('app', 'owner@nvidia.com')")
+                "INSERT INTO workflows VALUES ('workflow', 'owner@example.com')")
+            cursor.execute("INSERT INTO apps VALUES ('app', 'owner@example.com')")
             cursor.execute(
-                "INSERT INTO app_versions VALUES ('app', 1, 'owner@nvidia.com')")
+                "INSERT INTO app_versions VALUES ('app', 1, 'owner@example.com')")
             cursor.execute(
-                "INSERT INTO credential VALUES ('owner@nvidia.com', 'credential')")
+                "INSERT INTO credential VALUES ('owner@example.com', 'credential')")
 
         self._run_migration()
 
         with self.connection.cursor() as cursor:
-            cursor.execute("DELETE FROM users WHERE id = 'owner@nvidia.com'")
+            cursor.execute("DELETE FROM users WHERE id = 'owner@example.com'")
             cursor.execute(
                 '''
                 SELECT
                     (SELECT COUNT(*) FROM credential
-                     WHERE user_name = 'owner@nvidia.com'),
+                     WHERE user_name = 'owner@example.com'),
                     (SELECT COUNT(*) FROM workflows
-                     WHERE submitted_by = 'owner@nvidia.com'),
+                     WHERE submitted_by = 'owner@example.com'),
                     (SELECT COUNT(*) FROM apps
-                     WHERE owner = 'owner@nvidia.com'),
+                     WHERE owner = 'owner@example.com'),
                     (SELECT COUNT(*) FROM app_versions
-                     WHERE created_by = 'owner@nvidia.com')
+                     WHERE created_by = 'owner@example.com')
                 ''')
             self.assertEqual(cursor.fetchone(), (0, 1, 1, 1))
 
@@ -268,7 +268,7 @@ class UsersBackfillMigrationTest(
                 cursor.execute("SET LOCAL lock_timeout = '200ms'")
                 with self.assertRaises(psycopg2.Error) as lock_error:
                     cursor.execute(
-                        "INSERT INTO workflows VALUES ('concurrent', 'writer@nvidia.com')")
+                        "INSERT INTO workflows VALUES ('concurrent', 'writer@example.com')")
                 self.assertEqual(lock_error.exception.pgcode, '55P03')
             writer.rollback()
 

@@ -3,7 +3,7 @@
 -- The source of truth for the schema is in the src/utils/connectors/postgres.py file
 
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT NOT NULL PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL DEFAULT ''
 );
