@@ -4631,7 +4631,8 @@ class Role(role.Role):
                 role_name
                 for role_name, role_data in snapshot.get('roles', {}).items()
                 if isinstance(role_data, dict)
-                and requested_roles.intersection(role_data.get('external_roles', []))
+                and requested_roles.intersection(
+                    role_data.get('external_roles') or [role_name])
             )
 
         fetch_cmd = '''

@@ -242,13 +242,29 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
                     'policies': [],
                     'external_roles': ['external-b'],
                 },
+                'role-default': {
+                    'description': 'Default mapping',
+                    'policies': [],
+                },
+                'role-null': {
+                    'description': 'Null mapping',
+                    'policies': [],
+                    'external_roles': None,
+                },
+                'role-empty': {
+                    'description': 'Empty mapping',
+                    'policies': [],
+                    'external_roles': [],
+                },
             },
         })
 
         result = connectors.Role.get_roles_by_external_roles(
-            postgres, ['external-b'])
+            postgres, [
+                'external-b', 'role-default', 'role-null', 'role-empty'])
 
-        self.assertEqual(result, ['role-b'])
+        self.assertEqual(
+            result, ['role-b', 'role-default', 'role-empty', 'role-null'])
 
     def test_backend_list_from_snapshot(self):
         """Backend.list_from_db returns backends from snapshot."""
