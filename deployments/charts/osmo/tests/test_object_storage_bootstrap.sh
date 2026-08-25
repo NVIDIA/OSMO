@@ -53,6 +53,9 @@ if [ "$1" = "s3api" ] && [ "$2" = "list-buckets" ]; then
     if [ "$attempts" -le "${AWS_FAKE_READINESS_FAILURES:-0}" ]; then
         exit 1
     fi
+    if [ -s "$FAKE_AWS_STATE/buckets" ]; then
+        paste -sd '\t' "$FAKE_AWS_STATE/buckets"
+    fi
     exit 0
 fi
 
@@ -122,18 +125,16 @@ fi
 
 run_bootstrap 2 3
 require_call_count "s3api list-buckets" 3
+require_call_count "s3api list-buckets --query Buckets[].Name --output text" 3
 require_file_contains "$FAKE_AWS_STATE/aws-config" "addressing_style = path"
-require_call_count "s3api head-bucket --bucket existing-workflows" 1
-require_call_count "s3api head-bucket --bucket missing-logs" 1
-require_call_count "s3api head-bucket --bucket missing-apps" 1
+require_call_count "s3api head-bucket" 0
 require_call_count "s3api create-bucket --bucket missing-logs" 1
 require_call_count "s3api create-bucket --bucket missing-apps" 1
 
 : >"$FAKE_AWS_STATE/calls"
 printf '%s\n' existing-workflows >"$FAKE_AWS_STATE/buckets"
 run_bootstrap 0 3 existing-workflows shared-bucket shared-bucket
-require_call_count "s3api head-bucket --bucket existing-workflows" 1
-require_call_count "s3api head-bucket --bucket shared-bucket" 1
+require_call_count "s3api head-bucket" 0
 require_call_count "s3api create-bucket --bucket shared-bucket" 1
 
 : >"$FAKE_AWS_STATE/calls"
@@ -141,9 +142,7 @@ printf '%s\n' existing-workflows >"$FAKE_AWS_STATE/buckets"
 printf '%s\n' missing-logs >>"$FAKE_AWS_STATE/buckets"
 printf '%s\n' missing-apps >>"$FAKE_AWS_STATE/buckets"
 run_bootstrap 0 3
-require_call_count "s3api head-bucket --bucket existing-workflows" 1
-require_call_count "s3api head-bucket --bucket missing-logs" 1
-require_call_count "s3api head-bucket --bucket missing-apps" 1
+require_call_count "s3api head-bucket" 0
 require_call_count "s3api create-bucket" 0
 
 : >"$FAKE_AWS_STATE/calls"

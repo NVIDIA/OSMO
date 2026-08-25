@@ -36,7 +36,8 @@ s3 =
 EOF
 
 attempt=1
-while ! aws s3api list-buckets >/dev/null 2>&1; do
+while ! existing_buckets=$(aws s3api list-buckets \
+    --query 'Buckets[].Name' --output text 2>/dev/null); do
     if [ "$attempt" -ge "$attempts" ]; then
         echo "object storage endpoint was not ready after $attempts attempts" >&2
         exit 1
@@ -58,7 +59,14 @@ $bucket
     seen_buckets="${seen_buckets}${bucket}
 "
 
-    if aws s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
+    bucket_exists=false
+    for existing_bucket in $existing_buckets; do
+        if [ "$existing_bucket" = "$bucket" ]; then
+            bucket_exists=true
+            break
+        fi
+    done
+    if [ "$bucket_exists" = true ]; then
         continue
     fi
     aws s3api create-bucket --bucket "$bucket"

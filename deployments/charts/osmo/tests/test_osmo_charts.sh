@@ -649,6 +649,8 @@ test_control_umbrella() {
             "topologySpreadConstraints:"
     done
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Cluster "osmo-pg"
+    require_resource "$TEST_DIRECTORY/quickstart.yaml" PersistentVolumeClaim \
+        "osmo-valkey"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
         "osmo-backend-token-bootstrap"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job "osmo-mek-bootstrap"
@@ -691,6 +693,15 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind-osmo"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "/home/"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "currentMek:"
+    require_contains "$charts_copy/osmo/profiles/README.md" "quickstart.yaml"
+    require_contains "$charts_copy/osmo/README.md" \
+        "deployments/charts/osmo/profiles/quickstart.yaml"
+    require_contains "$charts_copy/osmo/README.md" \
+        "helm --kube-context kind-osmo install osmo"
+    require_contains "$charts_copy/osmo/README.md" \
+        "kubectl --context kind-osmo"
+    require_contains "$charts_copy/osmo/README.md" \
+        "deployments/workflows/verify-hello.yaml"
 
     if helm_template_with_backend mismatched-converged-backend-token "$charts_copy/osmo" \
             --namespace osmo \

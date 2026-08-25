@@ -44,3 +44,9 @@ sh_test(
     srcs = ["osmo/tests/test_mek_bootstrap.sh"],
     data = ["osmo/files/mek-bootstrap.sh"],
 )
+
+sh_test(
+    name = "osmo_object_storage_bootstrap_test",
+    srcs = ["osmo/tests/test_object_storage_bootstrap.sh"],
+    data = ["osmo/files/object-storage-bootstrap.sh"],
+)

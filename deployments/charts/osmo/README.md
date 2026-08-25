@@ -19,7 +19,69 @@ credentials without Vault agent injection. The standalone `backend-operator`
 chart remains available for existing two-chart installations, but it is not a
 dependency of this chart.
 
-## Self-contained kind quick start
+## Minimal quick start
+
+The `quickstart.yaml` profile is a development-only path to a complete OSMO
+control plane, compute plane, and CPU hello-world workflow. Before installation,
+KAI Scheduler and the CloudNativePG operator must be healthy, and the cluster
+must have a working default dynamic StorageClass. These prerequisites are not
+installed by the profile.
+
+Install OSMO with the single quick-start values file:
+
+```bash
+helm dependency build deployments/charts/osmo
+helm --kube-context kind-osmo install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --create-namespace \
+  --values deployments/charts/osmo/profiles/quickstart.yaml \
+  --set-string compute.backendName=default \
+  --wait \
+  --timeout 20m
+```
+
+Forward the gateway in one terminal:
+
+```bash
+kubectl --context kind-osmo --namespace osmo \
+  port-forward service/osmo-gateway 8080:80
+```
+
+In another terminal, verify the API, log in, and submit the canonical smoke
+workflow:
+
+```bash
+curl --fail http://127.0.0.1:8080/api/version
+osmo login http://127.0.0.1:8080 --method=dev --username=testuser
+osmo workflow submit deployments/workflows/verify-hello.yaml \
+  --pool default \
+  --format-type json
+osmo workflow query <workflow-id> --format-type json
+```
+
+Repeat the query until the workflow status is `COMPLETED`. Clean up only the
+quick-start release and namespace:
+
+```bash
+helm --kube-context kind-osmo uninstall osmo --namespace osmo --wait
+kubectl --context kind-osmo delete namespace osmo \
+  --wait=true \
+  --timeout=10m
+```
+
+The profile runs one replica of every required OSMO service, including the
+delayed-job monitor, and uses persistent volumes for PostgreSQL (1 GiB), Valkey
+(512 MiB), and RustFS (1 GiB). OSMO service requests are generally 100 millicores
+and 256 MiB; the gateway requests 50 millicores and 64 MiB. It disables the UI,
+MCP, optional gateway authentication and rate limiting, TLS, ingress, monitoring,
+autoscaling, disruption budgets, backups, and HA behavior.
+
+This profile uses development authentication and is not a production security or
+availability configuration. Use a production profile with managed credentials,
+TLS, authorization, backups, suitable resource sizing, and HA dependencies for
+long-lived environments.
+
+## Full kind development profile
 
 The `kind-self-contained.yaml` profile is for development only. It expects an
 existing cluster with KAI Scheduler installed. CloudNativePG is intentionally a
