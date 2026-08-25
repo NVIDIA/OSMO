@@ -115,18 +115,14 @@ def osmo_py_test(
         **kwargs
     )
 
-def osmo_python_wrapper(
+def _osmo_python_wrapper_script(
         name,
         bin_name,
         main,
         runfiles_dir,
-        package_dir = "/usr/bin",
         python_interpreter = "/usr/bin/python3"):
-
-    # Generate the wrapper script
-    wrapper_target = name + "_script"
     native.genrule(
-        name = wrapper_target,
+        name = name,
         outs = [bin_name],
         cmd = """
             cat > $@ << 'EOF'
@@ -166,11 +162,46 @@ EOF
         ),
     )
 
+    return name
+
+def osmo_python_wrapper(
+        name,
+        bin_name,
+        main,
+        runfiles_dir,
+        package_dir = "/usr/bin",
+        python_interpreter = "/usr/bin/python3",
+        include_progress_check = False):
+
+    wrapper_targets = [
+        _osmo_python_wrapper_script(
+            name = name + "_script",
+            bin_name = bin_name,
+            main = main,
+            runfiles_dir = runfiles_dir,
+            python_interpreter = python_interpreter,
+        ),
+    ]
+    if include_progress_check:
+        progress_check_bin_name = name + "_progress_check"
+        wrapper_targets.append(
+            _osmo_python_wrapper_script(
+                name = name + "_progress_check_script",
+                bin_name = progress_check_bin_name,
+                main = "/src/utils/progress_check/progress_check.py",
+                runfiles_dir = runfiles_dir,
+                python_interpreter = python_interpreter,
+            ),
+        )
+
     # Package the wrapper into a tarball
     pkg_tar(
         name = name,
         extension = "tgz",
-        srcs = [wrapper_target],
+        srcs = wrapper_targets,
         mode = "0755",
         package_dir = package_dir,
+        remap_paths = {
+            "/" + progress_check_bin_name: "/progress_check",
+        } if include_progress_check else {},
     )

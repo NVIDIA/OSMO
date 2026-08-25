@@ -69,6 +69,7 @@ osmo_python_wrapper(
     bin_name = "backend_listener",
     main = "/src/operator/backend_listener.py",
     runfiles_dir = "/src/operator/backend_listener_binary.runfiles",
+    include_progress_check = True,
 )
 
 filegroup(
@@ -89,7 +90,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
         ":backend_listener_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -130,7 +130,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
         ":backend_listener_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -203,6 +202,7 @@ osmo_python_wrapper(
     bin_name = "backend_worker",
     main = "/src/operator/backend_worker.py",
     runfiles_dir = "/src/operator/backend_worker_binary.runfiles",
+    include_progress_check = True,
 )
 
 filegroup(
@@ -223,7 +223,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
         ":backend_worker_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -264,7 +263,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
         ":backend_worker_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

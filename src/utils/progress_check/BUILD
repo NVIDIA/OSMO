@@ -14,8 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
+load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_library(
@@ -28,37 +27,6 @@ osmo_py_library(
         requirement("pydantic"),
         requirement("aiofiles"),
         "//src/utils:static_config",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_binary(
-    name = "progress_check_binary",
-    srcs = ["progress_check.py"],
-    main = "progress_check.py",
-    deps = [
-        ":progress_check_lib",
-    ],
-)
-
-py_image_layer(
-    name = "progress_check_layer",
-    binary = ":progress_check_binary",
-)
-
-osmo_python_wrapper(
-    name = "progress_check_wrapper",
-    bin_name = "progress_check",
-    main = "/src/utils/progress_check/progress_check.py",
-    runfiles_dir = "/src/utils/progress_check/progress_check_binary.runfiles",
-)
-
-filegroup(
-    name = "progress_check_image_layers",
-    srcs = [
-        ":progress_check_layer_default",
-        ":progress_check_layer_packages",
-        ":progress_check_wrapper",
     ],
     visibility = ["//visibility:public"],
 )
