@@ -649,8 +649,20 @@ test_control_umbrella() {
             "topologySpreadConstraints:"
     done
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Cluster "osmo-pg"
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" Cluster "osmo-pg" \
+        >"$TEST_DIRECTORY/quickstart-postgresql.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-postgresql.yaml" "instances: 1"
+    require_contains "$TEST_DIRECTORY/quickstart-postgresql.yaml" "size: 1Gi"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" PersistentVolumeClaim \
         "osmo-valkey"
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" PersistentVolumeClaim \
+        "osmo-valkey" >"$TEST_DIRECTORY/quickstart-valkey-pvc.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-valkey-pvc.yaml" "storage: 512Mi"
+    require_resource "$TEST_DIRECTORY/quickstart.yaml" PersistentVolumeClaim \
+        "osmo-rustfs-data"
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" PersistentVolumeClaim \
+        "osmo-rustfs-data" >"$TEST_DIRECTORY/quickstart-rustfs-pvc.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-rustfs-pvc.yaml" "storage: 1Gi"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
         "osmo-backend-token-bootstrap"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job "osmo-mek-bootstrap"
@@ -702,6 +714,10 @@ test_control_umbrella() {
         "kubectl --context kind-osmo"
     require_contains "$charts_copy/osmo/README.md" \
         "deployments/workflows/verify-hello.yaml"
+    require_contains "$charts_copy/osmo/README.md" \
+        "PostgreSQL requests 1 CPU and 2 GiB"
+    require_contains "$charts_copy/osmo/README.md" \
+        "approximately 2.85 CPU and 6.1 GiB"
 
     if helm_template_with_backend mismatched-converged-backend-token "$charts_copy/osmo" \
             --namespace osmo \

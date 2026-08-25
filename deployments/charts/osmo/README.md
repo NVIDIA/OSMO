@@ -71,10 +71,18 @@ kubectl --context kind-osmo delete namespace osmo \
 
 The profile runs one replica of every required OSMO service, including the
 delayed-job monitor, and uses persistent volumes for PostgreSQL (1 GiB), Valkey
-(512 MiB), and RustFS (1 GiB). OSMO service requests are generally 100 millicores
-and 256 MiB; the gateway requests 50 millicores and 64 MiB. It disables the UI,
-MCP, optional gateway authentication and rate limiting, TLS, ingress, monitoring,
-autoscaling, disruption budgets, backups, and HA behavior.
+(512 MiB), and RustFS (1 GiB). PostgreSQL requests 1 CPU and 2 GiB, while Valkey
+and RustFS each request 500 millicores and 1 GiB. The eight OSMO services request
+100 millicores and 256 MiB each, and the gateway requests 50 millicores and
+64 MiB. Those long-running pods reserve approximately 2.85 CPU and 6.1 GiB
+before Kubernetes, KAI, and CloudNativePG operator overhead.
+
+The canonical hello-world pod additionally requests 1 CPU, 1 GiB of memory, and
+1 GiB of ephemeral storage for both its user container and its `osmo-ctrl`
+container. Ensure an eligible worker has at least 2 CPU, 2 GiB of memory, and
+2 GiB of ephemeral storage available for that workflow. The profile disables
+the UI, MCP, optional gateway authentication and rate limiting, TLS, ingress,
+monitoring, autoscaling, disruption budgets, backups, and HA behavior.
 
 This profile uses development authentication and is not a production security or
 availability configuration. Use a production profile with managed credentials,
