@@ -139,28 +139,28 @@ python.single_version_platform_override(
     coverage_tool = "@python_coverage_linux_x86_64//:coverage",
     platform = "x86_64-unknown-linux-gnu",
     python_version = PYTHON_VERSION,
-    sha256 = "490953e4a7e97a6ed64d0f0bd04f2d4d9a7bb45368890d3fa32ba05d0ff5c48f",
+    sha256 = "cefba034445d2875408d1fd4d5700ae6731563aeb54dcb39fd8164ab5c457533",
     strip_prefix = "python",
     urls = [
-        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-x86_64-unknown-linux-gnu-install_only.tar.gz",
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
     ],
 )
 python.single_version_platform_override(
     platform = "aarch64-unknown-linux-gnu",
     python_version = PYTHON_VERSION,
-    sha256 = "5bad659dc6d686b430f60104d53abfecb1cd93de37b8aaa112f10f0cea2cb655",
+    sha256 = "86dfb106b303fa6a1991f7da42ced3e11576f777be299b3162e06617b6d22542",
     strip_prefix = "python",
     urls = [
-        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-aarch64-unknown-linux-gnu-install_only.tar.gz",
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
     ],
 )
 python.single_version_platform_override(
     platform = "aarch64-apple-darwin",
     python_version = PYTHON_VERSION,
-    sha256 = "eded2b762929116a4e68ad1128e55f0728f502e93c90454e3b5f79da7a2cda40",
+    sha256 = "423717c485b9ee7822590b9d973c1b5fb2cda0fe43448ab82a3d44f823bd329c",
     strip_prefix = "python",
     urls = [
-        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-aarch64-apple-darwin-install_only.tar.gz",
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-aarch64-apple-darwin-install_only_stripped.tar.gz",
     ],
 )
 use_repo(
