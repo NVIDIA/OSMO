@@ -553,6 +553,46 @@ class PostgresConnector:
                 if cur is not None:
                     cur.close()
 
+    @retry
+    def assign_user_role(self, user_id: str, role_name: str, assigned_by: str,
+                         assigned_at: datetime.datetime) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cur = None
+            try:
+                cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cur.execute(
+                    'SELECT name FROM roles WHERE name = %s FOR KEY SHARE;',
+                    (role_name,))
+                if not cur.fetchone():
+                    conn.commit()
+                    return []
+
+                cur.execute('''
+                    INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (user_id, role_name)
+                    DO UPDATE SET user_id = EXCLUDED.user_id
+                    RETURNING id, assigned_by, assigned_at;
+                ''', (user_id, role_name, assigned_by, assigned_at))
+                rows = cur.fetchall()
+                cur.close()
+                conn.commit()
+                return rows
+            except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+                try:
+                    if cur is not None:
+                        cur.close()
+                    conn.rollback()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                raise error
+            except Exception as error:  # pylint: disable=broad-except
+                raise osmo_errors.OSMODatabaseError(
+                    f'Error during assigning user role: {error}')
+            finally:
+                if cur is not None:
+                    cur.close()
+
     @retry(reconnect=False)
     def execute_autocommit_command(self, command: str, args: Tuple):
         """
@@ -4628,7 +4668,8 @@ class Role(role.Role):
         if snapshot is not None:
             requested_roles = set(external_roles)
 
-            def mapped_external_roles(role_name: str, role_data: Dict) -> List[str]:
+            def mapped_external_roles(role_name: str,
+                                      role_data: Dict[str, Any]) -> List[str]:
                 configured_roles = role_data.get('external_roles')
                 if isinstance(configured_roles, list) and configured_roles:
                     return configured_roles
@@ -4655,6 +4696,7 @@ class Role(role.Role):
         cls.fetch_from_db(database, name)
 
         database.execute_commit_commands([
+            ('SELECT name FROM roles WHERE name = %s FOR UPDATE;', (name,)),
             ('DELETE FROM user_roles WHERE role_name = %s;', (name,)),
             ('DELETE FROM roles WHERE name = %s;', (name,)),
         ])

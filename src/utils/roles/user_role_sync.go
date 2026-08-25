@@ -109,6 +109,22 @@ func syncAndReturnRoles(
 	userName string,
 	externalRoles []string,
 ) (*syncResult, error) {
+	tx, err := client.Pool().Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin sync transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	lockRows, err := tx.Query(ctx, `
+		SELECT name FROM roles WHERE sync_mode != $1 FOR KEY SHARE`, SyncModeIgnore)
+	if err != nil {
+		return nil, fmt.Errorf("lock sync roles: %w", err)
+	}
+	lockRows.Close()
+	if err := lockRows.Err(); err != nil {
+		return nil, fmt.Errorf("lock sync roles: %w", err)
+	}
+
 	// Each row comes back as (role_name, change_type) where change_type is
 	// 'added', 'removed', or 'existing'.
 	query := `
@@ -166,13 +182,11 @@ func syncAndReturnRoles(
 		  AND role_name NOT IN (SELECT role_name FROM inserted)
 		  AND role_name NOT IN (SELECT role_name FROM deleted)`
 
-	rows, err := client.Pool().Query(
+	rows, err := tx.Query(
 		ctx, query, userName, externalRoles, SyncModeIgnore, idpSyncAssigner)
 	if err != nil {
 		return nil, fmt.Errorf("exec sync query: %w", err)
 	}
-	defer rows.Close()
-
 	res := &syncResult{}
 	for rows.Next() {
 		var name, changeType string
@@ -189,5 +203,12 @@ func syncAndReturnRoles(
 			res.RoleNames = append(res.RoleNames, name)
 		}
 	}
-	return res, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit sync transaction: %w", err)
+	}
+	return res, nil
 }

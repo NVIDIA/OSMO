@@ -16,9 +16,13 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+# pylint: disable=protected-access
+
+import threading
 from typing import Any, Dict, List, Optional
 
-from src.service.core.auth import objects
+from src.lib.utils import osmo_errors
+from src.service.core.auth import auth_service, objects
 from src.service.core.tests import fixture
 from src.utils import configmap_state, connectors
 from src.tests.common import runner
@@ -447,6 +451,40 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertNotIn(
             'osmo-admin',
             self._get_access_token_roles(self.TEST_USER, 'deleted-role-token'))
+
+    def test_assignment_waiting_on_role_deletion_cannot_create_orphan(self):
+        user_id = 'race@example.com'
+        self._create_user(user_id)
+        postgres = connectors.PostgresConnector.get_instance()
+        assignment_outcome: List[Any] = []
+
+        def assign_role():
+            try:
+                assignment_outcome.append(auth_service.assign_role_to_user(
+                    user_id, objects.AssignRoleRequest(role_name='osmo-admin'), 'test'))
+            except Exception as error:  # pylint: disable=broad-except
+                assignment_outcome.append(error)
+
+        with postgres._get_connection() as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                'SELECT name FROM roles WHERE name = %s FOR UPDATE;', ('osmo-admin',))
+            assignment_thread = threading.Thread(target=assign_role)
+            assignment_thread.start()
+            assignment_thread.join(timeout=0.2)
+            self.assertTrue(assignment_thread.is_alive())
+
+            cursor.execute('DELETE FROM user_roles WHERE role_name = %s;', ('osmo-admin',))
+            cursor.execute('DELETE FROM roles WHERE name = %s;', ('osmo-admin',))
+            connection.commit()
+
+        assignment_thread.join(timeout=5)
+        self.assertFalse(assignment_thread.is_alive())
+        self.assertEqual(len(assignment_outcome), 1)
+        self.assertIsInstance(assignment_outcome[0], osmo_errors.OSMOUserError)
+        rows = postgres.execute_fetch_command(
+            'SELECT 1 FROM user_roles WHERE role_name = %s;', ('osmo-admin',), True)
+        self.assertEqual(rows, [])
 
     def test_remove_role_cascades_to_multiple_access_tokens(self):
         """Test that removing a role cascades to all of user's access tokens."""

@@ -27,7 +27,7 @@ import fastapi
 from src.lib.utils import common, osmo_errors
 from src.utils.job import task as task_lib
 from src.service.core.auth import backend_secret_auth, objects
-from src.utils import auth, connectors
+from src.utils import auth, configmap_state, connectors
 
 
 router = fastapi.APIRouter(
@@ -462,6 +462,23 @@ def _validate_role_exists(postgres: connectors.PostgresConnector, role_name: str
     connectors.Role.fetch_from_db(postgres, role_name)
 
 
+def _insert_user_role(postgres: connectors.PostgresConnector, user_id: str,
+                      role_name: str, assigned_by: str,
+                      assigned_at: datetime.datetime) -> List[dict]:
+    if configmap_state.get_snapshot() is not None:
+        _validate_role_exists(postgres, role_name)
+        insert_cmd = '''
+            INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, role_name) DO UPDATE SET user_id = EXCLUDED.user_id
+            RETURNING id, assigned_by, assigned_at;
+        '''
+        return postgres.execute_fetch_command(
+            insert_cmd, (user_id, role_name, assigned_by, assigned_at), True)
+
+    return postgres.assign_user_role(user_id, role_name, assigned_by, assigned_at)
+
+
 def _validate_user_exists(postgres: connectors.PostgresConnector, user_id: str):
     """Validate that a user exists in the database."""
     if not _get_user_from_db(postgres, user_id):
@@ -638,13 +655,7 @@ def create_user(
     # Assign initial roles if provided
     if request.roles:
         for role_name in request.roles:
-            assign_cmd = '''
-                INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (user_id, role_name) DO NOTHING;
-            '''
-            postgres.execute_commit_command(
-                assign_cmd, (request.id, role_name, created_by, now))
+            _insert_user_role(postgres, request.id, role_name, created_by, now)
 
     row = result[0]
     return objects.User(
@@ -751,24 +762,17 @@ def assign_role_to_user(
     _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Validate role exists (user existence is enforced by FK constraint on user_roles)
-    _validate_role_exists(postgres, request.role_name)
-
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    # Insert role assignment (idempotent - returns existing if already assigned)
-    # FK constraint on user_id will reject if user doesn't exist
-    insert_cmd = '''
-        INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (user_id, role_name) DO UPDATE SET user_id = EXCLUDED.user_id
-        RETURNING id, assigned_by, assigned_at;
-    '''
     try:
-        result = postgres.execute_fetch_command(
-            insert_cmd, (user_id, request.role_name, assigned_by, now), True)
+        result = _insert_user_role(
+            postgres, user_id, request.role_name, assigned_by, now)
     except osmo_errors.OSMODatabaseError as err:
         raise osmo_errors.OSMOUserError(f'User {user_id} not found') from err
+
+    if not result:
+        raise osmo_errors.OSMOUserError(
+            f'Role {request.role_name} does not exist.')
 
     row = result[0]
     return objects.UserRoleAssignment(
@@ -885,15 +889,12 @@ def bulk_assign_role(
         if existing:
             already_assigned.append(user_id)
         else:
-            # Assign role
-            insert_cmd = '''
-                INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (user_id, role_name) DO NOTHING;
-            '''
-            postgres.execute_commit_command(
-                insert_cmd, (user_id, role_name, assigned_by, now))
-            assigned.append(user_id)
+            result = _insert_user_role(
+                postgres, user_id, role_name, assigned_by, now)
+            if result:
+                assigned.append(user_id)
+            else:
+                raise osmo_errors.OSMOUserError(f'Role {role_name} does not exist.')
 
     return objects.BulkAssignResponse(
         role_name=role_name,
