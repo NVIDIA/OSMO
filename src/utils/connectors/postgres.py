@@ -1163,7 +1163,7 @@ class PostgresConnector:
             CREATE TABLE IF NOT EXISTS user_roles (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+                role_name TEXT NOT NULL,
                 assigned_by TEXT NOT NULL,
                 assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 UNIQUE (user_id, role_name)
@@ -4623,6 +4623,16 @@ class Role(role.Role):
         """
         if not external_roles:
             return []
+
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            requested_roles = set(external_roles)
+            return sorted(
+                role_name
+                for role_name, role_data in snapshot.get('roles', {}).items()
+                if isinstance(role_data, dict)
+                and requested_roles.intersection(role_data.get('external_roles', []))
+            )
 
         fetch_cmd = '''
             SELECT DISTINCT role_name FROM role_external_mappings

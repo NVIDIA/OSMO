@@ -458,11 +458,8 @@ def _get_user_role_names(postgres: connectors.PostgresConnector,
 
 
 def _validate_role_exists(postgres: connectors.PostgresConnector, role_name: str):
-    """Validate that a role exists in the database."""
-    fetch_cmd = 'SELECT 1 FROM roles WHERE name = %s;'
-    rows = postgres.execute_fetch_command(fetch_cmd, (role_name,), True)
-    if not rows:
-        raise osmo_errors.OSMOUserError(f'Role {role_name} does not exist')
+    """Validate that a role exists in the active config source."""
+    connectors.Role.fetch_from_db(postgres, role_name)
 
 
 def _validate_user_exists(postgres: connectors.PostgresConnector, user_id: str):

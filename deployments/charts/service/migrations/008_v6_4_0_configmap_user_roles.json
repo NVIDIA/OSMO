@@ -1,0 +1,16 @@
+{
+  "operations": [
+    {
+      "drop_multicolumn_constraint": {
+        "table": "user_roles",
+        "name": "fk_user_roles_role",
+        "up": {
+          "role_name": "role_name"
+        },
+        "down": {
+          "role_name": "role_name"
+        }
+      }
+    }
+  ]
+}

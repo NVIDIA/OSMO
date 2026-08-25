@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from src.service.core.auth import objects
 from src.service.core.tests import fixture
-from src.utils import connectors
+from src.utils import configmap_state, connectors
 from src.tests.common import runner
 
 
@@ -32,6 +32,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
 
     def setUp(self):
         super().setUp()
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
         # Set default auth header to TEST_USER
         self.client.headers['x-osmo-user'] = self.TEST_USER
         # Clean up test users from previous tests to ensure isolation
@@ -41,6 +43,11 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self._create_test_role('osmo-admin', 'Admin role')
         self._create_test_role('osmo-ml-team', 'ML team role')
         self._create_test_role('osmo-dev-team', 'Dev team role')
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+        super().tearDown()
 
     def _cleanup_test_users(self):
         """Clean up test users to ensure test isolation."""
@@ -168,6 +175,29 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         role_names = [r['role_name'] for r in user_details['roles']]
         self.assertIn('osmo-user', role_names)
         self.assertIn('osmo-ml-team', role_names)
+
+    def test_create_user_with_configmap_only_role(self):
+        postgres = connectors.PostgresConnector.get_instance()
+        postgres.execute_commit_command(
+            'DELETE FROM roles WHERE name = %s;', ('configmap-only-role',))
+        configmap_state.set_parsed_configs({
+            'roles': {
+                'configmap-only-role': {
+                    'description': 'ConfigMap-only role',
+                    'policies': [],
+                },
+            },
+        })
+        configmap_state.set_configmap_mode(True)
+
+        self._create_user(
+            'configmap-role-user@example.com', roles=['configmap-only-role'])
+
+        user_details = self._get_user('configmap-role-user@example.com')
+        self.assertEqual(
+            [role['role_name'] for role in user_details['roles']],
+            ['configmap-only-role'],
+        )
 
     def test_create_user_duplicate_fails(self):
         """Test that creating a duplicate user fails."""

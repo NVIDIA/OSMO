@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE TABLE IF NOT EXISTS user_roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+    role_name TEXT NOT NULL,
     assigned_by TEXT NOT NULL DEFAULT '',
     assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, role_name)
@@ -65,4 +65,3 @@ CREATE TABLE IF NOT EXISTS workflows (
 
 CREATE INDEX IF NOT EXISTS workflow_labels_gin_idx
     ON workflows USING gin (labels jsonb_ops);
-

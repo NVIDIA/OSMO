@@ -228,6 +228,28 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         names = {r.name for r in result}
         self.assertEqual(names, {'role-a', 'role-b'})
 
+    def test_roles_by_external_roles_from_snapshot(self):
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'roles': {
+                'role-a': {
+                    'description': 'A',
+                    'policies': [],
+                    'external_roles': ['external-a'],
+                },
+                'role-b': {
+                    'description': 'B',
+                    'policies': [],
+                    'external_roles': ['external-b'],
+                },
+            },
+        })
+
+        result = connectors.Role.get_roles_by_external_roles(
+            postgres, ['external-b'])
+
+        self.assertEqual(result, ['role-b'])
+
     def test_backend_list_from_snapshot(self):
         """Backend.list_from_db returns backends from snapshot."""
         postgres = self._get_postgres()
