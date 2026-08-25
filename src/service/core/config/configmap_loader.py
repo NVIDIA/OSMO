@@ -278,7 +278,7 @@ class ConfigMapWatcher:
         if self._enable_reconciliation:
             try:
                 reconciled = _reconcile_backend_side_effects(
-                    reconciliation_baseline, managed_configs,
+                    reconciliation_baseline, managed_configs, self._postgres,
                     self._backend_queue_updater, self._backend_test_updater)
                 if reconciled:
                     self._last_reconciled_snapshot = copy.deepcopy(managed_configs)
@@ -562,10 +562,21 @@ def _affected_backends_for_test_sync(
 def _reconcile_backend_side_effects(
     previous: Dict[str, Any] | None,
     current: Dict[str, Any],
+    postgres: connectors.PostgresConnector | None,
     backend_queue_updater: Callable[..., bool] | None,
     backend_test_updater: Callable[..., bool] | None,
 ) -> bool:
     """Queue backend sync jobs for ConfigMap-driven config changes."""
+    if postgres is None:
+        logging.warning(
+            'ConfigMap backend reconciliation enabled without Postgres')
+        return False
+
+    role_names = list(current.get('roles', {}))
+    postgres.execute_commit_command(
+        'DELETE FROM user_roles WHERE NOT (role_name = ANY(%s));',
+        (role_names,))
+
     if backend_queue_updater is None or backend_test_updater is None:
         logging.warning(
             'ConfigMap backend reconciliation enabled without enqueue callbacks')

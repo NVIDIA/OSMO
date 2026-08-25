@@ -1885,6 +1885,31 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_api_user_role_reconcile_failure_retries_without_failing_reload(self):
+        path = self._write_config_file(_with_service_auth({
+            'roles': {
+                'current-role': {'description': 'current', 'policies': []},
+            },
+        }))
+        try:
+            postgres = _postgres_with_service_auth()
+            postgres.execute_commit_command.side_effect = [
+                RuntimeError('database unavailable'), None]
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, postgres, enable_reconciliation=True,
+                backend_queue_updater=mock.MagicMock(return_value=True),
+                backend_test_updater=mock.MagicMock(return_value=True))
+
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            self.assertIsNone(watcher._last_reconciled_snapshot)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            self.assertIsNotNone(watcher._last_reconciled_snapshot)
+            self.assertEqual(postgres.execute_commit_command.call_count, 2)
+        finally:
+            os.unlink(path)
+
     def test_api_reconcile_removed_backend_queues_cleanup(self):
         now = datetime.datetime.now(datetime.timezone.utc)
         old_snapshot: Dict[str, Any] = {

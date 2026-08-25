@@ -20,7 +20,7 @@ import logging
 import re
 import secrets
 import time
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import fastapi
 
@@ -464,7 +464,7 @@ def _validate_role_exists(postgres: connectors.PostgresConnector, role_name: str
 
 def _insert_user_role(postgres: connectors.PostgresConnector, user_id: str,
                       role_name: str, assigned_by: str,
-                      assigned_at: datetime.datetime) -> List[dict]:
+                      assigned_at: datetime.datetime) -> List[Dict[str, Any]]:
     if configmap_state.get_snapshot() is not None:
         _validate_role_exists(postgres, role_name)
         insert_cmd = '''

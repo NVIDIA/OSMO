@@ -396,6 +396,70 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         finally:
             os.unlink(temp_file.name)
 
+    def test_api_watcher_reconciles_user_roles_from_snapshot(self):
+        postgres = self._get_postgres()
+        user_id = 'configmap-roles@example.com'
+        postgres.execute_commit_command(
+            'INSERT INTO users (id, created_by) VALUES (%s, %s);',
+            (user_id, 'test'))
+        postgres.execute_commit_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, %s, %s), (%s, %s, %s);
+        ''', (user_id, 'current-role', 'test', user_id, 'stale-role', 'test'))
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp_file:
+            yaml.dump(_with_service_auth({
+                'roles': {
+                    'current-role': {'description': 'current', 'policies': []},
+                },
+            }), temp_file)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                temp_file.name, postgres, enable_reconciliation=True,
+                backend_queue_updater=lambda *_args, **_kwargs: True,
+                backend_test_updater=lambda *_args, **_kwargs: True)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            rows = postgres.execute_fetch_command(
+                'SELECT role_name FROM user_roles WHERE user_id = %s;',
+                (user_id,), True)
+            self.assertEqual([row['role_name'] for row in rows], ['current-role'])
+
+            with open(temp_file.name, 'w', encoding='utf-8') as config_file:
+                yaml.dump(_with_service_auth({'roles': {}}), config_file)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            rows = postgres.execute_fetch_command(
+                'SELECT role_name FROM user_roles WHERE user_id = %s;',
+                (user_id,), True)
+            self.assertEqual(rows, [])
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_non_api_watcher_does_not_reconcile_user_roles(self):
+        postgres = self._get_postgres()
+        user_id = 'non-api-configmap-roles@example.com'
+        postgres.execute_commit_command(
+            'INSERT INTO users (id, created_by) VALUES (%s, %s);',
+            (user_id, 'test'))
+        postgres.execute_commit_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, %s, %s);
+        ''', (user_id, 'stale-role', 'test'))
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp_file:
+            yaml.dump(_with_service_auth({'roles': {}}), temp_file)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(temp_file.name, postgres)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            rows = postgres.execute_fetch_command(
+                'SELECT role_name FROM user_roles WHERE user_id = %s;',
+                (user_id,), True)
+            self.assertEqual([row['role_name'] for row in rows], ['stale-role'])
+        finally:
+            os.unlink(temp_file.name)
+
     def test_watcher_resolves_pool_parsed_fields(self):
         """ConfigMapWatcher resolves parsed_pod_template from references."""
         config = {
