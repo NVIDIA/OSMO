@@ -4,6 +4,9 @@ Use this reference when the user asks about workflow status, logs, live metrics,
 dashboard links, recent workflows, end-to-end monitoring, or what a workflow
 does.
 
+The command blocks below are the CLI form. When MCP is selected, preserve the
+same procedure and use the matching tool in `interface-routing.md`.
+
 ## List Workflows
 
 Use when the user wants to see all or recent workflows.

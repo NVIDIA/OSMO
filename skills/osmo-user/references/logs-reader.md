@@ -13,6 +13,7 @@ the main agent can use without holding large raw logs in context.
 The main agent will tell you:
 
 - **Workflow ID** — the OSMO workflow identifier (e.g. `my-workflow-abc123`)
+- **Assigned interface** — `MCP` or `CLI`; do not switch or probe the other route
 - **Tasks to read** — either:
   - A list of specific task names (e.g. `["train", "eval"]`)
   - `"all"` — meaning fetch overall (un-split) logs
@@ -22,7 +23,8 @@ The main agent will tell you:
 
 ## Step 1: Determine task list (only when told `"auto"`)
 
-If the main agent said `"auto"`, query the workflow to find its tasks:
+If the main agent said `"auto"`, query the workflow to find its tasks. On MCP,
+use `osmo_get_workflow`; on CLI, run:
 
 ```
 osmo workflow query <workflow_id> --format-type json
@@ -36,8 +38,9 @@ logs (treat as `"all"`).
 
 ## Step 2: Fetch logs
 
-All log-fetching commands stream live output, so **run each with a 5-second
-timeout** and use whatever was captured — do not wait for the stream to end.
+On MCP, use `osmo_get_workflow_logs` with the workflow ID, optional task name,
+and `last_n_lines=10000`. On CLI, log commands stream live output, so **run
+each with a 5-second timeout** and use whatever was captured.
 
 **Overall logs** (when tasks = `"all"` or > 5 tasks):
 
