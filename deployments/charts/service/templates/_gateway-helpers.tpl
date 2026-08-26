@@ -93,3 +93,16 @@ Use:
 {{- end }}
 {{- toYaml $probe }}
 {{- end }}
+
+{{/*
+Per-route config that turns off gateway authentication and authorization.
+Used by the MCP routes, where FastMCP is authoritative for the request.
+*/}}
+{{- define "osmo.gateway-auth-filters-disabled" -}}
+envoy.filters.http.jwt_authn:
+  "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+  disabled: true
+envoy.filters.http.ext_authz:
+  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+  disabled: true
+{{- end -}}

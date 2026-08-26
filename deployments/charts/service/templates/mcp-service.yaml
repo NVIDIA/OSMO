@@ -149,11 +149,20 @@
 {{- $redisScheme := ternary "rediss" "redis" $oidcProxy.redis.tlsEnabled }}
 {{- $redisUrl = printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
 {{- end }}
+{{- if not (kindIs "slice" $mcp.allowedOrigins) }}
+{{- fail "services.mcp.allowedOrigins must be a list" }}
+{{- end }}
+{{- range $origin := $mcp.allowedOrigins }}
+{{- if not (regexMatch "^https?://[^/?#]+$" $origin) }}
+{{- fail (printf "services.mcp.allowedOrigins entry %q must be an exact HTTP(S) Origin without a path" $origin) }}
+{{- end }}
+{{- end }}
 {{- $reservedEnvNames := list
       "OSMO_MCP_HOST"
       "OSMO_MCP_PORT"
       "OSMO_GATEWAY_URL"
       "OSMO_MCP_REQUEST_TIMEOUT_SECONDS"
+      "OSMO_MCP_ALLOWED_ORIGINS"
       "OSMO_MCP_AUTH_ENABLED"
       "OSMO_MCP_AUTH_ISSUER_URL"
       "OSMO_MCP_AUTH_RESOURCE_URL"
@@ -244,6 +253,8 @@ spec:
           value: {{ $gatewayUrl | quote }}
         - name: OSMO_MCP_REQUEST_TIMEOUT_SECONDS
           value: {{ $requestTimeoutSeconds | quote }}
+        - name: OSMO_MCP_ALLOWED_ORIGINS
+          value: {{ join "," $mcp.allowedOrigins | quote }}
         - name: OSMO_MCP_AUTH_ENABLED
           value: {{ $oidcProxyEnabled | quote }}
         {{- if $oidcProxyEnabled }}

@@ -180,45 +180,43 @@ for expected in \
   assert_file_contains "$PROXY_MCP_MANIFEST" "$expected"
 done
 
+# FastMCP's OAuth endpoints are published under /mcp, so the gateway needs one
+# prefix route rather than an entry per endpoint name.
 for route in \
     mcp-protected-resource-metadata \
-    mcp-oauth-authorization-server-metadata \
-    mcp-oauth-authorize-get \
-    mcp-oauth-authorize-post \
-    mcp-oauth-oidc-callback \
-    mcp-oauth-register \
-    mcp-oauth-token \
-    mcp-oauth-consent-get \
-    mcp-oauth-consent-post \
-    mcp-oauth-authorization-server-metadata-options \
-    mcp-oauth-authorize-options \
-    mcp-oauth-oidc-callback-options \
-    mcp-oauth-register-options \
-    mcp-oauth-token-options \
-    mcp-oauth-consent-options; do
+    mcp-oauth \
+    mcp-authorization-server-metadata; do
   assert_route_contains "$PROXY_RENDERED_MANIFEST" "$route" 'cluster: osmo-mcp'
   assert_route_contains "$PROXY_RENDERED_MANIFEST" "$route" 'envoy.filters.http.jwt_authn:'
   assert_route_contains "$PROXY_RENDERED_MANIFEST" "$route" 'envoy.filters.http.ext_authz:'
 done
+# Scope the rewrite assertions to their routes: a file-wide grep for
+# 'prefix_rewrite: /' also matches the well-known route's longer value.
+assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-oauth 'prefix: /mcp/'
+assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-oauth 'prefix_rewrite: /'
+assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-authorization-server-metadata \
+  'path: /.well-known/oauth-authorization-server/mcp'
+assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-authorization-server-metadata \
+  'prefix_rewrite: /.well-known/oauth-authorization-server'
+
+# The health carve-out must answer 404 itself. Without the auth filters
+# disabled, jwt_authn answers 401 first and the carve-out is dead code that
+# only looks like it works.
+assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-health-not-public 'status: 404'
+assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-health-not-public \
+  'envoy.filters.http.jwt_authn:'
+assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-health-not-public \
+  'envoy.filters.http.ext_authz:'
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_ENABLED true
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_ISSUER_URL https://osmo.example.com
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_RESOURCE_URL https://osmo.example.com/mcp
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_SCOPE https://osmo.example.com/mcp/access_as_user
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_REDIS_URL rediss://proxy-redis.example.internal:6380/14
 
-for expected in \
-    'path: /.well-known/oauth-authorization-server' \
-    'path: /authorize' \
-    'path: /auth/callback' \
-    'path: /register' \
-    'path: /token' \
-    'path: /consent' \
-    'name: mcp-protected-resource-metadata' \
-    'name: osmo-mcp' \
-    'cluster: osmo-mcp' \
-    'path: "%PATH(NQ:ORIG_OR_PATH)%"'; do
-  assert_file_contains "$PROXY_RENDERED_MANIFEST" "$expected"
-done
+# FastMCP advertises its endpoints under /mcp; the gateway publishes that
+# prefix and rewrites it off before forwarding to the root paths the MCP SDK
+# actually registers.
+assert_file_contains "$PROXY_RENDERED_MANIFEST" 'path: "%PATH(NQ:ORIG_OR_PATH)%"'
 
 for forbidden in \
     'name: osmo-mcp-oauth' \

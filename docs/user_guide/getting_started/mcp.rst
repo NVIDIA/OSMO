@@ -77,7 +77,7 @@ either CIMD client identification or DCR registration.
 .. note::
 
    The identity provider returns to the deployment's fixed
-   ``https://<osmo-host>/auth/callback`` URL. After FastMCP completes that
+   ``https://<osmo-host>/mcp/auth/callback`` URL. After FastMCP completes that
    exchange, the browser redirects to a temporary loopback URL owned by the MCP
    client. The administrator registers only the fixed upstream callback with
    the identity provider.
@@ -169,7 +169,7 @@ Troubleshooting
        administrator approval. This is not an MCP client configuration error.
    * - The browser reports ``AADSTS50011`` or ``AADSTS900971``
      - Ask the administrator to verify that the confidential upstream
-       application has the exact ``https://<osmo-host>/auth/callback`` redirect
+       application has the exact ``https://<osmo-host>/mcp/auth/callback`` redirect
        registered for the correct application type.
    * - MCP initialization returns ``HTTP 401``
      - Run ``codex mcp logout osmo`` and ``codex mcp login osmo``. If the error

@@ -70,6 +70,19 @@ class MCPServiceConfig(
         le=60,
         description='Total timeout for each OSMO Gateway request.',
         json_schema_extra={'env': 'OSMO_MCP_REQUEST_TIMEOUT_SECONDS'})
+    allowed_origins: list[str] = pydantic.Field(
+        default_factory=list,
+        description=(
+            'Browser Origins permitted to call the MCP endpoint. Native MCP '
+            'clients send no Origin and stay allowed. An empty list rejects '
+            'every browser Origin.'),
+        json_schema_extra={'env': 'OSMO_MCP_ALLOWED_ORIGINS'})
+
+    @pydantic.field_validator('allowed_origins', mode='after')
+    @classmethod
+    def _discard_blank_origins(cls, value: list[str]) -> list[str]:
+        """Drop the empty entry an unset comma-separated variable produces."""
+        return [origin.strip() for origin in value if origin.strip()]
 
     @pydantic.model_validator(mode='after')
     def _validate_gateway_url(self) -> 'MCPServiceConfig':
@@ -103,13 +116,21 @@ def create_mcp_server(
     return server
 
 
-def create_application(protocol_server: FastMCP) -> Starlette:
+def create_application(
+    protocol_server: FastMCP,
+    allowed_origins: list[str] | None = None,
+) -> Starlette:
     """Create the ASGI application for an MCP protocol server."""
     application = protocol_server.http_app(
         path='/mcp',
         transport='streamable-http',
         stateless_http=True,
         json_response=True,
+        # FastMCP's own guard replaces the Origin allowlist the gateway used to
+        # implement in templated Lua. Passing allowed_origins alone is inert:
+        # the guard is only installed when host_origin_protection is not False.
+        host_origin_protection='auto',
+        allowed_origins=allowed_origins,
     )
     application.add_middleware(
         request_body.RequestBodyLimitMiddleware,
@@ -145,7 +166,16 @@ def create_runtime_application(
     protocol_server = create_mcp_server(
         auth_runtime.provider if auth_runtime is not None else None,
     )
-    application = create_application(protocol_server)
+    # FastMCP serves its browser consent page on this deployment's own origin,
+    # and a same-origin form POST still carries an Origin header. Supplying any
+    # explicit allowlist turns off FastMCP's same-origin fallback for non-
+    # loopback hosts (fastmcp/server/http.py:297-306), so the deployment origin
+    # has to be listed explicitly or consent is rejected.
+    browser_origins = list(dict.fromkeys([
+        str(config.gateway_url).rstrip('/'),
+        *config.allowed_origins,
+    ]))
+    application = create_application(protocol_server, browser_origins)
     protocol_lifespan = application.router.lifespan_context
 
     @contextlib.asynccontextmanager
