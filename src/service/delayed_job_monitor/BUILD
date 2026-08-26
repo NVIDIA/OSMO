@@ -61,6 +61,7 @@ osmo_python_wrapper(
     bin_name = "delayed_job_monitor",
     main = "/src/service/delayed_job_monitor/delayed_job_monitor.py",
     runfiles_dir = "/src/service/delayed_job_monitor/delayed_job_monitor_binary.runfiles",
+    include_progress_check = True,
 )
 
 filegroup(
@@ -81,7 +82,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
         ":delayed_job_monitor_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -120,7 +120,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
         ":delayed_job_monitor_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

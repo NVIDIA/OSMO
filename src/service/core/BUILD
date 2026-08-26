@@ -45,6 +45,7 @@ osmo_py_library(
         "//src/service/core/workflow",
         "//src/service/logger:ctrl_websocket",
         "//src/utils:ssl_init",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     data = [
         "//src/lib/utils:version.yaml",
@@ -69,6 +70,7 @@ osmo_python_wrapper(
     bin_name = "service",
     main = "/src/service/core/service.py",
     runfiles_dir = "/src/service/core/service_binary.runfiles",
+    include_progress_check = True,
 )
 
 filegroup(
@@ -89,7 +91,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
         ":service_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -130,7 +131,6 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
         ":service_image_layers",
-        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
