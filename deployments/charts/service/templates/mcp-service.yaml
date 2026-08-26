@@ -33,9 +33,6 @@
 {{- $redisKeyPrefix := "" }}
 {{- $redisUrl := "" }}
 {{- if $oidcProxyEnabled }}
-{{- if ne (int $mcp.replicas) 1 }}
-{{- fail "services.mcp.replicas must be 1 when services.mcp.oidcProxy.enabled=true" }}
-{{- end }}
 {{- $oidcConfigUrl = required "services.mcp.oidcProxy.oidc.configUrl is required when the OIDC proxy is enabled" $oidcProxy.oidc.configUrl }}
 {{- $oidcClientId = required "services.mcp.oidcProxy.oidc.clientId is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientId }}
 {{- $oidcClientSecretFile = required "services.mcp.oidcProxy.oidc.clientSecretFile is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientSecretFile }}
@@ -63,14 +60,8 @@
 {{- if not (hasPrefix "/" $oidcClientSecretFile) }}
 {{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path" }}
 {{- end }}
-{{- $redisHost := $oidcProxy.redis.serviceName | default .Values.services.redis.serviceName | required "services.mcp.oidcProxy.redis.serviceName or services.redis.serviceName is required" }}
+{{- $redisHost := .Values.services.redis.serviceName | required "services.redis.serviceName is required when the MCP OIDC proxy is enabled" }}
 {{- $redisPort := .Values.services.redis.port }}
-{{- if not (kindIs "invalid" $oidcProxy.redis.port) }}
-{{- $redisPort = $oidcProxy.redis.port }}
-{{- end }}
-{{- if or (lt (int $redisPort) 1) (gt (int $redisPort) 65535) }}
-{{- fail "services.mcp.oidcProxy.redis.port must be between 1 and 65535" }}
-{{- end }}
 {{- if or (lt (int $oidcProxy.redis.dbNumber) 0) (gt (int $oidcProxy.redis.dbNumber) 15) }}
 {{- fail "services.mcp.oidcProxy.redis.dbNumber must be between 0 and 15" }}
 {{- end }}
@@ -113,7 +104,7 @@
 {{- fail "services.mcp.oidcProxy.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
 {{- end }}
 {{- end }}
-{{- $redisScheme := ternary "rediss" "redis" $oidcProxy.redis.tlsEnabled }}
+{{- $redisScheme := ternary "rediss" "redis" .Values.services.redis.tlsEnabled }}
 {{- $redisUrl = printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
 {{- end }}
 {{- if not (kindIs "slice" $mcp.allowedOrigins) }}

@@ -100,7 +100,7 @@ destination, but it cannot validate external DNS.
 | `services.mcp.scopes` | OAuth scopes advertised in direct-provider mode; ignored when `oidcProxy.enabled` is true. | `[]` |
 | `services.mcp.allowedOrigins` | Exact browser origins permitted on `/mcp`; native clients normally omit `Origin`. | `[]` |
 | `services.mcp.requestTimeoutSeconds` | Total timeout for each MCP-initiated Gateway request, from 1 through 60 seconds. | `10` |
-| `services.mcp.replicas` | Number of MCP replicas. Must remain `1` with `oidcProxy.enabled` because FastMCP 3.4.7 refresh serialization is process-local. | `1` |
+| `services.mcp.replicas` | Number of MCP replicas. The OIDC proxy keeps its state in Redis, so it scales out. | `1` |
 | `services.mcp.extraEnv` | Additional non-managed environment variables. It cannot override MCP host, port, Gateway origin, or request timeout. | `[]` |
 | `services.mcp.extraVolumeMounts` | Additional MCP container volume mounts, including Vault-injected credential files. | `[]` |
 | `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
@@ -110,7 +110,7 @@ destination, but it cannot validate external DNS.
 | `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
 | `services.mcp.oidcProxy.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
-| `services.mcp.oidcProxy.redis` | Redis connection used by FastMCP for registrations, authorization state, and encrypted upstream tokens; blank host/port inherit `services.redis`. | See `values.yaml` |
+| `services.mcp.oidcProxy.redis.dbNumber` | Logical Redis database for proxy state. Host, port and TLS come from `services.redis`. | `1` |
 | `services.mcp.oidcProxy.accessTokenTtlSeconds` | Lifetime of proxy access tokens, from 60 through 3600 seconds. | `600` |
 | `services.mcp.oidcProxy.refreshTokenTtlSeconds` | Lifetime of proxy refresh tokens, from 300 through 604800 seconds. | `28800` |
 | `services.mcp.oidcProxy.upstreamTimeoutSeconds` | Timeout for upstream OIDC requests, from 1 through 60 seconds. | `10` |

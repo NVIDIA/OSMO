@@ -29,10 +29,7 @@ services:
         accessTokenIssuer: https://sts.example.com/example-tenant/
         accessTokenRequiredScope: access_as_user
       redis:
-        serviceName: proxy-redis.example.internal
-        port: 6380
         dbNumber: 14
-        tlsEnabled: true
         passwordFile: /etc/osmo/mcp-auth/redis-password
         keyPrefix: test:mcp-auth
       existingSecret:

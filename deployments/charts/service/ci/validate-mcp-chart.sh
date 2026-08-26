@@ -205,7 +205,13 @@ assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-health-not-public \
   'envoy.filters.http.ext_authz:'
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_ENABLED true
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_RESOURCE_URL https://osmo.example.com/mcp
-assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_REDIS_URL rediss://proxy-redis.example.internal:6380/14
+assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_REDIS_URL rediss://redis:6379/14
+
+# The proxy keeps all state in Redis, so scaling out must render.
+if ! helm template test-release "$CHART_DIR" -f "$PROXY_VALUES_FILE" \
+    --set 'services.mcp.replicas=2' >/dev/null 2>&1; then
+  fail "MCP OIDC proxy with two replicas failed to render"
+fi
 
 # FastMCP advertises its endpoints under /mcp; the gateway publishes that
 # prefix and rewrites it off before forwarding to the root paths the MCP SDK
@@ -253,16 +259,6 @@ expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC proxy without MCP' \
   'services.mcp.oidcProxy.enabled requires services.mcp.enabled=true' \
   --set 'services.mcp.enabled=false'
-
-expect_render_failure "$PROXY_VALUES_FILE" \
-  'OIDC proxy with multiple replicas' \
-  'services.mcp.replicas must be 1 when services.mcp.oidcProxy.enabled=true' \
-  --set 'services.mcp.replicas=2'
-
-expect_render_failure "$PROXY_VALUES_FILE" \
-  'invalid OIDC proxy Redis port' \
-  'services.mcp.oidcProxy.redis.port must be between 1 and 65535' \
-  --set 'services.mcp.oidcProxy.redis.port=0'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC proxy Redis database below range' \
