@@ -393,26 +393,23 @@ data:
 {{- end -}}
 
 {{- define "osmo.secrets.mekVolume" -}}
-{{- with (include "osmo.masterEncryptionKey.secretName" .) }}
+{{- with .Values.secrets.masterEncryptionKey.existingSecret.name }}
 - name: mek-volume
   secret:
-    secretName: {{ . }}
+    secretName: {{ . | quote }}
     items:
-    - key: {{ $.Values.secrets.masterEncryptionKey.keys.config }}
-      path: mek.yaml
+    - key: {{ required "secrets.masterEncryptionKey.existingSecret.key is required" $.Values.secrets.masterEncryptionKey.existingSecret.key | quote }}
+      path: "mek.yaml"
 {{- end }}
 {{- end -}}
 
-{{- define "osmo.masterEncryptionKey.secretName" -}}
-{{- if .Values.secrets.masterEncryptionKey.generate -}}
-{{- printf "%s-master-encryption-key" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- .Values.secrets.masterEncryptionKey.existingSecret -}}
-{{- end -}}
-{{- end -}}
+{{- define "osmo.secrets.mekFile" -}}/opt/osmo/mek/mek.yaml{{- end -}}
+{{- define "osmo.secrets.mekMountPath" -}}/opt/osmo/mek{{- end -}}
 
-{{- define "osmo.masterEncryptionKey.bootstrapName" -}}
-{{- printf "%s-mek-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "osmo.secrets.mekRolloutAnnotation" -}}
+{{- with .Values.secrets.masterEncryptionKey.rotation.rolloutRevision }}
+osmo.nvidia.com/mek-rollout: {{ . | quote }}
+{{- end }}
 {{- end -}}
 
 {{- define "osmo.valkey.fullname" -}}

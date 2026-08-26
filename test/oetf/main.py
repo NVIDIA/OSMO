@@ -261,6 +261,19 @@ def build_bazel_command(
         "--test_summary=terse",
         f"--build_event_json_file={bep_path}",
     ]
+    if args.env == "kind":
+        # Bazel gives tests an isolated HOME, so kubectl cannot otherwise see
+        # the kubeconfig created by the KIND deployment step.
+        kubeconfig = os.environ.get("KUBECONFIG")
+        if not kubeconfig:
+            kubeconfig = str(Path.home() / ".kube" / "config")
+        cmd.append(f"--test_env=KUBECONFIG={kubeconfig}")
+        # Local-source deploys install a temporary quick-start umbrella chart
+        # with PR-local dependencies. Live phase tests must upgrade that same
+        # chart, rather than replacing the release with a standalone subchart.
+        helm_chart_path = os.environ.get("OETF_HELM_CHART_PATH")
+        if helm_chart_path:
+            cmd.append(f"--test_env=OETF_HELM_CHART_PATH={helm_chart_path}")
     cmd.extend(test_args)
     cmd.extend(args.bazel_arg)
     return cmd

@@ -111,6 +111,34 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
+  ## Master encryption key keyring. External mode is read-only. OSMO-managed
+  ## mode can atomically create the Secret for a fresh database and rotate it
+  ## only through an explicitly requested, fenced lifecycle Job.
+  masterEncryptionKey:
+    # `external` is read-only. `osmo` enables fresh-install generation and
+    # explicitly requested Kubernetes lifecycle Jobs for this exact Secret.
+    managementMode: external
+    existingSecret:
+      name: osmo-mek
+      key: mek.yaml
+    bootstrap:
+      # Must be set back to false immediately after a successful bootstrap.
+      enabled: false
+      # Increment after a failed GitOps attempt or credential correction.
+      attempt: "1"
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
+    rotation:
+      requestId: ""
+      # Explicit operation: prepare, activate, or rewrap. Leave empty to
+      # perform the lifecycle manually without a chart Job.
+      phase: ""
+      attempt: "1"
+      # Change after PREPARE and again after ACTIVATE to restart every MEK consumer.
+      rolloutRevision: ""
+      imagePullPolicy: IfNotPresent
+      activeDeadlineSeconds: 900
+
   ## External self-hosted MCP service configuration
   ##
   mcp:

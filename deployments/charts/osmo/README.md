@@ -195,7 +195,9 @@ secrets:
   objectStorage:
     existingSecret: osmo-object-storage
   masterEncryptionKey:
-    existingSecret: osmo-master-encryption-key
+    existingSecret:
+      name: osmo-master-encryption-key
+      key: mek.yaml
 ```
 
 Keep `embeddedDependencies.postgresql.enabled: false` (the default), then
@@ -462,14 +464,96 @@ postgresql:
         name: osmo-postgresql-credentials
 ```
 
-When an external PostgreSQL or Valkey service uses a private CA, enable TLS in
-the matching `externalDependencies` block and reference the CA Secret there.
-The Valkey `caKey` must hold a complete PEM trust bundle, including the public
-or system roots used by other HTTPS endpoints; OSMO's Python services consume
-that bundle through `SSL_CERT_FILE`. The default Valkey key is `ca-bundle.crt`.
+The MEK is mounted through the typed
+`secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Use
+`managementMode: external` for an operator-owned read-only Secret. Use
+`managementMode: osmo` when this release should create and update that exact
+Secret through explicitly requested lifecycle Jobs.
 
-For an external Valkey endpoint signed by a public CA, leave
-`caExistingSecret` empty to use the image's system trust store.
+For a disposable install backed by a new database, enable `bootstrap`. Helm
+renders no MEK Secret data. A namespace-scoped create-only lifecycle Job waits
+for PostgreSQL, proves that the database has no users, UEKs, or dynamic
+configuration, verifies that every chart consumer is blocked before its writer
+container starts, and atomically creates the full Secret. Key material never
+enters Helm output or release state. A retry accepts only the exact Secret owned
+by this installation and authenticates the retained database before succeeding;
+it never overwrites or deletes a Secret. Non-chart database writers must be
+stopped for initial bootstrap.
+
+After the bootstrap Job succeeds, commit and sync
+`secrets.masterEncryptionKey.bootstrap.enabled: false`. This mandatory second
+Helm/GitOps transaction removes bootstrap Secret-creation RBAC from desired
+state. The chart rejects a rotation phase while bootstrap remains enabled.
+If bootstrap fails or its database credentials are corrected under Argo CD or
+Flux, increment the non-secret `bootstrap.attempt` before syncing again; this
+creates a new immutable retry Job without deriving public names from credential
+bytes.
+
+Every consumer loads its keyring once at process startup. Before becoming
+ready, it performs a bounded authenticated inventory of every UEK wrapper and
+registered direct-MEK configuration value. It then logs one machine-readable
+`OSMO_MEK_DESCRIPTOR` containing only the current key ID, loaded key IDs,
+generation, and non-secret bundle digest. There are no MEK database tables,
+triggers, polling loops, or hot reloads.
+
+Rotation is an explicit three-phase operation. Use one unique request ID for
+the whole rotation and keep every previous key in the Secret:
+
+1. Set `rotation.phase=prepare`. The managed Job adds exactly one key and leaves
+   `currentMek` unchanged. After the Job succeeds, clear the phase, change
+   `rotation.rolloutRevision`, and sync again to roll every consumer.
+2. Set `rotation.phase=activate`. The Job first verifies that the complete,
+   Ready Pod cohort belongs to the expected Deployments and logged the PREPARE
+   descriptor, then selects the new key. Clear the phase, change
+   `rolloutRevision` again, and sync to perform the second rollout.
+3. Set `rotation.phase=rewrap`. The Job verifies the ACTIVATE cohort, then
+   compare-and-swap rewraps all UEKs and registered direct-MEK configuration
+   from the beginning and runs two authenticated inventories. Clear the phase
+   after success.
+
+For example, the same values changes work with Helm upgrades or separate Argo
+CD syncs:
+
+```yaml
+secrets:
+  masterEncryptionKey:
+    managementMode: osmo
+    bootstrap:
+      enabled: false
+      attempt: "1" # increment only to retry a failed bootstrap
+    rotation:
+      requestId: rotate-2026-08-21
+      phase: prepare       # then "", activate, "", rewrap, ""
+      rolloutRevision: "1" # change to "2" after PREPARE and "3" after ACTIVATE
+```
+
+Each Job creates or reuses a release-scoped Kubernetes Lease directly. The
+Lease is intentionally absent from Helm desired state, so GitOps self-heal
+cannot clear a live holder. A Lease held by another attempt is never stolen,
+even after its timestamp expires. If an attempt dies, delete its old Job/Pod,
+verify it is gone, clear the Lease holder, increment `rotation.attempt`, and
+retry the same phase. Jobs never delete Pods or patch Deployments; Helm or the
+GitOps controller owns both rollouts. Clear a completed phase promptly so its
+narrowly scoped ServiceAccount and RoleBinding leave the desired state.
+
+In `managementMode=external`, the operator performs PREPARE and ACTIVATE by
+updating the existing Secret, with one rollout after each update. Then set only
+`rotation.phase=rewrap`. The rewrap Job has exact-name Secret `get` permission,
+not `patch` or `update`, and enforces the same ACTIVATE Pod attestation before
+touching ciphertext.
+
+Rewrap completion is point-in-time evidence, not permission to remove an old
+key. Because this design deliberately has no database write fence, all old MEKs
+remain mandatory. User plaintext and UEK key material do not change; only their
+encrypted wrappers change. Normal application reads never perform MEK rewrap
+writes; the explicit Job is the sole orchestrator.
+
+For an external Valkey endpoint signed by a public CA, enable
+`externalDependencies.valkey.tls.enabled` and leave `caExistingSecret` empty to
+use the image's system trust store. For a private CA, set `caExistingSecret` and
+`caKey` in the same block. The selected key must contain the complete trust
+bundle because clients use it through `SSL_CERT_FILE`. PostgreSQL private CAs
+are also configured in its `externalDependencies` TLS block.
 
 ## Exposure
 

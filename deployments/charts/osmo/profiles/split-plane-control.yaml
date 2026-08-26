@@ -115,4 +115,6 @@ secrets:
   objectStorage:
     existingSecret: osmo-object-storage
   masterEncryptionKey:
-    existingSecret: osmo-master-encryption-key
+    existingSecret:
+      name: osmo-master-encryption-key
+      key: mek.yaml

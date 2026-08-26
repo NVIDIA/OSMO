@@ -20,3 +20,12 @@ sh_test(
         "//deployments:scripts/deploy-k8s.sh",
     ],
 )
+
+sh_test(
+    name = "test_mek_generation_guard",
+    srcs = ["test_mek_generation_guard.sh"],
+    data = [
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-k8s.sh",
+    ],
+)

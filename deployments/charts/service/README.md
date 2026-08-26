@@ -20,12 +20,13 @@
 
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
-For a local deployment that previously used quick-start values, create the
-namespaces, `local-admin-password` and backend token Secrets, and the
-`mek-config` ConfigMap from
-[../README.md](../README.md), then install this chart first with
-`quick-start-values.yaml`. Install the `backend-operator` chart with its
-matching values file after the service release is available:
+For a disposable local deployment, create the namespaces and the
+`local-admin-password` Secret from [../README.md](../README.md), then install
+this chart with `quick-start-values.yaml`. Those values opt into Kubernetes
+Jobs that create the initial MEK Secret and shared backend token Secret without
+putting their material in Helm output or release state. Install the
+`backend-operator` chart with its matching values file after the service
+release is available:
 
 ```bash
 helm upgrade --install osmo osmo/service \
@@ -35,6 +36,15 @@ helm upgrade --install osmo osmo/service \
 ```
 
 See [../README.md](../README.md) for the full two-chart flow.
+
+The MEK bootstrap mode is only safe with a new, empty database. A Helm install
+or a new release name can still point at retained PostgreSQL data; in that case,
+restore or supply the MEK that encrypted that data instead of enabling
+bootstrap.
+
+The retained Secret is created empty by Helm; the namespace-scoped lifecycle
+Job generates the key and commits its identity to PostgreSQL before the OSMO
+pods can become healthy. It never places key material in Helm release state.
 
 ## Values
 
@@ -69,6 +79,15 @@ OSMO services write logs to standard streams for collection by the platform log 
 |-----------|-------------|---------|
 | `services.configFile.enabled` | Enable external configuration file loading | `false` |
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
+| `services.masterEncryptionKey.existingSecret.name` | Existing Kubernetes Secret containing the MEK keyring | `osmo-mek` |
+| `services.masterEncryptionKey.existingSecret.key` | Key containing the MEK YAML | `mek.yaml` |
+| `services.masterEncryptionKey.managementMode` | `external` for an operator-owned read-only Secret; `osmo` for install bootstrap and explicit Secret mutation Jobs | `external` |
+| `services.masterEncryptionKey.bootstrap.enabled` | Atomically create the MEK Secret for a new, empty install | `false` |
+| `services.masterEncryptionKey.bootstrap.attempt` | Non-secret retry identity; increment after a failed GitOps bootstrap or credential correction | `"1"` |
+| `services.masterEncryptionKey.rotation.requestId` | Unique non-secret ID shared by all phases of one rotation | `""` |
+| `services.masterEncryptionKey.rotation.phase` | Explicit `prepare`, `activate`, or `rewrap` Job; empty disables Jobs | `""` |
+| `services.masterEncryptionKey.rotation.attempt` | Retry identity used to create an immutable Job name | `"1"` |
+| `services.masterEncryptionKey.rotation.rolloutRevision` | Operator-changed value that rolls every MEK consumer after PREPARE and ACTIVATE | `""` |
 | `services.configs.enabled` | Enable ConfigMap-backed dynamic configuration | `false` |
 | `services.configs.extraAnnotations` | Annotations on the generated configs ConfigMap (e.g., ArgoCD sync options) | `{}` |
 
@@ -436,7 +455,7 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
 | `services.router.extraArgs` | Additional command line arguments | `[]` |
 | `services.router.extraPodLabels` | Extra labels applied to the router pod | `{}` |
-| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod (e.g. vault-injector annotations) | `{}` |
+| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod | `{}` |
 | `services.router.extraEnvs` | Extra container env vars (list of `{name, value}` or `{name, valueFrom}`) | `[]` |
 | `services.router.extraPorts` | Extra named container ports | `[]` |
 | `services.router.extraVolumes` | Extra pod volumes | `[]` |
@@ -451,7 +470,85 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.startupProbe` | Startup probe configuration | See values.yaml |
 | `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
 
-The router reads the same `services.configFile.path` as the API service. When `services.configFile.enabled: false` (default), the router gets `--config <path>` as a CLI arg. The API service ignores `services.configFile.path` unless `services.configFile.enabled: true`, so setting just the path lets you point the router at a vault-injected config without affecting the API service.
+The router and all other control-plane database consumers read the MEK through
+the typed `services.masterEncryptionKey.existingSecret` reference.
+
+Use `managementMode: external` when an operator owns the Secret. OSMO mounts it
+read-only and never creates, patches, or rotates it. Use `managementMode: osmo`
+only when this release should create or update that exact Secret through an
+explicit lifecycle Job. With `bootstrap.enabled: true`, Helm renders no MEK
+Secret data. A create-only Job waits for PostgreSQL, proves that the database
+has no users, UEKs, or dynamic configuration, verifies that every chart
+consumer is blocked before its writer container starts, and atomically creates
+the full Secret. A retry accepts only the exact Secret owned by this
+installation and authenticates retained ciphertext; it never deletes or
+overwrites a Secret. Stop every non-chart database writer during bootstrap.
+
+Immediately after bootstrap succeeds, perform a second Helm upgrade or GitOps
+sync with `services.masterEncryptionKey.bootstrap.enabled=false`. This removes
+the bootstrap Secret-creation ServiceAccount/RoleBinding. The chart rejects a
+rotation phase until bootstrap is disabled.
+If bootstrap fails or its database credentials are corrected under Argo CD or
+Flux, increment the non-secret `services.masterEncryptionKey.bootstrap.attempt`
+before the next sync. Credential bytes never influence public lifecycle names.
+
+Every consumer loads the keyring once at process startup. Before becoming
+ready, it performs a bounded authenticated inventory of every UEK wrapper and
+registered direct-MEK configuration value. It logs a machine-readable
+`OSMO_MEK_DESCRIPTOR` containing only non-secret rollout identity. There are no
+MEK database tables, triggers, hot reloads, or background reconciliation loops.
+
+Rotation is explicit, not scheduled. Use one unique non-secret request ID for
+three operator-driven phases:
+
+```bash
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.bootstrap.enabled=false \
+  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-21 \
+  --set services.masterEncryptionKey.rotation.phase=prepare
+```
+
+1. PREPARE adds exactly one key while the old key remains `currentMek`. After
+   the Job succeeds, clear `phase`, change `rotation.rolloutRevision`, and sync
+   again to restart all six consumers.
+2. ACTIVATE first verifies that the complete Ready Pod cohort is owned by the
+   expected Deployments and logged the PREPARE descriptor, then selects the new
+   key. Clear `phase`, change `rolloutRevision` again, and sync the second
+   rollout.
+3. REWRAP verifies the ACTIVATE cohort, compare-and-swap rewraps every UEK and
+   registered direct-MEK configuration from the beginning, and runs two full
+   authenticated inventories. Clear `phase` after success.
+
+The chart changes only Pod-template annotations for the rollouts; the Job never
+deletes Pods or patches Deployments. The same values sequence therefore works
+with direct Helm upgrades and separate Argo CD or Flux syncs.
+
+With `managementMode=external`, the operator updates the Secret with PREPARE,
+changes `rolloutRevision`, updates it with ACTIVATE, then changes
+`rolloutRevision` again. After both rollouts, request the read-only rewrap Job:
+
+```bash
+helm upgrade <release> deployments/charts/service -n <namespace> \
+  --reuse-values --wait \
+  --set services.masterEncryptionKey.rotation.requestId=rotate-2026-08-21 \
+  --set services.masterEncryptionKey.rotation.phase=rewrap
+```
+
+The rewrap Role can only `get` the exact MEK Secret; it has no Secret mutation
+verbs. Every phase creates or reuses a release-scoped Kubernetes Lease directly.
+The Lease is absent from Helm desired state, so GitOps self-heal cannot clear a
+live holder. It is never stolen from another holder, even when its timestamp is
+old. For a terminated attempt, delete the old Job/Pod, verify it is absent,
+clear the Lease holder, increment `rotation.attempt`, and retry the same phase.
+Clear a successful phase promptly so GitOps removes its ServiceAccount and
+RoleBinding.
+
+Rewrap completion is point-in-time evidence, not a safe retirement proof.
+Because there are deliberately no database fences or lifecycle tables, every
+old MEK must remain in the Secret. User plaintext and UEK material do not
+change; only encrypted wrappers change. Normal reads never rewrite direct-MEK
+ciphertext; the explicit Job is the sole MEK rewrap orchestrator.
 
 ### Prometheus Metrics Settings
 

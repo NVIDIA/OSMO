@@ -31,7 +31,6 @@ services:
 
   configFile:
     enabled: true
-    path: /home/osmo/config/mek.yaml
 
   postgres:
     enabled: true

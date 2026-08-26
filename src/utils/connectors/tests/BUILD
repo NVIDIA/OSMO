@@ -118,3 +118,29 @@ osmo_py_test(
     size = "medium",
     tags = ["requires-network"],
 )
+
+py_test(
+    name = "test_mek_reconciliation",
+    srcs = ["test_mek_reconciliation.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+)
+
+py_test(
+    name = "test_mek_reconciliation_postgres",
+    srcs = ["test_mek_reconciliation_postgres.py"],
+    deps = [
+        requirement("jwcrypto"),
+        requirement("psycopg2-binary"),
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors:connectors",
+        "//src/utils/secret_manager",
+        "//src/utils/secret_manager:mek_lifecycle",
+    ],
+    local = True,
+    size = "medium",
+    tags = ["exclusive", "integration"],
+)

@@ -28,6 +28,7 @@ import types
 import os
 import re
 import threading
+import time
 import typing
 from functools import wraps
 from typing import Any, Callable, Dict, Generator, List, Literal, Mapping, Optional, Tuple, Type
@@ -46,7 +47,7 @@ from src.utils import configmap_state
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
                            osmo_errors, role, validation, version)
 from src.utils import auth, notify
-from src.utils.secret_manager import Encrypted, SecretManager
+from src.utils.secret_manager import Encrypted, Keyring, SecretManager
 
 
 def backend_action_queue_name(backend_name: str) -> str:
@@ -65,6 +66,19 @@ class ConfigType(enum.Enum):
     """ Type of Config to fetch or set """
     SERVICE = 'SERVICE'
     WORKFLOW = 'WORKFLOW'
+
+
+# Increment whenever a new database location can persist ciphertext encrypted directly by a MEK.
+# UEK-encrypted credential and workflow payloads are covered transitively by the UEK wrapper row.
+MEK_PERSISTENCE_REGISTRY_VERSION = 1
+MEK_PERSISTENCE_REGISTRY = {
+    'ueks.keys.*': 'uek-wrapper-jwe',
+    'configs.value.<DynamicConfig.SecretStr>': 'direct-mek-jwe',
+}
+MEK_RECONCILE_BATCH_SIZE = 100
+MEK_MAX_UEK_ROWS = 1000
+MEK_MAX_CONFIG_ROWS = 1000
+MEK_REWRAP_DEADLINE_SECONDS = 300
 
 
 class ConfigHistoryType(enum.Enum):
@@ -164,7 +178,7 @@ class PostgresConfig(pydantic.BaseModel):
             'env': 'OSMO_POSTGRES_RECONNECT_RETRY'
         })
     mek_file: str = pydantic.Field(
-        default='/home/osmo/vault-agent/secrets/vault-secrets.yaml',
+        default='/opt/osmo/mek/mek.yaml',
         description='Path to the file that stores master encryption keys',
         json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
     method: Literal['dev'] | None = pydantic.Field(
@@ -371,6 +385,25 @@ class PostgresConnector:
             # Always release the semaphore
             semaphore.release()
 
+    @contextlib.contextmanager
+    def _get_reserved_reconciler_connection(self) -> Generator:
+        """Use the pool's reserved +1 connection without consuming the application semaphore."""
+        pool = self._pool
+        if pool is None:
+            raise osmo_errors.OSMOConnectionError('Connection pool is not initialized.')
+        connection = pool.getconn()
+        try:
+            connection.rollback()
+            connection.set_session(autocommit=True)
+            yield connection
+        finally:
+            try:
+                connection.rollback()
+                connection.set_session(autocommit=False)
+                pool.putconn(connection)
+            except Exception:  # pylint: disable=broad-except
+                pool.putconn(connection, close=True)
+
     def __init__(self, config: PostgresConfig):
         if PostgresConnector._instance:
             raise osmo_errors.OSMOError(
@@ -391,15 +424,35 @@ class PostgresConnector:
         self.secret_manager = SecretManager(
             mek_file,
             self.read_uek, self.write_uek, self.read_current_kid, self.add_user)
+        logging.info(
+            'OSMO_MEK_DESCRIPTOR %s',
+            json.dumps({
+                'currentKid': self.secret_manager.current_mek_id,
+                'loadedKids': sorted(self.secret_manager.meks),
+                'generation': self.secret_manager.generation,
+                'digest': self.secret_manager.fingerprint_bundle_digest(),
+            }, separators=(',', ':'), sort_keys=True))
         logging.debug('Secret manager initialized')
 
         logging.debug('Initializing tables')
         self._init_tables()
         logging.debug('Tables initialized')
 
+        # Startup is the rollout acknowledgement boundary. Before this process
+        # can become ready, authenticate every registered MEK persistence
+        # domain with the startup-only keyring. This prevents a replacement
+        # pod from joining a rollout with a keyring that cannot read existing
+        # data, without introducing lifecycle tables or triggers.
+        self._assert_mek_inventory('startup')
+
         logging.debug('Initializing configs')
         self._init_configs()
         logging.debug('Configs initialized')
+
+        # Default SecretStr values are inserted under the mounted MEK. Verify
+        # those writes, plus any concurrent initializer's winners, before this
+        # process can become ready.
+        self._assert_mek_inventory('post-initialization')
 
         # Recreate pool with search_path set to the pgroll versioned schema
         if self.config.schema_version != 'public':
@@ -496,8 +549,10 @@ class PostgresConnector:
             try:
                 cur = conn.cursor()
                 cur.execute(command, args)
+                affected_rows = cur.rowcount
                 cur.close()
                 conn.commit()
+                return affected_rows
             except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
                 try:
                     if cur is not None:
@@ -1319,15 +1374,13 @@ class PostgresConnector:
         self.execute_commit_command(create_cmd, ())
 
 
-    def _init_configs(self):
-        """ Initializes configs table. """
-        # Create config objects with deployment values if provided
+    def _init_default_configs(self):
+        """Insert missing defaults with every SecretStr already MEK-encrypted."""
         service_configs = ServiceConfig()
-
         workflow_configs = WorkflowConfig()
 
         def set_default_values(configs: 'DynamicConfig', config_type: ConfigType):
-            for key, value in configs.plaintext_dict(by_alias=True).items():
+            for key, value in configs.serialize(self, exclude_unset=False).items():
                 if isinstance(value, str):
                     self._set_default_config(key, value, config_type)
                 else:
@@ -1335,6 +1388,10 @@ class PostgresConnector:
 
         set_default_values(service_configs, ConfigType.SERVICE)
         set_default_values(workflow_configs, ConfigType.WORKFLOW)
+
+    def _init_configs(self):
+        """ Initializes configs table. """
+        self._init_default_configs()
 
         self.create_default_roles()
 
@@ -1442,6 +1499,406 @@ class PostgresConnector:
                 description='Updated roles',
             )
 
+    @staticmethod
+    def _jwe_header(value: str) -> Mapping[str, Any] | None:
+        if value.count('.') != 4:
+            return None
+        token = jwe.JWE()
+        token.deserialize(value)
+        return token.jose_header
+
+    @classmethod
+    def _walk_jwe_values(
+            cls, value: Any, path: str = '') -> Generator[Tuple[str, str], None, None]:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f'{path}.{key}' if path else str(key)
+                yield from cls._walk_jwe_values(child, child_path)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                yield from cls._walk_jwe_values(child, f'{path}[{index}]')
+        elif isinstance(value, str) and cls._jwe_header(value) is not None:
+            yield path, value
+
+    @classmethod
+    def _walk_registered_secrets(cls, value: Any, path: str = '') \
+            -> Generator[Tuple[str, str], None, None]:
+        """Walk Pydantic-coerced config values using SecretStr as the registry contract."""
+        if isinstance(value, pydantic.SecretStr):
+            yield path, value.get_secret_value()
+        elif isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f'{path}.{key}' if path else str(key)
+                yield from cls._walk_registered_secrets(child, child_path)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                yield from cls._walk_registered_secrets(child, f'{path}[{index}]')
+
+    def _scan_mek_references(
+            self, deadline: float | None = None) -> Tuple[Dict[str, int], List[str]]:
+        """Authenticate every registered ciphertext location within bounded resources."""
+        counts = {key_id: 0 for key_id in self.secret_manager.meks}
+        blockers: List[str] = []
+        cursor_uid, cursor_key = '', ''
+        uek_row_count = 0
+        while uek_row_count <= MEK_MAX_UEK_ROWS:
+            if deadline is not None and time.monotonic() >= deadline:
+                return counts, blockers + ['inventory: deadline exceeded']
+            uek_rows = self.execute_fetch_command('''
+                SELECT uid, entry.key AS key, entry.value AS value
+                FROM ueks CROSS JOIN LATERAL each(keys) AS entry
+                WHERE entry.key <> 'current' AND (uid, entry.key) > (%s, %s)
+                ORDER BY uid, entry.key
+                LIMIT %s;
+            ''', (cursor_uid, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+            uek_row_count += len(uek_rows)
+            if uek_row_count > MEK_MAX_UEK_ROWS:
+                return counts, blockers + ['ueks: row limit exceeded']
+            for row in uek_rows:
+                try:
+                    key_id = self.secret_manager.authenticate_uek_wrapper(
+                        row['value'], row['key'])
+                    counts[key_id] += 1
+                except (KeyError, osmo_errors.OSMOError):
+                    user_id = row['uid']
+                    user_key_id = row['key']
+                    blockers.append(f'ueks/{user_id}/{user_key_id}: authentication failed')
+            if len(uek_rows) < MEK_RECONCILE_BATCH_SIZE:
+                break
+            cursor_uid, cursor_key = uek_rows[-1]['uid'], uek_rows[-1]['key']
+
+        config_rows: List[Dict[str, Any]] = []
+        cursor_type, cursor_key = '', ''
+        while len(config_rows) <= MEK_MAX_CONFIG_ROWS:
+            if deadline is not None and time.monotonic() >= deadline:
+                return counts, blockers + ['inventory: deadline exceeded']
+            batch = self.execute_fetch_command('''
+                SELECT key, type, value FROM configs
+                WHERE (type, key) > (%s, %s)
+                ORDER BY type, key
+                LIMIT %s;
+            ''', (cursor_type, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+            config_rows.extend(batch)
+            if len(batch) < MEK_RECONCILE_BATCH_SIZE:
+                break
+            cursor_type, cursor_key = batch[-1]['type'], batch[-1]['key']
+        if len(config_rows) > MEK_MAX_CONFIG_ROWS:
+            return counts, ['configs: row limit exceeded']
+        rows_by_type: Dict[str, Dict[str, Any]] = {}
+        raw_by_type: Dict[str, Dict[str, Any]] = {}
+        for row in config_rows:
+            try:
+                try:
+                    parsed_value = json.loads(row['value'])
+                except (json.JSONDecodeError, TypeError):
+                    parsed_value = row['value']
+                rows_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
+                raw_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
+            except (ValueError, TypeError):
+                config_type = row['type']
+                config_key = row['key']
+                blockers.append(f'configs/{config_type}/{config_key}: value cannot be parsed')
+
+        config_models: Dict[str, Type[DynamicConfig]] = {
+            ConfigType.SERVICE.value: ServiceConfig,
+            ConfigType.WORKFLOW.value: WorkflowConfig,
+        }
+        for config_type, config_values in rows_by_type.items():
+            model_class = config_models.get(config_type)
+            if model_class is None:
+                for config_key, raw_value in raw_by_type[config_type].items():
+                    try:
+                        for path, _ in self._walk_jwe_values(raw_value, config_key):
+                            blockers.append(
+                                f'configs/{config_type}/{path}: unregistered compact JWE')
+                    except (JWException, ValueError, TypeError):
+                        blockers.append(
+                            f'configs/{config_type}/{config_key}: malformed compact JWE')
+                continue
+            unknown_keys = set(config_values) - set(model_class.model_fields)
+            if unknown_keys:
+                blockers.append(
+                    f'configs/{config_type}: unregistered fields {sorted(unknown_keys)}')
+                continue
+            try:
+                model = model_class.from_db(config_values)
+                registered_values = list(self._walk_registered_secrets(
+                    model.model_dump(exclude_unset=True, by_alias=True)))
+                registered_paths = {path for path, _ in registered_values}
+                for path, encrypted_value in registered_values:
+                    try:
+                        key_id = self.secret_manager.authenticate_mek_encrypted(encrypted_value)
+                        counts[key_id] += 1
+                    except (KeyError, osmo_errors.OSMOError):
+                        try:
+                            header = self._jwe_header(encrypted_value) or {}
+                            failed_key_id = header.get('kid')
+                        except (JWException, ValueError, TypeError):
+                            failed_key_id = None
+                        key_context = (
+                            f' (kid={failed_key_id})'
+                            if isinstance(failed_key_id, str) else '')
+                        blockers.append(
+                            f'configs/{config_type}/{path}: authentication failed'
+                            f'{key_context}')
+                for config_key, raw_value in raw_by_type[config_type].items():
+                    try:
+                        for path, _ in self._walk_jwe_values(raw_value, config_key):
+                            if path not in registered_paths:
+                                blockers.append(
+                                    f'configs/{config_type}/{config_key}: '
+                                    'unregistered compact JWE')
+                    except (JWException, ValueError, TypeError):
+                        blockers.append(
+                            f'configs/{config_type}/{config_key}: malformed compact JWE')
+            except (pydantic.ValidationError, ValueError, TypeError):
+                blockers.append(f'configs/{config_type}: config schema validation failed')
+        return counts, blockers
+
+    def _assert_mek_inventory(self, boundary: str) -> None:
+        """Fail readiness when any registered persistence location is unreadable."""
+        counts, blockers = self._scan_mek_references()
+        if blockers:
+            for blocker in blockers:
+                logging.error('MEK %s inventory blocker: %s', boundary, blocker)
+            raise osmo_errors.OSMOError(
+                'Mounted MEK keyring cannot authenticate persisted ciphertext.')
+        logging.info('MEK %s inventory references=%s', boundary, counts)
+
+    def _rewrap_ueks(self, snapshot: Keyring, deadline: float | None = None) -> bool:
+        """Rewrap all UEKs in bounded pages, restarting from zero on every invocation."""
+        cursor_uid, cursor_key = '', ''
+        row_count = 0
+        while row_count <= MEK_MAX_UEK_ROWS:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise osmo_errors.OSMOError('UEK rewrap deadline exceeded.')
+            rows = self.execute_fetch_command('''
+                SELECT uid, entry.key AS key
+                FROM ueks CROSS JOIN LATERAL each(keys) AS entry
+                WHERE entry.key <> 'current' AND (uid, entry.key) > (%s, %s)
+                ORDER BY uid, entry.key
+                LIMIT %s;
+            ''', (cursor_uid, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+            row_count += len(rows)
+            if row_count > MEK_MAX_UEK_ROWS:
+                raise osmo_errors.OSMOError('UEK rewrap row limit exceeded.')
+            for row in rows:
+                try:
+                    self.secret_manager.rewrap_uek(row['uid'], row['key'], snapshot)
+                except osmo_errors.OSMOError as error:
+                    logging.error(
+                        'UEK rewrap authentication failed for uid=%s slot=%s.',
+                        row['uid'], row['key'])
+                    raise osmo_errors.OSMOError(
+                        'A persisted UEK wrapper failed authentication; inspect service logs.'
+                    ) from error
+            if len(rows) < MEK_RECONCILE_BATCH_SIZE:
+                return True
+            cursor_uid, cursor_key = rows[-1]['uid'], rows[-1]['key']
+        raise osmo_errors.OSMOError('UEK rewrap row limit exceeded.')
+
+    def _rewrap_config_value(
+            self, value: Any, registered_paths: frozenset[str], snapshot: Keyring,
+            path: str = ''
+    ) -> Tuple[Any, bool]:
+        changed = False
+        if isinstance(value, dict):
+            result = {}
+            for key, child in value.items():
+                child_path = f'{path}.{key}' if path else str(key)
+                result[key], child_changed = self._rewrap_config_value(
+                    child, registered_paths, snapshot, child_path)
+                changed = changed or child_changed
+            return result, changed
+        if isinstance(value, list):
+            result_list = []
+            for index, child in enumerate(value):
+                result, child_changed = self._rewrap_config_value(
+                    child, registered_paths, snapshot, f'{path}[{index}]')
+                result_list.append(result)
+                changed = changed or child_changed
+            return result_list, changed
+        if not isinstance(value, str):
+            return value, False
+        if path not in registered_paths:
+            return value, False
+        try:
+            header = self._jwe_header(value)
+        except (JWException, ValueError, TypeError):
+            logging.error(
+                'Config MEK rewrap found a malformed compact JWE at %s.', path)
+            raise osmo_errors.OSMOError(
+                'A persisted config ciphertext is malformed; inspect service logs.'
+            ) from None
+        if header is None or header.get('kid') not in self.secret_manager.meks:
+            return value, False
+        try:
+            rewrap_result = self.secret_manager.rewrap_direct_mek(value, snapshot)
+        except (JWException, osmo_errors.OSMOError, UnicodeError, ValueError, TypeError) as error:
+            logging.error(
+                'Config MEK rewrap authentication failed at %s.', path)
+            raise osmo_errors.OSMOError(
+                'A persisted config ciphertext failed authentication; inspect service logs.'
+            ) from error
+        return rewrap_result.value, rewrap_result.status == 'rewrapped'
+
+    def _registered_config_rewrap_paths(
+            self, rows: List[Dict[str, Any]]
+    ) -> Dict[Tuple[str, str], frozenset[str]]:
+        """Resolve exact per-row SecretStr paths from the versioned config models."""
+        rows_by_type: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            try:
+                parsed = json.loads(row['value'])
+            except (json.JSONDecodeError, TypeError):
+                parsed = row['value']
+            rows_by_type.setdefault(row['type'], {})[row['key']] = parsed
+        config_models: Dict[str, Type[DynamicConfig]] = {
+            ConfigType.SERVICE.value: ServiceConfig,
+            ConfigType.WORKFLOW.value: WorkflowConfig,
+        }
+        result: Dict[Tuple[str, str], set[str]] = {}
+        for config_type, config_values in rows_by_type.items():
+            model_class = config_models.get(config_type)
+            if model_class is None or set(config_values) - set(model_class.model_fields):
+                continue
+            try:
+                model = model_class.from_db(config_values)
+                for full_path, _ in self._walk_registered_secrets(
+                        model.model_dump(exclude_unset=True, by_alias=True)):
+                    row_key, separator, relative_path = full_path.partition('.')
+                    if row_key in config_values:
+                        result.setdefault((config_type, row_key), set()).add(
+                            relative_path if separator else '')
+            except (pydantic.ValidationError, ValueError, TypeError):
+                continue
+        return {key: frozenset(paths) for key, paths in result.items()}
+
+    def _rewrap_configs(self, snapshot: Keyring, deadline: float | None = None) -> bool:
+        """Rewrap all registered direct-MEK config values without durable cursors."""
+        cursor_type, cursor_key = '', ''
+        rows: List[Dict[str, Any]] = []
+        while len(rows) <= MEK_MAX_CONFIG_ROWS:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise osmo_errors.OSMOError('Config rewrap deadline exceeded.')
+            batch = self.execute_fetch_command('''
+                SELECT key, type, value FROM configs
+                WHERE (type, key) > (%s, %s)
+                ORDER BY type, key
+                LIMIT %s;
+            ''', (cursor_type, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
+            rows.extend(batch)
+            if len(rows) > MEK_MAX_CONFIG_ROWS:
+                raise osmo_errors.OSMOError('Config rewrap row limit exceeded.')
+            if len(batch) < MEK_RECONCILE_BATCH_SIZE:
+                break
+            cursor_type, cursor_key = batch[-1]['type'], batch[-1]['key']
+        registered_paths = self._registered_config_rewrap_paths(rows)
+        for row in rows:
+            allowed_paths = registered_paths.get((row['type'], row['key']), frozenset())
+            if not allowed_paths:
+                continue
+            original = row['value']
+            for _ in range(3):
+                try:
+                    parsed = json.loads(original)
+                    encoded_as_json = True
+                except (json.JSONDecodeError, TypeError):
+                    parsed = original
+                    encoded_as_json = False
+                replacement, changed = self._rewrap_config_value(
+                    parsed, allowed_paths, snapshot)
+                if not changed:
+                    break
+                serialized = json.dumps(replacement) if encoded_as_json else replacement
+                command = '''
+                    UPDATE configs SET value = %s
+                    WHERE key = %s AND type = %s AND value = %s;
+                '''
+                if self.execute_commit_command(
+                        command, (serialized, row['key'], row['type'], original)) == 1:
+                    break
+                current_rows = self.execute_fetch_command('''
+                    SELECT value FROM configs WHERE key = %s AND type = %s;
+                ''', (row['key'], row['type']), return_raw=True)
+                if not current_rows:
+                    break
+                original = current_rows[0]['value']
+            else:
+                config_type = row['type']
+                config_key = row['key']
+                raise osmo_errors.OSMOError(
+                    'Concurrent config updates repeatedly blocked MEK rewrap for '
+                    f'{config_type}/{config_key}.')
+        return True
+
+    def rewrap_mek_references(
+            self, deadline_seconds: int = MEK_REWRAP_DEADLINE_SECONDS,
+            expected_generation: str = '', expected_current_kid: str = '',
+            expected_registry_digest: str = '') -> Dict[str, int]:
+        """Restart from zero, CAS-rewrap every registered MEK reference, and inventory it.
+
+        This operation intentionally keeps every old MEK. The final inventory is
+        point-in-time completion evidence, not permission to retire a key.
+        """
+        deadline = time.monotonic() + deadline_seconds
+        snapshot = self.secret_manager.rewrap_snapshot()
+        snapshot_digest = self.secret_manager.rewrap_snapshot_digest(snapshot)
+        if (
+            (expected_generation and snapshot.generation != expected_generation)
+            or (expected_current_kid and snapshot.current_mek_id != expected_current_kid)
+            or (expected_registry_digest and snapshot_digest != expected_registry_digest)
+        ):
+            raise osmo_errors.OSMOError(
+                'Mounted MEK keyring does not match the requested rewrap snapshot.')
+
+        with self._get_reserved_reconciler_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT pg_try_advisory_lock(%s);', (0x4F534D4F4D454B,))
+                if not cursor.fetchone()[0]:
+                    raise osmo_errors.OSMOError('Another MEK rewrap is already running.')
+            try:
+                while time.monotonic() < deadline:
+                    self._rewrap_ueks(snapshot, deadline)
+                    self._rewrap_configs(snapshot, deadline)
+                    counts, blockers = self._scan_mek_references(deadline)
+                    if blockers:
+                        for blocker in blockers:
+                            logging.error('MEK inventory blocker: %s', blocker)
+                        raise osmo_errors.OSMOError(
+                            'MEK inventory contains authenticated coverage blockers.')
+                    noncurrent = sum(
+                        count for key_id, count in counts.items()
+                        if key_id != snapshot.current_mek_id)
+                    if noncurrent:
+                        continue
+
+                    # A second restart-from-zero inventory makes completion
+                    # insensitive to page boundaries and confirms a stable
+                    # point-in-time result. Old keys remain mandatory because
+                    # there is deliberately no database write fence.
+                    confirmed, blockers = self._scan_mek_references(deadline)
+                    if blockers:
+                        for blocker in blockers:
+                            logging.error('MEK inventory blocker: %s', blocker)
+                        raise osmo_errors.OSMOError(
+                            'MEK inventory contains authenticated coverage blockers.')
+                    if any(
+                        count for key_id, count in confirmed.items()
+                        if key_id != snapshot.current_mek_id
+                    ):
+                        continue
+                    logging.info(
+                        'MEK rewrap complete current_kid=%s references=%s '
+                        'retirement_supported=false',
+                        snapshot.current_mek_id, confirmed)
+                    return confirmed
+                raise osmo_errors.OSMOError('MEK rewrap deadline exceeded.')
+            finally:
+                with connection.cursor() as cursor:
+                    cursor.execute('SELECT pg_advisory_unlock(%s);', (0x4F534D4F4D454B,))
+
+
     def read_uek(self, uid: str, kid: str) -> str:
         cmd = 'SELECT keys -> %s as value FROM ueks WHERE uid = %s;'
         uek_value = self.execute_fetch_command(cmd, (kid, uid))
@@ -1454,10 +1911,10 @@ class PostgresConnector:
         current_kid = current_kid_value[0].value
         return current_kid
 
-    def write_uek(self, uid: str, kid: str, new_uek: str, old_uek: str):
+    def write_uek(self, uid: str, kid: str, new_uek: str, old_uek: str) -> bool:
         new_key_value = self.encode_hstore({kid: new_uek})
         cmd = 'UPDATE ueks SET keys = keys || %s :: hstore WHERE uid = %s AND keys[%s] = %s;'
-        self.execute_commit_command(cmd, (new_key_value, uid, kid, old_uek))
+        return self.execute_commit_command(cmd, (new_key_value, uid, kid, old_uek)) == 1
 
     def add_user(self, uid: str, uek: Dict):
         cmd = 'INSERT INTO ueks (uid, keys) VALUES (%s, %s) ON CONFLICT DO NOTHING;'
@@ -2738,7 +3195,7 @@ class DynamicConfig(ExtraArgBaseModel):
             elif isinstance(encrypted_data, list):
                 for index in range(len(encrypted_data)):
                     decrypted, new_encrypted = _decrypt(
-                        result_data[index], result_data[index], top_level_key)
+                        result_data[index], encrypted_data[index], top_level_key)
                     result_data[index] = decrypted
                     if new_encrypted is not None:
                         encrypted_data[index] = new_encrypted
@@ -2781,17 +3238,23 @@ class DynamicConfig(ExtraArgBaseModel):
 
         # Encrypt updated secrets
         for key in encrypt_keys:
-            if isinstance(encrypted_dict[key], str):
-                postgres.set_config(key, encrypted_dict[key], dynamic_config.get_type())
-            else:
-                old_value = json.dumps(config_dict[key])
-                new_value = json.dumps(encrypted_dict[key])
-                cmd = 'UPDATE configs SET value = %s WHERE key = %s AND value = %s;'
-                postgres.execute_commit_command(cmd, (new_value, key, old_value))
+            old_value = (config_dict[key] if isinstance(config_dict[key], str)
+                         else json.dumps(config_dict[key]))
+            new_value = (encrypted_dict[key] if isinstance(encrypted_dict[key], str)
+                         else json.dumps(encrypted_dict[key]))
+            cmd = '''
+                UPDATE configs SET value = %s
+                WHERE key = %s AND type = %s AND value = %s;
+            '''
+            if postgres.execute_commit_command(
+                    cmd, (new_value, key, dynamic_config.get_type().value, old_value)) != 1:
+                logging.warning(
+                    'Concurrent config update deferred config encryption for %s/%s.',
+                    dynamic_config.get_type().value, key)
         return dynamic_config
 
     def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,
-                         top_level: bool = False) -> Dict[str, str | None]:
+                         top_level: bool = False) -> Dict[str, Any]:
         """ Recursively encrypt all secret fields in any dictionary or list. """
         for key, value in config_dict.items():
             value_for_typecheck = value
@@ -2801,18 +3264,22 @@ class DynamicConfig(ExtraArgBaseModel):
                 else:
                     config_dict[key] = self.serialize_helper(value, postgres)
             elif isinstance(value_for_typecheck, list):
-                if all(isinstance(v, dict) for v in value_for_typecheck):
-                    config_dict[key] = \
-                        [self.serialize_helper(v, postgres) for v in value_for_typecheck]
-                else:
-                    config_dict[key] = value_for_typecheck
+                serialized_values: List[Any] = []
+                for item in value_for_typecheck:
+                    if isinstance(item, dict):
+                        serialized_values.append(self.serialize_helper(item, postgres))
+                    elif isinstance(item, list):
+                        nested = self.serialize_helper({'value': item}, postgres)
+                        serialized_values.append(nested['value'])
+                    elif isinstance(item, pydantic.SecretStr):
+                        serialized_values.append(postgres.secret_manager.encrypt(
+                            item.get_secret_value(), '').value)
+                    else:
+                        serialized_values.append(item)
+                config_dict[key] = serialized_values
             elif isinstance(value_for_typecheck, pydantic.SecretStr):
-                if top_level:
-                    encrypted = postgres.secret_manager.encrypt(value.get_secret_value(), '')
-                    config_dict[key] = encrypted.value
-                # TODO: Enable recursive encryption
-                else:
-                    config_dict[key] = value.get_secret_value()
+                encrypted = postgres.secret_manager.encrypt(value.get_secret_value(), '')
+                config_dict[key] = encrypted.value
             elif value_for_typecheck is None:
                 config_dict[key] = None
             elif not isinstance(value_for_typecheck, str):

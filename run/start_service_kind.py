@@ -18,12 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
-import base64
-import json
 import logging
 import os
-import secrets
-import tempfile
 import time
 
 from bazel_tools.tools.python.runfiles import runfiles  # type: ignore
@@ -41,75 +37,6 @@ from run.print_next_steps import print_next_steps
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 RUNFILES = runfiles.Create()
-
-
-def _generate_mek() -> None:
-    """Generate the Master Encryption Key (MEK) directly in Python if it doesn't exist."""
-    logger.info('🔑 Checking for existing Master Encryption Key (MEK)...')
-
-    try:
-        process = run_command_with_logging([
-            'kubectl', 'get', 'configmap', 'mek-config', '-n', 'osmo'
-        ], 'Checking for existing MEK ConfigMap')
-
-        if not process.has_failed():
-            logger.info('✅ MEK ConfigMap already exists, skipping generation')
-            return
-
-        logger.info('🔑 Generating new Master Encryption Key (MEK)...')
-
-        random_key = base64.b64encode(secrets.token_bytes(32)).decode('utf-8')
-
-        jwk_json = {
-            'k': random_key,
-            'kid': 'key1',
-            'kty': 'oct'
-        }
-
-        encoded_jwk = base64.b64encode(
-            json.dumps(jwk_json).encode('utf-8')).decode('utf-8')
-
-        configmap_yaml = f"""apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mek-config
-  namespace: osmo
-data:
-  mek.yaml: |
-    # MEK generated {time.strftime('%Y-%m-%d %H:%M:%S')}
-    currentMek: key1
-    meks:
-      key1: {encoded_jwk}
-"""
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            temp_file.write(configmap_yaml)
-            temp_file_path = temp_file.name
-
-        try:
-            process = run_command_with_logging([
-                'kubectl', 'apply', '-f', temp_file_path
-            ], 'Creating MEK ConfigMap')
-
-            if not process.has_failed():
-                logger.info(
-                    '✅ MEK generated and ConfigMap created successfully in %.2fs',
-                    process.get_elapsed_time())
-            else:
-                logger.error('❌ Error creating MEK ConfigMap')
-                logger.error('   Check output files for details:')
-                logger.error('   - stdout: %s', process.stdout_file)
-                logger.error('   - stderr: %s', process.stderr_file)
-                raise RuntimeError('Error creating MEK ConfigMap')
-        finally:
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
-
-    except OSError as e:
-        logger.error('❌ Unexpected error generating MEK: %s', e)
-        raise RuntimeError(f'Unexpected error generating MEK: {e}') from e
 
 
 def _install_osmo_service(
@@ -141,6 +68,7 @@ def _install_osmo_service(
             '-f', values_path,
             '--set', image_location_override,
             '--set', f'global.osmoImageTag={image_tag}',
+            '--set', 'services.masterEncryptionKey.bootstrap.enabled=true',
             '--set', rf'global.nodeSelector.kubernetes\.io\/arch={detected_platform}',
             '-n', 'osmo', '--wait'
         ], f'Installing {service_name}')
@@ -214,7 +142,6 @@ def start_service_kind(args: argparse.Namespace) -> None:
             args.container_registry,
             args.container_registry_username,
             args.container_registry_password)
-        _generate_mek()
         _install_osmo_services(args.image_location, args.image_tag, detected_platform)
 
         total_time = time.time() - start_time
