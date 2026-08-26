@@ -16,11 +16,17 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from typing import Any, Dict, List, Optional
+# pylint: disable=protected-access
 
-from src.service.core.auth import objects
+import threading
+import time
+from typing import Any, Dict, List, Optional
+from unittest import mock
+
+from src.lib.utils import osmo_errors
+from src.service.core.auth import auth_service, objects
 from src.service.core.tests import fixture
-from src.utils import connectors
+from src.utils import configmap_state, connectors
 from src.tests.common import runner
 
 
@@ -32,6 +38,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
 
     def setUp(self):
         super().setUp()
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
         # Set default auth header to TEST_USER
         self.client.headers['x-osmo-user'] = self.TEST_USER
         # Clean up test users from previous tests to ensure isolation
@@ -41,6 +49,11 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self._create_test_role('osmo-admin', 'Admin role')
         self._create_test_role('osmo-ml-team', 'ML team role')
         self._create_test_role('osmo-dev-team', 'Dev team role')
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+        super().tearDown()
 
     def _cleanup_test_users(self):
         """Clean up test users to ensure test isolation."""
@@ -168,6 +181,29 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         role_names = [r['role_name'] for r in user_details['roles']]
         self.assertIn('osmo-user', role_names)
         self.assertIn('osmo-ml-team', role_names)
+
+    def test_create_user_with_configmap_only_role(self):
+        postgres = connectors.PostgresConnector.get_instance()
+        postgres.execute_commit_command(
+            'DELETE FROM roles WHERE name = %s;', ('configmap-only-role',))
+        configmap_state.set_parsed_configs({
+            'roles': {
+                'configmap-only-role': {
+                    'description': 'ConfigMap-only role',
+                    'policies': [],
+                },
+            },
+        })
+        configmap_state.set_configmap_mode(True)
+
+        self._create_user(
+            'configmap-role-user@example.com', roles=['configmap-only-role'])
+
+        user_details = self._get_user('configmap-role-user@example.com')
+        self.assertEqual(
+            [role['role_name'] for role in user_details['roles']],
+            ['configmap-only-role'],
+        )
 
     def test_create_user_duplicate_fails(self):
         """Test that creating a duplicate user fails."""
@@ -394,6 +430,101 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertNotIn('osmo-admin', token_roles)
         self.assertIn('osmo-user', token_roles)
         self.assertIn('osmo-ml-team', token_roles)
+
+    def test_delete_role_removes_assignments_and_access_token_grants(self):
+        self._create_user(self.TEST_USER, roles=['osmo-admin'])
+        self._create_access_token('deleted-role-token')
+        postgres = connectors.PostgresConnector.get_instance()
+
+        connectors.Role.delete_from_db(postgres, 'osmo-admin')
+
+        self.assertNotIn(
+            'osmo-admin',
+            [role['role_name'] for role in self._get_user(self.TEST_USER)['roles']])
+        self.assertNotIn(
+            'osmo-admin',
+            self._get_access_token_roles(self.TEST_USER, 'deleted-role-token'))
+
+        self._create_test_role('osmo-admin', 'Recreated admin role')
+
+        self.assertNotIn(
+            'osmo-admin',
+            [role['role_name'] for role in self._get_user(self.TEST_USER)['roles']])
+        self.assertNotIn(
+            'osmo-admin',
+            self._get_access_token_roles(self.TEST_USER, 'deleted-role-token'))
+
+    def test_role_deletion_waits_for_assignment_before_cleanup(self):
+        user_id = 'race@example.com'
+        self._create_user(user_id)
+        postgres = connectors.PostgresConnector.get_instance()
+        deletion_outcome: List[Any] = []
+
+        def delete_role():
+            try:
+                connectors.Role.delete_from_db(postgres, 'osmo-admin')
+            except Exception as error:  # pylint: disable=broad-except
+                deletion_outcome.append(error)
+
+        with postgres._get_connection() as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                'SELECT name FROM roles WHERE name = %s FOR KEY SHARE;', ('osmo-admin',))
+            deletion_thread = threading.Thread(target=delete_role)
+            deletion_thread.start()
+            time.sleep(0.2)
+            self.assertTrue(deletion_thread.is_alive())
+
+            cursor.execute('''
+                INSERT INTO user_roles (user_id, role_name, assigned_by)
+                VALUES (%s, %s, %s);
+            ''', (user_id, 'osmo-admin', 'test'))
+            connection.commit()
+
+        deletion_thread.join(timeout=5)
+        self.assertFalse(deletion_thread.is_alive())
+        self.assertEqual(deletion_outcome, [])
+        rows = postgres.execute_fetch_command(
+            'SELECT 1 FROM user_roles WHERE role_name = %s;', ('osmo-admin',), True)
+        self.assertEqual(rows, [])
+
+    def test_assignment_waits_for_role_deletion(self):
+        user_id = 'race@example.com'
+        self._create_user(user_id)
+        postgres = connectors.PostgresConnector.get_instance()
+        assignment_outcome: List[Any] = []
+        delete_commands = postgres.execute_commit_commands
+
+        def delete_with_pause(commands):
+            commands.insert(1, ('SELECT pg_sleep(0.5);', ()))
+            return delete_commands(commands)
+
+        def assign_role():
+            try:
+                assignment_outcome.append(auth_service.assign_role_to_user(
+                    user_id, objects.AssignRoleRequest(role_name='osmo-admin'), 'test'))
+            except Exception as error:  # pylint: disable=broad-except
+                assignment_outcome.append(error)
+
+        with mock.patch.object(
+                postgres, 'execute_commit_commands', side_effect=delete_with_pause):
+            deletion_thread = threading.Thread(
+                target=connectors.Role.delete_from_db,
+                args=(postgres, 'osmo-admin'))
+            deletion_thread.start()
+            time.sleep(0.2)
+            assignment_thread = threading.Thread(target=assign_role)
+            assignment_thread.start()
+            deletion_thread.join(timeout=5)
+            assignment_thread.join(timeout=5)
+
+        self.assertFalse(deletion_thread.is_alive())
+        self.assertFalse(assignment_thread.is_alive())
+        self.assertEqual(len(assignment_outcome), 1)
+        self.assertIsInstance(assignment_outcome[0], osmo_errors.OSMOUserError)
+        rows = postgres.execute_fetch_command(
+            'SELECT 1 FROM user_roles WHERE role_name = %s;', ('osmo-admin',), True)
+        self.assertEqual(rows, [])
 
     def test_remove_role_cascades_to_multiple_access_tokens(self):
         """Test that removing a role cascades to all of user's access tokens."""

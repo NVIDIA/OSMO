@@ -553,6 +553,46 @@ class PostgresConnector:
                 if cur is not None:
                     cur.close()
 
+    @retry
+    def assign_user_role(self, user_id: str, role_name: str, assigned_by: str,
+                         assigned_at: datetime.datetime) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cur = None
+            try:
+                cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cur.execute(
+                    'SELECT name FROM roles WHERE name = %s FOR KEY SHARE;',
+                    (role_name,))
+                if not cur.fetchone():
+                    conn.commit()
+                    return []
+
+                cur.execute('''
+                    INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (user_id, role_name)
+                    DO UPDATE SET user_id = EXCLUDED.user_id
+                    RETURNING id, assigned_by, assigned_at;
+                ''', (user_id, role_name, assigned_by, assigned_at))
+                rows = cur.fetchall()
+                cur.close()
+                conn.commit()
+                return rows
+            except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+                try:
+                    if cur is not None:
+                        cur.close()
+                    conn.rollback()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                raise error
+            except Exception as error:  # pylint: disable=broad-except
+                raise osmo_errors.OSMODatabaseError(
+                    f'Error during assigning user role: {error}')
+            finally:
+                if cur is not None:
+                    cur.close()
+
     @retry(reconnect=False)
     def execute_autocommit_command(self, command: str, args: Tuple):
         """
@@ -1163,7 +1203,7 @@ class PostgresConnector:
             CREATE TABLE IF NOT EXISTS user_roles (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+                role_name TEXT NOT NULL,
                 assigned_by TEXT NOT NULL,
                 assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 UNIQUE (user_id, role_name)
@@ -4624,6 +4664,25 @@ class Role(role.Role):
         if not external_roles:
             return []
 
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            requested_roles = set(external_roles)
+
+            def mapped_external_roles(role_name: str,
+                                      role_data: Dict[str, Any]) -> List[str]:
+                configured_roles = role_data.get('external_roles')
+                if isinstance(configured_roles, list) and configured_roles:
+                    return configured_roles
+                return [role_name]
+
+            return sorted(
+                role_name
+                for role_name, role_data in snapshot.get('roles', {}).items()
+                if isinstance(role_data, dict)
+                and requested_roles.intersection(
+                    mapped_external_roles(role_name, role_data))
+            )
+
         fetch_cmd = '''
             SELECT DISTINCT role_name FROM role_external_mappings
             WHERE external_role = ANY(%s)
@@ -4636,10 +4695,11 @@ class Role(role.Role):
     def delete_from_db(cls, database: PostgresConnector, name: str):
         cls.fetch_from_db(database, name)
 
-        delete_cmd = '''
-            DELETE FROM roles WHERE name = %s;
-            '''
-        database.execute_commit_command(delete_cmd, (name,))
+        database.execute_commit_commands([
+            ('SELECT name FROM roles WHERE name = %s FOR UPDATE;', (name,)),
+            ('DELETE FROM user_roles WHERE role_name = %s;', (name,)),
+            ('DELETE FROM roles WHERE name = %s;', (name,)),
+        ])
 
     def insert_into_db(self, database: PostgresConnector, force: bool = False):
         """

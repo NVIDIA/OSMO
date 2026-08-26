@@ -1885,6 +1885,47 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_api_user_role_reconcile_failure_retries_without_failing_reload(self):
+        path = self._write_config_file(_with_service_auth({
+            'roles': {
+                'current-role': {'description': 'current', 'policies': []},
+            },
+        }))
+        try:
+            postgres = _postgres_with_service_auth()
+            postgres.execute_commit_command.side_effect = [
+                RuntimeError('database unavailable'), None]
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, postgres, enable_reconciliation=True,
+                backend_queue_updater=mock.MagicMock(return_value=True),
+                backend_test_updater=mock.MagicMock(return_value=True))
+
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            self.assertIsNone(watcher._last_reconciled_snapshot)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            self.assertIsNotNone(watcher._last_reconciled_snapshot)
+            self.assertEqual(postgres.execute_commit_command.call_count, 2)
+        finally:
+            os.unlink(path)
+
+    def test_user_role_reconcile_normalizes_invalid_role_keys(self):
+        postgres = mock.MagicMock()
+
+        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
+            {'roles': {None: {}, 1: {}, 'current-role': {}}}, postgres))
+        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
+            {'roles': None}, postgres))
+        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
+            {}, postgres))
+
+        calls = postgres.execute_commit_command.call_args_list
+        self.assertEqual(calls[0].args[1], (['current-role'],))
+        self.assertEqual(calls[1].args[1], ([],))
+        self.assertEqual(calls[2].args[1], ([],))
+        self.assertIn('%s::text[]', calls[0].args[0])
+
     def test_api_reconcile_removed_backend_queues_cleanup(self):
         now = datetime.datetime.now(datetime.timezone.utc)
         old_snapshot: Dict[str, Any] = {

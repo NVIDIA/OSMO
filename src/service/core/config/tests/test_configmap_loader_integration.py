@@ -228,6 +228,63 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         names = {r.name for r in result}
         self.assertEqual(names, {'role-a', 'role-b'})
 
+    def test_roles_by_external_roles_from_snapshot(self):
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'roles': {
+                'role-a': {
+                    'description': 'A',
+                    'policies': [],
+                    'external_roles': ['external-a'],
+                },
+                'role-b': {
+                    'description': 'B',
+                    'policies': [],
+                    'external_roles': ['external-b'],
+                },
+                'role-default': {
+                    'description': 'Default mapping',
+                    'policies': [],
+                },
+                'role-null': {
+                    'description': 'Null mapping',
+                    'policies': [],
+                    'external_roles': None,
+                },
+                'role-empty': {
+                    'description': 'Empty mapping',
+                    'policies': [],
+                    'external_roles': [],
+                },
+            },
+        })
+
+        result = connectors.Role.get_roles_by_external_roles(
+            postgres, [
+                'external-b', 'role-default', 'role-null', 'role-empty'])
+
+        self.assertEqual(
+            result, ['role-b', 'role-default', 'role-empty', 'role-null'])
+
+    def test_scalar_external_roles_uses_default_mapping_from_snapshot(self):
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'roles': {
+                'role-scalar': {
+                    'description': 'Scalar mapping',
+                    'policies': [],
+                    'external_roles': 'external-scalar',
+                },
+            },
+        })
+
+        self.assertEqual(
+            connectors.Role.get_roles_by_external_roles(postgres, ['a']), [])
+        self.assertEqual(
+            connectors.Role.get_roles_by_external_roles(
+                postgres, ['role-scalar']),
+            ['role-scalar'])
+
     def test_backend_list_from_snapshot(self):
         """Backend.list_from_db returns backends from snapshot."""
         postgres = self._get_postgres()
@@ -336,6 +393,88 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
             assert snapshot is not None
             self.assertIn('watcher_tmpl',
                           snapshot['pod_templates'])
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_api_watcher_reconciles_user_roles_from_snapshot(self):
+        postgres = self._get_postgres()
+        user_id = 'configmap-roles@example.com'
+        postgres.execute_commit_command(
+            'INSERT INTO users (id, created_by) VALUES (%s, %s);',
+            (user_id, 'test'))
+        postgres.execute_commit_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, %s, %s), (%s, %s, %s);
+        ''', (user_id, 'current-role', 'test', user_id, 'stale-role', 'test'))
+        role_rows = postgres.execute_fetch_command(
+            'SELECT id, role_name FROM user_roles WHERE user_id = %s;',
+            (user_id,), True)
+        role_ids = {row['role_name']: row['id'] for row in role_rows}
+        postgres.execute_commit_command('''
+            INSERT INTO access_token (user_name, token_name, access_token)
+            VALUES (%s, %s, %s);
+            INSERT INTO access_token_roles (user_name, token_name, user_role_id, assigned_by)
+            VALUES (%s, %s, %s, %s), (%s, %s, %s, %s);
+        ''', (user_id, 'configmap-token', b'token',
+              user_id, 'configmap-token', role_ids['current-role'], 'test',
+              user_id, 'configmap-token', role_ids['stale-role'], 'test'))
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp_file:
+            yaml.dump(_with_service_auth({
+                'roles': {
+                    'current-role': {'description': 'current', 'policies': []},
+                },
+            }), temp_file)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                temp_file.name, postgres, enable_reconciliation=True,
+                backend_queue_updater=lambda *_args, **_kwargs: True,
+                backend_test_updater=lambda *_args, **_kwargs: True)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            rows = postgres.execute_fetch_command(
+                'SELECT role_name FROM user_roles WHERE user_id = %s;',
+                (user_id,), True)
+            self.assertEqual([row['role_name'] for row in rows], ['current-role'])
+            rows = postgres.execute_fetch_command('''
+                SELECT ur.role_name FROM access_token_roles atr
+                JOIN user_roles ur ON ur.id = atr.user_role_id
+                WHERE atr.user_name = %s AND atr.token_name = %s;
+            ''', (user_id, 'configmap-token'), True)
+            self.assertEqual([row['role_name'] for row in rows], ['current-role'])
+
+            with open(temp_file.name, 'w', encoding='utf-8') as config_file:
+                yaml.dump(_with_service_auth({'roles': {}}), config_file)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            rows = postgres.execute_fetch_command(
+                'SELECT role_name FROM user_roles WHERE user_id = %s;',
+                (user_id,), True)
+            self.assertEqual(rows, [])
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_non_api_watcher_does_not_reconcile_user_roles(self):
+        postgres = self._get_postgres()
+        user_id = 'non-api-configmap-roles@example.com'
+        postgres.execute_commit_command(
+            'INSERT INTO users (id, created_by) VALUES (%s, %s);',
+            (user_id, 'test'))
+        postgres.execute_commit_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, %s, %s);
+        ''', (user_id, 'stale-role', 'test'))
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp_file:
+            yaml.dump(_with_service_auth({'roles': {}}), temp_file)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(temp_file.name, postgres)
+            self.assertEqual(
+                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
+            rows = postgres.execute_fetch_command(
+                'SELECT role_name FROM user_roles WHERE user_id = %s;',
+                (user_id,), True)
+            self.assertEqual([row['role_name'] for row in rows], ['stale-role'])
         finally:
             os.unlink(temp_file.name)
 

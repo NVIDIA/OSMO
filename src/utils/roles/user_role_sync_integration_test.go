@@ -24,6 +24,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"go.corp.nvidia.com/osmo/tests/common/database"
 	"go.corp.nvidia.com/osmo/utils/roles"
@@ -143,6 +144,59 @@ func TestSyncUserRoles_Integration_ImportMode_AddsMappedRole(t *testing.T) {
 	if !containsString(stored, "osmo-admin") {
 		t.Errorf("expected user_roles to contain %q after sync, got: %v",
 			"osmo-admin", stored)
+	}
+}
+
+func TestSyncUserRoles_Integration_RoleDeletionPreventsOrphan(t *testing.T) {
+	fixture := database.StartPostgresWithSchema(t)
+	insertRoleWithSyncMode(t, fixture, "osmo-admin", roles.SyncModeImport)
+	insertRoleMapping(t, fixture, "osmo-admin", "idp-admins")
+
+	tx, err := fixture.Pool.Begin(context.Background())
+	if err != nil {
+		t.Fatalf("begin deletion transaction: %v", err)
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(context.Background(),
+		`SELECT name FROM roles WHERE name = $1 FOR UPDATE`, "osmo-admin"); err != nil {
+		t.Fatalf("lock role for deletion: %v", err)
+	}
+
+	if _, err := tx.Exec(context.Background(),
+		`DELETE FROM role_external_mappings WHERE role_name = $1`, "osmo-admin"); err != nil {
+		t.Fatalf("delete role mappings: %v", err)
+	}
+	if _, err := tx.Exec(context.Background(),
+		`DELETE FROM user_roles WHERE role_name = $1`, "osmo-admin"); err != nil {
+		t.Fatalf("delete role assignments: %v", err)
+	}
+	if _, err := tx.Exec(context.Background(),
+		`DELETE FROM roles WHERE name = $1`, "osmo-admin"); err != nil {
+		t.Fatalf("delete role: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, syncErr := roles.SyncUserRoles(context.Background(), fixture.Client,
+			"alice", []string{"idp-admins"}, silentLogger())
+		done <- syncErr
+	}()
+	select {
+	case syncErr := <-done:
+		t.Fatalf("sync completed before role deletion committed: %v", syncErr)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	if err := tx.Commit(context.Background()); err != nil {
+		t.Fatalf("commit deletion: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("sync roles: %v", err)
+	}
+
+	stored := readUserRoleNames(t, fixture, "alice")
+	if containsString(stored, "osmo-admin") {
+		t.Errorf("orphan role assignment survived deletion: %v", stored)
 	}
 }
 
@@ -309,8 +363,8 @@ func TestSyncUserRoles_Integration_CanceledContext_UpsertError(t *testing.T) {
 func TestSyncUserRoles_Integration_SyncQueryError(t *testing.T) {
 	fixture := database.StartPostgresWithSchema(t)
 
-	// CASCADE also drops user_roles and role_external_mappings (both FK into
-	// roles), so syncAndReturnRoles' query references missing tables.
+	// CASCADE drops role_external_mappings, so syncAndReturnRoles' query
+	// references a missing table.
 	fixture.ExecSQL(t, `DROP TABLE roles CASCADE`)
 
 	result, err := roles.SyncUserRoles(context.Background(), fixture.Client,

@@ -399,13 +399,8 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
 
     # Assign the osmo-admin role if not already assigned
     now = common.current_time()
-    assign_role_cmd = '''
-        INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (user_id, role_name) DO NOTHING;
-    '''
-    postgres.execute_commit_command(
-        assign_role_cmd, (admin_username, 'osmo-admin', 'System', now))
+    postgres.assign_user_role(
+        admin_username, 'osmo-admin', 'System', now)
 
     # Check if token already exists and compare hashed values
     check_token_cmd = '''

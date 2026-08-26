@@ -101,8 +101,8 @@ type syncResult struct {
 //  3. Applies the inserts and deletes.
 //  4. Returns which roles were added, removed, and the final set.
 //
-// Because the entire operation is one statement, concurrent calls for the same
-// user serialise naturally via PostgreSQL row-level locks; no TOCTOU gap exists.
+// The locked CTE takes a KEY SHARE lock on roles eligible for insertion, so a
+// concurrent role deletion either removes the assignment or prevents its insert.
 func syncAndReturnRoles(
 	ctx context.Context,
 	client *postgres.PostgresClient,
@@ -112,7 +112,17 @@ func syncAndReturnRoles(
 	// Each row comes back as (role_name, change_type) where change_type is
 	// 'added', 'removed', or 'existing'.
 	query := `
-		WITH sync_info AS (
+		WITH locked AS (
+			SELECT r.name
+			FROM roles r
+			WHERE r.sync_mode != $3
+			  AND EXISTS (
+				  SELECT 1 FROM role_external_mappings rem
+				  WHERE rem.role_name = r.name AND rem.external_role = ANY($2)
+			  )
+			FOR KEY SHARE
+		),
+		sync_info AS (
 			SELECT
 				r.name,
 				r.sync_mode,
@@ -135,6 +145,7 @@ func syncAndReturnRoles(
 			WHERE si.in_header
 			  AND si.sync_mode IN ('import', 'force')
 			  AND si.name NOT IN (SELECT role_name FROM current_roles)
+			  AND si.name IN (SELECT name FROM locked)
 		),
 		to_remove AS (
 			SELECT si.name
@@ -171,8 +182,6 @@ func syncAndReturnRoles(
 	if err != nil {
 		return nil, fmt.Errorf("exec sync query: %w", err)
 	}
-	defer rows.Close()
-
 	res := &syncResult{}
 	for rows.Next() {
 		var name, changeType string
@@ -189,5 +198,9 @@ func syncAndReturnRoles(
 			res.RoleNames = append(res.RoleNames, name)
 		}
 	}
-	return res, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	return res, nil
 }

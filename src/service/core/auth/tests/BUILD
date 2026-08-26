@@ -35,6 +35,7 @@ osmo_py_test(
         "//src/service/core/auth:auth",
         "//src/service/core/tests:fixture",
         "//src/tests/common",
+        "//src/utils:configmap_state",
         "//src/utils/connectors",
     ],
     size = "large",
