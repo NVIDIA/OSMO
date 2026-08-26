@@ -23,6 +23,16 @@ load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
+    name = "responses",
+    srcs = ["responses.py"],
+    deps = [
+        requirement("fastapi"),
+        requirement("starlette"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "service_lib",
     srcs = [
         "service.py",
