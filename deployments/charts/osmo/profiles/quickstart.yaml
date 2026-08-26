@@ -46,7 +46,20 @@ secrets:
 
 services:
   ui:
-    enabled: false
+    enabled: true
+    replicas: 1
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    pod:
+      topologySpreadConstraints: []
   mcp:
     enabled: false
   api:
@@ -183,6 +196,9 @@ gateway:
       user: testuser
       roles: osmo-admin
       allowedPools: default
+    service:
+      type: NodePort
+      nodePort: 30080
     resources:
       requests:
         cpu: 50m
@@ -201,7 +217,7 @@ gateway:
     enabled: false
   upstreams:
     ui:
-      enabled: false
+      enabled: true
 
 monitoring:
   podMonitor:

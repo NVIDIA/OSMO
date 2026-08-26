@@ -634,7 +634,7 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/quickstart.yaml"
     local quickstart_deployment
     for quickstart_deployment in \
-            api worker router logger agent delayed-job-monitor gateway-envoy \
+            ui api worker router logger agent delayed-job-monitor gateway-envoy \
             backend-listener backend-worker valkey rustfs; do
         require_deployment "$TEST_DIRECTORY/quickstart.yaml" \
             "osmo-$quickstart_deployment"
@@ -668,7 +668,17 @@ test_control_umbrella() {
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job "osmo-mek-bootstrap"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
         "osmo-object-storage-bootstrap"
-    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-ui"
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
+        "osmo-gateway" >"$TEST_DIRECTORY/quickstart-gateway-service.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-gateway-service.yaml" \
+        "type: NodePort"
+    require_contains "$TEST_DIRECTORY/quickstart-gateway-service.yaml" \
+        "nodePort: 30080"
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" ConfigMap \
+        "osmo-gateway-envoy-config" \
+        >"$TEST_DIRECTORY/quickstart-gateway-config.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-gateway-config.yaml" \
+        "cluster: osmo-ui"
     require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-mcp"
     require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" \
         "osmo-gateway-oauth2-proxy"
@@ -709,7 +719,7 @@ test_control_umbrella() {
     require_contains "$charts_copy/osmo/README.md" \
         "deployments/charts/osmo/profiles/quickstart.yaml"
     require_contains "$charts_copy/osmo/README.md" \
-        "helm --kube-context kind-osmo install osmo"
+        "helm --kube-context kind-osmo upgrade --install osmo"
     require_contains "$charts_copy/osmo/README.md" \
         "kubectl --context kind-osmo"
     require_contains "$charts_copy/osmo/README.md" \
@@ -717,7 +727,7 @@ test_control_umbrella() {
     require_contains "$charts_copy/osmo/README.md" \
         "PostgreSQL requests 1 CPU and 2 GiB"
     require_contains "$charts_copy/osmo/README.md" \
-        "approximately 2.85 CPU and 6.1 GiB"
+        "approximately 2.95 CPU and 6.4 GiB"
 
     if helm_template_with_backend mismatched-converged-backend-token "$charts_copy/osmo" \
             --namespace osmo \

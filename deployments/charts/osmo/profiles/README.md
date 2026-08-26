@@ -17,8 +17,9 @@ values take precedence.
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
 The quick-start profile is the smallest complete control-and-compute deployment
-for a CPU hello-world verification. It omits the UI and other optional services.
-The kind profile retains a broader local-development surface. Both profiles are
+for browser, CLI, and CPU hello-world verification. It exposes the UI and API
+through gateway NodePort `30080` while omitting other optional services. The kind
+profile retains a broader local-development surface. Both profiles are
 development-only and intentionally use `latest` OSMO images, one replica per
 component, generated credentials, and embedded stateful dependencies. The split
 profiles contain example names and endpoints; copy them into an environment
