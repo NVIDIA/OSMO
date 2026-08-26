@@ -27,7 +27,6 @@ services:
         configUrl: https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration
         clientId: example-mcp-proxy-client
         accessTokenIssuer: https://sts.example.com/example-tenant/
-        accessTokenJwksUrl: https://login.example.com/example-tenant/discovery/v2.0/keys
         accessTokenRequiredScope: access_as_user
       redis:
         serviceName: proxy-redis.example.internal

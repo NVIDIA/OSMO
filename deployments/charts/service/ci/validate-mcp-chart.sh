@@ -170,7 +170,6 @@ for expected in \
     'name: OSMO_MCP_AUTH_OIDC_CLIENT_ID' \
     'name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER' \
-    'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE' \
     'name: OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS' \
     'secretName: mcp-oidc-proxy-secrets'; do

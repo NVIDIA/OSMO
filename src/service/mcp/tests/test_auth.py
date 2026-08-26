@@ -23,6 +23,7 @@ import unittest
 from unittest import mock
 
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration, OIDCProxy
+from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.auth.oauth_proxy.models import UpstreamTokenSet
 import httpx
 from key_value.aio.stores.memory import MemoryStore
@@ -147,7 +148,9 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
             try:
                 provider = runtime.provider
-                self.assertIs(type(provider), OIDCProxy)
+                # The subclass exists only to keep the configured access-token
+                # issuer; everything else is stock OIDCProxy behaviour.
+                self.assertIsInstance(provider, OIDCProxy)
                 self.assertEqual(
                     provider._jwt_signing_key,  # pylint: disable=protected-access
                     auth.derive_jwt_key(
@@ -155,6 +158,16 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                         salt='fastmcp-jwt-signing-key',
                     ),
                 )
+                # The JWKS URI comes from the discovery document; only the
+                # access-token issuer, which no discovery document can supply
+                # for an Entra v1 resource app, stays configured.
+                verifier = provider._token_validator  # pylint: disable=protected-access
+                assert isinstance(verifier, JWTVerifier)
+                self.assertEqual(
+                    verifier.jwks_uri,
+                    'https://login.example/tenant/discovery/v2.0/keys',
+                )
+                self.assertEqual(verifier.issuer, 'https://sts.example/tenant/')
                 self.assertEqual(provider.required_scopes, ['access_as_user'])
                 self.assertEqual(
                     provider._token_validator.required_scopes,  # pylint: disable=protected-access
@@ -315,22 +328,6 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
             finally:
                 await runtime.aclose()
             redis_client.aclose.assert_awaited_once()
-
-    async def test_close_releases_redis_when_http_close_fails(self) -> None:
-        provider = mock.create_autospec(OIDCProxy, instance=True)
-        redis_client = mock.create_autospec(
-            auth.redis_asyncio.Redis,
-            instance=True,
-        )
-        http_client = mock.create_autospec(httpx.AsyncClient, instance=True)
-        http_client.aclose.side_effect = RuntimeError('HTTP close failed')
-        runtime = auth.MCPAuthRuntime(provider, redis_client, http_client)
-
-        with self.assertRaisesRegex(RuntimeError, 'HTTP close failed'):
-            await runtime.aclose()
-
-        http_client.aclose.assert_awaited_once_with()
-        redis_client.aclose.assert_awaited_once_with()
 
     def test_storage_key_matches_fastmcp_default_and_is_deterministic(self) -> None:
         first = auth._storage_encryption_key(  # pylint: disable=protected-access

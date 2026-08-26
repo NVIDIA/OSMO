@@ -185,7 +185,6 @@ to the deployment:
            clientId: <confidential-oidc-client-id>
            clientSecretFile: /etc/osmo/mcp-auth/client-secret
            accessTokenIssuer: https://issuer.example.com/
-           accessTokenJwksUrl: https://idp.example.com/jwks
            accessTokenRequiredScope: access_as_user
          redis:
            dbNumber: 0

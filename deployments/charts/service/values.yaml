@@ -184,7 +184,6 @@ services:
         clientId: ""
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
         accessTokenIssuer: ""
-        accessTokenJwksUrl: ""
         accessTokenRequiredScope: access_as_user
 
       ## Redis stores proxy registrations, authorization state, and encrypted

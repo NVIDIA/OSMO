@@ -222,7 +222,6 @@ services:
         clientId: <oidc-application-client-id>
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
         accessTokenIssuer: https://sts.windows.net/<tenant-id>/
-        accessTokenJwksUrl: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
         accessTokenRequiredScope: access_as_user
       redis:
         dbNumber: <dedicated-database-number>
