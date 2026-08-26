@@ -888,6 +888,22 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
+        # Creates current users.
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                created_by TEXT
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        create_cmd = '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS users_base_username_id_idx
+            ON users ((split_part(id, '@', 1)), id);
+        '''
+        self.execute_autocommit_command(create_cmd, ())
+
         # Creates table for workflows.
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS workflows (
@@ -1159,17 +1175,9 @@ class PostgresConnector:
                 profile TEXT,
                 payload HSTORE NOT NULL,
                 PRIMARY KEY (user_name, cred_name),
-                CONSTRAINT unique_cred UNIQUE (user_name, profile)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Creates table for users (IDP users and service accounts)
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                created_by TEXT
+                CONSTRAINT unique_cred UNIQUE (user_name, profile),
+                CONSTRAINT credential_user_name_fkey
+                    FOREIGN KEY (user_name) REFERENCES users(id) ON DELETE CASCADE
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -1608,53 +1616,52 @@ class PostgresConnector:
         )
 
     def fetch_user_names(self, user_names: List[str]) -> List[str]:
-        """Fetch user names from the profile table.
+        """Resolve requested names to current user identities.
 
         Args:
             user_names: List of user names to fetch
         """
-        user_cmd = f'''
+        user_cmd = '''
             WITH normalized_usernames AS (
                 SELECT DISTINCT
                     username,
-                    SPLIT_PART(username, '@', 1) as base_username
-                FROM unnest(ARRAY[{', '.join(['%s'] * len(user_names))}]) as username(username)
+                    split_part(username, '@', 1) AS base_username
+                FROM unnest(%s::text[]) AS input(username)
             ),
-            all_users AS (
-                SELECT DISTINCT id FROM users
-                UNION
-                SELECT DISTINCT submitted_by FROM workflows
-                UNION
-                SELECT DISTINCT owner FROM apps
-                UNION
-                SELECT DISTINCT created_by FROM app_versions
+            resolved AS (
+                SELECT normalized.username AS input_username, matches.id AS user_name
+                FROM normalized_usernames AS normalized
+                LEFT JOIN LATERAL (
+                    SELECT id
+                    FROM users
+                    WHERE normalized.username <> normalized.base_username
+                      AND id = normalized.username
+
+                    UNION ALL
+
+                    SELECT id
+                    FROM users
+                    WHERE normalized.username = normalized.base_username
+                      AND split_part(id, '@', 1) = normalized.base_username
+                ) AS matches ON TRUE
             )
-            SELECT
-                n.username as input_username,
-                MIN(u.id) as user_name, -- Returns the first match, NULL if no match
-                COUNT(u.id) as match_count
-            FROM normalized_usernames n
-            LEFT JOIN all_users u ON
-                u.id = n.username OR
-                (n.username = n.base_username AND u.id LIKE n.base_username || %s)
-            GROUP BY n.username;
+            SELECT input_username, user_name
+            FROM resolved
+            ORDER BY input_username, user_name;
         '''
-        fetch_args = user_names + ['@%']
-        user_rows = self.execute_fetch_command(user_cmd, tuple(fetch_args), True)
-        if user_rows:
-            error_str = []
-            for user_row in user_rows:
-                if user_row['match_count'] == 0:
-                    error_str.append(f'{user_row['input_username']} not found')
-                elif user_row['match_count'] > 1:
-                    error_str.append(f'{user_row['input_username']} has multiple matches. ' + \
-                                     'Specify the full email address')
-            if error_str:
-                raise osmo_errors.OSMOUserError(f'Invalid user(s): {', '.join(error_str)}')
-        return [user_row['user_name'] for user_row in user_rows]
+        user_rows = self.execute_fetch_command(user_cmd, (user_names,), True)
+        missing_users = [
+            f'{user_row['input_username']} not found'
+            for user_row in user_rows
+            if user_row['user_name'] is None
+        ]
+        if missing_users:
+            raise osmo_errors.OSMOUserError(
+                f'Invalid user(s): {', '.join(missing_users)}')
+        return sorted({user_row['user_name'] for user_row in user_rows})
 
 
-def upsert_user(database: PostgresConnector, user_name: str):
+def upsert_user(database: PostgresConnector, user_name: str) -> None:
     """
     Create a user in the users table if they don't exist.
     If the user already exists, this is a no-op.

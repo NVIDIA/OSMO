@@ -56,6 +56,7 @@ go_test(
         "authz_server_integration_test.go",
     ],
     data = glob(["testdata/**"]),
+    gotags = ["integration"],
     tags = [
         "requires-network",
     ],

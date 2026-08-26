@@ -200,6 +200,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
     def create_task_group(self, database):
         """Helper function to create a task group for token substitution testing."""
         # Create workflow record in database
+        connectors.upsert_user(database, 'svc-osmo-admin@nvidia.com')
         workflow_uuid = common.generate_unique_id()
         cmd = '''
             INSERT into workflows

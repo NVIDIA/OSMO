@@ -1,0 +1,9 @@
+{
+  "operations": [
+    {
+      "sql": {
+        "up": "LOCK TABLE public.users, public.workflows, public.apps, public.app_versions, public.credential IN SHARE ROW EXCLUSIVE MODE; DO $$ BEGIN IF EXISTS (SELECT 1 FROM public.users WHERE id = '') OR EXISTS (SELECT 1 FROM public.workflows WHERE submitted_by = '') OR EXISTS (SELECT 1 FROM public.apps WHERE owner = '') OR EXISTS (SELECT 1 FROM public.app_versions WHERE created_by = '') THEN RAISE EXCEPTION 'empty persistent user identity'; END IF; INSERT INTO public.users (id, created_by) SELECT historical.id, 'migration' FROM (SELECT submitted_by AS id FROM public.workflows WHERE submitted_by IS NOT NULL UNION SELECT owner AS id FROM public.apps WHERE owner IS NOT NULL UNION SELECT created_by AS id FROM public.app_versions WHERE created_by IS NOT NULL) AS historical ON CONFLICT (id) DO NOTHING; DELETE FROM public.credential AS credential WHERE NOT EXISTS (SELECT 1 FROM public.users WHERE users.id = credential.user_name); IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.credential'::regclass AND conname = 'credential_user_name_fkey') THEN ALTER TABLE public.credential ADD CONSTRAINT credential_user_name_fkey FOREIGN KEY (user_name) REFERENCES public.users(id) ON DELETE CASCADE NOT VALID; END IF; ALTER TABLE public.credential VALIDATE CONSTRAINT credential_user_name_fkey; END $$; CREATE INDEX IF NOT EXISTS users_base_username_id_idx ON public.users ((split_part(id, '@', 1)), id)"
+      }
+    }
+  ]
+}

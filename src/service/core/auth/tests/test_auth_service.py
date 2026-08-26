@@ -94,9 +94,7 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         # so we need to use direct DB access to set up the test state
         if user_id == self.TEST_USER:
             # Create user directly in DB
-            postgres.execute_commit_command(
-                'INSERT INTO users (id, created_by) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING;',
-                (user_id, 'test'))
+            connectors.upsert_user(postgres, user_id)
             # Add roles if specified
             if roles:
                 for role_name in roles:
@@ -169,6 +167,24 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
 
         self.assertEqual(user['id'], 'newuser@example.com')
         self.assertIsNotNone(user['created_at'])
+
+    def test_create_user_uses_single_users_table(self):
+        """Creating a current user requires no separate identity record."""
+        user_id = 'single-table@example.com'
+
+        self._create_user(user_id)
+
+        postgres = connectors.PostgresConnector.get_instance()
+        row = postgres.execute_fetch_command(
+            '''
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE id = %s) AS users,
+                to_regclass('public.user_identities') AS user_identities
+            ''',
+            (user_id,),
+            True,
+        )[0]
+        self.assertEqual(dict(row), {'users': 1, 'user_identities': None})
 
     def test_create_user_with_roles(self):
         """Test creating a user with initial roles."""
@@ -332,6 +348,116 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         # Verify roles are gone (cascaded)
         result = postgres.execute_fetch_command(fetch_cmd, ('cascade-user@example.com',), True)
         self.assertEqual(result[0]['cnt'], 0)
+
+    def test_delete_retains_history_and_recreation_starts_clean(self):
+        """Deletion retains historical text while recreation starts clean."""
+        user_id = 'historical-user@example.com'
+        self._create_user(user_id, roles=['osmo-user'])
+        postgres = connectors.PostgresConnector.get_instance()
+        postgres.execute_commit_command(
+            'INSERT INTO profile (user_name) VALUES (%s)', (user_id,))
+        postgres.execute_commit_command(
+            'INSERT INTO ueks (uid) VALUES (%s)', (user_id,))
+        postgres.execute_commit_command(
+            '''
+            INSERT INTO credential (user_name, cred_name, cred_type, payload)
+            VALUES (%s, 'credential', 'GENERIC', ''::hstore)
+            ''',
+            (user_id,),
+        )
+        postgres.execute_commit_command(
+            '''
+            INSERT INTO workflows
+                (workflow_name, job_id, workflow_id, workflow_uuid, submitted_by)
+            VALUES ('historical', 1, 'historical-1', 'historical-uuid', %s)
+            ''',
+            (user_id,),
+        )
+        postgres.execute_commit_command(
+            '''
+            INSERT INTO apps (uuid, name, owner)
+            VALUES ('historical-app-uuid', 'historical-app', %s);
+            INSERT INTO app_versions (uuid, version, created_by)
+            VALUES ('historical-app-uuid', 1, %s);
+            ''',
+            (user_id, user_id),
+        )
+        response = self.client.post(
+            f'/api/auth/user/{user_id}/access_token/historical-token',
+            params={'expires_at': '2027-01-01'},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.delete(f'/api/auth/user/{user_id}')
+        self.assertEqual(response.status_code, 200)
+
+        counts = postgres.execute_fetch_command(
+            '''
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE id = %s) AS users,
+                (SELECT COUNT(*) FROM profile WHERE user_name = %s) AS profiles,
+                (SELECT COUNT(*) FROM ueks WHERE uid = %s) AS ueks,
+                (SELECT COUNT(*) FROM user_roles WHERE user_id = %s) AS roles,
+                (SELECT COUNT(*) FROM access_token WHERE user_name = %s) AS tokens,
+                (SELECT COUNT(*) FROM access_token_roles WHERE user_name = %s) AS token_roles,
+                (SELECT COUNT(*) FROM credential WHERE user_name = %s) AS credentials,
+                (SELECT COUNT(*) FROM workflows WHERE submitted_by = %s) AS workflows,
+                (SELECT COUNT(*) FROM apps WHERE owner = %s) AS apps,
+                (SELECT COUNT(*) FROM app_versions WHERE created_by = %s) AS app_versions
+            ''',
+            (user_id,) * 10,
+            True,
+        )[0]
+        self.assertEqual(
+            dict(counts),
+            {
+                'users': 0,
+                'profiles': 0,
+                'ueks': 0,
+                'roles': 0,
+                'tokens': 0,
+                'token_roles': 0,
+                'credentials': 0,
+                'workflows': 1,
+                'apps': 1,
+                'app_versions': 1,
+            },
+        )
+
+        recreated = self._create_user(user_id)
+        self.assertEqual(recreated['id'], user_id)
+        clean_counts = postgres.execute_fetch_command(
+            '''
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE id = %s) AS users,
+                (SELECT COUNT(*) FROM profile WHERE user_name = %s) AS profiles,
+                (SELECT COUNT(*) FROM ueks WHERE uid = %s) AS ueks,
+                (SELECT COUNT(*) FROM user_roles WHERE user_id = %s) AS roles,
+                (SELECT COUNT(*) FROM access_token WHERE user_name = %s) AS tokens,
+                (SELECT COUNT(*) FROM access_token_roles WHERE user_name = %s) AS token_roles,
+                (SELECT COUNT(*) FROM credential WHERE user_name = %s) AS credentials,
+                (SELECT COUNT(*) FROM workflows WHERE submitted_by = %s) AS workflows,
+                (SELECT COUNT(*) FROM apps WHERE owner = %s) AS apps,
+                (SELECT COUNT(*) FROM app_versions WHERE created_by = %s) AS app_versions
+            ''',
+            (user_id,) * 10,
+            True,
+        )[0]
+        self.assertEqual(
+            dict(clean_counts),
+            {
+                'users': 1,
+                'profiles': 0,
+                'ueks': 0,
+                'roles': 0,
+                'tokens': 0,
+                'token_roles': 0,
+                'credentials': 0,
+                'workflows': 1,
+                'apps': 1,
+                'app_versions': 1,
+            },
+        )
 
     def test_delete_user_not_found(self):
         """Test deleting a non-existent user returns 400."""

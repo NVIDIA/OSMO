@@ -91,6 +91,18 @@ func readUserRoleNames(t *testing.T, fixture *database.PostgresFixture,
 	return names
 }
 
+func readUserCount(t *testing.T, fixture *database.PostgresFixture,
+	userID string) int {
+	t.Helper()
+	var userCount int
+	err := fixture.Pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM users WHERE id = $1`, userID).Scan(&userCount)
+	if err != nil {
+		t.Fatalf("failed to query user count: %v", err)
+	}
+	return userCount
+}
+
 // containsString reports whether slice contains target. Helper kept outside
 // test bodies to avoid in-test loops.
 func containsString(slice []string, target string) bool {
@@ -144,6 +156,39 @@ func TestSyncUserRoles_Integration_ImportMode_AddsMappedRole(t *testing.T) {
 	if !containsString(stored, "osmo-admin") {
 		t.Errorf("expected user_roles to contain %q after sync, got: %v",
 			"osmo-admin", stored)
+	}
+
+	if userCount := readUserCount(t, fixture, "alice"); userCount != 1 {
+		t.Errorf("expected one user, got users=%d", userCount)
+	}
+}
+
+func TestSyncUserRoles_Integration_RecreatesDeletedUser(t *testing.T) {
+	fixture := database.StartPostgresWithSchema(t)
+
+	insertRoleWithSyncMode(t, fixture, "osmo-admin", roles.SyncModeImport)
+	insertRoleMapping(t, fixture, "osmo-admin", "idp-admins")
+	_, err := roles.SyncUserRoles(context.Background(), fixture.Client,
+		"alice", []string{"idp-admins"}, silentLogger())
+	if err != nil {
+		t.Fatalf("initial sync failed: %v", err)
+	}
+	fixture.ExecSQL(t, `DELETE FROM users WHERE id = $1`, "alice")
+
+	if userCount := readUserCount(t, fixture, "alice"); userCount != 0 {
+		t.Fatalf("expected deleted user to be absent, got users=%d", userCount)
+	}
+
+	result, err := roles.SyncUserRoles(context.Background(), fixture.Client,
+		"alice", []string{"idp-admins"}, silentLogger())
+	if err != nil {
+		t.Fatalf("recreation sync failed: %v", err)
+	}
+	if !containsString(result, "osmo-admin") {
+		t.Errorf("expected recreated user to receive osmo-admin, got: %v", result)
+	}
+	if userCount := readUserCount(t, fixture, "alice"); userCount != 1 {
+		t.Errorf("expected one recreated user, got users=%d", userCount)
 	}
 }
 
