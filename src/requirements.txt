@@ -52,7 +52,7 @@ fastmcp-slim[mcp]==3.4.7
 authlib>=1.6.11
 griffelib>=2.0.0
 jsonref>=1.1.0
-joserfc>=1.1.0
+joserfc>=1.7.4
 packaging>=24.0
 py-key-value-aio[filetree,memory,redis,wrappers-encryption]>=0.4.4,<0.5.0
 python-multipart>=0.0.26
@@ -76,7 +76,7 @@ mypy-boto3-iam==1.38.*
 mypy-boto3-s3==1.38.*
 mypy-boto3-sts==1.38.*
 
-cryptography==48.0.1
+cryptography==50.0.0
 
 # JWE, JWK
 jwcrypto==1.5.7

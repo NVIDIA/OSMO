@@ -204,6 +204,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 - **API layer**: OpenAPI-generated types (`lib/api/generated.ts` — DO NOT EDIT) + adapter layer (`lib/api/adapter/`) that bridges backend quirks to UI expectations
 - **Key routes**: pools, resources, workflows, occupancy, profile, log-viewer (under `app/(dashboard)/`)
 - **Import rules**: Absolute imports only (`@/...`), no barrel exports, API types from adapter (not generated)
+- **License inventory**: `scripts/generate-licenses.mjs` generates `THIRD_PARTY_LICENSES.md`; `scripts/github-heading-slug.mjs` keeps its contents links aligned with GitHub heading anchors
 
 ### Operator (`operator/`)
 

@@ -24,13 +24,13 @@ package(default_visibility = ["//visibility:public"])
 python_runtime_files(
     name = "python_runtime_binary_amd64",
     component = "binary",
-    runtime = "@python_3_14_6_x86_64-unknown-linux-gnu//:files",
+    runtime = "@python_3_14_7_x86_64-unknown-linux-gnu//:files",
 )
 
 python_runtime_files(
     name = "python_runtime_stdlib_amd64",
     component = "stdlib",
-    runtime = "@python_3_14_6_x86_64-unknown-linux-gnu//:files",
+    runtime = "@python_3_14_7_x86_64-unknown-linux-gnu//:files",
 )
 
 pkg_files(
@@ -61,13 +61,13 @@ pkg_tar(
 python_runtime_files(
     name = "python_runtime_binary_arm64",
     component = "binary",
-    runtime = "@python_3_14_6_aarch64-unknown-linux-gnu//:files",
+    runtime = "@python_3_14_7_aarch64-unknown-linux-gnu//:files",
 )
 
 python_runtime_files(
     name = "python_runtime_stdlib_arm64",
     component = "stdlib",
-    runtime = "@python_3_14_6_aarch64-unknown-linux-gnu//:files",
+    runtime = "@python_3_14_7_aarch64-unknown-linux-gnu//:files",
 )
 
 pkg_files(

@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
-"""Guard against GitHub Actions Python pins drifting from MODULE.bazel.
+"""Guard against Python version pins drifting from MODULE.bazel.
 
-If MODULE.bazel bumps Python but a workflow's actions/setup-python pin is not
-updated with it, scripts using newer syntax (e.g. PEP 701 nested-quote
-f-strings) fail on the workflow runner. This test catches that drift.
+If MODULE.bazel bumps Python but a workflow's actions/setup-python pin or the
+repository's .python-version is not updated with it, environments can keep
+using a stale interpreter. These tests catch that drift.
 """
 
 import os
@@ -12,13 +12,13 @@ import re
 import unittest
 from pathlib import Path
 
-# MODULE.bazel example: `python.toolchain(python_version = "3.14.6", ...)`.
+# MODULE.bazel example: `python.toolchain(python_version = "3.14.7", ...)`.
 _CANONICAL_PYTHON_RE = re.compile(
     r'python\.toolchain\([^)]*python_version\s*=\s*"([\d.]+)"',
     re.DOTALL,
 )
 # MODULE.bazel example:
-# `PYTHON_VERSION = "3.14.6"` and `python.toolchain(python_version = PYTHON_VERSION)`.
+# `PYTHON_VERSION = "3.14.7"` and `python.toolchain(python_version = PYTHON_VERSION)`.
 _CANONICAL_PYTHON_CONSTANT_RE = re.compile(
     r'^PYTHON_VERSION\s*=\s*"([\d.]+)"',
     re.MULTILINE,
@@ -27,7 +27,7 @@ _TOOLCHAIN_PYTHON_CONSTANT_RE = re.compile(
     r"python\.toolchain\([^)]*python_version\s*=\s*PYTHON_VERSION",
     re.DOTALL,
 )
-# Workflow example: `python-version: '3.14.6'`.
+# Workflow example: `python-version: '3.14.7'`.
 _WORKFLOW_PYTHON_RE = re.compile(r"""python-version:\s*['"]([\d.]+)['"]""")
 
 
@@ -86,6 +86,17 @@ class TestWorkflowPythonVersion(unittest.TestCase):
             msg=(
                 f"Workflow Python pins must match MODULE.bazel's "
                 f"{self.canonical_version}. Mismatches (workflow, pinned): {mismatches}"
+            ),
+        )
+
+    def test_python_version_file_matches_canonical_python(self) -> None:
+        pinned = (self.root / ".python-version").read_text().strip()
+        self.assertEqual(
+            pinned,
+            self.canonical_version,
+            msg=(
+                ".python-version must match MODULE.bazel's "
+                f"{self.canonical_version}; found {pinned}"
             ),
         )
 

@@ -14,4 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-exports_files(["MODULE.bazel"])
+exports_files([
+    ".python-version",
+    "MODULE.bazel",
+])

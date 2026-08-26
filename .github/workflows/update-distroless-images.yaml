@@ -73,9 +73,18 @@ jobs:
           git config user.name "svc-osmo-ci"
           git config user.email "svc-osmo-ci@users.noreply.github.com"
 
+      - name: Setup Bazel
+        if: steps.schedule-gate.outputs.should_run == 'true'
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
       - name: Validate distroless updater
         if: steps.schedule-gate.outputs.should_run == 'true'
-        run: python3 -m unittest scripts/distroless/tests/test_update_distroless.py
+        run: bazel test --test_output=errors -- //scripts/distroless:test_update_distroless
 
       - name: Check latest distroless images
         if: steps.schedule-gate.outputs.should_run == 'true'
@@ -92,11 +101,11 @@ jobs:
           BRANCH_NAME: ${{ steps.distroless.outputs.branch_name }}
           PR_TITLE: ${{ steps.distroless.outputs.pr_title }}
           VERSION_LABEL: ${{ steps.distroless.outputs.version_label }}
-          CURRENT_PYTHON_TAG: ${{ steps.distroless.outputs.current_python_tag }}
+          CURRENT_CC_TAG: ${{ steps.distroless.outputs.current_cc_tag }}
           CURRENT_PYTHON_DEV_TAG: ${{ steps.distroless.outputs.current_python_dev_tag }}
-          LATEST_PYTHON_TAG: ${{ steps.distroless.outputs.latest_python_tag }}
+          LATEST_CC_TAG: ${{ steps.distroless.outputs.latest_cc_tag }}
+          LATEST_CC_DIGEST: ${{ steps.distroless.outputs.latest_cc_digest }}
           LATEST_PYTHON_DEV_TAG: ${{ steps.distroless.outputs.latest_python_dev_tag }}
-          LATEST_PYTHON_DIGEST: ${{ steps.distroless.outputs.latest_python_digest }}
           LATEST_PYTHON_DEV_DIGEST: ${{ steps.distroless.outputs.latest_python_dev_digest }}
           CURRENT_NODE_TAG: ${{ steps.distroless.outputs.current_node_tag }}
           LATEST_NODE_TAG: ${{ steps.distroless.outputs.latest_node_tag }}
@@ -140,15 +149,15 @@ jobs:
           cat > "$body_file" <<EOF
           ## Description
           Update NVIDIA distroless base images used by OSMO:
-          - Python runtime: \`$CURRENT_PYTHON_TAG\` -> \`$LATEST_PYTHON_TAG\`, pinned to OCI index digest \`$LATEST_PYTHON_DIGEST\`
+          - CC runtime: \`$CURRENT_CC_TAG\` -> \`$LATEST_CC_TAG\`, pinned to OCI index digest \`$LATEST_CC_DIGEST\`
           - Python debug image reference: \`$CURRENT_PYTHON_DEV_TAG\` -> \`$LATEST_PYTHON_DEV_TAG\`, with OCI index digest \`$LATEST_PYTHON_DEV_DIGEST\`
           - UI Node runtime: \`$CURRENT_NODE_TAG\` -> \`$LATEST_NODE_TAG\`
 
           Issue - None
 
           ## Validation
-          - Automation queried nvcr.io for the latest configured Python and Node distroless tags.
-          - Automation refreshed the Python OCI index digest from nvcr.io.
+          - Automation queried nvcr.io for the latest configured CC, Python debug, and Node distroless tags.
+          - Automation refreshed the CC and Python debug OCI index digests from nvcr.io.
 
           ## Checklist
           - [x] I am familiar with the [Contributing Guidelines](https://github.com/NVIDIA/OSMO/blob/main/CONTRIBUTING.md).
@@ -196,9 +205,9 @@ jobs:
           fi
 
           if [[ "$NOTIFICATION_KIND" == "reminder" ]]; then
-            slack_text="Reminder: could someone review $PR_URL when you get a chance? It updates the OSMO distroless Python/UI images to $VERSION_LABEL."
+            slack_text="Reminder: could someone review $PR_URL when you get a chance? It updates the OSMO distroless CC/Python-debug/UI images to $VERSION_LABEL."
           else
-            slack_text="Could someone review $PR_URL when you get a chance? It updates the OSMO distroless Python/UI images to $VERSION_LABEL."
+            slack_text="Could someone review $PR_URL when you get a chance? It updates the OSMO distroless CC/Python-debug/UI images to $VERSION_LABEL."
           fi
 
           payload=$(
