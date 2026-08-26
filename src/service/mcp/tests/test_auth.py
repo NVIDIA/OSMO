@@ -42,18 +42,34 @@ class MCPAuthConfigTest(unittest.TestCase):
         ):
             auth.MCPAuthConfig(auth_enabled=True)
 
+    def test_dependent_urls_derive_from_the_resource_url(self) -> None:
+        """Only the resource URL is supplied; the rest follow from it."""
+        config = auth.MCPAuthConfig(
+            auth_enabled=True,
+            resource_url='https://osmo.example/mcp',
+            redis_url='rediss://redis.example:6379/7',
+            oidc_config_url=(
+                'https://login.example/tenant/.well-known/openid-configuration'
+            ),
+            oidc_client_id='oidc-client',
+            oidc_client_secret_file='/secret',
+            oidc_access_token_jwks_url='https://sts.example/tenant/keys',
+            oidc_access_token_issuer='https://sts.example/tenant/',
+        )
+        self.assertEqual(
+            config.auth_scope, 'https://osmo.example/mcp/access_as_user')
+
     def test_enabled_auth_normalizes_and_validates_scope_contract(self) -> None:
         config = _config()
-        self.assertEqual(config.issuer_url, 'https://osmo.example')
         self.assertEqual(
             config.allowed_client_redirect_uris,
             ['http://localhost:*', 'http://127.0.0.1:*', 'http://[::1]:*'],
         )
         with self.assertRaisesRegex(
             pydantic.ValidationError,
-            'auth_scope must be',
+            'resource_url must end with /mcp',
         ):
-            _config(auth_scope='https://osmo.example/mcp/wrong')
+            _config(resource_url='https://osmo.example/not-mcp')
 
         service_config = server.MCPServiceConfig(
             gateway_url='https://gateway.example',
@@ -68,9 +84,14 @@ class MCPAuthConfigTest(unittest.TestCase):
             {'env': 'OSMO_MCP_AUTH_ENABLED'},
         )
         self.assertEqual(
-            auth.MCPAuthConfig.model_fields['auth_scope'].json_schema_extra,
-            {'env': 'OSMO_MCP_AUTH_SCOPE'},
+            auth.MCPAuthConfig.model_fields['resource_url'].json_schema_extra,
+            {'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
         )
+        # The derived values are no longer configuration inputs.
+        for derived in (
+            'issuer_url', 'auth_scope', 'oidc_access_token_audience',
+        ):
+            self.assertNotIn(derived, auth.MCPAuthConfig.model_fields)
 
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
@@ -338,9 +359,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 def _config(**overrides: object) -> auth.MCPAuthConfig:
     values: dict[str, object] = {
         'auth_enabled': True,
-        'issuer_url': 'https://osmo.example/',
         'resource_url': 'https://osmo.example/mcp',
-        'auth_scope': 'https://osmo.example/mcp/access_as_user',
         'redis_url': 'rediss://redis.example:6379/7',
         'oidc_config_url': (
             'https://login.example/tenant/.well-known/openid-configuration'
@@ -349,7 +368,6 @@ def _config(**overrides: object) -> auth.MCPAuthConfig:
         'oidc_client_secret_file': '/secret',
         'oidc_access_token_jwks_url': 'https://sts.example/tenant/keys',
         'oidc_access_token_issuer': 'https://sts.example/tenant/',
-        'oidc_access_token_audience': 'https://osmo.example/mcp',
     }
     values.update(overrides)
     return auth.MCPAuthConfig(**values)

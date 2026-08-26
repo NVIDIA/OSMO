@@ -105,13 +105,10 @@ destination, but it cannot validate external DNS.
 | `services.mcp.extraVolumeMounts` | Additional MCP container volume mounts, including Vault-injected credential files. | `[]` |
 | `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
 | `services.mcp.oidcProxy.enabled` | Enable FastMCP's built-in OIDC proxy inside the existing MCP process. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
-| `services.mcp.oidcProxy.scope` | Full delegated scope URI advertised to MCP clients and requested upstream, normally `<resourceUrl>/access_as_user`. | `""` |
-| `services.mcp.oidcProxy.trustedHttpsRedirectOrigins` | Exact HTTPS origins allowed for pre-registered web-client redirects; native clients use loopback redirects. | `[]` |
 | `services.mcp.oidcProxy.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
 | `services.mcp.oidcProxy.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
 | `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
 | `services.mcp.oidcProxy.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
-| `services.mcp.oidcProxy.oidc.accessTokenAudience` | Exact OSMO MCP resource audience required on upstream API access tokens; must equal `resourceUrl`. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenJwksUrl` | HTTPS JWKS URL used to verify upstream API access tokens. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
 | `services.mcp.oidcProxy.redis` | Redis connection used by FastMCP for registrations, authorization state, and encrypted upstream tokens; blank host/port inherit `services.redis`. | See `values.yaml` |
@@ -123,7 +120,7 @@ destination, but it cannot validate external DNS.
 The in-process proxy follows OSMO's OIDC profile: a full delegated scope URI is requested
 from the upstream provider while its short suffix is enforced in the verified
 API access token. Register the single stable upstream redirect URI
-`<resourceUrl origin>/auth/callback`. MCP clients still configure only `resourceUrl`.
+`<resourceUrl origin>/mcp/auth/callback`. MCP clients still configure only `resourceUrl`.
 CIMD-capable clients identify themselves with a hosted metadata document;
 older clients can use FastMCP's `/register` DCR endpoint. Both paths use
 authorization-code flow with PKCE and end in the same OSMO Gateway and semantic

@@ -176,25 +176,14 @@ services:
     oidcProxy:
       enabled: false
 
-      ## Full delegated scope URI advertised to MCP clients and requested from
-      ## the upstream provider, normally <resourceUrl>/access_as_user.
-      ##
-      scope: ""
-
-      ## Public HTTPS redirect origins allowed for pre-registered web clients.
-      ## Native clients use dynamically allocated loopback redirects.
-      ##
-      trustedHttpsRedirectOrigins: []
-
       ## Upstream OpenID Connect provider. Register the fixed redirect URL
-      ## <resourceUrl origin>/auth/callback on this confidential application.
+      ## <resourceUrl origin>/mcp/auth/callback on this confidential application.
       ##
       oidc:
         configUrl: ""
         clientId: ""
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
         accessTokenIssuer: ""
-        accessTokenAudience: ""
         accessTokenJwksUrl: ""
         accessTokenRequiredScope: access_as_user
 

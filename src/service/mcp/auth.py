@@ -33,6 +33,15 @@ import pydantic
 from redis import asyncio as redis_asyncio
 
 _UPSTREAM_OIDC_SCOPES = ('openid', 'profile', 'email', 'offline_access')
+_REQUIRED_WHEN_AUTH_ENABLED = (
+    'resource_url',
+    'redis_url',
+    'oidc_config_url',
+    'oidc_client_id',
+    'oidc_client_secret_file',
+    'oidc_access_token_jwks_url',
+    'oidc_access_token_issuer',
+)
 
 
 class MCPAuthConfig(pydantic.BaseModel):
@@ -44,17 +53,9 @@ class MCPAuthConfig(pydantic.BaseModel):
         default=False,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_ENABLED'},
     )
-    issuer_url: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ISSUER_URL'},
-    )
     resource_url: str | None = pydantic.Field(
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
-    )
-    auth_scope: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_SCOPE'},
     )
     redis_url: str | None = pydantic.Field(
         default=None,
@@ -89,21 +90,11 @@ class MCPAuthConfig(pydantic.BaseModel):
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER'},
     )
-    oidc_access_token_audience: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE'},
-    )
     oidc_access_token_required_scope: str = pydantic.Field(
         default='access_as_user',
         pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
         json_schema_extra={
             'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE',
-        },
-    )
-    trusted_https_redirect_origins: str = pydantic.Field(
-        default='',
-        json_schema_extra={
-            'env': 'OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIGINS',
         },
     )
     access_token_ttl_seconds: int = pydantic.Field(
@@ -141,41 +132,19 @@ class MCPAuthConfig(pydantic.BaseModel):
     def _validate_auth_config(self) -> 'MCPAuthConfig':
         if not self.auth_enabled:
             return self
-        required = {
-            name: getattr(self, name)
-            for name in (
-                'issuer_url',
-                'resource_url',
-                'auth_scope',
-                'redis_url',
-                'oidc_config_url',
-                'oidc_client_id',
-                'oidc_client_secret_file',
-                'oidc_access_token_jwks_url',
-                'oidc_access_token_issuer',
-                'oidc_access_token_audience',
-            )
-        }
-        missing = sorted(name for name, value in required.items() if not value)
+        missing = sorted(
+            name for name in _REQUIRED_WHEN_AUTH_ENABLED
+            if not getattr(self, name)
+        )
         if missing:
             raise ValueError(
                 'Enabled MCP auth is missing: ' + ', '.join(missing)
             )
 
-        issuer = _https_url(cast(str, self.issuer_url), root_only=True)
         resource = _https_url(cast(str, self.resource_url))
-        scope = _https_url(cast(str, self.auth_scope))
-        if resource != f'{issuer}/mcp':
-            raise ValueError('resource_url must be issuer_url followed by /mcp')
-        if scope != f'{resource}/{self.oidc_access_token_required_scope}':
-            raise ValueError(
-                'auth_scope must be resource_url followed by the token scope'
-            )
-        if self.oidc_access_token_audience != resource:
-            raise ValueError('oidc_access_token_audience must match resource_url')
-        self.issuer_url = issuer
+        if not resource.endswith('/mcp'):
+            raise ValueError('resource_url must end with /mcp')
         self.resource_url = resource
-        self.auth_scope = scope
         self.oidc_config_url = _https_url(cast(str, self.oidc_config_url))
         self.oidc_access_token_jwks_url = _https_url(
             cast(str, self.oidc_access_token_jwks_url)
@@ -189,26 +158,20 @@ class MCPAuthConfig(pydantic.BaseModel):
             raise ValueError('redis_url must be an absolute Redis URL')
         if redis_url.password is not None:
             raise ValueError('Redis password must be provided through its file')
-        for origin in self.trusted_redirect_origins:
-            if _https_url(origin, root_only=True) != origin:
-                raise ValueError('trusted redirect origins must be normalized')
         return self
 
     @property
-    def trusted_redirect_origins(self) -> tuple[str, ...]:
-        return tuple(
-            item.strip().rstrip('/')
-            for item in self.trusted_https_redirect_origins.split(',')
-            if item.strip()
-        )
+    def auth_scope(self) -> str:
+        """The delegated scope clients request for this resource."""
+        return f'{self.resource_url}/{self.oidc_access_token_required_scope}'
 
     @property
     def allowed_client_redirect_uris(self) -> list[str]:
+        """Native MCP clients redirect to a dynamically allocated loopback port."""
         return [
             'http://localhost:*',
             'http://127.0.0.1:*',
             'http://[::1]:*',
-            *self.trusted_redirect_origins,
         ]
 
 
@@ -256,16 +219,16 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         timeout=config.upstream_timeout_seconds,
         follow_redirects=False,
     )
+    mcp_url = cast(str, config.resource_url)
     verifier = JWTVerifier(
         jwks_uri=cast(str, config.oidc_access_token_jwks_url),
         issuer=cast(str, config.oidc_access_token_issuer),
-        audience=cast(str, config.oidc_access_token_audience),
+        audience=mcp_url,
         algorithm='RS256',
         required_scopes=[config.oidc_access_token_required_scope],
         http_client=http_client,
     )
-    mcp_url = cast(str, config.resource_url)
-    requested_scope = cast(str, config.auth_scope)
+    requested_scope = config.auth_scope
     upstream_scope = ' '.join((requested_scope, *_UPSTREAM_OIDC_SCOPES))
     provider = OIDCProxy(
         config_url=cast(str, config.oidc_config_url),
@@ -331,7 +294,6 @@ def _read_optional_secret(path: str | None) -> str | None:
 def _https_url(
     value: str,
     *,
-    root_only: bool = False,
     preserve_trailing_slash: bool = False,
 ) -> str:
     parsed = parse.urlsplit(value)
@@ -349,6 +311,4 @@ def _https_url(
     ):
         raise ValueError('OAuth URLs must be absolute HTTPS URLs')
     path = parsed.path if preserve_trailing_slash else parsed.path.rstrip('/')
-    if root_only and path:
-        raise ValueError('OAuth issuer and redirect origins must be origins')
     return parse.urlunsplit((parsed.scheme, parsed.netloc, path, '', ''))

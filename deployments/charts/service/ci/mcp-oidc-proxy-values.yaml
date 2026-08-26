@@ -23,14 +23,10 @@ services:
     - http://localhost:6274
     oidcProxy:
       enabled: true
-      scope: https://osmo.example.com/mcp/access_as_user
-      trustedHttpsRedirectOrigins:
-      - https://trusted-client.example.com
       oidc:
         configUrl: https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration
         clientId: example-mcp-proxy-client
         accessTokenIssuer: https://sts.example.com/example-tenant/
-        accessTokenAudience: https://osmo.example.com/mcp
         accessTokenJwksUrl: https://login.example.com/example-tenant/discovery/v2.0/keys
         accessTokenRequiredScope: access_as_user
       redis:

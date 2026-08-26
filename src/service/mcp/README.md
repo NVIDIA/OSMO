@@ -217,13 +217,11 @@ services:
     replicas: 1
     oidcProxy:
       enabled: true
-      scope: https://<osmo-host>/mcp/access_as_user
       oidc:
         configUrl: https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration
         clientId: <oidc-application-client-id>
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
         accessTokenIssuer: https://sts.windows.net/<tenant-id>/
-        accessTokenAudience: https://<osmo-host>/mcp
         accessTokenJwksUrl: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
         accessTokenRequiredScope: access_as_user
       redis:

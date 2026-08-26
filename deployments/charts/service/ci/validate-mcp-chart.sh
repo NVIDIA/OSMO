@@ -162,9 +162,7 @@ assert_env_value "$MCP_MANIFEST" OSMO_MCP_AUTH_ENABLED false
 assert_route_omits "$RENDERED_MANIFEST" osmo-mcp 'typed_per_filter_config:'
 
 for expected in \
-    'name: OSMO_MCP_AUTH_ISSUER_URL' \
     'name: OSMO_MCP_AUTH_RESOURCE_URL' \
-    'name: OSMO_MCP_AUTH_SCOPE' \
     'name: OSMO_MCP_AUTH_REDIS_URL' \
     'name: OSMO_MCP_AUTH_REDIS_CONNECT_TIMEOUT_SECONDS' \
     'name: OSMO_MCP_AUTH_REDIS_OPERATION_TIMEOUT_SECONDS' \
@@ -172,7 +170,6 @@ for expected in \
     'name: OSMO_MCP_AUTH_OIDC_CLIENT_ID' \
     'name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER' \
-    'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL' \
     'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE' \
     'name: OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS' \
@@ -208,9 +205,7 @@ assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-health-not-public \
 assert_route_contains "$PROXY_RENDERED_MANIFEST" mcp-health-not-public \
   'envoy.filters.http.ext_authz:'
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_ENABLED true
-assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_ISSUER_URL https://osmo.example.com
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_RESOURCE_URL https://osmo.example.com/mcp
-assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_SCOPE https://osmo.example.com/mcp/access_as_user
 assert_env_value "$PROXY_MCP_MANIFEST" OSMO_MCP_AUTH_REDIS_URL rediss://proxy-redis.example.internal:6380/14
 
 # FastMCP advertises its endpoints under /mcp; the gateway publishes that
@@ -316,16 +311,6 @@ expect_render_failure "$PROXY_VALUES_FILE" \
   --set 'services.mcp.oidcProxy.upstreamTimeoutSeconds=61'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
-  'OIDC access-token audience mismatch' \
-  'services.mcp.oidcProxy.oidc.accessTokenAudience must equal services.mcp.resourceUrl' \
-  --set 'services.mcp.oidcProxy.oidc.accessTokenAudience=https://other.example.com/mcp'
-
-expect_render_failure "$PROXY_VALUES_FILE" \
-  'OIDC full scope mismatch' \
-  'services.mcp.oidcProxy.scope must equal services.mcp.resourceUrl followed by oidc.accessTokenRequiredScope' \
-  --set 'services.mcp.oidcProxy.scope=https://other.example.com/access_as_user'
-
-expect_render_failure "$PROXY_VALUES_FILE" \
   'relative OIDC client-secret path' \
   'services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path' \
   --set 'services.mcp.oidcProxy.oidc.clientSecretFile=client-secret'
@@ -346,13 +331,8 @@ expect_render_failure "$PROXY_VALUES_FILE" \
   --set 'services.mcp.oidcProxy.redis.passwordFile=/other/redis-password'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
-  'untrusted redirect origin with a path' \
-  'trustedHttpsRedirectOrigins entries must be exact HTTPS origins' \
-  --set 'services.mcp.oidcProxy.trustedHttpsRedirectOrigins[0]=https://trusted.example.com/callback'
-
-expect_render_failure "$PROXY_VALUES_FILE" \
   'managed OIDC proxy issuer override' \
-  'services.mcp.extraEnv must not override managed variable OSMO_MCP_AUTH_ISSUER_URL' \
-  --set-json 'services.mcp.extraEnv=[{"name":"OSMO_MCP_AUTH_ISSUER_URL","value":"https://evil.example.com"}]'
+  'services.mcp.extraEnv must not override managed variable OSMO_MCP_AUTH_OIDC_CLIENT_ID' \
+  --set-json 'services.mcp.extraEnv=[{"name":"OSMO_MCP_AUTH_OIDC_CLIENT_ID","value":"evil-client"}]'
 
 echo 'MCP chart validation passed'
