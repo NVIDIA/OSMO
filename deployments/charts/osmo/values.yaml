@@ -291,8 +291,8 @@ secrets:
     #     name: osmo-backend-token-local
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
-    managementMode: external
-    existingSecret:
+    managedBy: external
+    secretRef:
       name: ''
       key: mek.yaml
     bootstrap:

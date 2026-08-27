@@ -1209,8 +1209,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "managementMode": { "type": "string", "enum": ["external", "osmo"] },
-        "existingSecret": {
+        "managedBy": { "type": "string", "enum": ["external", "osmo"] },
+        "secretRef": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -1250,7 +1250,7 @@
           "required": ["requestId", "phase", "attempt", "rolloutRevision", "imagePullPolicy", "activeDeadlineSeconds"]
         }
       },
-      "required": ["managementMode", "existingSecret", "bootstrap", "rotation"]
+      "required": ["managedBy", "secretRef", "bootstrap", "rotation"]
     },
     "postgresqlSecretReference": {
       "type": "object",
