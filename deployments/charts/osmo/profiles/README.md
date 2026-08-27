@@ -12,7 +12,7 @@ values take precedence.
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
 | `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `compute.backendName` set explicitly at install time |
-| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, a dedicated workflow namespace, IPv4 cluster CIDRs, and `compute.backendName` |
+| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, a dedicated workflow namespace, IPv4 cluster CIDRs, and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 

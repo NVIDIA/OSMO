@@ -59,6 +59,19 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --values deployments/charts/osmo/profiles/quickstart.yaml \
   --set-string compute.backendName=default \
   --wait \
+  --wait-for-jobs \
+  --timeout 20m
+```
+
+After the first installation creates the retained master-encryption-key Secret,
+remove the one-time bootstrap Job and Secret-creation permission:
+
+```bash
+helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
+  --namespace osmo \
+  --reuse-values \
+  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --wait \
   --timeout 20m
 ```
 

@@ -38,6 +38,7 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --values deployments/charts/osmo/profiles/quickstart.yaml \
   --set-string compute.backendName=default \
   --wait \
+  --wait-for-jobs \
   --timeout 20m
 ```
 
@@ -69,11 +70,12 @@ Use `profiles/self-contained.yaml` to host the control plane, compute plane,
 PostgreSQL, Valkey, and object storage in one production Kubernetes cluster.
 The cluster must provide KAI Scheduler, the CloudNativePG operator, and a
 default dynamic StorageClass. It must also provide a NetworkPolicy-enforcing
-CNI, an OIDC client, a dedicated workflow namespace, the cluster network CIDRs,
-and a TLS edge in front of the chart's ClusterIP gateway. The current workflow
-policy requires IPv4 pod and Service CIDRs. The IdP must emit an array-valued
-`roles` claim and assign `osmo-admin` to an initial operator. The chart runs
-OAuth2 authentication and OSMO semantic authorization behind that edge.
+CNI, at least four schedulable nodes, an OIDC client, a dedicated workflow
+namespace, the cluster network CIDRs, and a TLS edge in front of the chart's
+ClusterIP gateway. The current workflow policy requires IPv4 pod and Service
+CIDRs. The IdP must emit an array-valued `roles` claim and assign `osmo-admin`
+to an initial operator. The chart runs OAuth2 authentication and OSMO semantic
+authorization behind that edge.
 
 ```bash
 kubectl create namespace osmo
@@ -97,6 +99,7 @@ helm upgrade --install osmo deployments/charts/osmo \
   --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
   --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
   --wait \
+  --wait-for-jobs \
   --timeout 30m
 ```
 

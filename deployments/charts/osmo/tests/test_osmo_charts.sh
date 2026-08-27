@@ -1223,7 +1223,7 @@ test_control_umbrella() {
     require_contains "$charts_copy/osmo/Chart.yaml" 'appVersion: "6.3.1"'
 
     helm_template_with_backend portable-self-contained "$charts_copy/osmo" \
-        --namespace osmo \
+        --namespace portable-osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/self-contained.yaml" \
         --set externalUrl=https://osmo.example.com \
@@ -1235,6 +1235,15 @@ test_control_umbrella() {
         Service "osmo-gateway"
     require_contains "$TEST_DIRECTORY/portable-self-contained.yaml" \
         "http://osmo-gateway"
+    resource_document "$TEST_DIRECTORY/portable-self-contained.yaml" \
+        NetworkPolicy "osmo-workflow-network-policy" \
+        >"$TEST_DIRECTORY/portable-self-contained-workflow-network-policy.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/portable-self-contained-workflow-network-policy.yaml" \
+        "kubernetes.io/metadata.name: portable-osmo"
+    require_occurrences \
+        "$TEST_DIRECTORY/portable-self-contained-workflow-network-policy.yaml" \
+        "app.kubernetes.io/instance: portable-self-contained" 2
 
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"

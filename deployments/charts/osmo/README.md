@@ -72,6 +72,7 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --values deployments/charts/osmo/profiles/quickstart.yaml \
   --set-string compute.backendName=default \
   --wait \
+  --wait-for-jobs \
   --timeout 20m
 ```
 
@@ -202,8 +203,8 @@ run Kubernetes 1.30 or newer and provide:
 - an OIDC provider and client that emits an array-valued `roles` claim;
 - a pre-created `osmo-workflows` namespace;
 - the IPv4 pod and Service CIDRs used by the cluster network; and
-- enough failure-domain capacity for three PostgreSQL pods, three Valkey pods,
-  and four RustFS pods.
+- at least four schedulable nodes, with enough failure-domain capacity for
+  three PostgreSQL pods, three Valkey pods, and four RustFS pods.
 
 Create the `osmo-oauth2-proxy` Secret in the release namespace with
 `client_secret` and `cookie_secret` keys. The profile keeps the gateway as a
@@ -248,6 +249,7 @@ helm upgrade --install osmo deployments/charts/osmo \
   --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
   --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
   --wait \
+  --wait-for-jobs \
   --timeout 30m
 ```
 
@@ -282,11 +284,9 @@ environment before installation when the defaults are not appropriate. Replace
 the example cluster CIDR with every pod and Service CIDR used by the target
 cluster so workflow egress cannot reach the control-plane Services directly.
 The current workflow policy supports IPv4 CIDRs only; IPv6-only and dual-stack
-clusters require an environment-specific replacement policy. The profile's
-RustFS egress rule assumes both the Helm release and release namespace are named
-`osmo`, as shown above. If either name changes, override the rule's namespace
-selector and `app.kubernetes.io/instance` pod selector to match while retaining
-the TCP port `9000` restriction.
+clusters require an environment-specific replacement policy. The chart derives
+the RustFS egress namespace and instance selectors from the Helm release while
+retaining the TCP port `9000` restriction.
 
 The chart does not configure PostgreSQL WAL archiving or a cross-service backup
 system. Before production use, configure an operator-managed snapshot or backup

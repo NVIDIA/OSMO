@@ -43,6 +43,19 @@ spec:
         matchLabels:
           kubernetes.io/metadata.name: {{ . }}
   {{- end }}
+  {{- if .Values.embeddedDependencies.objectStorage.enabled }}
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Release.Namespace }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rustfs
+          app.kubernetes.io/instance: {{ .Release.Name }}
+  {{- end }}
   {{- with .Values.compute.workflowNetworkPolicy.additionalEgressRules }}
     {{- toYaml . | nindent 2 }}
   {{- end }}
