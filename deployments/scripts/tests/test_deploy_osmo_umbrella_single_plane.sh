@@ -34,7 +34,7 @@ assert_ordered() {
     local expected
     for expected in "$@"; do
         local current
-        current="$(grep -n -F -- "$expected" "$command_log" | head -n 1 | cut -d: -f1)"
+        current="$(grep -n -F -- "$expected" "$command_log" | head -n 1 | cut -d: -f1 || true)"
         [[ -n "$current" ]] || fail "missing command $expected"
         ((current > previous)) || fail "command out of order $expected"
         previous="$current"
@@ -76,7 +76,13 @@ write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     '  sanitized_args+=("$argument")' \
     'done' \
     'echo "kubectl ${sanitized_args[*]}" >>"$COMMAND_LOG"' \
-    'if [[ "$1 $2" == "get secret" ]]; then exit 1; fi' \
+    'if [[ "$1 $2" == "get secret" ]]; then' \
+    '  case "$BACKEND_TOKEN_STATE" in' \
+    '    absent) exit 0 ;;' \
+    '    existing) echo secret/osmo-backend-token ;;' \
+    '    error) exit 17 ;;' \
+    '  esac' \
+    'fi' \
     'if [[ "$*" == *"apply -f -"* || "$*" == *"--from-file=object-storage.yaml=/dev/stdin"* ]]; then cat >/dev/null; fi' \
     'if [[ "$*" == *"create secret generic"* ]]; then' \
     '  printf "apiVersion: v1\\nkind: Secret\\nmetadata:\\n  name: mock\\n"' \
@@ -103,6 +109,7 @@ export TMPDIR="$test_directory/tmp"
 
 script="${TEST_SRCDIR}/_main/deployments/scripts/deploy-osmo-umbrella-single-plane.sh"
 [[ -x "$script" ]] || fail "deployment script is absent"
+export BACKEND_TOKEN_STATE=absent
 "$script" >"$test_directory/output.log" 2>&1
 
 values_file="$TMPDIR/single-plane-azure.yaml"
@@ -154,9 +161,31 @@ assert_ordered \
     'curl --fail --silent http://127.0.0.1:9000/api/version' \
     'bash '
 
-[[ "$(grep -Fc 'helm upgrade --install osmo' "$command_log")" == 1 ]] || fail 'expected one OSMO install'
-[[ "$(grep -Fc 'helm upgrade osmo' "$command_log")" == 1 ]] || fail 'expected one OSMO upgrade'
-[[ "$(grep -Fc 'helm upgrade' "$command_log")" == 3 ]] || fail 'unexpected Helm release'
-assert_contains "$command_log" "helm upgrade --install osmo ${TEST_SRCDIR}/_main/deployments/charts/osmo --namespace osmo --values ${TEST_SRCDIR}/_main/deployments/charts/osmo/profiles/single-plane.yaml --values $values_file --set secrets.masterEncryptionKey.bootstrap.enabled=true --wait --wait-for-jobs --timeout 25m"
-assert_contains "$command_log" "helm upgrade osmo ${TEST_SRCDIR}/_main/deployments/charts/osmo --namespace osmo --values ${TEST_SRCDIR}/_main/deployments/charts/osmo/profiles/single-plane.yaml --values $values_file --set secrets.masterEncryptionKey.bootstrap.enabled=false --wait --wait-for-jobs --timeout 25m"
+helm_commands="$test_directory/helm-commands"
+expected_helm_commands="$test_directory/expected-helm-commands"
+grep '^helm ' "$command_log" >"$helm_commands"
+cat >"$expected_helm_commands" <<EOF
+helm upgrade --install kai-scheduler https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz --namespace kai-scheduler --create-namespace --wait --timeout 10m
+helm dependency build ${TEST_SRCDIR}/_main/deployments/charts/osmo
+helm upgrade --install osmo ${TEST_SRCDIR}/_main/deployments/charts/osmo --namespace osmo --values ${TEST_SRCDIR}/_main/deployments/charts/osmo/profiles/single-plane.yaml --values $values_file --set secrets.masterEncryptionKey.bootstrap.enabled=true --wait --wait-for-jobs --timeout 25m
+helm upgrade osmo ${TEST_SRCDIR}/_main/deployments/charts/osmo --namespace osmo --values ${TEST_SRCDIR}/_main/deployments/charts/osmo/profiles/single-plane.yaml --values $values_file --set secrets.masterEncryptionKey.bootstrap.enabled=false --wait --wait-for-jobs --timeout 25m
+EOF
+cmp -s "$helm_commands" "$expected_helm_commands" || fail 'unexpected Helm command or gateway release'
 assert_contains "$command_log" "bash ${TEST_SRCDIR}/_main/deployments/scripts/verify.sh"
+
+: >"$command_log"
+rm -f "$PORT_FORWARD_READY"
+export BACKEND_TOKEN_STATE=existing
+"$script" >"$test_directory/existing-token-output.log" 2>&1
+assert_contains "$command_log" 'kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output name'
+assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
+assert_not_contains "$command_log" 'openssl rand -base64 32'
+
+: >"$command_log"
+rm -f "$PORT_FORWARD_READY"
+export BACKEND_TOKEN_STATE=error
+if "$script" >"$test_directory/lookup-error-output.log" 2>&1; then
+    fail 'backend-token lookup error unexpectedly succeeded'
+fi
+assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
+assert_not_contains "$command_log" 'openssl rand -base64 32'

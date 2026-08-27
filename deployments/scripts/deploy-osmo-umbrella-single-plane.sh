@@ -46,7 +46,8 @@ OBJECT_STORAGE_CREDENTIALS="access_key_id: ${STORAGE_ACCOUNT}
 access_key: ${AZURE_CONNECTION_STRING}"
 printf '%s\n' "$OBJECT_STORAGE_CREDENTIALS" | kubectl create secret generic osmo-object-storage --namespace osmo \
     --from-file=object-storage.yaml=/dev/stdin --dry-run=client --output yaml | kubectl apply -f -
-if ! kubectl get secret osmo-backend-token --namespace osmo >/dev/null 2>&1; then
+BACKEND_TOKEN_SECRET="$(kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output name)"
+if [[ -z "$BACKEND_TOKEN_SECRET" ]]; then
     BACKEND_TOKEN="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
     kubectl create secret generic osmo-backend-token --namespace osmo \
         --from-literal=token="$BACKEND_TOKEN" --dry-run=client --output yaml | kubectl apply -f -
