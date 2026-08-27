@@ -133,7 +133,16 @@ IS_PRIVATE_CLUSTER="${IS_PRIVATE_CLUSTER:-false}"
 # Function references for provider-specific commands
 RUN_KUBECTL="kubectl"
 RUN_KUBECTL_APPLY_STDIN=""
-RUN_HELM="helm"
+
+# Provider Helm wrappers accept a complete command as one string. Keep the
+# local runner on that same interface so render-only consumers can source this
+# file without calling setup_provider or touching a cluster.
+run_helm_locally() {
+    # Intentional word splitting: callers pass a complete Helm command string.
+    # shellcheck disable=SC2086
+    helm $*
+}
+RUN_HELM="run_helm_locally"
 RUN_HELM_WITH_VALUES=""
 
 # Populated by create_database() from the in-pod psql probe. Used by
@@ -1119,6 +1128,41 @@ extra_values_flags() {
     echo "$flags"
 }
 
+# Flags shared by `helm upgrade --install` and offline `helm template`.
+# Keeping the complete values chain here ensures compatibility preflights
+# render the same base files, generated fragments, dynamic cluster values, and
+# caller overrides as the real deployment path.
+service_helm_flags() {
+    local flags=""
+    flags+=" --namespace $OSMO_NAMESPACE"
+    flags+="$(chart_version_flag)"
+    flags+=" -f $STATIC_VALUES_DIR/service.yaml"
+    flags+="$(extra_values_flags)"
+    flags+="$(service_set_flags)"
+    flags+="$(helm_user_values_flags service)"
+    flags+="$(helm_user_set_flags service)"
+    echo "$flags"
+}
+
+backend_operator_helm_flags() {
+    local flags=""
+    flags+=" --namespace $OSMO_OPERATOR_NAMESPACE"
+    flags+="$(chart_version_flag)"
+    flags+=" -f $STATIC_VALUES_DIR/backend-operator.yaml"
+    flags+="$(backend_operator_set_flags)"
+    flags+="$(helm_user_values_flags backend-operator)"
+    flags+="$(helm_user_set_flags backend-operator)"
+    echo "$flags"
+}
+
+render_osmo_service_chart() {
+    $RUN_HELM "template osmo-minimal $OSMO_HELM_REPO_NAME/service$(service_helm_flags)"
+}
+
+render_backend_operator_chart() {
+    $RUN_HELM "template osmo-operator $OSMO_HELM_REPO_NAME/backend-operator$(backend_operator_helm_flags)"
+}
+
 # Layer values/gpu-pool.yaml when OSMO_GPU_POOL_ENABLED=true (set automatically
 # by --gpu-node-pool) or when a GPU node is already present. Replaces the
 # 6.2-era `osmo config update` CLI dance — in 6.3 ConfigMap mode the pool
@@ -1181,7 +1225,7 @@ deploy_osmo_service() {
     # + AKS image pulls (~3-5 min) + Postgres + service init can push past 10m
     # on a fresh cluster. Override via HELM_TIMEOUT_SERVICE for slower envs.
     $RUN_HELM \
-        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --namespace $OSMO_NAMESPACE --wait --timeout ${HELM_TIMEOUT_SERVICE:-15m}$(chart_version_flag) -f $STATIC_VALUES_DIR/service.yaml$(extra_values_flags)$(service_set_flags)$(helm_user_values_flags service)$(helm_user_set_flags service)"
+        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --wait --timeout ${HELM_TIMEOUT_SERVICE:-15m}$(service_helm_flags)"
 
     log_success "OSMO service deployed"
 }
@@ -1198,7 +1242,7 @@ setup_backend_operator() {
     # backend-operator.yaml first, generated per-cluster overrides next, then
     # user overrides last so an explicit caller value always wins.
     $RUN_HELM \
-        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout ${HELM_TIMEOUT_OPERATOR:-10m}$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)$(helm_user_values_flags backend-operator)$(helm_user_set_flags backend-operator)"
+        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --wait --timeout ${HELM_TIMEOUT_OPERATOR:-10m}$(backend_operator_helm_flags)"
 
     log_success "Backend Operator deployed"
 }
