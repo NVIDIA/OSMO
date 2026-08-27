@@ -26,7 +26,7 @@ does not require application Secrets or an image-pull Secret to be created
 beforehand. Configure top-level `imagePullSecrets` only when using a registry
 that requires credentials.
 
-The self-contained profile is the production converged path for environments
+The self-contained profile is the production-converged path for environments
 that host OSMO and its stateful dependencies in Kubernetes. It uses chart-version
 OSMO images, production service defaults, a synchronous three-instance
 PostgreSQL Cluster, replicated fixed-primary Valkey, four-node distributed

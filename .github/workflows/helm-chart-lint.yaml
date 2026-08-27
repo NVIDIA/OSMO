@@ -25,6 +25,9 @@ on:
       - 'deployments/charts/**'
       - '.github/workflows/helm-chart-lint.yaml'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
