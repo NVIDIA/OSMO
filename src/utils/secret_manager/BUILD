@@ -36,10 +36,9 @@ osmo_py_library(
     visibility = ["//visibility:public"],
 )
 
-osmo_py_binary(
-    name = "mek_lifecycle",
+osmo_py_library(
+    name = "mek_lifecycle_lib",
     srcs = ["mek_lifecycle.py"],
-    main = "mek_lifecycle.py",
     deps = [
         requirement("jwcrypto"),
         requirement("kubernetes"),
@@ -51,5 +50,13 @@ osmo_py_binary(
         "//src/utils/connectors",
         ":secret_manager",
     ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_binary(
+    name = "mek_lifecycle",
+    srcs = ["mek_lifecycle.py"],
+    main = "mek_lifecycle.py",
+    deps = [":mek_lifecycle_lib"],
     visibility = ["//visibility:public"],
 )

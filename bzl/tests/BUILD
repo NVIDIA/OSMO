@@ -74,6 +74,30 @@ py_test(
 )
 
 py_test(
+    name = "service_python_runfiles_dedup_test",
+    srcs = ["python_image_runfiles_dedup_test.py"],
+    args = [
+        "$(rootpath //src/service/core:service_image_x86_64)",
+        "src/service/core/service_binary.runfiles",
+        "usr/bin/mek-lifecycle",
+        "src/utils/secret_manager/mek_lifecycle.py",
+    ],
+    data = ["//src/service/core:service_image_x86_64"],
+    main = "python_image_runfiles_dedup_test.py",
+)
+
+py_test(
+    name = "mcp_python_runfiles_dedup_test",
+    srcs = ["python_image_runfiles_dedup_test.py"],
+    args = [
+        "$(rootpath //src/service/mcp:mcp_image_x86_64)",
+        "src/service/mcp/mcp_binary.runfiles",
+    ],
+    data = ["//src/service/mcp:mcp_image_x86_64"],
+    main = "python_image_runfiles_dedup_test.py",
+)
+
+py_test(
     name = "non_python_image_runtime_test",
     srcs = ["python_image_runtime_dedup_test.py"],
     args = [
