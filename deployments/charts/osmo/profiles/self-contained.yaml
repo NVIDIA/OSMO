@@ -1,0 +1,141 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Production converged profile for self-hosting OSMO on Kubernetes. The cluster
+# must provide KAI Scheduler, the CloudNativePG operator, a default dynamic
+# StorageClass, a NetworkPolicy-enforcing CNI, an OIDC provider, and a dedicated
+# workflow namespace. The OSMO release owns the control plane, compute plane,
+# PostgreSQL Cluster, replicated fixed-primary Valkey, and distributed RustFS.
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: true
+
+# Keep the in-cluster dependency endpoints valid for any Helm release name.
+# This profile intentionally supports one OSMO installation per namespace.
+fullnameOverride: osmo
+
+embeddedDependencies:
+  postgresql:
+    enabled: true
+  valkey:
+    enabled: true
+  objectStorage:
+    enabled: true
+
+secrets:
+  postgresql:
+    existingSecret: ''
+  valkey:
+    generate: true
+    existingSecret: ''
+  objectStorage:
+    generate: true
+    existingSecret: ''
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: default
+      managedSecret:
+        name: osmo-backend-token
+  masterEncryptionKey:
+    generate: true
+    existingSecret: ''
+
+gateway:
+  envoy:
+    service:
+      # Put the in-cluster gateway behind an operator-managed TLS edge.
+      type: ClusterIP
+  oauth2Proxy:
+    enabled: true
+    useKubernetesSecrets: true
+    secretName: osmo-oauth2-proxy
+  authz:
+    enabled: true
+  rateLimit:
+    enabled: false
+  # Prevent in-cluster clients from bypassing Envoy to reach an upstream
+  # service. Envoy strips client-supplied identity headers and applies OAuth2
+  # authentication plus OSMO semantic authorization.
+  networkPolicies:
+    enabled: true
+    upstreams:
+    - name: api
+      component: api
+      port: 8000
+    - name: router
+      component: router
+      port: 8000
+    - name: ui
+      component: ui
+      port: 8000
+    - name: agent
+      component: agent
+      port: 8000
+    - name: logger
+      component: logger
+      port: 8000
+
+configuration:
+  enabled: true
+
+valkey:
+  replica:
+    enabled: true
+    replicas: 2
+    minReplicasToWrite: 1
+  podDisruptionBudget:
+    enabled: true
+
+rustfs:
+  replicaCount: 4
+  drivesPerNode: 1
+  localEndpointHost:
+    autoInject: true
+  mode:
+    standalone:
+      enabled: false
+    distributed:
+      enabled: true
+  config:
+    rustfs:
+      ec:
+        storage_class_standard: EC:2
+  affinity:
+    podAntiAffinity:
+      enabled: true
+      topologyKey: kubernetes.io/hostname
+  pdb:
+    create: true
+    maxUnavailable: 1
+  storageclass:
+    name: ''
+    dataStorageSize: 100Gi
+
+compute:
+  # The namespace must exist before installation. Its network policy requires
+  # environment-specific IPv4 cluster CIDRs to prevent direct control-plane
+  # access.
+  workloadNamespace: osmo-workflows
+  backendTestNamespace: ''
+  workflowNetworkPolicy:
+    enabled: true
+    # The documented installation uses release name and namespace "osmo".
+    # Keep workflow data access scoped to that release's RustFS pods.
+    additionalEgressRules:
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: osmo
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: rustfs
+            app.kubernetes.io/instance: osmo
+      ports:
+      - port: 9000
+        protocol: TCP
+  authentication:
+    existingSecret: osmo-backend-token
+    tokenKey: token

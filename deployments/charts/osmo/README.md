@@ -7,17 +7,17 @@ SPDX-License-Identifier: Apache-2.0
 
 The `osmo` chart is the unified OSMO deployment entry point.
 
-See the [profile matrix](profiles/README.md) for which values files are direct
-development presets and which are base overlays requiring environment input.
+See the [profile matrix](profiles/README.md) for which values files are directly
+installable profiles and which are base overlays requiring environment input.
 
 The chart supports control-only, compute-only, and converged releases. It can
 render backend listener and worker resources directly with the control services,
 create a PostgreSQL Cluster through CloudNativePG, and deploy Valkey and RustFS.
-Production profiles consume externally managed Kubernetes Secrets. The
-self-contained kind profile uses retained in-cluster generation for development
-credentials without Vault agent injection. The standalone `backend-operator`
-chart remains available for existing two-chart installations, but it is not a
-dependency of this chart.
+Split production profiles consume externally managed dependencies and Secrets.
+The `self-contained.yaml` production profile instead owns highly available
+stateful dependencies and uses retained in-cluster credential generation. The
+standalone `backend-operator` chart remains available for existing two-chart
+installations, but it is not a dependency of this chart.
 
 ## Quick start
 
@@ -175,80 +175,113 @@ configuration. Use a production profile with managed credentials, TLS,
 authorization, backups, suitable resource sizing, and HA dependencies for
 long-lived environments.
 
-## Full kind development profile
+## Self-contained production
 
-The `kind-self-contained.yaml` profile is for development only. It expects an
-existing cluster with KAI Scheduler installed. CloudNativePG is intentionally a
-separate operator release; the unified `osmo` release owns its PostgreSQL
-`Cluster`, Valkey, RustFS, control plane, and compute plane.
+The `self-contained.yaml` profile is the production converged path for hosting
+OSMO and its stateful dependencies in one Kubernetes cluster. The cluster must
+run Kubernetes 1.30 or newer and provide:
 
-Install CloudNativePG first:
+- KAI Scheduler;
+- the CloudNativePG operator;
+- a default dynamic StorageClass;
+- a CNI that enforces Kubernetes NetworkPolicy;
+- an OIDC provider and client that emits an array-valued `roles` claim;
+- a pre-created `osmo-workflows` namespace;
+- the IPv4 pod and Service CIDRs used by the cluster network; and
+- enough failure-domain capacity for three PostgreSQL pods, three Valkey pods,
+  and four RustFS pods.
+
+Create the `osmo-oauth2-proxy` Secret in the release namespace with
+`client_secret` and `cookie_secret` keys. The profile keeps the gateway as a
+ClusterIP Service; put an operator-managed edge in front of it to terminate
+public TLS and set `externalUrl` to that edge's URL. OAuth2 Proxy authenticates
+requests inside the release, Envoy strips client-supplied OSMO identity headers,
+and the OSMO authorization service enforces role policies. NetworkPolicies
+prevent in-cluster clients from bypassing Envoy to reach control-plane Services.
+Replace the example issuer, audience, JWKS URL, IDP host, and user claim with the
+OIDC client's actual values so Envoy validates the token before authorization.
+The roles claim name is fixed as `roles`. The built-in mappings grant the
+external `osmo-user` role workflow access and the external `osmo-admin` role
+full administrative access. Before exposing the service, assign at least one
+trusted operator `osmo-admin` in the IdP and assign normal workflow users
+`osmo-user`. This is the initial administrator bootstrap for the file-backed
+authorization service. A token without either mapped role receives only
+`osmo-default` and cannot use workflow or administrative APIs.
+Before production use, run the CNI's NetworkPolicy enforcement smoke test; merely
+creating the policy objects does not prove that the cluster enforces them.
+
+Install OSMO with the production profile and the environment-specific inputs:
 
 ```bash
-helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo update cnpg
-helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
-  --version 0.29.0 \
-  --namespace cnpg-system \
-  --create-namespace \
-  --wait \
-  --timeout 10m
-kubectl --context kind-osmo --namespace cnpg-system rollout status \
-  deployment/cnpg-cloudnative-pg --timeout=10m
-```
-
-Install OSMO with one values file:
-
-```bash
+kubectl create namespace osmo
+kubectl create namespace osmo-workflows
+kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
+  --from-literal=client_secret='<oidc-client-secret>' \
+  --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
 helm dependency build deployments/charts/osmo
-helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
+helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
-  --create-namespace \
-  --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --values deployments/charts/osmo/profiles/self-contained.yaml \
+  --set-string externalUrl=https://osmo.example.com \
   --set-string compute.backendName=default \
+  --set-string gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
+  --set-string gateway.oauth2Proxy.clientId=osmo \
+  --set-string gateway.envoy.idp.host=idp.example.com \
+  --set-string 'gateway.envoy.jwt.providers[0].issuer=https://idp.example.com' \
+  --set-string 'gateway.envoy.jwt.providers[0].audience=osmo' \
+  --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
+  --set-string 'gateway.envoy.jwt.providers[0].cluster=idp' \
+  --set-string 'gateway.envoy.jwt.providers[0].user_claim=preferred_username' \
+  --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
   --wait \
-  --timeout 20m
+  --timeout 30m
 ```
+
+The profile deploys these stateful services:
+
+- three PostgreSQL instances with required hostname anti-affinity, a
+  PodDisruptionBudget, and synchronous replication to one standby;
+- one Valkey primary with two persistent replicas, write-safety checks, and a
+  PodDisruptionBudget; and
+- four distributed RustFS instances with erasure coding, required hostname
+  anti-affinity, a PodDisruptionBudget, and one 100 GiB PVC per instance.
+
+The Valkey dependency provides a fixed-primary replication topology rather than
+automatic primary promotion. Plan and test the operator procedure for primary
+recovery. Override the storage sizes and StorageClass values for the target
+environment before installation when the defaults are not appropriate. Replace
+the example cluster CIDR with every pod and Service CIDR used by the target
+cluster so workflow egress cannot reach the control-plane Services directly.
+The current workflow policy supports IPv4 CIDRs only; IPv6-only and dual-stack
+clusters require an environment-specific replacement policy. The profile's
+RustFS egress rule assumes both the Helm release and release namespace are named
+`osmo`, as shown above. If either name changes, override the rule's namespace
+selector and `app.kubernetes.io/instance` pod selector to match while retaining
+the TCP port `9000` restriction.
+
+The chart does not configure PostgreSQL WAL archiving or a cross-service backup
+system. Before production use, configure an operator-managed snapshot or backup
+and restore process for the PostgreSQL, Valkey, and RustFS volumes, and test full
+recovery. Replication and erasure coding protect availability; they do not
+replace backups.
 
 Check the database, workloads, storage, and Services without reading Secret
 values:
 
 ```bash
-kubectl --context kind-osmo --namespace osmo wait \
+kubectl --namespace osmo wait \
   --for=condition=Ready cluster/osmo-pg --timeout=10m
-kubectl --context kind-osmo --namespace osmo get pods,pvc,services,jobs
-kubectl --context kind-osmo --namespace osmo get secret \
+kubectl --namespace osmo get pods,pvc,services,jobs,poddisruptionbudgets
+kubectl --namespace osmo get secret \
   osmo-backend-token osmo-master-encryption-key osmo-valkey-credentials \
   osmo-rustfs-credentials
 ```
 
-In one terminal, forward the gateway:
-
-```bash
-kubectl --context kind-osmo --namespace osmo \
-  port-forward service/osmo-gateway 8080:80
-```
-
-In another terminal, log in and submit the smoke workflow:
-
-```bash
-curl --fail http://127.0.0.1:8080/api/version
-osmo login http://127.0.0.1:8080 --method=dev --username=testuser
-osmo workflow submit deployments/workflows/verify-hello.yaml \
-  --pool default \
-  --format-type json
-osmo workflow query <workflow-id> --format-type json
-```
-
-Repeat the query until the workflow status is `COMPLETED`. A `FAILED` or
-`CANCELLED` status is an acceptance failure; inspect `osmo workflow logs` and
-namespace events before retrying.
-
-The profile creates the three object-storage buckets and wires their RustFS
-endpoint and credential Secret into the control plane. It also creates a
-retained backend token and master encryption key through pre-install hooks.
-Those two secret values are generated inside Kubernetes and never appear in
-Helm values, rendered manifests, logs, or Helm release state.
+The release creates the workflow, log, and app buckets and wires the RustFS
+endpoint and credential Secret into the control plane. It also creates retained
+backend-token and master-encryption-key Secrets through pre-install hooks. The
+generated values never appear in Helm values, rendered manifests, logs, or Helm
+release state.
 
 ## Embedded PostgreSQL
 

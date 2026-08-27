@@ -51,7 +51,47 @@ See the [`osmo` quick-start guide](osmo/README.md#quick-start) for prerequisite
 installation, browser and CLI access, a hello-world workflow, capacity,
 troubleshooting, cleanup, and the profile's non-production limitations.
 
-## Production Shape
+## Self-contained production
+
+Use `profiles/self-contained.yaml` to host the control plane, compute plane,
+PostgreSQL, Valkey, and object storage in one production Kubernetes cluster.
+The cluster must provide KAI Scheduler, the CloudNativePG operator, and a
+default dynamic StorageClass. It must also provide a NetworkPolicy-enforcing
+CNI, an OIDC client, a dedicated workflow namespace, the cluster network CIDRs,
+and a TLS edge in front of the chart's ClusterIP gateway. The current workflow
+policy requires IPv4 pod and Service CIDRs. The IdP must emit an array-valued
+`roles` claim and assign `osmo-admin` to an initial operator. The chart runs
+OAuth2 authentication and OSMO semantic authorization behind that edge.
+
+```bash
+kubectl create namespace osmo
+kubectl create namespace osmo-workflows
+kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
+  --from-literal=client_secret='<oidc-client-secret>' \
+  --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
+helm dependency build deployments/charts/osmo
+helm upgrade --install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --values deployments/charts/osmo/profiles/self-contained.yaml \
+  --set-string externalUrl=https://osmo.example.com \
+  --set-string compute.backendName=default \
+  --set-string gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
+  --set-string gateway.oauth2Proxy.clientId=osmo \
+  --set-string gateway.envoy.idp.host=idp.example.com \
+  --set-string 'gateway.envoy.jwt.providers[0].issuer=https://idp.example.com' \
+  --set-string 'gateway.envoy.jwt.providers[0].audience=osmo' \
+  --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
+  --set-string 'gateway.envoy.jwt.providers[0].cluster=idp' \
+  --set-string 'gateway.envoy.jwt.providers[0].user_claim=preferred_username' \
+  --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+  --wait \
+  --timeout 30m
+```
+
+See the [`osmo` self-contained guide](osmo/README.md#self-contained-production)
+for availability, storage, identity, network-isolation, backup, and edge details.
+
+## Other production shapes
 
 For production, use environment-specific unified chart values or the legacy
 chart interfaces required by an existing deployment:
@@ -65,5 +105,5 @@ chart interfaces required by an existing deployment:
   and compute clusters. Configure the unified chart's
   `secrets.backendApiTokens.credentials[].existingSecret.name`
   and `compute.authentication.existingSecret` to consume the matching Secret.
-  Managed backend-token and MEK generation is intended only for single-cluster
-  development where both planes consume namespace-local Secrets.
+  The self-contained profile can generate these namespace-local Secrets when
+  both planes run in one cluster.

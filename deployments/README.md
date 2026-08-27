@@ -38,8 +38,9 @@ cd scripts
 ./deploy-osmo-minimal.sh --provider aws
 ```
 
-For an existing kind cluster with KAI Scheduler already installed, use the
-unified chart. CloudNativePG remains a separate prerequisite release:
+For a development evaluation, use the unified chart's `quickstart.yaml`
+profile. Kind is the recommended local cluster; KAI Scheduler, CloudNativePG,
+and a default dynamic StorageClass must already be available:
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -55,15 +56,15 @@ helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --values deployments/charts/osmo/profiles/quickstart.yaml \
   --set-string compute.backendName=default \
   --wait \
   --timeout 20m
 ```
 
-This development profile installs the control and compute planes, PostgreSQL,
-Valkey, and RustFS in one OSMO release and creates their required retained
-credentials and buckets automatically. See
+The quick-start profile installs the control and compute planes, PostgreSQL,
+Valkey, and RustFS in one development OSMO release and creates its credentials
+and buckets automatically. See
 [`charts/osmo/README.md`](charts/osmo/README.md) for readiness checks,
 port-forwarding, hello-world validation, recovery, and split-plane deployment.
 The unified chart owns its listener and worker templates directly. The
@@ -128,11 +129,16 @@ For users who already have Kubernetes infrastructure and want to deploy OSMO dir
 
 📖 **[charts/](charts/)** - Helm chart install guide
 
-The unified kind profile creates its namespace, CloudNativePG database Cluster,
-Valkey and RustFS credentials, retained MEK and backend token Secrets, and
-object-storage buckets. Production and multi-cluster installs instead provide
-external endpoints and Kubernetes Secret references through the control-only
-and compute-only profile contracts.
+The unified self-contained profile is the production converged path for
+hosting OSMO outside a cloud environment. It owns a synchronous three-instance
+CloudNativePG Cluster, replicated Valkey, distributed RustFS, retained MEK and
+backend-token Secrets, and object-storage buckets. The Kubernetes cluster must
+provide KAI Scheduler, the CloudNativePG operator, a default dynamic
+StorageClass, a NetworkPolicy-enforcing CNI, an OIDC client, a dedicated
+workflow namespace, IPv4 cluster CIDRs, and a TLS edge for the ClusterIP
+gateway. The IdP must emit OSMO role assignments and bootstrap an administrator.
+The release enables OAuth2, authorization, and network isolation; operators
+supply and test backups.
 
 The legacy deployment scripts require existing infrastructure details:
 

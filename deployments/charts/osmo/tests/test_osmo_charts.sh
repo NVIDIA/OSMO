@@ -466,7 +466,9 @@ test_control_umbrella() {
 
     if helm_template missing-converged-backend-name "$charts_copy/osmo" \
             --api-versions postgresql.cnpg.io/v1 \
-            -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+            --set externalUrl=https://osmo.example.com \
+            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
             >"$TEST_DIRECTORY/missing-converged-backend-name.out" 2>&1; then
         fail "expected a converged release without a backend name to fail"
     fi
@@ -591,59 +593,155 @@ test_control_umbrella() {
     helm_template_with_backend osmo "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
         --set externalUrl=https://public-control.example.com \
-        >"$TEST_DIRECTORY/kind-self-contained.yaml"
-    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-api"
-    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
+        --set gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
+        --set gateway.oauth2Proxy.clientId=osmo \
+        --set gateway.envoy.idp.host=idp.example.com \
+        --set-string 'gateway.envoy.jwt.providers[0].issuer=https://idp.example.com' \
+        --set-string 'gateway.envoy.jwt.providers[0].audience=osmo' \
+        --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
+        --set-string 'gateway.envoy.jwt.providers[0].cluster=idp' \
+        --set-string 'gateway.envoy.jwt.providers[0].user_claim=preferred_username' \
+        --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+        >"$TEST_DIRECTORY/self-contained.yaml"
+    require_deployment "$TEST_DIRECTORY/self-contained.yaml" "osmo-api"
+    require_deployment "$TEST_DIRECTORY/self-contained.yaml" \
         "osmo-backend-listener"
-    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_deployment "$TEST_DIRECTORY/self-contained.yaml" \
         "osmo-backend-worker"
-    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Cluster "osmo-pg"
-    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Cluster "osmo-pg" \
-        >"$TEST_DIRECTORY/kind-self-contained-postgresql.yaml"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained-postgresql.yaml" \
-        "    synchronous:"
-    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-valkey"
-    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Service "osmo-valkey"
-    require_deployment "$TEST_DIRECTORY/kind-self-contained.yaml" "osmo-rustfs"
-    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Service \
+    require_deployment "$TEST_DIRECTORY/self-contained.yaml" \
+        "osmo-gateway-oauth2-proxy"
+    require_deployment "$TEST_DIRECTORY/self-contained.yaml" \
+        "osmo-gateway-authz"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
+        "osmo-workflow-network-policy"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
+        "osmo-workflow-network-policy" \
+        >"$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "kubernetes.io/metadata.name: osmo"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "app.kubernetes.io/name: rustfs"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "app.kubernetes.io/instance: osmo"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "port: 9000"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "protocol: TCP"
+    local protected_upstream
+    for protected_upstream in api router ui agent logger; do
+        require_resource "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
+            "osmo-gateway-allow-envoy-to-$protected_upstream"
+    done
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Cluster "osmo-pg"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Cluster "osmo-pg" \
+        >"$TEST_DIRECTORY/self-contained-postgresql.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-postgresql.yaml" \
+        "instances: 3"
+    require_contains "$TEST_DIRECTORY/self-contained-postgresql.yaml" \
+        "size: 20Gi"
+    require_contains "$TEST_DIRECTORY/self-contained-postgresql.yaml" \
+        "method: any"
+    require_contains "$TEST_DIRECTORY/self-contained-postgresql.yaml" \
+        "number: 1"
+    require_contains "$TEST_DIRECTORY/self-contained-postgresql.yaml" \
+        "dataDurability: required"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" StatefulSet \
+        "osmo-valkey"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" StatefulSet \
+        "osmo-valkey" >"$TEST_DIRECTORY/self-contained-valkey.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-valkey.yaml" "replicas: 3"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" ConfigMap \
+        "osmo-valkey-init-scripts" \
+        >"$TEST_DIRECTORY/self-contained-valkey-init.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-valkey-init.yaml" \
+        "min-replicas-to-write 1"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" PodDisruptionBudget \
+        "osmo-valkey"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" \
+        PodDisruptionBudget "osmo-valkey" \
+        >"$TEST_DIRECTORY/self-contained-valkey-pdb.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-valkey-pdb.yaml" \
+        "maxUnavailable: 1"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Service "osmo-valkey"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" StatefulSet \
+        "osmo-rustfs"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" StatefulSet \
+        "osmo-rustfs" >"$TEST_DIRECTORY/self-contained-rustfs.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-rustfs.yaml" "replicas: 4"
+    require_contains "$TEST_DIRECTORY/self-contained-rustfs.yaml" \
+        "requiredDuringSchedulingIgnoredDuringExecution:"
+    require_contains "$TEST_DIRECTORY/self-contained-rustfs.yaml" \
+        "topologyKey: kubernetes.io/hostname"
+    require_contains "$TEST_DIRECTORY/self-contained-rustfs.yaml" \
+        "storage: 100Gi"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" ConfigMap \
+        "osmo-rustfs-config" >"$TEST_DIRECTORY/self-contained-rustfs-config.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-rustfs-config.yaml" \
+        "RUSTFS_STORAGE_CLASS_STANDARD: \"EC:2\""
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" PodDisruptionBudget \
+        "osmo-rustfs"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" \
+        PodDisruptionBudget "osmo-rustfs" \
+        >"$TEST_DIRECTORY/self-contained-rustfs-pdb.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-rustfs-pdb.yaml" \
+        "maxUnavailable: 1"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Service \
         "osmo-rustfs-svc"
-    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
         "osmo-backend-token-bootstrap"
-    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         'name: "osmo-mek-bootstrap-'
-    require_resource "$TEST_DIRECTORY/kind-self-contained.yaml" Job \
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
         "osmo-object-storage-bootstrap"
-    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "secretName: osmo-backend-token"
-    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "OSMO_LOGIN_DEV"
-    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" ConfigMap \
-        "osmo-api-config" >"$TEST_DIRECTORY/kind-self-contained-config.yaml"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained-config.yaml" \
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" ConfigMap \
+        "osmo-gateway-envoy-config" \
+        >"$TEST_DIRECTORY/self-contained-gateway-config.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "- x-osmo-user"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "name: envoy.filters.http.ext_authz"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "name: envoy.filters.http.jwt_authn"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/self-contained-config.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
+        "override_url: http://osmo-rustfs-svc.osmo.svc:9000"
+    require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
         "nvidia.com/gpu"
-    require_contains "$TEST_DIRECTORY/kind-self-contained-config.yaml" \
-        "init: nvcr.io/nvidia/osmo/init-container:latest"
-    require_contains "$TEST_DIRECTORY/kind-self-contained-config.yaml" \
-        "client: nvcr.io/nvidia/osmo/client:latest"
-    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
+        "init: nvcr.io/nvidia/osmo/init-container:6.3.1"
+    require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
+        "client: nvcr.io/nvidia/osmo/client:6.3.1"
+    require_not_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
+        "development_auth"
+    require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "http://osmo-gateway"
-    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Deployment \
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
         osmo-backend-listener \
-        >"$TEST_DIRECTORY/kind-self-contained-listener.yaml"
-    resource_document "$TEST_DIRECTORY/kind-self-contained.yaml" Deployment \
+        >"$TEST_DIRECTORY/self-contained-listener.yaml"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
         osmo-ui \
-        >"$TEST_DIRECTORY/kind-self-contained-ui.yaml"
-    require_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
+        >"$TEST_DIRECTORY/self-contained-ui.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-listener.yaml" \
         "http://osmo-gateway:80"
-    require_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
+    require_contains "$TEST_DIRECTORY/self-contained-listener.yaml" \
         "app.kubernetes.io/component: backend-listener"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "name: wait-for-control-plane"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained-listener.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained-listener.yaml" \
         "https://public-control.example.com"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained-ui.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained-ui.yaml" \
         "scheme: HTTPS"
 
     local quickstart_runtime_tag=quickstart-test
@@ -784,7 +882,9 @@ test_control_umbrella() {
     if helm_template_with_backend mismatched-converged-backend-token "$charts_copy/osmo" \
             --namespace osmo \
             --api-versions postgresql.cnpg.io/v1 \
-            -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+            --set externalUrl=https://osmo.example.com \
+            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
             --set compute.authentication.existingSecret=other-backend-token \
             >"$TEST_DIRECTORY/mismatched-converged-backend-token.out" 2>&1; then
         fail "expected converged backend token Secret mismatch to fail"
@@ -796,7 +896,9 @@ test_control_umbrella() {
     if helm_template_with_backend disabled-converged-backend-tokens "$charts_copy/osmo" \
             --namespace osmo \
             --api-versions postgresql.cnpg.io/v1 \
-            -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+            --set externalUrl=https://osmo.example.com \
+            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
             --set secrets.backendApiTokens.enabled=false \
             >"$TEST_DIRECTORY/disabled-converged-backend-tokens.out" 2>&1; then
         fail "expected disabled backend API tokens in a converged release to fail"
@@ -808,7 +910,9 @@ test_control_umbrella() {
     helm_template_with_backend conventions "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        --set externalUrl=https://osmo.example.com \
+        --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
         -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/conventions-values.yaml" \
         >"$TEST_DIRECTORY/conventions.yaml"
@@ -957,7 +1061,9 @@ test_control_umbrella() {
     helm_template_with_backend no-namespaced-rbac "$charts_copy/osmo" \
         --namespace compute-system \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        --set externalUrl=https://osmo.example.com \
+        --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
         -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/conventions-values.yaml" \
         --set compute.rbac.create=false \
@@ -1082,38 +1188,42 @@ test_control_umbrella() {
             "$TEST_DIRECTORY/conventions-$gateway_auxiliary_service-service.yaml" \
             "example.com/common: unified"
     done
-    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
-        "image: nvcr.io/nvidia/osmo/service:latest"
-    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
-        "image: nvcr.io/nvidia/osmo/backend-listener:latest"
-    require_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
-        "image: nvcr.io/nvidia/osmo/backend-worker:latest"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_contains "$TEST_DIRECTORY/self-contained.yaml" \
+        "image: nvcr.io/nvidia/osmo/service:6.3.1"
+    require_contains "$TEST_DIRECTORY/self-contained.yaml" \
+        "image: nvcr.io/nvidia/osmo/backend-listener:6.3.1"
+    require_contains "$TEST_DIRECTORY/self-contained.yaml" \
+        "image: nvcr.io/nvidia/osmo/backend-worker:6.3.1"
+    require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "vault.hashicorp.com"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "hostPath:"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "kind-osmo"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "/home/"
-    require_not_contains "$TEST_DIRECTORY/kind-self-contained.yaml" \
+    require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "currentMek:"
     require_contains "$charts_copy/osmo/Chart.yaml" 'appVersion: "6.3.1"'
 
-    helm_template_with_backend portable-kind "$charts_copy/osmo" \
+    helm_template_with_backend portable-self-contained "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/kind-self-contained.yaml" \
-        >"$TEST_DIRECTORY/portable-kind-self-contained.yaml"
-    require_deployment "$TEST_DIRECTORY/portable-kind-self-contained.yaml" \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        --set externalUrl=https://osmo.example.com \
+        --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+        >"$TEST_DIRECTORY/portable-self-contained.yaml"
+    require_deployment "$TEST_DIRECTORY/portable-self-contained.yaml" \
         "osmo-api"
-    require_resource "$TEST_DIRECTORY/portable-kind-self-contained.yaml" \
+    require_resource "$TEST_DIRECTORY/portable-self-contained.yaml" \
         Service "osmo-gateway"
-    require_contains "$TEST_DIRECTORY/portable-kind-self-contained.yaml" \
+    require_contains "$TEST_DIRECTORY/portable-self-contained.yaml" \
         "http://osmo-gateway"
 
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/profiles/self-contained.yaml"
     if ! grep -Fq "osmo/charts/valkey/Chart.yaml" \
         "$TEST_DIRECTORY/osmo-package.txt" && \
         ! grep -Fq "osmo/charts/valkey-0.11.0.tgz" \
@@ -2303,7 +2413,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "name: AWS_ENDPOINT_URL"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        'value: "http://embedded-object-storage-rustfs-svc:9000"'
+        'value: "http://embedded-object-storage-rustfs-svc.default.svc:9000"'
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "name: AWS_DEFAULT_REGION"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
@@ -2396,7 +2506,7 @@ EOF
         ConfigMap embedded-object-storage-osmo-api-config \
         >"$TEST_DIRECTORY/osmo-embedded-object-storage-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-embedded-object-storage-config.yaml" \
-        "override_url: http://embedded-object-storage-rustfs-svc:9000"
+        "override_url: http://embedded-object-storage-rustfs-svc.default.svc:9000"
     require_contains "$TEST_DIRECTORY/osmo-embedded-object-storage-config.yaml" \
         "endpoint: s3://osmo-workflows/workflows"
     require_contains "$TEST_DIRECTORY/osmo-embedded-object-storage-config.yaml" \
@@ -2550,7 +2660,7 @@ EOF
         ConfigMap embedded-object-storage-ha-osmo-api-config \
         >"$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
-        "override_url: http://embedded-object-storage-ha-rustfs-svc:9000"
+        "override_url: http://embedded-object-storage-ha-rustfs-svc.default.svc:9000"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
         "endpoint: s3://osmo-workflows/workflows"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
@@ -2566,7 +2676,7 @@ EOF
         Job embedded-object-storage-ha-osmo-object-storage-bootstrap \
         >"$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
-        'value: "http://embedded-object-storage-ha-rustfs-svc:9000"'
+        'value: "http://embedded-object-storage-ha-rustfs-svc.default.svc:9000"'
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
         "name: OSMO_WORKFLOW_BUCKET"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
@@ -4554,7 +4664,7 @@ EOF
     resource_document "$TEST_DIRECTORY/osmo-embedded-notes.yaml" ConfigMap \
         rendered-notes >"$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml"
     require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
-        "http://notes-embedded-release-rustfs-svc:9000"
+        "http://notes-embedded-release-rustfs-svc.default.svc:9000"
     require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \
         "osmo-rustfs-credentials"
     require_contains "$TEST_DIRECTORY/osmo-embedded-notes-configmap.yaml" \

@@ -468,7 +468,7 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 
 {{- define "osmo.objectStorage.endpoint" -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
-{{- printf "http://%s-svc:9000" (include "osmo.rustfs.fullname" .) -}}
+{{- printf "http://%s-svc.%s.svc:9000" (include "osmo.rustfs.fullname" .) .Release.Namespace -}}
 {{- else -}}
 {{- .Values.externalDependencies.objectStorage.endpoint -}}
 {{- end -}}
