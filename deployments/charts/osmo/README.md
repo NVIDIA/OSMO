@@ -773,7 +773,7 @@ retry the same phase. Jobs never delete Pods or patch Deployments; Helm or the
 GitOps controller owns both rollouts. Clear a completed phase promptly so its
 narrowly scoped ServiceAccount and RoleBinding leave the desired state.
 
-In `managementMode=external`, the operator performs PREPARE and ACTIVATE by
+With `managedBy: external`, the operator performs PREPARE and ACTIVATE by
 updating the existing Secret, with one rollout after each update. Then set only
 `rotation.phase=rewrap`. The rewrap Job has exact-name Secret `get` permission,
 not `patch` or `update`, and enforces the same ACTIVATE Pod attestation before

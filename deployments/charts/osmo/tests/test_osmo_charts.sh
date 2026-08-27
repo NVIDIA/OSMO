@@ -611,6 +611,19 @@ test_control_umbrella() {
         "osmo-workflows" >"$TEST_DIRECTORY/self-contained-workload-namespace.yaml"
     require_contains "$TEST_DIRECTORY/self-contained-workload-namespace.yaml" \
         'helm.sh/resource-policy: "keep"'
+
+    helm_template_with_backend numeric-workload-namespace "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        -f "$charts_copy/osmo/examples/self-contained-environment-values.yaml" \
+        --set-string compute.workloadNamespace.name=123 \
+        >"$TEST_DIRECTORY/numeric-workload-namespace.yaml"
+    resource_document "$TEST_DIRECTORY/numeric-workload-namespace.yaml" Namespace \
+        123 >"$TEST_DIRECTORY/numeric-workload-namespace-resource.yaml"
+    require_contains "$TEST_DIRECTORY/numeric-workload-namespace-resource.yaml" \
+        'name: "123"'
+
     require_resource "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
         "osmo-workflow-network-policy"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
