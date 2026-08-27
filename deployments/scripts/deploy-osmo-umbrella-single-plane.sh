@@ -13,11 +13,16 @@ export KUBECONFIG
 : "${TF_VAR_resource_group_name:?set the isolated sandbox resource group}"
 : "${TF_VAR_cluster_name:?set a globally unique AKS cluster name}"
 : "${TF_VAR_postgres_password:?set the PostgreSQL administrator password}"
+OSMO_IMAGE_REPOSITORY="${OSMO_IMAGE_REPOSITORY:-nvidia/osmo}"
+OSMO_IMAGE_TAG="${OSMO_IMAGE_TAG:-latest}"
+IMAGE_PULL_SECRETS="[]"
+[[ -z "${OSMO_IMAGE_PULL_SECRET:-}" ]] || IMAGE_PULL_SECRETS="[{name: \"$OSMO_IMAGE_PULL_SECRET\"}]"
 for command in az terraform kubectl helm openssl curl jq osmo; do
     command -v "$command" >/dev/null
 done
 TF_VAR_subscription_id="$(az account show --query id --output tsv)"
 export TF_VAR_subscription_id TF_VAR_storage_account_enabled=true TF_VAR_aks_private_cluster_enabled=false
+export TF_VAR_node_instance_type="${TF_VAR_node_instance_type:-Standard_D4s_v3}"
 terraform -chdir="$TERRAFORM_DIR" init
 terraform -chdir="$TERRAFORM_DIR" apply -auto-approve
 AKS_CLUSTER_NAME="$(terraform -chdir="$TERRAFORM_DIR" output -raw aks_cluster_name)"
@@ -53,9 +58,43 @@ if [[ -z "$BACKEND_TOKEN_SECRET" ]]; then
         --from-literal=token="$BACKEND_TOKEN" --dry-run=client --output yaml | kubectl apply -f -
 fi
 cat >"$AZURE_VALUES" <<EOF
-externalUrl: http://127.0.0.1:9000
+externalUrl: http://osmo-gateway
+imageTag: "$OSMO_IMAGE_TAG"
+imagePullSecrets: $IMAGE_PULL_SECRETS
+runtimeImage:
+  repository: "$OSMO_IMAGE_REPOSITORY"
+  tag: "$OSMO_IMAGE_TAG"
+  pullSecret: "${OSMO_IMAGE_PULL_SECRET:-}"
 compute:
   backendName: default
+services:
+  ui:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/web-ui"
+  api:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/service"
+  worker:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/worker"
+  router:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/router"
+  logger:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/logger"
+  agent:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/agent"
+  delayedJobMonitor:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/delayed-job-monitor"
+  backendListener:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/backend-listener"
+  backendWorker:
+    image:
+      repository: "$OSMO_IMAGE_REPOSITORY/backend-worker"
 externalDependencies:
   postgresql:
     host: $POSTGRES_HOST

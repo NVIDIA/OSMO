@@ -185,6 +185,12 @@ URL, external dependency connections, and backend name. Ingress is deliberately
 an external, later step; enable and configure it only when the site has its
 ingress controller and public DNS ready.
 
+The profile configures Envoy to validate supplied OSMO access tokens against the
+API service's in-cluster `https://osmo-api/api/auth/keys` endpoint. Missing JWTs
+remain allowed so the development default identity and `--method=dev` login keep
+working; malformed or invalid supplied JWTs are rejected. External identity
+providers remain site-specific gateway configuration.
+
 Object storage uses exact `locations` for workflow data, logs, and apps. All
 three locations must use the same URI scheme. The URI scheme selects the storage
 backend: Azure locations use `azure://<account>/<container>/<prefix>`, while S3
@@ -573,10 +579,13 @@ above.
   OSMO component tag under `imageTag`, pull credentials under
   `imagePullSecrets`, and workflow init/client images under `runtimeImage`.
   The chart writes those workflow images into the managed API configuration
-  unless `configuration.workflow.backend_images` overrides them. Configure
-  per-component image overrides in each component's `image` block. Configure
-  dependency images and pull credentials in their native values blocks; for
-  example, Valkey uses `valkey.image` and `valkey.imagePullSecrets`.
+  unless `configuration.workflow.backend_images` overrides them. Set
+  `runtimeImage.pullSecret` to a Docker config Secret when those workflow
+  images are private; OSMO converts it into workflow-scoped pull credentials.
+  Configure per-component image overrides in each component's `image` block.
+  Configure dependency images and pull credentials in their native values
+  blocks; for example, Valkey uses `valkey.image` and
+  `valkey.imagePullSecrets`.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,
   `gateway`, and `podDefaults`. Directly owned workload extensions use

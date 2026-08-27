@@ -211,16 +211,17 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   default_node_pool {
-    name                 = "system"
-    min_count            = var.node_group_min_size
-    max_count            = var.node_group_max_size
-    vm_size              = var.node_instance_type
-    type                 = "VirtualMachineScaleSets"
-    zones                = var.availability_zones
-    auto_scaling_enabled = true
-    vnet_subnet_id       = azurerm_subnet.private[0].id
-    max_pods             = 30
-    os_disk_size_gb      = 50
+    name                        = "system"
+    temporary_name_for_rotation = "systemtemp"
+    min_count                   = var.node_group_min_size
+    max_count                   = var.node_group_max_size
+    vm_size                     = var.node_instance_type
+    type                        = "VirtualMachineScaleSets"
+    zones                       = var.availability_zones
+    auto_scaling_enabled        = true
+    vnet_subnet_id              = azurerm_subnet.private[0].id
+    max_pods                    = 30
+    os_disk_size_gb             = 50
   }
 
   # Ignore changes to node count since auto-scaling manages this
@@ -550,12 +551,12 @@ resource "azurerm_storage_account" "nfs" {
   # clamping to a 19-char prefix budget so the trailing 5-char random suffix
   # keeps the total at <=24. environment intentionally omitted from the name
   # (still carried in tags) so overrides can't blow the budget.
-  name                          = "${substr(lower(replace("stnfs${var.cluster_name}", "/[^0-9a-z]/", "")), 0, 19)}${random_string.suffix.result}"
-  location                      = data.azurerm_resource_group.main.location
-  resource_group_name           = data.azurerm_resource_group.main.name
-  account_tier                  = "Premium"     # FileStorage requires Premium
-  account_kind                  = "FileStorage" # NFS shares require FileStorage kind
-  account_replication_type      = "LRS"
+  name                     = "${substr(lower(replace("stnfs${var.cluster_name}", "/[^0-9a-z]/", "")), 0, 19)}${random_string.suffix.result}"
+  location                 = data.azurerm_resource_group.main.location
+  resource_group_name      = data.azurerm_resource_group.main.name
+  account_tier             = "Premium"     # FileStorage requires Premium
+  account_kind             = "FileStorage" # NFS shares require FileStorage kind
+  account_replication_type = "LRS"
   # Azure Files NFS over service endpoints requires the SA's public endpoint to
   # remain reachable; with PNA=false the public endpoint is blocked and NFS
   # mounts fail. Keep PNA enabled and rely on the VNet-scoped network_rules

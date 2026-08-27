@@ -198,6 +198,16 @@ gateway:
       user: testuser
       roles: osmo-admin
       allowedPools: default
+    jwt:
+      # Keep the development default identity usable while validating any JWT
+      # that is supplied by in-cluster OSMO clients.
+      allowMissing: true
+      providers:
+      - issuer: osmo
+        audience: osmo
+        jwks_uri: https://osmo-api/api/auth/keys
+        user_claim: unique_name
+        cluster: osmo-api-jwks
     service:
       type: ClusterIP
     resources:

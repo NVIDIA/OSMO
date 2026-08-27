@@ -708,6 +708,7 @@ test_control_umbrella() {
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/single-plane.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+        --set-string runtimeImage.pullSecret=osmo-runtime-pull \
         >"$TEST_DIRECTORY/single-plane-azure.yaml"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-api"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
@@ -729,7 +730,28 @@ test_control_umbrella() {
         "secretName: osmo-backend-token"
     require_contains "$TEST_DIRECTORY/single-plane-azure.yaml" "OSMO_LOGIN_DEV"
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ConfigMap \
+        "osmo-gateway-envoy-config" \
+        >"$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "issuer: osmo"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "uri: https://osmo-api/api/auth/keys"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "cluster: osmo-api-jwks"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "allow_missing:"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ConfigMap \
         "osmo-api-config" >"$TEST_DIRECTORY/single-plane-azure-config.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretName: osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretKey: .dockerconfigjson"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
+        "osmo-api" >"$TEST_DIRECTORY/single-plane-azure-api.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "secretName: osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "cpu: '{{USER_CPU}}'"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \

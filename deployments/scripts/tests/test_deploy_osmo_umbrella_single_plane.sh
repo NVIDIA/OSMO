@@ -53,6 +53,7 @@ write_mock az '#!/bin/bash' 'set -euo pipefail' 'echo "az $*" >>"$COMMAND_LOG"' 
     'if [[ "$1 $2" == "account show" ]]; then echo test-subscription; fi'
 # shellcheck disable=SC2016 # Mock bodies intentionally defer expansion to execution.
 write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform $*" >>"$COMMAND_LOG"' \
+    '[[ "${TF_VAR_node_instance_type:-}" == "Standard_D4s_v3" ]] || exit 18' \
     'if [[ "$*" == *"output -raw"* ]]; then' \
     '  case "${!#}" in' \
     '    aks_cluster_name) echo test-aks ;;' \
@@ -106,6 +107,9 @@ export TF_VAR_resource_group_name=test-resource-group
 export TF_VAR_cluster_name=test-cluster
 export TF_VAR_postgres_password=postgres-secret-sentinel
 export TMPDIR="$test_directory/tmp"
+export OSMO_IMAGE_REPOSITORY=nvstaging/osmo
+export OSMO_IMAGE_TAG=123
+export OSMO_IMAGE_PULL_SECRET=456
 
 script="${TEST_SRCDIR}/_main/deployments/scripts/deploy-osmo-umbrella-single-plane.sh"
 [[ -x "$script" ]] || fail "deployment script is absent"
@@ -114,7 +118,7 @@ export BACKEND_TOKEN_STATE=absent
 
 values_file="$TMPDIR/single-plane-azure.yaml"
 [[ -f "$values_file" ]] || fail "Azure values file was not generated"
-assert_contains "$values_file" 'externalUrl: http://127.0.0.1:9000'
+assert_contains "$values_file" 'externalUrl: http://osmo-gateway'
 assert_contains "$values_file" 'host: test.postgres.database.azure.com'
 assert_contains "$values_file" 'port: 5432'
 assert_contains "$values_file" 'port: 10000'
@@ -126,6 +130,14 @@ assert_contains "$values_file" 'apps: azure://teststorage/osmo-workflows/apps'
 assert_contains "$values_file" 'existingSecret: osmo-postgresql'
 assert_contains "$values_file" 'existingSecret: osmo-valkey'
 assert_contains "$values_file" 'existingSecret: osmo-object-storage'
+assert_contains "$values_file" 'imageTag: "123"'
+assert_contains "$values_file" 'repository: "nvstaging/osmo"'
+for image in agent backend-listener backend-worker delayed-job-monitor logger router service web-ui worker; do
+    assert_contains "$values_file" "repository: \"nvstaging/osmo/$image\""
+done
+assert_contains "$values_file" 'tag: "123"'
+assert_contains "$values_file" 'pullSecret: "456"'
+assert_contains "$values_file" 'name: "456"'
 assert_not_contains "$values_file" postgres-secret-sentinel
 assert_not_contains "$values_file" redis-secret-sentinel
 assert_not_contains "$values_file" storage-key-sentinel

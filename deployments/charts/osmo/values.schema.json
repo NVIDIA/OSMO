@@ -563,9 +563,10 @@
       "properties": {
         "registry": { "type": "string" },
         "repository": { "type": "string", "minLength": 1 },
-        "tag": { "type": "string" }
+        "tag": { "type": "string" },
+        "pullSecret": { "type": "string" }
       },
-      "required": ["registry", "repository", "tag"]
+      "required": ["registry", "repository", "tag", "pullSecret"]
     },
     "componentImage": {
       "type": "object",
@@ -815,6 +816,7 @@
       "type": "object",
       "properties": {
         "userHeader": { "type": "string" },
+        "allowMissing": { "type": "boolean" },
         "providers": { "type": "array" }
       }
     },

@@ -55,14 +55,37 @@ azure-sandbox assume
 ./deploy-osmo-umbrella-single-plane.sh
 ```
 
+To validate unpublished images, set an OSMO repository prefix and shared tag.
+If that registry requires authentication, create the pull Secret in the `osmo`
+namespace first and provide its name:
+
+```bash
+export OSMO_IMAGE_REPOSITORY=nvstaging/osmo
+export OSMO_IMAGE_TAG=pr-33031643714-1-amd64
+export OSMO_IMAGE_PULL_SECRET=nvcr-pull
+./deploy-osmo-umbrella-single-plane.sh
+```
+
+The repository defaults to `nvidia/osmo`, the tag defaults to `latest`, and the
+pull Secret is optional. The repository prefix applies to every OSMO-owned
+component and to workflow runtime images; third-party prerequisite images keep
+their chart defaults.
+
+The script defaults `TF_VAR_node_instance_type` to `Standard_D4s_v3`, leaving
+enough allocatable CPU for the control plane and the representative workflow on
+the same AKS pool. Set that Terraform variable explicitly to choose another VM
+size with equivalent capacity.
+
 The script provisions its AKS, PostgreSQL, Valkey, and Azure Storage inputs
 with Terraform, installs KAI Scheduler, and creates the Kubernetes credential
 Secrets directly in the `osmo` namespace. It writes a non-secret,
 Azure-specific overlay at `${TMPDIR:-/tmp}/single-plane-azure.yaml`; that file
-contains only connection data, exact `azure://` locations, and references to
-the pre-provisioned Secrets. The chart base remains the provider-neutral
-`deployments/charts/osmo/profiles/single-plane.yaml`, which is always layered
-before the generated overlay.
+contains connection data, exact `azure://` locations, image selections, and
+references to the pre-provisioned Secrets. The chart base remains
+provider-neutral `deployments/charts/osmo/profiles/single-plane.yaml`, which is
+always layered before the generated overlay. The overlay uses the in-cluster
+`http://osmo-gateway` URL so workflow runtime containers can reach the control
+plane; local operators continue to use the port-forward URL below.
 
 The Helm release runs two MEK transactions: the first installation enables the
 MEK bootstrap hook, and the second upgrade disables it after the generated MEK
