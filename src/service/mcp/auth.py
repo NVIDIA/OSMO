@@ -16,12 +16,14 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import dataclasses
 from typing import cast
 from urllib import parse
 
 from cryptography.fernet import Fernet
-from fastmcp.server.auth.jwt_issuer import derive_jwt_key
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from key_value.aio.protocols import AsyncKeyValue
@@ -78,6 +80,11 @@ class _OSMOOIDCProxy(OIDCProxy):
             audience=self._access_token_audience,
             required_scopes=required_scopes,
         )
+# The derived signing and storage keys are only as strong as the secret
+# they come from. Identity providers issue well above this; the check
+# exists to reject a hand-written placeholder.
+_MIN_CLIENT_SECRET_LENGTH = 32
+
 _REQUIRED_WHEN_AUTH_ENABLED = (
     'resource_url',
     'redis_url',
@@ -223,6 +230,13 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         cast(str, config.oidc_client_secret_file),
         'OIDC client secret',
     )
+    if len(client_secret) < _MIN_CLIENT_SECRET_LENGTH:
+        raise ValueError(
+            'OIDC client secret must be at least '
+            f'{_MIN_CLIENT_SECRET_LENGTH} characters: both the proxy token '
+            'signing key and the Redis storage key are derived from it, so '
+            'its entropy is their entropy'
+        )
     redis_client = redis_asyncio.Redis.from_url(
         cast(str, config.redis_url),
         password=_read_optional_secret(config.redis_password_file),
@@ -281,14 +295,32 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     return MCPAuthRuntime(provider, redis_client)
 
 
+def _derive_fernet_key(material: str, *, salt: str) -> bytes:
+    """Derive a Fernet key from high-entropy material.
+
+    Reproduces FastMCP's own derivation with the same HKDF parameters rather
+    than importing ``fastmcp.server.auth.jwt_issuer.derive_jwt_key``, which is
+    private and carries no deprecation contract. The bytes are identical, so
+    state encrypted before this change stays readable; ``test_auth`` asserts
+    that equivalence against FastMCP directly.
+    """
+    derived = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt.encode(),
+        info=b'Fernet',
+    ).derive(material.encode())
+    return base64.urlsafe_b64encode(derived)
+
+
 def _storage_encryption_key(client_secret: str) -> bytes:
     """Mirror FastMCP's default signing and storage key derivation."""
-    signing_key = derive_jwt_key(
-        high_entropy_material=client_secret,
+    signing_key = _derive_fernet_key(
+        client_secret,
         salt='fastmcp-jwt-signing-key',
     )
-    return derive_jwt_key(
-        high_entropy_material=signing_key.decode('ascii'),
+    return _derive_fernet_key(
+        signing_key.decode('ascii'),
         salt='fastmcp-storage-encryption-key',
     )
 

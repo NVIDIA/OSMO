@@ -147,16 +147,13 @@ sessions and makes old encrypted state, including DCR registrations, unusable.
 Users must authenticate again, and DCR clients might need to remove and re-add
 the MCP entry before login.
 
-.. warning::
-
-   OSMO currently relies on FastMCP's default derived signing key to avoid a
-   second operator-managed secret. FastMCP documents that default as a
-   development or local-testing convenience and recommends an explicit
-   independent signing key for production. The current OSMO chart does not
-   expose that independent-key option. Assess this limitation before a
-   production rollout and require a high-entropy upstream client secret. See
-   the `FastMCP OIDC proxy signing-key guidance
-   <https://gofastmcp.com/servers/auth/oidc-proxy#param-jwt-signing-key>`_.
+Because both keys come from the client secret, the strength they provide is the
+strength of that secret. FastMCP passes it through HKDF as high-entropy key
+material, a path distinct from the password-based derivation it reserves for
+low-entropy operator-supplied strings. The service therefore requires a client
+secret of at least 32 characters and refuses to start below it. Identity
+providers issue secrets well above that length; the check exists to reject a
+hand-written placeholder.
 
 Configure Helm Values
 ---------------------
