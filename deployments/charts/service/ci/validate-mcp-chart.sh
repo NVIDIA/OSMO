@@ -19,15 +19,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CHART_DIR="$(dirname -- "$SCRIPT_DIR")"
-VALUES_FILE="$SCRIPT_DIR/mcp-values.yaml"
 PROXY_VALUES_FILE="$SCRIPT_DIR/mcp-oidc-proxy-values.yaml"
-RENDERED_MANIFEST="$(mktemp)"
-MCP_MANIFEST="$(mktemp)"
 DISABLED_MANIFEST="$(mktemp)"
 PROXY_RENDERED_MANIFEST="$(mktemp)"
 PROXY_MCP_MANIFEST="$(mktemp)"
-trap 'rm -f "$RENDERED_MANIFEST" "$MCP_MANIFEST" "$DISABLED_MANIFEST" \
-  "$PROXY_RENDERED_MANIFEST" "$PROXY_MCP_MANIFEST"' EXIT
+trap 'rm -f "$DISABLED_MANIFEST" "$PROXY_RENDERED_MANIFEST" \
+  "$PROXY_MCP_MANIFEST"' EXIT
 
 fail() {
   echo "MCP chart validation failed: $*" >&2
@@ -102,14 +99,8 @@ expect_render_failure() {
   esac
 }
 
-helm lint "$CHART_DIR" --values "$VALUES_FILE"
 helm lint "$CHART_DIR" --values "$PROXY_VALUES_FILE"
 helm template mcp-disabled "$CHART_DIR" >"$DISABLED_MANIFEST"
-helm template mcp-validation "$CHART_DIR" \
-  --values "$VALUES_FILE" >"$RENDERED_MANIFEST"
-helm template mcp-validation "$CHART_DIR" \
-  --values "$VALUES_FILE" \
-  --show-only templates/mcp-service.yaml >"$MCP_MANIFEST"
 helm template mcp-proxy-validation "$CHART_DIR" \
   --values "$PROXY_VALUES_FILE" >"$PROXY_RENDERED_MANIFEST"
 helm template mcp-proxy-validation "$CHART_DIR" \
@@ -124,57 +115,10 @@ for forbidden in \
   assert_file_omits "$DISABLED_MANIFEST" "$forbidden"
 done
 
-for forbidden in \
-    'path: /.well-known/oauth-authorization-server' \
-    'path: /authorize' \
-    'path: /auth/callback' \
-    'path: /register' \
-    'path: /token' \
-    'path: /consent'; do
-  assert_file_omits "$RENDERED_MANIFEST" "$forbidden"
-done
-
-for expected in \
-    'kind: Deployment' \
-    'kind: Service' \
-    'name: osmo-mcp' \
-    'image: nvcr.io/nvidia/osmo/mcp:latest' \
-    'name: OSMO_GATEWAY_URL' \
-    'name: OSMO_MCP_REQUEST_TIMEOUT_SECONDS' \
-    'name: OSMO_MCP_AUTH_ENABLED' \
-    'kind: NetworkPolicy' \
-    'name: osmo-mcp-allow-gateway-envoy' \
-    'app.kubernetes.io/component: envoy' \
-    'automountServiceAccountToken: false'; do
-  assert_file_contains "$MCP_MANIFEST" "$expected"
-done
-assert_file_contains "$RENDERED_MANIFEST" 'path: /mcp'
-assert_file_contains "$RENDERED_MANIFEST" 'path: /.well-known/oauth-protected-resource/mcp'
-assert_file_contains "$RENDERED_MANIFEST" '\"authorization_servers\":[\"https://issuer.example.com\"]'
-assert_file_contains "$RENDERED_MANIFEST" '\"resource\":\"https://osmo.example.com/mcp\"'
-assert_file_contains "$RENDERED_MANIFEST" '\"scopes_supported\":[\"mcp:Access\"]'
-assert_file_contains "$RENDERED_MANIFEST" 'local safe_roles = {}'
-assert_file_contains "$RENDERED_MANIFEST" "not string.find(role, '[,%c]')"
-assert_file_contains "$RENDERED_MANIFEST" "table.concat(safe_roles, ',')"
-assert_env_value "$MCP_MANIFEST" OSMO_GATEWAY_URL https://osmo.example.com
-assert_env_value "$MCP_MANIFEST" OSMO_MCP_REQUEST_TIMEOUT_SECONDS 10
-assert_env_value "$MCP_MANIFEST" OSMO_MCP_AUTH_ENABLED false
-assert_route_omits "$RENDERED_MANIFEST" osmo-mcp 'typed_per_filter_config:'
-
-for expected in \
-    'name: OSMO_MCP_AUTH_RESOURCE_URL' \
-    'name: OSMO_MCP_AUTH_REDIS_URL' \
-    'name: OSMO_MCP_AUTH_REDIS_CONNECT_TIMEOUT_SECONDS' \
-    'name: OSMO_MCP_AUTH_REDIS_OPERATION_TIMEOUT_SECONDS' \
-    'name: OSMO_MCP_AUTH_OIDC_CONFIG_URL' \
-    'name: OSMO_MCP_AUTH_OIDC_CLIENT_ID' \
-    'name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE' \
-    'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER' \
-    'name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE' \
-    'name: OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS' \
-    'secretName: mcp-oidc-proxy-secrets'; do
-  assert_file_contains "$PROXY_MCP_MANIFEST" "$expected"
-done
+# The roles Lua filter has no other coverage in the repo.
+assert_file_contains "$PROXY_RENDERED_MANIFEST" 'local safe_roles = {}'
+assert_file_contains "$PROXY_RENDERED_MANIFEST" "not string.find(role, '[,%c]')"
+assert_file_contains "$PROXY_RENDERED_MANIFEST" "table.concat(safe_roles, ',')"
 
 # FastMCP's OAuth endpoints are published under /mcp, so the gateway needs one
 # prefix route rather than an entry per endpoint name.
@@ -245,20 +189,15 @@ if awk -v secret_name='mcp-oidc-proxy-secrets' '
   fail 'OIDC proxy mode rendered credential material into a Secret'
 fi
 
-expect_render_failure "$VALUES_FILE" \
+expect_render_failure "$PROXY_VALUES_FILE" \
   'encoded alternate Gateway origin' \
   'services.mcp.resourceUrl must be a valid HTTPS origin' \
   --set 'services.mcp.resourceUrl=https://osmo.example.com%40evil.example.com/mcp'
 
-expect_render_failure "$VALUES_FILE" \
+expect_render_failure "$PROXY_VALUES_FILE" \
   'managed Gateway URL override' \
   'services.mcp.extraEnv must not override managed variable OSMO_GATEWAY_URL' \
   --set-json 'services.mcp.extraEnv=[{"name":"OSMO_GATEWAY_URL","value":"https://evil.example.com"}]'
-
-expect_render_failure "$PROXY_VALUES_FILE" \
-  'OIDC proxy without MCP' \
-  'services.mcp.oidcProxy.enabled requires services.mcp.enabled=true' \
-  --set 'services.mcp.enabled=false'
 
 expect_render_failure "$PROXY_VALUES_FILE" \
   'OIDC proxy Redis database below range' \

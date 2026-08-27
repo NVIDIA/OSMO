@@ -23,41 +23,26 @@ Every MCP request and every resulting API request enters through the same
 deployment's Gateway. Authentication can remain at the Gateway or run inside
 the existing MCP process through FastMCP's built-in `OIDCProxy`.
 
-OSMO can expose MCP authentication in either of two deployment modes:
+MCP authenticates every caller through FastMCP's `OIDCProxy`, passed as the
+FastMCP server's `auth` argument. A client configures only `/mcp`, discovers
+FastMCP's OAuth endpoints, and completes the deployment identity-provider login
+in a browser. FastMCP supports Client ID Metadata Documents (CIMD) and retains
+Dynamic Client Registration (DCR) for older clients. It authenticates MCP
+access but does not replace OSMO's API-specific authorization.
 
-- **Direct identity-provider mode** retains the existing behavior. The Gateway
-  advertises the configured identity provider, and clients may need an OAuth
-  client ID, scopes, and callback configuration supplied by the deployment
-  administrator.
-- **OIDC proxy mode** passes an `OIDCProxy` as the existing FastMCP server's
-  `auth` argument. A client configures only `/mcp`, discovers FastMCP's OAuth
-  endpoints, and completes the deployment identity-provider login in a browser.
-  FastMCP supports Client ID Metadata Documents (CIMD) and retains Dynamic
-  Client Registration (DCR) for older clients. It authenticates MCP access but
-  does not replace OSMO's API-specific authorization.
-
-OIDC proxy mode is feature-gated by `services.mcp.oidcProxy.enabled` and
-disabled by default. No second executable, process, Service, or Deployment is
-created.
+No second executable, process, Service, or Deployment is created.
 
 ## Request flow and trust boundary
 
 ```text
-Direct mode:
-  MCP client -> Gateway JWT + mcp:Access -> MCP
-             -> same Gateway JWT + API action -> OSMO API
-
-OIDC proxy mode:
   MCP client -> Gateway routing -> FastMCP OIDCProxy -> MCP
              -> same Gateway with verified upstream token + API action
              -> OSMO API
 ```
 
-In direct mode, Gateway supplies the validated bearer and trusted user identity;
-the request-context middleware strips those headers from the downstream ASGI
-scope and retains one request-local credential. In OIDC proxy mode, FastMCP
-validates its resource token and `get_access_token()` exposes the verified
-upstream identity-provider bearer to the active tool request. A tool passes the
+FastMCP validates its resource token and `get_access_token()` exposes the
+verified upstream identity-provider bearer to the active tool request. A tool
+passes the
 selected credential explicitly to `GatewayClient`; the shared HTTP client
 contains no caller credentials.
 
@@ -261,10 +246,8 @@ at `1` while using FastMCP 3.4.7 because refresh serialization is process-local.
 After changing an Entra app-role assignment, users should log out and
 authenticate again so the next token definitely contains the updated role set.
 
-To roll back, disable `services.mcp.oidcProxy.enabled`, restore the direct-mode
-`authorizationServers` and `scopes` values, and redeploy. Existing proxy tokens
-will no longer authenticate, so clients must log in again through the direct
-provider. The MCP tool catalog and API-specific authorization do not change.
+To roll back, disable `services.mcp.enabled` and redeploy. Clients lose the MCP
+endpoint; no other OSMO route is affected.
 
 ## Available tools
 

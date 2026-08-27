@@ -149,18 +149,6 @@ services:
     ##
     requestTimeoutSeconds: 10
 
-    ## OAuth authorization-server issuer identifiers advertised by the public
-    ## protected-resource metadata document. Configure the issuer for the
-    ## separately registered public/native MCP OAuth client.
-    ##
-    authorizationServers: []
-
-    ## OAuth scopes requested by MCP clients. These values are advertised as
-    ## scopes_supported in RFC 9728 protected-resource metadata and should
-    ## include the delegated scope required to access this MCP resource.
-    ##
-    scopes: []
-
     ## Browser Origins permitted to call /mcp. Native MCP clients normally omit
     ## Origin and remain allowed. When this list is empty, any present Origin is
     ## rejected with 403.
@@ -174,8 +162,6 @@ services:
     ## identity-provider access token to the OSMO Gateway for normal RBAC.
     ##
     oidcProxy:
-      enabled: false
-
       ## Upstream OpenID Connect provider. Register the fixed redirect URL
       ## <resourceUrl origin>/mcp/auth/callback on this confidential application.
       ##
