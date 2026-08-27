@@ -293,6 +293,8 @@ secrets:
     #     name: osmo-backend-token-local
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
+    # OSMO-managed lifecycle Jobs create and rotate the referenced Secret.
+    # External ownership mounts the reference without Secret mutation.
     managedBy: external
     secretRef:
       name: ''

@@ -200,12 +200,13 @@ run Kubernetes 1.30 or newer and provide:
 - the CloudNativePG operator;
 - a default dynamic StorageClass;
 - a CNI that enforces Kubernetes NetworkPolicy;
-- an OIDC provider and client that emits an array-valued `roles` claim;
-- a pre-created `osmo-workflows` namespace;
 - the IPv4 pod and Service CIDRs used by the cluster network; and
 - at least four schedulable nodes, with enough failure-domain capacity for
   three PostgreSQL pods, three Valkey pods, and four RustFS pods.
 
+Separately, register an OIDC client with an identity provider reachable by
+users and OSMO gateway workloads. The provider may run inside or outside the
+Kubernetes cluster. Its tokens must contain an array-valued `roles` claim.
 Create the `osmo-oauth2-proxy` Secret in the release namespace with
 `client_secret` and `cookie_secret` keys. The profile keeps the gateway as a
 ClusterIP Service; put an operator-managed edge in front of it to terminate
@@ -229,25 +230,17 @@ Install OSMO with the production profile and the environment-specific inputs:
 
 ```bash
 kubectl create namespace osmo
-kubectl create namespace osmo-workflows
 kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
   --from-literal=client_secret='<oidc-client-secret>' \
   --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
 helm dependency build deployments/charts/osmo
+cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
+  self-contained-environment-values.yaml
+# Edit self-contained-environment-values.yaml for the target environment.
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
-  --set-string externalUrl=https://osmo.example.com \
-  --set-string compute.backendName=default \
-  --set-string gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
-  --set-string gateway.oauth2Proxy.clientId=osmo \
-  --set-string gateway.envoy.idp.host=idp.example.com \
-  --set-string 'gateway.envoy.jwt.providers[1].issuer=https://idp.example.com' \
-  --set-string 'gateway.envoy.jwt.providers[1].audience=osmo' \
-  --set-string 'gateway.envoy.jwt.providers[1].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
-  --set-string 'gateway.envoy.jwt.providers[1].cluster=idp' \
-  --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
-  --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+  --values self-contained-environment-values.yaml \
   --wait \
   --wait-for-jobs \
   --timeout 30m
@@ -256,14 +249,21 @@ helm upgrade --install osmo deployments/charts/osmo \
 The first installation bootstraps the retained
 `osmo-master-encryption-key` Secret without rendering key material. As soon as
 it succeeds, persist `secrets.masterEncryptionKey.bootstrap.enabled: false` in
-the environment overlay and apply the mandatory cleanup transaction. For an
-immediate Helm installation, retain the first transaction's values:
+`self-contained-environment-values.yaml` and apply the mandatory cleanup
+transaction:
+
+```yaml
+secrets:
+  masterEncryptionKey:
+    bootstrap:
+      enabled: false
+```
 
 ```bash
 helm upgrade osmo deployments/charts/osmo \
   --namespace osmo \
-  --reuse-values \
-  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --values deployments/charts/osmo/profiles/self-contained.yaml \
+  --values self-contained-environment-values.yaml \
   --wait \
   --timeout 30m
 ```
@@ -459,9 +459,11 @@ helm --kube-context <compute-context> upgrade --install osmo-compute \
   --timeout 10m
 ```
 
-An empty `compute.workloadNamespace` resolves to the Helm release namespace.
-This is the WDP-01/WDP-02 boundary: a compute-only release uses `externalUrl`
-to reach the external control plane and consumes
+An empty `compute.workloadNamespace.name` resolves to the Helm release
+namespace. Set `compute.workloadNamespace.create=true` only for a distinct
+namespace that the chart should create and retain. This is the WDP-01/WDP-02
+boundary: a compute-only release uses `externalUrl` to reach the external
+control plane and consumes
 `compute.authentication.existingSecret` from its release namespace. Change
 `compute.authentication.tokenKey` when the token is stored under a non-default
 Secret key. The release has no dependency on Vault-agent annotations or
@@ -635,8 +637,8 @@ hash of the Helm release namespace so equal release names in different
 namespaces do not collide.
 
 `compute.workflowNetworkPolicy` owns a namespace-wide egress policy for every
-Pod in `compute.workloadNamespace`; it is not limited to OSMO Pods. Enabling it
-requires one or more `clusterCIDRs`, unless
+Pod in `compute.workloadNamespace.name`; it is not limited to OSMO Pods.
+Enabling it requires one or more `clusterCIDRs`, unless
 `allowAllClusterEgress=true` explicitly acknowledges unrestricted cluster
 egress. Use `allowedNamespaces` and `additionalEgressRules` for environment
 specific destinations.
@@ -677,6 +679,9 @@ not make retained credentials or data safe to discard. Inspect and back up
 retained Secrets and PVCs before deleting the namespace. CloudNativePG database
 retention follows the operator and cluster settings. Uninstall the CNPG operator
 only after all managed PostgreSQL Clusters have been handled.
+When `compute.workloadNamespace.create=true`, Helm also retains that Namespace;
+delete it manually only after its workflow resources and data are no longer
+needed.
 
 To use an existing embedded PostgreSQL credential Secret, provide a
 `kubernetes.io/basic-auth` Secret whose `username` matches
@@ -691,10 +696,13 @@ postgresql:
 ```
 
 The MEK is mounted through the typed
-`secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Use
-`managementMode: external` for an operator-owned read-only Secret. Use
-`managementMode: osmo` when this release should create and update that exact
-Secret through explicitly requested lifecycle Jobs.
+`secrets.masterEncryptionKey.secretRef.{name,key}` reference. Set
+`managedBy: external` for an operator-owned read-only Secret. Set
+`managedBy: osmo` when this release should create and update that exact Secret
+through explicitly requested lifecycle Jobs. With `managedBy: osmo` and
+`bootstrap.enabled: true`, the Secret does not need to exist before the first
+installation; the bootstrap Job creates it without exposing key material to
+Helm.
 
 For a disposable install backed by a new database, enable `bootstrap`. Helm
 renders no MEK Secret data. A namespace-scoped create-only lifecycle Job waits
@@ -743,7 +751,10 @@ CD syncs:
 ```yaml
 secrets:
   masterEncryptionKey:
-    managementMode: osmo
+    managedBy: osmo
+    secretRef:
+      name: osmo-master-encryption-key
+      key: mek.yaml
     bootstrap:
       enabled: false
       attempt: "1" # increment only to retry a failed bootstrap

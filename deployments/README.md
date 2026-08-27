@@ -147,10 +147,12 @@ hosting OSMO outside a cloud environment. It owns a synchronous three-instance
 CloudNativePG Cluster, replicated Valkey, distributed RustFS, retained MEK and
 backend-token Secrets, and object-storage buckets. The Kubernetes cluster must
 provide KAI Scheduler, the CloudNativePG operator, a default dynamic
-StorageClass, a NetworkPolicy-enforcing CNI, an OIDC client, a dedicated
-workflow namespace, IPv4 cluster CIDRs, and a TLS edge for the ClusterIP
-gateway. The IdP must emit OSMO role assignments and bootstrap an administrator.
-The release enables OAuth2, authorization, and network isolation; operators
+StorageClass, a NetworkPolicy-enforcing CNI, IPv4 cluster CIDRs, and a TLS edge
+for the ClusterIP gateway. Separately, register an OIDC client with an identity
+provider reachable by users and OSMO gateway workloads. The provider may run
+inside or outside the cluster; its tokens must emit OSMO role assignments and
+bootstrap an administrator. The release creates and retains the workflow
+namespace and enables OAuth2, authorization, and network isolation; operators
 supply and test backups.
 
 The legacy deployment scripts require existing infrastructure details:

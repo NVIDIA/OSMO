@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Helm lint cannot declare the CloudNativePG API capability, so lint the
+# self-contained composition with the same environment inputs and an external
+# PostgreSQL stub. Render tests cover the embedded CloudNativePG Cluster.
+externalUrl: https://osmo.example.com
+
+compute:
+  backendName: test-backend
+  workflowNetworkPolicy:
+    clusterCIDRs:
+    - 10.0.0.0/8
+
+embeddedDependencies:
+  postgresql:
+    enabled: false
+
+externalDependencies:
+  postgresql:
+    host: lint-postgresql
+
+secrets:
+  postgresql:
+    existingSecret: lint-postgresql
+
+gateway:
+  oauth2Proxy:
+    oidcIssuerUrl: https://idp.example.com
+    clientId: osmo
+  envoy:
+    idp:
+      host: idp.example.com
+    jwt:
+      additionalProviders:
+      - issuer: https://idp.example.com
+        audience: osmo
+        jwks_uri: https://idp.example.com/.well-known/jwks.json
+        cluster: idp
+        user_claim: preferred_username

@@ -3,10 +3,11 @@
 
 # Production converged profile for self-hosting OSMO on Kubernetes. The cluster
 # must provide KAI Scheduler, the CloudNativePG operator, a default dynamic
-# StorageClass, a NetworkPolicy-enforcing CNI, an OIDC provider, and a dedicated
-# workflow namespace. It must also provide at least four schedulable nodes for
-# distributed RustFS. The OSMO release owns the control plane, compute plane,
-# PostgreSQL Cluster, replicated fixed-primary Valkey, and distributed RustFS.
+# StorageClass, a NetworkPolicy-enforcing CNI, and at least four schedulable
+# nodes for distributed RustFS. Register an OIDC client with an identity provider
+# reachable by users and the OSMO gateway; it may run inside or outside the
+# cluster. The OSMO release owns the control plane, compute plane, PostgreSQL
+# Cluster, replicated fixed-primary Valkey, and distributed RustFS.
 planes:
   control:
     enabled: true
@@ -55,7 +56,7 @@ gateway:
     jwt:
       providers:
       # Keep OSMO-issued access tokens valid for in-cluster compute services.
-      # Configure the external identity provider at index 1 during installation.
+      # Environment overlays append external identity providers separately.
       - issuer: osmo
         audience: osmo
         jwks_uri: https://osmo-api/api/auth/keys

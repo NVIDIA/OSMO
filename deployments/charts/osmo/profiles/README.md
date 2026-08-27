@@ -12,7 +12,7 @@ values take precedence.
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
 | `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `compute.backendName` set explicitly at install time |
-| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, a dedicated workflow namespace, IPv4 cluster CIDRs, and `compute.backendName` |
+| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, IPv4 cluster CIDRs, and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
@@ -31,11 +31,14 @@ that host OSMO and its stateful dependencies in Kubernetes. It uses chart-versio
 OSMO images, production service defaults, a synchronous three-instance
 PostgreSQL Cluster, replicated fixed-primary Valkey, four-node distributed
 RustFS, OAuth2 authentication, semantic authorization, and network isolation.
-The OIDC token must contain an array-valued `roles` claim; assign at least one
-trusted operator the external `osmo-admin` role before exposing the service.
-The split profiles contain example names and endpoints; copy them into an
-environment values file before installation. Production operators must also
-provide and test backup and restore for the stateful volumes.
+The profile creates and retains its workflow namespace. Register an OIDC client
+with an identity provider reachable by users and the OSMO gateway; the provider
+may run inside or outside Kubernetes. Its tokens must contain an array-valued
+`roles` claim; assign at least one trusted operator the external `osmo-admin`
+role before exposing the service. The split profiles contain example names and
+endpoints; copy them into an environment values file before installation.
+Production operators must also provide and test backup and restore for the
+stateful volumes.
 
 KAI Scheduler is a prerequisite for every profile that enables the compute
 plane. The unified chart does not install or manage KAI. CloudNativePG must also

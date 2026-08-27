@@ -70,34 +70,28 @@ Use `profiles/self-contained.yaml` to host the control plane, compute plane,
 PostgreSQL, Valkey, and object storage in one production Kubernetes cluster.
 The cluster must provide KAI Scheduler, the CloudNativePG operator, and a
 default dynamic StorageClass. It must also provide a NetworkPolicy-enforcing
-CNI, at least four schedulable nodes, an OIDC client, a dedicated workflow
-namespace, the cluster network CIDRs, and a TLS edge in front of the chart's
-ClusterIP gateway. The current workflow policy requires IPv4 pod and Service
-CIDRs. The IdP must emit an array-valued `roles` claim and assign `osmo-admin`
-to an initial operator. The chart runs OAuth2 authentication and OSMO semantic
-authorization behind that edge.
+CNI, at least four schedulable nodes, the cluster network CIDRs, and a TLS edge
+in front of the chart's ClusterIP gateway. The current workflow policy requires
+IPv4 pod and Service CIDRs. Separately, register an OIDC client with an identity
+provider reachable by users and OSMO gateway workloads. The provider may run
+inside or outside Kubernetes. Its tokens must contain an array-valued `roles`
+claim and assign `osmo-admin` to an initial operator. The chart creates and
+retains the workflow namespace and runs OAuth2 authentication plus OSMO
+semantic authorization behind the edge.
 
 ```bash
 kubectl create namespace osmo
-kubectl create namespace osmo-workflows
 kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
   --from-literal=client_secret='<oidc-client-secret>' \
   --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
 helm dependency build deployments/charts/osmo
+cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
+  self-contained-environment-values.yaml
+# Edit self-contained-environment-values.yaml for the target environment.
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
-  --set-string externalUrl=https://osmo.example.com \
-  --set-string compute.backendName=default \
-  --set-string gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
-  --set-string gateway.oauth2Proxy.clientId=osmo \
-  --set-string gateway.envoy.idp.host=idp.example.com \
-  --set-string 'gateway.envoy.jwt.providers[1].issuer=https://idp.example.com' \
-  --set-string 'gateway.envoy.jwt.providers[1].audience=osmo' \
-  --set-string 'gateway.envoy.jwt.providers[1].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
-  --set-string 'gateway.envoy.jwt.providers[1].cluster=idp' \
-  --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
-  --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+  --values self-contained-environment-values.yaml \
   --wait \
   --wait-for-jobs \
   --timeout 30m

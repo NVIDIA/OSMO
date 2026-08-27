@@ -1285,6 +1285,8 @@ test_control_umbrella() {
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/profiles/self-contained.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/examples/self-contained-environment-values.yaml"
     if ! grep -Fq "osmo/charts/valkey/Chart.yaml" \
         "$TEST_DIRECTORY/osmo-package.txt" && \
         ! grep -Fq "osmo/charts/valkey-0.11.0.tgz" \
