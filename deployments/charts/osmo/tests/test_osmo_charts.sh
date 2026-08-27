@@ -625,6 +625,24 @@ test_control_umbrella() {
     require_contains \
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
         "protocol: TCP"
+
+    helm_template_with_backend custom-rustfs-name "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        -f "$charts_copy/osmo/examples/self-contained-environment-values.yaml" \
+        --set-string rustfs.nameOverride=custom-rustfs \
+        >"$TEST_DIRECTORY/custom-rustfs-name.yaml"
+    resource_document "$TEST_DIRECTORY/custom-rustfs-name.yaml" StatefulSet \
+        "custom-rustfs-name" \
+        >"$TEST_DIRECTORY/custom-rustfs-statefulset.yaml"
+    require_contains "$TEST_DIRECTORY/custom-rustfs-statefulset.yaml" \
+        "app.kubernetes.io/name: custom-rustfs"
+    resource_document "$TEST_DIRECTORY/custom-rustfs-name.yaml" NetworkPolicy \
+        "osmo-workflow-network-policy" \
+        >"$TEST_DIRECTORY/custom-rustfs-workflow-network-policy.yaml"
+    require_contains "$TEST_DIRECTORY/custom-rustfs-workflow-network-policy.yaml" \
+        "app.kubernetes.io/name: custom-rustfs"
     local protected_upstream
     for protected_upstream in api router ui agent logger; do
         require_resource "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \

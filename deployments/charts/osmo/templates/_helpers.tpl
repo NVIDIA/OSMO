@@ -454,6 +454,10 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 {{- printf "%s-valkey-credentials" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "osmo.rustfs.name" -}}
+{{- default "rustfs" (dig "nameOverride" "" .Values.rustfs) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "osmo.rustfs.fullname" -}}
 {{- $name := default "rustfs" (dig "nameOverride" "" .Values.rustfs) -}}
 {{- $fullnameOverride := dig "fullnameOverride" "" .Values.rustfs -}}

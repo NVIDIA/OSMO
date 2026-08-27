@@ -53,7 +53,7 @@ spec:
           kubernetes.io/metadata.name: {{ .Release.Namespace }}
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: rustfs
+          app.kubernetes.io/name: {{ include "osmo.rustfs.name" . }}
           app.kubernetes.io/instance: {{ .Release.Name }}
   {{- end }}
   {{- with .Values.compute.workflowNetworkPolicy.additionalEgressRules }}
