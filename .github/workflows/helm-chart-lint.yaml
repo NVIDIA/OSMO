@@ -69,12 +69,12 @@ jobs:
 
           if [ -z "$CHARTS" ]; then
             echo "No chart changes detected"
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "charts=[]" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "charts=[]" >> "$GITHUB_OUTPUT"
           else
             echo "Changed charts: [$CHARTS]"
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "charts=[$CHARTS]" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "charts=[$CHARTS]" >> "$GITHUB_OUTPUT"
           fi
 
   #######################
@@ -132,6 +132,14 @@ jobs:
               --set-string compute.backendName=test-backend
             helm lint deployments/charts/osmo \
               --kube-version 1.30.0 \
+              -f deployments/charts/osmo/profiles/single-plane.yaml \
+              -f deployments/charts/osmo/tests/single-plane-azure-values.yaml
+            helm lint deployments/charts/osmo \
+              --kube-version 1.30.0 \
+              -f deployments/charts/osmo/profiles/single-plane.yaml \
+              -f deployments/charts/osmo/tests/single-plane-s3-values.yaml
+            helm lint deployments/charts/osmo \
+              --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/kind-self-contained.yaml \
               --set-string compute.backendName=test-backend \
               --set embeddedDependencies.postgresql.enabled=false \
@@ -166,6 +174,16 @@ jobs:
               --kube-version 1.30.0 \
               -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
               --set-string compute.backendName=test-backend \
+              >/dev/null
+            helm template test-single-plane-azure deployments/charts/osmo \
+              --kube-version 1.30.0 \
+              -f deployments/charts/osmo/profiles/single-plane.yaml \
+              -f deployments/charts/osmo/tests/single-plane-azure-values.yaml \
+              >/dev/null
+            helm template test-single-plane-s3 deployments/charts/osmo \
+              --kube-version 1.30.0 \
+              -f deployments/charts/osmo/profiles/single-plane.yaml \
+              -f deployments/charts/osmo/tests/single-plane-s3-values.yaml \
               >/dev/null
             helm template test-kind deployments/charts/osmo \
               --kube-version 1.30.0 \

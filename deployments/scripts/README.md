@@ -40,6 +40,37 @@ export POSTGRES_DB_NAME=... REDIS_HOST=... REDIS_PORT=... REDIS_PASSWORD=...
 
 Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--destroy`.
 
+## Azure single-plane umbrella deployment
+
+`deploy-osmo-umbrella-single-plane.sh` is a separate, linear Azure example for
+an isolated sandbox. Run it only inside a newly created `azure-sandbox assume`
+subshell. Before running it, securely provide these three Terraform inputs in
+that shell: `TF_VAR_resource_group_name` (the isolated sandbox resource group),
+`TF_VAR_cluster_name` (a globally unique AKS name), and
+`TF_VAR_postgres_password`. Do not put credential values in shell history,
+values files, or documentation.
+
+```bash
+azure-sandbox assume
+./deploy-osmo-umbrella-single-plane.sh
+```
+
+The script provisions its AKS, PostgreSQL, Valkey, and Azure Storage inputs
+with Terraform, installs KAI Scheduler, and creates the Kubernetes credential
+Secrets directly in the `osmo` namespace. It writes a non-secret,
+Azure-specific overlay at `${TMPDIR:-/tmp}/single-plane-azure.yaml`; that file
+contains only connection data, exact `azure://` locations, and references to
+the pre-provisioned Secrets. The chart base remains the provider-neutral
+`deployments/charts/osmo/profiles/single-plane.yaml`, which is always layered
+before the generated overlay.
+
+The Helm release runs two MEK transactions: the first installation enables the
+MEK bootstrap hook, and the second upgrade disables it after the generated MEK
+has been retained. The gateway remains `ClusterIP`; the script starts a local
+port-forward at `http://127.0.0.1:9000` instead of configuring ingress. Finally,
+it calls `verify.sh` with `SKIP_GPU=1`, which submits the representative
+`deployments/workflows/verify-hello.yaml` workflow.
+
 ## Deployment Combinations
 
 Three orthogonal axes:
