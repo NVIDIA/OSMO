@@ -24,48 +24,32 @@ compute templates. The legacy `service` and standalone `backend-operator`
 charts remain available for existing deployments; neither is a dependency of
 the unified chart.
 
-## Local kind example
+## Quick start
 
-The development flow assumes KAI Scheduler is already installed. Install the
-CloudNativePG operator separately, then install one unified OSMO release:
+For an existing development cluster with KAI Scheduler, the CloudNativePG
+operator, and a default dynamic StorageClass, install the complete browser,
+CLI, API, and CPU workflow experience with one unified OSMO release:
 
 ```bash
-helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo update cnpg
-helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
-  --version 0.29.0 \
-  --namespace cnpg-system \
-  --create-namespace \
-  --wait \
-  --timeout 10m
-
 helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --values deployments/charts/osmo/profiles/kind-self-contained.yaml \
+  --values deployments/charts/osmo/profiles/quickstart.yaml \
   --set-string compute.backendName=default \
   --wait \
   --timeout 20m
 ```
 
-The profile deploys the control and compute planes, a CloudNativePG Cluster,
-Valkey, and RustFS. It generates retained development credentials, creates the
-workflow/log/app buckets, and connects the backend with no manual Secret copy.
-It is not a production identity or high-availability profile.
+The profile deploys the UI, gateway, control and compute planes, a CloudNativePG
+Cluster, persistent Valkey, and persistent RustFS. It generates development
+credentials, creates the workflow/log/app buckets, and connects the backend
+without a manual Secret copy. The UI and API are exposed through gateway
+NodePort `30080`.
 
-Forward the gateway and submit the repository smoke workflow:
-
-```bash
-kubectl --context kind-osmo --namespace osmo \
-  port-forward service/osmo-gateway 8080:80
-osmo login http://127.0.0.1:8080 --method=dev --username=testuser
-osmo workflow submit deployments/workflows/verify-hello.yaml --pool default
-```
-
-See [`osmo/README.md`](osmo/README.md) for readiness checks, workflow status,
-credential recovery, uninstall behavior, and the split-compute external URL and
-Secret interface.
+See the [`osmo` quick-start guide](osmo/README.md#quick-start) for prerequisite
+installation, browser and CLI access, a hello-world workflow, capacity,
+troubleshooting, cleanup, and the profile's non-production limitations.
 
 ## Production Shape
 

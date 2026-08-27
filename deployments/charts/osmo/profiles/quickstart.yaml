@@ -1,0 +1,302 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Development-only converged profile for the shortest path to a working OSMO
+# control plane, compute plane, and CPU workflow runtime.
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: true
+
+fullnameOverride: osmo
+
+imageTag: latest
+runtimeImage:
+  tag: latest
+
+externalUrl: http://osmo-gateway
+
+embeddedDependencies:
+  postgresql:
+    enabled: true
+  valkey:
+    enabled: true
+  objectStorage:
+    enabled: true
+
+secrets:
+  postgresql:
+    existingSecret: ''
+  valkey:
+    generate: true
+    existingSecret: ''
+  objectStorage:
+    generate: true
+    existingSecret: ''
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: default
+      managedSecret:
+        name: osmo-backend-token
+  masterEncryptionKey:
+    generate: true
+    existingSecret: ''
+
+services:
+  ui:
+    enabled: true
+    replicas: 1
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    pod:
+      topologySpreadConstraints: []
+  mcp:
+    enabled: false
+  api:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    pod:
+      topologySpreadConstraints: []
+  worker:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    pod:
+      topologySpreadConstraints: []
+  router:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    pod:
+      topologySpreadConstraints: []
+  logger:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints: []
+  agent:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints: []
+  delayedJobMonitor:
+    replicas: 1
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    pod:
+      topologySpreadConstraints: []
+  backendListener:
+    replicas: 1
+    image:
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints: []
+  backendWorker:
+    replicas: 1
+    image:
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints: []
+  backendTestRunner:
+    enabled: false
+
+gateway:
+  envoy:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    image:
+      pullPolicy: IfNotPresent
+    podDisruptionBudget:
+      enabled: false
+    defaultIdentity:
+      user: testuser
+      roles: osmo-admin
+      allowedPools: default
+    service:
+      type: NodePort
+      nodePort: 30080
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 512Mi
+    pod:
+      topologySpreadConstraints: []
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
+  rateLimit:
+    enabled: false
+  tls:
+    enabled: false
+  upstreams:
+    ui:
+      enabled: true
+
+monitoring:
+  podMonitor:
+    control:
+      enabled: false
+    compute:
+      enabled: false
+
+configuration:
+  enabled: true
+  podTemplates:
+    # KAI treats even a zero-valued nvidia.com/gpu resource key as a GPU pod
+    # and injects the NVIDIA RuntimeClass. This CPU-only profile omits the key.
+    default_user:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+            requests:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+    kind_dev_auth:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
+        - name: osmo-ctrl
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
+  pools:
+    default:
+      common_pod_template:
+      - default_ctrl
+      - default_user
+      - kind_dev_auth
+
+postgresql:
+  fullnameOverride: osmo-pg
+  cluster:
+    instances: 1
+    storage:
+      size: 1Gi
+    affinity:
+      podAntiAffinityType: ""
+    enablePDB: false
+    postgresql:
+      synchronous: null
+  backups:
+    enabled: false
+
+valkey:
+  fullnameOverride: osmo-valkey
+  dataStorage:
+    requestedSize: 512Mi
+  replica:
+    enabled: false
+    minReplicasToWrite: 0
+  podDisruptionBudget:
+    enabled: false
+
+rustfs:
+  fullnameOverride: osmo-rustfs
+  affinity:
+    podAntiAffinity:
+      enabled: false
+  storageclass:
+    dataStorageSize: 1Gi
+
+compute:
+  workloadNamespace: ''
+  backendTestNamespace: ''
+  authentication:
+    existingSecret: osmo-backend-token
+    tokenKey: token

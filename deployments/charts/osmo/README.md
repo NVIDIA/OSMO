@@ -19,7 +19,163 @@ credentials without Vault agent injection. The standalone `backend-operator`
 chart remains available for existing two-chart installations, but it is not a
 dependency of this chart.
 
-## Self-contained kind quick start
+## Quick start
+
+The `quickstart.yaml` profile is a development-only path to trying the complete
+OSMO browser, CLI, API, and CPU workflow experience in one converged release.
+It installs:
+
+- the Envoy gateway and browser UI;
+- the API, worker, router, logger, agent, and delayed-job monitor;
+- the compute backend listener and worker;
+- persistent CloudNativePG, Valkey, and RustFS instances;
+- generated development credentials, object-storage buckets, configuration,
+  and a CPU-only default pool.
+
+### Prerequisites
+
+Use Kubernetes 1.30 or newer with enough capacity for the resources described
+below. The cluster must have a default dynamic StorageClass. Install Helm,
+`kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO. The
+examples use the `kind-osmo` context; replace it if your development cluster has
+a different context.
+
+```bash
+kubectl --context kind-osmo get storageclass
+
+helm --kube-context kind-osmo upgrade --install kai-scheduler \
+  https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
+  --namespace kai-scheduler \
+  --create-namespace \
+  --wait \
+  --timeout 10m
+
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo update cnpg
+helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
+  --version 0.29.0 \
+  --namespace cnpg-system \
+  --create-namespace \
+  --wait \
+  --timeout 10m
+```
+
+### Install OSMO
+
+Install the unified chart with the single quick-start values file:
+
+```bash
+helm dependency build deployments/charts/osmo
+helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --create-namespace \
+  --values deployments/charts/osmo/profiles/quickstart.yaml \
+  --set-string compute.backendName=default \
+  --wait \
+  --timeout 20m
+```
+
+Inspect the release without reading generated Secret values:
+
+```bash
+kubectl --context kind-osmo --namespace osmo get pods,pvc,services,jobs
+kubectl --context kind-osmo --namespace osmo get service osmo-gateway
+```
+
+### Open the UI and use the CLI
+
+The gateway exposes the UI and API on NodePort `30080`. Set `OSMO_URL` from a
+reachable node address, then open the same URL in a browser:
+
+```bash
+export OSMO_NODE_ADDRESS="$(kubectl --context kind-osmo get nodes \
+  --output jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')"
+export OSMO_URL="http://${OSMO_NODE_ADDRESS}:30080"
+curl --fail "$OSMO_URL/api/version"
+```
+
+For a kind cluster whose `extraPortMappings` maps container port `30080` to
+host port `80`, use this URL instead:
+
+```bash
+export OSMO_URL=http://127.0.0.1
+```
+
+If the NodePort is not reachable from the workstation, run a port-forward in
+one terminal:
+
+```bash
+kubectl --context kind-osmo --namespace osmo \
+  port-forward service/osmo-gateway 8080:80
+```
+
+Then select the forwarded URL in the terminal where you use the CLI:
+
+```bash
+export OSMO_URL=http://127.0.0.1:8080
+```
+
+Install the CLI if needed, log in with the development identity, and submit the
+canonical smoke workflow:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
+osmo login "$OSMO_URL" --method=dev --username=testuser
+osmo workflow submit deployments/workflows/verify-hello.yaml \
+  --pool default \
+  --format-type json
+osmo workflow query <workflow-id> --format-type json
+```
+
+Repeat the query until the workflow status is `COMPLETED`.
+
+### Troubleshooting and cleanup
+
+If installation does not become ready, inspect pods, recent events, and the
+UI. A `Pending` database, Valkey, or RustFS PVC usually means the cluster has no
+working default StorageClass. A `Pending` workflow commonly means KAI is not
+healthy or the cluster lacks the workflow capacity described below.
+
+```bash
+kubectl --context kind-osmo --namespace osmo get pods,pvc,jobs
+kubectl --context kind-osmo --namespace osmo get events \
+  --sort-by=.lastTimestamp
+kubectl --context kind-osmo --namespace osmo logs deployment/osmo-ui
+```
+
+Clean up only the quick-start release and namespace:
+
+```bash
+helm --kube-context kind-osmo uninstall osmo --namespace osmo --wait
+kubectl --context kind-osmo delete namespace osmo \
+  --wait=true \
+  --timeout=10m
+```
+
+### Capacity and limitations
+
+The profile runs one replica of every required OSMO service, including the UI
+and delayed-job monitor, and uses persistent volumes for PostgreSQL (1 GiB),
+Valkey (512 MiB), and RustFS (1 GiB). PostgreSQL requests 1 CPU and 2 GiB, while
+Valkey and RustFS each request 500 millicores and 1 GiB. The nine OSMO services
+request 100 millicores and 256 MiB each, and the gateway requests 50 millicores
+and 64 MiB. Those long-running pods reserve approximately 2.95 CPU and 6.4 GiB
+before Kubernetes, KAI, and CloudNativePG operator overhead.
+
+The canonical hello-world pod additionally requests 1 CPU, 1 GiB of memory, and
+1 GiB of ephemeral storage for both its user container and its `osmo-ctrl`
+container. Ensure an eligible worker has at least 2 CPU, 2 GiB of memory, and
+2 GiB of ephemeral storage available for that workflow. The profile disables
+MCP, optional gateway authentication and rate limiting, TLS, ingress,
+monitoring, autoscaling, disruption budgets, backups, and HA behavior.
+
+This profile uses development authentication and exposes an administrator
+identity through a NodePort. It is not a production security or availability
+configuration. Use a production profile with managed credentials, TLS,
+authorization, backups, suitable resource sizing, and HA dependencies for
+long-lived environments.
+
+## Full kind development profile
 
 The `kind-self-contained.yaml` profile is for development only. It expects an
 existing cluster with KAI Scheduler installed. CloudNativePG is intentionally a
