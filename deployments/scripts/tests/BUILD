@@ -29,3 +29,13 @@ sh_test(
         "//deployments:scripts/deploy-k8s.sh",
     ],
 )
+
+sh_test(
+    name = "test_deploy_osmo_umbrella_single_plane",
+    srcs = ["test_deploy_osmo_umbrella_single_plane.sh"],
+    data = [
+        "//deployments/charts:osmo",
+        "//deployments:scripts/deploy-osmo-umbrella-single-plane.sh",
+        "//deployments:scripts/verify.sh",
+    ],
+)

@@ -18,5 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 exports_files([
     "scripts/common.sh",
+    "scripts/deploy-osmo-umbrella-single-plane.sh",
     "scripts/deploy-k8s.sh",
+    "scripts/verify.sh",
 ])
