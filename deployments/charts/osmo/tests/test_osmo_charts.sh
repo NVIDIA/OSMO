@@ -594,16 +594,7 @@ test_control_umbrella() {
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/self-contained.yaml" \
-        --set externalUrl=https://public-control.example.com \
-        --set gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
-        --set gateway.oauth2Proxy.clientId=osmo \
-        --set gateway.envoy.idp.host=idp.example.com \
-        --set-string 'gateway.envoy.jwt.providers[1].issuer=https://idp.example.com' \
-        --set-string 'gateway.envoy.jwt.providers[1].audience=osmo' \
-        --set-string 'gateway.envoy.jwt.providers[1].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
-        --set-string 'gateway.envoy.jwt.providers[1].cluster=idp' \
-        --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
-        --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+        -f "$charts_copy/osmo/examples/self-contained-environment-values.yaml" \
         >"$TEST_DIRECTORY/self-contained.yaml"
     require_deployment "$TEST_DIRECTORY/self-contained.yaml" "osmo-api"
     require_deployment "$TEST_DIRECTORY/self-contained.yaml" \

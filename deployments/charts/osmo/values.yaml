@@ -1278,6 +1278,7 @@ gateway:
     jwt:
       userHeader: x-osmo-user
       providers: []
+      additionalProviders: []
     skipAuthPaths:
     - /api/version
     - /api/auth/login

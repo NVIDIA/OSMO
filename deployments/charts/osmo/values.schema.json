@@ -849,7 +849,8 @@
       "type": "object",
       "properties": {
         "userHeader": { "type": "string" },
-        "providers": { "type": "array" }
+        "providers": { "type": "array" },
+        "additionalProviders": { "type": "array" }
       }
     },
     "uiService": {
