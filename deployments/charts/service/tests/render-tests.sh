@@ -100,9 +100,13 @@ mcp_workload=$(helm template mcp-test "$CHART_DIR" --values "$mcp_values" \
 # prefix and rewrites it off before forwarding to the root paths the MCP SDK
 # registers. One prefix route, not an entry per endpoint name.
 mcp_route() {
+    # Stop at the next entry *at the route's own indentation*. Matching any
+    # "- name:" ends the route at its first header matcher, which hides
+    # everything below it -- including prefix_rewrite.
     awk -v route="- name: $1" '
-        index($0, route) { found = 1; next }
-        found && /^ *- name: / { exit }
+        function indent(line) { match(line, /^ */); return RLENGTH }
+        index($0, route) { found = 1; depth = indent($0); next }
+        found && indent($0) == depth && /- name: / { exit }
         found { print }
     ' <<<"$mcp_render"
 }
