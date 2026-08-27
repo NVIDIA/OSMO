@@ -41,6 +41,18 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
+After the first installation bootstraps the retained master-encryption-key
+Secret, disable its one-time bootstrap Job and Secret-creation permission:
+
+```bash
+helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
+  --namespace osmo \
+  --reuse-values \
+  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --wait \
+  --timeout 20m
+```
+
 The profile deploys the UI, gateway, control and compute planes, a CloudNativePG
 Cluster, persistent Valkey, and persistent RustFS. It generates development
 credentials, creates the workflow/log/app buckets, and connects the backend
@@ -84,6 +96,19 @@ helm upgrade --install osmo deployments/charts/osmo \
   --set-string 'gateway.envoy.jwt.providers[1].cluster=idp' \
   --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
   --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+  --wait \
+  --timeout 30m
+```
+
+After the first installation bootstraps the retained master-encryption-key
+Secret, persist `secrets.masterEncryptionKey.bootstrap.enabled: false` in the
+environment overlay and apply it. The immediate Helm cleanup transaction is:
+
+```bash
+helm upgrade osmo deployments/charts/osmo \
+  --namespace osmo \
+  --reuse-values \
+  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
   --wait \
   --timeout 30m
 ```

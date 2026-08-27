@@ -75,6 +75,20 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
+The first installation uses the MEK bootstrap lifecycle Job to create the
+retained `osmo-master-encryption-key` Secret without putting key material in
+Helm state. After that installation succeeds, remove the temporary Secret
+creation permission and retain the remaining release values:
+
+```bash
+helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
+  --namespace osmo \
+  --reuse-values \
+  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --wait \
+  --timeout 20m
+```
+
 Inspect the release without reading generated Secret values:
 
 ```bash
@@ -237,6 +251,21 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 30m
 ```
 
+The first installation bootstraps the retained
+`osmo-master-encryption-key` Secret without rendering key material. As soon as
+it succeeds, persist `secrets.masterEncryptionKey.bootstrap.enabled: false` in
+the environment overlay and apply the mandatory cleanup transaction. For an
+immediate Helm installation, retain the first transaction's values:
+
+```bash
+helm upgrade osmo deployments/charts/osmo \
+  --namespace osmo \
+  --reuse-values \
+  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --wait \
+  --timeout 30m
+```
+
 The profile deploys these stateful services:
 
 - three PostgreSQL instances with required hostname anti-affinity, a
@@ -278,10 +307,11 @@ kubectl --namespace osmo get secret \
 ```
 
 The release creates the workflow, log, and app buckets and wires the RustFS
-endpoint and credential Secret into the control plane. It also creates retained
-backend-token and master-encryption-key Secrets through pre-install hooks. The
-generated values never appear in Helm values, rendered manifests, logs, or Helm
-release state.
+endpoint and credential Secret into the control plane. It creates the retained
+backend-token Secret through its bootstrap hook and the retained
+master-encryption-key Secret through the explicit lifecycle Job. The generated
+values never appear in Helm values, rendered manifests, logs, or Helm release
+state.
 
 ## Embedded PostgreSQL
 
