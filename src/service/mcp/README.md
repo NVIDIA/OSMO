@@ -268,7 +268,7 @@ provider. The MCP tool catalog and API-specific authorization do not change.
 
 ## Available tools
 
-The external catalog contains 25 tools: 14 read-only tools for caller-bound
+The external catalog contains 26 tools: 15 read-only tools for caller-bound
 health, profile, pool, resource, workflow, application, and
 credential-metadata inspection, plus four workflow actions, one
 profile-setting action, one credential action, four app lifecycle actions,
@@ -435,7 +435,7 @@ authentication. Its token needs `mcp:Access`, `profile:Read`, and
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
 ```
 
-The smoke test rejects unauthenticated access, verifies the exact 25-tool
+The smoke test rejects unauthenticated access, verifies the exact 26-tool
 catalog, compares the profile projection with Core, checks caller-bound
 health, and validates a small workflow through Gateway → MCP → Gateway → Core.
 A successful validation does not enqueue compute or create a workflow row.
