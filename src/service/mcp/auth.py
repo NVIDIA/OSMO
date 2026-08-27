@@ -73,7 +73,7 @@ class _OSMOOIDCProxy(OIDCProxy):
         # endpoints (oidc_proxy.py:432-434), which Entra does not accept.
         return JWTVerifier(
             jwks_uri=str(self.oidc_config.jwks_uri),
-            issuer=self._access_token_issuer,
+            issuer=self._access_token_issuer or str(self.oidc_config.issuer),
             algorithm=algorithm,
             audience=self._access_token_audience,
             required_scopes=required_scopes,
@@ -84,7 +84,6 @@ _REQUIRED_WHEN_AUTH_ENABLED = (
     'oidc_config_url',
     'oidc_client_id',
     'oidc_client_secret_file',
-    'oidc_access_token_issuer',
 )
 
 
@@ -180,10 +179,11 @@ class MCPAuthConfig(pydantic.BaseModel):
             raise ValueError('resource_url must end with /mcp')
         self.resource_url = resource
         self.oidc_config_url = _https_url(cast(str, self.oidc_config_url))
-        self.oidc_access_token_issuer = _https_url(
-            cast(str, self.oidc_access_token_issuer),
-            preserve_trailing_slash=True,
-        )
+        if self.oidc_access_token_issuer:
+            self.oidc_access_token_issuer = _https_url(
+                self.oidc_access_token_issuer,
+                preserve_trailing_slash=True,
+            )
         redis_url = parse.urlsplit(cast(str, self.redis_url))
         if redis_url.scheme not in {'redis', 'rediss'} or not redis_url.hostname:
             raise ValueError('redis_url must be an absolute Redis URL')
@@ -246,7 +246,7 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         config_url=cast(str, config.oidc_config_url),
         client_id=cast(str, config.oidc_client_id),
         client_secret=client_secret,
-        access_token_issuer=cast(str, config.oidc_access_token_issuer),
+        access_token_issuer=config.oidc_access_token_issuer or '',
         access_token_audience=mcp_url,
         required_scopes=[config.oidc_access_token_required_scope],
         # FastMCP builds its operational OAuth endpoints from base_url and its

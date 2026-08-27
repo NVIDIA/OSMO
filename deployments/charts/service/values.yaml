@@ -165,6 +165,14 @@ services:
       ## Upstream OpenID Connect provider. Register the fixed redirect URL
       ## <resourceUrl origin>/mcp/auth/callback on this confidential application.
       ##
+      ## clientSecretFile is derived from existingSecret.mountPath when an
+      ## existing Secret supplies the credential. State it only when the secret
+      ## arrives another way, such as Vault injection.
+      ##
+      ## accessTokenIssuer is optional. Leave it empty unless the provider
+      ## issues access tokens from an issuer its discovery document does not
+      ## advertise, as an Entra application configured for v1 tokens does.
+      ##
       oidc:
         configUrl: ""
         clientId: ""

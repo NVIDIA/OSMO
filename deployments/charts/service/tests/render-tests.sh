@@ -142,6 +142,18 @@ for derived in OSMO_MCP_AUTH_ISSUER_URL OSMO_MCP_AUTH_SCOPE \
     fi
 done
 
+# Only an Entra v1 resource application needs the access-token issuer stated;
+# without it the service uses the issuer the discovery document advertises.
+helm template mcp-no-issuer "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.oidcProxy.oidc.accessTokenIssuer=' >/dev/null
+
+# The secret file paths follow the mount, so a deployer states neither of them.
+mount_render=$(helm template mcp-mount "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.oidcProxy.existingSecret.mountPath=/var/run/mcp')
+grep -q 'value: "/var/run/mcp/client-secret"' <<<"$mount_render"
+grep -q 'value: "/var/run/mcp/redis-password"' <<<"$mount_render"
+grep -q 'mountPath: /var/run/mcp' <<<"$mount_render"
+
 # The proxy keeps its state in Redis, so scaling out must render.
 helm template mcp-scale "$CHART_DIR" --values "$mcp_values" \
     --set 'services.mcp.replicas=2' >/dev/null

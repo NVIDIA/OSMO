@@ -91,6 +91,66 @@ class MCPAuthConfigTest(unittest.TestCase):
 
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_issuer_falls_back_to_the_discovery_document(self) -> None:
+        """An unset access-token issuer uses the issuer discovery advertises.
+
+        Only an Entra v1 resource application needs it configured, so a
+        deployment whose discovery issuer is the real one supplies nothing.
+        """
+        with _secret_file('client-secret') as client_secret_file:
+            config = _config(
+                oidc_client_secret_file=client_secret_file,
+                oidc_access_token_issuer=None,
+            )
+            redis_client = mock.create_autospec(
+                auth.redis_asyncio.Redis,
+                instance=True,
+            )
+            oidc_configuration = OIDCConfiguration(
+                issuer='https://login.example/tenant/v2.0',
+                authorization_endpoint=(
+                    'https://login.example/tenant/oauth2/v2.0/authorize'
+                ),
+                token_endpoint='https://login.example/tenant/oauth2/v2.0/token',
+                jwks_uri='https://login.example/tenant/discovery/v2.0/keys',
+                response_types_supported=['code'],
+                subject_types_supported=['public'],
+                id_token_signing_alg_values_supported=['RS256'],
+            )
+            with (
+                mock.patch.object(
+                    auth.redis_asyncio.Redis,
+                    'from_url',
+                    return_value=redis_client,
+                ),
+                mock.patch.object(auth, 'RedisStore', return_value=MemoryStore()),
+                mock.patch.object(
+                    auth,
+                    'PrefixCollectionsWrapper',
+                    side_effect=lambda key_value, prefix: key_value,
+                ),
+                mock.patch.object(
+                    auth,
+                    'FernetEncryptionWrapper',
+                    side_effect=(
+                        lambda key_value, fernet, raise_on_decryption_error:
+                        key_value
+                    ),
+                ),
+                mock.patch.object(
+                    OIDCProxy,
+                    'get_oidc_configuration',
+                    return_value=oidc_configuration,
+                ),
+            ):
+                runtime = auth.create_auth_runtime(config)
+                verifier = runtime.provider._token_validator  # pylint: disable=protected-access
+                assert isinstance(verifier, JWTVerifier)
+                self.assertEqual(
+                    verifier.issuer,
+                    'https://login.example/tenant/v2.0',
+                )
+
     async def test_factory_uses_plain_oidc_proxy_and_split_scope_contract(self) -> None:
         with _secret_file('client-secret') as client_secret_file:
             config = _config(

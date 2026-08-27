@@ -28,6 +28,8 @@
 {{- $oidcConfigUrl := "" }}
 {{- $oidcClientId := "" }}
 {{- $oidcClientSecretFile := "" }}
+{{- $redisPasswordFile := "" }}
+{{- $secretMountPath := "" }}
 {{- $oidcAccessTokenIssuer := "" }}
 {{- $oidcAccessTokenRequiredScope := "" }}
 {{- $redisKeyPrefix := "" }}
@@ -35,8 +37,7 @@
 {{- if $oidcProxyEnabled }}
 {{- $oidcConfigUrl = required "services.mcp.oidcProxy.oidc.configUrl is required when the OIDC proxy is enabled" $oidcProxy.oidc.configUrl }}
 {{- $oidcClientId = required "services.mcp.oidcProxy.oidc.clientId is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientId }}
-{{- $oidcClientSecretFile = required "services.mcp.oidcProxy.oidc.clientSecretFile is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientSecretFile }}
-{{- $oidcAccessTokenIssuer = required "services.mcp.oidcProxy.oidc.accessTokenIssuer is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenIssuer }}
+{{- $oidcAccessTokenIssuer = $oidcProxy.oidc.accessTokenIssuer | default "" }}
 {{- $oidcAccessTokenRequiredScope = required "services.mcp.oidcProxy.oidc.accessTokenRequiredScope is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenRequiredScope }}
 {{- if not (regexMatch "^[A-Za-z0-9:._~-]{1,128}$" $oidcAccessTokenRequiredScope) }}
 {{- fail "services.mcp.oidcProxy.oidc.accessTokenRequiredScope must be one non-empty scope" }}
@@ -45,10 +46,14 @@
 {{- if not (regexMatch $oidcHttpsUrlPattern $oidcConfigUrl) }}
 {{- fail "services.mcp.oidcProxy.oidc.configUrl must be an absolute HTTPS URL without query or fragment" }}
 {{- end }}
-{{- if not (regexMatch $oidcHttpsUrlPattern $oidcAccessTokenIssuer) }}
+{{- if and $oidcAccessTokenIssuer (not (regexMatch $oidcHttpsUrlPattern $oidcAccessTokenIssuer)) }}
 {{- fail "services.mcp.oidcProxy.oidc.accessTokenIssuer must be an absolute HTTPS issuer without query or fragment" }}
 {{- end }}
-{{- range $name, $url := dict "configUrl" $oidcConfigUrl "accessTokenIssuer" $oidcAccessTokenIssuer }}
+{{- $urlsToCheck := dict "configUrl" $oidcConfigUrl }}
+{{- if $oidcAccessTokenIssuer }}
+{{- $_ := set $urlsToCheck "accessTokenIssuer" $oidcAccessTokenIssuer }}
+{{- end }}
+{{- range $name, $url := $urlsToCheck }}
 {{- $portMatch := regexFind ":[0-9]+(/|$)" $url }}
 {{- if $portMatch }}
 {{- $urlPort := trimSuffix "/" (trimPrefix ":" $portMatch) | int }}
@@ -56,9 +61,6 @@
 {{- fail (printf "services.mcp.oidcProxy.oidc.%s port must be between 1 and 65535" $name) }}
 {{- end }}
 {{- end }}
-{{- end }}
-{{- if not (hasPrefix "/" $oidcClientSecretFile) }}
-{{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path" }}
 {{- end }}
 {{- $redisHost := .Values.services.redis.serviceName | required "services.redis.serviceName is required when the MCP OIDC proxy is enabled" }}
 {{- $redisPort := .Values.services.redis.port }}
@@ -88,21 +90,20 @@
 {{- fail "services.mcp.oidcProxy.upstreamTimeoutSeconds must be between 1 and 60" }}
 {{- end }}
 {{- if $oidcProxy.existingSecret.name }}
-{{- $mountPath := required "services.mcp.oidcProxy.existingSecret.mountPath is required when an existing Secret is configured" $oidcProxy.existingSecret.mountPath }}
-{{- if not (hasPrefix "/" $mountPath) }}
+{{- $secretMountPath = $oidcProxy.existingSecret.mountPath | default "/etc/osmo/mcp-auth" | trimSuffix "/" }}
+{{- if not (hasPrefix "/" $secretMountPath) }}
 {{- fail "services.mcp.oidcProxy.existingSecret.mountPath must be an absolute path" }}
 {{- end }}
-{{- $clientSecretKey := required "services.mcp.oidcProxy.existingSecret.clientSecretKey is required" $oidcProxy.existingSecret.clientSecretKey }}
-{{- $normalizedMountPath := trimSuffix "/" $mountPath }}
-{{- if ne $oidcClientSecretFile (printf "%s/client-secret" $normalizedMountPath) }}
-{{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be <existingSecret.mountPath>/client-secret" }}
+{{- $oidcClientSecretFile = printf "%s/client-secret" $secretMountPath }}
+{{- if $oidcProxy.existingSecret.redisPasswordKey }}
+{{- $redisPasswordFile = printf "%s/redis-password" $secretMountPath }}
 {{- end }}
-{{- if and $oidcProxy.redis.passwordFile (ne $oidcProxy.redis.passwordFile (printf "%s/redis-password" $normalizedMountPath)) }}
-{{- fail "services.mcp.oidcProxy.redis.passwordFile must be <existingSecret.mountPath>/redis-password" }}
+{{- else }}
+{{- $oidcClientSecretFile = required "services.mcp.oidcProxy.oidc.clientSecretFile is required when no existingSecret is configured" $oidcProxy.oidc.clientSecretFile }}
+{{- $redisPasswordFile = $oidcProxy.redis.passwordFile | default "" }}
 {{- end }}
-{{- if and $oidcProxy.redis.passwordFile (not $oidcProxy.existingSecret.redisPasswordKey) }}
-{{- fail "services.mcp.oidcProxy.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
-{{- end }}
+{{- if not (hasPrefix "/" $oidcClientSecretFile) }}
+{{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path" }}
 {{- end }}
 {{- $redisScheme := ternary "rediss" "redis" .Values.services.redis.tlsEnabled }}
 {{- $redisUrl = printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
@@ -215,9 +216,9 @@ spec:
           value: {{ $mcpResourceUrl | quote }}
         - name: OSMO_MCP_AUTH_REDIS_URL
           value: {{ $redisUrl | quote }}
-        {{- if $oidcProxy.redis.passwordFile }}
+        {{- if $redisPasswordFile }}
         - name: OSMO_MCP_AUTH_REDIS_PASSWORD_FILE
-          value: {{ $oidcProxy.redis.passwordFile | quote }}
+          value: {{ $redisPasswordFile | quote }}
         {{- end }}
         - name: OSMO_MCP_AUTH_REDIS_KEY_PREFIX
           value: {{ $redisKeyPrefix | quote }}
@@ -251,7 +252,7 @@ spec:
         volumeMounts:
         {{- if and $oidcProxyEnabled $oidcProxy.existingSecret.name }}
         - name: mcp-auth-secrets
-          mountPath: {{ $oidcProxy.existingSecret.mountPath }}
+          mountPath: {{ $secretMountPath }}
           readOnly: true
         {{- end }}
         {{- with $mcp.extraVolumeMounts }}
@@ -276,7 +277,7 @@ spec:
           items:
           - key: {{ $oidcProxy.existingSecret.clientSecretKey }}
             path: client-secret
-          {{- if $oidcProxy.redis.passwordFile }}
+          {{- if $redisPasswordFile }}
           - key: {{ $oidcProxy.existingSecret.redisPasswordKey }}
             path: redis-password
           {{- end }}
