@@ -115,6 +115,7 @@ spec:
         - --log_format
         - {{ .Values.logging.logFormat | default "text" }}
         {{- end }}
+        {{- include "osmo.secrets.serviceAuthArgs" . | nindent 8 }}
         - --enable_metrics
         {{- range $arg := .Values.services.delayedJobMonitor.extraArgs }}
         - {{ $arg | quote }}
@@ -133,6 +134,7 @@ spec:
           name: mek-volume
           readOnly: true
         {{- end }}
+        {{- include "osmo.secrets.serviceAuthVolumeMount" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
 
@@ -158,6 +160,7 @@ spec:
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.delayedJobMonitor | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
+        {{- include "osmo.secrets.serviceAuthVolume" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 {{- end }}
 {{- end }}

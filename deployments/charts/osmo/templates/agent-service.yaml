@@ -126,6 +126,7 @@ spec:
         - {{ .Values.logging.logFormat | default "text" }}
         {{- end }}
         {{- include "osmo.configuration.args" . | nindent 8 }}
+        {{- include "osmo.secrets.serviceAuthArgs" . | nindent 8 }}
         {{- range $arg := .Values.services.agent.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
@@ -145,6 +146,7 @@ spec:
           name: mek-volume
           readOnly: true
         {{- end }}
+        {{- include "osmo.secrets.serviceAuthVolumeMount" . | nindent 8 }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.agent | nindent 8 }}
@@ -184,6 +186,7 @@ spec:
         {{- include "osmo.pod.extraVolumes" .Values.services.agent | nindent 8 }}
         {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "agent"))) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
+        {{- include "osmo.secrets.serviceAuthVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 

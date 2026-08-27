@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import logging
 import io
 import time
-from typing import Any, Dict
+from typing import Any, Dict, IO
 
 from fastapi import testclient
 
@@ -52,10 +52,12 @@ class ServiceTestFixture(fixtures.PostgresFixture,
     """
 
     client: testclient.TestClient
+    service_auth_file: IO[str]
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.service_auth_file = fixtures.create_service_auth_file()
 
         # Prepare a bucket in S3 storage
         cls.s3_client.create_bucket(Bucket=TEST_BUCKET_NAME)
@@ -76,6 +78,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
                 redis_db_number=cls.redis_params.db_number,
                 redis_tls_enable=False,
                 method='dev',
+                service_auth_file=cls.service_auth_file.name,
             ),
         )
         cls.client = testclient.TestClient(service.app)
@@ -103,6 +106,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             # Close TestClient
             if hasattr(cls, 'client'):
                 cls.client.close()
+            cls.service_auth_file.close()
         finally:
             super().tearDownClass()
 

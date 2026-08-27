@@ -44,6 +44,7 @@ osmo_py_test(
     name = "test_configmap_loader_unit",
     srcs = ["test_configmap_loader_unit.py"],
     deps = [
+        requirement("fastapi"),
         requirement("pyyaml"),
         "//src/service/core/config:config",
     ],

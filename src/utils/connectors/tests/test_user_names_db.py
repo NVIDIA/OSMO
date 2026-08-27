@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import unittest
+from typing import IO
 from unittest import mock
 
 from src.lib.utils import osmo_errors
@@ -40,9 +41,12 @@ class UserNamesDatabaseTest(
         fixtures.OsmoTestFixture):
     """Database coverage for current-user identity resolution."""
 
+    service_auth_file: IO[str]
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.service_auth_file = fixtures.create_service_auth_file()
         postgres.PostgresConnector(
             postgres.PostgresConfig(
                 postgres_host=cls.postgres_container.get_container_host_ip(),
@@ -51,6 +55,7 @@ class UserNamesDatabaseTest(
                 postgres_database_name=cls.postgres_container.dbname,
                 postgres_user=cls.postgres_container.username,
                 method='dev',
+                service_auth_file=cls.service_auth_file.name,
             ))
 
     @classmethod
@@ -60,6 +65,7 @@ class UserNamesDatabaseTest(
                 postgres.PostgresConnector._instance.close()  # pylint: disable=protected-access
                 postgres.PostgresConnector._instance = None  # pylint: disable=protected-access
         finally:
+            cls.service_auth_file.close()
             super().tearDownClass()
 
     @property

@@ -175,6 +175,7 @@ spec:
         - {{ include "osmo.postgresql.database" . | quote }}
         - --postgres_user
         - {{ include "osmo.postgresql.username" . | quote }}
+        {{- include "osmo.secrets.serviceAuthArgs" . | nindent 8 }}
         {{- end }}
         - --active_deadline_seconds
         - {{ ternary $mek.bootstrap.activeDeadlineSeconds $mek.rotation.activeDeadlineSeconds $mek.bootstrap.enabled | quote }}
@@ -195,6 +196,7 @@ spec:
           readOnly: true
         {{- end }}
         {{- if $needsDatabase }}
+        {{- include "osmo.secrets.serviceAuthVolumeMount" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- end }}
         - name: kubernetes-api
@@ -221,6 +223,7 @@ spec:
             path: "mek.yaml"
       {{- end }}
       {{- if $needsDatabase }}
+      {{- include "osmo.secrets.serviceAuthVolume" . | nindent 6 }}
       {{- include "osmo.externalDependencies.caVolumes" . | nindent 6 }}
       {{- end }}
       - name: kubernetes-api

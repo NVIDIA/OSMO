@@ -11,8 +11,8 @@ values take precedence.
 
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
-| `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `compute.backendName` set explicitly at install time |
-| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, IPv4 cluster CIDRs, and `compute.backendName` |
+| `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `osmo-service-auth` generated and created as documented; `compute.backendName` set explicitly at install time |
+| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, an `osmo-service-auth` Secret generated as documented, a TLS edge and public `externalUrl`, IPv4 cluster CIDRs, and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
@@ -20,7 +20,8 @@ The quick-start profile is the smallest complete control-and-compute deployment
 for browser, CLI, and CPU hello-world verification. It exposes the UI and API
 through gateway NodePort `30080` while omitting optional production behavior.
 It intentionally uses `latest` OSMO images, one replica per component,
-development authentication, and small single-node stateful dependencies.
+development authentication, explicitly generated service auth, and small
+single-node stateful dependencies.
 The quick-start installation path uses the chart's default image settings and
 does not require application Secrets or an image-pull Secret to be created
 beforehand. Configure top-level `imagePullSecrets` only when using a registry

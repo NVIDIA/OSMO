@@ -30,6 +30,7 @@ import kombu.mixins  # type: ignore
 import kombu.transport.redis  # type: ignore
 
 from src.utils import connectors
+from src.utils import auth
 from src.utils.connectors import postgres
 from src.utils.job import jobs, backend_jobs
 
@@ -69,10 +70,17 @@ class TestHarness:
     def __init__(self, postgres_port: int = 5555, redis_port: int = 5556):
         # pylint: disable=consider-using-with
         # Setup config
+        self.service_auth_file = tempfile.NamedTemporaryFile(
+            mode='w+', encoding='utf-8')
+        self.service_auth_file.write(
+            auth.AuthenticationConfig.generate_default().canonical_json(
+                include_login_info=False))
+        self.service_auth_file.flush()
         self.config = TestHarnessConfig(
             postgres_port=postgres_port,
             postgres_password='osmo',
             method='dev',
+            service_auth_file=self.service_auth_file.name,
             redis_port=redis_port)
 
         # Start redis using purely in-memory storage

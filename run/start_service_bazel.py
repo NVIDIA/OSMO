@@ -36,6 +36,7 @@ from run.run_command import run_command_with_logging, cleanup_registered_process
 
 
 logger = logging.getLogger()
+_DEV_SERVICE_AUTH_FILE = '/tmp/osmo/service/authentication-config.json'
 
 
 def _get_env():
@@ -78,6 +79,23 @@ def _wait_for_http_service(url: str, service_name: str, timeout: int = 60) -> bo
 
     logger.error('❌ %s failed to become ready within %d seconds', service_name, timeout)
     return False
+
+
+def _ensure_dev_service_auth_file() -> None:
+    """Generate one persistent development identity shared by every service."""
+    if os.path.exists(_DEV_SERVICE_AUTH_FILE):
+        return
+    os.makedirs(os.path.dirname(_DEV_SERVICE_AUTH_FILE), mode=0o700, exist_ok=True)
+    process = run_command_with_logging(
+        [
+            'bazel', 'run',
+            '@osmo_workspace//src/service/core:service_auth_bootstrap_binary',
+            '--', 'generate', '--output', _DEV_SERVICE_AUTH_FILE,
+        ],
+        'Generating shared development service auth identity',
+    )
+    if process.has_failed():
+        raise RuntimeError('Failed to generate shared development service auth identity')
 
 
 def _handle_existing_container(container_name: str, display_name: str) -> bool:
@@ -294,6 +312,7 @@ def _start_core_service():
         '--',
         '--host', f'http://{host_ip}:8000',
         '--method=dev',
+        '--service_auth_file', _DEV_SERVICE_AUTH_FILE,
         '--progress_file', '/tmp/osmo/service/last_progress_core'
     ]
 
@@ -315,6 +334,7 @@ def _start_service_worker():
         'bazel', 'run', '@osmo_workspace//src/service/worker:worker_binary',
         '--',
         '--method=dev',
+        '--service_auth_file', _DEV_SERVICE_AUTH_FILE,
         '--progress_file', '/tmp/osmo/service/last_progress_worker'
     ]
 
@@ -387,6 +407,7 @@ def _start_delayed_job_monitor():
         '@osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_binary',
         '--',
         '--method=dev',
+        '--service_auth_file', _DEV_SERVICE_AUTH_FILE,
         '--progress_file', '/tmp/osmo/service/last_progress_delayed_job_monitor'
     ]
 
@@ -413,7 +434,8 @@ def _start_router_service():
         'bazel', 'run', '@osmo_workspace//src/service/router:router_binary',
         '--',
         '--host', f'http://{host_ip}:8001',
-        '--method=dev'
+        '--method=dev',
+        '--service_auth_file', _DEV_SERVICE_AUTH_FILE,
     ]
 
     run_command_with_logging(
@@ -436,6 +458,7 @@ def start_service_bazel():
         _start_postgres()
         _start_localstack_s3()
         _create_localstack_buckets()
+        _ensure_dev_service_auth_file()
 
         _start_core_service()
         _start_service_worker()

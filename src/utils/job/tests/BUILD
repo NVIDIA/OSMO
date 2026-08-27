@@ -29,6 +29,7 @@ osmo_py_library(
         requirement("redis"),
         requirement("pydantic"),
         "//src/service/core/workflow",
+        "//src/utils:auth",
         "//src/utils/connectors",
         "//src/utils/job",
         "//src/utils/job:backend_job",

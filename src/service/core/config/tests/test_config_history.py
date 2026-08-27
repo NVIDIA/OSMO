@@ -113,6 +113,10 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
 
     def test_service_config_history(self):
         """Test history entries for service config operations."""
+        response = self.client.get('/api/configs/service')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('service_auth', response.json())
+
         self._verify_initial_config_entry('SERVICE')
 
         # Test first service config update
@@ -159,6 +163,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=first_tags,
         )
         config = history['configs'][-2]['data']
+        self.assertNotIn('service_auth', config)
         self.assertEqual(config['cli_config']['latest_version'], '1.0.0')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '1.0.0')
@@ -170,6 +175,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=second_tags,
         )
         config = history['configs'][-1]['data']
+        self.assertNotIn('service_auth', config)
         self.assertEqual(config['cli_config']['latest_version'], '2.0.0')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '2.0.0')

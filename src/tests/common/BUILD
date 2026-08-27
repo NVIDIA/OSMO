@@ -26,6 +26,7 @@ osmo_py_library(
         "//src/tests/common/envoy",
         "//src/tests/common/registry",
         "//src/tests/common/storage",
+        "//src/utils:auth",
     ],
     visibility = ["//visibility:public"],
 )

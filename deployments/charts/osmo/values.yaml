@@ -317,6 +317,25 @@ secrets:
       rolloutRevision: ''
       imagePullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
+  # Stable JWT signing identity. Production installations should provision
+  # this Secret outside Helm so private key material is not stored in Helm
+  # values or release state.
+  serviceAuth:
+    existingSecret:
+      name: osmo-service-auth
+      key: authentication-config.json
+    # Change after intentionally updating the externally managed Secret.
+    rolloutNonce: ''
+    migration:
+      # Transitional compatibility hook for upgrades from DB-backed releases.
+      # It performs a one-time pre-upgrade export from the legacy configs row
+      # into the pre-provisioned existingSecret. The hook has read-only DB
+      # access and target-scoped Secret update permission. Disable after
+      # migration. Remove only when DB-backed upgrades are no longer supported.
+      enabled: false
+      nodeSelector: {}
+      tolerations: []
+      resources: {}
   # Optional password used to bootstrap the named administrator account.
   defaultAdmin:
     generate: false

@@ -72,6 +72,7 @@
         "objectStorage": { "$ref": "#/definitions/objectStorageSecretReference" },
         "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
+        "serviceAuth": { "$ref": "#/definitions/serviceAuthReference" },
         "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
         "oauthClientSecret": { "$ref": "#/definitions/existingValueSecretReference" },
         "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
@@ -1260,6 +1261,34 @@
         }
       },
       "required": ["managementMode", "existingSecret", "bootstrap", "rotation"]
+    },
+    "serviceAuthReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "key": { "type": "string", "minLength": 1 }
+          },
+          "required": ["name", "key"]
+        },
+        "rolloutNonce": { "type": "string" },
+        "migration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "nodeSelector": { "$ref": "#/definitions/stringMap" },
+            "tolerations": { "type": "array" },
+            "resources": { "type": "object" }
+          },
+          "required": ["enabled", "nodeSelector", "tolerations", "resources"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "migration"]
     },
     "postgresqlSecretReference": {
       "type": "object",

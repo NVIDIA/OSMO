@@ -118,6 +118,7 @@ spec:
         - {{ .Values.logging.logFormat | default "text" }}
         {{- end }}
         {{- include "osmo.configuration.args" . | nindent 8 }}
+        {{- include "osmo.secrets.serviceAuthArgs" . | nindent 8 }}
         {{- range $arg := .Values.services.worker.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
@@ -133,6 +134,7 @@ spec:
           name: mek-volume
           readOnly: true
         {{- end }}
+        {{- include "osmo.secrets.serviceAuthVolumeMount" . | nindent 8 }}
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.worker | nindent 8 }}
@@ -162,6 +164,7 @@ spec:
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.worker | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
+        {{- include "osmo.secrets.serviceAuthVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 

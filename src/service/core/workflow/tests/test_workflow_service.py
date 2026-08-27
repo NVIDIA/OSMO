@@ -21,6 +21,7 @@ Functional tests for APIs defined in workflow_service.py
 import concurrent.futures
 import logging
 import threading
+from typing import IO
 
 from fastapi import testclient
 
@@ -53,10 +54,13 @@ class WorkflowServiceTestCase(
     TEST_IMAGE_NAME = 'test_image'
 
     client: testclient.TestClient
+    service_auth_file: IO[str]
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.service_auth_file = fixtures.create_service_auth_file()
+        cls.addClassCleanup(cls.service_auth_file.close)
 
         # Setup the service application and correponding TestClient
         service.configure_app(
@@ -75,6 +79,7 @@ class WorkflowServiceTestCase(
                 redis_db_number=cls.redis_params.db_number,
                 redis_tls_enable=False,
                 method='dev',
+                service_auth_file=cls.service_auth_file.name,
             ),
         )
         cls.client = testclient.TestClient(service.app)

@@ -81,6 +81,20 @@ osmo_py_test(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_test(
+    name = "test_service_auth_bootstrap",
+    srcs = ["test_service_auth_bootstrap.py"],
+    deps = [
+        osmo_requirement("jwcrypto"),
+        osmo_requirement("kubernetes"),
+        osmo_requirement("pyyaml"),
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core:service_auth_bootstrap_lib",
+        "//src/utils:auth",
+        "//src/utils/secret_manager",
+    ],
+)
+
 osmo_py_library(
     name = "fixture",
     srcs = ["fixture.py"],

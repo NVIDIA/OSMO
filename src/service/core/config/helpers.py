@@ -33,6 +33,25 @@ from src.service.core.workflow import objects
 from src.utils import connectors
 
 
+def _reject_service_auth_write(
+    postgres: connectors.PostgresConnector,
+    config_type: connectors.ConfigType,
+    *,
+    explicit_fields: set[str] | None = None,
+    patch: Dict[str, Any] | None = None,
+) -> None:
+    """Reject service-auth mutations through the dynamic configuration API."""
+    if (config_type != connectors.ConfigType.SERVICE
+            or not postgres.service_auth_is_external):
+        return
+    if ('service_auth' in (explicit_fields or set())
+            or (patch is not None and 'service_auth' in patch)):
+        raise osmo_errors.OSMOUserError(
+            'service_auth is managed through its Kubernetes Secret, not the '
+            'service configuration API.',
+            status_code=409)
+
+
 def update_backend_queues(current_backend: connectors.Backend,
     prev_backend: connectors.Backend | None = None,
     job_id: str | None = None) -> bool:
@@ -129,6 +148,8 @@ def put_configs(
     configmap_guard.reject_if_configmap_mode(username)
 
     postgres = connectors.PostgresConnector.get_instance()
+    _reject_service_auth_write(
+        postgres, config_type, explicit_fields=request.configs.model_fields_set)
     if should_serialize:
         updated_configs = request.configs.serialize(postgres)
     else:
@@ -137,6 +158,9 @@ def put_configs(
         for key, value in updated_configs.items():
             if isinstance(value, (dict, list)):
                 updated_configs[key] = json.dumps(value)
+    if (config_type == connectors.ConfigType.SERVICE
+            and postgres.service_auth_is_external):
+        updated_configs.pop('service_auth', None)
 
     for key, value in updated_configs.items():
         postgres.set_config(key, value, config_type)
@@ -152,6 +176,9 @@ def put_configs(
         or f'Set complete {config_type.value.lower()} configuration',
         tags=request.tags,
     )
+    if (config_type == connectors.ConfigType.SERVICE
+            and postgres.service_auth_is_external):
+        configs_dict.pop('service_auth', None)
     return configs_dict
 
 
@@ -179,6 +206,7 @@ def patch_configs(
     configmap_guard.reject_if_configmap_mode(username)
 
     postgres = connectors.PostgresConnector.get_instance()
+    _reject_service_auth_write(postgres, config_type, patch=request.configs_dict)
     current_configs_dict = postgres.get_configs(config_type).plaintext_dict(
         by_alias=True, exclude_unset=True)
 

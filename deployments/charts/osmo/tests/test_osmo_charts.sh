@@ -1808,6 +1808,9 @@ EOF
         >"$TEST_DIRECTORY/mek-bootstrap.yaml"
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'command: ["mek-lifecycle"]'
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '- "bootstrap"'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '--service_auth_file'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" \
+        'secretName: "osmo-service-auth"'
     require_not_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'kind: Lease'
     require_no_resource "$TEST_DIRECTORY/mek-bootstrap.yaml" Secret \
         external-master-encryption-key-secret
@@ -2027,6 +2030,94 @@ EOF
     ' "$rendered"; then
         fail 'Helm rendered non-empty Secret material into release state'
     fi
+
+    helm_template service-auth "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
+        --set secrets.serviceAuth.existingSecret.key=auth.json \
+        --set secrets.serviceAuth.rolloutNonce=auth-v1 \
+        >"$TEST_DIRECTORY/service-auth.yaml"
+    require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
+        "--service_auth_file" 6
+    require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
+        'secretName: "osmo-service-auth"' 6
+    require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
+        'osmo.nvidia.com/service-auth-rollout: "auth-v1"' 6
+    require_no_resource "$TEST_DIRECTORY/service-auth.yaml" Secret \
+        "osmo-service-auth"
+    require_not_contains "$TEST_DIRECTORY/service-auth.yaml" \
+        "service_auth_database_write_lock"
+    require_not_contains "$TEST_DIRECTORY/service-auth.yaml" \
+        "service-auth-osmo-service-auth-db-migration"
+
+    helm_template service-auth-migration "$charts_copy/osmo" \
+        --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
+        --set secrets.serviceAuth.migration.enabled=true \
+        >"$TEST_DIRECTORY/service-auth-migration.yaml"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" ServiceAccount \
+        "service-auth-migration-osmo-service-auth-db-migration"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Role \
+        "service-auth-migration-osmo-service-auth-db-migration"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" RoleBinding \
+        "service-auth-migration-osmo-service-auth-db-migration"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Job \
+        "service-auth-migration-osmo-service-auth-db-migration"
+    resource_document "$TEST_DIRECTORY/service-auth-migration.yaml" Role \
+        "service-auth-migration-osmo-service-auth-db-migration" \
+        >"$TEST_DIRECTORY/service-auth-role.yaml"
+    require_contains "$TEST_DIRECTORY/service-auth-role.yaml" \
+        'resourceNames: ["osmo-service-auth"]'
+    require_contains "$TEST_DIRECTORY/service-auth-role.yaml" \
+        'verbs: ["get", "update"]'
+    require_not_contains "$TEST_DIRECTORY/service-auth-role.yaml" '"create"'
+    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        'helm.sh/hook: pre-upgrade'
+    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        'command: ["service-auth-bootstrap"]'
+    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        "- migrate"
+    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        "--target-secret"
+    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        "expirationSeconds: 600"
+    require_no_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Secret \
+        "osmo-service-auth"
+
+    if helm_template install-service-auth-migration "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
+            --set secrets.serviceAuth.migration.enabled=true \
+            >"$TEST_DIRECTORY/install-service-auth-migration.out" 2>&1; then
+        fail "service auth migration was accepted during a fresh install"
+    fi
+    require_contains "$TEST_DIRECTORY/install-service-auth-migration.out" \
+        "migration.enabled is only valid during an upgrade"
+
+    if helm_template missing-service-auth-secret "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string secrets.serviceAuth.existingSecret.name= \
+            >"$TEST_DIRECTORY/missing-service-auth-secret.out" 2>&1; then
+        fail "control plane was accepted without a service auth Secret"
+    fi
+    require_contains "$TEST_DIRECTORY/missing-service-auth-secret.out" \
+        "existingSecret.name is required for the control plane"
+
+    if helm_template invalid-service-auth-secret-key "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
+            --set-string secrets.serviceAuth.existingSecret.key= \
+            >"$TEST_DIRECTORY/invalid-service-auth-secret-key.out" 2>&1; then
+        fail "expected an empty service auth Secret key to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-service-auth-secret-key.out" \
+        "secrets.serviceAuth.existingSecret.key"
     require_contains "$rendered" "https://s3.external.example.com"
     resource_document "$rendered" ConfigMap osmo-api-config \
         >"$TEST_DIRECTORY/osmo-external-object-storage-config.yaml"

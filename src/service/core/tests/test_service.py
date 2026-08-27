@@ -90,7 +90,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             config_objects.PatchConfigRequest(
                 configs_dict=connectors.postgres.ServiceConfig(
                     cli_config=connectors.postgres.CliConfig(latest_version=str(test_version)),
-                ).model_dump(),
+                ).model_dump(exclude_unset=True),
             ),
             config_type=connectors.ConfigType.SERVICE,
             username='test@nvidia.com',
@@ -477,7 +477,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                         latest_version=latest_version,
                         min_supported_version=min_supported_version,
                     ),
-                ).model_dump(),
+                ).model_dump(exclude_unset=True),
             ),
             config_type=connectors.ConfigType.SERVICE,
             username='test@nvidia.com',

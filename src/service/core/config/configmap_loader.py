@@ -35,7 +35,7 @@ from watchdog import events, observers
 from src.lib.utils import jinja_sandbox, osmo_errors
 from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
 from src.service.core.config import configmap_events, configmap_guard
-from src.utils import connectors
+from src.utils import auth, connectors
 
 
 # Cold-start retry: kubelet may take up to ~60s to project a freshly-created
@@ -133,7 +133,7 @@ class ConfigMapWatcher:
     ):
         self._config_file_path = config_file_path
         self._postgres = postgres
-        self._db_service_auth: Dict[str, Any] | None = None
+        self._stable_service_auth: auth.AuthenticationConfig | None = None
         self._event_recorder = event_recorder
         self._enable_reconciliation = enable_reconciliation
         self._backend_queue_updater = backend_queue_updater
@@ -238,7 +238,7 @@ class ConfigMapWatcher:
         # Dataset config is deprecated; tolerate stale ConfigMap blocks without loading them.
         managed_configs.pop('dataset', None)
 
-        # JWT signing identity is PostgreSQL-owned. Discard ConfigMap input before
+        # JWT signing identity is externally owned. Discard ConfigMap input before
         # resolving secret references so it is never interpreted as runtime auth.
         service_config = managed_configs.get('service')
         if isinstance(service_config, dict):
@@ -299,24 +299,18 @@ class ConfigMapWatcher:
     def _hydrate_service_auth(
         self, managed_configs: Dict[str, Any],
     ) -> None:
-        """Hydrate the stable JWT signing identity from Postgres."""
+        """Hydrate the stable JWT signing identity from its configured source."""
         service_config = managed_configs.setdefault('service', {})
         if not isinstance(service_config, dict):
             return
 
-        if self._db_service_auth is None and self._postgres is not None:
-            persisted_service_config = self._postgres.get_service_configs()
-            persisted_service_config_dict = (
-                persisted_service_config.plaintext_dict(
-                    by_alias=True, exclude_unset=True))
-            persisted_service_auth = persisted_service_config_dict.get(
-                'service_auth')
-            if isinstance(persisted_service_auth, dict):
-                self._db_service_auth = copy.deepcopy(persisted_service_auth)
+        if self._stable_service_auth is None and self._postgres is not None:
+            self._stable_service_auth = self._postgres.get_service_auth().model_copy(
+                deep=True)
 
-        if self._db_service_auth is not None:
-            service_config['service_auth'] = copy.deepcopy(
-                self._db_service_auth)
+        if self._stable_service_auth is not None:
+            service_config['service_auth'] = (
+                self._stable_service_auth.plaintext_dict())
 
 
 def start_config_watcher(
@@ -343,8 +337,8 @@ def start_config_watcher(
 
     ConfigMap mode is authoritative for managed config except service auth.
     ConfigMap-supplied service auth is ignored. On the first load, the watcher
-    recovers the stable signing identity from Postgres; reloads preserve only
-    that watcher-local, DB-derived identity.
+    obtains the stable signing identity from its configured source; reloads
+    preserve that watcher-local identity.
     """
     if not config_file:
         return None
@@ -789,7 +783,7 @@ def _validate_configmap_runtime_contract(
     if (not isinstance(service_config, dict)
             or 'service_auth' not in service_config):
         errors.append(
-            'service.service_auth: required from PostgreSQL in ConfigMap mode')
+            'service.service_auth: required from the configured auth source')
 
     backends = managed_configs.get('backends', {})
     if isinstance(backends, dict):

@@ -16,11 +16,13 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import copy
 import enum
 import re
 from typing import Annotated, Any, Dict, List, Mapping
 
 import fastapi
+from fastapi import encoders, responses
 import pydantic
 
 from src.lib.utils import common, osmo_errors
@@ -61,10 +63,14 @@ def _check_config_name(name: str, name_type: ConfigNameType):
     '/api/configs/service',
     response_model=connectors.ServiceConfig,
 )
-def read_service_configs() -> connectors.ServiceConfig:
+def read_service_configs() -> connectors.ServiceConfig | responses.JSONResponse:
     """Read all the service configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_service_configs()
+    service_configs = postgres.get_service_configs()
+    if postgres.service_auth_is_external:
+        return responses.JSONResponse(content=encoders.jsonable_encoder(
+            service_configs, exclude={'service_auth'}))
+    return service_configs
 
 
 @router.put('/api/configs/service')
@@ -124,16 +130,23 @@ def create_clean_config_api(app: fastapi.FastAPI):
         # TODO: Make this clean all the configs
         service_configs_dict = postgres.get_service_configs().plaintext_dict(
             by_alias=True, exclude_unset=True)
+        if postgres.service_auth_is_external:
+            service_configs_dict.pop('service_auth', None)
 
         try:
             configs = connectors.ServiceConfig.from_db(service_configs_dict)
             updated_configs = configs.serialize(postgres)
+            if postgres.service_auth_is_external:
+                updated_configs.pop('service_auth', None)
             for key, value in updated_configs.items():
-                postgres.set_config(key, value)
+                postgres.set_config(key, value, connectors.ConfigType.SERVICE)
         except pydantic.ValidationError as err:
             raise osmo_errors.OSMOUsageError(f'{err}') from err
-        return postgres.get_service_configs().model_dump(by_alias=True,
-                                                        exclude_unset=True)
+        cleaned_configs = postgres.get_service_configs().model_dump(
+            by_alias=True, exclude_unset=True)
+        if postgres.service_auth_is_external:
+            cleaned_configs.pop('service_auth', None)
+        return cleaned_configs
 
     app.add_api_route('/api/configs/service/clean', clean_configs,  # type: ignore
                       description='Clean service configurations',
@@ -1089,9 +1102,12 @@ def rollback_config(
 
     config_type_value = request.config_type.value
     if config_type_value == connectors.ConfigHistoryType.SERVICE.value:
+        service_history_data = copy.deepcopy(history_entry['data'])
+        if postgres.service_auth_is_external:
+            service_history_data.pop('service_auth', None)
         helpers.put_configs(
             objects.PutConfigsRequest(
-                configs=connectors.ServiceConfig.from_db(history_entry['data']),
+                configs=connectors.ServiceConfig.from_db(service_history_data),
                 description=description,
                 tags=request.tags
             ),

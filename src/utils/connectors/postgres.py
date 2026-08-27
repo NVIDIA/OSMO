@@ -181,6 +181,15 @@ class PostgresConfig(pydantic.BaseModel):
         default='/opt/osmo/mek/mek.yaml',
         description='Path to the file that stores master encryption keys',
         json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
+    service_auth_file: str | None = pydantic.Field(
+        default=None,
+        description=(
+            'Path to canonical service auth JSON. An absent path retains the '
+            'legacy chart database mode until that deployment path is retired.'),
+        json_schema_extra={
+            'command_line': 'service_auth_file',
+            'env': 'OSMO_SERVICE_AUTH_FILE',
+        })
     method: Literal['dev'] | None = pydantic.Field(
         default=None,
         description='If set to "dev", use the default local mek file'
@@ -432,6 +441,10 @@ class PostgresConnector:
                 'generation': self.secret_manager.generation,
                 'digest': self.secret_manager.fingerprint_bundle_digest(),
             }, separators=(',', ':'), sort_keys=True))
+        self._service_auth: auth.AuthenticationConfig | None = (
+            auth.load_authentication_config_file(config.service_auth_file)
+            if config.service_auth_file else None)
+        self._runtime_service_auth_login_info: auth.LoginInfo | None = None
         logging.debug('Secret manager initialized')
 
         logging.debug('Initializing tables')
@@ -707,7 +720,11 @@ class PostgresConnector:
             return self._get_configs_from_snapshot(
                 config_type, snapshot)
 
+        uses_external_service_auth = (
+            config_type == ConfigType.SERVICE and self.service_auth_is_external)
         cmd = 'SELECT * FROM configs WHERE type = %s;'
+        if uses_external_service_auth:
+            cmd = "SELECT * FROM configs WHERE type = %s AND key != 'service_auth';"
         result = self.execute_fetch_command(cmd, (config_type.value,))
         if not result:
             raise osmo_errors.OSMODatabaseError('Configs are not found.')
@@ -728,12 +745,25 @@ class PostgresConnector:
         for model in result:
             if model.key not in hints:
                 continue
+            if uses_external_service_auth and model.key == 'service_auth':
+                continue
             item_type = hints[model.key]
             if item_type in primative_types:
                 result_dicts[model.key] = model.value
             else:
                 result_dicts[model.key] = json.loads(model.value)
-        return config_class.deserialize(result_dicts, self)
+        runtime_overrides = None
+        if uses_external_service_auth:
+            runtime_overrides = {'service_auth': self.get_service_auth()}
+        dynamic_config = config_class.deserialize(
+            result_dicts, self, runtime_overrides=runtime_overrides)
+        if (config_type == ConfigType.SERVICE
+                and self._runtime_service_auth_login_info is not None):
+            dynamic_config.service_auth = dynamic_config.service_auth.model_copy(
+                deep=True,
+                update={'login_info': self._runtime_service_auth_login_info},
+            )
+        return dynamic_config
 
     def _get_configs_from_snapshot(self, config_type: ConfigType,
                                    snapshot: dict):
@@ -748,6 +778,50 @@ class PostgresConnector:
 
     def get_service_configs(self) -> 'ServiceConfig':
         return self.get_configs(ConfigType.SERVICE)
+
+    @property
+    def service_auth_is_external(self) -> bool:
+        """Whether this process uses the mounted identity instead of legacy DB mode."""
+        return bool(self.config.service_auth_file)
+
+    def set_runtime_service_auth_login_info(self, login_info: auth.LoginInfo) -> None:
+        """Overlay deployment-derived login endpoints without persisting them."""
+        self._runtime_service_auth_login_info = login_info.model_copy(deep=True)
+
+    def get_service_auth(self) -> auth.AuthenticationConfig:
+        """Return the mounted identity, or the unmodified legacy-chart DB identity."""
+        if self._service_auth is not None:
+            service_auth = self._service_auth.model_copy(deep=True)
+        else:
+            rows = self.execute_fetch_command(
+                'SELECT value FROM configs '
+                "WHERE key = 'service_auth' AND type = 'SERVICE';",
+                (),
+                return_raw=True,
+            )
+            if not rows or not isinstance(rows[0]['value'], str):
+                raise osmo_errors.OSMODatabaseError('Service auth is not found.')
+            try:
+                service_auth_data = json.loads(rows[0]['value'])
+                service_auth = ServiceConfig.deserialize(
+                    {'service_auth': service_auth_data}, self).service_auth
+                service_auth.validate_key_pairs()
+            except (JWException, json.JSONDecodeError, pydantic.ValidationError, ValueError):
+                raise osmo_errors.OSMODatabaseError(
+                    'Persisted service auth is invalid.') from None
+
+        if self._runtime_service_auth_login_info is not None:
+            service_auth = service_auth.model_copy(
+                deep=True,
+                update={'login_info': self._runtime_service_auth_login_info},
+            )
+        return service_auth
+
+    def prepare_service_auth_history_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Exclude externally managed service auth from configuration history."""
+        history_data = copy.deepcopy(data)
+        history_data.pop('service_auth', None)
+        return history_data
 
     def get_workflow_configs(self) -> 'WorkflowConfig':
         return self.get_configs(ConfigType.WORKFLOW)
@@ -793,6 +867,11 @@ class PostgresConnector:
 
     def set_config(self, key: str, value: str | None, config_type: ConfigType):
         """ Set the config value for the given key. """
+        if (key == 'service_auth' and config_type == ConfigType.SERVICE
+                and self.service_auth_is_external):
+            raise osmo_errors.OSMOUserError(
+                'service_auth is managed outside PostgreSQL.',
+                status_code=409)
         cmd = 'UPDATE configs SET value = %s WHERE key = %s and type = %s;'
         return self.execute_commit_command(cmd, (value, key, config_type.value))
 
@@ -1381,6 +1460,9 @@ class PostgresConnector:
 
         def set_default_values(configs: 'DynamicConfig', config_type: ConfigType):
             for key, value in configs.serialize(self, exclude_unset=False).items():
+                if (key == 'service_auth' and config_type == ConfigType.SERVICE
+                        and self.service_auth_is_external):
+                    continue
                 if isinstance(value, str):
                     self._set_default_config(key, value, config_type)
                 else:
@@ -1446,6 +1528,10 @@ class PostgresConnector:
                 raise ValueError(
                     f'Invalid config type when initializing config history: {config_type}'
                 )
+
+            if (config_type == ConfigHistoryType.SERVICE
+                    and self.service_auth_is_external and isinstance(data, dict)):
+                data = self.prepare_service_auth_history_data(data)
 
             insert_cmd = """
                 INSERT INTO config_history
@@ -2047,6 +2133,9 @@ class PostgresConnector:
             description: Description of what changed
             tags: Optional list of tags to associate with this change
         """
+        if (config_type == ConfigHistoryType.SERVICE
+                and self.service_auth_is_external and isinstance(data, dict)):
+            data = self.prepare_service_auth_history_data(data)
         # Insert the history entry with calculated revision
         insert_cmd = """
             WITH next_rev AS (
@@ -3150,8 +3239,16 @@ class DynamicConfig(ExtraArgBaseModel):
     model_config = pydantic.ConfigDict(validate_assignment=True)
 
     @classmethod
-    def deserialize(cls, config_dict: Dict, postgres: PostgresConnector):
+    def deserialize(
+        cls,
+        config_dict: Dict,
+        postgres: PostgresConnector,
+        *,
+        runtime_overrides: Dict[str, Any] | None = None,
+        persist_secret_updates: bool = True,
+    ):
         """ Decrypts all secrets in `config_dict` """
+        runtime_overrides = runtime_overrides or {}
         encrypt_keys = set()
 
         # Define function to pass into secret_manager.decrypt to update secrets
@@ -3205,25 +3302,32 @@ class DynamicConfig(ExtraArgBaseModel):
                 jwetoken = jwe.JWE()
                 try:
                     jwetoken.deserialize(secret)
-                    encrypted = Encrypted(secret)
-                    new_encrypted_list: List = []
-                    # If re-encryption is needed, top_level_key will be added to `encrypt_keys`.
-                    # New encrypted value will be added to `new_encrypted_list`.
-                    decrypted = postgres.secret_manager.decrypt(
-                        encrypted, '', re_encrypt(top_level_key, new_encrypted_list))
-                    new_encrypted = secret
-                    if new_encrypted_list:
-                        new_encrypted = new_encrypted_list[0]
-                    return decrypted.value, new_encrypted
-                except (JWException, osmo_errors.OSMONotFoundError):
+                except JWException:
                     # Encrypt the plain text secret
-                    encrypted = postgres.secret_manager.encrypt(secret, '')
-                    encrypt_keys.add(top_level_key)
-                    return secret, encrypted.value
+                    if persist_secret_updates:
+                        encrypted = postgres.secret_manager.encrypt(secret, '')
+                        encrypt_keys.add(top_level_key)
+                        return secret, encrypted.value
+                    return secret, None
+
+                encrypted = Encrypted(secret)
+                new_encrypted_list: List = []
+                # If re-encryption is needed, top_level_key will be added to `encrypt_keys`.
+                # New encrypted value will be added to `new_encrypted_list`.
+                update_callback = (
+                    re_encrypt(top_level_key, new_encrypted_list)
+                    if persist_secret_updates else lambda _value: None)
+                decrypted = postgres.secret_manager.decrypt(
+                    encrypted, '', update_callback)
+                new_encrypted = secret
+                if new_encrypted_list:
+                    new_encrypted = new_encrypted_list[0]
+                return decrypted.value, new_encrypted
             else:
                 return encrypted_data, None
 
-        dynamic_config = cls.from_db(config_dict)
+        construction_data = {**config_dict, **runtime_overrides}
+        dynamic_config = cls.from_db(construction_data)
         encrypted_dict = dynamic_config.model_dump(exclude_unset=True)
         decrypted_dict = dynamic_config.model_dump(exclude_unset=True)
 
@@ -3234,6 +3338,7 @@ class DynamicConfig(ExtraArgBaseModel):
             if new_encrypted is not None:
                 encrypted_dict[key] = new_encrypted
             decrypted_dict[key] = decrypted
+        decrypted_dict.update(runtime_overrides)
         dynamic_config = cls(**decrypted_dict)
 
         # Encrypt updated secrets
