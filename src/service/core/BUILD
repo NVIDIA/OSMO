@@ -99,7 +99,6 @@ filegroup(
     name = "mek_lifecycle_image_layers",
     srcs = [
         ":mek_lifecycle_layer_default",
-        ":mek_lifecycle_layer_interpreter",
         ":mek_lifecycle_layer_packages",
         ":mek_lifecycle_wrapper",
     ],

@@ -494,7 +494,6 @@ filegroup(
     name = "mcp_image_layers",
     srcs = [
         ":mcp_layer_default",
-        ":mcp_layer_interpreter",
         ":mcp_layer_packages",
         ":mcp_wrapper",
     ],
