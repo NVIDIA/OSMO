@@ -138,19 +138,23 @@
 {{- end -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
-{{- $externalBuckets := .Values.externalDependencies.objectStorage.buckets -}}
+{{- $externalLocations := .Values.externalDependencies.objectStorage.locations -}}
+{{- $externalS3 := .Values.externalDependencies.objectStorage.s3 -}}
 {{- $embeddedBuckets := .Values.embeddedDependencies.objectStorage.buckets -}}
-{{- if .Values.externalDependencies.objectStorage.endpoint -}}
-{{- fail "externalDependencies.objectStorage.endpoint must be empty when embedded object storage is enabled" -}}
+{{- if $externalLocations.workflows -}}
+{{- fail "externalDependencies.objectStorage.locations.workflows must be empty when embedded object storage is enabled" -}}
 {{- end -}}
-{{- if $externalBuckets.workflows -}}
-{{- fail "externalDependencies.objectStorage.buckets.workflows must be empty when embedded object storage is enabled" -}}
+{{- if $externalLocations.logs -}}
+{{- fail "externalDependencies.objectStorage.locations.logs must be empty when embedded object storage is enabled" -}}
 {{- end -}}
-{{- if $externalBuckets.logs -}}
-{{- fail "externalDependencies.objectStorage.buckets.logs must be empty when embedded object storage is enabled" -}}
+{{- if $externalLocations.apps -}}
+{{- fail "externalDependencies.objectStorage.locations.apps must be empty when embedded object storage is enabled" -}}
 {{- end -}}
-{{- if $externalBuckets.apps -}}
-{{- fail "externalDependencies.objectStorage.buckets.apps must be empty when embedded object storage is enabled" -}}
+{{- if $externalS3.region -}}
+{{- fail "externalDependencies.objectStorage.s3.region must be empty when embedded object storage is enabled" -}}
+{{- end -}}
+{{- if $externalS3.overrideUrl -}}
+{{- fail "externalDependencies.objectStorage.s3.overrideUrl must be empty when embedded object storage is enabled" -}}
 {{- end -}}
 {{- if and .Values.secrets.objectStorage.generate .Values.secrets.objectStorage.existingSecret -}}
 {{- fail "secrets.objectStorage.generate and existingSecret are mutually exclusive" -}}
@@ -374,17 +378,26 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.externalDependencies.valkey.host) -}}
 {{- fail "externalDependencies.valkey.host is required for the control plane" -}}
 {{- end -}}
-{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.endpoint) -}}
-{{- fail "externalDependencies.objectStorage.endpoint is required for the control plane" -}}
+{{- if not .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- $externalLocations := .Values.externalDependencies.objectStorage.locations -}}
+{{- $externalS3 := .Values.externalDependencies.objectStorage.s3 -}}
+{{- if not $externalLocations.workflows -}}
+{{- fail "externalDependencies.objectStorage.locations.workflows is required for the control plane" -}}
 {{- end -}}
-{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.workflows) -}}
-{{- fail "externalDependencies.objectStorage.buckets.workflows is required for the control plane" -}}
+{{- if not $externalLocations.logs -}}
+{{- fail "externalDependencies.objectStorage.locations.logs is required for the control plane" -}}
 {{- end -}}
-{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.logs) -}}
-{{- fail "externalDependencies.objectStorage.buckets.logs is required for the control plane" -}}
+{{- if not $externalLocations.apps -}}
+{{- fail "externalDependencies.objectStorage.locations.apps is required for the control plane" -}}
 {{- end -}}
-{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.externalDependencies.objectStorage.buckets.apps) -}}
-{{- fail "externalDependencies.objectStorage.buckets.apps is required for the control plane" -}}
+{{- $azureLocations := and (hasPrefix "azure://" $externalLocations.workflows) (hasPrefix "azure://" $externalLocations.logs) (hasPrefix "azure://" $externalLocations.apps) -}}
+{{- $s3Locations := and (hasPrefix "s3://" $externalLocations.workflows) (hasPrefix "s3://" $externalLocations.logs) (hasPrefix "s3://" $externalLocations.apps) -}}
+{{- if not (or $azureLocations $s3Locations) -}}
+{{- fail "externalDependencies.objectStorage locations must use one storage URI scheme" -}}
+{{- end -}}
+{{- if and $azureLocations (or $externalS3.region $externalS3.overrideUrl) -}}
+{{- fail "externalDependencies.objectStorage.s3 must be empty for Azure locations" -}}
+{{- end -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.secrets.postgresql.existingSecret) -}}
 {{- fail "secrets.postgresql.existingSecret is required for the control plane" -}}

@@ -336,12 +336,13 @@ externalDependencies:
     port: 6379
     database: 0
   objectStorage:
-    endpoint: https://s3.example.com
-    region: us-east-1
-    buckets:
-      workflows: osmo-workflows
-      logs: osmo-logs
-      apps: osmo-apps
+    locations:
+      workflows: s3://osmo-workflows/workflows
+      logs: s3://osmo-logs/logs
+      apps: s3://osmo-apps/apps
+    s3:
+      region: us-east-1
+      overrideUrl: https://s3.example.com
 
 secrets:
   postgresql:
@@ -466,11 +467,13 @@ embeddedDependencies:
 
 externalDependencies:
   objectStorage:
-    endpoint: ''
-    buckets:
+    locations:
       workflows: ''
       logs: ''
       apps: ''
+    s3:
+      region: ''
+      overrideUrl: ''
 
 secrets:
   objectStorage:

@@ -679,7 +679,8 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-rustfs-pvc.yaml" "storage: 1Gi"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
         "osmo-backend-token-bootstrap"
-    require_resource "$TEST_DIRECTORY/quickstart.yaml" Job "osmo-mek-bootstrap"
+    require_contains "$TEST_DIRECTORY/quickstart.yaml" \
+        'name: "osmo-mek-bootstrap-'
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
         "osmo-object-storage-bootstrap"
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
@@ -1525,6 +1526,52 @@ EOF
         "endpoint: s3://osmo-apps/apps"
     require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
         "secretKey: object-storage.yaml"
+
+    helm_template azure-storage "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-azure-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-external-azure-object-storage.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-external-azure-object-storage.yaml" \
+        ConfigMap azure-storage-osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "endpoint: azure://osmotest/osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "endpoint: azure://osmotest/osmo-workflows/logs"
+    require_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "endpoint: azure://osmotest/osmo-workflows/apps"
+    require_not_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "override_url"
+    require_not_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "region:"
+    require_not_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "s3://"
+
+    local invalid_external_object_storage_case
+    local invalid_external_object_storage_settings
+    local invalid_external_object_storage_error
+    while IFS='|' read -r invalid_external_object_storage_case \
+            invalid_external_object_storage_settings \
+            invalid_external_object_storage_error; do
+        if helm_template "invalid-external-object-storage-$invalid_external_object_storage_case" \
+                "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                $invalid_external_object_storage_settings \
+                >"$TEST_DIRECTORY/invalid-external-object-storage-$invalid_external_object_storage_case.out" 2>&1; then
+            fail "expected invalid external object storage case $invalid_external_object_storage_case to fail"
+        fi
+        require_contains \
+            "$TEST_DIRECTORY/invalid-external-object-storage-$invalid_external_object_storage_case.out" \
+            "$invalid_external_object_storage_error"
+    done <<'EOF'
+missing-location|--set-string externalDependencies.objectStorage.locations.workflows=|externalDependencies.objectStorage.locations.workflows is required
+mixed-schemes|--set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs|externalDependencies.objectStorage locations must use one storage URI scheme
+azure-s3-settings|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest/osmo-workflows/workflows --set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs --set-string externalDependencies.objectStorage.locations.apps=azure://osmotest/osmo-workflows/apps|externalDependencies.objectStorage.s3 must be empty for Azure locations
+account-only-azure|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest|does not match pattern
+legacy-endpoint|--set-string externalDependencies.objectStorage.endpoint=https://legacy.example.com|additional properties 'endpoint' not allowed
+legacy-buckets|--set-string externalDependencies.objectStorage.buckets.workflows=legacy-workflows|additional properties 'buckets' not allowed
+EOF
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
@@ -1916,10 +1963,11 @@ EOF
 
     local embedded_object_storage_settings=(
         --set embeddedDependencies.objectStorage.enabled=true
-        --set-string externalDependencies.objectStorage.endpoint=
-        --set-string externalDependencies.objectStorage.buckets.workflows=
-        --set-string externalDependencies.objectStorage.buckets.logs=
-        --set-string externalDependencies.objectStorage.buckets.apps=
+        --set-string externalDependencies.objectStorage.locations.workflows=
+        --set-string externalDependencies.objectStorage.locations.logs=
+        --set-string externalDependencies.objectStorage.locations.apps=
+        --set-string externalDependencies.objectStorage.s3.region=
+        --set-string externalDependencies.objectStorage.s3.overrideUrl=
         --set secrets.objectStorage.generate=true
         --set-string secrets.objectStorage.existingSecret=
     )
@@ -2310,10 +2358,11 @@ EOF
         require_contains "$TEST_DIRECTORY/conflicting-object-storage.out" \
             "$conflicting_external_object_storage_message"
     done <<'EOF'
-externalDependencies.objectStorage.endpoint=https://unexpected.example.com|externalDependencies.objectStorage.endpoint must be empty
-externalDependencies.objectStorage.buckets.workflows=unexpected-workflows|externalDependencies.objectStorage.buckets.workflows must be empty
-externalDependencies.objectStorage.buckets.logs=unexpected-logs|externalDependencies.objectStorage.buckets.logs must be empty
-externalDependencies.objectStorage.buckets.apps=unexpected-apps|externalDependencies.objectStorage.buckets.apps must be empty
+externalDependencies.objectStorage.locations.workflows=s3://unexpected-workflows/workflows|externalDependencies.objectStorage.locations.workflows must be empty
+externalDependencies.objectStorage.locations.logs=s3://unexpected-logs/logs|externalDependencies.objectStorage.locations.logs must be empty
+externalDependencies.objectStorage.locations.apps=s3://unexpected-apps/apps|externalDependencies.objectStorage.locations.apps must be empty
+externalDependencies.objectStorage.s3.region=us-west-2|externalDependencies.objectStorage.s3.region must be empty
+externalDependencies.objectStorage.s3.overrideUrl=https://unexpected.example.com|externalDependencies.objectStorage.s3.overrideUrl must be empty
 EOF
 
     if helm_template duplicate-object-storage-credentials "$charts_copy/osmo" \
@@ -4026,9 +4075,9 @@ EOF
         require_contains "$TEST_DIRECTORY/missing-required.out" "$expected_message"
     done <<'EOF'
 externalUrl|externalUrl is required
-externalDependencies.objectStorage.buckets.workflows|buckets.workflows is required
-externalDependencies.objectStorage.buckets.logs|buckets.logs is required
-externalDependencies.objectStorage.buckets.apps|buckets.apps is required
+externalDependencies.objectStorage.locations.workflows|externalDependencies.objectStorage.locations.workflows is required
+externalDependencies.objectStorage.locations.logs|externalDependencies.objectStorage.locations.logs is required
+externalDependencies.objectStorage.locations.apps|externalDependencies.objectStorage.locations.apps is required
 EOF
 
     cat >"$charts_copy/osmo/templates/test-notes.yaml" <<'EOF'

@@ -456,8 +456,6 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 {{- define "osmo.objectStorage.endpoint" -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- printf "http://%s-svc:9000" (include "osmo.rustfs.fullname" .) -}}
-{{- else -}}
-{{- .Values.externalDependencies.objectStorage.endpoint -}}
 {{- end -}}
 {{- end -}}
 
@@ -465,15 +463,29 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- .Values.embeddedDependencies.objectStorage.region -}}
 {{- else -}}
-{{- .Values.externalDependencies.objectStorage.region -}}
+{{- .Values.externalDependencies.objectStorage.s3.region -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "osmo.objectStorage.bucket" -}}
 {{- if .root.Values.embeddedDependencies.objectStorage.enabled -}}
 {{- get .root.Values.embeddedDependencies.objectStorage.buckets .name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.location" -}}
+{{- if .root.Values.embeddedDependencies.objectStorage.enabled -}}
+{{- printf "s3://%s/%s" (get .root.Values.embeddedDependencies.objectStorage.buckets .name) .name -}}
 {{- else -}}
-{{- get .root.Values.externalDependencies.objectStorage.buckets .name -}}
+{{- get .root.Values.externalDependencies.objectStorage.locations .name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.objectStorage.overrideUrl" -}}
+{{- if .Values.embeddedDependencies.objectStorage.enabled -}}
+{{- include "osmo.objectStorage.endpoint" . -}}
+{{- else -}}
+{{- .Values.externalDependencies.objectStorage.s3.overrideUrl -}}
 {{- end -}}
 {{- end -}}
 

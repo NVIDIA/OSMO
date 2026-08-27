@@ -15,12 +15,12 @@ externalDependencies:
     database: 0
   objectStorage:
     locations:
-      workflows: s3://osmo-workflows/workflows
-      logs: s3://osmo-logs/logs
-      apps: s3://osmo-apps/apps
+      workflows: azure://osmotest/osmo-workflows/workflows
+      logs: azure://osmotest/osmo-workflows/logs
+      apps: azure://osmotest/osmo-workflows/apps
     s3:
-      region: us-east-1
-      overrideUrl: https://s3.external.example.com
+      region: ""
+      overrideUrl: ""
 
 secrets:
   postgresql:

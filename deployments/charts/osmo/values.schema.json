@@ -1162,15 +1162,32 @@
     },
     "objectStorageConnection": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "endpoint": { "type": "string" },
-        "region": { "type": "string" },
-        "buckets": {
+        "locations": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "workflows": { "type": "string" },
-            "logs": { "type": "string" },
-            "apps": { "type": "string" }
+            "workflows": {
+              "type": "string",
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+            },
+            "logs": {
+              "type": "string",
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+            },
+            "apps": {
+              "type": "string",
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "region": { "type": "string" },
+            "overrideUrl": { "type": "string" }
           }
         }
       }

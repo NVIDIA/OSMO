@@ -41,8 +41,12 @@ secrets:
       managedSecret:
         name: osmo-backend-token
   masterEncryptionKey:
-    generate: true
-    existingSecret: ''
+    managementMode: osmo
+    existingSecret:
+      name: osmo-mek
+      key: mek.yaml
+    bootstrap:
+      enabled: true
 
 services:
   ui:

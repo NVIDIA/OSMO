@@ -111,14 +111,15 @@ externalDependencies:
       enabled: false
       caExistingSecret: ''
       caKey: ca-bundle.crt
-  # S3-compatible storage for workflow data, logs, and application bundles.
+  # Object storage for workflow data, logs, and application bundles.
   objectStorage:
-    endpoint: ''
-    region: us-east-1
-    buckets:
+    locations:
       workflows: ''
       logs: ''
       apps: ''
+    s3:
+      region: ''
+      overrideUrl: ''
 
 # Override the names Helm derives from the chart and release. Leave empty for
 # conventional names such as `osmo-api` and `osmo-gateway`.
