@@ -97,9 +97,104 @@ jobs:
           git config user.name "testbot[bot]"
           git config user.email "testbot[bot]@users.noreply.github.com"
 
+      # Runner health probe. Runs 32920178725 and 32402379151 ended with "the
+      # runner has received a shutdown signal" and exit 143 about 8-9 minutes
+      # into the step below — short of both its 900s CLI timeout and this
+      # job's 20min timeout, with no review comment or newer run that could
+      # have cancelled them. Every post step was skipped, where the run that
+      # hit the CLI timeout cleanly ran all of its post steps. That is the
+      # runner VM going away, not the job being stopped, and of the 30 most
+      # recent failed OSMO runs the message appears on this workflow alone.
+      #
+      # The step captures Claude's output and prints nothing, so there is no
+      # evidence for any cause. This samples the candidates — memory, disk
+      # bytes, inodes, kernel OOM kills — and names the processes holding
+      # them, so the next occurrence identifies the culprit.
+      #
+      # Everything streams to the live log deliberately: post steps are
+      # exactly what this failure skips, so a summary written there would be
+      # lost. Streamed lines survive.
+      - name: Start runner health probe
+        run: |
+          cat > "$RUNNER_TEMP/probe.sh" <<'PROBE'
+          #!/usr/bin/env bash
+          # Deliberately no `set -e`: a probe must never fail the job.
+          # Record our own pid, not setsid's — setsid forks, so the launcher's
+          # $! belongs to a process that has already exited by the time the
+          # stop step tries to use it, and the probe outlives the job.
+          echo $$ > "$RUNNER_TEMP/probe.pid"
+          # kernel.dmesg_restrict means dmesg usually needs sudo here, but
+          # never assume it is available — fall back, then give up quietly.
+          read_dmesg() { dmesg 2>/dev/null || sudo -n dmesg 2>/dev/null || true; }
+          oom_seen=$(read_dmesg | grep -ci 'Killed process')
+          tick=0
+          while true; do
+            mem=$(free -m | awk '/^Mem:/{printf "used=%sMB avail=%sMB total=%sMB", $3, $7, $2}')
+            swap=$(free -m | awk '/^Swap:/{printf "%s/%sMB", $3, $2}')
+            root=$(df -h --output=pcent,avail / | awk 'NR==2{printf "%s used %s free", $1, $2}')
+            # NB: -i and --output are mutually exclusive, hence ipcent/iavail.
+            inode=$(df --output=ipcent,iavail / | awk 'NR==2{printf "%s used %s free", $1, $2}')
+            top=$(ps -eo rss,comm --no-headers --sort=-rss 2>/dev/null | head -3 \
+                  | awk '{printf "%s=%dMB ", $2, $1/1024}')
+            echo "[probe] $(date -u +%H:%M:%S) mem: $mem swap=$swap | root: $root | inodes: $inode | top: $top"
+
+            # Kernel OOM killer is the definitive answer for the memory case.
+            oom_now=$(read_dmesg | grep -ci 'Killed process')
+            if [ "${oom_now:-0}" -gt "${oom_seen:-0}" ]; then
+              echo "[probe] *** KERNEL OOM KILL DETECTED ***"
+              read_dmesg | grep -i 'Killed process\|Out of memory' | tail -5 | sed 's/^/[probe]   /'
+              oom_seen=$oom_now
+            fi
+
+            # Every 4th tick (~1min): what is actually running. Claude may
+            # shell out to bazel, whose output base dwarfs the disk a hosted
+            # runner has free, and its allowedTools include `rm *` and `mv *`.
+            if [ $((tick % 4)) -eq 0 ]; then
+              echo "[probe] top 12 processes by RSS:"
+              ps -eo rss,etimes,pid,args --no-headers --sort=-rss 2>/dev/null \
+                | head -12 | cut -c1-180 \
+                | awk '{rss=$1; $1=""; printf "[probe]   %6dMB %s\n", rss/1024, $0}'
+            fi
+
+            # Name the directories eating the disk before it is too late.
+            pct=$(df --output=pcent / | tr -dc '0-9')
+            if [ "${pct:-0}" -ge 85 ]; then
+              echo "[probe] *** ROOT DISK AT ${pct}% — largest directories ***"
+              timeout 20 du -xh -d2 /home/runner /tmp /var 2>/dev/null \
+                | sort -rh | head -12 | sed 's/^/[probe]   /'
+            fi
+            tick=$((tick + 1))
+            sleep 15
+          done
+          PROBE
+          chmod +x "$RUNNER_TEMP/probe.sh"
+          # setsid + nohup so the probe outlives this step and keeps sampling
+          # through the Claude run. Its stdout is the live job log.
+          rm -f "$RUNNER_TEMP/probe.pid"
+          setsid nohup "$RUNNER_TEMP/probe.sh" > "$RUNNER_TEMP/probe.log" 2>&1 &
+          for _ in 1 2 3 4 5; do
+            [ -s "$RUNNER_TEMP/probe.pid" ] && break
+            sleep 1
+          done
+          echo "probe started (pid $(cat "$RUNNER_TEMP/probe.pid" 2>/dev/null || echo unknown))"
+
       - name: Respond to review comments
         run: |
-          PYTHONPATH=src/scripts python -m testbot.respond \
+          # Stream the probe's samples into this step's log so they are
+          # interleaved with the run and flushed as they happen.
+          tail -f "$RUNNER_TEMP/probe.log" &
+          TAIL_PID=$!
+          trap 'kill "$TAIL_PID" 2>/dev/null || true' EXIT
+
+          # Baseline, so a later sample can be compared against a known start.
+          echo "[probe] baseline:"
+          free -m | sed 's/^/[probe]   /'
+          df -h / /mnt 2>/dev/null | sed 's/^/[probe]   /'
+          df -i / /mnt 2>/dev/null | sed 's/^/[probe]   /'
+
+          # -u so respond.py's own progress reaches the log before a hard
+          # kill instead of dying in a buffer.
+          PYTHONPATH=src/scripts python -u -m testbot.respond \
             --pr-number ${{ github.event.pull_request.number }} \
             --trigger-phrase /testbot \
             --max-responses 10 \
@@ -112,3 +207,25 @@ jobs:
           DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+
+      # Only reached when the runner survives, which is itself a useful
+      # signal: if this step is missing from a run, the VM died. The peak
+      # figures come from the streamed samples above, not from here.
+      - name: Stop runner health probe
+        if: always()
+        run: |
+          probe_pid=$(cat "$RUNNER_TEMP/probe.pid" 2>/dev/null)
+          # setsid made it a group leader, so signal the group; fall back to
+          # the bare pid, then to a name match.
+          [ -n "$probe_pid" ] && { kill -- "-$probe_pid" 2>/dev/null || kill "$probe_pid" 2>/dev/null; }
+          pkill -f "$RUNNER_TEMP/probe.sh" 2>/dev/null || true
+          echo "[probe] final:"
+          free -m | sed 's/^/[probe]   /'
+          df -h / /mnt 2>/dev/null | sed 's/^/[probe]   /'
+          df -i / /mnt 2>/dev/null | sed 's/^/[probe]   /'
+          echo "[probe] highest memory sample seen:"
+          grep -o 'used=[0-9]*MB' "$RUNNER_TEMP/probe.log" 2>/dev/null \
+            | tr -dc '0-9\n' | sort -n | tail -1 | sed 's/^/[probe]   used=/;s/$/MB/'
+          # grep -c prints 0 *and* exits non-zero on no match, so `|| echo 0`
+          # would print it twice.
+          echo "[probe] OOM kills recorded: $(grep -c 'KERNEL OOM KILL' "$RUNNER_TEMP/probe.log" 2>/dev/null || true)"
