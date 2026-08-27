@@ -13,6 +13,7 @@ values take precedence.
 | --- | --- | --- |
 | `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `compute.backendName` set explicitly at install time |
 | `kind-self-contained.yaml` | Yes, on kind | KAI Scheduler and the CloudNativePG operator installed separately; `compute.backendName` set explicitly at install time |
+| `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; Kubernetes Secrets; `externalUrl`; and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
@@ -24,6 +25,17 @@ development-only and intentionally use `latest` OSMO images, one replica per
 component, generated credentials, and embedded stateful dependencies. The split
 profiles contain example names and endpoints; copy them into an environment
 values file before installation.
+
+`single-plane.yaml` enables both planes with externally managed dependencies.
+It is provider-neutral and is not directly installable: layer it before a
+site-specific values file that supplies the required dependency locations and
+connection details. For example:
+
+```bash
+helm upgrade --install osmo deployments/charts/osmo \
+  --values deployments/charts/osmo/profiles/single-plane.yaml \
+  --values single-plane-azure.yaml
+```
 
 KAI Scheduler is a prerequisite for every profile that enables the compute
 plane. The unified chart does not install or manage KAI. CloudNativePG must also

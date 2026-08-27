@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+externalUrl: http://osmo-gateway
+
+compute:
+  backendName: default
+
+externalDependencies:
+  postgresql:
+    host: azure-postgresql.internal
+    port: 5432
+    database: osmo
+    username: postgres
+    tls:
+      enabled: false
+  valkey:
+    host: azure-redis.internal
+    port: 10000
+    database: 0
+    tls:
+      enabled: true
+  objectStorage:
+    locations:
+      workflows: azure://osmoazure/osmo-workflows/workflows
+      logs: azure://osmoazure/osmo-workflows/logs
+      apps: azure://osmoazure/osmo-workflows/apps

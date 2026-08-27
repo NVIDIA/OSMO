@@ -683,6 +683,120 @@ test_control_umbrella() {
         'name: "osmo-mek-bootstrap-'
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
         "osmo-object-storage-bootstrap"
+
+    if helm_template single-plane-profile-only "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+            >"$TEST_DIRECTORY/single-plane-profile-only.out" 2>&1; then
+        fail "expected the single-plane profile without site values to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/single-plane-profile-only.out" \
+        "compute.backendName is required when planes.compute.enabled=true"
+
+    if helm_template single-plane-partial "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+            --set-string compute.backendName=default \
+            >"$TEST_DIRECTORY/single-plane-partial.out" 2>&1; then
+        fail "expected the single-plane profile with partial site values to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/single-plane-partial.out" \
+        "externalUrl is required for the control plane"
+
+    helm_template single-plane-azure "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+        >"$TEST_DIRECTORY/single-plane-azure.yaml"
+    require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-api"
+    require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "osmo-backend-listener"
+    require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "osmo-backend-worker"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Service \
+        "osmo-gateway" >"$TEST_DIRECTORY/single-plane-azure-gateway.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway.yaml" \
+        "type: ClusterIP"
+    require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Cluster "osmo-pg"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-valkey"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-rustfs"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "type: LoadBalancer"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" "kind: HTTPRoute"
+    require_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "secretName: osmo-backend-token"
+    require_contains "$TEST_DIRECTORY/single-plane-azure.yaml" "OSMO_LOGIN_DEV"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/single-plane-azure-config.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "cpu: '{{USER_CPU}}'"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "nvidia.com/gpu"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "azure://osmoazure/osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "azure://osmoazure/osmo-workflows/logs"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "azure://osmoazure/osmo-workflows/apps"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" "s3://"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "single-plane-test-password"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "single-plane-test-key"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "single-plane-test-token"
+
+    helm_template single-plane-s3 "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-s3-values.yaml" \
+        >"$TEST_DIRECTORY/single-plane-s3.yaml"
+    require_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" "osmo-api"
+    require_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "osmo-backend-listener"
+    require_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "osmo-backend-worker"
+    resource_document "$TEST_DIRECTORY/single-plane-s3.yaml" Service \
+        "osmo-gateway" >"$TEST_DIRECTORY/single-plane-s3-gateway.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-gateway.yaml" \
+        "type: ClusterIP"
+    require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Cluster "osmo-pg"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" "osmo-valkey"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" "osmo-rustfs"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "type: LoadBalancer"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" "kind: HTTPRoute"
+    require_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "secretName: osmo-backend-token"
+    require_contains "$TEST_DIRECTORY/single-plane-s3.yaml" "OSMO_LOGIN_DEV"
+    resource_document "$TEST_DIRECTORY/single-plane-s3.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/single-plane-s3-config.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "cpu: '{{USER_CPU}}'"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "nvidia.com/gpu"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "s3://osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "s3://osmo-logs/logs"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "s3://osmo-apps/apps"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "region: us-east-1"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "override_url: https://s3.example.com"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" "azure://"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "single-plane-test-password"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "single-plane-test-key"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "single-plane-test-token"
+
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/quickstart-gateway-service.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-gateway-service.yaml" \
