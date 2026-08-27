@@ -78,11 +78,11 @@ helm upgrade --install osmo deployments/charts/osmo \
   --set-string gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
   --set-string gateway.oauth2Proxy.clientId=osmo \
   --set-string gateway.envoy.idp.host=idp.example.com \
-  --set-string 'gateway.envoy.jwt.providers[0].issuer=https://idp.example.com' \
-  --set-string 'gateway.envoy.jwt.providers[0].audience=osmo' \
-  --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
-  --set-string 'gateway.envoy.jwt.providers[0].cluster=idp' \
-  --set-string 'gateway.envoy.jwt.providers[0].user_claim=preferred_username' \
+  --set-string 'gateway.envoy.jwt.providers[1].issuer=https://idp.example.com' \
+  --set-string 'gateway.envoy.jwt.providers[1].audience=osmo' \
+  --set-string 'gateway.envoy.jwt.providers[1].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
+  --set-string 'gateway.envoy.jwt.providers[1].cluster=idp' \
+  --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
   --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
   --wait \
   --timeout 30m

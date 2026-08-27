@@ -45,6 +45,15 @@ secrets:
 
 gateway:
   envoy:
+    jwt:
+      providers:
+      # Keep OSMO-issued access tokens valid for in-cluster compute services.
+      # Configure the external identity provider at index 1 during installation.
+      - issuer: osmo
+        audience: osmo
+        jwks_uri: https://osmo-api/api/auth/keys
+        user_claim: unique_name
+        cluster: osmo-api-jwks
     service:
       # Put the in-cluster gateway behind an operator-managed TLS edge.
       type: ClusterIP

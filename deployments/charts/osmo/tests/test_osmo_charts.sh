@@ -598,11 +598,11 @@ test_control_umbrella() {
         --set gateway.oauth2Proxy.oidcIssuerUrl=https://idp.example.com \
         --set gateway.oauth2Proxy.clientId=osmo \
         --set gateway.envoy.idp.host=idp.example.com \
-        --set-string 'gateway.envoy.jwt.providers[0].issuer=https://idp.example.com' \
-        --set-string 'gateway.envoy.jwt.providers[0].audience=osmo' \
-        --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
-        --set-string 'gateway.envoy.jwt.providers[0].cluster=idp' \
-        --set-string 'gateway.envoy.jwt.providers[0].user_claim=preferred_username' \
+        --set-string 'gateway.envoy.jwt.providers[1].issuer=https://idp.example.com' \
+        --set-string 'gateway.envoy.jwt.providers[1].audience=osmo' \
+        --set-string 'gateway.envoy.jwt.providers[1].jwks_uri=https://idp.example.com/.well-known/jwks.json' \
+        --set-string 'gateway.envoy.jwt.providers[1].cluster=idp' \
+        --set-string 'gateway.envoy.jwt.providers[1].user_claim=preferred_username' \
         --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
         >"$TEST_DIRECTORY/self-contained.yaml"
     require_deployment "$TEST_DIRECTORY/self-contained.yaml" "osmo-api"
@@ -713,6 +713,22 @@ test_control_umbrella() {
         "name: envoy.filters.http.ext_authz"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
         "name: envoy.filters.http.jwt_authn"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "provider_0:"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "issuer: osmo"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "uri: https://osmo-api/api/auth/keys"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "provider_1:"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "issuer: https://idp.example.com"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "requires_any:"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "- provider_name: provider_0"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "- provider_name: provider_1"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" ConfigMap \
         "osmo-api-config" >"$TEST_DIRECTORY/self-contained-config.yaml"
     require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
