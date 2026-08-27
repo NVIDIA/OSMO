@@ -23,7 +23,9 @@ podDefaults:
     example.com/node-pool: compute
 
 compute:
-  workloadNamespace: custom-workflows
+  workloadNamespace:
+    name: custom-workflows
+    create: false
   # Intentionally unused because the backend test runner is disabled below.
   backendTestNamespace: disabled-backend-tests
   authentication:

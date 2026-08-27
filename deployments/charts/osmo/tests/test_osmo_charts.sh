@@ -605,6 +605,12 @@ test_control_umbrella() {
         "osmo-gateway-oauth2-proxy"
     require_deployment "$TEST_DIRECTORY/self-contained.yaml" \
         "osmo-gateway-authz"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Namespace \
+        "osmo-workflows"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Namespace \
+        "osmo-workflows" >"$TEST_DIRECTORY/self-contained-workload-namespace.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-workload-namespace.yaml" \
+        'helm.sh/resource-policy: "keep"'
     require_resource "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
         "osmo-workflow-network-policy"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
@@ -869,6 +875,7 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: PodMonitor"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: Ingress"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: HTTPRoute"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: Namespace"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" "OSMO_LOGIN_DEV"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" "http://osmo-gateway"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
@@ -1119,6 +1126,26 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/acknowledged-workflow-policy.yaml"
     require_resource "$TEST_DIRECTORY/acknowledged-workflow-policy.yaml" \
         NetworkPolicy acknowledged-workflow-policy-osmo-workflow-network-policy
+
+    if helm_template_with_backend invalid-empty-workload-namespace "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set compute.workloadNamespace.create=true \
+        >"$TEST_DIRECTORY/invalid-empty-workload-namespace.out" 2>&1; then
+        fail "expected workload namespace creation without a name to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-empty-workload-namespace.out" \
+        "compute.workloadNamespace.name is required when compute.workloadNamespace.create=true"
+
+    if helm_template_with_backend invalid-release-workload-namespace "$charts_copy/osmo" \
+        --namespace osmo-workflows \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+        --set-string compute.workloadNamespace.name=osmo-workflows \
+        --set compute.workloadNamespace.create=true \
+        >"$TEST_DIRECTORY/invalid-release-workload-namespace.out" 2>&1; then
+        fail "expected workload namespace creation for the release namespace to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-release-workload-namespace.out" \
+        "compute.workloadNamespace.create must be false when the workload namespace is the Helm release namespace"
 
     helm_template_with_backend compute-monitor "$charts_copy/osmo" \
         --api-versions monitoring.coreos.com/v1 \

@@ -131,10 +131,12 @@ rustfs:
     dataStorageSize: 100Gi
 
 compute:
-  # The namespace must exist before installation. Its network policy requires
-  # environment-specific IPv4 cluster CIDRs to prevent direct control-plane
-  # access.
-  workloadNamespace: osmo-workflows
+  # Retain workflow resources when the OSMO release is uninstalled. The
+  # namespace's network policy requires environment-specific IPv4 cluster
+  # CIDRs to prevent direct control-plane access.
+  workloadNamespace:
+    name: osmo-workflows
+    create: true
   backendTestNamespace: ''
   workflowNetworkPolicy:
     enabled: true

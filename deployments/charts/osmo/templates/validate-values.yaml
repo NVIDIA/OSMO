@@ -11,6 +11,12 @@
 {{- if not .Values.compute.authentication.existingSecret -}}
 {{- fail "compute.authentication.existingSecret is required when planes.compute.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.compute.workloadNamespace.create (not .Values.compute.workloadNamespace.name) -}}
+{{- fail "compute.workloadNamespace.name is required when compute.workloadNamespace.create=true" -}}
+{{- end -}}
+{{- if and .Values.compute.workloadNamespace.create (eq .Values.compute.workloadNamespace.name .Release.Namespace) -}}
+{{- fail "compute.workloadNamespace.create must be false when the workload namespace is the Helm release namespace; use --create-namespace for the release namespace" -}}
+{{- end -}}
 {{- if and (not .Values.planes.control.enabled) (not .Values.externalUrl) -}}
 {{- fail "externalUrl is required when the compute plane connects to an external control plane" -}}
 {{- end -}}

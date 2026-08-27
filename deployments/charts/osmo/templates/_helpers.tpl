@@ -134,7 +134,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "osmo.compute.backendNamespace" -}}
-{{- .Values.compute.workloadNamespace | default .Release.Namespace -}}
+{{- .Values.compute.workloadNamespace.name | default .Release.Namespace -}}
 {{- end -}}
 
 {{- define "osmo.compute.serviceUrl" -}}
