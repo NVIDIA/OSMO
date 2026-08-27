@@ -32,6 +32,7 @@ sh_test(
 
 sh_test(
     name = "test_deploy_osmo_umbrella_single_plane",
+    size = "small",
     srcs = ["test_deploy_osmo_umbrella_single_plane.sh"],
     data = [
         "//deployments/charts:osmo",
