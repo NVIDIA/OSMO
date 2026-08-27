@@ -156,7 +156,7 @@ not by itself make the pod unhealthy.
 Run the enabled and disabled rendering checks locally with:
 
 ```bash
-bash deployments/charts/service/ci/validate-mcp-chart.sh
+bash deployments/charts/service/tests/render-tests.sh
 ```
 
 ### Backend API Token Settings
