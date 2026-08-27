@@ -1644,7 +1644,6 @@ configuration:
         - app:*
         - auth:Token
         - credentials:*
-        - mcp:Access
         - pool:List
         - profile:Read
         - profile:Update
