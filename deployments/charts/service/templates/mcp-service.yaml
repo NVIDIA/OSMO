@@ -17,7 +17,6 @@
 {{- if .Values.services.mcp.enabled }}
 {{- $mcp := .Values.services.mcp }}
 {{- $oidcProxy := $mcp.oidcProxy }}
-{{- $oidcProxyEnabled := $oidcProxy.enabled | default false }}
 {{- $imageTag := $mcp.imageTag | default .Values.global.osmoImageTag }}
 {{- $mcpResourceUrl := include "osmo.mcp-resource-url" . }}
 {{- $gatewayUrl := trimSuffix "/mcp" $mcpResourceUrl }}
@@ -34,11 +33,10 @@
 {{- $oidcAccessTokenRequiredScope := "" }}
 {{- $redisKeyPrefix := "" }}
 {{- $redisUrl := "" }}
-{{- if $oidcProxyEnabled }}
-{{- $oidcConfigUrl = required "services.mcp.oidcProxy.oidc.configUrl is required when the OIDC proxy is enabled" $oidcProxy.oidc.configUrl }}
-{{- $oidcClientId = required "services.mcp.oidcProxy.oidc.clientId is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientId }}
+{{- $oidcConfigUrl = required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $oidcProxy.oidc.configUrl }}
+{{- $oidcClientId = required "services.mcp.oidcProxy.oidc.clientId is required when MCP is enabled" $oidcProxy.oidc.clientId }}
 {{- $oidcAccessTokenIssuer = $oidcProxy.oidc.accessTokenIssuer | default "" }}
-{{- $oidcAccessTokenRequiredScope = required "services.mcp.oidcProxy.oidc.accessTokenRequiredScope is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenRequiredScope }}
+{{- $oidcAccessTokenRequiredScope = required "services.mcp.oidcProxy.oidc.accessTokenRequiredScope is required when MCP is enabled" $oidcProxy.oidc.accessTokenRequiredScope }}
 {{- if not (regexMatch "^[A-Za-z0-9:._~-]{1,128}$" $oidcAccessTokenRequiredScope) }}
 {{- fail "services.mcp.oidcProxy.oidc.accessTokenRequiredScope must be one non-empty scope" }}
 {{- end }}
@@ -107,7 +105,6 @@
 {{- end }}
 {{- $redisScheme := ternary "rediss" "redis" .Values.services.redis.tlsEnabled }}
 {{- $redisUrl = printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
-{{- end }}
 {{- if not (kindIs "slice" $mcp.allowedOrigins) }}
 {{- fail "services.mcp.allowedOrigins must be a list" }}
 {{- end }}
@@ -122,7 +119,6 @@
       "OSMO_GATEWAY_URL"
       "OSMO_MCP_REQUEST_TIMEOUT_SECONDS"
       "OSMO_MCP_ALLOWED_ORIGINS"
-      "OSMO_MCP_AUTH_ENABLED"
       "OSMO_MCP_AUTH_RESOURCE_URL"
       "OSMO_MCP_AUTH_REDIS_URL"
       "OSMO_MCP_AUTH_REDIS_PASSWORD_FILE"
@@ -209,9 +205,6 @@ spec:
           value: {{ $requestTimeoutSeconds | quote }}
         - name: OSMO_MCP_ALLOWED_ORIGINS
           value: {{ join "," $mcp.allowedOrigins | quote }}
-        - name: OSMO_MCP_AUTH_ENABLED
-          value: {{ $oidcProxyEnabled | quote }}
-        {{- if $oidcProxyEnabled }}
         - name: OSMO_MCP_AUTH_RESOURCE_URL
           value: {{ $mcpResourceUrl | quote }}
         - name: OSMO_MCP_AUTH_REDIS_URL
@@ -242,15 +235,14 @@ spec:
           value: {{ $oidcProxy.refreshTokenTtlSeconds | int | quote }}
         - name: OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS
           value: {{ $oidcProxy.upstreamTimeoutSeconds | int | quote }}
-        {{- end }}
         {{- with $mcp.extraEnv }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
-        {{- if or (and $oidcProxyEnabled $oidcProxy.existingSecret.name) $mcp.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp) }}
+        {{- if or $oidcProxy.existingSecret.name $mcp.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp) }}
         volumeMounts:
-        {{- if and $oidcProxyEnabled $oidcProxy.existingSecret.name }}
+        {{- if $oidcProxy.existingSecret.name }}
         - name: mcp-auth-secrets
           mountPath: {{ $secretMountPath }}
           readOnly: true
@@ -268,9 +260,9 @@ spec:
           {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.readinessProbe "context" .) | nindent 10 }}
         startupProbe:
           {{- include "osmo.upstream-probe-yaml" (dict "probe" $mcp.startupProbe "context" .) | nindent 10 }}
-      {{- if or (and $oidcProxyEnabled $oidcProxy.existingSecret.name) $mcp.extraVolumes (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp) }}
+      {{- if or $oidcProxy.existingSecret.name $mcp.extraVolumes (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.mcp) }}
       volumes:
-      {{- if and $oidcProxyEnabled $oidcProxy.existingSecret.name }}
+      {{- if $oidcProxy.existingSecret.name }}
       - name: mcp-auth-secrets
         secret:
           secretName: {{ $oidcProxy.existingSecret.name }}

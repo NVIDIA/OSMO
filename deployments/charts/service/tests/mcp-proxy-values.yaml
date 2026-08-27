@@ -22,7 +22,6 @@ services:
     allowedOrigins:
     - http://localhost:6274
     oidcProxy:
-      enabled: true
       oidc:
         configUrl: https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration
         clientId: example-mcp-proxy-client

@@ -132,6 +132,13 @@ grep -q "table.concat(safe_roles, ',')" <<<"$mcp_render"
 # Redis connection details come from services.redis; only the database is local.
 grep -q 'value: "rediss://redis:6379/14"' <<<"$mcp_workload"
 
+# Authentication is not a mode, so nothing advertises it as one. The fixture
+# sets no enabled flag; the OIDC variables above must render regardless.
+if grep -q 'name: OSMO_MCP_AUTH_ENABLED' <<<"$mcp_workload"; then
+    echo 'MCP still renders an auth-enabled switch' >&2
+    exit 1
+fi
+
 # Values the deployment derives must not reappear as deployer inputs.
 for derived in OSMO_MCP_AUTH_ISSUER_URL OSMO_MCP_AUTH_SCOPE \
         OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE \
