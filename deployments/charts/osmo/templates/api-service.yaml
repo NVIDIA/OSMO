@@ -47,7 +47,9 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api "protectedAnnotations" $protectedPodAnnotations) | nindent 8 }}
-        {{- include "osmo.secrets.mekRolloutAnnotation" . | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
+        {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
+        osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -158,7 +160,7 @@ spec:
         {{- range $arg := .Values.services.api.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.api.disableTaskMetrics | quote }}
@@ -196,7 +198,7 @@ spec:
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.api | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.api.resources | nindent 10 }}
 
@@ -218,7 +220,7 @@ spec:
         - name: osmo-runtime-tmp
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.api | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.api) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
@@ -269,7 +271,7 @@ spec:
     kind: Deployment
     name: {{ $name }}
   minReplicas: {{ .Values.services.api.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.services.api.autoscaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.api.autoscaling.minReplicas .Values.services.api.autoscaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   {{- with .Values.services.api.autoscaling.behavior }}
   behavior:
     {{- toYaml . | nindent 4 }}

@@ -56,3 +56,12 @@ oetf_smoke_test(
     tags = ["database", "kind"],
     timeout = "long",
 )
+
+oetf_smoke_test(
+    name = "oauth-cookie-kind",
+    src = "oauth_cookie_kind.py",
+    data = ["//deployments/charts:osmo"],
+    extra_deps = [requirement("cryptography")],
+    size = "medium",
+    tags = ["auth", "kind"],
+)

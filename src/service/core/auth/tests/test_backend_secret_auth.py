@@ -99,6 +99,20 @@ class BackendSecretAuthenticatorTest(unittest.TestCase):
         self.assertIsNone(authenticator.authenticate(self._new_token()))
         self.assertIn('invalid length', '\n'.join(logs.output))
 
+    def test_ignores_invalid_token_characters_without_logging_value(self) -> None:
+        invalid_token = ('a' * 42) + '!'
+        self._write_credential('default', invalid_token)
+        authenticator = backend_secret_auth.BackendSecretAuthenticator(
+            str(self.token_directory))
+
+        with self.assertLogs(backend_secret_auth.logger, level='WARNING') as logs:
+            authenticator.validate()
+
+        joined_logs = '\n'.join(logs.output)
+        self.assertIsNone(authenticator.authenticate(invalid_token))
+        self.assertIn('invalid format', joined_logs)
+        self.assertNotIn(invalid_token, joined_logs)
+
     def test_ignores_credential_with_duplicate_values(self) -> None:
         token = self._new_token()
         self._write_credential('default', token, token)

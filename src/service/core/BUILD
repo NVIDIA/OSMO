@@ -56,6 +56,7 @@ osmo_py_library(
         "//src/service/logger:ctrl_websocket",
         "//src/utils:ssl_init",
         "//src/utils/progress_check:progress_check_lib",
+        "//src/utils:internal_tls_bootstrap_lib",
     ],
     data = [
         "//src/lib/utils:version.yaml",
@@ -100,6 +101,7 @@ filegroup(
         ":service_layer_packages",
         ":service_wrapper",
         ":mek_lifecycle_wrapper",
+        "//src/utils:internal_tls_bootstrap_wrapper_public",
     ],
 )
 

@@ -379,7 +379,10 @@ data:
 {{- with (include "osmo.objectStorage.secretName" .) }}
 - name: object-storage-credentials
   secret:
-    secretName: {{ . }}
+    secretName: {{ . | quote }}
+    items:
+    - key: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
+      path: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -403,8 +406,8 @@ data:
 {{- end }}
 {{- end -}}
 
-{{- define "osmo.secrets.mekFile" -}}/opt/osmo/mek/mek.yaml{{- end -}}
 {{- define "osmo.secrets.mekMountPath" -}}/opt/osmo/mek{{- end -}}
+{{- define "osmo.secrets.mekFile" -}}{{ include "osmo.secrets.mekMountPath" . }}/mek.yaml{{- end -}}
 
 {{- define "osmo.secrets.mekRolloutAnnotation" -}}
 {{- with .Values.secrets.masterEncryptionKey.rotation.rolloutRevision }}
@@ -528,6 +531,15 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 {{- end -}}
 {{- end -}}
 
+{{/* Effective OAuth cookie Secret. */}}
+{{- define "osmo.oauthCookie.secretName" -}}
+{{- if .Values.secrets.oauthCookieSecret.generate -}}
+{{- printf "%s-oauth-cookie" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- required "secrets.oauthCookieSecret.existingSecret is required" .Values.secrets.oauthCookieSecret.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "osmo.postgresql.host" -}}
 {{- if .Values.embeddedDependencies.postgresql.enabled -}}
 {{- printf "%s-rw" (include "osmo.postgresql.clusterName" .) -}}
@@ -587,6 +599,13 @@ disable
   .Values.embeddedDependencies.postgresql.enabled
   .Values.externalDependencies.postgresql.tls.enabled
   (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "osmo.secrets.rolloutAnnotations" -}}
+osmo.nvidia.com/postgresql-secret-rollout: {{ .Values.secrets.postgresql.rolloutNonce | quote }}
+osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
+osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.rolloutNonce | quote }}
+{{- include "osmo.secrets.mekRolloutAnnotation" . }}
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}

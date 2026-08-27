@@ -54,3 +54,13 @@ osmo_py_test(
         requirement("truststore"),
     ]
 )
+
+osmo_py_test(
+    name = "test_internal_tls_bootstrap",
+    srcs = ["test_internal_tls_bootstrap.py"],
+    deps = [
+        "//src/utils:internal_tls_bootstrap_lib",
+        requirement("cryptography"),
+        requirement("kubernetes"),
+    ],
+)

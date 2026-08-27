@@ -120,7 +120,22 @@ def _osmo_python_wrapper_script(
         bin_name,
         main,
         runfiles_dir,
+        module = None,
         python_interpreter = "/usr/bin/python3"):
+
+    if (main == None) == (module == None):
+        fail("osmo_python_wrapper requires exactly one of main or module")
+
+    if module:
+        execution = 'os.execv("{python_interpreter}", ["{python_interpreter}", "-m", "{module}"] + sys.argv[1:])'.format(
+            python_interpreter = python_interpreter,
+            module = module,
+        )
+    else:
+        execution = 'os.execv("{python_interpreter}", ["{python_interpreter}", local_main_dir + "{main}"] + sys.argv[1:])'.format(
+            python_interpreter = python_interpreter,
+            main = main,
+        )
     native.genrule(
         name = name,
         outs = [bin_name],
@@ -151,14 +166,14 @@ pythonpath.extend(site_packages)
 # Set PYTHONPATH
 os.environ["PYTHONPATH"] = ":".join(pythonpath)
 
-# Execute target script directly with system Python
-os.execv("{python_interpreter}", ["{python_interpreter}", local_main_dir + "{main}"] + sys.argv[1:])
+# Execute the target with system Python.
+{execution}
 EOF
             chmod +x $@
         """.format(
             python_interpreter = python_interpreter,
             runfiles_dir = runfiles_dir,
-            main = main,
+            execution = execution,
         ),
     )
 
@@ -169,6 +184,7 @@ def osmo_python_wrapper(
         bin_name,
         main,
         runfiles_dir,
+        module = None,
         package_dir = "/usr/bin",
         python_interpreter = "/usr/bin/python3",
         include_progress_check = False):
@@ -179,6 +195,7 @@ def osmo_python_wrapper(
             bin_name = bin_name,
             main = main,
             runfiles_dir = runfiles_dir,
+            module = module,
             python_interpreter = python_interpreter,
         ),
     ]

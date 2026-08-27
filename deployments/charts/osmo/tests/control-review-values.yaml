@@ -58,7 +58,6 @@ gateway:
       secretName: gateway-tls
   oauth2Proxy:
     enabled: true
-    useKubernetesSecrets: true
     oidcIssuerUrl: https://issuer.example.com
     clientId: osmo
   authz:
@@ -76,3 +75,9 @@ ingress:
   tls:
     enabled: true
     secretName: osmo-ingress-tls
+
+secrets:
+  oauthClientSecret:
+    existingSecret: oauth-client
+  oauthCookieSecret:
+    existingSecret: oauth-cookie
