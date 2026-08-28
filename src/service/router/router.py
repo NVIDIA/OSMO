@@ -99,6 +99,12 @@ connections: Dict[str, RouterConnection] = {}
 webservers: Dict[str, WebserverConnection] = {}
 
 
+def _remove_router_connection(key: str):
+    connection = connections.pop(key, None)
+    if connection and connection.wait_close:
+        connection.wait_close.set()
+
+
 class RouterWebSocketMiddleware:
     """Middleware for handling WebSocket connections in the router service."""
     # pylint: disable=redefined-outer-name
@@ -163,7 +169,7 @@ async def run_connect_backend(ws: fastapi.WebSocket, name: str, key: str):
         logging.info('Backend connection for workflow %s with key %s is timeout', name, key)
         await ws.close(4000, 'Router connection timeout')
 
-    del connections[key]
+    connections.pop(key, None)
     # Make close faster
     try:
         await ws.close()
@@ -250,10 +256,12 @@ async def webserver_http_request(request: fastapi.Request, ctrl_key: str):
         ws = connections[conn_key].websocket
         close = connections[conn_key].wait_close
     except asyncio.TimeoutError:
+        _remove_router_connection(conn_key)
         return fastapi.Response(
             content='Request timed out waiting for backend connection.', status_code=504)
 
     if not ws or not close:  # To fix pytype error
+        _remove_router_connection(conn_key)
         return fastapi.Response(
             content='No active backend connection found, your session may have expired.',
             status_code=404)
