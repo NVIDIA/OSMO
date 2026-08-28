@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO Deployment Scripts
 
-End-to-end deployer for OSMO 6.3 across multiple Kubernetes flavors and storage backends. The single entry point is `deploy-osmo-minimal.sh`; everything else (Terraform, KAI install, GPU Operator, MinIO, storage credential wiring, smoke tests) is invoked as a phase.
+End-to-end deployer for OSMO 6.3 across multiple Kubernetes flavors and storage backends. The single entry point is `deploy-osmo-minimal.sh`; everything else (Terraform, KAI install, GPU Operator, MinIO or RustFS, storage credential wiring, smoke tests) is invoked as a phase.
 
 ## Quick Start
 
@@ -50,16 +50,17 @@ Three orthogonal axes:
 
 Cells show which auth methods are valid for each `(provider, storage-backend)` pair:
 
-| ↓ Provider \ Storage → | `minio`      | `azure-blob`         | `s3`       | `byo`                |
-|------------------------|--------------|----------------------|------------|----------------------|
-| `azure` (AKS)          | static       | static, WI           | static     | static, WI           |
-| `aws` (EKS)            | static       | static               | static     | static, WI (IRSA)    |
-| `microk8s` (single-node) | static     | —                    | —          | static               |
-| `byo` (any K8s)        | static       | static, WI*          | static     | static, WI*          |
+| ↓ Provider \ Storage → | `minio`      | `rustfs`     | `azure-blob`         | `s3`       | `byo`                |
+|------------------------|--------------|--------------|----------------------|------------|----------------------|
+| `azure` (AKS)          | static       | static       | static, WI           | static     | static, WI           |
+| `aws` (EKS)            | static       | static       | static               | static     | static, WI (IRSA)    |
+| `microk8s` (single-node) | static     | static       | —                    | —          | static               |
+| `byo` (any K8s)        | static       | static       | static, WI*          | static     | static, WI*          |
 
 \* `workload-identity` on `byo` requires the cluster's K8s API server to have the appropriate OIDC issuer + the cloud-side trust set up by the caller.
 
 Notes:
+- `rustfs` is an in-cluster, S3-compatible object store ([rustfs.com](https://rustfs.com)) — a drop-in alternative to `minio`. The two are **mutually exclusive**: selecting `rustfs` never installs MinIO and never enables the MicroK8s `minio` addon (a MinIO that's already installed is left untouched — it isn't uninstalled). Like `minio` it has no cloud-identity path (self-hosted), so only `static` auth is valid.
 - `s3` does **not** support `workload-identity` directly — use `--backend byo --auth-method workload-identity` with IRSA instead. `s3.sh` errors out with this guidance.
 - `microk8s` deliberately has no cloud-identity path — it's a single-node dev/eval flow.
 - Cross-cloud combinations (e.g. AKS pointing at S3) are valid for `static` auth.
@@ -70,6 +71,7 @@ Notes:
 |------------|------------------------|--------|
 | `azure`    | `azure-blob` / static  | ✅     |
 | `microk8s` | `minio` / static       | ✅     |
+| `microk8s` | `rustfs` / static      | ⏳     |
 | `byo`      | `minio` / static       | ✅     |
 | `aws`      | `s3` / static          | ✅     |
 | `azure`    | `azure-blob` / WI      | ⏳     |
@@ -85,9 +87,10 @@ scripts/
 ├── common.sh                 # Shared logging, OSMO CLI install, helm helpers
 ├── install-kai-scheduler.sh  # KAI Scheduler (idempotent, CRD-detected)
 ├── install-gpu-operator.sh   # NVIDIA GPU Operator (multi-signal auto-skip)
-├── install-minio.sh          # In-cluster MinIO (bitnami; auto-skips if addon/release present)
+├── install-minio.sh          # In-cluster MinIO (auto-skips if addon/release present)
+├── install-rustfs.sh         # In-cluster RustFS via helm (alternative to MinIO; mutually exclusive)
 ├── configure-storage.sh      # 6.3 storage wiring: K8s Secrets + values fragment
-├── storage/                  # Per-backend storage logic (minio, azure-blob, s3, byo)
+├── storage/                  # Per-backend storage logic (minio, rustfs, azure-blob, s3, byo)
 ├── port-forward.sh           # One-shot or watchdog kubectl port-forward
 ├── verify.sh                 # End-to-end smoke tests (hello + GPU workflows)
 ├── azure/terraform.sh        # Azure Terraform driver
@@ -116,6 +119,7 @@ When invoked, the entry-point runs these phases in order. Each is idempotent and
    - `install-kai-scheduler.sh` (CRD-detected: `podgroups.scheduling.run.ai`)
    - `install-gpu-operator.sh` (skipped under `--no-gpu`; multi-signal detection: addon, helm release, CR, DaemonSet)
    - `install-minio.sh` (only when `--storage-backend minio`; skipped if addon/release present)
+   - `install-rustfs.sh` (only when `--storage-backend rustfs`; standalone helm install, sets `RUSTFS_OBS_ENVIRONMENT=production` + `RUSTFS_OBS_LOGGER_LEVEL=warn`, no resource limits)
 3. **Storage credential wiring**
    - `configure-storage.sh --backend X --auth-method Y` writes K8s Secrets (`osmo-workflow-{data,log,app}-cred`) and emits `values/.storage-values.yaml` for the helm install to merge
 4. **OSMO Helm install** (`deploy-k8s.sh`)
@@ -136,7 +140,7 @@ Main entry point — see `--help` for the full flag list. Orchestrates all phase
 | Flag | Purpose |
 |------|---------|
 | `--provider {azure,aws,microk8s,byo}` | Required. Selects bootstrap path. |
-| `--storage-backend {auto,minio,azure-blob,s3,byo,none}` | Default `auto`: chooses based on provider (azure→azure-blob, aws→s3, microk8s→minio, byo→error). |
+| `--storage-backend {auto,minio,rustfs,azure-blob,s3,byo,none}` | Default `auto`: chooses based on provider (azure→azure-blob, aws→s3, microk8s→minio, byo→error). `rustfs` installs the in-cluster RustFS S3 store instead of MinIO (mutually exclusive). |
 | `--auth-method {static,workload-identity}` | Default `static`. See [Deployment Combinations](#deployment-combinations) for what's supported per backend. |
 | `--workload-identity-client-id ID` | Azure UAMI client ID (azure-blob + WI). |
 | `--workload-identity-role-arn ARN` | AWS IAM role ARN (byo + WI / IRSA). |
@@ -206,14 +210,15 @@ Each is idempotent — safe to invoke on a cluster where the target component al
 |--------|---------|---------------------|
 | `install-kai-scheduler.sh` | KAI Scheduler v0.14.0 (gang scheduling) | CRD `podgroups.scheduling.run.ai` |
 | `install-gpu-operator.sh` | NVIDIA GPU Operator (drivers + container toolkit) | microk8s `nvidia` addon, helm release in any ns, `clusterpolicies.nvidia.com` CR (covers NVAIE), or `nvidia-device-plugin` DaemonSet |
-| `install-minio.sh` | Bitnami MinIO chart | microk8s `minio` addon or existing `minio` service in `minio-operator` ns |
-| `configure-storage.sh` | 6.3 storage wiring: K8s Secrets + helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`. Dispatcher → `storage/{minio,azure-blob,s3,byo}.sh`. | n/a — backend chosen via `--backend` |
+| `install-minio.sh` | Single-pod MinIO (plain manifests) | microk8s `minio` addon or existing `minio` service in `minio-operator` ns |
+| `install-rustfs.sh` | RustFS helm chart (`https://charts.rustfs.com`), standalone mode. Always sets `RUSTFS_OBS_ENVIRONMENT=production` + `RUSTFS_OBS_LOGGER_LEVEL=warn` (perf-critical) and runs with no resource limits. Never installs/adds MinIO; an already-installed MinIO is left untouched (warns only). | existing `rustfs` helm release or ready `rustfs` Deployment |
+| `configure-storage.sh` | 6.3 storage wiring: K8s Secrets + helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`. Dispatcher → `storage/{minio,rustfs,azure-blob,s3,byo}.sh`. | n/a — backend chosen via `--backend` |
 | `port-forward.sh` | One-shot or `--watchdog` PF, tagged `osmo-pf-watchdog:<svc>` for cleanup with `pkill -f 'osmo-pf-watchdog:'`. Watchdog readiness waits up to `OSMO_PF_HEALTH_TIMEOUT_SECONDS` (default 300). | Reuses live PF if context+namespace match |
 | `verify.sh` | Submits `workflows/verify-hello.yaml` + `verify-gpu.yaml`; polls until terminal state, dumps logs on failure. `SKIP_GPU=1` to skip GPU test. | n/a |
 
 ### `microk8s/install.sh`
 
-Single-node MicroK8s bootstrap, used only by `--provider microk8s`. Installs snapd → microk8s 1.31/stable → kubectl/helm/helmfile → core addons (`dns`, `hostpath-storage`, `helm3`, `rbac`, `minio`) → optional `nvidia` addon → containerd Docker Hub creds patch (when `~/.docker/config.json` exists) → kubeconfig export. Run as root: `sudo ./microk8s/install.sh [--gpu]`. Idempotent.
+Single-node MicroK8s bootstrap, used only by `--provider microk8s`. Installs snapd → microk8s 1.31/stable → kubectl/helm/helmfile → core addons (`dns`, `hostpath-storage`, `helm3`, `rbac`) → the `minio` addon **only** for the `minio`/`auto` storage backends (skipped for `rustfs` and others; pass `--storage-backend X` to control this) → optional `nvidia` addon → containerd Docker Hub creds patch (when `~/.docker/config.json` exists) → kubeconfig export. Run as root: `sudo ./microk8s/install.sh [--gpu] [--storage-backend X]`. Idempotent.
 
 ### `azure/terraform.sh`, `aws/terraform.sh`
 
