@@ -69,6 +69,18 @@ require_occurrences() {
         fail "expected '$expected' $count times in $file, found $actual"
 }
 
+require_empty_dir_volume() {
+    local file=$1
+    local volume_name=$2
+    awk -v volume_name="$volume_name" '
+        $0 == "        - name: " volume_name {
+            getline
+            if ($0 == "          emptyDir: {}") found = 1
+        }
+        END { exit !found }
+    ' "$file" || fail "expected emptyDir volume '$volume_name' in $file"
+}
+
 require_line_count() {
     local file=$1
     local expected=$2
@@ -1398,11 +1410,13 @@ EOF
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
             "readOnlyRootFilesystem: true"
     done
-    for hardened_component in api router logger agent; do
+    for hardened_component in api worker router logger agent; do
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
             "mountPath: /tmp"
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
             "name: osmo-runtime-tmp"
+        require_empty_dir_volume "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
+            "osmo-runtime-tmp"
     done
     for hardened_component in worker logger agent delayed-job-monitor; do
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \

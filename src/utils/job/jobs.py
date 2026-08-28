@@ -1268,7 +1268,7 @@ class UpdateGroup(WorkflowJob):
             retry_ids = task.Task.batch_fetch_latest_retry_ids(
                 database, self.workflow_id, task_names)
 
-            pipe = redis_client.pipeline()
+            pipe = redis_client.pipeline(transaction=False)
             pipe.set(action_key, json.dumps(attributes))
             pipe.expire(action_key, total_timeout, nx=True)
 
@@ -1441,7 +1441,7 @@ class CleanupWorkflow(WorkflowJob):
 
         redis_client = redis.from_url(workflow_obj.logs)
 
-        redis_batch_pipeline = redis_client.pipeline()
+        redis_batch_pipeline = redis_client.pipeline(transaction=False)
 
         if workflow_obj.status.failed():
             start_delimiter = '\n' + '-' * 100 + '\n'

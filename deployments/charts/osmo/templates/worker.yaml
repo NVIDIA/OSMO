@@ -128,6 +128,8 @@ spec:
         volumeMounts:
         - name: osmo-progress-files
           mountPath: /var/run/osmo
+        - name: osmo-runtime-tmp
+          mountPath: /tmp
         {{- if .Values.secrets.masterEncryptionKey.existingSecret.name }}
         - mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
           name: mek-volume
@@ -159,6 +161,8 @@ spec:
       {{- include "osmo.pod.extraContainers" .Values.services.worker | nindent 6 }}
       volumes:
         - name: osmo-progress-files
+          emptyDir: {}
+        - name: osmo-runtime-tmp
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.worker | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
