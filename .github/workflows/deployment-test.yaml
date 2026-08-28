@@ -1297,8 +1297,31 @@ jobs:
           fi
           echo "::endgroup::"
 
-          REMAINING=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' -o tsv || echo "?")
-          echo "  $REMAINING resource(s) still in $AZURE_RESOURCE_GROUP"
+          # Azure control-plane list results can lag behind a successful delete.
+          # Poll before declaring a leak, and retain the exact residual inventory
+          # so a genuine cleanup failure is actionable.
+          DIAG="$RUN_DIR/diagnostics"
+          mkdir -p "$DIAG"
+          REMAINING="?"
+          for attempt in {1..20}; do
+            if az resource list --resource-group "$AZURE_RESOURCE_GROUP" --output json > "$DIAG/remaining-resources.json"; then
+              REMAINING=$(jq 'length' "$DIAG/remaining-resources.json")
+            else
+              REMAINING="?"
+              echo "::warning::Could not query remaining Azure resources (attempt $attempt/20)"
+            fi
+
+            echo "  $REMAINING resource(s) still in $AZURE_RESOURCE_GROUP"
+            if [[ "$REMAINING" == "0" ]]; then
+              break
+            fi
+
+            jq -r '.[] | "  - \(.type) | \(.name) | \(.id)"' "$DIAG/remaining-resources.json" 2>/dev/null || true
+            if (( attempt < 20 )); then
+              echo "::notice::Waiting 15s for Azure deletion visibility (attempt $attempt/20)"
+              sleep 15
+            fi
+          done
 
           icon='✅'
           if [[ -n "$destroy_failed" || "$REMAINING" != "0" ]]; then
@@ -1311,7 +1334,7 @@ jobs:
             echo "- finished at: $(date -u +%H:%M:%SZ)"
             if [ "$REMAINING" != "0" ]; then
               echo ""
-              echo "Next run's pre-apply cleanup step will wipe these."
+              echo "See the remaining-resources.json destroy diagnostic for details."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
