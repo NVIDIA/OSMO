@@ -69,8 +69,20 @@ data:
       {{- toYaml $cfg.pools | nindent 6 }}
     {{- end }}
     {{- if $cfg.podTemplates }}
+    {{- $podTemplates := deepCopy $cfg.podTemplates }}
+    {{- if gt (len .Values.imagePullSecrets) 0 }}
+    {{- range $_, $podTemplate := $podTemplates }}
+    {{- if kindIs "map" $podTemplate }}
+    {{- $spec := index $podTemplate "spec" | default dict }}
+    {{- if and (kindIs "map" $spec) (not (hasKey $spec "imagePullSecrets")) }}
+    {{- $_ := set $spec "imagePullSecrets" $.Values.imagePullSecrets }}
+    {{- $_ := set $podTemplate "spec" $spec }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
     pod_templates:
-      {{- toYaml $cfg.podTemplates | nindent 6 }}
+      {{- toYaml $podTemplates | nindent 6 }}
     {{- end }}
     {{- if $cfg.resourceValidations }}
     resource_validations:

@@ -27,6 +27,7 @@
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
+    "imageRepository": { "type": "string" },
     "imageTag": { "type": "string" },
     "imagePullSecrets": { "$ref": "#/definitions/imagePullSecrets" },
     "runtimeImage": { "$ref": "#/definitions/runtimeImage" },
@@ -106,7 +107,7 @@
       }
     }
   },
-  "required": ["planes", "compute", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "compute", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
@@ -598,7 +599,7 @@
       "type": "object",
       "properties": {
         "registry": { "type": "string" },
-        "repository": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string" },
         "tag": { "type": "string" }
       },
       "required": ["registry", "repository", "tag"]
@@ -607,12 +608,17 @@
       "type": "object",
       "properties": {
         "registry": { "type": "string" },
-        "repository": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
         "tag": { "type": "string" },
         "digest": { "type": "string", "pattern": "^$|^sha256:[A-Fa-f0-9]{64}$" },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
       },
-      "required": ["registry", "repository", "tag", "digest", "pullPolicy"]
+      "required": ["registry", "repository", "tag", "digest", "pullPolicy"],
+      "anyOf": [
+        { "required": ["name"] },
+        { "properties": { "repository": { "minLength": 1 } } }
+      ]
     },
     "probe": {
       "type": "object",

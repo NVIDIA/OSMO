@@ -641,6 +641,46 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/kind-self-contained-ui.yaml" \
         "scheme: HTTPS"
 
+    local quickstart_runtime_tag=2026.8.28.3b3d1b0a2.ecolter3910-amd64
+    helm_template_with_backend quick-start-runtime "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
+        --set-string imageRegistry=nvcr.io \
+        --set-string imageRepository=nvstaging/osmo \
+        --set-string imageTag="$quickstart_runtime_tag" \
+        --set-string 'imagePullSecrets[0].name=osmo-nvcr-pull' \
+        >"$TEST_DIRECTORY/quickstart-runtime.yaml"
+    resource_document "$TEST_DIRECTORY/quickstart-runtime.yaml" ConfigMap \
+        osmo-api-config >"$TEST_DIRECTORY/quickstart-runtime-config.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
+        "init: nvcr.io/nvstaging/osmo/init-container:$quickstart_runtime_tag"
+    require_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
+        "client: nvcr.io/nvstaging/osmo/client:$quickstart_runtime_tag"
+    require_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
+        "imagePullSecrets:"
+    require_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
+        "name: osmo-nvcr-pull"
+    resource_document "$TEST_DIRECTORY/quickstart-runtime.yaml" Deployment \
+        osmo-api >"$TEST_DIRECTORY/quickstart-runtime-api.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag"
+    require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
+
+    helm_template_with_backend quick-start-workflow-pull-secret "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
+        --set-string 'imagePullSecrets[0].name=sentinel-pull-secret' \
+        >"$TEST_DIRECTORY/quickstart-workflow-pull-secret.yaml"
+    resource_document "$TEST_DIRECTORY/quickstart-workflow-pull-secret.yaml" ConfigMap \
+        osmo-api-config >"$TEST_DIRECTORY/quickstart-workflow-pull-secret-config.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-workflow-pull-secret-config.yaml" \
+        "name: sentinel-pull-secret"
+    require_not_contains "$TEST_DIRECTORY/quickstart-workflow-pull-secret-config.yaml" \
+        "name: osmo-nvcr-pull"
+
     helm_template_with_backend quick-start "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
@@ -3968,6 +4008,58 @@ EOF
         "- mirror.example.com/nvidia/osmo"
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
         "name: mirror-secret"
+
+    helm_template image-family-override "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string imageRegistry=nvcr.io \
+        --set-string imageRepository=nvstaging/osmo \
+        --set-string imageTag=2026.8.28.3b3d1b0a2.ecolter3910-amd64 \
+        --set imagePullSecrets[0].name=nvcr-pull-secret \
+        >"$TEST_DIRECTORY/osmo-image-family-override.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-image-family-override.yaml" \
+        "image: nvcr.io/nvstaging/osmo/worker:2026.8.28.3b3d1b0a2.ecolter3910-amd64"
+    require_contains "$TEST_DIRECTORY/osmo-image-family-override.yaml" \
+        'image: "docker.io/envoyproxy/envoy:v1.38.1"'
+
+    helm_template image-priority "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string imageRegistry=nvcr.io \
+        --set-string imageRepository=nvstaging/osmo \
+        --set-string services.worker.image.registry=registry.example.com \
+        --set-string services.worker.image.repository=custom/team/worker \
+        --set-string services.worker.image.tag=v2 \
+        >"$TEST_DIRECTORY/osmo-image-priority.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-image-priority.yaml" \
+        "image: registry.example.com/custom/team/worker:v2"
+
+    helm_template image-field-priority "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string imageRegistry=registry.example.com \
+        --set-string imageRepository=team/osmo \
+        --set-string imageTag=v1 \
+        --set-string services.worker.image.registry=service.example.com \
+        --set-string services.router.image.repository=service/router \
+        >"$TEST_DIRECTORY/osmo-image-field-priority.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-image-field-priority.yaml" \
+        "image: service.example.com/team/osmo/worker:v1"
+    require_contains "$TEST_DIRECTORY/osmo-image-field-priority.yaml" \
+        "image: registry.example.com/service/router:v1"
+
+    helm_template runtime-priority "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string imageRegistry=nvcr.io \
+        --set-string imageRepository=nvstaging/osmo \
+        --set-string runtimeImage.registry=registry.example.com \
+        --set-string runtimeImage.repository=custom/runtime \
+        --set-string runtimeImage.tag=v3 \
+        >"$TEST_DIRECTORY/osmo-runtime-priority.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-runtime-priority.yaml" Deployment \
+        runtime-priority-osmo-api \
+        >"$TEST_DIRECTORY/osmo-runtime-priority-api.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-runtime-priority-api.yaml" \
+        "registry.example.com/custom/runtime"
+    require_contains "$TEST_DIRECTORY/osmo-runtime-priority-api.yaml" \
+        '"v3"'
 
     helm_template embedded-image-pull-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

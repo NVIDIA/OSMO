@@ -79,7 +79,9 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.scopes entries must not be empty" }}
 {{- end }}
 {{- end }}
-{{- $_ := required "services.mcp.image.repository is required when MCP is enabled" $mcp.image.repository }}
+{{- if and (not $mcp.image.repository) (not $mcp.image.name) }}
+{{- fail "services.mcp.image.repository or image.name is required when MCP is enabled" }}
+{{- end }}
 {{- if or (lt (int $mcp.port) 1) (gt (int $mcp.port) 65535) }}
 {{- fail "services.mcp.port must be between 1 and 65535" }}
 {{- end }}

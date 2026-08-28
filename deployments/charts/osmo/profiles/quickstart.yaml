@@ -12,8 +12,8 @@ planes:
 fullnameOverride: osmo
 
 imageTag: latest
-runtimeImage:
-  tag: latest
+imagePullSecrets:
+- name: osmo-nvcr-pull
 
 externalUrl: http://osmo-gateway
 
