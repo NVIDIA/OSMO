@@ -2,23 +2,27 @@ name: Deployment Test (Azure)
 
 # Cloud deployment-test gate. Runs `deployments/scripts/run-deployment-test.sh`
 # end-to-end against an ephemeral cloud cluster (Azure today; other providers
-# follow). Automatic, non-provisioning Terraform validation lives in
-# `deployment-test-init.yaml`; this workflow owns the Azure-facing modes:
+# follow). Three modes, each cheaper to set up than the next:
 #
-#   1. `auth-check` (~2 min, requires OIDC + Azure App Reg): runs terraform
+#   1. `init-only` (~30s, no cloud setup): terraform init + validate + fmt
+#      against the Azure example module. Provider-download + HCL syntax check;
+#      ZERO Azure API calls.
+#   2. `auth-check` (~2 min, requires OIDC + Azure App Reg): runs terraform
 #      plan. First step that actually touches Azure — confirms the federated-
 #      identity → service-principal → RBAC chain.
-#   2. `full-deployment` (~45 min, requires #1 plus POSTGRES_PASSWORD): runs
+#   3. `full-deployment` (~45 min, requires #2 plus POSTGRES_PASSWORD): runs
 #      `deployments/scripts/run-deployment-test.sh --provider azure` end-to-end.
 #
 # Triggers:
 #   - `workflow_dispatch` — once this file lands on the default branch, the
-#     "Run workflow" button in Actions becomes available for both modes.
-#   - `pull_request` — listens only for label events. Normal PR updates are
-#     handled by `deployment-test-init.yaml` and never provision cloud.
+#     "Run workflow" button in Actions becomes available for all three modes.
+#   - `pull_request` — auto-runs `init-only` when deployment-test inputs change.
+#     A `ci:azure-deployment` label event skips init-only and starts the full
+#     HEAD integration path at the chart contract check.
 #
 # PR-label trigger (works pre-merge when the dispatcher isn't registered yet):
-#   - `ci:azure-deployment` → full-deployment starts immediately for any PR.
+#   - `ci:azure-deployment` → full-deployment starts immediately for an eligible
+#     deployment-related PR.
 #     Later pushes run only automatic validation; remove and re-add the label
 #     to rerun full E2E at the new head.
 # auth-check is workflow_dispatch only — it's a developer-driven smoke for
@@ -50,13 +54,24 @@ on:
         description: 'What to run'
         type: choice
         required: true
-        default: auth-check
+        default: init-only
         options:
+          - init-only
           - auth-check
           - full-deployment
   pull_request:
     branches: [main]
-    types: [labeled]
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - '.github/workflows/deployment-test.yaml'
+      - 'ci/deployment-test/**'
+      - 'deployments/BUILD'
+      - 'deployments/charts/service/**'
+      - 'deployments/charts/backend-operator/**'
+      - 'deployments/scripts/deploy-k8s.sh'
+      - 'deployments/scripts/run-deployment-test.sh'
+      - 'deployments/scripts/tests/**'
+      - 'deployments/terraform/azure/**'
   schedule:
     # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
     # is UTC, doesn't track DST). Schedule fires only on main, not on
@@ -91,6 +106,36 @@ permissions:
   contents: read
 
 jobs:
+  # Cheapest mode — no Azure setup needed. On PRs this runs for normal update
+  # events, but not for the full-deployment label event: that path starts with
+  # head-chart-contract so a chart mismatch fails before Terraform apply.
+  init-only:
+    if: >-
+      ${{ github.event.inputs.mode == 'init-only'
+          || (github.event_name == 'pull_request'
+              && github.event.action != 'labeled') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: deployments/terraform/azure/example
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: terraform init (no Azure auth required)
+        run: terraform init -input=false
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+      # Existing formatting drift is outside this gate's behavioral contract.
+      - name: terraform fmt -check (informational)
+        run: terraform fmt -check -recursive -no-color || true
+
   # First step that actually talks to Azure — terraform plan reads the
   # resource group via the azurerm_resource_group data source. Requires
   # the full OIDC + App Reg + RBAC setup. Provisions nothing.
