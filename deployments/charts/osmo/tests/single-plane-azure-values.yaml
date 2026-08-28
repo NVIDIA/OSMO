@@ -21,7 +21,13 @@ externalDependencies:
     tls:
       enabled: true
   objectStorage:
+    authentication:
+      type: sdkDefault
     locations:
       workflows: azure://osmoazure/osmo-workflows/workflows
       logs: azure://osmoazure/osmo-workflows/logs
       apps: azure://osmoazure/osmo-workflows/apps
+
+secrets:
+  objectStorage:
+    existingSecret: ''

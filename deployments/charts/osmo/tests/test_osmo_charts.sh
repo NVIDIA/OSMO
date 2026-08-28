@@ -774,6 +774,14 @@ test_control_umbrella() {
         "azure://osmoazure/osmo-workflows/logs"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "azure://osmoazure/osmo-workflows/apps"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretName: osmo-object-storage"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretKey: object-storage.yaml"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "mountPath: /etc/osmo/secrets/osmo-object-storage"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "secretName: osmo-object-storage"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" "s3://"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
         "single-plane-test-password"
@@ -823,6 +831,10 @@ test_control_umbrella() {
         "region: us-east-1"
     require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
         "override_url: https://s3.example.com"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "secretName: osmo-object-storage"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "secretKey: object-storage.yaml"
     require_not_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" "azure://"
     require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
         "single-plane-test-password"
@@ -1722,6 +1734,35 @@ account-only-azure|--set-string externalDependencies.objectStorage.locations.wor
 legacy-endpoint|--set-string externalDependencies.objectStorage.endpoint=https://legacy.example.com|additional properties 'endpoint' not allowed
 legacy-buckets|--set-string externalDependencies.objectStorage.buckets.workflows=legacy-workflows|additional properties 'buckets' not allowed
 EOF
+    if helm_template invalid-object-storage-authentication "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string externalDependencies.objectStorage.authentication.type=azureWorkloadIdentity \
+            >"$TEST_DIRECTORY/invalid-object-storage-authentication.out" 2>&1; then
+        fail "expected an invalid object-storage authentication type to fail"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-object-storage-authentication.out" \
+        "externalDependencies.objectStorage.authentication.type"
+
+    local invalid_sdk_default_case
+    local invalid_sdk_default_settings
+    while IFS='|' read -r invalid_sdk_default_case invalid_sdk_default_settings; do
+        if helm_template "invalid-sdk-default-$invalid_sdk_default_case" \
+                "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                --set-string externalDependencies.objectStorage.authentication.type=sdkDefault \
+                $invalid_sdk_default_settings \
+                >"$TEST_DIRECTORY/invalid-sdk-default-$invalid_sdk_default_case.out" 2>&1; then
+            fail "expected sdkDefault with $invalid_sdk_default_case credentials to fail"
+        fi
+        require_contains \
+            "$TEST_DIRECTORY/invalid-sdk-default-$invalid_sdk_default_case.out" \
+            "sdkDefault authentication must not configure an object-storage Secret"
+    done <<'EOF'
+existing-secret|--set-string secrets.objectStorage.existingSecret=unexpected
+generated-secret|--set secrets.objectStorage.generate=true --set-string secrets.objectStorage.existingSecret=
+EOF
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
@@ -2525,6 +2566,17 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/duplicate-object-storage-credentials.out" \
         "generate and existingSecret are mutually exclusive"
+
+    if helm_template embedded-sdk-default "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            "${embedded_object_storage_settings[@]}" \
+            --set-string externalDependencies.objectStorage.authentication.type=sdkDefault \
+            >"$TEST_DIRECTORY/embedded-sdk-default.out" 2>&1; then
+        fail "expected embedded object storage with sdkDefault authentication to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-sdk-default.out" \
+        "embedded object storage requires static authentication"
 
     local invalid_object_storage_credentials_key
     local invalid_object_storage_credentials_key_message

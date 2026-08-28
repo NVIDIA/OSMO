@@ -113,6 +113,12 @@ externalDependencies:
       caKey: ca-bundle.crt
   # Object storage for workflow data, logs, and application bundles.
   objectStorage:
+    authentication:
+      # static loads SDK credentials from secrets.objectStorage.existingSecret.
+      # sdkDefault delegates credential discovery to the provider SDK, such as
+      # Azure DefaultAzureCredential, the AWS default credential provider
+      # chain, or Google Application Default Credentials.
+      type: static
     locations:
       workflows: ''
       logs: ''

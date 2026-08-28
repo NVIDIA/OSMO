@@ -141,6 +141,9 @@
 {{- $externalLocations := .Values.externalDependencies.objectStorage.locations -}}
 {{- $externalS3 := .Values.externalDependencies.objectStorage.s3 -}}
 {{- $embeddedBuckets := .Values.embeddedDependencies.objectStorage.buckets -}}
+{{- if ne .Values.externalDependencies.objectStorage.authentication.type "static" -}}
+{{- fail "embedded object storage requires static authentication" -}}
+{{- end -}}
 {{- if $externalLocations.workflows -}}
 {{- fail "externalDependencies.objectStorage.locations.workflows must be empty when embedded object storage is enabled" -}}
 {{- end -}}
@@ -244,7 +247,9 @@
 {{- fail "embedded object-storage bucket names must use valid S3 syntax" -}}
 {{- end -}}
 {{- end -}}
-{{- else if .Values.secrets.objectStorage.generate -}}
+{{- else if and
+  .Values.secrets.objectStorage.generate
+  (eq .Values.externalDependencies.objectStorage.authentication.type "static") -}}
 {{- fail "secrets.objectStorage.generate is supported only when embedded object storage is enabled" -}}
 {{- end -}}
 {{- if .Values.embeddedDependencies.valkey.enabled -}}
@@ -405,7 +410,16 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.secrets.valkey.existingSecret) -}}
 {{- fail "secrets.valkey.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.secrets.objectStorage.existingSecret) -}}
+{{- if and
+  (not .Values.embeddedDependencies.objectStorage.enabled)
+  (eq .Values.externalDependencies.objectStorage.authentication.type "sdkDefault")
+  (or .Values.secrets.objectStorage.generate .Values.secrets.objectStorage.existingSecret) -}}
+{{- fail "sdkDefault authentication must not configure an object-storage Secret" -}}
+{{- end -}}
+{{- if and
+  (not .Values.embeddedDependencies.objectStorage.enabled)
+  (eq .Values.externalDependencies.objectStorage.authentication.type "static")
+  (not .Values.secrets.objectStorage.existingSecret) -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
 {{- end -}}
 {{- if not .Values.secrets.masterEncryptionKey.existingSecret.name -}}

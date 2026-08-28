@@ -502,7 +502,7 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 {{- define "osmo.objectStorage.secretName" -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- .Values.rustfs.secret.existingSecret -}}
-{{- else -}}
+{{- else if eq .Values.externalDependencies.objectStorage.authentication.type "static" -}}
 {{- .Values.secrets.objectStorage.existingSecret -}}
 {{- end -}}
 {{- end -}}

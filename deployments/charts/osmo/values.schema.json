@@ -1166,6 +1166,14 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "authentication": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": { "type": "string", "enum": ["static", "sdkDefault"] }
+          },
+          "required": ["type"]
+        },
         "locations": {
           "type": "object",
           "additionalProperties": false,
