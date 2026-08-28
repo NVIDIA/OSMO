@@ -75,24 +75,6 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-For prerelease OSMO images published below `nvcr.io/nvstaging/osmo`, set the
-registry and repository defaults separately. The runtime init and client images
-use the same location and tag:
-
-```bash
-helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
-  --namespace osmo \
-  --create-namespace \
-  --values deployments/charts/osmo/profiles/quickstart.yaml \
-  --set-string compute.backendName=default \
-  --set-string imageRegistry=nvcr.io \
-  --set-string imageRepository=nvstaging/osmo \
-  --set-string imageTag=2026.8.28.3b3d1b0a2.ecolter3910-amd64 \
-  --set-string 'imagePullSecrets[0].name=osmo-nvcr-pull' \
-  --wait \
-  --timeout 20m
-```
-
 Inspect the release without reading generated Secret values:
 
 ```bash
