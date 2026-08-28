@@ -411,8 +411,8 @@ failures.
 ## Deployment validation
 
 The MCP smoke target requires an MCP-enabled deployment with JWT
-authentication. Its token needs `mcp:Access`, `profile:Read`, and
-`workflow:Create` for `OETF_POOL`.
+authentication. Its token needs `profile:Read` and `workflow:Create`
+for `OETF_POOL`.
 
 ```bash
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp

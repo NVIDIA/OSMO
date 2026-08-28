@@ -378,6 +378,21 @@ grep -q "table.concat(safe_roles, ',')" <<<"$mcp_render"
 # Redis connection details come from services.redis; only the database is local.
 grep -q 'value: "rediss://redis:6379/14"' <<<"$mcp_workload"
 
+# A Redis needing no password must not force a key into the Secret.
+no_redis_pw=$(helm template mcp-nopw "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.oidcProxy.existingSecret.redisPasswordKey=')
+if grep -q 'redis-password' <<<"$no_redis_pw"; then
+    echo 'MCP demands a redis-password key when none was asked for' >&2
+    exit 1
+fi
+
+# Authentication is not a mode, so nothing advertises it as one. The fixture
+# sets no enabled flag; the OIDC variables above must render regardless.
+if grep -q 'name: OSMO_MCP_AUTH_ENABLED' <<<"$mcp_workload"; then
+    echo 'MCP still renders an auth-enabled switch' >&2
+    exit 1
+fi
+
 # Values the deployment derives must not reappear as deployer inputs.
 for derived in OSMO_MCP_AUTH_ISSUER_URL OSMO_MCP_AUTH_SCOPE \
         OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE \
@@ -387,6 +402,35 @@ for derived in OSMO_MCP_AUTH_ISSUER_URL OSMO_MCP_AUTH_SCOPE \
         exit 1
     fi
 done
+
+# Only a provider issuing v1-format access tokens needs the issuer stated. With
+# it unset the issuer comes from the configuration URL, and the gateway provider
+# for that issuer is the one the MCP audience is added to.
+no_issuer=$(helm template mcp-no-issuer "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.oidcProxy.oidc.accessTokenIssuer=' \
+    --set 'gateway.envoy.jwt.providers[0].issuer=https://login.example.com/example-tenant/v2.0')
+grep -q 'issuer: https://login.example.com/example-tenant/v2.0' <<<"$no_issuer"
+
+# The secret file paths follow the mount, so a deployer states neither of them.
+mount_render=$(helm template mcp-mount "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.oidcProxy.existingSecret.mountPath=/var/run/mcp')
+grep -q 'value: "/var/run/mcp/client-secret"' <<<"$mount_render"
+grep -q 'value: "/var/run/mcp/redis-password"' <<<"$mount_render"
+grep -q 'mountPath: /var/run/mcp' <<<"$mount_render"
+
+# The MCP audience is added to the provider for its issuer, so no deployment
+# writes a second provider differing only in audience.
+aud_render=$(helm template mcp-aud "$CHART_DIR" --values "$mcp_values" \
+    --set 'gateway.envoy.jwt.providers[0].audience=some-client-id')
+grep -q -- '- some-client-id' <<<"$aud_render"
+grep -q -- '- https://osmo.example.com/mcp' <<<"$aud_render"
+
+# A provider already carrying that audience must not have it added twice.
+dupes=$(grep -c -- '- https://osmo.example.com/mcp' <<<"$mcp_render" || true)
+if [ "$dupes" -ne 1 ]; then
+    echo "MCP audience appears $dupes times on the gateway provider, want 1" >&2
+    exit 1
+fi
 
 # The proxy keeps its state in Redis, so scaling out must render.
 helm template mcp-scale "$CHART_DIR" --values "$mcp_values" \

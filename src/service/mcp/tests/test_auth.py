@@ -22,6 +22,7 @@ from typing import Any
 import unittest
 from unittest import mock
 
+from fastmcp.server.auth.jwt_issuer import derive_jwt_key
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration, OIDCProxy
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.auth.oauth_proxy.models import UpstreamTokenSet
@@ -30,6 +31,10 @@ from key_value.aio.stores.memory import MemoryStore
 import pydantic
 
 from src.service.mcp import auth, server
+
+# Long enough to satisfy the client-secret entropy check; identity
+# providers issue secrets of this order.
+_TEST_CLIENT_SECRET = 'client-secret-0123456789abcdef0123456789'
 
 
 class MCPAuthConfigTest(unittest.TestCase):
@@ -91,8 +96,68 @@ class MCPAuthConfigTest(unittest.TestCase):
 
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_issuer_falls_back_to_the_discovery_document(self) -> None:
+        """An unset access-token issuer uses the issuer discovery advertises.
+
+        Only an Entra v1 resource application needs it configured, so a
+        deployment whose discovery issuer is the real one supplies nothing.
+        """
+        with _secret_file(_TEST_CLIENT_SECRET) as client_secret_file:
+            config = _config(
+                oidc_client_secret_file=client_secret_file,
+                oidc_access_token_issuer=None,
+            )
+            redis_client = mock.create_autospec(
+                auth.redis_asyncio.Redis,
+                instance=True,
+            )
+            oidc_configuration = OIDCConfiguration(
+                issuer='https://login.example/tenant/v2.0',
+                authorization_endpoint=(
+                    'https://login.example/tenant/oauth2/v2.0/authorize'
+                ),
+                token_endpoint='https://login.example/tenant/oauth2/v2.0/token',
+                jwks_uri='https://login.example/tenant/discovery/v2.0/keys',
+                response_types_supported=['code'],
+                subject_types_supported=['public'],
+                id_token_signing_alg_values_supported=['RS256'],
+            )
+            with (
+                mock.patch.object(
+                    auth.redis_asyncio.Redis,
+                    'from_url',
+                    return_value=redis_client,
+                ),
+                mock.patch.object(auth, 'RedisStore', return_value=MemoryStore()),
+                mock.patch.object(
+                    auth,
+                    'PrefixCollectionsWrapper',
+                    side_effect=lambda key_value, prefix: key_value,
+                ),
+                mock.patch.object(
+                    auth,
+                    'FernetEncryptionWrapper',
+                    side_effect=(
+                        lambda key_value, fernet, raise_on_decryption_error:
+                        key_value
+                    ),
+                ),
+                mock.patch.object(
+                    OIDCProxy,
+                    'get_oidc_configuration',
+                    return_value=oidc_configuration,
+                ),
+            ):
+                runtime = auth.create_auth_runtime(config)
+                verifier = runtime.provider._token_validator  # pylint: disable=protected-access
+                assert isinstance(verifier, JWTVerifier)
+                self.assertEqual(
+                    verifier.issuer,
+                    'https://login.example/tenant/v2.0',
+                )
+
     async def test_factory_uses_plain_oidc_proxy_and_split_scope_contract(self) -> None:
-        with _secret_file('client-secret') as client_secret_file:
+        with _secret_file(_TEST_CLIENT_SECRET) as client_secret_file:
             config = _config(
                 oidc_client_secret_file=client_secret_file,
             )
@@ -148,8 +213,8 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(provider, OIDCProxy)
                 self.assertEqual(
                     provider._jwt_signing_key,  # pylint: disable=protected-access
-                    auth.derive_jwt_key(
-                        high_entropy_material='client-secret',
+                    derive_jwt_key(
+                        high_entropy_material=_TEST_CLIENT_SECRET,
                         salt='fastmcp-jwt-signing-key',
                     ),
                 )
@@ -324,6 +389,14 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 await runtime.aclose()
             redis_client.aclose.assert_awaited_once()
 
+    def test_short_client_secret_fails_at_startup(self) -> None:
+        """The derived keys are only as strong as the secret behind them."""
+        with _secret_file('too-short') as client_secret_file:
+            config = _config(oidc_client_secret_file=client_secret_file)
+            with self.assertRaises(ValueError) as caught:
+                auth.create_auth_runtime(config)
+        self.assertIn('at least 32 characters', str(caught.exception))
+
     def test_storage_key_matches_fastmcp_default_and_is_deterministic(self) -> None:
         first = auth._storage_encryption_key(  # pylint: disable=protected-access
             'client-secret',
@@ -334,11 +407,11 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
         different = auth._storage_encryption_key(  # pylint: disable=protected-access
             'rotated-client-secret',
         )
-        signing_key = auth.derive_jwt_key(
+        signing_key = derive_jwt_key(
             high_entropy_material='client-secret',
             salt='fastmcp-jwt-signing-key',
         )
-        expected = auth.derive_jwt_key(
+        expected = derive_jwt_key(
             high_entropy_material=signing_key.decode('ascii'),
             salt='fastmcp-storage-encryption-key',
         )

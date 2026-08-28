@@ -56,7 +56,9 @@ Before enabling MCP:
 * Keep ``gateway.envoy.enabled`` and ``gateway.authz.enabled`` set to ``true``.
 * Configure a ``gateway.envoy.jwt.providers`` entry that validates the bearer
   token used for downstream ``/api`` requests and resolves its identity and
-  roles to the intended OSMO user.
+  roles to the intended OSMO user. The chart adds the MCP resource URL to the
+  audiences of the entry whose issuer matches the one MCP authenticates
+  against, so no second entry is needed for MCP itself.
 * Publish the release Gateway on one HTTPS hostname. Set
   ``services.mcp.resourceUrl`` to that origin plus the exact ``/mcp`` path.
 * Ensure that the MCP pod can resolve and reach the public Gateway origin.
@@ -145,16 +147,13 @@ sessions and makes old encrypted state, including DCR registrations, unusable.
 Users must authenticate again, and DCR clients might need to remove and re-add
 the MCP entry before login.
 
-.. warning::
-
-   OSMO currently relies on FastMCP's default derived signing key to avoid a
-   second operator-managed secret. FastMCP documents that default as a
-   development or local-testing convenience and recommends an explicit
-   independent signing key for production. The current OSMO chart does not
-   expose that independent-key option. Assess this limitation before a
-   production rollout and require a high-entropy upstream client secret. See
-   the `FastMCP OIDC proxy signing-key guidance
-   <https://gofastmcp.com/servers/auth/oidc-proxy#param-jwt-signing-key>`_.
+Because both keys come from the client secret, the strength they provide is the
+strength of that secret. FastMCP passes it through HKDF as high-entropy key
+material, a path distinct from the password-based derivation it reserves for
+low-entropy operator-supplied strings. The service therefore requires a client
+secret of at least 32 characters and refuses to start below it. Identity
+providers issue secrets well above that length; the check exists to reject a
+hand-written placeholder.
 
 Configure Helm Values
 ---------------------
