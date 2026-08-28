@@ -268,9 +268,9 @@ secrets:
     keys:
       credentials: object-storage.yaml
   # Backend compute-plane authentication. Each credential selects exactly one
-  # Kubernetes Secret source. Existing Secrets are the production interface;
-  # managed Secrets are generated and retained by a development-only Helm hook
-  # without placing token material in rendered manifests or Helm release state.
+  # Kubernetes Secret source. Managed Secrets are generated and retained by a
+  # short-lived Helm hook without placing token material in rendered manifests
+  # or Helm release state; existing Secrets remain externally managed.
   # Every Secret contains `token` and may contain `previous-token` for rotation.
   backendApiTokens:
     enabled: false

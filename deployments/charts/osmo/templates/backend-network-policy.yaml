@@ -1,6 +1,10 @@
 {{- if and .Values.planes.compute.enabled .Values.compute.workflowNetworkPolicy.enabled }}
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+{{- $protectedAnnotations := dict }}
+{{- if .Values.compute.workloadNamespace.create }}
+{{- $_ := set $protectedAnnotations "helm.sh/resource-policy" "keep" }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -8,7 +12,7 @@ metadata:
   namespace: {{ include "osmo.compute.backendNamespace" . }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "compute-network-policy") | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $protectedAnnotations)) }}
   annotations:
     {{- . | nindent 4 }}
   {{- end }}

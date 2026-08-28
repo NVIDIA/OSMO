@@ -554,6 +554,12 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/compute-features.yaml"
     require_resource "$TEST_DIRECTORY/compute-features.yaml" NetworkPolicy \
         compute-features-osmo-workflow-network-policy
+    resource_document "$TEST_DIRECTORY/compute-features.yaml" NetworkPolicy \
+        compute-features-osmo-workflow-network-policy \
+        >"$TEST_DIRECTORY/compute-features-workflow-network-policy.yaml"
+    require_not_contains \
+        "$TEST_DIRECTORY/compute-features-workflow-network-policy.yaml" \
+        "helm.sh/resource-policy: keep"
     require_resource "$TEST_DIRECTORY/compute-features.yaml" PriorityClass \
         osmo-high
     require_resource "$TEST_DIRECTORY/compute-features.yaml" PodMonitor \
@@ -629,6 +635,17 @@ test_control_umbrella() {
     resource_document "$TEST_DIRECTORY/self-contained.yaml" NetworkPolicy \
         "osmo-workflow-network-policy" \
         >"$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "helm.sh/resource-policy: keep"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
+        "osmo-backend-token-bootstrap"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Job \
+        "osmo-backend-token-bootstrap" \
+        >"$TEST_DIRECTORY/self-contained-backend-token-bootstrap.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-backend-token-bootstrap.yaml" \
+        'image: "alpine/k8s@sha256:3c6d1e613d94f03d63a6213b8687c7d4e5b9154903327aa8f0b5d628d7ab010b"'
     require_contains \
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
         "kubernetes.io/metadata.name: osmo"

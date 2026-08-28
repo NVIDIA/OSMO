@@ -414,7 +414,8 @@ secrets:
   objectStorage:
     existingSecret: osmo-object-storage
   masterEncryptionKey:
-    existingSecret:
+    managedBy: external
+    secretRef:
       name: osmo-master-encryption-key
       key: mek.yaml
 ```
@@ -673,15 +674,15 @@ Secret under the same name; do not generate a replacement against a retained
 database. Back up the generated Valkey and RustFS Secrets with their PVCs for
 the same reason.
 
-`helm --kube-context kind-osmo uninstall osmo --namespace osmo` removes
-release-owned workloads but does
+`helm uninstall osmo --namespace osmo` removes release-owned workloads but does
 not make retained credentials or data safe to discard. Inspect and back up
 retained Secrets and PVCs before deleting the namespace. CloudNativePG database
 retention follows the operator and cluster settings. Uninstall the CNPG operator
 only after all managed PostgreSQL Clusters have been handled.
-When `compute.workloadNamespace.create=true`, Helm also retains that Namespace;
-delete it manually only after its workflow resources and data are no longer
-needed.
+When `compute.workloadNamespace.create=true`, Helm also retains that Namespace
+and its workflow NetworkPolicy. The retained policy must be deleted manually if
+it is later disabled; delete the namespace only after its workflow resources
+and data are no longer needed.
 
 To use an existing embedded PostgreSQL credential Secret, provide a
 `kubernetes.io/basic-auth` Secret whose `username` matches
@@ -860,7 +861,6 @@ one of these ways:
 For local access to the default ClusterIP Service:
 
 ```bash
-kubectl --context kind-osmo --namespace osmo \
-  port-forward service/osmo-gateway 8080:80
+kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
 curl http://127.0.0.1:8080/api/version
 ```
