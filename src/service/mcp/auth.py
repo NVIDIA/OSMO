@@ -93,10 +93,6 @@ class MCPAuthConfig(pydantic.BaseModel):
 
     model_config = pydantic.ConfigDict(hide_input_in_errors=True)
 
-    auth_enabled: bool = pydantic.Field(
-        default=False,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENABLED'},
-    )
     resource_url: str | None = pydantic.Field(
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
@@ -170,8 +166,6 @@ class MCPAuthConfig(pydantic.BaseModel):
 
     @pydantic.model_validator(mode='after')
     def _validate_auth_config(self) -> 'MCPAuthConfig':
-        if not self.auth_enabled:
-            return self
         missing = sorted(
             name for name in _REQUIRED_WHEN_AUTH_ENABLED
             if not getattr(self, name)
@@ -225,9 +219,6 @@ class MCPAuthRuntime:
 
 def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     """Configure FastMCP's OIDCProxy; no OSMO OAuth endpoints are implemented."""
-    if not config.auth_enabled:
-        raise ValueError('MCP auth is disabled')
-
     client_secret = _read_required_secret(
         cast(str, config.oidc_client_secret_file),
         'OIDC client secret',

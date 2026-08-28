@@ -164,6 +164,7 @@ osmo_py_test(
     name = "test_protocol",
     srcs = ["test_protocol.py"],
     deps = [
+        ":protocol_harness",
         "//src/service/mcp:fastmcp_runtime",
         requirement("httpx"),
         requirement("mcp"),
@@ -179,6 +180,7 @@ osmo_py_test(
     name = "test_profile",
     srcs = ["test_profile.py"],
     deps = [
+        ":protocol_harness",
         requirement("httpx"),
         "//src/lib/utils:login",
         "//src/service/mcp:mcp_service_lib",
@@ -214,6 +216,7 @@ osmo_py_test(
     name = "test_server",
     srcs = ["test_server.py"],
     deps = [
+        ":protocol_harness",
         "//src/service/mcp:fastmcp_runtime",
         requirement("httpx"),
         requirement("mcp"),

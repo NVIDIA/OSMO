@@ -76,7 +76,7 @@ OSMO services write logs to standard streams for collection by the platform log 
 
 The optional MCP workload exposes predefined OSMO operations to compatible
 native or desktop MCP clients. In direct-provider mode, the Gateway validates
-the bearer on `/mcp`. With `oidcProxy.enabled`, FastMCP validates its own proxy
+the bearer on `/mcp`. FastMCP validates its own proxy
 token and relays the verified upstream access token through the same Gateway
 for each mapped OSMO API request. That API request still passes the deployment's
 normal identity-provider validation and semantic RBAC.
@@ -96,15 +96,12 @@ destination, but it cannot validate external DNS.
 | `services.mcp.imageName` | MCP image repository name. | `mcp` |
 | `services.mcp.imageTag` | Per-MCP image tag override; falls back to `global.osmoImageTag` when empty. | `""` |
 | `services.mcp.resourceUrl` | Canonical public HTTPS MCP URL ending in exact `/mcp`; also determines the fixed outbound Gateway origin. | `""` |
-| `services.mcp.authorizationServers` | OAuth/OIDC issuers advertised in direct-provider mode; ignored when `oidcProxy.enabled` is true. | `[]` |
-| `services.mcp.scopes` | OAuth scopes advertised in direct-provider mode; ignored when `oidcProxy.enabled` is true. | `[]` |
 | `services.mcp.allowedOrigins` | Exact browser origins permitted on `/mcp`; native clients normally omit `Origin`. | `[]` |
 | `services.mcp.requestTimeoutSeconds` | Total timeout for each MCP-initiated Gateway request, from 1 through 60 seconds. | `10` |
 | `services.mcp.replicas` | Number of MCP replicas. The OIDC proxy keeps its state in Redis, so it scales out. | `1` |
 | `services.mcp.extraEnv` | Additional non-managed environment variables. It cannot override MCP host, port, Gateway origin, or request timeout. | `[]` |
 | `services.mcp.extraVolumeMounts` | Additional MCP container volume mounts, including Vault-injected credential files. | `[]` |
 | `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
-| `services.mcp.oidcProxy.enabled` | Enable FastMCP's built-in OIDC proxy inside the existing MCP process. It advertises CIMD and retains DCR as a compatibility fallback. | `false` |
 | `services.mcp.oidcProxy.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
 | `services.mcp.oidcProxy.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
 | `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |

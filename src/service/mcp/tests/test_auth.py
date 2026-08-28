@@ -33,15 +33,15 @@ from src.service.mcp import auth, server
 
 
 class MCPAuthConfigTest(unittest.TestCase):
-    def test_auth_is_disabled_without_any_oidc_configuration(self) -> None:
-        self.assertFalse(auth.MCPAuthConfig().auth_enabled)
-
-    def test_enabled_auth_requires_complete_configuration(self) -> None:
+    def test_authentication_is_not_optional(self) -> None:
+        """There is one authentication mode, so its configuration is required."""
         with self.assertRaisesRegex(
             pydantic.ValidationError,
             'Enabled MCP auth is missing',
         ):
-            auth.MCPAuthConfig(auth_enabled=True)
+            auth.MCPAuthConfig()
+
+        self.assertNotIn('auth_enabled', auth.MCPAuthConfig.model_fields)
 
     def test_dependent_urls_derive_from_the_resource_url(self) -> None:
         """Only the resource URL is supplied; the rest follow from it."""
@@ -76,14 +76,9 @@ class MCPAuthConfigTest(unittest.TestCase):
             gateway_url='https://gateway.example',
             **config.model_dump(),
         )
-        self.assertTrue(service_config.auth_enabled)
         self.assertEqual(service_config.auth_scope, config.auth_scope)
 
     def test_auth_field_renames_preserve_environment_contract(self) -> None:
-        self.assertEqual(
-            auth.MCPAuthConfig.model_fields['auth_enabled'].json_schema_extra,
-            {'env': 'OSMO_MCP_AUTH_ENABLED'},
-        )
         self.assertEqual(
             auth.MCPAuthConfig.model_fields['resource_url'].json_schema_extra,
             {'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
@@ -355,7 +350,6 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
 def _config(**overrides: object) -> auth.MCPAuthConfig:
     values: dict[str, object] = {
-        'auth_enabled': True,
         'resource_url': 'https://osmo.example/mcp',
         'redis_url': 'rediss://redis.example:6379/7',
         'oidc_config_url': (

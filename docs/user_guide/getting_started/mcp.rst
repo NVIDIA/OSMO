@@ -37,10 +37,9 @@ Ask your administrator for the MCP URL. It normally has the following form:
 
    https://<osmo-host>/mcp
 
-Start with the OIDC proxy instructions below unless your administrator says
-that the deployment uses direct identity-provider mode. Proxy mode requires
-only the URL. Direct mode also requires a public OAuth client ID, complete
-scope list, and callback requirements from the administrator.
+Connecting requires only the MCP URL. The deployment completes the OAuth
+exchange for you in the browser; there is no client ID, scope list or token to
+configure.
 
 MCP acts on your behalf. Every tool call is authorized with your existing OSMO
 roles, API actions, and accessible pools; MCP cannot elevate your access. See
@@ -63,8 +62,7 @@ FastMCP handles OAuth discovery, client identification with Client ID
 Metadata Documents (CIMD) or registration with Dynamic Client Registration
 (DCR), Proof Key for Code Exchange (PKCE), scopes, callbacks, token exchange,
 and refresh. Do not add a client ID, scope list, client secret, callback port,
-or bearer token unless your administrator explicitly says that the deployment
-uses direct mode.
+or bearer token.
 
 Run ``codex mcp list`` to confirm that the entry is configured, then start or
 restart Codex so it loads the authenticated server.
@@ -81,28 +79,6 @@ either CIMD client identification or DCR registration.
    exchange, the browser redirects to a temporary loopback URL owned by the MCP
    client. The administrator registers only the fixed upstream callback with
    the identity provider.
-
-.. _getting_started_mcp_direct_mode:
-
-Connect with Direct Identity-Provider Mode
-==========================================
-
-Use this mode only when your administrator explicitly provides a public OAuth
-client ID and scopes. Replace all example values with the supplied values:
-
-.. code-block:: bash
-
-   $ codex mcp add osmo \
-       --url https://osmo.example.com/mcp \
-       --oauth-client-id YOUR_MCP_PUBLIC_CLIENT_ID
-   $ codex mcp login \
-       --scopes 'YOUR_COMMA_SEPARATED_OAUTH_SCOPES' \
-       osmo
-
-Use the complete scope list exactly as supplied. Direct mode can also require
-a pre-registered callback URL; follow the client-specific callback settings
-from your administrator. In direct mode, your OSMO role must grant
-``mcp:Access`` in addition to each tool's normal API permission.
 
 Verify Access
 =============
@@ -147,8 +123,6 @@ proxy configuration:
    $ codex mcp add osmo --url https://osmo.example.com/mcp
    $ codex mcp login osmo
 
-When switching to direct mode, repeat the
-:ref:`direct identity-provider instructions <getting_started_mcp_direct_mode>`
 instead.
 
 Troubleshooting
@@ -175,8 +149,6 @@ Troubleshooting
      - Run ``codex mcp logout osmo`` and ``codex mcp login osmo``. If the error
        continues, contact the administrator.
    * - MCP initialization returns ``HTTP 403``
-     - In direct mode, ask the administrator to verify ``mcp:Access``. In OIDC
-       proxy mode, log out and sign in again; if it persists, ask them to
        verify the advertised and issued MCP resource scope.
    * - A tool returns ``HTTP 403``
      - Login succeeded, but the user lacks the API action or pool access needed

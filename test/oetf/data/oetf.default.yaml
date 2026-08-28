@@ -54,4 +54,5 @@ environments:
     cluster_name: osmo
     mode: cpu
     pool: default
-    exclude_tags: [auth]
+    # kind ships no JWT issuer and keeps MCP disabled.
+    exclude_tags: [auth, mcp]
