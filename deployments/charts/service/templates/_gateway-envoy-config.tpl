@@ -35,6 +35,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
 {{- $mcpResourceUrl := "" }}
+{{- $mcpTokenIssuer := "" }}
 {{- $mcpMetadataUrl := "" }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $authnSkipPaths := $skipAuthPaths }}
@@ -49,8 +50,28 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.enabled requires gateway.authz.enabled=true" }}
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp-resource-url" . }}
-{{- if not $envoy.jwt.providers }}
-{{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
+{{- /*
+The relayed upstream token carries the MCP resource URL as its audience, so the
+Gateway has to accept that audience from the identity provider MCP authenticates
+against. That provider is already configured for this deployment's own clients,
+and differs only in audience -- so the audience is appended to it rather than
+asking for a second, near-identical entry.
+
+OpenID Connect Discovery defines the configuration URL as the issuer followed by
+/.well-known/openid-configuration, so the issuer is derivable. accessTokenIssuer
+overrides it for providers whose access tokens are issued elsewhere, as an
+application configured for v1-format tokens does.
+*/ -}}
+{{- $mcpTokenIssuer = $mcpOidcProxy.oidc.accessTokenIssuer | default (trimSuffix "/.well-known/openid-configuration" (required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $mcpOidcProxy.oidc.configUrl)) }}
+{{- $mcpTokenIssuer = trimSuffix "/" $mcpTokenIssuer }}
+{{- $mcpIssuerProviders := 0 }}
+{{- range $provider := $envoy.jwt.providers }}
+{{- if eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer }}
+{{- $mcpIssuerProviders = add1 $mcpIssuerProviders }}
+{{- end }}
+{{- end }}
+{{- if eq $mcpIssuerProviders 0 }}
+{{- fail (printf "services.mcp.enabled requires a gateway.envoy.jwt.providers entry with issuer %s, which is where MCP's relayed tokens come from" $mcpTokenIssuer) }}
 {{- end }}
 {{- $mcpServiceName := required "services.mcp.serviceName is required when MCP is enabled" $mcp.serviceName }}
 {{- $mcpImageName := required "services.mcp.imageName is required when MCP is enabled" $mcp.imageName }}
@@ -675,6 +696,9 @@ data:
                     issuer: {{ $provider.issuer }}
                     audiences:
                     - {{ $provider.audience }}
+                    {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) (ne $provider.audience $mcpResourceUrl) }}
+                    - {{ $mcpResourceUrl }}
+                    {{- end }}
                     forward: true
                     payload_in_metadata: verified_jwt
                     from_headers:

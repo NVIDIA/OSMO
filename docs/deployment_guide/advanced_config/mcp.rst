@@ -53,12 +53,14 @@ cannot elevate the user. See :ref:`mcp_identity_permissions` and
 Shared Prerequisites
 ====================
 
-Before enabling either mode:
+Before enabling MCP:
 
 * Keep ``gateway.envoy.enabled`` and ``gateway.authz.enabled`` set to ``true``.
 * Configure a ``gateway.envoy.jwt.providers`` entry that validates the bearer
   token used for downstream ``/api`` requests and resolves its identity and
-  roles to the intended OSMO user.
+  roles to the intended OSMO user. The chart adds the MCP resource URL to the
+  audiences of the entry whose issuer matches the one MCP authenticates
+  against, so no second entry is needed for MCP itself.
 * Publish the release Gateway on one HTTPS hostname. Set
   ``services.mcp.resourceUrl`` to that origin plus the exact ``/mcp`` path.
 * Ensure that the MCP pod can resolve and reach the public Gateway origin.

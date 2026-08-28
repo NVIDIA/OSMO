@@ -157,10 +157,13 @@ for derived in OSMO_MCP_AUTH_ISSUER_URL OSMO_MCP_AUTH_SCOPE \
     fi
 done
 
-# Only an Entra v1 resource application needs the access-token issuer stated;
-# without it the service uses the issuer the discovery document advertises.
-helm template mcp-no-issuer "$CHART_DIR" --values "$mcp_values" \
-    --set 'services.mcp.oidcProxy.oidc.accessTokenIssuer=' >/dev/null
+# Only a provider issuing v1-format access tokens needs the issuer stated. With
+# it unset the issuer comes from the configuration URL, and the gateway provider
+# for that issuer is the one the MCP audience is added to.
+no_issuer=$(helm template mcp-no-issuer "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.oidcProxy.oidc.accessTokenIssuer=' \
+    --set 'gateway.envoy.jwt.providers[0].issuer=https://login.example.com/example-tenant/v2.0')
+grep -q 'issuer: https://login.example.com/example-tenant/v2.0' <<<"$no_issuer"
 
 # The secret file paths follow the mount, so a deployer states neither of them.
 mount_render=$(helm template mcp-mount "$CHART_DIR" --values "$mcp_values" \
@@ -168,6 +171,20 @@ mount_render=$(helm template mcp-mount "$CHART_DIR" --values "$mcp_values" \
 grep -q 'value: "/var/run/mcp/client-secret"' <<<"$mount_render"
 grep -q 'value: "/var/run/mcp/redis-password"' <<<"$mount_render"
 grep -q 'mountPath: /var/run/mcp' <<<"$mount_render"
+
+# The MCP audience is added to the provider for its issuer, so no deployment
+# writes a second provider differing only in audience.
+aud_render=$(helm template mcp-aud "$CHART_DIR" --values "$mcp_values" \
+    --set 'gateway.envoy.jwt.providers[0].audience=some-client-id')
+grep -q -- '- some-client-id' <<<"$aud_render"
+grep -q -- '- https://osmo.example.com/mcp' <<<"$aud_render"
+
+# A provider already carrying that audience must not have it added twice.
+dupes=$(grep -c -- '- https://osmo.example.com/mcp' <<<"$mcp_render" || true)
+if [ "$dupes" -ne 1 ]; then
+    echo "MCP audience appears $dupes times on the gateway provider, want 1" >&2
+    exit 1
+fi
 
 # The proxy keeps its state in Redis, so scaling out must render.
 helm template mcp-scale "$CHART_DIR" --values "$mcp_values" \
