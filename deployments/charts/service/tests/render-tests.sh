@@ -132,6 +132,14 @@ grep -q "table.concat(safe_roles, ',')" <<<"$mcp_render"
 # Redis connection details come from services.redis; only the database is local.
 grep -q 'value: "rediss://redis:6379/14"' <<<"$mcp_workload"
 
+# A Redis needing no password must not force a key into the Secret.
+no_redis_pw=$(helm template mcp-nopw "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.oidcProxy.existingSecret.redisPasswordKey=')
+if grep -q 'redis-password' <<<"$no_redis_pw"; then
+    echo 'MCP demands a redis-password key when none was asked for' >&2
+    exit 1
+fi
+
 # Authentication is not a mode, so nothing advertises it as one. The fixture
 # sets no enabled flag; the OIDC variables above must render regardless.
 if grep -q 'name: OSMO_MCP_AUTH_ENABLED' <<<"$mcp_workload"; then

@@ -203,7 +203,10 @@ services:
         name: ""
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
-        redisPasswordKey: redis-password
+        ## Set only when the Redis in services.redis requires a password. The
+        ## file path is derived from mountPath; naming the key is what opts in.
+        ##
+        redisPasswordKey: ""
 
     ## Additional pod labels and annotations.
     ##

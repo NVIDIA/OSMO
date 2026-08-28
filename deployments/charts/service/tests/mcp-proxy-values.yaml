@@ -33,6 +33,7 @@ services:
         keyPrefix: test:mcp-auth
       existingSecret:
         name: mcp-oidc-proxy-secrets
+        redisPasswordKey: redis-password
 
 gateway:
   networkPolicies:
