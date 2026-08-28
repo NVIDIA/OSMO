@@ -646,7 +646,7 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/kind-self-contained-ui.yaml" \
         "scheme: HTTPS"
 
-    local quickstart_runtime_tag=2026.8.28.3b3d1b0a2.ecolter3910-amd64
+    local quickstart_runtime_tag=quickstart-test
     helm_template_with_backend quick-start-runtime "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
@@ -4026,11 +4026,11 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string imageRegistry=nvcr.io \
         --set-string imageRepository=nvstaging/osmo \
-        --set-string imageTag=2026.8.28.3b3d1b0a2.ecolter3910-amd64 \
+        --set-string imageTag=quickstart-test \
         --set imagePullSecrets[0].name=nvcr-pull-secret \
         >"$TEST_DIRECTORY/osmo-image-family-override.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-family-override.yaml" \
-        "image: nvcr.io/nvstaging/osmo/worker:2026.8.28.3b3d1b0a2.ecolter3910-amd64"
+        "image: nvcr.io/nvstaging/osmo/worker:quickstart-test"
     require_contains "$TEST_DIRECTORY/osmo-image-family-override.yaml" \
         'image: "docker.io/envoyproxy/envoy:v1.38.1"'
 
