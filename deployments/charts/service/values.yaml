@@ -120,8 +120,8 @@ services:
     ##
     enabled: false
 
-    ## Number of MCP replicas. Keep this at 1 while oidcProxy is enabled;
-    ## FastMCP 3.4.7 serializes refreshes within one process.
+    ## Number of MCP replicas. The OIDC proxy keeps all of its state in Redis,
+    ## so more than one replica is supported.
     ##
     replicas: 1
 
@@ -176,36 +176,23 @@ services:
     oidcProxy:
       enabled: false
 
-      ## Full delegated scope URI advertised to MCP clients and requested from
-      ## the upstream provider, normally <resourceUrl>/access_as_user.
-      ##
-      scope: ""
-
-      ## Public HTTPS redirect origins allowed for pre-registered web clients.
-      ## Native clients use dynamically allocated loopback redirects.
-      ##
-      trustedHttpsRedirectOrigins: []
-
       ## Upstream OpenID Connect provider. Register the fixed redirect URL
-      ## <resourceUrl origin>/auth/callback on this confidential application.
+      ## <resourceUrl origin>/mcp/auth/callback on this confidential application.
       ##
       oidc:
         configUrl: ""
         clientId: ""
         clientSecretFile: /etc/osmo/mcp-auth/client-secret
         accessTokenIssuer: ""
-        accessTokenAudience: ""
-        accessTokenJwksUrl: ""
         accessTokenRequiredScope: access_as_user
 
       ## Redis stores proxy registrations, authorization state, and encrypted
-      ## upstream tokens. Empty serviceName/port inherit services.redis.
+      ## upstream tokens. Host, port and TLS come from services.redis; only the
+      ## logical database is chosen here, so proxy state stays isolated from
+      ## OSMO's other Redis users.
       ##
       redis:
-        serviceName: ""
-        port: null
-        dbNumber: 0
-        tlsEnabled: true
+        dbNumber: 1
         passwordFile: ""
         keyPrefix: osmo:mcp-fastmcp
         connectTimeoutSeconds: 3
