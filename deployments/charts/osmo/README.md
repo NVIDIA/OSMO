@@ -528,14 +528,13 @@ above.
 
 ## Optional configuration
 
-- Configure the OSMO image registry and base repository under `imageRegistry`
-  and `imageRepository`, a shared OSMO component tag under `imageTag`, pull
-  credentials under `imagePullSecrets`, and workflow init/client image
-  overrides under `runtimeImage`. Top-level pull credentials are used as
-  defaults for workflow pod templates unless a template defines its own list.
-  A non-empty service-specific
-  `image.registry` or `image.repository` takes precedence over these
-  top-level defaults; otherwise the chart uses `nvcr.io/nvidia/osmo` and the
+- Configure the OSMO image registry, base repository, and tag under
+  `imageRegistry`, `imageRepository`, and `imageTag`; they default to
+  `nvcr.io`, `nvidia/osmo`, and `latest`. A non-empty service-specific
+  `image.registry`, `image.repository`, or `image.tag` takes precedence over
+  the corresponding top-level value. Runtime workflow image fields under
+  `runtimeImage` are optional overrides and inherit the matching top-level
+  value when empty. Otherwise the chart uses `nvcr.io/nvidia/osmo` and the
   component name. The chart writes the resolved workflow images into the
   managed API configuration unless `configuration.workflow.backend_images`
   overrides them. Configure dependency images and pull credentials in their

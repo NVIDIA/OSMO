@@ -91,16 +91,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $image := .image -}}
 {{- $registry := $image.registry -}}
 {{- $repository := $image.repository -}}
+{{- if .useSharedRegistry -}}
+{{- $registry = $registry | default $root.Values.imageRegistry -}}
+{{- end -}}
 {{- if hasKey $image "name" -}}
-{{- $registry = $registry | default $root.Values.imageRegistry | default "nvcr.io" -}}
+{{- $registry = $registry | default "nvcr.io" -}}
 {{- $repository = $repository | default $root.Values.imageRepository | default "nvidia/osmo" -}}
 {{- if not $image.repository -}}
 {{- $repository = printf "%s/%s" (trimSuffix "/" $repository) $image.name -}}
 {{- end -}}
 {{- else -}}
-{{- if and .useSharedRegistry (not $root.Values.imageRepository) -}}
-{{- $registry = $root.Values.imageRegistry | default $registry -}}
-{{- end -}}
 {{- $repository = required "image.repository is required" $repository -}}
 {{- end -}}
 {{- $base := ternary (printf "%s/%s" $registry $repository) $repository (ne $registry "") -}}
