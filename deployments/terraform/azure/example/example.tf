@@ -42,6 +42,13 @@ resource "random_string" "suffix" {
   upper   = false
 }
 
+resource "random_password" "postgres" {
+  count            = var.postgres_password == null ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#%"
+}
+
 provider "azurerm" {
   features {}
   subscription_id = var.subscription_id
@@ -49,7 +56,10 @@ provider "azurerm" {
 
 # Local variables for common tags and naming
 locals {
-  name = var.cluster_name
+  name = var.cluster_name != null ? var.cluster_name : (
+    var.single_plane_workload_identity_enabled ? "osmo-${random_string.suffix.result}" : "osmo-cluster"
+  )
+  postgres_password = var.postgres_password != null ? var.postgres_password : random_password.postgres[0].result
   tags = {
     Environment = var.environment
     Project     = var.project_name
@@ -199,6 +209,9 @@ resource "azurerm_kubernetes_cluster" "main" {
   resource_group_name = data.azurerm_resource_group.main.name
   dns_prefix          = local.name
   kubernetes_version  = var.kubernetes_version
+
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
 
   private_cluster_enabled = var.aks_private_cluster_enabled
 
@@ -353,7 +366,7 @@ resource "azurerm_postgresql_flexible_server" "main" {
   delegated_subnet_id           = azurerm_subnet.database[0].id
   private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
   administrator_login           = var.postgres_username
-  administrator_password        = var.postgres_password
+  administrator_password        = local.postgres_password
   zone                          = "1"
   public_network_access_enabled = false
 
@@ -551,7 +564,7 @@ resource "azurerm_storage_account" "nfs" {
   # clamping to a 19-char prefix budget so the trailing 5-char random suffix
   # keeps the total at <=24. environment intentionally omitted from the name
   # (still carried in tags) so overrides can't blow the budget.
-  name                     = "${substr(lower(replace("stnfs${var.cluster_name}", "/[^0-9a-z]/", "")), 0, 19)}${random_string.suffix.result}"
+  name                     = "${substr(lower(replace("stnfs${local.name}", "/[^0-9a-z]/", "")), 0, 19)}${random_string.suffix.result}"
   location                 = data.azurerm_resource_group.main.location
   resource_group_name      = data.azurerm_resource_group.main.name
   account_tier             = "Premium"     # FileStorage requires Premium

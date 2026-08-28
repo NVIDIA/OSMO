@@ -46,9 +46,9 @@ variable "owner" {
 }
 
 variable "cluster_name" {
-  description = "Name of the AKS cluster"
+  description = "Optional AKS cluster name. The single-plane example generates one when omitted; other callers retain osmo-cluster."
   type        = string
-  default     = "osmo-cluster"
+  default     = null
 }
 
 variable "resource_group_name" {
@@ -190,8 +190,9 @@ variable "postgres_username" {
 }
 
 variable "postgres_password" {
-  description = "PostgreSQL admin password — required, no default. Pass via --postgres-password to deploy-osmo-minimal.sh or set TF_VAR_postgres_password."
+  description = "Optional PostgreSQL admin password. A random password is generated when omitted."
   type        = string
+  default     = null
   sensitive   = true
 }
 
@@ -324,6 +325,12 @@ variable "gpu_driver" {
 # STORAGE_KEY env vars before running configure-storage.sh --backend azure-blob.
 variable "storage_account_enabled" {
   description = "Provision an Azure Storage Account for OSMO workflow data"
+  type        = bool
+  default     = false
+}
+
+variable "single_plane_workload_identity_enabled" {
+  description = "Provision the keyless Blob storage and managed identity used by the single-plane umbrella example"
   type        = bool
   default     = false
 }
