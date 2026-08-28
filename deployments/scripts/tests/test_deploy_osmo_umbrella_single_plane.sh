@@ -54,18 +54,20 @@ write_mock az '#!/bin/bash' 'set -euo pipefail' 'echo "az $*" >>"$COMMAND_LOG"' 
 # shellcheck disable=SC2016 # Mock bodies intentionally defer expansion to execution.
 write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform $*" >>"$COMMAND_LOG"' \
     '[[ "${TF_VAR_node_instance_type:-}" == "Standard_D4s_v3" ]] || exit 18' \
+    '[[ "${TF_VAR_single_plane_workload_identity_enabled:-}" == "true" ]] || exit 19' \
     'if [[ "$*" == *"output -raw"* ]]; then' \
     '  case "${!#}" in' \
     '    aks_cluster_name) echo test-aks ;;' \
     '    postgres_server_fqdn) echo test.postgres.database.azure.com ;;' \
     '    postgres_database_name) echo osmo ;;' \
     '    postgres_admin_username) echo osmo_admin ;;' \
+    '    postgres_password) echo postgres-secret-sentinel ;;' \
     '    redis_cache_hostname) echo test.redis.cache.windows.net ;;' \
     '    redis_cache_ssl_port) echo 10000 ;;' \
     '    redis_cache_primary_access_key) echo redis-secret-sentinel ;;' \
-    '    storage_account) echo teststorage ;;' \
-    '    storage_account_key) echo storage-key-sentinel ;;' \
-    '    storage_container_name) echo osmo-workflows ;;' \
+    '    single_plane_storage_account) echo teststorage ;;' \
+    '    single_plane_storage_container_name) echo osmo-workflows ;;' \
+    '    single_plane_blob_identity_client_id) echo 11111111-2222-3333-4444-555555555555 ;;' \
     '    *) exit 1 ;;' \
     '  esac' \
     'fi'
@@ -97,15 +99,12 @@ write_mock openssl '#!/bin/bash' 'set -euo pipefail' 'echo "openssl $*" >>"$COMM
 write_mock curl '#!/bin/bash' 'set -euo pipefail' '[[ -f "$PORT_FORWARD_READY" ]] || exit 1' 'echo "curl $*" >>"$COMMAND_LOG"'
 # shellcheck disable=SC2016 # Mock bodies intentionally defer expansion to execution.
 write_mock bash '#!/bin/bash' 'set -euo pipefail' 'echo "bash $*" >>"$COMMAND_LOG"'
-write_mock jq '#!/bin/bash' 'exit 0'
 write_mock osmo '#!/bin/bash' 'exit 0'
 
 export COMMAND_LOG="$command_log"
 export PORT_FORWARD_READY="$test_directory/port-forward-ready"
 export PATH="$mock_directory:$PATH"
 export TF_VAR_resource_group_name=test-resource-group
-export TF_VAR_cluster_name=test-cluster
-export TF_VAR_postgres_password=postgres-secret-sentinel
 export TMPDIR="$test_directory/tmp"
 export OSMO_IMAGE_REPOSITORY=nvstaging/osmo
 export OSMO_IMAGE_TAG=123
@@ -127,9 +126,18 @@ assert_contains "$values_file" 'enabled: true'
 assert_contains "$values_file" 'workflows: azure://teststorage/osmo-workflows/workflows'
 assert_contains "$values_file" 'logs: azure://teststorage/osmo-workflows/logs'
 assert_contains "$values_file" 'apps: azure://teststorage/osmo-workflows/apps'
+assert_contains "$values_file" 'type: sdkDefault'
 assert_contains "$values_file" 'existingSecret: osmo-postgresql'
 assert_contains "$values_file" 'existingSecret: osmo-valkey'
-assert_contains "$values_file" 'existingSecret: osmo-object-storage'
+assert_not_contains "$values_file" 'existingSecret: osmo-object-storage'
+assert_contains "$values_file" 'azure.workload.identity/client-id: "11111111-2222-3333-4444-555555555555"'
+assert_contains "$values_file" 'azure.workload.identity/use: "true"'
+assert_contains "$values_file" 'serviceAccountName: osmo-workflow'
+assert_contains "$values_file" 'azure_workload_identity:'
+assert_contains "$values_file" '      - default_ctrl'
+assert_contains "$values_file" '      - default_user'
+assert_contains "$values_file" '      - kind_dev_auth'
+assert_contains "$values_file" '      - azure_workload_identity'
 assert_contains "$values_file" 'imageTag: "123"'
 assert_contains "$values_file" 'repository: "nvstaging/osmo"'
 for image in agent backend-listener backend-worker delayed-job-monitor logger router service web-ui worker; do
@@ -137,7 +145,7 @@ for image in agent backend-listener backend-worker delayed-job-monitor logger ro
 done
 assert_contains "$values_file" 'tag: "123"'
 assert_contains "$values_file" 'pullSecret: "456"'
-assert_contains "$values_file" 'name: "456"'
+assert_contains "$values_file" 'name":"456"'
 assert_not_contains "$values_file" postgres-secret-sentinel
 assert_not_contains "$values_file" redis-secret-sentinel
 assert_not_contains "$values_file" storage-key-sentinel
@@ -152,6 +160,8 @@ assert_not_contains "$command_log" postgres-secret-sentinel
 assert_not_contains "$command_log" redis-secret-sentinel
 assert_not_contains "$command_log" storage-key-sentinel
 assert_not_contains "$command_log" backend-token-sentinel
+assert_not_contains "$command_log" 'storage_account_key'
+assert_not_contains "$command_log" 'kubectl create secret generic osmo-object-storage'
 
 terraform_directory="${TEST_SRCDIR}/_main/deployments/terraform/azure/example"
 
@@ -164,7 +174,8 @@ assert_ordered \
     'kubectl create namespace osmo' \
     'kubectl create secret generic osmo-postgresql' \
     'kubectl create secret generic osmo-valkey' \
-    'kubectl create secret generic osmo-object-storage' \
+    'kubectl create serviceaccount osmo-workflow' \
+    'kubectl annotate serviceaccount osmo-workflow' \
     'kubectl create secret generic osmo-backend-token' \
     'helm dependency build' \
     'helm upgrade --install osmo' \

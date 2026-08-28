@@ -7,21 +7,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TERRAFORM_DIR="$REPOSITORY_ROOT/deployments/terraform/azure/example"
 CHART="$REPOSITORY_ROOT/deployments/charts/osmo"
+AZURE_VALUES_TEMPLATE="$SCRIPT_DIR/single-plane-azure.yaml.envsubst"
 AZURE_VALUES="${TMPDIR:-/tmp}/single-plane-azure.yaml"
 KUBECONFIG="${TMPDIR:-/tmp}/osmo-single-plane-kubeconfig"
 export KUBECONFIG
 : "${TF_VAR_resource_group_name:?set the isolated sandbox resource group}"
-: "${TF_VAR_cluster_name:?set a globally unique AKS cluster name}"
-: "${TF_VAR_postgres_password:?set the PostgreSQL administrator password}"
 OSMO_IMAGE_REPOSITORY="${OSMO_IMAGE_REPOSITORY:-nvidia/osmo}"
 OSMO_IMAGE_TAG="${OSMO_IMAGE_TAG:-latest}"
-IMAGE_PULL_SECRETS="[]"
-[[ -z "${OSMO_IMAGE_PULL_SECRET:-}" ]] || IMAGE_PULL_SECRETS="[{name: \"$OSMO_IMAGE_PULL_SECRET\"}]"
-for command in az terraform kubectl helm openssl curl jq osmo; do
-    command -v "$command" >/dev/null
+OSMO_IMAGE_PULL_SECRET="${OSMO_IMAGE_PULL_SECRET:-}"
+IMAGE_PULL_SECRETS='[]'
+if [[ -n "$OSMO_IMAGE_PULL_SECRET" ]]; then
+    IMAGE_PULL_SECRETS="$(jq --compact-output --null-input --arg name "$OSMO_IMAGE_PULL_SECRET" '[{name:$name}]')"
+fi
+for command in az terraform kubectl helm openssl curl jq osmo envsubst; do
+    command -v "$command" >/dev/null || { echo "required command not found: $command" >&2; exit 1; }
 done
 TF_VAR_subscription_id="$(az account show --query id --output tsv)"
-export TF_VAR_subscription_id TF_VAR_storage_account_enabled=true TF_VAR_aks_private_cluster_enabled=false
+export TF_VAR_subscription_id TF_VAR_single_plane_workload_identity_enabled=true
+export TF_VAR_storage_account_enabled=false TF_VAR_aks_private_cluster_enabled=false
 export TF_VAR_node_instance_type="${TF_VAR_node_instance_type:-Standard_D4s_v3}"
 terraform -chdir="$TERRAFORM_DIR" init
 terraform -chdir="$TERRAFORM_DIR" apply -auto-approve
@@ -29,12 +32,17 @@ AKS_CLUSTER_NAME="$(terraform -chdir="$TERRAFORM_DIR" output -raw aks_cluster_na
 POSTGRES_HOST="$(terraform -chdir="$TERRAFORM_DIR" output -raw postgres_server_fqdn)"
 POSTGRES_DATABASE="$(terraform -chdir="$TERRAFORM_DIR" output -raw postgres_database_name)"
 POSTGRES_USERNAME="$(terraform -chdir="$TERRAFORM_DIR" output -raw postgres_admin_username)"
+POSTGRES_PASSWORD="$(terraform -chdir="$TERRAFORM_DIR" output -raw postgres_password)"
 REDIS_HOST="$(terraform -chdir="$TERRAFORM_DIR" output -raw redis_cache_hostname)"
 REDIS_PORT="$(terraform -chdir="$TERRAFORM_DIR" output -raw redis_cache_ssl_port)"
 REDIS_PASSWORD="$(terraform -chdir="$TERRAFORM_DIR" output -raw redis_cache_primary_access_key)"
-STORAGE_ACCOUNT="$(terraform -chdir="$TERRAFORM_DIR" output -raw storage_account)"
-STORAGE_ACCOUNT_KEY="$(terraform -chdir="$TERRAFORM_DIR" output -raw storage_account_key)"
-STORAGE_CONTAINER="$(terraform -chdir="$TERRAFORM_DIR" output -raw storage_container_name)"
+STORAGE_ACCOUNT="$(terraform -chdir="$TERRAFORM_DIR" output -raw single_plane_storage_account)"
+STORAGE_CONTAINER="$(terraform -chdir="$TERRAFORM_DIR" output -raw single_plane_storage_container_name)"
+WORKLOAD_IDENTITY_CLIENT_ID="$(terraform -chdir="$TERRAFORM_DIR" output -raw single_plane_blob_identity_client_id)"
+for required_value in AKS_CLUSTER_NAME POSTGRES_HOST POSTGRES_DATABASE POSTGRES_USERNAME POSTGRES_PASSWORD \
+        REDIS_HOST REDIS_PORT REDIS_PASSWORD STORAGE_ACCOUNT STORAGE_CONTAINER WORKLOAD_IDENTITY_CLIENT_ID; do
+    [[ -n "${!required_value}" ]] || { echo "Terraform output $required_value is empty" >&2; exit 1; }
+done
 az aks get-credentials --resource-group "$TF_VAR_resource_group_name" --name "$AKS_CLUSTER_NAME" \
     --admin --overwrite-existing --file "$KUBECONFIG"
 helm upgrade --install kai-scheduler \
@@ -42,85 +50,25 @@ helm upgrade --install kai-scheduler \
     --namespace kai-scheduler --create-namespace --wait --timeout 10m
 kubectl create namespace osmo --dry-run=client --output yaml | kubectl apply -f -
 kubectl create secret generic osmo-postgresql --namespace osmo \
-    --from-literal=username="$POSTGRES_USERNAME" --from-literal=db-password="$TF_VAR_postgres_password" \
+    --from-literal=username="$POSTGRES_USERNAME" --from-literal=db-password="$POSTGRES_PASSWORD" \
     --dry-run=client --output yaml | kubectl apply -f -
 kubectl create secret generic osmo-valkey --namespace osmo \
     --from-literal=redis-password="$REDIS_PASSWORD" --dry-run=client --output yaml | kubectl apply -f -
-AZURE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=${STORAGE_ACCOUNT};AccountKey=${STORAGE_ACCOUNT_KEY};EndpointSuffix=core.windows.net"
-OBJECT_STORAGE_CREDENTIALS="access_key_id: ${STORAGE_ACCOUNT}
-access_key: ${AZURE_CONNECTION_STRING}"
-printf '%s\n' "$OBJECT_STORAGE_CREDENTIALS" | kubectl create secret generic osmo-object-storage --namespace osmo \
-    --from-file=object-storage.yaml=/dev/stdin --dry-run=client --output yaml | kubectl apply -f -
+kubectl create serviceaccount osmo-workflow --namespace osmo --dry-run=client --output yaml | kubectl apply -f -
+kubectl annotate serviceaccount osmo-workflow --namespace osmo \
+    azure.workload.identity/client-id="$WORKLOAD_IDENTITY_CLIENT_ID" --overwrite
 BACKEND_TOKEN_SECRET="$(kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output name)"
 if [[ -z "$BACKEND_TOKEN_SECRET" ]]; then
     BACKEND_TOKEN="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
     kubectl create secret generic osmo-backend-token --namespace osmo \
         --from-literal=token="$BACKEND_TOKEN" --dry-run=client --output yaml | kubectl apply -f -
 fi
-cat >"$AZURE_VALUES" <<EOF
-externalUrl: http://osmo-gateway
-imageTag: "$OSMO_IMAGE_TAG"
-imagePullSecrets: $IMAGE_PULL_SECRETS
-runtimeImage:
-  repository: "$OSMO_IMAGE_REPOSITORY"
-  tag: "$OSMO_IMAGE_TAG"
-  pullSecret: "${OSMO_IMAGE_PULL_SECRET:-}"
-compute:
-  backendName: default
-services:
-  ui:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/web-ui"
-  api:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/service"
-  worker:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/worker"
-  router:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/router"
-  logger:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/logger"
-  agent:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/agent"
-  delayedJobMonitor:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/delayed-job-monitor"
-  backendListener:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/backend-listener"
-  backendWorker:
-    image:
-      repository: "$OSMO_IMAGE_REPOSITORY/backend-worker"
-externalDependencies:
-  postgresql:
-    host: $POSTGRES_HOST
-    port: 5432
-    database: $POSTGRES_DATABASE
-    username: $POSTGRES_USERNAME
-    tls:
-      enabled: false
-  valkey:
-    host: $REDIS_HOST
-    port: $REDIS_PORT
-    tls:
-      enabled: true
-  objectStorage:
-    locations:
-      workflows: azure://$STORAGE_ACCOUNT/$STORAGE_CONTAINER/workflows
-      logs: azure://$STORAGE_ACCOUNT/$STORAGE_CONTAINER/logs
-      apps: azure://$STORAGE_ACCOUNT/$STORAGE_CONTAINER/apps
-secrets:
-  postgresql:
-    existingSecret: osmo-postgresql
-  valkey:
-    existingSecret: osmo-valkey
-  objectStorage:
-    existingSecret: osmo-object-storage
-EOF
+export POSTGRES_HOST POSTGRES_DATABASE POSTGRES_USERNAME REDIS_HOST REDIS_PORT
+export STORAGE_ACCOUNT STORAGE_CONTAINER WORKLOAD_IDENTITY_CLIENT_ID
+export OSMO_IMAGE_REPOSITORY OSMO_IMAGE_TAG OSMO_IMAGE_PULL_SECRET IMAGE_PULL_SECRETS
+# shellcheck disable=SC2016 # envsubst requires literal variable names in its allowlist.
+envsubst '${POSTGRES_HOST} ${POSTGRES_DATABASE} ${POSTGRES_USERNAME} ${REDIS_HOST} ${REDIS_PORT} ${STORAGE_ACCOUNT} ${STORAGE_CONTAINER} ${WORKLOAD_IDENTITY_CLIENT_ID} ${OSMO_IMAGE_REPOSITORY} ${OSMO_IMAGE_TAG} ${OSMO_IMAGE_PULL_SECRET} ${IMAGE_PULL_SECRETS}' \
+    <"$AZURE_VALUES_TEMPLATE" >"$AZURE_VALUES"
 helm dependency build "$CHART"
 helm upgrade --install osmo "$CHART" --namespace osmo \
     --values "$CHART/profiles/single-plane.yaml" --values "$AZURE_VALUES" \

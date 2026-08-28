@@ -37,6 +37,7 @@ sh_test(
     data = [
         "//deployments/charts:osmo",
         "//deployments:scripts/deploy-osmo-umbrella-single-plane.sh",
+        "//deployments:scripts/single-plane-azure.yaml.envsubst",
         "//deployments:scripts/verify.sh",
     ],
 )
