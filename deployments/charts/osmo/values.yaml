@@ -139,10 +139,8 @@ imageRepository: nvidia/osmo
 # service-specific image.tag or runtimeImage.tag takes precedence.
 imageTag: latest
 
-# Pull credential Secret references for OSMO-owned pods. They are also used as
-# defaults for workflow pod templates that do not define their own list.
-# Configure third-party dependency pull credentials in the dependency's native
-# values block.
+# Pull credential Secret references for OSMO-owned pods. Configure third-party
+# dependency pull credentials in the dependency's native values block.
 imagePullSecrets: []
 
 # Runtime image overrides for submitted workflows. Leave a field empty to

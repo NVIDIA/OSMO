@@ -662,29 +662,18 @@ test_control_umbrella() {
         "init: nvcr.io/nvstaging/osmo/init-container:$quickstart_runtime_tag"
     require_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
         "client: nvcr.io/nvstaging/osmo/client:$quickstart_runtime_tag"
-    require_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
+    require_not_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
         "imagePullSecrets:"
-    require_contains "$TEST_DIRECTORY/quickstart-runtime-config.yaml" \
-        "name: osmo-nvcr-pull"
     resource_document "$TEST_DIRECTORY/quickstart-runtime.yaml" Deployment \
         osmo-api >"$TEST_DIRECTORY/quickstart-runtime-api.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
         "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag"
+    require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
+        "imagePullSecrets:"
+    require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
+        "name: osmo-nvcr-pull"
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
         "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
-
-    helm_template_with_backend quick-start-workflow-pull-secret "$charts_copy/osmo" \
-        --namespace osmo \
-        --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
-        --set-string 'imagePullSecrets[0].name=sentinel-pull-secret' \
-        >"$TEST_DIRECTORY/quickstart-workflow-pull-secret.yaml"
-    resource_document "$TEST_DIRECTORY/quickstart-workflow-pull-secret.yaml" ConfigMap \
-        osmo-api-config >"$TEST_DIRECTORY/quickstart-workflow-pull-secret-config.yaml"
-    require_contains "$TEST_DIRECTORY/quickstart-workflow-pull-secret-config.yaml" \
-        "name: sentinel-pull-secret"
-    require_not_contains "$TEST_DIRECTORY/quickstart-workflow-pull-secret-config.yaml" \
-        "name: osmo-nvcr-pull"
 
     helm_template_with_backend quick-start "$charts_copy/osmo" \
         --namespace osmo \
