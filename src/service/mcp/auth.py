@@ -24,7 +24,6 @@ from cryptography.fernet import Fernet
 from fastmcp.server.auth.jwt_issuer import derive_jwt_key
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.auth.providers.jwt import JWTVerifier
-import httpx
 from key_value.aio.protocols import AsyncKeyValue
 from key_value.aio.stores.redis import RedisStore
 from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
@@ -33,6 +32,60 @@ import pydantic
 from redis import asyncio as redis_asyncio
 
 _UPSTREAM_OIDC_SCOPES = ('openid', 'profile', 'email', 'offline_access')
+
+
+class _OSMOOIDCProxy(OIDCProxy):
+    """OIDC proxy that verifies access tokens against a configured issuer.
+
+    An Entra resource application configured for v1 access tokens issues them
+    from ``https://sts.windows.net/<tenant>/`` even when its discovery document
+    advertises the v2.0 issuer, and no discovery document can express that. The
+    JWKS URI is still taken from discovery.
+    """
+
+    def __init__(
+        self,
+        *,
+        access_token_issuer: str,
+        access_token_audience: str,
+        **kwargs: object,
+    ) -> None:
+        self._access_token_issuer = access_token_issuer
+        self._access_token_audience = access_token_audience
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+
+    def get_token_verifier(  # pylint: disable=unused-argument
+        self,
+        *,
+        algorithm: str | None = None,
+        audience: str | None = None,
+        required_scopes: list[str] | None = None,
+        timeout_seconds: int | None = None,
+    ) -> JWTVerifier:
+        """Build the verifier, keeping the base signature FastMCP calls with.
+
+        ``audience`` and ``timeout_seconds`` are accepted to match the hook
+        FastMCP invokes but are not used: the audience comes from OSMO's own
+        configuration for the reason below, and JWTVerifier has no timeout.
+        """
+        # audience is deliberately not taken from the caller: OIDCProxy's own
+        # audience argument is forwarded to the provider's authorize and token
+        # endpoints (oidc_proxy.py:432-434), which Entra does not accept.
+        return JWTVerifier(
+            jwks_uri=str(self.oidc_config.jwks_uri),
+            issuer=self._access_token_issuer,
+            algorithm=algorithm,
+            audience=self._access_token_audience,
+            required_scopes=required_scopes,
+        )
+_REQUIRED_WHEN_AUTH_ENABLED = (
+    'resource_url',
+    'redis_url',
+    'oidc_config_url',
+    'oidc_client_id',
+    'oidc_client_secret_file',
+    'oidc_access_token_issuer',
+)
 
 
 class MCPAuthConfig(pydantic.BaseModel):
@@ -44,17 +97,9 @@ class MCPAuthConfig(pydantic.BaseModel):
         default=False,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_ENABLED'},
     )
-    issuer_url: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ISSUER_URL'},
-    )
     resource_url: str | None = pydantic.Field(
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
-    )
-    auth_scope: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_SCOPE'},
     )
     redis_url: str | None = pydantic.Field(
         default=None,
@@ -81,29 +126,15 @@ class MCPAuthConfig(pydantic.BaseModel):
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE'},
     )
-    oidc_access_token_jwks_url: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL'},
-    )
     oidc_access_token_issuer: str | None = pydantic.Field(
         default=None,
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER'},
-    )
-    oidc_access_token_audience: str | None = pydantic.Field(
-        default=None,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE'},
     )
     oidc_access_token_required_scope: str = pydantic.Field(
         default='access_as_user',
         pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
         json_schema_extra={
             'env': 'OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE',
-        },
-    )
-    trusted_https_redirect_origins: str = pydantic.Field(
-        default='',
-        json_schema_extra={
-            'env': 'OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIGINS',
         },
     )
     access_token_ttl_seconds: int = pydantic.Field(
@@ -141,45 +172,20 @@ class MCPAuthConfig(pydantic.BaseModel):
     def _validate_auth_config(self) -> 'MCPAuthConfig':
         if not self.auth_enabled:
             return self
-        required = {
-            name: getattr(self, name)
-            for name in (
-                'issuer_url',
-                'resource_url',
-                'auth_scope',
-                'redis_url',
-                'oidc_config_url',
-                'oidc_client_id',
-                'oidc_client_secret_file',
-                'oidc_access_token_jwks_url',
-                'oidc_access_token_issuer',
-                'oidc_access_token_audience',
-            )
-        }
-        missing = sorted(name for name, value in required.items() if not value)
+        missing = sorted(
+            name for name in _REQUIRED_WHEN_AUTH_ENABLED
+            if not getattr(self, name)
+        )
         if missing:
             raise ValueError(
                 'Enabled MCP auth is missing: ' + ', '.join(missing)
             )
 
-        issuer = _https_url(cast(str, self.issuer_url), root_only=True)
         resource = _https_url(cast(str, self.resource_url))
-        scope = _https_url(cast(str, self.auth_scope))
-        if resource != f'{issuer}/mcp':
-            raise ValueError('resource_url must be issuer_url followed by /mcp')
-        if scope != f'{resource}/{self.oidc_access_token_required_scope}':
-            raise ValueError(
-                'auth_scope must be resource_url followed by the token scope'
-            )
-        if self.oidc_access_token_audience != resource:
-            raise ValueError('oidc_access_token_audience must match resource_url')
-        self.issuer_url = issuer
+        if not resource.endswith('/mcp'):
+            raise ValueError('resource_url must end with /mcp')
         self.resource_url = resource
-        self.auth_scope = scope
         self.oidc_config_url = _https_url(cast(str, self.oidc_config_url))
-        self.oidc_access_token_jwks_url = _https_url(
-            cast(str, self.oidc_access_token_jwks_url)
-        )
         self.oidc_access_token_issuer = _https_url(
             cast(str, self.oidc_access_token_issuer),
             preserve_trailing_slash=True,
@@ -189,26 +195,20 @@ class MCPAuthConfig(pydantic.BaseModel):
             raise ValueError('redis_url must be an absolute Redis URL')
         if redis_url.password is not None:
             raise ValueError('Redis password must be provided through its file')
-        for origin in self.trusted_redirect_origins:
-            if _https_url(origin, root_only=True) != origin:
-                raise ValueError('trusted redirect origins must be normalized')
         return self
 
     @property
-    def trusted_redirect_origins(self) -> tuple[str, ...]:
-        return tuple(
-            item.strip().rstrip('/')
-            for item in self.trusted_https_redirect_origins.split(',')
-            if item.strip()
-        )
+    def auth_scope(self) -> str:
+        """The delegated scope clients request for this resource."""
+        return f'{self.resource_url}/{self.oidc_access_token_required_scope}'
 
     @property
     def allowed_client_redirect_uris(self) -> list[str]:
+        """Native MCP clients redirect to a dynamically allocated loopback port."""
         return [
             'http://localhost:*',
             'http://127.0.0.1:*',
             'http://[::1]:*',
-            *self.trusted_redirect_origins,
         ]
 
 
@@ -218,13 +218,9 @@ class MCPAuthRuntime:
 
     provider: OIDCProxy
     redis_client: redis_asyncio.Redis
-    http_client: httpx.AsyncClient
 
     async def aclose(self) -> None:
-        try:
-            await self.http_client.aclose()
-        finally:
-            await self.redis_client.aclose()
+        await self.redis_client.aclose()
 
 
 def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
@@ -252,26 +248,16 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         fernet=Fernet(_storage_encryption_key(client_secret)),
         raise_on_decryption_error=False,
     )
-    http_client = httpx.AsyncClient(
-        timeout=config.upstream_timeout_seconds,
-        follow_redirects=False,
-    )
-    verifier = JWTVerifier(
-        jwks_uri=cast(str, config.oidc_access_token_jwks_url),
-        issuer=cast(str, config.oidc_access_token_issuer),
-        audience=cast(str, config.oidc_access_token_audience),
-        algorithm='RS256',
-        required_scopes=[config.oidc_access_token_required_scope],
-        http_client=http_client,
-    )
     mcp_url = cast(str, config.resource_url)
-    requested_scope = cast(str, config.auth_scope)
+    requested_scope = config.auth_scope
     upstream_scope = ' '.join((requested_scope, *_UPSTREAM_OIDC_SCOPES))
-    provider = OIDCProxy(
+    provider = _OSMOOIDCProxy(
         config_url=cast(str, config.oidc_config_url),
         client_id=cast(str, config.oidc_client_id),
         client_secret=client_secret,
-        token_verifier=verifier,
+        access_token_issuer=cast(str, config.oidc_access_token_issuer),
+        access_token_audience=mcp_url,
+        required_scopes=[config.oidc_access_token_required_scope],
         # FastMCP builds its operational OAuth endpoints from base_url and its
         # RFC 9728 resource identity from resource_base_url plus the MCP path.
         # Publishing base_url at the MCP URL therefore keeps authorize, token,
@@ -301,7 +287,7 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     # Entra returns the short `scp` claim that the verifier enforces, while MCP
     # clients must discover and request the full API scope URI.
     provider.update_default_scopes([requested_scope])
-    return MCPAuthRuntime(provider, redis_client, http_client)
+    return MCPAuthRuntime(provider, redis_client)
 
 
 def _storage_encryption_key(client_secret: str) -> bytes:
@@ -331,7 +317,6 @@ def _read_optional_secret(path: str | None) -> str | None:
 def _https_url(
     value: str,
     *,
-    root_only: bool = False,
     preserve_trailing_slash: bool = False,
 ) -> str:
     parsed = parse.urlsplit(value)
@@ -349,6 +334,4 @@ def _https_url(
     ):
         raise ValueError('OAuth URLs must be absolute HTTPS URLs')
     path = parsed.path if preserve_trailing_slash else parsed.path.rstrip('/')
-    if root_only and path:
-        raise ValueError('OAuth issuer and redirect origins must be origins')
     return parse.urlunsplit((parsed.scheme, parsed.netloc, path, '', ''))
