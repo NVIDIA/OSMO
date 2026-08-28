@@ -11,7 +11,7 @@ values take precedence.
 
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
-| `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; the pre-created `osmo-nvcr-pull` Secret; `compute.backendName` set explicitly at install time |
+| `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `compute.backendName` set explicitly at install time |
 | `kind-self-contained.yaml` | Yes, on kind | KAI Scheduler and the CloudNativePG operator installed separately; `compute.backendName` set explicitly at install time |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
@@ -22,9 +22,10 @@ through gateway NodePort `30080` while omitting other optional services. The kin
 profile retains a broader local-development surface. Both profiles are
 development-only and intentionally use `latest` OSMO images by default, one
 replica per component, generated credentials, and embedded stateful dependencies.
-The quick-start profile also references `osmo-nvcr-pull` for OSMO and workflow
-images; override it through top-level `imagePullSecrets` when using another
-Secret. The split
+The quick-start installation path uses the chart's default image settings and
+does not require application Secrets or an image-pull Secret to be created
+beforehand. Configure top-level `imagePullSecrets` only when using a registry
+that requires credentials. The split
 profiles contain example names and endpoints; copy them into an environment
 values file before installation.
 

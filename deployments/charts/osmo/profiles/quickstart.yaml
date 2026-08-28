@@ -11,10 +11,6 @@ planes:
 
 fullnameOverride: osmo
 
-imageTag: latest
-imagePullSecrets:
-- name: osmo-nvcr-pull
-
 externalUrl: http://osmo-gateway
 
 embeddedDependencies:

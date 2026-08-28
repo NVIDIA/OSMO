@@ -690,7 +690,6 @@ test_control_umbrella() {
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/quickstart.yaml" \
-        --set-string 'imagePullSecrets[0].name=osmo-nvcr-pull' \
         >"$TEST_DIRECTORY/quickstart.yaml"
     local quickstart_deployment
     for quickstart_deployment in \
@@ -730,8 +729,9 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart.yaml" '- "bootstrap"'
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
         "osmo-object-storage-bootstrap"
-    require_contains "$TEST_DIRECTORY/quickstart-api.yaml" "imagePullSecrets:"
-    require_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
+    require_not_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
+        "imagePullSecrets:"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" \
         "name: osmo-nvcr-pull"
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/quickstart-gateway-service.yaml"
@@ -781,6 +781,8 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "/home/"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "currentMek:"
     require_contains "$charts_copy/osmo/profiles/README.md" "quickstart.yaml"
+    require_not_contains "$charts_copy/osmo/profiles/README.md" \
+        "osmo-nvcr-pull"
     require_contains "$charts_copy/osmo/README.md" \
         "deployments/charts/osmo/profiles/quickstart.yaml"
     require_contains "$charts_copy/osmo/README.md" \
