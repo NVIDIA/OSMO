@@ -2052,7 +2052,6 @@ EOF
         "service-auth-osmo-service-auth-db-migration"
 
     helm_template service-auth-migration "$charts_copy/osmo" \
-        --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
@@ -2076,6 +2075,12 @@ EOF
     require_not_contains "$TEST_DIRECTORY/service-auth-role.yaml" '"create"'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
         'helm.sh/hook: pre-upgrade'
+    require_occurrences "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        'argocd.argoproj.io/hook: PreSync' 4
+    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        'argocd.argoproj.io/sync-wave: "-20"'
+    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        'argocd.argoproj.io/sync-wave: "-10"'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
         'command: ["service-auth-bootstrap"]'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
@@ -2086,17 +2091,6 @@ EOF
         "expirationSeconds: 600"
     require_no_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Secret \
         "osmo-service-auth"
-
-    if helm_template install-service-auth-migration "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
-            --set secrets.serviceAuth.migration.enabled=true \
-            >"$TEST_DIRECTORY/install-service-auth-migration.out" 2>&1; then
-        fail "service auth migration was accepted during a fresh install"
-    fi
-    require_contains "$TEST_DIRECTORY/install-service-auth-migration.out" \
-        "migration.enabled is only valid during an upgrade"
 
     if helm_template missing-service-auth-secret "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

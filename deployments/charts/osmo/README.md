@@ -796,7 +796,8 @@ kubectl annotate secret osmo-service-auth \
 ```
 
 Upgrade with `secrets.serviceAuth.existingSecret.name=osmo-service-auth` and
-`secrets.serviceAuth.migration.enabled=true`. A pre-upgrade Job reads and
+`secrets.serviceAuth.migration.enabled=true`. A Helm pre-upgrade or Argo CD
+PreSync Job reads and
 decrypts the legacy DB identity, validates every public/private keypair, and
 writes canonical plaintext JSON into the authorized placeholder. It then reads
 the DB identity again and aborts if the stable authority changed during the

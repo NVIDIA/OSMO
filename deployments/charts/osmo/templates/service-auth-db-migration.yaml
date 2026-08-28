@@ -1,7 +1,4 @@
 {{- if and .Values.planes.control.enabled .Values.secrets.serviceAuth.migration.enabled -}}
-{{- if not .Release.IsUpgrade -}}
-{{- fail "secrets.serviceAuth.migration.enabled is only valid during an upgrade" -}}
-{{- end -}}
 {{- $serviceAuth := .Values.secrets.serviceAuth -}}
 {{- $secretName := required "secrets.serviceAuth.existingSecret.name is required during migration" $serviceAuth.existingSecret.name -}}
 {{- $secretKey := required "secrets.serviceAuth.existingSecret.key is required during migration" $serviceAuth.existingSecret.key -}}
@@ -9,7 +6,17 @@
 {{- $rbacAnnotations := dict
       "helm.sh/hook" "pre-upgrade"
       "helm.sh/hook-weight" "-20"
-      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" -}}
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed"
+      "argocd.argoproj.io/hook" "PreSync"
+      "argocd.argoproj.io/sync-wave" "-20"
+      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded,HookFailed" -}}
+{{- $jobAnnotations := dict
+      "helm.sh/hook" "pre-upgrade"
+      "helm.sh/hook-weight" "-10"
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded"
+      "argocd.argoproj.io/hook" "PreSync"
+      "argocd.argoproj.io/sync-wave" "-10"
+      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded" -}}
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 apiVersion: v1
@@ -64,7 +71,7 @@ metadata:
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
   annotations:
-    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict "helm.sh/hook" "pre-upgrade" "helm.sh/hook-weight" "-10" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 4 }}
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $jobAnnotations) | nindent 4 }}
 spec:
   backoffLimit: 0
   template:
