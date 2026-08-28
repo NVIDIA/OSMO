@@ -103,6 +103,42 @@ it calls `verify.sh` with `SKIP_GPU=1`, which submits the representative
 download a marker through the configured object store; verification also reads
 the stored workflow specification and successful logs before returning.
 
+## Azure split-plane umbrella deployment
+
+`deploy-osmo-umbrella-split-plane.sh` is the corresponding linear example for
+one control cluster and two compute clusters. Run it only inside a newly
+created `azure-sandbox assume` subshell. Supply the same isolated resource
+group, control-cluster, and PostgreSQL variables as the single-plane example,
+plus globally unique names for both compute clusters and the externally routed
+control-plane URL:
+
+```bash
+export COMPUTE_CLUSTER_ONE_NAME=example-compute-one
+export COMPUTE_CLUSTER_TWO_NAME=example-compute-two
+export OSMO_CONTROL_PLANE_URL=https://osmo.example.com
+./deploy-osmo-umbrella-split-plane.sh
+```
+
+Terraform provisions the control AKS cluster and its PostgreSQL, Valkey, and
+Blob dependencies. The script creates the two compute AKS clusters directly,
+installs KAI Scheduler on each, and installs the unified chart once with
+`profiles/split-plane-control.yaml` and once per compute cluster with
+`profiles/split-plane-compute.yaml`. The control release retains two generated
+backend credentials; each credential is copied only to its matching compute
+cluster. The final smoke checks submit `verify-hello.yaml` to the `compute-one`
+and `compute-two` pools independently.
+
+`OSMO_CONTROL_PLANE_URL` must route from both compute clusters to the unified
+chart's `osmo-gateway` Service. Providing that route, including any ingress
+controller, Gateway API parent, DNS, and TLS configuration, is an explicit
+environment responsibility. The script does not install a separate gateway or
+enable a chart-managed Ingress. Set `OSMO_CONTROL_PLANE_VALUES` to an externally
+maintained values file when the control release needs environment-specific
+gateway Service, Ingress, or HTTPRoute settings; that file is never applied to
+the compute releases. The script uses a local port-forward only for CLI smoke
+tests. The generated non-secret overlay is
+`${TMPDIR:-/tmp}/split-plane-azure.yaml`.
+
 ## Deployment Combinations
 
 Three orthogonal axes:
