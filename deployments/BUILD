@@ -19,4 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 exports_files([
     "scripts/common.sh",
     "scripts/deploy-k8s.sh",
+    "values/backend-operator.yaml",
+    "values/service.yaml",
 ])
