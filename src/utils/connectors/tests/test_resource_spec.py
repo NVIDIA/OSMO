@@ -38,5 +38,34 @@ class TestResourceSpec(unittest.TestCase):
             # No numerical value for storage
             connectors.ResourceSpec(cpu=2, storage='Gi', memory='10Mi', platform='test')
 
+    def test_resource_tokens_derive_units_after_defaults_are_merged(self):
+        cases = [
+            (connectors.ResourceSpec(memory='512Mi', storage='100Mi'),
+             {'USER_MEMORY': '1Gi', 'USER_STORAGE': '1Gi'}, 0.5, 100 / 1024),
+            (connectors.ResourceSpec(),
+             {'USER_MEMORY': '1Gi', 'USER_STORAGE': '1Gi'}, 1.0, 1.0),
+            (connectors.ResourceSpec(),
+             {'USER_MEMORY': '64Gi', 'USER_STORAGE': '64Gi'}, 64.0, 64.0),
+        ]
+
+        for resource_spec, defaults, memory_gi, storage_gi in cases:
+            with self.subTest(defaults=defaults, resource_spec=resource_spec):
+                tokens = resource_spec.get_allocatable_tokens(defaults)
+                self.assertEqual(tokens['USER_MEMORY_Gi'], memory_gi)
+                self.assertEqual(tokens['USER_STORAGE_Gi'], storage_gi)
+
+    def test_cache_uses_explicit_storage_not_default_storage(self):
+        cases = [
+            (connectors.ResourceSpec(storage='10Gi'), {}, '50%', '5Gi'),
+            (connectors.ResourceSpec(storage='10Gi'), {}, None, '9Gi'),
+            (connectors.ResourceSpec(), {'USER_STORAGE': '1Gi'}, '50%', '0None'),
+            (connectors.ResourceSpec(), {'USER_STORAGE': '1Gi'}, None, '0MiB'),
+        ]
+
+        for resource_spec, defaults, cache_size, expected_cache in cases:
+            with self.subTest(resource_spec=resource_spec, cache_size=cache_size):
+                tokens = resource_spec.get_allocatable_tokens(defaults, cache_size)
+                self.assertEqual(tokens['USER_CACHE'], expected_cache)
+
 if __name__ == '__main__':
     unittest.main()

@@ -35,8 +35,8 @@ DEFAULT_POD_TEMPLATES : dict[str, dict] = {
                     'resources': {
                         'limits': {
                             'cpu': '{{USER_CPU}}',
-                            'memory': '{{USER_MEMORY}}',
-                            'ephemeral-storage': '{{USER_STORAGE}}'
+                            'memory': '{{ [USER_MEMORY_Gi, 1] | max }}Gi',
+                            'ephemeral-storage': '{{ [USER_STORAGE_Gi, 1] | max }}Gi'
                         },
                         'requests': {
                             'cpu': '1',
