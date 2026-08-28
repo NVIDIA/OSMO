@@ -75,32 +75,20 @@ if [ "$1" = get ]; then
     exit 0
 fi
 
-if [ "$1" = create ] && [ "$2" = secret ]; then
-    secret_name="$4"
-    cat >"$FAKE_STATE_DIRECTORY/pending-token"
-    printf '%s\n' \
-        'apiVersion: v1' \
-        'kind: Secret' \
-        'metadata:' \
-        "  name: $secret_name" \
-        'type: Opaque'
-    printf '%s' "$secret_name" >"$FAKE_STATE_DIRECTORY/pending-name"
-    exit 0
-fi
-
-if { [ "$1" = label ] || [ "$1" = annotate ]; } && [ "$2" = --local ]; then
-    cat
-    exit 0
-fi
-
 if [ "$1" = create ] && [ "$2" = -f ]; then
-    cat >/dev/null
-    secret_name=$(cat "$FAKE_STATE_DIRECTORY/pending-name")
+    manifest_file="$FAKE_STATE_DIRECTORY/created-secret.yaml"
+    cat >"$manifest_file"
+    secret_name=$(awk '$1 == "name:" { print $2; exit }' "$manifest_file")
+    encoded_token=$(awk '$1 == "token:" { print $2; exit }' "$manifest_file")
+    printf '%s' "$encoded_token" | base64 --decode \
+        >"$FAKE_STATE_DIRECTORY/pending-token"
     if [ "${FAKE_CREATE_FAILURE:-false}" = true ]; then
+        rm -f "$FAKE_STATE_DIRECTORY/pending-token"
         exit 1
     fi
     cp "$FAKE_STATE_DIRECTORY/pending-token" \
         "$FAKE_STATE_DIRECTORY/$secret_name.token"
+    rm -f "$FAKE_STATE_DIRECTORY/pending-token"
     if [ "${FAKE_CREATE_RACE:-false}" = true ]; then
         exit 1
     fi
@@ -124,6 +112,18 @@ run_bootstrap() {
         "$@"
 }
 
+require_command_count() {
+    local command=$1
+    local expected=$2
+    local actual
+    actual=$(grep -Fc -- "$command" "$FAKE_STATE_DIRECTORY/commands" || true)
+    if [[ "$actual" -ne "$expected" ]]; then
+        echo "Expected '$command' $expected times, found $actual" >&2
+        exit 1
+    fi
+}
+
+: >"$FAKE_STATE_DIRECTORY/commands"
 output=$(run_bootstrap --secret-name generated-token)
 generated_token=$(cat "$FAKE_STATE_DIRECTORY/generated-token.token")
 if [[ ${#generated_token} -ne 43 ]]; then
@@ -136,6 +136,17 @@ if [[ "$generated_token" == *[!A-Za-z0-9_-]* ]]; then
 fi
 if [[ "$output" == *"$generated_token"* ]]; then
     echo 'Bootstrap output exposed generated token material' >&2
+    exit 1
+fi
+require_command_count "get secret generated-token" 1
+require_command_count "create -f -" 1
+require_command_count "label --local" 0
+require_command_count "annotate --local" 0
+if ! grep -Fq 'app.kubernetes.io/managed-by: osmo-backend-token-bootstrap' \
+        "$FAKE_STATE_DIRECTORY/created-secret.yaml" || \
+        ! grep -Fq 'osmo.nvidia.com/credential-source: osmo-chart-bootstrap' \
+        "$FAKE_STATE_DIRECTORY/created-secret.yaml"; then
+    echo 'Created backend token Secret is missing managed metadata' >&2
     exit 1
 fi
 

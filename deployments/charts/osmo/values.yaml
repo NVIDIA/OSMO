@@ -78,13 +78,12 @@ embeddedDependencies:
         digest: sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a
         pullPolicy: IfNotPresent
       attempts: 30
-      backoffLimit: 3
+      backoffLimit: 5
       resources:
         requests:
-          cpu: 10m
+          cpu: 50m
           memory: 32Mi
         limits:
-          cpu: 100m
           memory: 128Mi
 
 # Connection details for dependencies owned outside this release. Each
