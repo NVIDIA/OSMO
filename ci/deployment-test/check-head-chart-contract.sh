@@ -99,9 +99,8 @@ if ! grep -q 'nvcr.io/nvstaging/osmo/backend-worker:head-contract' <<<"$operator
 fi
 
 if [[ ${#missing_contracts[@]} -gt 0 ]]; then
-    printf 'HEAD charts (%s) are incompatible with this checkout:\\n' \
-        "$service_version" >&2
-    printf '  - missing %s\\n' "${missing_contracts[@]}" >&2
+    printf 'HEAD charts (%s) are incompatible with this checkout:\n' "$service_version" >&2
+    printf '  - missing %s\n' "${missing_contracts[@]}" >&2
     echo "Refusing to provision Azure for a deployment that cannot start." >&2
     exit 1
 fi

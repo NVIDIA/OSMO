@@ -115,6 +115,7 @@ assert_file_contains 'reports service image contract' "$incompatible_output" \
     'missing HEAD service image'
 assert_file_contains 'reports operator image contract' "$incompatible_output" \
     'missing HEAD backend-listener image'
+assert_file_not_contains 'formats incompatibility report with real line breaks' "$incompatible_output" '\n'
 assert_file_not_contains 'does not print registry auth' "$incompatible_output" \
     'contract-test-api-key'
 
