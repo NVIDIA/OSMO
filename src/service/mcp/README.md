@@ -400,7 +400,7 @@ bazel build \
   --platforms=//bzl/platforms:linux_x86_64 \
   //src/service/mcp:mcp_image_x86_64
 bazel test //test/smoke:mcp-checks-pylint
-bash deployments/charts/service/ci/validate-mcp-chart.sh
+bash deployments/charts/service/tests/render-tests.sh
 ```
 
 The chart validation covers MCP-disabled, direct-provider, and in-process OIDC

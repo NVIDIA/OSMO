@@ -322,3 +322,88 @@ if grep -q 'osmo.nvidia.com/mek-consumer' <<<"$mek_render"; then
     echo 'Product chart rendered the KIND-only MEK consumer label' >&2
     exit 1
 fi
+
+# --- MCP -------------------------------------------------------------------
+# Behaviour only. Numeric ranges and URL shapes are enforced by MCPAuthConfig
+# at start-up; re-proving them here just duplicates the same contract in a
+# second language.
+
+mcp_values="$CHART_DIR/tests/mcp-proxy-values.yaml"
+
+disabled_render=$(helm template mcp-disabled "$CHART_DIR")
+for forbidden in 'name: osmo-mcp' 'cluster: osmo-mcp' 'path: /mcp'; do
+    if grep -q "$forbidden" <<<"$disabled_render"; then
+        echo "MCP is disabled but the render still contains: $forbidden" >&2
+        exit 1
+    fi
+done
+
+mcp_render=$(helm template mcp-test "$CHART_DIR" --values "$mcp_values")
+mcp_workload=$(helm template mcp-test "$CHART_DIR" --values "$mcp_values" \
+    --show-only templates/mcp-service.yaml)
+
+# FastMCP advertises its OAuth endpoints under /mcp; the gateway publishes that
+# prefix and rewrites it off before forwarding to the root paths the MCP SDK
+# registers. One prefix route, not an entry per endpoint name.
+mcp_route() {
+    # Stop at the next entry *at the route's own indentation*. Matching any
+    # "- name:" ends the route at its first header matcher, which hides
+    # everything below it -- including prefix_rewrite.
+    awk -v route="- name: $1" '
+        function indent(line) { match(line, /^ */); return RLENGTH }
+        index($0, route) { found = 1; depth = indent($0); next }
+        found && indent($0) == depth && /- name: / { exit }
+        found { print }
+    ' <<<"$mcp_render"
+}
+
+grep -q 'prefix: /mcp/' <<<"$(mcp_route mcp-oauth)"
+grep -q 'prefix_rewrite: /$' <<<"$(mcp_route mcp-oauth)"
+grep -q 'prefix_rewrite: /.well-known/oauth-authorization-server' \
+    <<<"$(mcp_route mcp-authorization-server-metadata)"
+
+# The /mcp prefix publishes the container's whole root namespace, so the health
+# endpoints are carved out ahead of it -- and the carve-out has to answer 404
+# itself rather than let jwt_authn answer 401 first.
+health_route=$(mcp_route mcp-health-not-public)
+grep -q 'status: 404' <<<"$health_route"
+grep -q 'envoy.filters.http.jwt_authn:' <<<"$health_route"
+grep -q 'envoy.filters.http.ext_authz:' <<<"$health_route"
+
+# The roles Lua filter has no other coverage in the repo.
+grep -q 'local safe_roles = {}' <<<"$mcp_render"
+grep -q "not string.find(role, '\[,%c\]')" <<<"$mcp_render"
+grep -q "table.concat(safe_roles, ',')" <<<"$mcp_render"
+
+# Redis connection details come from services.redis; only the database is local.
+grep -q 'value: "rediss://redis:6379/14"' <<<"$mcp_workload"
+
+# Values the deployment derives must not reappear as deployer inputs.
+for derived in OSMO_MCP_AUTH_ISSUER_URL OSMO_MCP_AUTH_SCOPE \
+        OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE \
+        OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL; do
+    if grep -q "name: $derived" <<<"$mcp_workload"; then
+        echo "MCP still asks for a derived value: $derived" >&2
+        exit 1
+    fi
+done
+
+# The proxy keeps its state in Redis, so scaling out must render.
+helm template mcp-scale "$CHART_DIR" --values "$mcp_values" \
+    --set 'services.mcp.replicas=2' >/dev/null
+
+# A deployer must not be able to redirect the relay through extraEnv.
+if helm template mcp-override "$CHART_DIR" --values "$mcp_values" \
+        --set-json 'services.mcp.extraEnv=[{"name":"OSMO_GATEWAY_URL","value":"https://evil.example.com"}]' \
+        >/dev/null 2>&1; then
+    echo 'MCP accepted an extraEnv override of a managed variable' >&2
+    exit 1
+fi
+
+# resourceUrl is the value everything else is derived from.
+if helm template mcp-bad-url "$CHART_DIR" --values "$mcp_values" \
+        --set 'services.mcp.resourceUrl=https://osmo.example.com%40evil.example.com/mcp' \
+        >/dev/null 2>&1; then
+    echo 'MCP accepted a malformed resourceUrl' >&2
+    exit 1
+fi
