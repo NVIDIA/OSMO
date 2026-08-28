@@ -27,32 +27,23 @@ routes, and an ingress NetworkPolicy. The recommended authentication mode passes
 FastMCP's built-in ``OIDCProxy`` directly to the existing MCP server; it does
 not deploy a second OAuth broker service.
 
-Authentication Modes
-====================
-
-OSMO supports two MCP authentication modes:
+Authentication
+==============
 
 .. list-table::
    :header-rows: 1
-   :widths: 24 38 38
+   :widths: 40 60
 
-   * - Mode
-     - Client configuration
+   * - Client configuration
      - Request authentication
-   * - OIDC proxy (recommended)
-     - The user configures only ``https://<osmo-host>/mcp``. FastMCP advertises
+   * - The user configures only ``https://<osmo-host>/mcp``. FastMCP advertises
        Client ID Metadata Documents (CIMD) and retains Dynamic Client
        Registration (DCR) as a compatibility fallback.
-     - FastMCP authenticates requests to the exact ``/mcp`` route in the MCP
-       process and relays the verified upstream access token to normal OSMO API
+     - FastMCP authenticates requests to the ``/mcp`` route in the MCP process
+       and relays the verified upstream access token to normal OSMO API
        authorization.
-   * - Direct identity provider
-     - The user might need a public OAuth client ID, scopes, and callback
-       settings supplied by the administrator.
-     - Gateway validates the bearer token and enforces ``mcp:Access`` before
-       forwarding requests to the exact ``/mcp`` route.
 
-In both modes, every tool call re-enters the OSMO Gateway and is authorized by
+Every tool call re-enters the OSMO Gateway and is authorized by
 the normal API action and pool scope. MCP never assumes a service identity and
 cannot elevate the user. See :ref:`mcp_identity_permissions` and
 :ref:`actions_resources_reference`.
@@ -60,7 +51,7 @@ cannot elevate the user. See :ref:`mcp_identity_permissions` and
 Shared Prerequisites
 ====================
 
-Before enabling either mode:
+Before enabling MCP:
 
 * Keep ``gateway.envoy.enabled`` and ``gateway.authz.enabled`` set to ``true``.
 * Configure a ``gateway.envoy.jwt.providers`` entry that validates the bearer
@@ -70,7 +61,7 @@ Before enabling either mode:
   ``services.mcp.resourceUrl`` to that origin plus the exact ``/mcp`` path.
 * Ensure that the MCP pod can resolve and reach the public Gateway origin.
 * Grant users the API actions and pool-scoped permissions required by the
-  tools they can call. Direct mode additionally requires ``mcp:Access``.
+  tools they can call.
 * Keep Gateway NetworkPolicy enforcement enabled and ensure that no broader
   policy unintentionally permits direct ingress to the MCP pod.
 
@@ -197,11 +188,6 @@ to the deployment:
            redisPasswordKey: redis-password
 
 Blank OIDC proxy Redis host and port values inherit ``services.redis``.
-``services.mcp.authorizationServers`` and ``services.mcp.scopes`` are ignored
-while the proxy is enabled. Keep ``services.mcp.replicas`` at ``1`` because
-the current refresh lock is process-local and does not serialize refreshes
-across replicas.
-
 Native clients normally omit ``Origin`` and need no extra configuration. For a
 browser-hosted MCP client, ``services.mcp.allowedOrigins`` controls which
 browser origins may call ``/mcp``.
@@ -235,38 +221,6 @@ upstream provider omits refresh-token expiry.
 ``offline_access`` lets the proxy request a refresh token so a session can
 renew without another browser sign-in. It does not grant additional OSMO
 permissions.
-
-Configure Direct Identity-Provider Mode
-=======================================
-
-Use direct mode when clients are already registered with the identity provider
-and the deployment does not need endpoint-only setup.
-
-Register a public or native OAuth client with authorization code flow and PKCE
-with ``S256``. Do not create or distribute a client secret for that public
-client. Then configure:
-
-.. code-block:: yaml
-
-   services:
-     mcp:
-       enabled: true
-       resourceUrl: https://osmo.example.com/mcp
-       oidcProxy:
-         enabled: false
-       authorizationServers:
-       - https://issuer.example.com/
-       scopes:
-       - api://<resource-id>/access_as_user
-       # Browser-hosted clients only:
-       # allowedOrigins:
-       # - https://client.example.com
-
-``authorizationServers`` contains issuer identifiers, not authorization or
-token endpoints. ``scopes`` contains the resource scopes advertised to
-clients. Configure Gateway JWT validation from the access token's actual
-issuer and audience; the public client ID is not a Helm value and is not
-necessarily the token audience.
 
 Deploy or Upgrade
 =================
@@ -322,8 +276,6 @@ For OIDC proxy mode, give users only the MCP URL. Clients discover scopes from
 the proxy metadata, and the proxy accepts native loopback redirects
 automatically.
 
-For direct mode, also give users the public client ID, complete OAuth scope
-list, and client-specific callback requirements. Direct users to
 :ref:`getting_started_mcp`.
 
 Operate OIDC Proxy Safely
@@ -365,7 +317,7 @@ Troubleshooting
    * - Metadata returns ``404`` or unexpected values
      - Verify that ``services.mcp.enabled`` is true, DNS points to this
        release's Gateway, and ``resourceUrl`` ends with the exact path
-       ``/mcp``. In proxy mode, also verify ``oidcProxy.enabled`` and the
+       ``/mcp``. Also verify the
        authorization-server metadata route.
    * - MCP pod does not become ready
      - Inspect configuration and credential-file errors first. The client
@@ -386,7 +338,7 @@ Troubleshooting
      - Have the user log out and authenticate again. If it persists, verify the
        FastMCP token route and proxy session state.
    * - MCP initialization returns ``HTTP 403``
-     - In direct mode, verify ``mcp:Access``. In OIDC proxy mode, verify the
+     - Verify the
        advertised full MCP scope and the scope on the issued FastMCP resource
        token.
    * - A tool returns ``HTTP 403``
@@ -402,8 +354,6 @@ Troubleshooting
 Rollback
 ========
 
-To return to direct mode, disable ``services.mcp.oidcProxy.enabled``, restore
-``authorizationServers`` and ``scopes``, and redeploy. Existing proxy sessions
-will no longer authenticate; users must configure and log in through the
-direct provider. The MCP tool catalog and API-specific permissions do not
-change.
+To roll back, disable ``services.mcp.enabled`` and redeploy. Clients lose the
+MCP endpoint; no other OSMO route is affected. The MCP tool catalog and
+API-specific permissions do not change.

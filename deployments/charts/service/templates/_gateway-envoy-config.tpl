@@ -31,16 +31,11 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcp := .Values.services.mcp }}
 {{- $mcpEnabled := $mcp.enabled | default false }}
 {{- $mcpOidcProxy := $mcp.oidcProxy }}
-{{- if and ($mcpOidcProxy.enabled | default false) (not $mcpEnabled) }}
-{{- fail "services.mcp.oidcProxy.enabled requires services.mcp.enabled=true" }}
-{{- end }}
-{{- $mcpOidcProxyEnabled := and $mcpEnabled ($mcpOidcProxy.enabled | default false) }}
+{{- $mcpOidcProxyEnabled := $mcpEnabled }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
 {{- $mcpResourceUrl := "" }}
 {{- $mcpMetadataUrl := "" }}
-{{- $mcpAuthorizationServers := $mcp.authorizationServers }}
-{{- $mcpScopes := $mcp.scopes }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
@@ -54,28 +49,6 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.enabled requires gateway.authz.enabled=true" }}
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp-resource-url" . }}
-{{- if not $mcpOidcProxyEnabled }}
-{{- if not (kindIs "slice" $mcp.authorizationServers) }}
-{{- fail "services.mcp.authorizationServers must be a list" }}
-{{- end }}
-{{- if eq (len $mcp.authorizationServers) 0 }}
-{{- fail "services.mcp.authorizationServers must contain at least one issuer when MCP is enabled" }}
-{{- end }}
-{{- if not (kindIs "slice" $mcp.scopes) }}
-{{- fail "services.mcp.scopes must be a list" }}
-{{- end }}
-{{- if eq (len $mcp.scopes) 0 }}
-{{- fail "services.mcp.scopes must contain at least one scope when MCP is enabled" }}
-{{- end }}
-{{- range $scope := $mcp.scopes }}
-{{- if not (kindIs "string" $scope) }}
-{{- fail "services.mcp.scopes entries must be strings" }}
-{{- end }}
-{{- if eq (trim $scope) "" }}
-{{- fail "services.mcp.scopes entries must not be empty" }}
-{{- end }}
-{{- end }}
-{{- end }}
 {{- if not $envoy.jwt.providers }}
 {{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
 {{- end }}
@@ -299,27 +272,9 @@ data:
                     - name: ":method"
                       string_match:
                         exact: GET
-                  {{- if $mcpOidcProxyEnabled }}
                   route:
                     cluster: osmo-mcp
                     timeout: 15s
-                  {{- else }}
-                  direct_response:
-                    status: 200
-                    body:
-                      inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcpAuthorizationServers "bearer_methods_supported" (list "header") "scopes_supported" $mcpScopes | toJson | quote }}
-                  {{- end }}
-                  response_headers_to_add:
-                  - header:
-                      key: content-type
-                      value: application/json
-                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
-                  # Inspector completes OAuth in its browser UI and fetches
-                  # this public, non-secret discovery document from localhost.
-                  - header:
-                      key: access-control-allow-origin
-                      value: "*"
-                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
                   typed_per_filter_config:
                     {{- include "osmo.gateway-auth-filters-disabled" . | nindent 20 }}
 
@@ -470,35 +425,6 @@ data:
                       disabled: true
                   {{- end }}
                 {{- end }}
-
-            {{- if $mcpEnabled }}
-            # jwt_authn emits an Envoy local 401 before the router runs. Replace
-            # its generic bearer challenge only for the exact MCP endpoint so
-            # standards-compatible clients can discover RFC 9728 metadata.
-            local_reply_config:
-              mappers:
-              - filter:
-                  and_filter:
-                    filters:
-                    - status_code_filter:
-                        comparison:
-                          op: EQ
-                          value:
-                            default_value: 401
-                            runtime_key: osmo.mcp.jwt_unauthorized_status
-                    - header_filter:
-                        header:
-                          name: ":path"
-                          string_match:
-                            safe_regex:
-                              google_re2: {}
-                              regex: "^/mcp([?].*)?$"
-                headers_to_add:
-                - header:
-                    key: www-authenticate
-                    value: {{ printf "Bearer resource_metadata=%q" $mcpMetadataUrl | quote }}
-                  append_action: OVERWRITE_IF_EXISTS_OR_ADD
-            {{- end }}
 
             upgrade_configs:
             - upgrade_type: websocket

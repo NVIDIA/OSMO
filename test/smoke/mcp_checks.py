@@ -37,6 +37,7 @@ _EXPECTED_TOOL_NAMES = frozenset({
     "osmo_list_apps",
     "osmo_list_credentials",
     "osmo_list_resources",
+    "osmo_list_tasks",
     "osmo_list_workflows",
     "osmo_search_pools",
     "osmo_restart_workflow",
@@ -103,17 +104,77 @@ class McpChecks(SmokeFixture):
             self.fail("MCP returned an invalid JSON-RPC result.")
         return result
 
+    def _base_url(self):
+        return self.config.url.rstrip("/")
+
+    def _protected_resource_metadata(self):
+        """Fetch the public RFC 9728 document. No authentication required."""
+        response = requests.get(
+            f"{self._base_url()}/.well-known/oauth-protected-resource/mcp",
+            timeout=10,
+            allow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def _is_proxy_mode(self):
+        """Whether FastMCP, rather than the Gateway, authenticates /mcp.
+
+        In proxy mode the deployment advertises itself as the authorization
+        server; in direct mode it advertises the upstream identity provider.
+        """
+        servers = self._protected_resource_metadata().get(
+            "authorization_servers"
+        ) or []
+        return any(
+            str(server).startswith(self._base_url()) for server in servers
+        )
+
+    def _require_mcp_authentication(self):
+        """Skip unless a caller token issued by MCP's own proxy is supplied.
+
+        FastMCP issues its own token to the client and keeps the upstream
+        identity-provider token server-side, validating it by JTI lookup on
+        each request. So neither the OSMO-issued OETF token nor a raw
+        identity-provider token authenticates to /mcp.
+        """
+        if os.environ.get("OSMO_MCP_ACCESS_TOKEN"):
+            return
+        if self._is_proxy_mode():
+            self.skipTest(
+                "MCP authenticates callers with a token its own OAuth proxy "
+                "issues, so the OSMO-issued OETF token cannot reach /mcp. Set "
+                "OSMO_MCP_ACCESS_TOKEN to a token obtained by completing the "
+                "OAuth flow against <deployment>/mcp to run these checks."
+            )
+
     def _mcp_request(self, request_id, method, params):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params,
+        }
+        override_token = os.environ.get("OSMO_MCP_ACCESS_TOKEN")
+        if override_token:
+            headers = dict(_MCP_ACCEPT_HEADERS)
+            headers["Authorization"] = f"Bearer {override_token}"
+            http_response = requests.post(
+                f"{self._base_url()}/mcp",
+                headers=headers,
+                json=payload,
+                timeout=30,
+                allow_redirects=False,
+            )
+            self.assertEqual(
+                http_response.status_code, 200, http_response.text
+            )
+            return self._jsonrpc_result(http_response.json(), request_id)
         response = self.service_client.request(
             method=RequestMethod.POST,
             endpoint="mcp",
             headers=dict(_MCP_ACCEPT_HEADERS),
-            payload={
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "method": method,
-                "params": params,
-            },
+            payload=payload,
             version_header=False,
         )
         return self._jsonrpc_result(response, request_id)
@@ -135,8 +196,13 @@ class McpChecks(SmokeFixture):
             self.fail(f"MCP tool {name} returned an unsuccessful result.")
         return structured_content
 
-    def test_catalog_profile_and_credential_parity(self):
-        base_url = self.config.url.rstrip("/")
+    def test_public_discovery_surface(self):
+        """The unauthenticated surface clients rely on to bootstrap OAuth.
+
+        Runs in both authentication modes: it needs no caller token, which is
+        the point -- a client discovers how to authenticate before it can.
+        """
+        base_url = self._base_url()
         unauthenticated_response = requests.post(
             f"{base_url}/mcp",
             headers=dict(_MCP_ACCEPT_HEADERS),
@@ -156,6 +222,47 @@ class McpChecks(SmokeFixture):
             ).startswith("Bearer resource_metadata=")
         )
 
+        metadata = self._protected_resource_metadata()
+        self.assertEqual(metadata.get("resource"), f"{base_url}/mcp")
+        self.assertTrue(
+            metadata.get("authorization_servers"),
+            "protected-resource metadata advertises no authorization server.",
+        )
+
+        if not self._is_proxy_mode():
+            return
+
+        # FastMCP owns the OAuth surface, so it must advertise its endpoints
+        # under /mcp rather than on the shared Gateway root.
+        authorization_metadata = requests.get(
+            f"{base_url}/.well-known/oauth-authorization-server/mcp",
+            timeout=10,
+            allow_redirects=False,
+        )
+        self.assertEqual(
+            authorization_metadata.status_code,
+            200,
+            authorization_metadata.text,
+        )
+        self.assertEqual(
+            authorization_metadata.json().get("authorization_endpoint"),
+            f"{base_url}/mcp/authorize",
+        )
+
+        # The /mcp prefix route publishes the container root, so the health
+        # endpoints are carved out ahead of it.
+        for path in ("/mcp/health", "/mcp/health/live"):
+            health = requests.get(
+                f"{base_url}{path}", timeout=10, allow_redirects=False
+            )
+            self.assertEqual(
+                health.status_code,
+                404,
+                f"{path} is reachable from the internet.",
+            )
+
+    def test_catalog_profile_and_credential_parity(self):
+        self._require_mcp_authentication()
         catalog_result = self._mcp_request(1, "tools/list", {})
         catalog_tools = catalog_result.get("tools")
         if not isinstance(catalog_tools, list) or not all(
@@ -280,6 +387,7 @@ class McpChecks(SmokeFixture):
         )
 
     def test_workflow_validation_round_trip(self):
+        self._require_mcp_authentication()
         pool = self.config.pool
         if not pool:
             self.fail("OETF_POOL must select a workflow validation pool.")

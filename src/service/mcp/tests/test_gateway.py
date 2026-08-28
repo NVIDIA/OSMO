@@ -76,7 +76,6 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
     ) -> request_context.RequestCredentials:
         return request_context.RequestCredentials(
             authorization_header=authorization_header,
-            user_name='alice@example.com',
             request_id=request_id,
         )
 
@@ -169,7 +168,6 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
 
         credentials = request_context.RequestCredentials(
             authorization_header='Bearer telemetry-bearer-secret-1234567890',
-            user_name='private-user@example.com',
             request_id='safe-request-123',
         )
         async with gateway.create_app_context(

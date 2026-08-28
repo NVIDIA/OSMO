@@ -35,7 +35,6 @@ from src.service.mcp import (
     gateway,
     protocol,
     request_body,
-    request_context,
     tool_registry,
 )
 from src.utils import ssl_config, static_config
@@ -141,14 +140,6 @@ def create_application(
             request_body.MCP_REQUEST_BODY_TIMEOUT_SECONDS
         ),
     )
-    if protocol_server.auth is None:
-        # Direct deployments still trust Gateway-injected identity headers and
-        # retain the original fail-before-body and header-stripping boundary.
-        # In OIDC mode FastMCP must receive Authorization itself.
-        application.add_middleware(
-            request_context.RequestContextMiddleware,
-            path='/mcp',
-        )
     return application
 
 
@@ -156,15 +147,19 @@ def create_runtime_application(
     config: MCPServiceConfig,
     *,
     http_transport: httpx.AsyncBaseTransport | None = None,
+    auth_provider: AuthProvider | None = None,
 ) -> Starlette:
-    """Create the production application and process-lifetime Gateway client."""
+    """Create the production application and process-lifetime Gateway client.
+
+    ``http_transport`` and ``auth_provider`` are test seams. Production passes
+    neither: the Gateway client uses the network and the auth provider is built
+    from configuration, which is the only way the service authenticates.
+    """
     auth_runtime = (
-        auth.create_auth_runtime(config)
-        if config.auth_enabled
-        else None
+        None if auth_provider is not None else auth.create_auth_runtime(config)
     )
     protocol_server = create_mcp_server(
-        auth_runtime.provider if auth_runtime is not None else None,
+        auth_provider if auth_runtime is None else auth_runtime.provider,
     )
     # FastMCP serves its browser consent page on this deployment's own origin,
     # and a same-origin form POST still carries an Origin header. Supplying any
