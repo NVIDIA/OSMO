@@ -44,14 +44,16 @@ Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--
 
 `deploy-osmo-umbrella-single-plane.sh` is a separate, linear Azure example for
 an isolated sandbox. Run it only inside a newly created `azure-sandbox assume`
-subshell. Before running it, securely provide these three Terraform inputs in
-that shell: `TF_VAR_resource_group_name` (the isolated sandbox resource group),
-`TF_VAR_cluster_name` (a globally unique AKS name), and
-`TF_VAR_postgres_password`. Do not put credential values in shell history,
-values files, or documentation.
+subshell. The only required input is `TF_VAR_resource_group_name`, naming the
+existing sandbox resource group. Terraform generates a stable cluster name and
+PostgreSQL password in its state; `TF_VAR_cluster_name` and
+`TF_VAR_postgres_password` remain optional overrides. Install GNU gettext for
+the script's `envsubst` command before running it.
 
 ```bash
-azure-sandbox assume
+~/workspace/azure-sandbox create
+~/workspace/azure-sandbox/azure-sandbox assume <new-sandbox-name>
+export TF_VAR_resource_group_name=<new-sandbox-resource-group>
 ./deploy-osmo-umbrella-single-plane.sh
 ```
 
@@ -76,12 +78,17 @@ enough allocatable CPU for the control plane and the representative workflow on
 the same AKS pool. Set that Terraform variable explicitly to choose another VM
 size with equivalent capacity.
 
-The script provisions its AKS, PostgreSQL, Valkey, and Azure Storage inputs
-with Terraform, installs KAI Scheduler, and creates the Kubernetes credential
-Secrets directly in the `osmo` namespace. It writes a non-secret,
-Azure-specific overlay at `${TMPDIR:-/tmp}/single-plane-azure.yaml`; that file
-contains connection data, exact `azure://` locations, image selections, and
-references to the pre-provisioned Secrets. The chart base remains
+The script provisions its AKS, PostgreSQL, Valkey, Azure Storage Account, and
+Blob managed identity with Terraform, then installs KAI Scheduler. Shared Key
+authorization and public Blob access are disabled on the Storage Account. AKS
+Workload Identity authenticates the API, worker, and workflow pods, so the
+script creates no object-storage credential Secret; PostgreSQL, Valkey, and
+backend bootstrap credentials retain their existing Secret flow.
+
+The checked-in `single-plane-azure.yaml.envsubst` template renders to the
+non-secret `${TMPDIR:-/tmp}/single-plane-azure.yaml`. It contains connection
+data, exact `azure://` locations, image selections, and workload-identity
+metadata. The chart base remains
 provider-neutral `deployments/charts/osmo/profiles/single-plane.yaml`, which is
 always layered before the generated overlay. The overlay uses the in-cluster
 `http://osmo-gateway` URL so workflow runtime containers can reach the control

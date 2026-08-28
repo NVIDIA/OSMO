@@ -13,7 +13,7 @@ values take precedence.
 | --- | --- | --- |
 | `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `compute.backendName` set explicitly at install time |
 | `kind-self-contained.yaml` | Yes, on kind | KAI Scheduler and the CloudNativePG operator installed separately; `compute.backendName` set explicitly at install time |
-| `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; Kubernetes Secrets; `externalUrl`; and `compute.backendName` |
+| `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; required Kubernetes Secrets for static authentication; `externalUrl`; and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
@@ -29,7 +29,10 @@ values file before installation.
 `single-plane.yaml` enables both planes with externally managed dependencies.
 It is provider-neutral and is not directly installable: layer it before a
 site-specific values file that supplies the required dependency locations and
-connection details. For example:
+connection details. Object storage defaults to static Secret authentication;
+sites using a cloud SDK identity can set
+`externalDependencies.objectStorage.authentication.type: sdkDefault` instead.
+For example:
 
 ```bash
 helm upgrade --install osmo deployments/charts/osmo \

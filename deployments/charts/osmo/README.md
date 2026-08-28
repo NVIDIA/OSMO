@@ -196,8 +196,16 @@ three locations must use the same URI scheme. The URI scheme selects the storage
 backend: Azure locations use `azure://<account>/<container>/<prefix>`, while S3
 locations use `s3://<bucket>/<prefix>`. Azure locations forbid the S3-only
 settings in `externalDependencies.objectStorage.s3`; set that block only for S3
-locations. Store the credentials for all three locations in one pre-provisioned
-Kubernetes credential Secret, referenced by `secrets.objectStorage.existingSecret`.
+locations. Authentication is independent of the URI scheme:
+
+- `authentication.type: static` is the default. Store credentials for all
+  three locations in one pre-provisioned Kubernetes Secret selected by
+  `secrets.objectStorage.existingSecret`.
+- `authentication.type: sdkDefault` omits static credential mounts and lets the
+  provider SDK discover credentials, such as Azure DefaultAzureCredential, the
+  AWS default credential provider chain, or Google Application Default
+  Credentials. Leave `secrets.objectStorage.existingSecret` empty.
+
 Do not place credential material in values files or Helm command lines.
 
 For example, an Azure site overlay contains only its connection values and
@@ -206,6 +214,8 @@ locations:
 ```yaml
 externalDependencies:
   objectStorage:
+    authentication:
+      type: sdkDefault
     locations:
       workflows: azure://osmoazure/osmo-workflows/workflows
       logs: azure://osmoazure/osmo-workflows/logs
@@ -217,6 +227,8 @@ An S3 site uses the S3 URI scheme and its S3-specific settings instead:
 ```yaml
 externalDependencies:
   objectStorage:
+    authentication:
+      type: static
     locations:
       workflows: s3://osmo-workflows/workflows
       logs: s3://osmo-logs/logs
