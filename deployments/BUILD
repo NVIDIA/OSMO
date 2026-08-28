@@ -22,4 +22,5 @@ exports_files([
     "scripts/single-plane-azure.yaml.envsubst",
     "scripts/deploy-k8s.sh",
     "scripts/verify.sh",
+    "workflows/verify-hello.yaml",
 ])

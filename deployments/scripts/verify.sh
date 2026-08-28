@@ -20,7 +20,8 @@
 #
 # Submits two workflows via `osmo workflow submit` and polls until each reaches
 # a terminal state:
-#   - verify-hello.yaml — alpine task, proves scheduling + backend round-trip
+#   - verify-hello.yaml — two alpine tasks, proves scheduling and an
+#     object-storage round trip
 #   - verify-gpu.yaml   — nvidia-smi task, proves the pool has GPU capacity
 #
 # Skips the GPU test if SKIP_GPU=1 (use on CPU-only clusters).
@@ -140,6 +141,14 @@ run_workflow() {
             | jq -r '.status // .state // "UNKNOWN"')
         case "$status" in
             COMPLETED)
+                if ! osmo workflow spec "$wf_id" >/dev/null; then
+                    log_error "Failed to fetch completed workflow spec for $wf_id"
+                    return 1
+                fi
+                if ! osmo workflow logs "$wf_id"; then
+                    log_error "Failed to fetch completed workflow logs for $wf_id"
+                    return 1
+                fi
                 log_success "$label: COMPLETED"
                 return 0
                 ;;

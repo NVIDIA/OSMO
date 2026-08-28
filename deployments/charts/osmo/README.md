@@ -128,6 +128,8 @@ osmo workflow query <workflow-id> --format-type json
 ```
 
 Repeat the query until the workflow status is `COMPLETED`.
+The workflow passes a marker between its two tasks through the configured
+object store, so completion validates both upload and download access.
 
 ### Troubleshooting and cleanup
 
@@ -317,6 +319,8 @@ osmo workflow query <workflow-id> --format-type json
 Repeat the query until the workflow status is `COMPLETED`. A `FAILED` or
 `CANCELLED` status is an acceptance failure; inspect `osmo workflow logs` and
 namespace events before retrying.
+The workflow passes a marker between its two tasks through the configured
+object store, so completion validates both upload and download access.
 
 The profile creates the three object-storage buckets and wires their RustFS
 endpoint and credential Secret into the control plane. It also creates a

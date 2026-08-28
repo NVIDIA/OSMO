@@ -764,6 +764,17 @@ test_control_umbrella() {
         "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "secretName: osmo-runtime-pull"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
+        "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        "serviceAccountName: osmo-worker"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        'azure.workload.identity/use: "true"'
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ServiceAccount \
+        "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker-service-account.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/single-plane-azure-worker-service-account.yaml" \
+        "azure.workload.identity/client-id: single-plane-test-client-id"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "cpu: '{{USER_CPU}}'"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \

@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Basic smoke test — no data I/O, no GPU. Succeeds iff OSMO can schedule a
-# trivial container on the pool and the backend-operator reports back.
+# Basic smoke test — no GPU. Succeeds iff OSMO can schedule two dependent
+# tasks and round-trip their intermediate data through configured object storage.
 workflow:
   name: verify-hello
   timeout:
@@ -14,12 +14,26 @@ workflow:
       memory: 1Gi
       storage: 1Gi
   tasks:
-  - name: hello
+  - name: produce
     image: alpine:3.20
     resource: tiny
     command: ["sh", "-c"]
     args:
     - |
       set -e
+      mkdir -p {{output}}
+      echo "OSMO object storage round trip" > {{output}}/marker.txt
       echo "Hello from OSMO"
-      echo "Task ran on $(hostname) at $(date -u +%FT%TZ)"
+  - name: consume
+    image: alpine:3.20
+    resource: tiny
+    command: ["sh", "-c"]
+    args:
+    - |
+      set -e
+      test "$(cat {{input:0}}/marker.txt)" = "OSMO object storage round trip"
+      mkdir -p {{output}}
+      cp {{input:0}}/marker.txt {{output}}/verified.txt
+      echo "Object storage round trip verified"
+    inputs:
+    - task: produce

@@ -41,3 +41,14 @@ sh_test(
         "//deployments:scripts/verify.sh",
     ],
 )
+
+sh_test(
+    name = "test_verify",
+    size = "small",
+    srcs = ["test_verify.sh"],
+    data = [
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/verify.sh",
+        "//deployments:workflows/verify-hello.yaml",
+    ],
+)

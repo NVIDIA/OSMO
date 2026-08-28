@@ -73,7 +73,7 @@ pull Secret is optional. The repository prefix applies to every OSMO-owned
 component and to workflow runtime images; third-party prerequisite images keep
 their chart defaults.
 
-The script defaults `TF_VAR_node_instance_type` to `Standard_D4s_v3`, leaving
+The script defaults `TF_VAR_node_instance_type` to `Standard_D8s_v3`, leaving
 enough allocatable CPU for the control plane and the representative workflow on
 the same AKS pool. Set that Terraform variable explicitly to choose another VM
 size with equivalent capacity.
@@ -99,7 +99,9 @@ MEK bootstrap hook, and the second upgrade disables it after the generated MEK
 has been retained. The gateway remains `ClusterIP`; the script starts a local
 port-forward at `http://127.0.0.1:9000` instead of configuring ingress. Finally,
 it calls `verify.sh` with `SKIP_GPU=1`, which submits the representative
-`deployments/workflows/verify-hello.yaml` workflow.
+`deployments/workflows/verify-hello.yaml` workflow. Its two tasks upload and
+download a marker through the configured object store; verification also reads
+the stored workflow specification and successful logs before returning.
 
 ## Deployment Combinations
 

@@ -51,8 +51,8 @@ resource "azapi_resource" "single_plane_storage_account" {
 resource "azapi_resource" "single_plane_storage_container" {
   count     = var.single_plane_workload_identity_enabled ? 1 : 0
   type      = "Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01"
-  name      = "default/osmo-workflows"
-  parent_id = azapi_resource.single_plane_storage_account[0].id
+  name      = "osmo-workflows"
+  parent_id = "${azapi_resource.single_plane_storage_account[0].id}/blobServices/default"
 
   body = {
     properties = {
@@ -72,17 +72,17 @@ resource "azurerm_user_assigned_identity" "single_plane_blob" {
 resource "azurerm_federated_identity_credential" "single_plane_blob" {
   for_each = var.single_plane_workload_identity_enabled ? local.single_plane_service_accounts : toset([])
 
-  name                = each.value
-  resource_group_name = data.azurerm_resource_group.main.name
-  parent_id           = azurerm_user_assigned_identity.single_plane_blob[0].id
-  audience            = ["api://AzureADTokenExchange"]
-  issuer              = azurerm_kubernetes_cluster.main.oidc_issuer_url
-  subject             = "system:serviceaccount:osmo:${each.value}"
+  name                      = each.value
+  user_assigned_identity_id = azurerm_user_assigned_identity.single_plane_blob[0].id
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = azurerm_kubernetes_cluster.main.oidc_issuer_url
+  subject                   = "system:serviceaccount:osmo:${each.value}"
 }
 
 resource "azurerm_role_assignment" "single_plane_blob" {
-  count                = var.single_plane_workload_identity_enabled ? 1 : 0
-  scope                = azapi_resource.single_plane_storage_account[0].id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_user_assigned_identity.single_plane_blob[0].principal_id
+  count                            = var.single_plane_workload_identity_enabled ? 1 : 0
+  scope                            = azapi_resource.single_plane_storage_account[0].id
+  role_definition_name             = "Storage Blob Data Contributor"
+  principal_id                     = azurerm_user_assigned_identity.single_plane_blob[0].principal_id
+  skip_service_principal_aad_check = true
 }

@@ -25,7 +25,7 @@ done
 TF_VAR_subscription_id="$(az account show --query id --output tsv)"
 export TF_VAR_subscription_id TF_VAR_single_plane_workload_identity_enabled=true
 export TF_VAR_storage_account_enabled=false TF_VAR_aks_private_cluster_enabled=false
-export TF_VAR_node_instance_type="${TF_VAR_node_instance_type:-Standard_D4s_v3}"
+export TF_VAR_node_instance_type="${TF_VAR_node_instance_type:-Standard_D8s_v3}"
 terraform -chdir="$TERRAFORM_DIR" init
 terraform -chdir="$TERRAFORM_DIR" apply -auto-approve
 AKS_CLUSTER_NAME="$(terraform -chdir="$TERRAFORM_DIR" output -raw aks_cluster_name)"

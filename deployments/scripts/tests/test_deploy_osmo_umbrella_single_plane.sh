@@ -53,7 +53,7 @@ write_mock az '#!/bin/bash' 'set -euo pipefail' 'echo "az $*" >>"$COMMAND_LOG"' 
     'if [[ "$1 $2" == "account show" ]]; then echo test-subscription; fi'
 # shellcheck disable=SC2016 # Mock bodies intentionally defer expansion to execution.
 write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform $*" >>"$COMMAND_LOG"' \
-    '[[ "${TF_VAR_node_instance_type:-}" == "Standard_D4s_v3" ]] || exit 18' \
+    '[[ "${TF_VAR_node_instance_type:-}" == "Standard_D8s_v3" ]] || exit 18' \
     '[[ "${TF_VAR_single_plane_workload_identity_enabled:-}" == "true" ]] || exit 19' \
     'if [[ "$*" == *"output -raw"* ]]; then' \
     '  case "${!#}" in' \
@@ -130,6 +130,7 @@ assert_contains "$values_file" 'type: sdkDefault'
 assert_contains "$values_file" 'existingSecret: osmo-postgresql'
 assert_contains "$values_file" 'existingSecret: osmo-valkey'
 assert_not_contains "$values_file" 'existingSecret: osmo-object-storage'
+assert_contains "$values_file" '      create: true'
 assert_contains "$values_file" 'azure.workload.identity/client-id: "11111111-2222-3333-4444-555555555555"'
 assert_contains "$values_file" 'azure.workload.identity/use: "true"'
 assert_contains "$values_file" 'serviceAccountName: osmo-workflow'
