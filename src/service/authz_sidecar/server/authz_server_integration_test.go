@@ -129,6 +129,24 @@ func TestIntegration(t *testing.T) {
 				method:   "GET",
 				wantCode: codes.OK,
 			},
+			{
+				name:     "admin cannot access operator endpoints",
+				path:     "/api/agent/listener/status",
+				method:   "GET",
+				wantCode: codes.PermissionDenied,
+			},
+			{
+				name:     "admin cannot access logger endpoints",
+				path:     "/api/logger/workflow/test-workflow/osmo_ctrl/logs",
+				method:   "GET",
+				wantCode: codes.PermissionDenied,
+			},
+			{
+				name:     "admin cannot access router backend endpoints",
+				path:     "/api/router/exec/test-workflow/backend/connect",
+				method:   "WEBSOCKET",
+				wantCode: codes.PermissionDenied,
+			},
 		}
 
 		for _, tt := range tests {
