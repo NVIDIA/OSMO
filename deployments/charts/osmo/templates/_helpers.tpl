@@ -406,12 +406,12 @@ data:
 {{- end -}}
 
 {{- define "osmo.secrets.mekVolume" -}}
-{{- with .Values.secrets.masterEncryptionKey.secretRef.name }}
+{{- with .Values.secrets.masterEncryptionKey.existingSecret.name }}
 - name: mek-volume
   secret:
     secretName: {{ . | quote }}
     items:
-    - key: {{ required "secrets.masterEncryptionKey.secretRef.key is required" $.Values.secrets.masterEncryptionKey.secretRef.key | quote }}
+    - key: {{ required "secrets.masterEncryptionKey.existingSecret.key is required" $.Values.secrets.masterEncryptionKey.existingSecret.key | quote }}
       path: "mek.yaml"
 {{- end }}
 {{- end -}}

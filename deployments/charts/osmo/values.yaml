@@ -295,8 +295,8 @@ secrets:
   masterEncryptionKey:
     # OSMO-managed lifecycle Jobs create and rotate the referenced Secret.
     # External ownership mounts the reference without Secret mutation.
-    managedBy: external
-    secretRef:
+    managementMode: external
+    existingSecret:
       name: ''
       key: mek.yaml
     bootstrap:

@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {{- $mek := .Values.secrets.masterEncryptionKey -}}
-{{- $secretName := $mek.secretRef.name -}}
-{{- $secretKey := $mek.secretRef.key -}}
+{{- $secretName := $mek.existingSecret.name -}}
+{{- $secretKey := $mek.existingSecret.key -}}
 {{- $operation := $mek.rotation.phase -}}
-{{- if not (has $mek.managedBy (list "external" "osmo")) -}}
-{{- fail "secrets.masterEncryptionKey.managedBy must be external or osmo" -}}
+{{- if not (has $mek.managementMode (list "external" "osmo")) -}}
+{{- fail "secrets.masterEncryptionKey.managementMode must be external or osmo" -}}
 {{- end -}}
 {{- if not (has $operation (list "" "prepare" "activate" "rewrap")) -}}
 {{- fail "secrets.masterEncryptionKey.rotation.phase must be empty, prepare, activate, or rewrap" -}}
@@ -14,19 +14,19 @@
 {{- if and $operation (not $mek.rotation.requestId) -}}
 {{- fail "secrets.masterEncryptionKey.rotation.requestId is required for a lifecycle phase" -}}
 {{- end -}}
-{{- if and (has $operation (list "prepare" "activate")) (ne $mek.managedBy "osmo") -}}
-{{- fail "prepare and activate require managedBy=osmo; external operators update the Secret directly" -}}
+{{- if and (has $operation (list "prepare" "activate")) (ne $mek.managementMode "osmo") -}}
+{{- fail "prepare and activate require managementMode=osmo; external operators update the Secret directly" -}}
 {{- end -}}
-{{- if and $mek.bootstrap.enabled (ne $mek.managedBy "osmo") -}}
-{{- fail "secrets.masterEncryptionKey.bootstrap.enabled requires managedBy=osmo" -}}
+{{- if and $mek.bootstrap.enabled (ne $mek.managementMode "osmo") -}}
+{{- fail "secrets.masterEncryptionKey.bootstrap.enabled requires managementMode=osmo" -}}
 {{- end -}}
 {{- if and $mek.bootstrap.enabled $operation -}}
 {{- fail "disable secrets.masterEncryptionKey.bootstrap.enabled before requesting a rotation phase" -}}
 {{- end -}}
 
 {{- if or $mek.bootstrap.enabled $operation }}
-{{- $secretName = required "secrets.masterEncryptionKey.secretRef.name is required" $secretName }}
-{{- $secretKey = required "secrets.masterEncryptionKey.secretRef.key is required" $secretKey }}
+{{- $secretName = required "secrets.masterEncryptionKey.existingSecret.name is required" $secretName }}
+{{- $secretKey = required "secrets.masterEncryptionKey.existingSecret.key is required" $secretKey }}
 {{- $leaseHash := printf "%s/%s:%s" .Release.Namespace .Release.Name $secretName | sha256sum | trunc 10 }}
 {{- $leasePrefix := regexReplaceAll "[^a-z0-9-]" (lower .Release.Name) "-" | trimAll "-" | trunc 46 | trimSuffix "-" }}
 {{- $leaseName := printf "%s-mek-%s" $leasePrefix $leaseHash }}
@@ -86,7 +86,7 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   resourceNames: [{{ $secretName | quote }}]
-  verbs: ["get"{{- if and (eq $mek.managedBy "osmo") $operation }}, "patch"{{- end }}]
+  verbs: ["get"{{- if and (eq $mek.managementMode "osmo") $operation }}, "patch"{{- end }}]
 {{- if $mek.bootstrap.enabled }}
 - apiGroups: [""]
   resources: ["secrets"]
@@ -161,7 +161,7 @@ spec:
         - --installation_id
         - {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
         - --management_mode
-        - {{ $mek.managedBy | quote }}
+        - {{ $mek.managementMode | quote }}
         - --request_id
         - {{ $request | quote }}
         - --consumer_deployments

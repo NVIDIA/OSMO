@@ -1794,7 +1794,7 @@ EOF
     helm_template bootstrap-osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=osmo \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.bootstrap.enabled=true \
         >"$TEST_DIRECTORY/mek-bootstrap.yaml"
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'command: ["mek-lifecycle"]'
@@ -1807,7 +1807,7 @@ EOF
     helm_template bootstrap-osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=osmo \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.bootstrap.enabled=true \
         --set secrets.masterEncryptionKey.bootstrap.activeDeadlineSeconds=899 \
         >"$TEST_DIRECTORY/mek-bootstrap-changed.yaml"
@@ -1823,7 +1823,7 @@ EOF
     helm_template bootstrap-osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=osmo \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.bootstrap.enabled=true \
         --set-string secrets.masterEncryptionKey.bootstrap.attempt=2 \
         >"$TEST_DIRECTORY/mek-bootstrap-retry.yaml"
@@ -1837,7 +1837,7 @@ EOF
     if helm_template invalid-bootstrap-rotation "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
             -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set secrets.masterEncryptionKey.managedBy=osmo \
+            --set secrets.masterEncryptionKey.managementMode=osmo \
             --set secrets.masterEncryptionKey.bootstrap.enabled=true \
             --set secrets.masterEncryptionKey.rotation.requestId=rotate \
             --set secrets.masterEncryptionKey.rotation.phase=prepare \
@@ -1850,7 +1850,7 @@ EOF
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=osmo \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.rotation.requestId=rotate-2026-08 \
         --set secrets.masterEncryptionKey.rotation.phase=prepare \
         --set secrets.masterEncryptionKey.rotation.rolloutRevision=prepare-2026-08 \
@@ -1874,7 +1874,7 @@ EOF
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=osmo \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.rotation.requestId=rotate-2026-08 \
         --set secrets.masterEncryptionKey.rotation.phase=activate \
         >"$TEST_DIRECTORY/mek-activate.yaml"
@@ -1884,7 +1884,7 @@ EOF
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=external \
+        --set secrets.masterEncryptionKey.managementMode=external \
         --set secrets.masterEncryptionKey.rotation.requestId=rotate-2026-08 \
         --set secrets.masterEncryptionKey.rotation.phase=rewrap \
         >"$TEST_DIRECTORY/mek-rewrap.yaml"
@@ -1907,20 +1907,20 @@ EOF
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=external \
+        --set secrets.masterEncryptionKey.managementMode=external \
         --set secrets.masterEncryptionKey.rotation.requestId=invalid \
         --set secrets.masterEncryptionKey.rotation.phase=prepare \
         >"$TEST_DIRECTORY/mek-invalid.out" 2>&1; then
         fail "external PREPARE Secret mutation was accepted"
     fi
     require_contains "$TEST_DIRECTORY/mek-invalid.out" \
-        'prepare and activate require managedBy=osmo'
+        'prepare and activate require managementMode=osmo'
 
     helm_template prepare-disabled-consumer "$charts_copy/osmo" \
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=osmo \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.rotation.requestId=rotate-disabled \
         --set secrets.masterEncryptionKey.rotation.phase=prepare \
         --set services.logger.enabled=false \
@@ -1934,7 +1934,7 @@ EOF
         --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managedBy=osmo \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.rotation.requestId=rotate-empty \
         --set secrets.masterEncryptionKey.rotation.phase=prepare \
         --set services.api.enabled=false \
@@ -1952,8 +1952,8 @@ EOF
     helm_template mek-string-sentinels "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set-string secrets.masterEncryptionKey.secretRef.name=true \
-        --set-string secrets.masterEncryptionKey.secretRef.key=null \
+        --set-string secrets.masterEncryptionKey.existingSecret.name=true \
+        --set-string secrets.masterEncryptionKey.existingSecret.key=null \
         >"$TEST_DIRECTORY/mek-string-sentinels.yaml"
     require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
         'secretName: "true"' 6
@@ -1964,24 +1964,32 @@ EOF
     require_occurrences "$TEST_DIRECTORY/mek-string-sentinels.yaml" \
         '- "/opt/osmo/mek/mek.yaml"' 6
 
-    if helm_template invalid-mek-secret-ref "$charts_copy/osmo" \
+    if helm_template invalid-mek-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set-string secrets.masterEncryptionKey.secretRef=legacy-secret \
-        >"$TEST_DIRECTORY/invalid-mek-secret-ref.out" 2>&1; then
-        fail "expected scalar MEK secretRef to fail schema validation"
+        --set-string secrets.masterEncryptionKey.existingSecret=legacy-secret \
+        >"$TEST_DIRECTORY/invalid-mek-secret.out" 2>&1; then
+        fail "expected scalar MEK existingSecret to fail schema validation"
     fi
-    require_schema_path "$TEST_DIRECTORY/invalid-mek-secret-ref.out" \
-        "secrets.masterEncryptionKey.secretRef"
-    if helm_template invalid-legacy-mek-values "$charts_copy/osmo" \
+    require_schema_path "$TEST_DIRECTORY/invalid-mek-secret.out" \
+        "secrets.masterEncryptionKey.existingSecret"
+    if helm_template invalid-renamed-mek-management "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.masterEncryptionKey.managementMode=external \
-        --set-string secrets.masterEncryptionKey.existingSecret.name=legacy-secret \
-        >"$TEST_DIRECTORY/invalid-legacy-mek-values.out" 2>&1; then
-        fail "expected legacy MEK values to fail schema validation"
+        --set secrets.masterEncryptionKey.managedBy=external \
+        >"$TEST_DIRECTORY/invalid-renamed-mek-management.out" 2>&1; then
+        fail "expected renamed MEK management value to fail schema validation"
     fi
-    require_schema_path "$TEST_DIRECTORY/invalid-legacy-mek-values.out" \
+    require_schema_path "$TEST_DIRECTORY/invalid-renamed-mek-management.out" \
+        "secrets.masterEncryptionKey"
+    if helm_template invalid-renamed-mek-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string secrets.masterEncryptionKey.secretRef.name=renamed-secret \
+        >"$TEST_DIRECTORY/invalid-renamed-mek-secret.out" 2>&1; then
+        fail "expected renamed MEK Secret value to fail schema validation"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-renamed-mek-secret.out" \
         "secrets.masterEncryptionKey"
     if helm_template invalid-mek-bootstrap "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

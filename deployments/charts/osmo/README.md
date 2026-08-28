@@ -414,8 +414,8 @@ secrets:
   objectStorage:
     existingSecret: osmo-object-storage
   masterEncryptionKey:
-    managedBy: external
-    secretRef:
+    managementMode: external
+    existingSecret:
       name: osmo-master-encryption-key
       key: mek.yaml
 ```
@@ -697,13 +697,13 @@ postgresql:
 ```
 
 The MEK is mounted through the typed
-`secrets.masterEncryptionKey.secretRef.{name,key}` reference. Set
-`managedBy: external` for an operator-owned read-only Secret. Set
-`managedBy: osmo` when this release should create and update that exact Secret
-through explicitly requested lifecycle Jobs. With `managedBy: osmo` and
-`bootstrap.enabled: true`, the Secret does not need to exist before the first
-installation; the bootstrap Job creates it without exposing key material to
-Helm.
+`secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Set
+`managementMode: external` for an operator-owned read-only Secret. Set
+`managementMode: osmo` when this release should create and update that exact
+Secret through explicitly requested lifecycle Jobs. With
+`managementMode: osmo` and `bootstrap.enabled: true`, the Secret does not need
+to exist before the first installation; the bootstrap Job creates it without
+exposing key material to Helm.
 
 For a disposable install backed by a new database, enable `bootstrap`. Helm
 renders no MEK Secret data. A namespace-scoped create-only lifecycle Job waits
@@ -752,8 +752,8 @@ CD syncs:
 ```yaml
 secrets:
   masterEncryptionKey:
-    managedBy: osmo
-    secretRef:
+    managementMode: osmo
+    existingSecret:
       name: osmo-master-encryption-key
       key: mek.yaml
     bootstrap:
@@ -774,7 +774,7 @@ retry the same phase. Jobs never delete Pods or patch Deployments; Helm or the
 GitOps controller owns both rollouts. Clear a completed phase promptly so its
 narrowly scoped ServiceAccount and RoleBinding leave the desired state.
 
-With `managedBy: external`, the operator performs PREPARE and ACTIVATE by
+With `managementMode: external`, the operator performs PREPARE and ACTIVATE by
 updating the existing Secret, with one rollout after each update. Then set only
 `rotation.phase=rewrap`. The rewrap Job has exact-name Secret `get` permission,
 not `patch` or `update`, and enforces the same ACTIVATE Pod attestation before

@@ -45,8 +45,8 @@ secrets:
       managedSecret:
         name: osmo-backend-token
   masterEncryptionKey:
-    managedBy: osmo
-    secretRef:
+    managementMode: osmo
+    existingSecret:
       name: osmo-master-encryption-key
       key: mek.yaml
     # Disable bootstrap after the first successful installation and before any

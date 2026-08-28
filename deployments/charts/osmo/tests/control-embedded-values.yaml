@@ -30,7 +30,7 @@ secrets:
   objectStorage:
     existingSecret: external-control-secrets
   masterEncryptionKey:
-    secretRef:
+    existingSecret:
       name: external-control-secrets
       key: mek.yaml
 

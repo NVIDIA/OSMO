@@ -419,11 +419,11 @@
 {{- if and (not .Values.embeddedDependencies.objectStorage.enabled) (not .Values.secrets.objectStorage.existingSecret) -}}
 {{- fail "secrets.objectStorage.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.masterEncryptionKey.secretRef.name -}}
-{{- fail "secrets.masterEncryptionKey.secretRef.name is required for the control plane" -}}
+{{- if not .Values.secrets.masterEncryptionKey.existingSecret.name -}}
+{{- fail "secrets.masterEncryptionKey.existingSecret.name is required for the control plane" -}}
 {{- end -}}
-{{- if not .Values.secrets.masterEncryptionKey.secretRef.key -}}
-{{- fail "secrets.masterEncryptionKey.secretRef.key is required for the control plane" -}}
+{{- if not .Values.secrets.masterEncryptionKey.existingSecret.key -}}
+{{- fail "secrets.masterEncryptionKey.existingSecret.key is required for the control plane" -}}
 {{- end -}}
 {{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthClientSecret.existingSecret) -}}
 {{- fail "secrets.oauthClientSecret.existingSecret is required when the OAuth2 proxy is enabled" -}}
