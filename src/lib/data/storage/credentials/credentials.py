@@ -172,16 +172,16 @@ DataCredential = Union[
 def get_static_data_credential_from_config(
     url: str,
     config_file: str | None = None,
-) -> StaticDataCredential | None:
+) -> DataCredential | None:
     """
-    Get a matching static data credential from the config file.
+    Get a matching data credential from the config file.
 
     Args:
         url: The URL of the data service.
         config_file: The path to the config file to use for the access check. If not provided,
                      the default config file will be used.
     Returns:
-        The static data credential or None if not found.
+        The data credential or None if not found.
     """
     if config_file is None:
         config_dir = client_configs.get_client_config_dir(create=False)
@@ -195,6 +195,14 @@ def get_static_data_credential_from_config(
 
         if 'auth' in configs and 'data' in configs['auth'] and url in configs['auth']['data']:
             data_cred_dict = configs['auth']['data'][url]
+            if 'access_key_id' not in data_cred_dict and 'access_key' not in data_cred_dict:
+                return DefaultDataCredential(
+                    endpoint=url,
+                    region=data_cred_dict.get('region'),
+                    override_url=data_cred_dict.get('override_url'),
+                    addressing_style=data_cred_dict.get('addressing_style'),
+                )
+
             data_cred = StaticDataCredential(
                 access_key_id=data_cred_dict['access_key_id'],
                 access_key=pydantic.SecretStr(data_cred_dict['access_key']),

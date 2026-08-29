@@ -1,0 +1,143 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Azure-specific overlay for deploy-osmo-umbrella-split-plane.sh. The generic
+# split-plane profiles are applied first; this file contains no credentials.
+externalUrl: "${OSMO_CONTROL_PLANE_URL}"
+imageTag: "${OSMO_IMAGE_TAG}"
+imagePullSecrets: ${IMAGE_PULL_SECRETS}
+runtimeImage:
+  repository: "${OSMO_IMAGE_REPOSITORY}"
+  tag: "${OSMO_IMAGE_TAG}"
+  pullSecret: "${OSMO_IMAGE_PULL_SECRET}"
+services:
+  ui:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/web-ui"
+  api:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/service"
+    serviceAccount:
+      annotations:
+        azure.workload.identity/client-id: "${WORKLOAD_IDENTITY_CLIENT_ID}"
+    pod:
+      labels:
+        azure.workload.identity/use: "true"
+  worker:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/worker"
+    serviceAccount:
+      create: true
+      annotations:
+        azure.workload.identity/client-id: "${WORKLOAD_IDENTITY_CLIENT_ID}"
+    pod:
+      labels:
+        azure.workload.identity/use: "true"
+  router:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/router"
+  logger:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/logger"
+  agent:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/agent"
+  delayedJobMonitor:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/delayed-job-monitor"
+  backendListener:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/backend-listener"
+  backendWorker:
+    image:
+      repository: "${OSMO_IMAGE_REPOSITORY}/backend-worker"
+externalDependencies:
+  postgresql:
+    host: ${POSTGRES_HOST}
+    port: 5432
+    database: ${POSTGRES_DATABASE}
+    username: ${POSTGRES_USERNAME}
+    tls:
+      enabled: false
+  valkey:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT}
+    tls:
+      enabled: true
+  objectStorage:
+    authentication:
+      type: sdkDefault
+    locations:
+      workflows: azure://${STORAGE_ACCOUNT}/${STORAGE_CONTAINER}/workflows
+      logs: azure://${STORAGE_ACCOUNT}/${STORAGE_CONTAINER}/logs
+      apps: azure://${STORAGE_ACCOUNT}/${STORAGE_CONTAINER}/apps
+configuration:
+  podTemplates:
+    default_user:
+      spec:
+        containers:
+        - name: "{{USER_CONTAINER_NAME}}"
+          resources:
+            limits:
+              cpu: "{{USER_CPU}}"
+              memory: "{{USER_MEMORY}}"
+              ephemeral-storage: "{{USER_STORAGE}}"
+            requests:
+              cpu: "{{USER_CPU}}"
+              memory: "{{USER_MEMORY}}"
+              ephemeral-storage: "{{USER_STORAGE}}"
+    azure_workload_identity:
+      metadata:
+        labels:
+          azure.workload.identity/use: "true"
+      spec:
+        imagePullSecrets: ${IMAGE_PULL_SECRETS}
+        serviceAccountName: osmo-workflow
+  backends:
+    compute-one:
+      description: First compute plane
+      scheduler_settings:
+        scheduler_type: kai
+        scheduler_name: kai-scheduler
+        scheduler_timeout: 30
+    compute-two:
+      description: Second compute plane
+      scheduler_settings:
+        scheduler_type: kai
+        scheduler_name: kai-scheduler
+        scheduler_timeout: 30
+  pools:
+    compute-one:
+      description: First compute plane
+      backend: compute-one
+      default_platform: default
+      common_pod_template: [default_ctrl, default_user, azure_workload_identity]
+      common_resource_validations: [default_cpu, default_memory, default_storage, default_gpu]
+      common_default_variables: {USER_CPU: 1, USER_GPU: 0, USER_MEMORY: 1Gi, USER_STORAGE: 1Gi}
+      platforms: {default: {}}
+    compute-two:
+      description: Second compute plane
+      backend: compute-two
+      default_platform: default
+      common_pod_template: [default_ctrl, default_user, azure_workload_identity]
+      common_resource_validations: [default_cpu, default_memory, default_storage, default_gpu]
+      common_default_variables: {USER_CPU: 1, USER_GPU: 0, USER_MEMORY: 1Gi, USER_STORAGE: 1Gi}
+      platforms: {default: {}}
+secrets:
+  postgresql:
+    existingSecret: osmo-postgresql
+  valkey:
+    existingSecret: osmo-valkey
+  objectStorage:
+    existingSecret: ''
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: compute-one
+      managedSecret:
+        name: osmo-backend-token-compute-one
+    - name: compute-two
+      managedSecret:
+        name: osmo-backend-token-compute-two
+  masterEncryptionKey:
+    managementMode: osmo

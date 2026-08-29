@@ -26,6 +26,8 @@ resolution, header propagation, and error paths without any real network or
 filesystem I/O.
 """
 
+import pathlib
+import tempfile
 import unittest
 from unittest import mock
 
@@ -153,6 +155,31 @@ class TestClientCreate(unittest.TestCase):
         )
 
         self.assertIs(client.data_credential, cred)
+
+    def test_create_reads_sdk_default_credential_from_config(self):
+        """A keyless config entry delegates Azure authentication to the SDK."""
+        with tempfile.TemporaryDirectory() as config_dir:
+            pathlib.Path(config_dir, 'config.yaml').write_text(
+                'auth:\n'
+                '  data:\n'
+                '    azure://test-account:\n'
+                '      endpoint: azure://test-account\n',
+                encoding='utf-8',
+            )
+            with mock.patch.object(
+                credentials.client_configs,
+                'get_client_config_dir',
+                return_value=config_dir,
+            ):
+                client = client_module.Client.create(
+                    storage_uri='azure://test-account/container/object',
+                )
+
+        self.assertIsInstance(
+            client.data_credential,
+            credentials.DefaultDataCredential,
+        )
+        self.assertEqual(client.data_credential.endpoint, 'azure://test-account')
 
     def test_create_returns_client_with_executor_params_kwarg(self):
         """Optional kwargs (e.g., metrics_dir) are forwarded to the client."""

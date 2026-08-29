@@ -107,26 +107,44 @@ the stored workflow specification and successful logs before returning.
 
 `deploy-osmo-umbrella-split-plane.sh` is the corresponding linear example for
 one control cluster and two compute clusters. Run it only inside a newly
-created `azure-sandbox assume` subshell. Supply the same isolated resource
-group, control-cluster, and PostgreSQL variables as the single-plane example,
-plus globally unique names for both compute clusters and the externally routed
-control-plane URL:
+created `azure-sandbox assume` subshell. Supply the isolated resource group,
+globally unique names for both compute clusters, and the externally routed
+control-plane URL. Terraform generates the control-cluster name and PostgreSQL
+password unless their optional variables are set. Install GNU gettext for the
+script's `envsubst` command before running it.
 
 ```bash
+export TF_VAR_resource_group_name=<new-sandbox-resource-group>
 export COMPUTE_CLUSTER_ONE_NAME=example-compute-one
 export COMPUTE_CLUSTER_TWO_NAME=example-compute-two
 export OSMO_CONTROL_PLANE_URL=https://osmo.example.com
 ./deploy-osmo-umbrella-split-plane.sh
 ```
 
+For private images, set `OSMO_IMAGE_PULL_SECRET` and
+`OSMO_IMAGE_PULL_CONFIG` to the desired Secret name and a readable Docker
+`config.json` path. Because the script creates all three clusters, it copies
+that configuration into each new `osmo` namespace without rendering it in the
+values overlay.
+
 Terraform provisions the control AKS cluster and its PostgreSQL, Valkey, and
-Blob dependencies. The script creates the two compute AKS clusters directly,
-installs KAI Scheduler on each, and installs the unified chart once with
+Blob dependencies. Shared Key authorization and public Blob access are
+disabled. The script creates both compute AKS clusters with OIDC and Workload
+Identity enabled, federates each cluster's `osmo-workflow` ServiceAccount to
+the shared Blob managed identity, installs KAI Scheduler on each, and installs
+the unified chart once with
 `profiles/split-plane-control.yaml` and once per compute cluster with
 `profiles/split-plane-compute.yaml`. The control release retains two generated
 backend credentials; each credential is copied only to its matching compute
-cluster. The final smoke checks submit `verify-hello.yaml` to the `compute-one`
-and `compute-two` pools independently.
+cluster. API, worker, and workflow pods use SDK-default credentials rather
+than an object-storage Secret. The checked-in
+`split-plane-azure.yaml.envsubst` template renders the non-secret
+`${TMPDIR:-/tmp}/split-plane-azure.yaml` overlay.
+
+The script defaults all three clusters to `Standard_D8s_v3`. The final smoke
+checks submit the two-task `verify-hello.yaml` Blob round trip to the
+`compute-one` and `compute-two` pools independently, then retrieve each stored
+workflow specification and successful logs.
 
 `OSMO_CONTROL_PLANE_URL` must route from both compute clusters to the unified
 chart's `osmo-gateway` Service. Providing that route, including any ingress
@@ -136,8 +154,7 @@ enable a chart-managed Ingress. Set `OSMO_CONTROL_PLANE_VALUES` to an externally
 maintained values file when the control release needs environment-specific
 gateway Service, Ingress, or HTTPRoute settings; that file is never applied to
 the compute releases. The script uses a local port-forward only for CLI smoke
-tests. The generated non-secret overlay is
-`${TMPDIR:-/tmp}/split-plane-azure.yaml`.
+tests.
 
 ## Deployment Combinations
 
