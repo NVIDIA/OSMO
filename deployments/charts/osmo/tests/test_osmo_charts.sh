@@ -611,6 +611,15 @@ test_control_umbrella() {
         "osmo-gateway-oauth2-proxy"
     require_deployment "$TEST_DIRECTORY/self-contained.yaml" \
         "osmo-gateway-authz"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
+        "osmo-gateway-oauth2-proxy" \
+        >"$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml"
+    require_occurrences "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
+        'secretName: "osmo-oauth2-proxy"' 2
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
+        'key: "client_secret"'
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
+        'key: "cookie_secret"'
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Namespace \
         "osmo-workflows"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Namespace \

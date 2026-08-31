@@ -38,6 +38,10 @@ secrets:
   objectStorage:
     generate: true
     existingSecret: ''
+  oauthClientSecret:
+    existingSecret: osmo-oauth2-proxy
+  oauthCookieSecret:
+    existingSecret: osmo-oauth2-proxy
   backendApiTokens:
     enabled: true
     bootstrap:
@@ -73,8 +77,6 @@ gateway:
       type: ClusterIP
   oauth2Proxy:
     enabled: true
-    useKubernetesSecrets: true
-    secretName: osmo-oauth2-proxy
   authz:
     enabled: true
   rateLimit:
