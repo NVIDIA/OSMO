@@ -11,10 +11,6 @@ planes:
 
 fullnameOverride: osmo
 
-imageTag: latest
-runtimeImage:
-  tag: latest
-
 externalUrl: http://osmo-gateway
 
 embeddedDependencies:

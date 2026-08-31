@@ -125,23 +125,29 @@ externalDependencies:
 nameOverride: ''
 fullnameOverride: ''
 
-# A non-empty registry overrides OSMO-owned component and runtime image
-# registries. Configure third-party dependency registries in their values blocks.
-imageRegistry: ''
+# Registry default for OSMO-owned component and runtime images. A non-empty
+# service-specific image.registry or runtimeImage.registry takes precedence.
+imageRegistry: nvcr.io
 
-# A non-empty tag overrides the chart application version for every OSMO-owned
-# component image. Development profiles use latest until matching release
-# images are published; individual component tags still take precedence.
-imageTag: ''
+# Base repository default for OSMO-owned component and runtime images. A
+# non-empty service-specific image.repository or runtimeImage.repository takes
+# precedence; component names are added only when the service repository is
+# left at its default empty value.
+imageRepository: nvidia/osmo
+
+# Shared tag default for OSMO-owned component and runtime images. A non-empty
+# service-specific image.tag or runtimeImage.tag takes precedence.
+imageTag: latest
 
 # Pull credential Secret references for OSMO-owned pods. Configure third-party
 # dependency pull credentials in the dependency's native values block.
 imagePullSecrets: []
 
-# Runtime images referenced by submitted workflows.
+# Runtime image overrides for submitted workflows. Leave a field empty to
+# inherit the corresponding top-level image default.
 runtimeImage:
-  registry: nvcr.io
-  repository: nvidia/osmo
+  registry: ''
+  repository: ''
   tag: ''
 
 # Metadata and scheduling defaults shared by OSMO-owned workloads. Labels,
@@ -342,8 +348,9 @@ services:
     enabled: true
     replicas: 1
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/backend-listener
+      registry: ''
+      repository: ''
+      name: backend-listener
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -406,8 +413,9 @@ services:
     enabled: true
     replicas: 1
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/backend-worker
+      registry: ''
+      repository: ''
+      name: backend-worker
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -475,8 +483,9 @@ services:
       annotations: {}
       automountServiceAccountToken: true
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/backend-test-runner
+      registry: ''
+      repository: ''
+      name: backend-test-runner
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -569,8 +578,9 @@ services:
     enabled: false
     replicas: 1
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/mcp-self-hosted
+      registry: ''
+      repository: ''
+      name: mcp-self-hosted
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -647,8 +657,9 @@ services:
     enabled: true
     replicas: 1
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/web-ui
+      registry: ''
+      repository: ''
+      name: web-ui
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -745,8 +756,9 @@ services:
     enabled: true
     replicas: 1
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/delayed-job-monitor
+      registry: ''
+      repository: ''
+      name: delayed-job-monitor
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -798,8 +810,9 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/worker
+      registry: ''
+      repository: ''
+      name: worker
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -859,8 +872,9 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/service
+      registry: ''
+      repository: ''
+      name: service
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -950,8 +964,9 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/router
+      registry: ''
+      repository: ''
+      name: router
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -1031,8 +1046,9 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/logger
+      registry: ''
+      repository: ''
+      name: logger
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -1100,8 +1116,9 @@ services:
       customMetrics: []
       behavior: {}
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/agent
+      registry: ''
+      repository: ''
+      name: agent
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -1409,8 +1426,9 @@ gateway:
       customMetrics: []
       behavior: {}
     image:
-      registry: nvcr.io
-      repository: nvidia/osmo/authz-sidecar
+      registry: ''
+      repository: ''
+      name: authz-sidecar
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent

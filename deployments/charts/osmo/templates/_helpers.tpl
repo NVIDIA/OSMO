@@ -90,10 +90,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $root := .root -}}
 {{- $image := .image -}}
 {{- $registry := $image.registry -}}
+{{- $repository := $image.repository -}}
 {{- if .useSharedRegistry -}}
-{{- $registry = $root.Values.imageRegistry | default $registry -}}
+{{- $registry = $registry | default $root.Values.imageRegistry -}}
 {{- end -}}
-{{- $repository := required "image.repository is required" $image.repository -}}
+{{- if hasKey $image "name" -}}
+{{- $registry = $registry | default "nvcr.io" -}}
+{{- $repository = $repository | default $root.Values.imageRepository | default "nvidia/osmo" -}}
+{{- if not $image.repository -}}
+{{- $repository = printf "%s/%s" (trimSuffix "/" $repository) $image.name -}}
+{{- end -}}
+{{- else -}}
+{{- $repository = required "image.repository is required" $repository -}}
+{{- end -}}
 {{- $base := ternary (printf "%s/%s" $registry $repository) $repository (ne $registry "") -}}
 {{- if $image.digest -}}
 {{- printf "%s@%s" $base $image.digest -}}
@@ -111,12 +120,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "osmo.component.imageRepository" -}}
-{{- $registry := .Values.imageRegistry | default .Values.runtimeImage.registry -}}
-{{- ternary (printf "%s/%s" $registry .Values.runtimeImage.repository) .Values.runtimeImage.repository (ne $registry "") -}}
+{{- $registry := .Values.runtimeImage.registry | default .Values.imageRegistry | default "nvcr.io" -}}
+{{- $repository := .Values.runtimeImage.repository | default .Values.imageRepository | default "nvidia/osmo" -}}
+{{- printf "%s/%s" (trimSuffix "/" $registry) (trimSuffix "/" $repository) -}}
 {{- end -}}
 
 {{- define "osmo.component.imageTag" -}}
-{{- .Values.runtimeImage.tag | default .Chart.AppVersion -}}
+{{- .Values.runtimeImage.tag | default .Values.imageTag | default .Chart.AppVersion -}}
 {{- end -}}
 
 {{- define "osmo.compute.agentNamespace" -}}

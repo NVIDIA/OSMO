@@ -20,8 +20,12 @@ The quick-start profile is the smallest complete control-and-compute deployment
 for browser, CLI, and CPU hello-world verification. It exposes the UI and API
 through gateway NodePort `30080` while omitting other optional services. The kind
 profile retains a broader local-development surface. Both profiles are
-development-only and intentionally use `latest` OSMO images, one replica per
-component, generated credentials, and embedded stateful dependencies. The split
+development-only and intentionally use `latest` OSMO images by default, one
+replica per component, generated credentials, and embedded stateful dependencies.
+The quick-start installation path uses the chart's default image settings and
+does not require application Secrets or an image-pull Secret to be created
+beforehand. Configure top-level `imagePullSecrets` only when using a registry
+that requires credentials. The split
 profiles contain example names and endpoints; copy them into an environment
 values file before installation.
 

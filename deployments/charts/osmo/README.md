@@ -510,14 +510,18 @@ above.
 
 ## Optional configuration
 
-- Configure the OSMO image registry under `imageRegistry`, a shared
-  OSMO component tag under `imageTag`, pull credentials under
-  `imagePullSecrets`, and workflow init/client images under `runtimeImage`.
-  The chart writes those workflow images into the managed API configuration
-  unless `configuration.workflow.backend_images` overrides them. Configure
-  per-component image overrides in each component's `image` block. Configure
-  dependency images and pull credentials in their native values blocks; for
-  example, Valkey uses `valkey.image` and `valkey.imagePullSecrets`.
+- Configure the OSMO image registry, base repository, and tag under
+  `imageRegistry`, `imageRepository`, and `imageTag`; they default to
+  `nvcr.io`, `nvidia/osmo`, and `latest`. A non-empty service-specific
+  `image.registry`, `image.repository`, or `image.tag` takes precedence over
+  the corresponding top-level value. Runtime workflow image fields under
+  `runtimeImage` are optional overrides and inherit the matching top-level
+  value when empty. Otherwise the chart uses `nvcr.io/nvidia/osmo` and the
+  component name. The chart writes the resolved workflow images into the
+  managed API configuration unless `configuration.workflow.backend_images`
+  overrides them. Configure dependency images and pull credentials in their
+  native values blocks; for example, Valkey uses `valkey.image` and
+  `valkey.imagePullSecrets`.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,
   `gateway`, and `podDefaults`. Directly owned workload extensions use
