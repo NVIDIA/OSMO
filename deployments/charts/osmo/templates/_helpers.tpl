@@ -134,7 +134,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "osmo.compute.backendNamespace" -}}
-{{- .Values.compute.workloadNamespace | default .Release.Namespace -}}
+{{- .Values.compute.workloadNamespace.name | default .Release.Namespace -}}
 {{- end -}}
 
 {{- define "osmo.compute.serviceUrl" -}}
@@ -454,6 +454,10 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 {{- printf "%s-valkey-credentials" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "osmo.rustfs.name" -}}
+{{- default "rustfs" (dig "nameOverride" "" .Values.rustfs) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "osmo.rustfs.fullname" -}}
 {{- $name := default "rustfs" (dig "nameOverride" "" .Values.rustfs) -}}
 {{- $fullnameOverride := dig "fullnameOverride" "" .Values.rustfs -}}
@@ -468,7 +472,7 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 
 {{- define "osmo.objectStorage.endpoint" -}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled -}}
-{{- printf "http://%s-svc:9000" (include "osmo.rustfs.fullname" .) -}}
+{{- printf "http://%s-svc.%s.svc:9000" (include "osmo.rustfs.fullname" .) .Release.Namespace -}}
 {{- else -}}
 {{- .Values.externalDependencies.objectStorage.endpoint -}}
 {{- end -}}

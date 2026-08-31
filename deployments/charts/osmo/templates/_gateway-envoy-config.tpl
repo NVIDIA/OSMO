@@ -43,6 +43,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpResourceUrl := "" }}
 {{- $mcpMetadataUrl := "" }}
 {{- $mcpServiceName := include "osmo.component.fullname" (dict "root" . "suffix" "mcp") }}
+{{- $jwtProviders := concat (default (list) $envoy.jwt.providers) (default (list) $envoy.jwt.additionalProviders) }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
@@ -55,8 +56,8 @@ setting detects this rotation and triggers Envoy to reload.
 {{- if not $gw.authz.enabled }}
 {{- fail "services.mcp.enabled requires gateway.authz.enabled=true" }}
 {{- end }}
-{{- if not $envoy.jwt.providers }}
-{{- fail "services.mcp.enabled requires at least one gateway.envoy.jwt.providers entry" }}
+{{- if not $jwtProviders }}
+{{- fail "services.mcp.enabled requires at least one gateway Envoy JWT provider" }}
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp.resourceUrl" . }}
 {{- if not (kindIs "slice" $mcp.authorizationServers) }}
@@ -227,7 +228,7 @@ data:
               # identity/context headers. Minimal/demo deployments with no
               # auth source keep their legacy client-header behavior.
               internal_only_headers:
-              {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $envoy.jwt.providers }}
+              {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $jwtProviders }}
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-token-name
@@ -716,12 +717,12 @@ data:
                     failure_mode_allow: false
             {{- end }}
 
-            {{- if $envoy.jwt.providers }}
+            {{- if $jwtProviders }}
             - name: envoy.filters.http.jwt_authn
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
                 providers:
-                  {{- range $i, $provider := $envoy.jwt.providers }}
+                  {{- range $i, $provider := $jwtProviders }}
                   provider_{{$i}}:
                     issuer: {{ $provider.issuer }}
                     audiences:
@@ -770,12 +771,12 @@ data:
                   - match:
                       prefix: /
                     requires:
-                      {{- if eq (len $envoy.jwt.providers) 1 }}
+                      {{- if eq (len $jwtProviders) 1 }}
                       provider_name: provider_0
                       {{- else }}
                       requires_any:
                         requirements:
-                        {{- range $i, $provider := $envoy.jwt.providers }}
+                        {{- range $i, $provider := $jwtProviders }}
                         - provider_name: provider_{{$i}}
                         {{- end}}
                       {{- end }}

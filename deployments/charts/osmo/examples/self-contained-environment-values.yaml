@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Non-secret, environment-specific values for the self-contained profile.
+externalUrl: https://osmo.example.com
+
+compute:
+  backendName: default
+  workflowNetworkPolicy:
+    clusterCIDRs:
+    - 10.0.0.0/8
+
+gateway:
+  oauth2Proxy:
+    oidcIssuerUrl: https://idp.example.com
+    clientId: osmo
+  envoy:
+    idp:
+      host: idp.example.com
+    jwt:
+      additionalProviders:
+      - issuer: https://idp.example.com
+        audience: osmo
+        jwks_uri: https://idp.example.com/.well-known/jwks.json
+        cluster: idp
+        user_claim: preferred_username

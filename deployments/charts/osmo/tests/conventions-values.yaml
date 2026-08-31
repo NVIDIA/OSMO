@@ -19,7 +19,9 @@ podDefaults:
         app.kubernetes.io/instance: conventions
 
 compute:
-  workloadNamespace: convention-workloads
+  workloadNamespace:
+    name: convention-workloads
+    create: false
   authentication:
     existingSecret: convention-backend-token
     tokenKey: convention-token

@@ -21,7 +21,9 @@ embeddedDependencies:
 externalUrl: https://osmo.example.com
 
 compute:
-  workloadNamespace: ''
+  workloadNamespace:
+    name: ''
+    create: false
   backendTestNamespace: ''
   authentication:
     existingSecret: osmo-backend-token

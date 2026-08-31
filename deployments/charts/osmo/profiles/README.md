@@ -12,22 +12,33 @@ values take precedence.
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
 | `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `compute.backendName` set explicitly at install time |
-| `kind-self-contained.yaml` | Yes, on kind | KAI Scheduler and the CloudNativePG operator installed separately; `compute.backendName` set explicitly at install time |
+| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, IPv4 cluster CIDRs, and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
 The quick-start profile is the smallest complete control-and-compute deployment
 for browser, CLI, and CPU hello-world verification. It exposes the UI and API
-through gateway NodePort `30080` while omitting other optional services. The kind
-profile retains a broader local-development surface. Both profiles are
-development-only and intentionally use `latest` OSMO images by default, one
-replica per component, generated credentials, and embedded stateful dependencies.
+through gateway NodePort `30080` while omitting optional production behavior.
+It intentionally uses `latest` OSMO images, one replica per component,
+development authentication, and small single-node stateful dependencies.
 The quick-start installation path uses the chart's default image settings and
 does not require application Secrets or an image-pull Secret to be created
 beforehand. Configure top-level `imagePullSecrets` only when using a registry
-that requires credentials. The split
-profiles contain example names and endpoints; copy them into an environment
-values file before installation.
+that requires credentials.
+
+The self-contained profile is the production-converged path for environments
+that host OSMO and its stateful dependencies in Kubernetes. It uses chart-version
+OSMO images, production service defaults, a synchronous three-instance
+PostgreSQL Cluster, replicated fixed-primary Valkey, four-node distributed
+RustFS, OAuth2 authentication, semantic authorization, and network isolation.
+The profile creates and retains its workflow namespace. Register an OIDC client
+with an identity provider reachable by users and the OSMO gateway; the provider
+may run inside or outside Kubernetes. Its tokens must contain an array-valued
+`roles` claim; assign at least one trusted operator the external `osmo-admin`
+role before exposing the service. The split profiles contain example names and
+endpoints; copy them into an environment values file before installation.
+Production operators must also provide and test backup and restore for the
+stateful volumes.
 
 KAI Scheduler is a prerequisite for every profile that enables the compute
 plane. The unified chart does not install or manage KAI. CloudNativePG must also

@@ -1,0 +1,154 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Production converged profile for self-hosting OSMO on Kubernetes. The cluster
+# must provide KAI Scheduler, the CloudNativePG operator, a default dynamic
+# StorageClass, a NetworkPolicy-enforcing CNI, and at least four schedulable
+# nodes for distributed RustFS. Register an OIDC client with an identity provider
+# reachable by users and the OSMO gateway; it may run inside or outside the
+# cluster. The OSMO release owns the control plane, compute plane, PostgreSQL
+# Cluster, replicated fixed-primary Valkey, and distributed RustFS.
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: true
+
+# Keep the in-cluster dependency endpoints valid for any Helm release name.
+# This profile intentionally supports one OSMO installation per namespace.
+fullnameOverride: osmo
+
+# Pin production installs to the chart application version.
+imageTag: ''
+
+embeddedDependencies:
+  postgresql:
+    enabled: true
+  valkey:
+    enabled: true
+  objectStorage:
+    enabled: true
+
+secrets:
+  postgresql:
+    existingSecret: ''
+  valkey:
+    generate: true
+    existingSecret: ''
+  objectStorage:
+    generate: true
+    existingSecret: ''
+  oauthClientSecret:
+    existingSecret: osmo-oauth2-proxy
+  oauthCookieSecret:
+    existingSecret: osmo-oauth2-proxy
+  backendApiTokens:
+    enabled: true
+    bootstrap:
+      image:
+        digest: sha256:3c6d1e613d94f03d63a6213b8687c7d4e5b9154903327aa8f0b5d628d7ab010b
+    credentials:
+    - name: default
+      managedSecret:
+        name: osmo-backend-token
+  masterEncryptionKey:
+    managementMode: osmo
+    existingSecret:
+      name: osmo-master-encryption-key
+      key: mek.yaml
+    # Disable bootstrap after the first successful installation and before any
+    # rotation phase so the one-time Secret-creation permission is removed.
+    bootstrap:
+      enabled: true
+
+gateway:
+  envoy:
+    jwt:
+      providers:
+      # Keep OSMO-issued access tokens valid for in-cluster compute services.
+      # Environment overlays append external identity providers separately.
+      - issuer: osmo
+        audience: osmo
+        jwks_uri: https://osmo-api/api/auth/keys
+        user_claim: unique_name
+        cluster: osmo-api-jwks
+    service:
+      # Put the in-cluster gateway behind an operator-managed TLS edge.
+      type: ClusterIP
+  oauth2Proxy:
+    enabled: true
+  authz:
+    enabled: true
+  rateLimit:
+    enabled: false
+  # Prevent in-cluster clients from bypassing Envoy to reach an upstream
+  # service. Envoy strips client-supplied identity headers and applies OAuth2
+  # authentication plus OSMO semantic authorization.
+  networkPolicies:
+    enabled: true
+    upstreams:
+    - name: api
+      component: api
+      port: 8000
+    - name: router
+      component: router
+      port: 8000
+    - name: ui
+      component: ui
+      port: 8000
+    - name: agent
+      component: agent
+      port: 8000
+    - name: logger
+      component: logger
+      port: 8000
+
+configuration:
+  enabled: true
+
+valkey:
+  replica:
+    enabled: true
+    replicas: 2
+    minReplicasToWrite: 1
+  podDisruptionBudget:
+    enabled: true
+
+rustfs:
+  replicaCount: 4
+  drivesPerNode: 1
+  localEndpointHost:
+    autoInject: true
+  mode:
+    standalone:
+      enabled: false
+    distributed:
+      enabled: true
+  config:
+    rustfs:
+      ec:
+        storage_class_standard: EC:2
+  affinity:
+    podAntiAffinity:
+      enabled: true
+      topologyKey: kubernetes.io/hostname
+  pdb:
+    create: true
+    maxUnavailable: 1
+  storageclass:
+    name: ''
+    dataStorageSize: 100Gi
+
+compute:
+  # Retain workflow resources when the OSMO release is uninstalled. The
+  # namespace's network policy requires environment-specific IPv4 cluster
+  # CIDRs to prevent direct control-plane access.
+  workloadNamespace:
+    name: osmo-workflows
+    create: true
+  backendTestNamespace: ''
+  workflowNetworkPolicy:
+    enabled: true
+  authentication:
+    existingSecret: osmo-backend-token
+    tokenKey: token

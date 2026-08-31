@@ -295,7 +295,9 @@ rustfs:
     dataStorageSize: 1Gi
 
 compute:
-  workloadNamespace: ''
+  workloadNamespace:
+    name: ''
+    create: false
   backendTestNamespace: ''
   authentication:
     existingSecret: osmo-backend-token

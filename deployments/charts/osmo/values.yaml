@@ -15,7 +15,9 @@ planes:
 compute:
   # Workflow resources are created in this namespace. Empty uses the Helm
   # release namespace.
-  workloadNamespace: ''
+  workloadNamespace:
+    name: ''
+    create: false
   # Empty disables backend-test synchronization and test-namespace RBAC.
   # Enabling services.backendTestRunner requires this namespace to be non-empty.
   backendTestNamespace: ''
@@ -266,9 +268,9 @@ secrets:
     keys:
       credentials: object-storage.yaml
   # Backend compute-plane authentication. Each credential selects exactly one
-  # Kubernetes Secret source. Existing Secrets are the production interface;
-  # managed Secrets are generated and retained by a development-only Helm hook
-  # without placing token material in rendered manifests or Helm release state.
+  # Kubernetes Secret source. Managed Secrets are generated and retained by a
+  # short-lived Helm hook without placing token material in rendered manifests
+  # or Helm release state; existing Secrets remain externally managed.
   # Every Secret contains `token` and may contain `previous-token` for rotation.
   backendApiTokens:
     enabled: false
@@ -291,6 +293,8 @@ secrets:
     #     name: osmo-backend-token-local
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
+    # OSMO-managed lifecycle Jobs create and rotate the referenced Secret.
+    # External ownership mounts the reference without Secret mutation.
     managementMode: external
     existingSecret:
       name: ''
@@ -1278,6 +1282,7 @@ gateway:
     jwt:
       userHeader: x-osmo-user
       providers: []
+      additionalProviders: []
     skipAuthPaths:
     - /api/version
     - /api/auth/login

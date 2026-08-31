@@ -25,6 +25,9 @@ on:
       - 'deployments/charts/**'
       - '.github/workflows/helm-chart-lint.yaml'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -132,11 +135,8 @@ jobs:
               --set-string compute.backendName=test-backend
             helm lint deployments/charts/osmo \
               --kube-version 1.30.0 \
-              -f deployments/charts/osmo/profiles/kind-self-contained.yaml \
-              --set-string compute.backendName=test-backend \
-              --set embeddedDependencies.postgresql.enabled=false \
-              --set externalDependencies.postgresql.host=lint-postgresql \
-              --set secrets.postgresql.existingSecret=lint-postgresql
+              -f deployments/charts/osmo/profiles/self-contained.yaml \
+              -f deployments/charts/osmo/tests/self-contained-lint-values.yaml
           else
             helm lint "deployments/charts/$CHART"
           fi
@@ -167,11 +167,11 @@ jobs:
               -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
               --set-string compute.backendName=test-backend \
               >/dev/null
-            helm template test-kind deployments/charts/osmo \
+            helm template test-self-contained deployments/charts/osmo \
               --kube-version 1.30.0 \
               --api-versions postgresql.cnpg.io/v1 \
-              -f deployments/charts/osmo/profiles/kind-self-contained.yaml \
-              --set-string compute.backendName=test-backend \
+              -f deployments/charts/osmo/profiles/self-contained.yaml \
+              -f deployments/charts/osmo/examples/self-contained-environment-values.yaml \
               >/dev/null
           fi
 
