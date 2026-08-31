@@ -22,6 +22,7 @@ go_library(
         "action_registry.go",
         "file_loader.go",
         "pool_access.go",
+        "pool_store.go",
         "role_cache.go",
         "roles.go",
         "user_role_sync.go",
@@ -41,6 +42,7 @@ go_test(
     srcs = [
         "action_registry_test.go",
         "pool_access_test.go",
+        "pool_store_test.go",
         "role_cache_test.go",
         "roles_test.go",
     ],

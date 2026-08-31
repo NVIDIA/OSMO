@@ -54,8 +54,23 @@ type AuthzServer struct {
 	pgClient      *postgres.PostgresClient
 	roleCache     *roles.RoleCache
 	poolNameCache *roles.PoolNameCache
+	poolStore     *roles.ConfigMapPoolStore
 	fileStore     *roles.FileRoleStore // when set, reads from ConfigMap file instead of DB
 	logger        *slog.Logger
+}
+
+// NewHybridAuthzServer keeps roles and assignments in PostgreSQL while pool
+// names come from the same ConfigMap used by the 6.3 services.
+func NewHybridAuthzServer(
+	pgClient *postgres.PostgresClient,
+	roleCache *roles.RoleCache,
+	poolNameCache *roles.PoolNameCache,
+	poolStore *roles.ConfigMapPoolStore,
+	logger *slog.Logger,
+) *AuthzServer {
+	server := NewAuthzServer(pgClient, roleCache, poolNameCache, logger)
+	server.poolStore = poolStore
+	return server
 }
 
 // NewAuthzServer creates a new authorization server backed by PostgreSQL
@@ -126,6 +141,33 @@ func (s *AuthzServer) MigrateRoles(ctx context.Context) error {
 	)
 
 	return nil
+}
+
+// ValidateActiveWorkflowReferences is active only for the ConfigMap-backed
+// hybrid path and runs before authz begins serving.
+func (s *AuthzServer) ValidateActiveWorkflowReferences(ctx context.Context) error {
+	if s.poolStore == nil {
+		return nil
+	}
+	rows, err := s.pgClient.Pool().Query(ctx, `
+		SELECT workflow_id, pool, backend FROM workflows
+		WHERE status IN ('PENDING', 'RUNNING', 'WAITING') ORDER BY workflow_id;
+	`)
+	if err != nil {
+		return fmt.Errorf("query active workflow references: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var workflowID, pool, backend string
+		if err := rows.Scan(&workflowID, &pool, &backend); err != nil {
+			return fmt.Errorf("scan active workflow reference: %w", err)
+		}
+		if err := s.poolStore.ValidateActiveWorkflowReference(
+			workflowID, pool, backend); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }
 
 // RegisterAuthzService registers the authorization service with gRPC server
@@ -314,7 +356,9 @@ func (s *AuthzServer) checkAccess(
 func (s *AuthzServer) computeAllowedPools(
 	ctx context.Context, user string, userRoles []*roles.Role) []string {
 	var allPoolNames []string
-	if s.fileStore != nil {
+	if s.poolStore != nil {
+		allPoolNames = s.poolStore.GetPoolNames()
+	} else if s.fileStore != nil {
 		allPoolNames = s.fileStore.GetPoolNames()
 	} else {
 		var ok bool

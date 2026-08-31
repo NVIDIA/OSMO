@@ -40,9 +40,8 @@ import (
 )
 
 const (
-	defaultGRPCPort       = 50052
-	maxGRPCMsgSize        = 4 * 1024 * 1024 // 4MB
-	filePollInterval      = 30 * time.Second
+	defaultGRPCPort = 50052
+	maxGRPCMsgSize  = 4 * 1024 * 1024 // 4MB
 )
 
 var (
@@ -50,8 +49,8 @@ var (
 	enableReflection = flag.Bool("enable-reflection", false,
 		"Enable gRPC reflection (for local testing only)")
 	rolesFile = flag.String("roles-file", "",
-		"Path to ConfigMap-mounted YAML file for roles. "+
-			"When set, reads roles from file instead of PostgreSQL (ConfigMap mode).")
+		"Path to the 6.3 ConfigMap YAML. When set, pools come from the file; "+
+			"roles and assignments remain in PostgreSQL.")
 
 	// PostgreSQL flags - registered via postgres package
 	postgresFlagPtrs = postgres.RegisterPostgresFlags()
@@ -69,19 +68,24 @@ func main() {
 	loggingConfig := loggingFlagPtrs.ToConfig()
 	logger := logging.InitLogger("authz-sidecar", loggingConfig)
 
-	var authzServer *server.AuthzServer
-
+	var poolStore *roles.ConfigMapPoolStore
 	if *rolesFile != "" {
-		// ConfigMap mode: read roles from file, no DB needed
-		authzServer = initFileBackedServer(*rolesFile, logger)
-	} else {
-		// DB mode: read roles from PostgreSQL (uses caches)
-		cacheConfig := cacheFlagPtrs.ToCacheConfig()
-		authzServer = initDBBackedServer(cacheConfig, logger)
+		var err error
+		poolStore, err = roles.LoadConfigMapPoolStore(*rolesFile)
+		if err != nil {
+			logger.Error("failed to load ConfigMap pools", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
 	}
+	cacheConfig := cacheFlagPtrs.ToCacheConfig()
+	authzServer := initDBBackedServer(cacheConfig, poolStore, logger)
 
 	// Migrate roles (no-op in file-backed mode)
 	ctx := context.Background()
+	if err := authzServer.ValidateActiveWorkflowReferences(ctx); err != nil {
+		logger.Error("ConfigMap is unsafe for active workflows", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	if err := authzServer.MigrateRoles(ctx); err != nil {
 		logger.Error("failed to migrate roles", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -115,25 +119,9 @@ func main() {
 	}
 }
 
-func initFileBackedServer(
-	filePath string,
-	logger *slog.Logger,
-) *server.AuthzServer {
-	fileStore := roles.NewFileRoleStore(filePath, logger)
-	if err := fileStore.Load(); err != nil {
-		logger.Error("failed to load roles from file",
-			slog.String("file", filePath),
-			slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	fileStore.Start(filePollInterval)
-	logger.Info("authz sidecar running in ConfigMap mode",
-		slog.String("roles_file", filePath))
-	return server.NewFileBackedAuthzServer(fileStore, logger)
-}
-
 func initDBBackedServer(
 	cacheConfig roles.CacheConfig,
+	poolStore *roles.ConfigMapPoolStore,
 	logger *slog.Logger,
 ) *server.AuthzServer {
 	postgresConfig := postgresFlagPtrs.ToPostgresConfig()
@@ -145,7 +133,12 @@ func initDBBackedServer(
 	}
 	roleCache := roles.NewRoleCache(cacheConfig.MaxSize, cacheConfig.TTL, logger)
 	poolNameCache := roles.NewPoolNameCache(cacheConfig.TTL, logger)
-	logger.Info("authz sidecar running in DB mode",
+	if poolStore != nil {
+		logger.Info("authz sidecar using PostgreSQL roles and ConfigMap pools")
+		return server.NewHybridAuthzServer(
+			pgClient, roleCache, poolNameCache, poolStore, logger)
+	}
+	logger.Info("authz sidecar using PostgreSQL roles and pools",
 		slog.String("postgres_host", postgresConfig.Host))
 	return server.NewAuthzServer(pgClient, roleCache, poolNameCache, logger)
 }

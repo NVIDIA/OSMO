@@ -12,10 +12,27 @@ SPDX-License-Identifier: Apache-2.0
   workflow specification and submission guides for usage, and the
   `labels_config` reference for the admin policy.
 - **ConfigMap-only service configuration** — the unified `osmo` chart owns
-  service, workflow, backend, pool, template, validation, test, and role
-  configuration. PostgreSQL is no longer a configuration source.
+  service, workflow, backend, pool, template, validation, and test
+  configuration. Authz roles and assignments remain PostgreSQL-owned.
 
 ## Required ConfigMap adoption gate
+
+### Required two-image release sequence
+
+Build and publish this hybrid bridge commit as its own immutable 6.3 image
+before building the ConfigMap-only successor commit. The bridge deliberately
+retains the existing nine-section ConfigMap, `configuration.enabled` dual-mode
+service behavior, and PostgreSQL fallback for non-authz configuration. Its
+only authority change is that authz roles and assignments always come from
+PostgreSQL; when ConfigMap mode is enabled, authz pool names come from the
+mounted ConfigMap. When ConfigMap mode is disabled, authz continues to read
+pool names from PostgreSQL.
+
+Every installation must deploy and validate that exact bridge image, adopt
+roles, enable and smoke-test ConfigMap mode, and record approval before it can
+deploy the successor 6.4 image. The successor commit removes roles from the
+ConfigMap and requires exactly the remaining eight sections with no database
+fallback. Skipping the bridge image is unsupported.
 
 Complete this gate on every existing installation before starting the 6.4
 maintenance window. Do not remove the database fallback until every supported
@@ -30,6 +47,63 @@ The adoption sequence is:
    models against the live export.
 5. Enable ConfigMap mode on the dual-mode release, then run the live read and
    workflow smoke checks below.
+
+### Adopt file-backed roles into PostgreSQL
+
+Capture the exact `roles` section from the running 6.3 ConfigMap. Provide an
+explicit sync mode for every role; the migration never guesses whether an IDP
+role is forced, imported, or manually managed:
+
+```yaml
+# role-sync-modes.yaml
+syncModes:
+  osmo-admin: import
+  osmo-user: import
+  osmo-default: force
+  osmo-ctrl: ignore
+  osmo-backend: ignore
+```
+
+After the bridge has applied its DB role migrations and default-role seeding,
+run the read-only `plan` command. It validates production semantic actions,
+preserves immutable built-in roles, refuses DB-only extra roles, and records a
+deterministic diff plus hashes of current roles and assignments:
+
+```bash
+export OSMO_POSTGRES_PASSWORD='<short-lived-password>'
+bazel run //deployments/upgrades:adopt_configmap_roles_binary -- plan \
+  --postgres-host <host> --postgres-port 5432 \
+  --postgres-database <database> --postgres-user <user> \
+  --roles-file <6.3-config.yaml> \
+  --sync-modes-file role-sync-modes.yaml \
+  --hybrid-version '<immutable-6.3-image-digest>' \
+  --output role-adoption-plan.json
+```
+
+Review the plan, then explicitly apply it. Apply runs in one PostgreSQL
+transaction, locks role authority, rejects role or assignment drift since
+planning, writes the exact planned state, and records role history:
+
+```bash
+bazel run //deployments/upgrades:adopt_configmap_roles_binary -- apply \
+  --postgres-host <host> --postgres-port 5432 \
+  --postgres-database <database> --postgres-user <user> \
+  --plan role-adoption-plan.json \
+  --output role-adoption-state.json
+```
+
+Start the bridge authz sidecar and record real JWT login, personal access
+token, and pool-authorization probe evidence. Then finalize the receipt; the
+`verify` command re-reads roles, mappings, and assignments and rejects drift:
+
+```bash
+bazel run //deployments/upgrades:adopt_configmap_roles_binary -- verify \
+  --postgres-host <host> --postgres-port 5432 \
+  --postgres-database <database> --postgres-user <user> \
+  --state role-adoption-state.json \
+  --probe-evidence role-probes.yaml \
+  --output role-adoption-receipt.json
+```
 
 ### Export configuration and map Secrets
 

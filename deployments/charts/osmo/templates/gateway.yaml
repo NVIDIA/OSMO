@@ -540,6 +540,9 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" $gw.authz "componentName" "gateway-authz") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.authz) | nindent 8 }}
+        {{- if .Values.configuration.enabled }}
+        checksum/osmo-config: {{ toJson (dict "configuration" .Values.configuration "externalUrl" .Values.externalUrl) | sha256sum }}
+        {{- end }}
         osmo.nvidia.com/postgresql-secret-rollout: {{ .Values.secrets.postgresql.rolloutNonce | quote }}
     spec:
       automountServiceAccountToken: {{ $gw.authz.serviceAccount.automountServiceAccountToken }}
@@ -580,7 +583,7 @@ spec:
           - "--grpc-port={{ $gw.authz.grpcPort }}"
           {{- if .Values.configuration.enabled }}
           - "--roles-file=/etc/osmo/configs/config.yaml"
-          {{- else }}
+          {{- end }}
           - "--postgres-host={{ include "osmo.postgresql.host" . }}"
           - "--postgres-port={{ include "osmo.postgresql.port" . }}"
           - "--postgres-database={{ include "osmo.postgresql.database" . }}"
@@ -589,7 +592,6 @@ spec:
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
           - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"
-          {{- end }}
           - "--cache-ttl={{ $gw.authz.cache.ttl }}"
           - "--cache-max-size={{ $gw.authz.cache.maxSize }}"
           {{- with .Values.logging.logFormat }}
