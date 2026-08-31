@@ -948,7 +948,7 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: Ingress"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: HTTPRoute"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: Namespace"
-    require_contains "$TEST_DIRECTORY/quickstart.yaml" "OSMO_LOGIN_DEV"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "OSMO_LOGIN_DEV"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" "http://osmo-gateway"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
         "secretName: osmo-backend-token"

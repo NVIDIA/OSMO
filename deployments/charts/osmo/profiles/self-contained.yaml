@@ -245,7 +245,6 @@ configuration:
               memory: '{{USER_MEMORY}}'
               nvidia.com/gpu: '{{USER_GPU}}'
               ephemeral-storage: '{{USER_STORAGE}}'
-    kind_dev_auth: null
   pools:
     default:
       common_pod_template:

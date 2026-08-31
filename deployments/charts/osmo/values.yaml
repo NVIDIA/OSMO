@@ -1672,17 +1672,6 @@ configuration:
               cpu: '{{USER_CPU}}'
               memory: '{{USER_MEMORY}}'
               ephemeral-storage: '{{USER_STORAGE}}'
-    kind_dev_auth:
-      spec:
-        containers:
-        - name: '{{USER_CONTAINER_NAME}}'
-          env:
-          - name: OSMO_LOGIN_DEV
-            value: "true"
-        - name: osmo-ctrl
-          env:
-          - name: OSMO_LOGIN_DEV
-            value: "true"
   resourceValidations:
     default_cpu:
     - operator: LE
@@ -1807,7 +1796,6 @@ configuration:
       common_pod_template:
       - default_ctrl
       - default_user
-      - kind_dev_auth
       common_resource_validations:
       - default_cpu
       - default_memory
