@@ -5,18 +5,18 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO chart profiles
 
-Profiles are values-file overlays, not a `profile` value selected by the chart.
-Layer environment-specific values after a base overlay so that the environment
-values take precedence.
+The chart defaults provide the development quickstart. Profiles are values-file
+overlays, not a `profile` value selected by the chart. Layer environment-specific
+values after a base overlay so that the environment values take precedence.
 
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
-| `quickstart.yaml` | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `osmo-service-auth` generated and created as documented; `compute.backendName` set explicitly at install time |
-| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, an `osmo-service-auth` Secret generated as documented, a TLS edge and public `externalUrl`, IPv4 cluster CIDRs, and `compute.backendName` |
+| `quickstart.yaml` | Compatibility overlay; equivalent to chart defaults | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `osmo-service-auth` generated and created as documented |
+| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, an `osmo-service-auth` Secret generated as documented, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
-The quick-start profile is the smallest complete control-and-compute deployment
+The default values are the smallest complete control-and-compute deployment
 for browser, CLI, and CPU hello-world verification. It exposes the UI and API
 through gateway NodePort `30080` while omitting optional production behavior.
 It intentionally uses `latest` OSMO images, one replica per component,
@@ -25,7 +25,9 @@ single-node stateful dependencies.
 The quick-start installation path uses the chart's default image settings and
 does not require application Secrets or an image-pull Secret to be created
 beforehand. Configure top-level `imagePullSecrets` only when using a registry
-that requires credentials.
+that requires credentials. `quickstart.yaml` retains the former explicit values
+as a compatibility overlay for existing automation; new installations can omit
+it.
 
 The self-contained profile is the production-converged path for environments
 that host OSMO and its stateful dependencies in Kubernetes. It uses chart-version

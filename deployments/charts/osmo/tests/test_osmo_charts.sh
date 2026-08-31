@@ -27,6 +27,14 @@ helm_template() {
     helm template "$@" --kube-version 1.30.0
 }
 
+helm_template_with_control_defaults() {
+    local release=$1
+    local chart=$2
+    shift 2
+    helm_template "$release" "$chart" \
+        -f "$CHARTS_ROOT/osmo/tests/control-default-values.yaml" "$@"
+}
+
 helm_template_with_backend() {
     helm_template "$@" --set-string compute.backendName=test-backend
 }
@@ -496,18 +504,19 @@ test_control_umbrella() {
         fail "expected a split compute release without a backend name to fail"
     fi
     require_contains "$TEST_DIRECTORY/missing-split-backend-name.out" \
-        "compute.backendName is required when planes.compute.enabled=true"
+        "compute.backendName is required for compute-only installations"
 
-    if helm_template missing-converged-backend-name "$charts_copy/osmo" \
-            --api-versions postgresql.cnpg.io/v1 \
-            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
-            --set externalUrl=https://osmo.example.com \
-            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
-            >"$TEST_DIRECTORY/missing-converged-backend-name.out" 2>&1; then
-        fail "expected a converged release without a backend name to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/missing-converged-backend-name.out" \
-        "compute.backendName is required when planes.compute.enabled=true"
+    helm_template converged-default-backend "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        --set externalUrl=https://osmo.example.com \
+        --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+        >"$TEST_DIRECTORY/converged-default-backend.yaml"
+    resource_document "$TEST_DIRECTORY/converged-default-backend.yaml" Deployment \
+        osmo-backend-listener \
+        >"$TEST_DIRECTORY/converged-default-backend-listener.yaml"
+    require_contains "$TEST_DIRECTORY/converged-default-backend-listener.yaml" \
+        '- "default"'
 
     helm_template_with_backend split-compute "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -849,10 +858,9 @@ test_control_umbrella() {
         "scheme: HTTPS"
 
     local quickstart_runtime_tag=quickstart-test
-    helm_template_with_backend quick-start-runtime "$charts_copy/osmo" \
+    helm_template quick-start-runtime "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
         --set-string imageRegistry=nvcr.io \
         --set-string imageRepository=nvstaging/osmo \
         --set-string imageTag="$quickstart_runtime_tag" \
@@ -877,10 +885,9 @@ test_control_umbrella() {
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
         "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
 
-    helm_template_with_backend quick-start "$charts_copy/osmo" \
+    helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
         >"$TEST_DIRECTORY/quickstart.yaml"
     local quickstart_deployment
     for quickstart_deployment in \
@@ -3572,7 +3579,7 @@ data:
   connectionCaEnabled: {{ include "osmo.externalDependencies.connectionCaEnabled" . | quote }}
 {{- end }}
 EOF
-    helm_template embedded-helper-contract "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-helper-contract "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         >"$TEST_DIRECTORY/osmo-postgresql-helper-contract.yaml"
@@ -3602,7 +3609,7 @@ EOF
 
     local long_release
     long_release=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-    helm_template "$long_release" "$charts_copy/osmo" \
+    helm_template_with_control_defaults "$long_release" "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         >"$TEST_DIRECTORY/osmo-long-release.yaml"
@@ -3615,7 +3622,7 @@ EOF
 
     local long_override
     long_override=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-    if helm_template embedded-name-too-long "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-name-too-long "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set "postgresql.fullnameOverride=$long_override" \
@@ -3625,7 +3632,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-long-override.out" \
         "embedded PostgreSQL cluster name must be at most 60 characters"
 
-    helm_template embedded-osmo "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-osmo "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         >"$TEST_DIRECTORY/osmo-embedded.yaml"
@@ -3716,7 +3723,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-combined-embedded-api.yaml" \
         "name: combined-embedded-valkey-credentials"
 
-    helm_template embedded-existing "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-existing "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.initdb.secret.name=embedded-postgresql-credentials \
@@ -3731,7 +3738,7 @@ EOF
         "name: embedded-postgresql-credentials"
     require_contains "$TEST_DIRECTORY/osmo-embedded-existing-api.yaml" "key: password"
 
-    helm_template embedded-scaled "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-scaled "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.instances=5 \
@@ -3740,7 +3747,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-scaled.yaml" \
         "embedded-scaled-pg-rw"
 
-    helm_template embedded-named "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-named "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.fullnameOverride=custom-embedded-database \
@@ -3754,7 +3761,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-named.yaml" \
         "secretName: custom-embedded-database-ca"
 
-    helm_template embedded-name-override "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-name-override "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.nameOverride=custom-postgresql \
@@ -3766,7 +3773,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-embedded-name-override.yaml" \
         "secretName: embedded-name-override-custom-postgresql-ca"
 
-    helm_template embedded-custom-ca "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-custom-ca "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.certificates.serverCASecret=custom-server-ca \
@@ -3781,7 +3788,7 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-embedded-custom-ca.yaml" \
         "secretName: embedded-custom-ca-pg-ca"
 
-    helm_template embedded-dev "$charts_copy/osmo" \
+    helm_template_with_control_defaults embedded-dev "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.instances=1 \
@@ -4163,7 +4170,7 @@ EOF
     require_contains "$TEST_DIRECTORY/scaling-without-memory-request.out" \
         "services.worker autoscaling memory target requires resources.requests.memory"
 
-    helm_template workload-policy "$charts_copy/osmo" \
+    helm_template_with_control_defaults workload-policy "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-workload-policy-values.yaml" \
         --set secrets.oauthClientSecret.existingSecret=oauth-client \
@@ -4312,7 +4319,7 @@ EOF
         "$TEST_DIRECTORY/osmo-monitoring-envoy-pod-annotations.yaml" \
         "checksum/envoy-config: wrong"
 
-    helm_template monitoring-defaults "$charts_copy/osmo" \
+    helm_template_with_control_defaults monitoring-defaults "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-monitoring-values.yaml" \
         >"$TEST_DIRECTORY/osmo-monitoring-defaults.yaml"
@@ -4320,7 +4327,7 @@ EOF
         "$TEST_DIRECTORY/osmo-monitoring-defaults.yaml" \
         "platform.example.com/owner"
 
-    helm_template monitoring-mcp "$charts_copy/osmo" \
+    helm_template_with_control_defaults monitoring-mcp "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-monitoring-values.yaml" \
@@ -4329,8 +4336,11 @@ EOF
         "$TEST_DIRECTORY/osmo-monitoring-mcp.yaml" \
         "platform.example.com/owner"
 
-    helm_template image-defaults "$charts_copy/osmo" \
+    helm_template_with_control_defaults image-defaults "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set gateway.tls.enabled=true \
         --set secrets.oauthClientSecret.existingSecret=oauth-client \
         --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-image-defaults.yaml"
@@ -4355,8 +4365,11 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
         'image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"'
 
-    helm_template image-mirror "$charts_copy/osmo" \
+    helm_template_with_control_defaults image-mirror "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set gateway.tls.enabled=true \
         --set secrets.oauthClientSecret.existingSecret=oauth-client \
         --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         --set imageRegistry=mirror.example.com \
@@ -4373,7 +4386,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-image-mirror.yaml" \
         "name: mirror-secret"
 
-    helm_template image-family-override "$charts_copy/osmo" \
+    helm_template_with_control_defaults image-family-override "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string imageRegistry=nvcr.io \
         --set-string imageRepository=nvstaging/osmo \
@@ -4385,7 +4398,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-image-family-override.yaml" \
         'image: "docker.io/envoyproxy/envoy:v1.38.1"'
 
-    helm_template image-priority "$charts_copy/osmo" \
+    helm_template_with_control_defaults image-priority "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string imageRegistry=nvcr.io \
         --set-string imageRepository=nvstaging/osmo \
@@ -4396,7 +4409,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-image-priority.yaml" \
         "image: registry.example.com/custom/team/worker:v2"
 
-    helm_template image-field-priority "$charts_copy/osmo" \
+    helm_template_with_control_defaults image-field-priority "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string imageRegistry=registry.example.com \
         --set-string imageRepository=team/osmo \
@@ -4409,7 +4422,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-image-field-priority.yaml" \
         "image: registry.example.com/service/router:v1"
 
-    helm_template runtime-priority "$charts_copy/osmo" \
+    helm_template_with_control_defaults runtime-priority "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string imageRegistry=nvcr.io \
         --set-string imageRepository=nvstaging/osmo \
@@ -4460,7 +4473,7 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-valkey-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
 
-    if helm_template invalid-image-pull-secret-scalar "$charts_copy/osmo" \
+    if helm_template_with_control_defaults invalid-image-pull-secret-scalar "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set imagePullSecrets[0]=mirror-secret \
         >"$TEST_DIRECTORY/invalid-image-pull-secret-scalar.out" 2>&1; then
@@ -4469,7 +4482,7 @@ EOF
     require_schema_path "$TEST_DIRECTORY/invalid-image-pull-secret-scalar.out" \
         "imagePullSecrets.0"
 
-    if helm_template invalid-image-pull-secret-name "$charts_copy/osmo" \
+    if helm_template_with_control_defaults invalid-image-pull-secret-name "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set imagePullSecrets[0].unexpected=mirror-secret \
         >"$TEST_DIRECTORY/invalid-image-pull-secret-name.out" 2>&1; then
@@ -4478,7 +4491,7 @@ EOF
     require_schema_path "$TEST_DIRECTORY/invalid-image-pull-secret-name.out" \
         "imagePullSecrets.0"
 
-    helm_template image-component "$charts_copy/osmo" \
+    helm_template_with_control_defaults image-component "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set services.worker.image.registry=registry.example.com \
         --set services.worker.image.repository=custom/team/worker \
@@ -4487,7 +4500,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-image-component.yaml" \
         "image: registry.example.com/custom/team/worker:v2"
 
-    helm_template image-digest "$charts_copy/osmo" \
+    helm_template_with_control_defaults image-digest "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set services.worker.image.tag=ignored \
         --set-string services.worker.image.digest=sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
@@ -4497,13 +4510,13 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-image-digest.yaml" \
         "worker:ignored"
 
-    helm_template unknown-root "$charts_copy/osmo" \
+    helm_template_with_control_defaults unknown-root "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set unsupportedRoot.enabled=true \
         >"$TEST_DIRECTORY/unknown-root.yaml"
     require_deployment "$TEST_DIRECTORY/unknown-root.yaml" "unknown-root-osmo-api"
 
-    helm_template unknown-nested "$charts_copy/osmo" \
+    helm_template_with_control_defaults unknown-nested "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set services.worker.typo=true \
         --set services.worker.image.typo=true \
@@ -4526,6 +4539,7 @@ EOF
 
     helm_template_with_backend compute-only "$charts_copy/osmo" \
         --namespace compute-system \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
         --set externalUrl=https://osmo.example.com \
@@ -4571,7 +4585,7 @@ EOF
     require_contains "$TEST_DIRECTORY/compute-with-embedded.out" \
         "embedded dependencies require planes.control.enabled=true"
 
-    if helm_template missing-cnpg-operator "$charts_copy/osmo" \
+    if helm_template_with_control_defaults missing-cnpg-operator "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         >"$TEST_DIRECTORY/missing-cnpg-operator.out" 2>&1; then
         fail "expected embedded PostgreSQL without the CloudNativePG API to fail"
@@ -4579,7 +4593,7 @@ EOF
     require_contains "$TEST_DIRECTORY/missing-cnpg-operator.out" \
         "install a compatible CloudNativePG operator"
 
-    if helm_template embedded-external-host "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-external-host "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set externalDependencies.postgresql.host=unexpected-postgresql \
@@ -4589,7 +4603,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-external-host.out" \
         "externalDependencies.postgresql.host must be empty"
 
-    if helm_template embedded-other-namespace "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-other-namespace "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.namespaceOverride=another-namespace \
@@ -4599,7 +4613,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-other-namespace.out" \
         "postgresql.namespaceOverride must be empty"
 
-    if helm_template embedded-postgresql-recovery "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-postgresql-recovery "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.mode=recovery \
@@ -4611,7 +4625,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-postgresql-recovery.out" \
         "standalone"
 
-    if helm_template embedded-postgresql-replica "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-postgresql-replica "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.mode=replica \
@@ -4624,7 +4638,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-postgresql-replica.out" \
         "standalone"
 
-    if helm_template embedded-postgresql-server-tls-only "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-postgresql-server-tls-only "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.certificates.serverTLSSecret=custom-server-tls \
@@ -4634,7 +4648,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-postgresql-server-tls-only.out" \
         "serverCASecret is required"
 
-    if helm_template embedded-too-small "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-too-small "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.instances=1 \
@@ -4646,7 +4660,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-too-small.out" \
         "required synchronous replication needs at least 2 instances"
 
-    if helm_template embedded-external-secret "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-external-secret "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set secrets.postgresql.existingSecret=external-only-secret \
@@ -4658,7 +4672,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-external-secret.out" \
         "postgresql.cluster.initdb.secret.name"
 
-    if helm_template embedded-backups "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-backups "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.backups.enabled=true \
@@ -4672,7 +4686,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-backups.out" \
         "embedded backup and restore are not supported"
 
-    if helm_template embedded-wal-archiver "$charts_copy/osmo" \
+    if helm_template_with_control_defaults embedded-wal-archiver "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set postgresql.cluster.plugins[0].name=test-wal-archiver \
@@ -4684,7 +4698,7 @@ EOF
     require_contains "$TEST_DIRECTORY/embedded-wal-archiver.out" \
         "postgresql.cluster.plugins: embedded WAL archiver plugins are not supported"
 
-    if helm_template invalid-postgresql-instances "$charts_copy/osmo" \
+    if helm_template_with_control_defaults invalid-postgresql-instances "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
         --set-string postgresql.cluster.instances=invalid \

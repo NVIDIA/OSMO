@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Development-only converged profile for the shortest path to a working OSMO
-# control plane, compute plane, and CPU workflow runtime.
+# Compatibility overlay for installations that selected the former
+# development-only quickstart profile explicitly. These values now match the
+# chart defaults.
 planes:
   control:
     enabled: true

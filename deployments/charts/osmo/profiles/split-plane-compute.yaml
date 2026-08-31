@@ -10,6 +10,8 @@ planes:
   compute:
     enabled: true
 
+fullnameOverride: ''
+
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -19,6 +21,21 @@ embeddedDependencies:
     enabled: false
 
 externalUrl: https://osmo.example.com
+
+secrets:
+  valkey:
+    generate: false
+  objectStorage:
+    generate: false
+  backendApiTokens:
+    enabled: false
+    credentials: []
+  masterEncryptionKey:
+    managementMode: external
+    existingSecret:
+      name: ''
+    bootstrap:
+      enabled: false
 
 compute:
   workloadNamespace:
@@ -30,5 +47,21 @@ compute:
     tokenKey: token
 
 services:
+  backendListener:
+    resources:
+      requests:
+        cpu: '1'
+        memory: 2Gi
+      limits:
+        memory: 2Gi
+    pod:
+      topologySpreadConstraints: null
+  backendWorker:
+    resources:
+      requests:
+        cpu: '1'
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints: null
   backendTestRunner:
     enabled: false

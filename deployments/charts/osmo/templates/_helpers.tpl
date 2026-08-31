@@ -137,6 +137,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.compute.workloadNamespace.name | default .Release.Namespace -}}
 {{- end -}}
 
+{{- define "osmo.compute.backendName" -}}
+{{- if .Values.compute.backendName -}}
+{{- .Values.compute.backendName -}}
+{{- else if and .Values.planes.control.enabled .Values.planes.compute.enabled -}}
+{{- "default" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "osmo.compute.serviceUrl" -}}
 {{- if .Values.planes.control.enabled -}}
 {{- printf "http://%s:%v" (include "osmo.gateway.fullname" .) .Values.gateway.envoy.service.port -}}

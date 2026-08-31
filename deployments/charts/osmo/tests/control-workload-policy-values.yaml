@@ -51,6 +51,7 @@ services:
       selector:
         matchLabels:
           user-supplied-selector: ignored
+
   worker:
     podDisruptionBudget:
       enabled: true
@@ -58,3 +59,11 @@ services:
       annotations: {}
       minAvailable: 1
       unhealthyPodEvictionPolicy: IfHealthyBudget
+
+gateway:
+  oauth2Proxy:
+    enabled: true
+  authz:
+    enabled: true
+  tls:
+    enabled: true

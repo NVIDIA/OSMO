@@ -5,8 +5,8 @@
 {{- fail "at least one of planes.control.enabled or planes.compute.enabled must be true" -}}
 {{- end -}}
 {{- if .Values.planes.compute.enabled -}}
-{{- if not .Values.compute.backendName -}}
-{{- fail "compute.backendName is required when planes.compute.enabled=true; set it explicitly with --set-string compute.backendName=<backend-name>" -}}
+{{- if and (not .Values.planes.control.enabled) (not .Values.compute.backendName) -}}
+{{- fail "compute.backendName is required for compute-only installations; set it explicitly with --set-string compute.backendName=<backend-name>" -}}
 {{- end -}}
 {{- if not .Values.compute.authentication.existingSecret -}}
 {{- fail "compute.authentication.existingSecret is required when planes.compute.enabled=true" -}}

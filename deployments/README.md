@@ -38,9 +38,9 @@ cd scripts
 ./deploy-osmo-minimal.sh --provider aws
 ```
 
-For a development evaluation, use the unified chart's `quickstart.yaml`
-profile. Kind is the recommended local cluster; KAI Scheduler, CloudNativePG,
-and a default dynamic StorageClass must already be available:
+For a development evaluation, use the unified chart defaults. Kind is the
+recommended local cluster; KAI Scheduler, CloudNativePG, and a default dynamic
+StorageClass must already be available:
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -56,8 +56,6 @@ helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --values deployments/charts/osmo/profiles/quickstart.yaml \
-  --set-string compute.backendName=default \
   --wait \
   --wait-for-jobs \
   --timeout 20m
@@ -75,8 +73,8 @@ helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-The quick-start profile installs the control and compute planes, PostgreSQL,
-Valkey, and RustFS in one development OSMO release and creates its credentials
+The quickstart defaults install the control and compute planes, PostgreSQL,
+Valkey, and RustFS in one development OSMO release and create its credentials
 and buckets automatically. See
 [`charts/osmo/README.md`](charts/osmo/README.md) for readiness checks,
 port-forwarding, hello-world validation, recovery, and split-plane deployment.

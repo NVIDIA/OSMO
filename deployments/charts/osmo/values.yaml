@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Select which OSMO planes this release owns.
+# The chart defaults provide the development quickstart composition. Production
+# and split-plane profiles override these values explicitly.
 planes:
   # Deploy the API, UI, router, workers, logging services, and gateway. This
   # can be disabled for a compute-only release.
@@ -9,10 +10,13 @@ planes:
     enabled: true
   # Deploy backend listener, worker, RBAC, and optional compute policy resources.
   compute:
-    enabled: false
+    enabled: true
 
 # Compute-plane settings shared by the directly owned backend services.
 compute:
+  # Required for compute-only releases. Converged control-and-compute releases
+  # use "default" when this is not supplied.
+  # backendName: custom-backend
   # Workflow resources are created in this namespace. Empty uses the Helm
   # release namespace.
   workloadNamespace:
@@ -22,7 +26,7 @@ compute:
   # Enabling services.backendTestRunner requires this namespace to be non-empty.
   backendTestNamespace: ''
   authentication:
-    existingSecret: ''
+    existingSecret: osmo-backend-token
     tokenKey: token
   nodeConditionPrefix: ''
   rbac:
@@ -58,11 +62,11 @@ compute:
 # Valkey is managed directly by this release.
 embeddedDependencies:
   postgresql:
-    enabled: false
+    enabled: true
   valkey:
-    enabled: false
+    enabled: true
   objectStorage:
-    enabled: false
+    enabled: true
     # Must match rustfs.config.rustfs.region when enabled. Override both values
     # together for a non-default region.
     region: us-east-1
@@ -124,7 +128,7 @@ externalDependencies:
 # Override the names Helm derives from the chart and release. Leave empty for
 # conventional names such as `osmo-api` and `osmo-gateway`.
 nameOverride: ''
-fullnameOverride: ''
+fullnameOverride: osmo
 
 # Registry default for OSMO-owned component and runtime images. A non-empty
 # service-specific image.registry or runtimeImage.registry takes precedence.
@@ -184,7 +188,7 @@ logging:
 
 # Public OSMO URL used in generated service configuration and redirects.
 # Include the scheme, for example `https://osmo.example.com`.
-externalUrl: ''
+externalUrl: http://osmo-gateway
 
 # Optional Kubernetes Ingress for the OSMO gateway Service.
 ingress:
@@ -254,14 +258,14 @@ secrets:
   # either a retained generated Secret or an existing Secret; external mode
   # requires an existing Secret.
   valkey:
-    generate: false
+    generate: true
     existingSecret: ''
     rolloutNonce: ''
     keys:
       password: redis-password
   # Storage SDK configuration file mounted for all three object-storage uses.
   objectStorage:
-    generate: false
+    generate: true
     existingSecret: ''
     rolloutNonce: ''
     keys:
@@ -272,7 +276,7 @@ secrets:
   # or Helm release state; existing Secrets remain externally managed.
   # Every Secret contains `token` and may contain `previous-token` for rotation.
   backendApiTokens:
-    enabled: false
+    enabled: true
     bootstrap:
       image:
         registry: ''
@@ -283,7 +287,10 @@ secrets:
     # Change this non-secret value to roll the API after an externally managed
     # token Secret changes.
     rolloutNonce: ''
-    credentials: []
+    credentials:
+    - name: default
+      managedSecret:
+        name: osmo-backend-token
     # - name: default
     #   existingSecret:
     #     name: osmo-backend-token
@@ -294,13 +301,13 @@ secrets:
   masterEncryptionKey:
     # OSMO-managed lifecycle Jobs create and rotate the referenced Secret.
     # External ownership mounts the reference without Secret mutation.
-    managementMode: external
+    managementMode: osmo
     existingSecret:
-      name: ''
+      name: osmo-master-encryption-key
       key: mek.yaml
     bootstrap:
       # Must be set back to false immediately after a successful bootstrap.
-      enabled: false
+      enabled: true
       # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
       imagePullPolicy: IfNotPresent
@@ -384,10 +391,10 @@ services:
       automountServiceAccountToken: true
     resources:
       requests:
-        cpu: "1"
-        memory: 2Gi
+        cpu: 100m
+        memory: 256Mi
       limits:
-        memory: 2Gi
+        memory: 1Gi
     livenessProbe:
       enabled: true
       spec:
@@ -429,6 +436,7 @@ services:
       extraContainers: []
       extraVolumes: []
       hostAliases: []
+      topologySpreadConstraints: []
 
   # Compute-plane worker that materializes workflow resources in Kubernetes.
   backendWorker:
@@ -449,8 +457,8 @@ services:
       automountServiceAccountToken: true
     resources:
       requests:
-        cpu: "1"
-        memory: 1Gi
+        cpu: 100m
+        memory: 256Mi
       limits:
         memory: 1Gi
     livenessProbe:
@@ -494,6 +502,7 @@ services:
       extraContainers: []
       extraVolumes: []
       hostAliases: []
+      topologySpreadConstraints: []
 
   # Template and RBAC for optional backend validation CronJobs.
   backendTestRunner:
@@ -721,7 +730,12 @@ services:
       labels: {}
       annotations: {}
       extraPorts: []
-    resources: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
     extraPorts: []
     envFrom: []
     livenessProbe:
@@ -761,13 +775,7 @@ services:
       containerSecurityContext:
         readOnlyRootFilesystem: true
         runAsUser: 1000
-      topologySpreadConstraints:
-      - topologyKey: kubernetes.io/hostname
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
-      - topologyKey: topology.kubernetes.io/zone
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
+      topologySpreadConstraints: []
       hostAliases: []
       initContainers: []
       extraContainers: []
@@ -796,7 +804,12 @@ services:
         periodSeconds: 5
         timeoutSeconds: 15
         initialDelaySeconds: 10
-    resources: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
     extraArgs: []
     serviceAccount:
       name: ''
@@ -816,6 +829,7 @@ services:
       nodeSelector: {}
       containerSecurityContext:
         readOnlyRootFilesystem: true
+      topologySpreadConstraints: []
       initContainers: []
       extraContainers: []
       extraVolumes: []
@@ -850,7 +864,12 @@ services:
         periodSeconds: 5
         timeoutSeconds: 15
         initialDelaySeconds: 10
-    resources: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
     extraArgs: []
     serviceAccount:
       name: ''
@@ -863,7 +882,7 @@ services:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraEnv: []
-    replicas: 2
+    replicas: 1
     extraVolumeMounts: []
     pod:
       labels: {}
@@ -871,13 +890,7 @@ services:
       nodeSelector: {}
       containerSecurityContext:
         readOnlyRootFilesystem: true
-      topologySpreadConstraints:
-      - topologyKey: kubernetes.io/hostname
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
-      - topologyKey: topology.kubernetes.io/zone
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
+      topologySpreadConstraints: []
       initContainers: []
       extraContainers: []
       extraVolumes: []
@@ -944,7 +957,12 @@ services:
         failureThreshold: 3
         periodSeconds: 45
         timeoutSeconds: 20
-    resources: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
     extraArgs: []
     serviceAccount:
       name: ''
@@ -957,7 +975,7 @@ services:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraEnv: []
-    replicas: 3
+    replicas: 1
     extraVolumeMounts: []
     pod:
       labels: {}
@@ -965,10 +983,7 @@ services:
       nodeSelector: {}
       containerSecurityContext:
         readOnlyRootFilesystem: true
-      topologySpreadConstraints:
-      - topologyKey: topology.kubernetes.io/zone
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
+      topologySpreadConstraints: []
       hostAliases: []
       initContainers: []
       extraContainers: []
@@ -1006,7 +1021,12 @@ services:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     extraPorts: []
-    resources: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
     service:
       labels: {}
       annotations: {}
@@ -1039,7 +1059,7 @@ services:
         failureThreshold: 2
         timeoutSeconds: 30
     extraEnv: []
-    replicas: 3
+    replicas: 1
     extraVolumeMounts: []
     pod:
       labels: {}
@@ -1047,10 +1067,7 @@ services:
       nodeSelector: {}
       containerSecurityContext:
         readOnlyRootFilesystem: true
-      topologySpreadConstraints:
-      - topologyKey: topology.kubernetes.io/zone
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
+      topologySpreadConstraints: []
       hostAliases: []
       initContainers: []
       extraContainers: []
@@ -1090,8 +1107,8 @@ services:
         initialDelaySeconds: 10
     resources:
       requests:
-        cpu: '1'
-        memory: 1Gi
+        cpu: 100m
+        memory: 256Mi
       limits:
         memory: 1Gi
     service:
@@ -1110,7 +1127,7 @@ services:
       unhealthyPodEvictionPolicy: IfHealthyBudget
     envoy: {}
     extraEnv: []
-    replicas: 3
+    replicas: 1
     extraVolumeMounts: []
     pod:
       labels: {}
@@ -1118,10 +1135,7 @@ services:
       nodeSelector: {}
       containerSecurityContext:
         readOnlyRootFilesystem: true
-      topologySpreadConstraints:
-      - topologyKey: topology.kubernetes.io/zone
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
+      topologySpreadConstraints: []
       initContainers: []
       extraContainers: []
       extraVolumes: []
@@ -1169,8 +1183,8 @@ services:
         timeoutSeconds: 20
     resources:
       requests:
-        cpu: 500m
-        memory: 500Mi
+        cpu: 100m
+        memory: 256Mi
       limits:
         memory: 1Gi
     service:
@@ -1197,10 +1211,7 @@ services:
       nodeSelector: {}
       containerSecurityContext:
         readOnlyRootFilesystem: true
-      topologySpreadConstraints:
-      - topologyKey: topology.kubernetes.io/zone
-        maxSkew: 1
-        whenUnsatisfiable: ScheduleAnyway
+      topologySpreadConstraints: []
       initContainers: []
       extraContainers: []
       extraVolumes: []
@@ -1242,13 +1253,13 @@ gateway:
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
     defaultIdentity:
-      user: ''
-      roles: ''
-      allowedPools: ''
+      user: testuser
+      roles: osmo-admin
+      allowedPools: default
     service:
-      type: ClusterIP
+      type: NodePort
       port: 80
-      nodePort: null
+      nodePort: 30080
       labels: {}
       annotations: {}
       loadBalancerClass: ''
@@ -1259,10 +1270,10 @@ gateway:
       secretName: envoy-ssl-cert
     resources:
       requests:
-        cpu: 200m
-        memory: 128Mi
+        cpu: 50m
+        memory: 64Mi
       limits:
-        memory: 256Mi
+        memory: 512Mi
     livenessProbe:
       enabled: true
       spec:
@@ -1322,7 +1333,7 @@ gateway:
     extraClusters: []
     maxRequests: 100
     extraVolumeMounts: []
-    replicas: 2
+    replicas: 1
     pod:
       nodeSelector: {}
       affinity: {}
@@ -1341,6 +1352,7 @@ gateway:
       extraContainers: []
       labels: {}
       annotations: {}
+      topologySpreadConstraints: []
 
   # Internal destinations used by Envoy routes. Empty hosts resolve to this
   # release's Services; set a host only to route outside the release.
@@ -1368,7 +1380,7 @@ gateway:
   # Optional OIDC login/session proxy. Enable it only after configuring an
   # identity provider and the required existing Secrets.
   oauth2Proxy:
-    enabled: true
+    enabled: false
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -1439,7 +1451,7 @@ gateway:
 
   # Optional external-authorization service backed by OSMO role policies.
   authz:
-    enabled: true
+    enabled: false
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -1596,7 +1608,7 @@ gateway:
   # generates stable Kubernetes Secrets; production uses operator-provided or
   # cert-manager-owned existing Secrets. This does not configure edge TLS.
   tls:
-    enabled: true
+    enabled: false
     # Non-secret rollout trigger after operator-owned TLS Secrets change.
     rolloutNonce: ''
     generated:
@@ -1621,13 +1633,9 @@ gateway:
       mcp: ''
     caSecret: ''
 
-# OSMO domain configuration rendered into the service ConfigMap. Enable this
-# in a profile to manage workflows, pod templates, validation rules, roles,
-# backends, and pools with the release.
+# OSMO domain configuration rendered into the service ConfigMap.
 configuration:
-  # When false, the chart does not render or mount the OSMO configuration
-  # ConfigMap. The split-plane control profile enables it.
-  enabled: false
+  enabled: true
   extraConfigMaps: []
   extraAnnotations: {}
   service: {}
@@ -1659,13 +1667,22 @@ configuration:
             limits:
               cpu: '{{USER_CPU}}'
               memory: '{{USER_MEMORY}}'
-              nvidia.com/gpu: '{{USER_GPU}}'
               ephemeral-storage: '{{USER_STORAGE}}'
             requests:
               cpu: '{{USER_CPU}}'
               memory: '{{USER_MEMORY}}'
-              nvidia.com/gpu: '{{USER_GPU}}'
               ephemeral-storage: '{{USER_STORAGE}}'
+    kind_dev_auth:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
+        - name: osmo-ctrl
+          env:
+          - name: OSMO_LOGIN_DEV
+            value: "true"
   resourceValidations:
     default_cpu:
     - operator: LE
@@ -1790,6 +1807,7 @@ configuration:
       common_pod_template:
       - default_ctrl
       - default_user
+      - kind_dev_auth
       common_resource_validations:
       - default_cpu
       - default_memory
@@ -1808,15 +1826,16 @@ configuration:
 # CloudNativePG cluster chart values. These settings are used only when
 # embeddedDependencies.postgresql.enabled is true.
 postgresql:
+  fullnameOverride: osmo-pg
   nameOverride: pg
   type: postgresql
   version:
     postgresql: "16"
   mode: standalone
   cluster:
-    instances: 3
+    instances: 1
     storage:
-      size: 20Gi
+      size: 1Gi
       storageClass: ''
     walStorage:
       enabled: false
@@ -1833,14 +1852,11 @@ postgresql:
     primaryUpdateStrategy: unsupervised
     affinity:
       topologyKey: kubernetes.io/hostname
-      podAntiAffinityType: required
+      podAntiAffinityType: ""
     enableSuperuserAccess: false
-    enablePDB: true
+    enablePDB: false
     postgresql:
-      synchronous:
-        method: any
-        number: 1
-        dataDurability: required
+      synchronous: null
     initdb:
       database: osmo
       owner: osmo
@@ -1852,6 +1868,7 @@ postgresql:
 # The dependency also supports fixed-primary replication for read scaling and
 # data redundancy, but it does not provide Sentinel or automatic promotion.
 valkey:
+  fullnameOverride: osmo-valkey
   networkPolicy:
     ingress:
     - from:
@@ -1874,7 +1891,7 @@ valkey:
     enabled: true
   dataStorage:
     enabled: true
-    requestedSize: 8Gi
+    requestedSize: 512Mi
     keepPvc: true
   auth:
     enabled: true
@@ -1890,18 +1907,20 @@ valkey:
     maxmemory-policy noeviction
   deploymentStrategy: Recreate
   replica:
-    minReplicasToWrite: 1
+    enabled: false
+    minReplicasToWrite: 0
     persistence:
       size: 8Gi
     persistentVolumeClaimRetentionPolicy:
       whenDeleted: Retain
       whenScaled: Retain
   podDisruptionBudget:
-    enabled: true
+    enabled: false
 
 # Official RustFS dependency configuration. These defaults provide a hardened,
 # persistent standalone server when embedded object storage is enabled.
 rustfs:
+  fullnameOverride: osmo-rustfs
   replicaCount: 1
   mode:
     standalone:
@@ -1956,6 +1975,9 @@ rustfs:
     readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
     runAsNonRoot: true
+  affinity:
+    podAntiAffinity:
+      enabled: false
   storageclass:
     name: ""
-    dataStorageSize: 10Gi
+    dataStorageSize: 1Gi

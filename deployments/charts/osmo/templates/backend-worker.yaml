@@ -82,7 +82,7 @@ spec:
         - --login_method
         - token
         - --backend
-        - {{ .Values.compute.backendName | quote }}
+        - {{ include "osmo.compute.backendName" . | quote }}
         - --namespace
         - {{ include "osmo.compute.backendNamespace" . | quote }}
         - --log_level
