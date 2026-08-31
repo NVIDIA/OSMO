@@ -152,22 +152,26 @@ validate_secret() {
 
 create_secret() {
     secret_name="$1"
-    if head -c 32 /dev/urandom \
-            | base64 \
-            | tr '/+' '_-' \
-            | tr -d '=\n' \
-            | kubectl create secret generic "$secret_name" \
-                --namespace "$namespace" \
-                --from-file=token=/dev/stdin \
-                --dry-run=client \
-                -o yaml \
-            | kubectl label --local -f - \
-                app.kubernetes.io/managed-by=osmo-backend-token-bootstrap \
-                "app.kubernetes.io/instance=$release_name" \
-                -o yaml \
-            | kubectl annotate --local -f - \
-                osmo.nvidia.com/credential-source=osmo-chart-bootstrap \
-                -o yaml \
+    encoded_token=$(head -c 32 /dev/urandom \
+        | base64 \
+        | tr '/+' '_-' \
+        | tr -d '=\n' \
+        | base64 \
+        | tr -d '\n')
+    if printf '%s\n' \
+            'apiVersion: v1' \
+            'kind: Secret' \
+            'metadata:' \
+            "  name: $secret_name" \
+            "  namespace: $namespace" \
+            '  labels:' \
+            '    app.kubernetes.io/managed-by: osmo-backend-token-bootstrap' \
+            "    app.kubernetes.io/instance: $release_name" \
+            '  annotations:' \
+            '    osmo.nvidia.com/credential-source: osmo-chart-bootstrap' \
+            'type: Opaque' \
+            'data:' \
+            "  token: $encoded_token" \
             | kubectl create -f - >/dev/null; then
         printf 'INFO Created backend token Secret %s\n' "$secret_name"
         return

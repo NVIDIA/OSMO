@@ -146,10 +146,9 @@ spec:
           mountPath: /tmp
         resources:
           requests:
-            cpu: 10m
+            cpu: 50m
             memory: 32Mi
           limits:
-            cpu: 100m
             memory: 128Mi
       volumes:
       - name: bootstrap-tmp

@@ -177,6 +177,27 @@ resource_document() {
     ' "$file"
 }
 
+resource_name_with_hash_suffix() {
+    local file=$1
+    local kind=$2
+    local suffix=$3
+    local matches
+    matches=$(resource_names "$file" "$kind" | \
+        grep -E -- "-${suffix}-[0-9a-f]{10}$" || true)
+    [[ $(awk 'NF { count += 1 } END { print count + 0 }' <<<"$matches") -eq 1 ]] || \
+        fail "expected exactly one $kind ending in ${suffix}-<hash>"
+    printf '%s\n' "$matches"
+}
+
+resource_document_with_hash_suffix() {
+    local file=$1
+    local kind=$2
+    local suffix=$3
+    local name
+    name=$(resource_name_with_hash_suffix "$file" "$kind" "$suffix")
+    resource_document "$file" "$kind" "$name"
+}
+
 secret_data_value() {
     local file=$1
     local key=$2
@@ -338,6 +359,10 @@ require_resource() {
     [[ -s "$document" ]] || fail "expected $kind/$name"
 }
 
+require_resource_with_hash_suffix() {
+    resource_name_with_hash_suffix "$1" "$2" "$3" >/dev/null
+}
+
 require_no_resource() {
     local file=$1
     local kind=$2
@@ -345,6 +370,15 @@ require_no_resource() {
     local document=$TEST_DIRECTORY/resource.yaml
     if resource_document "$file" "$kind" "$name" >"$document" 2>/dev/null; then
         fail "did not expect $kind/$name"
+    fi
+}
+
+require_no_resource_with_hash_suffix() {
+    local file=$1
+    local kind=$2
+    local suffix=$3
+    if resource_names "$file" "$kind" | grep -Eq -- "-${suffix}-[0-9a-f]{10}$"; then
+        fail "did not expect $kind ending in ${suffix}-<hash>"
     fi
 }
 
@@ -752,8 +786,8 @@ test_control_umbrella() {
         "osmo-backend-token-bootstrap"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         'name: "osmo-mek-bootstrap-'
-    require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "osmo-object-storage-bootstrap"
+    require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
+        "object-storage-bootstrap"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "secretName: osmo-backend-token"
     require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
@@ -884,8 +918,8 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
         'name: "osmo-mek-bootstrap-'
     require_contains "$TEST_DIRECTORY/quickstart.yaml" '- "bootstrap"'
-    require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
-        "osmo-object-storage-bootstrap"
+    require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
+        "object-storage-bootstrap"
     require_not_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
         "imagePullSecrets:"
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
@@ -941,6 +975,8 @@ test_control_umbrella() {
         "deployments/charts/osmo/profiles/quickstart.yaml"
     require_contains "$charts_copy/osmo/README.md" \
         "helm --kube-context kind-osmo upgrade --install osmo"
+    require_occurrences "$charts_copy/osmo/README.md" \
+        "--wait-for-jobs" 3
     require_contains "$charts_copy/osmo/README.md" \
         "kubectl --context kind-osmo"
     require_contains "$charts_copy/osmo/README.md" \
@@ -1210,8 +1246,8 @@ test_control_umbrella() {
     resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
         osmo-backend-token-bootstrap \
         >"$TEST_DIRECTORY/conventions-backend-token-bootstrap.yaml"
-    resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
-        osmo-object-storage-bootstrap \
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/conventions.yaml" Job \
+        object-storage-bootstrap \
         >"$TEST_DIRECTORY/conventions-object-storage-bootstrap.yaml"
     resource_document "$TEST_DIRECTORY/conventions.yaml" ConfigMap \
         osmo-backend-test-runner-template \
@@ -1615,9 +1651,24 @@ test_control_umbrella() {
         "managed-backend-token-osmo-backend-token-bootstrap"
     require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" ConfigMap \
         "managed-backend-token-osmo-backend-token-bootstrap-state"
+    resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" ConfigMap \
+        managed-backend-token-osmo-backend-token-bootstrap-state \
+        >"$TEST_DIRECTORY/managed-backend-token-state.yaml"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-state.yaml" \
+        "    osmo-backend-token"
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
         managed-backend-token-osmo-backend-token-bootstrap \
         >"$TEST_DIRECTORY/managed-backend-token-job.yaml"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        "helm.sh/hook: pre-install,pre-upgrade"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        "helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded"
+    require_occurrences "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        "cpu:" 1
+    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        "cpu: 50m"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        "memory: 128Mi"
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         "--api-deployment-name"
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
@@ -1646,7 +1697,7 @@ test_control_umbrella() {
         osmo-backend-token
     require_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
         'image: "alpine/k8s:1.30.14"'
-    require_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
+    require_not_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
         "--from-file=token=/dev/stdin"
 
     helm_template upgraded-backend-token "$charts_copy/osmo" \
@@ -1658,10 +1709,10 @@ test_control_umbrella() {
         --set secrets.backendApiTokens.credentials[0].name=default \
         --set secrets.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
         >"$TEST_DIRECTORY/upgraded-backend-token.yaml"
-    require_contains "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
-        "--state-config-map"
     require_occurrences "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
         "        - --is-upgrade" 1
+    require_contains "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
+        "--state-config-map"
     resource_document "$TEST_DIRECTORY/upgraded-backend-token.yaml" Deployment \
         upgraded-backend-token-osmo-api \
         >"$TEST_DIRECTORY/upgraded-backend-token-api.yaml"
@@ -2524,7 +2575,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-ui.yaml" \
         "serviceAccountName: default"
     require_no_resource "$rendered" ConfigMap "osmo-object-storage-bootstrap"
-    require_no_resource "$rendered" Job "osmo-object-storage-bootstrap"
+    require_no_resource_with_hash_suffix "$rendered" Job "object-storage-bootstrap"
 
     local embedded_object_storage_settings=(
         --set embeddedDependencies.objectStorage.enabled=true
@@ -2552,8 +2603,8 @@ EOF
         osmo-rustfs-credentials
     require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" ConfigMap \
         embedded-object-storage-osmo-object-storage-bootstrap
-    require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" Job \
-        embedded-object-storage-osmo-object-storage-bootstrap
+    require_resource_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" Job \
+        object-storage-bootstrap
     resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         Secret osmo-rustfs-credentials \
         >"$TEST_DIRECTORY/osmo-rustfs-secret.yaml"
@@ -2594,15 +2645,15 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-configmap.yaml" \
         "object-storage-bootstrap.sh:"
 
-    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
-        Job embedded-object-storage-osmo-object-storage-bootstrap \
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
+        Job object-storage-bootstrap \
         >"$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml"
+    require_not_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "helm.sh/hook"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "helm.sh/hook: post-install,post-upgrade"
+        "ttlSecondsAfterFinished: 300"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded"
-    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "backoffLimit: 3"
+        "backoffLimit: 5"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "amazon/aws-cli@sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
@@ -2652,11 +2703,11 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "resources:"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "cpu: 10m"
+        "cpu: 50m"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "memory: 32Mi"
-    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "cpu: 100m"
+    require_occurrences "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "cpu:" 1
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "memory: 128Mi"
 
@@ -2762,8 +2813,8 @@ EOF
         >"$TEST_DIRECTORY/osmo-non-default-region-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-non-default-region-config.yaml" \
         "region: us-west-2"
-    resource_document "$TEST_DIRECTORY/osmo-embedded-non-default-region.yaml" \
-        Job embedded-non-default-region-osmo-object-storage-bootstrap \
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-non-default-region.yaml" \
+        Job object-storage-bootstrap \
         >"$TEST_DIRECTORY/osmo-non-default-region-bootstrap-job.yaml"
     require_contains \
         "$TEST_DIRECTORY/osmo-non-default-region-bootstrap-job.yaml" \
@@ -2877,8 +2928,8 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-osmo-config.yaml" \
         "secretKey: object-storage.yaml"
 
-    resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
-        Job embedded-object-storage-ha-osmo-object-storage-bootstrap \
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
+        Job object-storage-bootstrap \
         >"$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
         'value: "http://embedded-object-storage-ha-rustfs-svc.default.svc:9000"'

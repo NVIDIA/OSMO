@@ -3,6 +3,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.embeddedDependencies.objectStorage.enabled }}
 {{- $bootstrapName := printf "%s-object-storage-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- $jobIdentity := printf "%s/%s/%d/object-storage" .Release.Namespace .Release.Name .Release.Revision | sha256sum | trunc 10 }}
+{{- $bootstrapJobName := printf "%s-object-storage-bootstrap-%s" ((include "osmo.fullname" .) | trunc 27 | trimSuffix "-") $jobIdentity }}
 {{- $secretName := include "osmo.objectStorage.secretName" . }}
 apiVersion: v1
 kind: ConfigMap
@@ -11,8 +13,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
-    {{- include "osmo.metadata.annotations" (dict "root" .) | nindent 4 }}
+    {{- . | nindent 4 }}
+  {{- end }}
 data:
   object-storage-bootstrap.sh: |-
 {{ .Files.Get "files/object-storage-bootstrap.sh" | nindent 4 }}
@@ -20,14 +24,17 @@ data:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ $bootstrapName }}
+  name: {{ $bootstrapJobName }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "object-storage-bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
   annotations:
-    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" (dict "helm.sh/hook" "post-install,post-upgrade" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 4 }}
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   backoffLimit: {{ .Values.embeddedDependencies.objectStorage.bootstrap.backoffLimit }}
+  ttlSecondsAfterFinished: 300
   template:
     metadata:
       labels:

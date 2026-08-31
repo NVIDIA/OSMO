@@ -340,7 +340,9 @@ endpoint and credential Secret into the control plane. It creates the retained
 backend-token Secret through its bootstrap hook and the retained
 master-encryption-key Secret through the explicit lifecycle Job. The generated
 values never appear in Helm values, rendered manifests, logs, or Helm release
-state.
+state. The backend-token hook and object-storage bootstrap Job retain a `50m`
+CPU request but intentionally have no CPU limit so their short-lived CLI
+processes can use otherwise-idle CPU and finish quickly.
 
 ## Embedded PostgreSQL
 
@@ -578,9 +580,11 @@ rustfs:
 ```
 
 The chart deploys a standalone RustFS instance with a retained 10 GiB
-`ReadWriteOnce` PVC. A post-install/post-upgrade Job creates the configured
-workflow, log, and app buckets when they are absent. OSMO is configured with
-the RustFS endpoint, buckets, and generated credentials automatically.
+`ReadWriteOnce` PVC. A regular Job waits for RustFS and creates the configured
+workflow, log, and app buckets when they are absent. Use `--wait-for-jobs` with
+Helm so an install or upgrade does not return before bucket bootstrap succeeds.
+OSMO is configured with the RustFS endpoint, buckets, and generated credentials
+automatically.
 
 The generated `osmo-rustfs-credentials` Secret is retained on uninstall and
 reused on upgrades. To provide an existing Secret, disable
