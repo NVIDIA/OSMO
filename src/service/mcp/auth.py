@@ -264,6 +264,7 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         required_scopes=[config.oidc_access_token_required_scope],
         http_client=http_client,
     )
+    mcp_url = cast(str, config.resource_url)
     requested_scope = cast(str, config.auth_scope)
     upstream_scope = ' '.join((requested_scope, *_UPSTREAM_OIDC_SCOPES))
     provider = OIDCProxy(
@@ -271,9 +272,19 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         client_id=cast(str, config.oidc_client_id),
         client_secret=client_secret,
         token_verifier=verifier,
-        base_url=cast(str, config.issuer_url),
-        resource_base_url=cast(str, config.issuer_url),
-        issuer_url=cast(str, config.issuer_url),
+        # FastMCP builds its operational OAuth endpoints from base_url and its
+        # RFC 9728 resource identity from resource_base_url plus the MCP path.
+        # Publishing base_url at the MCP URL therefore keeps authorize, token,
+        # register, consent and the callback under /mcp instead of on the
+        # shared gateway root, while the origin keeps the resource named /mcp
+        # rather than /mcp/mcp. The path-scoped issuer is what the
+        # protected-resource document advertises in authorization_servers,
+        # which is what points clients at RFC 8414 path-aware discovery; the
+        # gateway serves that path, since FastMCP registers the document at
+        # the root.
+        base_url=mcp_url,
+        resource_base_url=mcp_url.removesuffix('/mcp'),
+        issuer_url=mcp_url,
         redirect_path='/auth/callback',
         allowed_client_redirect_uris=config.allowed_client_redirect_uris,
         client_storage=encrypted_store,

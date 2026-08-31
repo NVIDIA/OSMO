@@ -86,7 +86,7 @@ Register the Upstream Application
 
 Configure one confidential application in the identity provider with:
 
-* The exact redirect URL ``https://<osmo-host>/auth/callback``.
+* The exact redirect URL ``https://<osmo-host>/mcp/auth/callback``.
 * Authorization code flow and the ``client_secret_post`` token authentication
   method.
 * A delegated API scope whose full URI is
@@ -110,7 +110,7 @@ compatibility before using another provider.
 
 .. important::
 
-   Do not confuse the fixed upstream ``/auth/callback`` URL with a native MCP
+   Do not confuse the fixed upstream ``/mcp/auth/callback`` URL with a native MCP
    client's temporary localhost callback. FastMCP accepts native loopback
    callbacks automatically. Browser-hosted clients require separately
    configured HTTPS redirect origins.
@@ -209,7 +209,7 @@ FastMCP serves OAuth and MCP from the same process:
 #. The client uses CIMD or falls back to DCR through ``POST /register``.
 #. FastMCP obtains user consent, runs authorization code flow with Proof Key for
    Code Exchange (PKCE), and sends the user to the upstream OIDC provider.
-#. The provider returns to the fixed ``/auth/callback`` URL.
+#. The provider returns to the fixed ``/mcp/auth/callback`` URL.
 #. FastMCP exchanges the upstream authorization code for tokens, stores the
    resulting token state encrypted in Redis, and redirects the browser to the
    MCP client with a FastMCP authorization code.
@@ -302,7 +302,7 @@ In OIDC proxy mode, also verify authorization-server metadata:
 .. code-block:: bash
 
    $ curl --fail --silent --show-error \
-       https://osmo.example.com/.well-known/oauth-authorization-server
+       https://osmo.example.com/.well-known/oauth-authorization-server/mcp
 
 Confirm the exact resource URL and full delegated scope. Proxy metadata must
 also contain ``client_id_metadata_document_supported`` set to ``true`` and a
@@ -338,11 +338,11 @@ Operate OIDC Proxy Safely
 * Keep the MCP ingress NetworkPolicy. It is additive, so audit other policies
   that select the same pod.
 
-The public proxy surface is limited to exact protected-resource and
-authorization-server metadata, ``/authorize``, ``/auth/callback``,
-``/register``, ``/token``, and ``/consent`` routes. Gateway bypasses its own JWT
-and semantic authorization filters only for these OAuth routes and exact
-``/mcp`` in proxy mode. FastMCP authenticates ``/mcp``; all ``/api`` calls keep
+The public proxy surface is the protected-resource and authorization-server
+metadata documents plus everything under ``/mcp``, where FastMCP serves
+``authorize``, ``token``, ``register``, ``consent`` and the callback. Gateway
+bypasses its own JWT and semantic authorization filters only for that prefix
+and the two metadata documents in proxy mode. FastMCP authenticates ``/mcp``; all ``/api`` calls keep
 normal Gateway validation and authorization.
 
 .. _mcp_deployment_troubleshooting:
@@ -366,7 +366,7 @@ Troubleshooting
        secret and optional Redis password must exist at the configured absolute
        paths.
    * - Browser reports a redirect mismatch or no reply address
-     - Register exact ``https://<osmo-host>/auth/callback`` on the confidential
+     - Register exact ``https://<osmo-host>/mcp/auth/callback`` on the confidential
        upstream application. For Entra, use the Web platform for this
        server-side client.
    * - Browser reports ``Approval required``

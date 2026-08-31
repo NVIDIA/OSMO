@@ -59,6 +59,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             transport='streamable-http',
             stateless_http=True,
             json_response=True,
+            host_origin_protection='auto',
+            allowed_origins=None,
         )
         self.assertEqual(application.add_middleware.call_args_list, [
             mock.call(
@@ -689,6 +691,40 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(hasattr(application.state, 'mcp_app_context'))
         self.assertEqual(lifecycle_events, ['entered', 'exited'])
+
+    def test_deployment_origin_is_always_a_permitted_browser_origin(self) -> None:
+        """FastMCP's consent page POSTs same-origin, so the origin must be listed.
+
+        Supplying any explicit allowlist disables FastMCP's same-origin
+        fallback for non-loopback hosts, which would otherwise reject consent.
+        """
+        config = server.MCPServiceConfig(
+            gateway_url='https://gateway.test',
+            allowed_origins=['http://localhost:6274'],
+        )
+        with mock.patch.object(server, 'create_application') as create:
+            server.create_runtime_application(config)
+        self.assertEqual(
+            create.call_args.args[1],
+            ['https://gateway.test', 'http://localhost:6274'],
+        )
+
+    def test_allowed_origins_drops_blank_entries(self) -> None:
+        """An unset comma-separated variable must not become one blank origin."""
+        self.assertEqual(
+            server.MCPServiceConfig(
+                gateway_url='https://gateway.test',
+                allowed_origins=[''],
+            ).allowed_origins,
+            [],
+        )
+        self.assertEqual(
+            server.MCPServiceConfig(
+                gateway_url='https://gateway.test',
+                allowed_origins=[' http://localhost:6274 ', 'http://[::1]:6274'],
+            ).allowed_origins,
+            ['http://localhost:6274', 'http://[::1]:6274'],
+        )
 
     async def test_runtime_application_cleans_up_in_dependency_order(self) -> None:
         config = server.MCPServiceConfig(gateway_url='https://gateway.test')

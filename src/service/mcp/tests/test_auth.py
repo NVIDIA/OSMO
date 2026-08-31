@@ -173,6 +173,11 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     for route in application.routes
                     if hasattr(route, 'path')
                 }
+                # The MCP SDK registers OAuth handlers at fixed root paths
+                # (mcp/server/auth/routes.py) regardless of base_url, so the
+                # in-process paths stay at the root. The gateway publishes them
+                # under /mcp and rewrites the prefix back off; the advertised
+                # metadata below is the contract clients actually follow.
                 self.assertIn('/authorize', route_paths)
                 self.assertIn('/token', route_paths)
                 self.assertIn('/register', route_paths)
@@ -201,8 +206,20 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     ['https://osmo.example/mcp/access_as_user'],
                 )
                 self.assertEqual(
+                    metadata_body['issuer'],
+                    'https://osmo.example/mcp',
+                )
+                self.assertEqual(
+                    metadata_body['authorization_endpoint'],
+                    'https://osmo.example/mcp/authorize',
+                )
+                self.assertEqual(
+                    metadata_body['token_endpoint'],
+                    'https://osmo.example/mcp/token',
+                )
+                self.assertEqual(
                     metadata_body['registration_endpoint'],
-                    'https://osmo.example/register',
+                    'https://osmo.example/mcp/register',
                 )
                 self.assertTrue(
                     metadata_body['client_id_metadata_document_supported']
@@ -212,6 +229,9 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     protected.json()['scopes_supported'],
                     ['https://osmo.example/mcp/access_as_user'],
                 )
+                # resource_base_url keeps the RFC 9728 identity at /mcp even
+                # though base_url moved there too; without it the advertised
+                # resource would become /mcp/mcp.
                 self.assertEqual(
                     protected.json()['resource'],
                     'https://osmo.example/mcp',
