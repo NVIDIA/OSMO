@@ -31,12 +31,10 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcp := .Values.services.mcp }}
 {{- $mcpEnabled := $mcp.enabled | default false }}
 {{- $mcpOidcProxy := $mcp.oidcProxy }}
-{{- $mcpOidcProxyEnabled := $mcpEnabled }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
 {{- $mcpResourceUrl := "" }}
 {{- $mcpTokenIssuer := "" }}
-{{- $mcpMetadataUrl := "" }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
@@ -51,16 +49,12 @@ setting detects this rotation and triggers Envoy to reload.
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp-resource-url" . }}
 {{- /*
-The relayed upstream token carries the MCP resource URL as its audience, so the
-Gateway has to accept that audience from the identity provider MCP authenticates
-against. That provider is already configured for this deployment's own clients,
-and differs only in audience -- so the audience is appended to it rather than
-asking for a second, near-identical entry.
-
-OpenID Connect Discovery defines the configuration URL as the issuer followed by
-/.well-known/openid-configuration, so the issuer is derivable. accessTokenIssuer
-overrides it for providers whose access tokens are issued elsewhere, as an
-application configured for v1-format tokens does.
+The relayed token's audience is the MCP resource URL, so it is appended to the
+provider already configured for that issuer rather than requiring a second,
+near-identical entry. OpenID Connect Discovery defines the configuration URL as
+the issuer plus /.well-known/openid-configuration, so the issuer is derivable;
+accessTokenIssuer overrides it for providers that issue access tokens elsewhere,
+as an application configured for v1-format tokens does.
 */ -}}
 {{- $mcpTokenIssuer = $mcpOidcProxy.oidc.accessTokenIssuer | default (trimSuffix "/.well-known/openid-configuration" (required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $mcpOidcProxy.oidc.configUrl)) }}
 {{- $mcpTokenIssuer = trimSuffix "/" $mcpTokenIssuer }}
@@ -82,13 +76,11 @@ application configured for v1-format tokens does.
 {{- $overlapsMcpPath := or (hasPrefix $skipPath $mcpPath) (hasPrefix $mcpPath $skipPath) }}
 {{- $overlapsMcpMetadataPath := or (hasPrefix $skipPath $mcpMetadataPath) (hasPrefix $mcpMetadataPath $skipPath) }}
 {{- $mcpAuthServerMetadataPath := "/.well-known/oauth-authorization-server/mcp" }}
-{{- $overlapsMcpAuthServerPath := and $mcpOidcProxyEnabled (or (hasPrefix $skipPath $mcpAuthServerMetadataPath) (hasPrefix $mcpAuthServerMetadataPath $skipPath)) }}
+{{- $overlapsMcpAuthServerPath := (or (hasPrefix $skipPath $mcpAuthServerMetadataPath) (hasPrefix $mcpAuthServerMetadataPath $skipPath)) }}
 {{- if or $overlapsMcpPath $overlapsMcpMetadataPath $overlapsMcpAuthServerPath }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
 {{- end }}
-{{- $mcpBaseUrl := trimSuffix $mcpPath $mcpResourceUrl }}
-{{- $mcpMetadataUrl = printf "%s%s" $mcpBaseUrl $mcpMetadataPath }}
 {{- end }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- if $envoy.enabled }}
@@ -298,22 +290,13 @@ data:
                     timeout: 15s
                   typed_per_filter_config:
                     {{- include "osmo.gateway-auth-filters-disabled" . | nindent 20 }}
-
-                {{- if $mcpOidcProxyEnabled }}
-                # FastMCP owns the whole OAuth surface for this deployment. The
-                # MCP SDK registers its handlers at fixed root paths, so the
-                # gateway publishes them under /mcp -- matching the endpoint
-                # URLs FastMCP advertises in its metadata -- and rewrites the
-                # prefix back off before forwarding. One prefix route keeps the
-                # gateway from having to enumerate FastMCP's endpoint names.
-                # The prefix route below publishes the container's whole root
-                # namespace, so anything registered at the app root becomes
-                # public. Keep the health endpoints off the internet; any new
-                # non-OAuth root route must be carved out here too. The auth
-                # filters are disabled so this route answers 404 itself rather
-                # than letting jwt_authn answer 401 first -- the carve-out has
-                # to be the thing that rejects, not a side effect of another
-                # filter that a later change could switch off.
+                # The MCP SDK registers OAuth at fixed root paths, so the
+                # gateway publishes them under /mcp -- matching what FastMCP
+                # advertises -- and rewrites the prefix off before forwarding.
+                # That prefix publishes the container's whole root namespace,
+                # so any new non-OAuth root route must be carved out here too.
+                # Auth filters are off on this route so the 404 is its own
+                # answer, not jwt_authn's 401 that a later change could move.
                 - name: mcp-health-not-public
                   match:
                     prefix: /mcp/health
@@ -346,21 +329,17 @@ data:
                     timeout: 15s
                   typed_per_filter_config:
                     {{- include "osmo.gateway-auth-filters-disabled" . | nindent 20 }}
-                {{- end }}
 
-                # In direct mode Gateway validates and authorizes /mcp. With
-                # the in-process proxy enabled, FastMCP validates its own token
-                # and relays the verified upstream token to protected /api.
+                # FastMCP validates its own token and relays the verified
+                # upstream token to protected /api.
                 - name: osmo-mcp
                   match:
                     path: {{ $mcpPath }}
                   route:
                     cluster: osmo-mcp
                     timeout: 0s
-                  {{- if $mcpOidcProxyEnabled }}
                   typed_per_filter_config:
                     {{- include "osmo.gateway-auth-filters-disabled" . | nindent 20 }}
-                  {{- end }}
                 {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}
@@ -624,7 +603,6 @@ data:
                                       header_name: ":method"
                                   value_match:
                                     exact: "GET"
-                          {{- if $mcpOidcProxyEnabled }}
                           # FastMCP is authoritative for its own OAuth surface.
                           - single_predicate:
                               input:
@@ -636,7 +614,6 @@ data:
                                 safe_regex:
                                   google_re2: {}
                                   regex: "^(/mcp/.*|/[.]well-known/oauth-authorization-server/mcp([?].*)?)$"
-                          {{- end }}
                           {{- end }}
                           {{- if $authnSkipPaths }}
                           - single_predicate:

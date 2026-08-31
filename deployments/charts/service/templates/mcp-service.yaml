@@ -24,19 +24,13 @@
 {{- if not (regexMatch "^([1-9]|[1-5][0-9]|60)$" $requestTimeoutSeconds) }}
 {{- fail "services.mcp.requestTimeoutSeconds must be between 1 and 60" }}
 {{- end }}
-{{- $oidcConfigUrl := "" }}
-{{- $oidcClientId := "" }}
 {{- $oidcClientSecretFile := "" }}
 {{- $redisPasswordFile := "" }}
 {{- $secretMountPath := "" }}
-{{- $oidcAccessTokenIssuer := "" }}
-{{- $oidcAccessTokenRequiredScope := "" }}
-{{- $redisKeyPrefix := "" }}
-{{- $redisUrl := "" }}
-{{- $oidcConfigUrl = required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $oidcProxy.oidc.configUrl }}
-{{- $oidcClientId = required "services.mcp.oidcProxy.oidc.clientId is required when MCP is enabled" $oidcProxy.oidc.clientId }}
-{{- $oidcAccessTokenIssuer = $oidcProxy.oidc.accessTokenIssuer | default "" }}
-{{- $oidcAccessTokenRequiredScope = required "services.mcp.oidcProxy.oidc.accessTokenRequiredScope is required when MCP is enabled" $oidcProxy.oidc.accessTokenRequiredScope }}
+{{- $oidcConfigUrl := required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $oidcProxy.oidc.configUrl }}
+{{- $oidcClientId := required "services.mcp.oidcProxy.oidc.clientId is required when MCP is enabled" $oidcProxy.oidc.clientId }}
+{{- $oidcAccessTokenIssuer := $oidcProxy.oidc.accessTokenIssuer }}
+{{- $oidcAccessTokenRequiredScope := required "services.mcp.oidcProxy.oidc.accessTokenRequiredScope is required when MCP is enabled" $oidcProxy.oidc.accessTokenRequiredScope }}
 {{- if not (regexMatch "^[A-Za-z0-9:._~-]{1,128}$" $oidcAccessTokenRequiredScope) }}
 {{- fail "services.mcp.oidcProxy.oidc.accessTokenRequiredScope must be one non-empty scope" }}
 {{- end }}
@@ -47,11 +41,8 @@
 {{- if and $oidcAccessTokenIssuer (not (regexMatch $oidcHttpsUrlPattern $oidcAccessTokenIssuer)) }}
 {{- fail "services.mcp.oidcProxy.oidc.accessTokenIssuer must be an absolute HTTPS issuer without query or fragment" }}
 {{- end }}
-{{- $urlsToCheck := dict "configUrl" $oidcConfigUrl }}
-{{- if $oidcAccessTokenIssuer }}
-{{- $_ := set $urlsToCheck "accessTokenIssuer" $oidcAccessTokenIssuer }}
-{{- end }}
-{{- range $name, $url := $urlsToCheck }}
+{{- range $name, $url := (dict "configUrl" $oidcConfigUrl "accessTokenIssuer" $oidcAccessTokenIssuer) }}
+{{- if $url }}
 {{- $portMatch := regexFind ":[0-9]+(/|$)" $url }}
 {{- if $portMatch }}
 {{- $urlPort := trimSuffix "/" (trimPrefix ":" $portMatch) | int }}
@@ -60,12 +51,13 @@
 {{- end }}
 {{- end }}
 {{- end }}
-{{- $redisHost := .Values.services.redis.serviceName | required "services.redis.serviceName is required when the MCP OIDC proxy is enabled" }}
+{{- end }}
+{{- $redisHost := .Values.services.redis.serviceName | required "services.redis.serviceName is required when MCP is enabled" }}
 {{- $redisPort := .Values.services.redis.port }}
 {{- if or (lt (int $oidcProxy.redis.dbNumber) 0) (gt (int $oidcProxy.redis.dbNumber) 15) }}
 {{- fail "services.mcp.oidcProxy.redis.dbNumber must be between 0 and 15" }}
 {{- end }}
-{{- $redisKeyPrefix = required "services.mcp.oidcProxy.redis.keyPrefix is required" $oidcProxy.redis.keyPrefix }}
+{{- $redisKeyPrefix := required "services.mcp.oidcProxy.redis.keyPrefix is required" $oidcProxy.redis.keyPrefix }}
 {{- if not (regexMatch "^[A-Za-z0-9:._~-]{1,128}$" $redisKeyPrefix) }}
 {{- fail "services.mcp.oidcProxy.redis.keyPrefix contains unsupported characters" }}
 {{- end }}
@@ -104,7 +96,7 @@
 {{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path" }}
 {{- end }}
 {{- $redisScheme := ternary "rediss" "redis" .Values.services.redis.tlsEnabled }}
-{{- $redisUrl = printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
+{{- $redisUrl := printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
 {{- if not (kindIs "slice" $mcp.allowedOrigins) }}
 {{- fail "services.mcp.allowedOrigins must be a list" }}
 {{- end }}

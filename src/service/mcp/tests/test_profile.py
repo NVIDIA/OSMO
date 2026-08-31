@@ -103,7 +103,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
     ) -> tuple[httpx.Response, httpx.Response | None]:
         application = server.create_runtime_application(
             protocol_harness.service_config(),
-            auth_provider=protocol_harness.AnyTokenVerifier(),
+            auth_provider=protocol_harness.any_token_verifier(),
             http_transport=httpx.MockTransport(handler),
         )
         catalog_response = None
@@ -523,7 +523,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         application = server.create_runtime_application(
             protocol_harness.service_config(),
-            auth_provider=protocol_harness.AnyTokenVerifier(),
+            auth_provider=protocol_harness.any_token_verifier(),
             http_transport=httpx.MockTransport(handler),
         )
         async with application.router.lifespan_context(application):
@@ -581,7 +581,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         application = server.create_runtime_application(
             protocol_harness.service_config(),
-            auth_provider=protocol_harness.AnyTokenVerifier(),
+            auth_provider=protocol_harness.any_token_verifier(),
             http_transport=httpx.MockTransport(handler),
         )
         # Cancelling a request leaves a cancelled child in FastMCP's
@@ -608,10 +608,6 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(handler_cancelled.wait(), timeout=1)
                         self.assertFalse(handler_completed.is_set())
                         release_handler.set()
-                        # Whether a follow-up on the same client succeeds after a
-                        # cancellation is FastMCP's to decide now. Verified against
-                        # the pre-change tree: an authenticated deployment already
-                        # behaved this way, so it is not introduced here.
                     finally:
                         release_handler.set()
                         if not request_task.done():
@@ -865,7 +861,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_profile_fails_closed_without_runtime_context(self) -> None:
         application = server.create_application(
-            server.create_mcp_server(protocol_harness.AnyTokenVerifier()))
+            server.create_mcp_server(protocol_harness.any_token_verifier()))
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=application),

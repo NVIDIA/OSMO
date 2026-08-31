@@ -29,7 +29,6 @@ services:
         accessTokenRequiredScope: access_as_user
       redis:
         dbNumber: 14
-        passwordFile: /etc/osmo/mcp-auth/redis-password
         keyPrefix: test:mcp-auth
       existingSecret:
         name: mcp-oidc-proxy-secrets

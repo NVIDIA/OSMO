@@ -94,10 +94,9 @@ OSMO services write logs to standard streams for collection by the platform log 
 ### Self-hosted MCP service
 
 The optional MCP workload exposes predefined OSMO operations to compatible
-native or desktop MCP clients. In direct-provider mode, the Gateway validates
-the bearer on `/mcp`. FastMCP validates its own proxy
-token and relays the verified upstream access token through the same Gateway
-for each mapped OSMO API request. That API request still passes the deployment's
+native or desktop MCP clients. FastMCP validates its own proxy token and relays
+the verified upstream access token through the same Gateway for each mapped
+OSMO API request. That API request still passes the deployment's
 normal identity-provider validation and semantic RBAC.
 
 `services.mcp.resourceUrl` is the single source of truth for the public MCP
@@ -156,9 +155,8 @@ rotation.
 Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
 only this release's Gateway Envoy pods, even when
 `gateway.networkPolicies.enabled` is false for other upstreams. This is
-required because direct-provider mode trusts the identity context created by
-Gateway, while OIDC-proxy mode accepts traffic only through the same public
-Gateway boundary.
+required because MCP accepts traffic only through the same public Gateway
+boundary.
 NetworkPolicies require enforcement by the cluster CNI and are additive, so
 operators must also ensure no other policy grants MCP ingress. The pod does
 not mount a service-account token, and the chart creates no MCP credential

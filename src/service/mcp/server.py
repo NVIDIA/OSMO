@@ -100,17 +100,13 @@ def create_mcp_server(
     )
     tool_registry.register_tools(server)
 
-    @server.custom_route('/health/live', methods=['GET'], include_in_schema=False)
-    async def health_live(request: Request) -> JSONResponse:  # pylint: disable=unused-argument
-        return JSONResponse({'status': 'ok'})
-
-    @server.custom_route('/health', methods=['GET'], include_in_schema=False)
     async def health(request: Request) -> JSONResponse:  # pylint: disable=unused-argument
         return JSONResponse({'status': 'ok'})
 
-    @server.custom_route('/health/ready', methods=['GET'], include_in_schema=False)
-    async def health_ready(request: Request) -> JSONResponse:  # pylint: disable=unused-argument
-        return JSONResponse({'status': 'ok'})
+    for health_path in ('/health', '/health/live', '/health/ready'):
+        server.custom_route(
+            health_path, methods=['GET'], include_in_schema=False,
+        )(health)
 
     return server
 
@@ -156,10 +152,10 @@ def create_runtime_application(
     from configuration, which is the only way the service authenticates.
     """
     auth_runtime = (
-        None if auth_provider is not None else auth.create_auth_runtime(config)
+        auth.create_auth_runtime(config) if auth_provider is None else None
     )
     protocol_server = create_mcp_server(
-        auth_provider if auth_runtime is None else auth_runtime.provider,
+        auth_runtime.provider if auth_runtime is not None else auth_provider,
     )
     # FastMCP serves its browser consent page on this deployment's own origin,
     # and a same-origin form POST still carries an Origin header. Supplying any

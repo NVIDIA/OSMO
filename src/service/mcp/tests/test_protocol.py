@@ -27,7 +27,7 @@ from fastmcp.exceptions import ToolError
 import pydantic
 
 from src.service.mcp.tests import protocol_harness
-from src.service.mcp import protocol, tool_errors, request_context
+from src.service.mcp import protocol, server, tool_errors, request_context
 
 
 def _failing_tool(message: str) -> Callable[[], object]:
@@ -52,15 +52,10 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
     ) -> httpx.Response:
         mcp_server = protocol.OSMOFastMCP(
             name='OSMO public exception boundary test',
-            auth=protocol_harness.AnyTokenVerifier(),
+            auth=protocol_harness.any_token_verifier(),
         )
         mcp_server.tool(function, name='boundary_test_tool')
-        application = mcp_server.http_app(
-            path='/mcp',
-            transport='streamable-http',
-            stateless_http=True,
-            json_response=True,
-        )
+        application = server.create_application(mcp_server)
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=application),

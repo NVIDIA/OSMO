@@ -45,17 +45,11 @@ from src.service.mcp import (
 )
 
 
-_BEARER_SECRET = 'test-bearer-secret'
-
-
-
-
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
     def test_create_application_installs_the_body_limit_middleware(self) -> None:
         application = mock.Mock()
         protocol_server = mock.Mock()
-        protocol_server.auth = None
         protocol_server.http_app.return_value = application
 
         self.assertIs(server.create_application(protocol_server), application)
@@ -105,7 +99,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
     @staticmethod
     def _body_limit_application() -> Starlette:
-        mcp_server = server.create_mcp_server(protocol_harness.AnyTokenVerifier())
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def accept_request_body(padding: str) -> dict[str, int]:
@@ -338,13 +332,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
     async def test_unauthenticated_request_is_rejected_after_body_buffering(
         self,
     ) -> None:
-        """Records where the unauthenticated rejection happens today.
-
-        The removed direct-mode middleware rejected before the body was read.
-        FastMCP's auth runs inside the route, so RequestBodyLimitMiddleware --
-        which is outermost -- buffers the bounded body first. The request is
-        still rejected and the body is still bounded; only the order changed.
-        """
+        """FastMCP's auth runs inside the route, so the outermost
+        RequestBodyLimitMiddleware buffers the bounded body first."""
         body_reads = 0
 
         async def receive() -> Message:
@@ -357,7 +346,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             }
 
         application = server.create_application(
-            server.create_mcp_server(protocol_harness.AnyTokenVerifier()))
+            server.create_mcp_server(protocol_harness.any_token_verifier()))
         messages = await self._invoke_asgi(application, receive)
 
         self.assertEqual(self._asgi_status(messages), 401)
@@ -372,7 +361,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             return {'type': 'http.request', 'body': b'', 'more_body': False}
 
         application = server.create_application(
-            server.create_mcp_server(protocol_harness.AnyTokenVerifier()))
+            server.create_mcp_server(protocol_harness.any_token_verifier()))
         messages = await self._invoke_asgi(
             application,
             receive,
@@ -396,7 +385,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_health_endpoints(self) -> None:
         application = server.create_application(
-            server.create_mcp_server(protocol_harness.AnyTokenVerifier()))
+            server.create_mcp_server(protocol_harness.any_token_verifier()))
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=application),
@@ -413,7 +402,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ready_response.json(), {'status': 'ok'})
 
     async def test_initialize_and_tool_catalog(self) -> None:
-        mcp_server = server.create_mcp_server(protocol_harness.AnyTokenVerifier())
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
         self.assertFalse(mcp_server.strict_input_validation)
         self.assertIsNotNone(mcp_server.auth)
 
@@ -476,7 +465,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_request_context_reaches_fastmcp_tool(self) -> None:
-        mcp_server = server.create_mcp_server(protocol_harness.AnyTokenVerifier())
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def inspect_request_context() -> dict[str, str | bool | None]:
@@ -518,7 +507,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(response.json()['result']['isError'])
 
     async def test_tool_error_cannot_reflect_request_credentials(self) -> None:
-        mcp_server = server.create_mcp_server(protocol_harness.AnyTokenVerifier())
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def reflect_tool_error() -> None:
@@ -557,7 +546,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(bearer_secret, response.text)
 
     async def test_oversized_final_tool_result_is_rejected(self) -> None:
-        mcp_server = server.create_mcp_server(protocol_harness.AnyTokenVerifier())
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def oversized_result() -> dict[str, str]:
@@ -666,7 +655,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
                 gateway, 'create_app_context', new=create_app_context):
             application = server.create_runtime_application(
-                config, auth_provider=protocol_harness.AnyTokenVerifier())
+                config, auth_provider=protocol_harness.any_token_verifier())
             async with application.router.lifespan_context(application):
                 self.assertIs(application.state.mcp_app_context, app_context)
                 self.assertEqual(lifecycle_events, ['entered'])
@@ -685,7 +674,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         )
         with mock.patch.object(server, 'create_application') as create:
             server.create_runtime_application(
-                config, auth_provider=protocol_harness.AnyTokenVerifier())
+                config, auth_provider=protocol_harness.any_token_verifier())
         self.assertEqual(
             create.call_args.args[1],
             ['https://gateway.test', 'http://localhost:6274'],
@@ -749,7 +738,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             application = server.create_runtime_application(
-                config, auth_provider=protocol_harness.AnyTokenVerifier())
+                config, auth_provider=protocol_harness.any_token_verifier())
             with self.assertRaisesRegex(RuntimeError, 'lifespan failure'):
                 async with application.router.lifespan_context(application):
                     raise RuntimeError('lifespan failure')

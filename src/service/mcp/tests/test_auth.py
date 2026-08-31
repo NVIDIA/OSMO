@@ -40,36 +40,32 @@ _TEST_CLIENT_SECRET = 'client-secret-0123456789abcdef0123456789'
 class MCPAuthConfigTest(unittest.TestCase):
     def test_authentication_is_not_optional(self) -> None:
         """There is one authentication mode, so its configuration is required."""
-        with self.assertRaisesRegex(
-            pydantic.ValidationError,
-            'Enabled MCP auth is missing',
-        ):
-            auth.MCPAuthConfig()
+        with self.assertRaises(pydantic.ValidationError) as caught:
+            auth.MCPAuthConfig()  # type: ignore[call-arg]
 
+        required = {error['loc'][0] for error in caught.exception.errors()}
+        self.assertEqual(
+            required,
+            {
+                'resource_url',
+                'redis_url',
+                'oidc_config_url',
+                'oidc_client_id',
+                'oidc_client_secret_file',
+            },
+        )
         self.assertNotIn('auth_enabled', auth.MCPAuthConfig.model_fields)
 
     def test_dependent_urls_derive_from_the_resource_url(self) -> None:
         """Only the resource URL is supplied; the rest follow from it."""
-        config = auth.MCPAuthConfig(
-            auth_enabled=True,
-            resource_url='https://osmo.example/mcp',
-            redis_url='rediss://redis.example:6379/7',
-            oidc_config_url=(
-                'https://login.example/tenant/.well-known/openid-configuration'
-            ),
-            oidc_client_id='oidc-client',
-            oidc_client_secret_file='/secret',
-            oidc_access_token_jwks_url='https://sts.example/tenant/keys',
-            oidc_access_token_issuer='https://sts.example/tenant/',
-        )
         self.assertEqual(
-            config.auth_scope, 'https://osmo.example/mcp/access_as_user')
+            _config().auth_scope, 'https://osmo.example/mcp/access_as_user')
 
     def test_enabled_auth_normalizes_and_validates_scope_contract(self) -> None:
         config = _config()
         self.assertEqual(
-            config.allowed_client_redirect_uris,
-            ['http://localhost:*', 'http://127.0.0.1:*', 'http://[::1]:*'],
+            auth.LOOPBACK_REDIRECT_URIS,
+            ('http://localhost:*', 'http://127.0.0.1:*', 'http://[::1]:*'),
         )
         with self.assertRaisesRegex(
             pydantic.ValidationError,
@@ -107,10 +103,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 oidc_client_secret_file=client_secret_file,
                 oidc_access_token_issuer=None,
             )
-            redis_client = mock.create_autospec(
-                auth.redis_asyncio.Redis,
-                instance=True,
-            )
+            redis_client = mock.AsyncMock()
             oidc_configuration = OIDCConfiguration(
                 issuer='https://login.example/tenant/v2.0',
                 authorization_endpoint=(
@@ -161,10 +154,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
             config = _config(
                 oidc_client_secret_file=client_secret_file,
             )
-            redis_client = mock.create_autospec(
-                auth.redis_asyncio.Redis,
-                instance=True,
-            )
+            redis_client = mock.AsyncMock()
             oidc_configuration = OIDCConfiguration(
                 issuer='https://login.example/tenant/v2.0',
                 authorization_endpoint=(
@@ -430,7 +420,6 @@ def _config(**overrides: object) -> auth.MCPAuthConfig:
         ),
         'oidc_client_id': 'oidc-client',
         'oidc_client_secret_file': '/secret',
-        'oidc_access_token_jwks_url': 'https://sts.example/tenant/keys',
         'oidc_access_token_issuer': 'https://sts.example/tenant/',
     }
     values.update(overrides)

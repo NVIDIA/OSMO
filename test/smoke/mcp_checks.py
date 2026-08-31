@@ -16,7 +16,6 @@ import unittest
 
 import requests
 
-from src.lib.utils.client import RequestMethod
 from test.oetf.smoke_fixture import SmokeFixture
 
 
@@ -117,36 +116,23 @@ class McpChecks(SmokeFixture):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
-    def _is_proxy_mode(self):
-        """Whether FastMCP, rather than the Gateway, authenticates /mcp.
-
-        In proxy mode the deployment advertises itself as the authorization
-        server; in direct mode it advertises the upstream identity provider.
-        """
-        servers = self._protected_resource_metadata().get(
-            "authorization_servers"
-        ) or []
-        return any(
-            str(server).startswith(self._base_url()) for server in servers
-        )
-
-    def _require_mcp_authentication(self):
-        """Skip unless a caller token issued by MCP's own proxy is supplied.
+    def _mcp_access_token(self):
+        """Return the caller token, or skip: only MCP's own proxy issues one.
 
         FastMCP issues its own token to the client and keeps the upstream
         identity-provider token server-side, validating it by JTI lookup on
         each request. So neither the OSMO-issued OETF token nor a raw
         identity-provider token authenticates to /mcp.
         """
-        if os.environ.get("OSMO_MCP_ACCESS_TOKEN"):
-            return
-        if self._is_proxy_mode():
+        token = os.environ.get("OSMO_MCP_ACCESS_TOKEN")
+        if not token:
             self.skipTest(
                 "MCP authenticates callers with a token its own OAuth proxy "
                 "issues, so the OSMO-issued OETF token cannot reach /mcp. Set "
                 "OSMO_MCP_ACCESS_TOKEN to a token obtained by completing the "
                 "OAuth flow against <deployment>/mcp to run these checks."
             )
+        return token
 
     def _mcp_request(self, request_id, method, params):
         payload = {
@@ -155,29 +141,17 @@ class McpChecks(SmokeFixture):
             "method": method,
             "params": params,
         }
-        override_token = os.environ.get("OSMO_MCP_ACCESS_TOKEN")
-        if override_token:
-            headers = dict(_MCP_ACCEPT_HEADERS)
-            headers["Authorization"] = f"Bearer {override_token}"
-            http_response = requests.post(
-                f"{self._base_url()}/mcp",
-                headers=headers,
-                json=payload,
-                timeout=30,
-                allow_redirects=False,
-            )
-            self.assertEqual(
-                http_response.status_code, 200, http_response.text
-            )
-            return self._jsonrpc_result(http_response.json(), request_id)
-        response = self.service_client.request(
-            method=RequestMethod.POST,
-            endpoint="mcp",
-            headers=dict(_MCP_ACCEPT_HEADERS),
-            payload=payload,
-            version_header=False,
+        headers = dict(_MCP_ACCEPT_HEADERS)
+        headers["Authorization"] = f"Bearer {self._mcp_access_token()}"
+        response = requests.post(
+            f"{self._base_url()}/mcp",
+            headers=headers,
+            json=payload,
+            timeout=30,
+            allow_redirects=False,
         )
-        return self._jsonrpc_result(response, request_id)
+        self.assertEqual(response.status_code, 200, response.text)
+        return self._jsonrpc_result(response.json(), request_id)
 
     def _call_tool(self, request_id, name, arguments):
         result = self._mcp_request(
@@ -199,8 +173,8 @@ class McpChecks(SmokeFixture):
     def test_public_discovery_surface(self):
         """The unauthenticated surface clients rely on to bootstrap OAuth.
 
-        Runs in both authentication modes: it needs no caller token, which is
-        the point -- a client discovers how to authenticate before it can.
+        Needs no caller token, which is the point: a client discovers how to
+        authenticate before it can.
         """
         base_url = self._base_url()
         unauthenticated_response = requests.post(
@@ -228,9 +202,6 @@ class McpChecks(SmokeFixture):
             metadata.get("authorization_servers"),
             "protected-resource metadata advertises no authorization server.",
         )
-
-        if not self._is_proxy_mode():
-            return
 
         # FastMCP owns the OAuth surface, so it must advertise its endpoints
         # under /mcp rather than on the shared Gateway root.
@@ -262,7 +233,7 @@ class McpChecks(SmokeFixture):
             )
 
     def test_catalog_profile_and_credential_parity(self):
-        self._require_mcp_authentication()
+        self._mcp_access_token()
         catalog_result = self._mcp_request(1, "tools/list", {})
         catalog_tools = catalog_result.get("tools")
         if not isinstance(catalog_tools, list) or not all(
@@ -387,7 +358,7 @@ class McpChecks(SmokeFixture):
         )
 
     def test_workflow_validation_round_trip(self):
-        self._require_mcp_authentication()
+        self._mcp_access_token()
         pool = self.config.pool
         if not pool:
             self.fail("OETF_POOL must select a workflow validation pool.")

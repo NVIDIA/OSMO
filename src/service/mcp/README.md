@@ -20,8 +20,8 @@
 
 The self-hosted MCP service is a thin adapter over predefined OSMO REST APIs.
 Every MCP request and every resulting API request enters through the same
-deployment's Gateway. Authentication can remain at the Gateway or run inside
-the existing MCP process through FastMCP's built-in `OIDCProxy`.
+deployment's Gateway. Authentication runs inside the MCP process through
+FastMCP's built-in `OIDCProxy`.
 
 MCP authenticates every caller through FastMCP's `OIDCProxy`, passed as the
 FastMCP server's `auth` argument. A client configures only `/mcp`, discovers
@@ -42,9 +42,8 @@ No second executable, process, Service, or Deployment is created.
 
 FastMCP validates its resource token and `get_access_token()` exposes the
 verified upstream identity-provider bearer to the active tool request. A tool
-passes the
-selected credential explicitly to `GatewayClient`; the shared HTTP client
-contains no caller credentials.
+passes the selected credential explicitly to `GatewayClient`; the shared HTTP
+client contains no caller credentials.
 
 The relay boundary has these invariants:
 
@@ -199,15 +198,12 @@ credentials remain file-mounted secrets:
 services:
   mcp:
     resourceUrl: https://<osmo-host>/mcp
-    replicas: 1
     oidcProxy:
-      enabled: true
       oidc:
         configUrl: https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration
         clientId: <oidc-application-client-id>
-        clientSecretFile: /etc/osmo/mcp-auth/client-secret
+        # Only an application issuing v1-format access tokens needs this.
         accessTokenIssuer: https://sts.windows.net/<tenant-id>/
-        accessTokenRequiredScope: access_as_user
       redis:
         dbNumber: <dedicated-database-number>
         keyPrefix: osmo:mcp-fastmcp
@@ -240,8 +236,8 @@ it first on a dev instance and run discovery, DCR fallback, CIMD, login,
 access-token expiry, refresh, restart recovery, and key-rotation tests from
 clean client profiles. Confirm CIMD through
 `client_id_metadata_document_supported: true` in authorization-server metadata
-and DCR fallback through `registration_endpoint`. Keep `services.mcp.replicas`
-at `1` while using FastMCP 3.4.7 because refresh serialization is process-local.
+and DCR fallback through `registration_endpoint`. The proxy keeps its state in
+Redis, so `services.mcp.replicas` may exceed `1`.
 
 After changing an Entra app-role assignment, users should log out and
 authenticate again so the next token definitely contains the updated role set.
@@ -403,8 +399,8 @@ bazel test //test/smoke:mcp-checks-pylint
 bash deployments/charts/service/tests/render-tests.sh
 ```
 
-The chart validation covers MCP-disabled, direct-provider, and in-process OIDC
-proxy renders; the derived Gateway origin; exact OAuth routing; the `/mcp`
+The chart validation covers MCP-disabled and MCP-enabled renders; the derived
+Gateway origin; exact OAuth routing; the `/mcp`
 filter boundary; secret mounts; ingress isolation; and expected configuration
 failures.
 

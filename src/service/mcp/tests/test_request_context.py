@@ -33,7 +33,6 @@ class OIDCRequestCredentialsTest(unittest.TestCase):
             token='verified-entra-token-value',
             client_id='codex-client',
             scopes=['access_as_user'],
-            claims={'preferred_username': 'alice@example.com'},
         )
         request = Request({
             'type': 'http',
@@ -98,7 +97,6 @@ class OIDCRequestCredentialsTest(unittest.TestCase):
             token='verified-entra-token-value',
             client_id='codex-client',
             scopes=['access_as_user'],
-            claims={'preferred_username': 'alice@example.com'},
         )
         invalid_headers = (
             [(b'x-request-id', b'')],

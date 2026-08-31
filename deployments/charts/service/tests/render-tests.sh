@@ -339,8 +339,8 @@ for forbidden in 'name: osmo-mcp' 'cluster: osmo-mcp' 'path: /mcp'; do
 done
 
 mcp_render=$(helm template mcp-test "$CHART_DIR" --values "$mcp_values")
-mcp_workload=$(helm template mcp-test "$CHART_DIR" --values "$mcp_values" \
-    --show-only templates/mcp-service.yaml)
+mcp_workload=$(awk '/^# Source: /{keep = ($3 ~ /templates\/mcp-service\.yaml$/)} keep' \
+    <<<"$mcp_render")
 
 # FastMCP advertises its OAuth endpoints under /mcp; the gateway publishes that
 # prefix and rewrites it off before forwarding to the root paths the MCP SDK
@@ -357,8 +357,9 @@ mcp_route() {
     ' <<<"$mcp_render"
 }
 
-grep -q 'prefix: /mcp/' <<<"$(mcp_route mcp-oauth)"
-grep -q 'prefix_rewrite: /$' <<<"$(mcp_route mcp-oauth)"
+oauth_route=$(mcp_route mcp-oauth)
+grep -q 'prefix: /mcp/' <<<"$oauth_route"
+grep -q 'prefix_rewrite: /$' <<<"$oauth_route"
 grep -q 'prefix_rewrite: /.well-known/oauth-authorization-server' \
     <<<"$(mcp_route mcp-authorization-server-metadata)"
 
@@ -419,14 +420,23 @@ grep -q 'value: "/var/run/mcp/redis-password"' <<<"$mount_render"
 grep -q 'mountPath: /var/run/mcp' <<<"$mount_render"
 
 # The MCP audience is added to the provider for its issuer, so no deployment
-# writes a second provider differing only in audience.
+# writes a second provider differing only in audience. Scoped to the audiences
+# list: the resource URL also renders as the service's own env var.
+jwt_audiences() {
+    awk '
+        /^ *audiences:/ { found = 1; match($0, /^ */); depth = RLENGTH; next }
+        found && /^ *- / && index($0, "- ") == depth + 1 { print $2; next }
+        found { found = 0 }
+    ' <<<"$1"
+}
+
 aud_render=$(helm template mcp-aud "$CHART_DIR" --values "$mcp_values" \
     --set 'gateway.envoy.jwt.providers[0].audience=some-client-id')
-grep -q -- '- some-client-id' <<<"$aud_render"
-grep -q -- '- https://osmo.example.com/mcp' <<<"$aud_render"
+grep -qx 'some-client-id' <<<"$(jwt_audiences "$aud_render")"
+grep -qx 'https://osmo.example.com/mcp' <<<"$(jwt_audiences "$aud_render")"
 
 # A provider already carrying that audience must not have it added twice.
-dupes=$(grep -c -- '- https://osmo.example.com/mcp' <<<"$mcp_render" || true)
+dupes=$(grep -cx 'https://osmo.example.com/mcp' <<<"$(jwt_audiences "$mcp_render")" || true)
 if [ "$dupes" -ne 1 ]; then
     echo "MCP audience appears $dupes times on the gateway provider, want 1" >&2
     exit 1

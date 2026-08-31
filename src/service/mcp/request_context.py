@@ -26,7 +26,6 @@ from fastmcp.server.auth import AccessToken
 from fastmcp.server.dependencies import get_access_token, get_http_request
 
 
-
 REQUEST_ID_HEADER = 'x-request-id'
 
 _REQUEST_ID_HEADER = REQUEST_ID_HEADER.encode('ascii')
@@ -37,7 +36,6 @@ _BEARER_VALUE = re.compile(
 _REQUEST_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:-]*')
 MAX_REQUEST_ID_HEADER_BYTES = 128
 MIN_BEARER_TOKEN_SUBSTRING_BYTES = 16
-MIN_BEARER_TOKEN_BYTES = MIN_BEARER_TOKEN_SUBSTRING_BYTES
 
 
 class RequestContextUnavailable(RuntimeError):
@@ -58,10 +56,15 @@ class RequestCredentials:
 
 _active_tool_name: contextvars.ContextVar[str | None] = (
     contextvars.ContextVar('mcp_active_tool_name', default=None))
+_active_credentials: contextvars.ContextVar[RequestCredentials | None] = (
+    contextvars.ContextVar('mcp_active_credentials', default=None))
 
 
 def get_request_credentials() -> RequestCredentials:
     """Return credentials for the active request from FastMCP's access token."""
+    bound = _active_credentials.get()
+    if bound is not None:
+        return bound
     access_token = get_access_token()
     if access_token is None:
         raise RequestContextUnavailable(
@@ -85,12 +88,17 @@ def track_tool(name: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def track_request_task() -> Iterator[RequestCredentials]:
-    """Bind the active request's credentials for the duration of a tool call.
+def bind_credentials(credentials: RequestCredentials) -> Iterator[None]:
+    """Reuse one derivation of the caller's credentials across a tool call.
 
-    FastMCP owns request-task cancellation, so this only carries credentials.
+    Deriving them scans the bearer and the request-ID header, and a tool asks
+    for them again on every Gateway request it makes.
     """
-    yield get_request_credentials()
+    token = _active_credentials.set(credentials)
+    try:
+        yield
+    finally:
+        _active_credentials.reset(token)
 
 
 def _credentials_from_access_token(
@@ -181,7 +189,7 @@ def _is_supported_authorization_header(value: str) -> bool:
     if _BEARER_VALUE.fullmatch(value) is None:
         return False
     _, _, bearer_token = value.partition(' ')
-    return len(bearer_token) >= MIN_BEARER_TOKEN_BYTES
+    return len(bearer_token) >= MIN_BEARER_TOKEN_SUBSTRING_BYTES
 
 
 def _decode_ascii(value: bytes) -> str | None:

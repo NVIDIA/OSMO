@@ -21,10 +21,9 @@ import contextlib
 from typing import Any, TypeAlias
 import unittest
 
+from fastmcp.server.auth.providers.debug import DebugTokenVerifier
 import httpx
 from starlette.applications import Starlette
-
-from fastmcp.server.auth import AccessToken, TokenVerifier
 
 from src.service.mcp import (
     gateway,
@@ -63,13 +62,7 @@ DESTRUCTIVE_WRITE_ANNOTATIONS = {
 
 
 def service_config(**overrides: object) -> server.MCPServiceConfig:
-    """Build a valid service configuration for tests.
-
-    Authentication is not optional, so a configuration that cannot reach an
-    identity provider is rejected at load time. Tests that only exercise the
-    tool pipeline still need a complete one; these are the values a deployer
-    supplies.
-    """
+    """Build a valid service configuration; auth config is required to load."""
     values: dict[str, object] = {
         'gateway_url': 'https://gateway.test',
         'resource_url': 'https://gateway.test/mcp',
@@ -85,26 +78,16 @@ def service_config(**overrides: object) -> server.MCPServiceConfig:
     return server.MCPServiceConfig(**values)  # type: ignore[arg-type]
 
 
-class AnyTokenVerifier(TokenVerifier):
+def any_token_verifier() -> DebugTokenVerifier:
     """Accept any bearer token and hand it back as the verified caller token.
 
-    The service authenticates every caller through FastMCP, so tests need a
-    provider. Signature verification is FastMCP's and the identity provider's
-    job; what these tests exercise is the tool pipeline and the relay of the
-    verified token upstream, so accepting any token keeps them focused.
+    Signature verification belongs to FastMCP and the identity provider; these
+    tests exercise the tool pipeline and the relay of the token upstream.
     """
-
-    def __init__(self, user_name: str = 'alice@example.com') -> None:
-        super().__init__()
-        self._user_name = user_name
-
-    async def verify_token(self, token: str) -> AccessToken | None:
-        return AccessToken(
-            token=token,
-            client_id='test-client',
-            scopes=['access_as_user'],
-            claims={'preferred_username': self._user_name},
-        )
+    return DebugTokenVerifier(
+        client_id='test-client',
+        scopes=['access_as_user'],
+    )
 
 
 class ProtocolHarness:
@@ -116,25 +99,21 @@ class ProtocolHarness:
         tool_names: Collection[str],
         bearer_secret: str,
         request_id: str,
-        user_name: str = 'alice@example.com',
         request_timeout_seconds: float = 10,
     ) -> None:
         self.tool_names = tuple(tool_names)
         self.bearer_secret = bearer_secret
         self.request_id = request_id
-        self.user_name = user_name
         self.request_timeout_seconds = request_timeout_seconds
 
     def create_application(self) -> Starlette:
         """Build one isolated selected-tool protocol application.
 
-        The service authenticates every caller through FastMCP, so the harness
-        supplies a static verifier rather than a set of trusted headers. The
-        bearer secret is what the relay is expected to forward upstream.
+        The bearer secret is what the relay is expected to forward upstream.
         """
         mcp_server = protocol.OSMOFastMCP(
             name='OSMO MCP protocol test',
-            auth=AnyTokenVerifier(self.user_name),
+            auth=any_token_verifier(),
         )
         tool_registry.register_tools(mcp_server, names=self.tool_names)
         return server.create_application(mcp_server)

@@ -70,7 +70,7 @@ Before enabling MCP:
 Configure OIDC Proxy Mode
 =========================
 
-OIDC proxy mode provides endpoint-only client setup. The deployment owns one
+The OIDC proxy provides endpoint-only client setup. The deployment owns one
 confidential upstream OIDC application. Individual MCP clients do not need to
 configure its client ID and never receive its client secret.
 
@@ -169,24 +169,18 @@ to the deployment:
        replicas: 1
        resourceUrl: https://osmo.example.com/mcp
        oidcProxy:
-         enabled: true
          oidc:
            configUrl: https://idp.example.com/.well-known/openid-configuration
            clientId: <confidential-oidc-client-id>
-           clientSecretFile: /etc/osmo/mcp-auth/client-secret
-           accessTokenIssuer: https://issuer.example.com/
-           accessTokenRequiredScope: access_as_user
-         redis:
-           dbNumber: 0
-           keyPrefix: osmo:mcp-fastmcp
-           passwordFile: /etc/osmo/mcp-auth/redis-password
          existingSecret:
            name: osmo-mcp-oidc
-           mountPath: /etc/osmo/mcp-auth
-           clientSecretKey: client-secret
-           redisPasswordKey: redis-password
 
-Blank OIDC proxy Redis host and port values inherit ``services.redis``.
+The secret file paths follow ``existingSecret.mountPath``, and Redis is
+inherited from ``services.redis``, so neither is stated. Set
+``oidc.accessTokenIssuer`` only for a provider whose access tokens come from an
+issuer its discovery document does not advertise, as an application configured
+for v1-format tokens does. Name ``existingSecret.redisPasswordKey`` only when
+that Redis requires a password.
 Native clients normally omit ``Origin`` and need no extra configuration. For a
 browser-hosted MCP client, ``services.mcp.allowedOrigins`` controls which
 browser origins may call ``/mcp``.
@@ -256,7 +250,7 @@ For either mode, verify protected-resource metadata:
    $ curl --fail --silent --show-error \
        https://osmo.example.com/.well-known/oauth-protected-resource/mcp
 
-In OIDC proxy mode, also verify authorization-server metadata:
+Also verify authorization-server metadata:
 
 .. code-block:: bash
 
@@ -271,11 +265,9 @@ login and run the read-only verification in :ref:`getting_started_mcp`.
 Provide Connection Details
 ==========================
 
-For OIDC proxy mode, give users only the MCP URL. Clients discover scopes from
-the proxy metadata, and the proxy accepts native loopback redirects
-automatically.
-
-:ref:`getting_started_mcp`.
+Give users only the MCP URL. Clients discover scopes from the proxy metadata,
+and the proxy accepts native loopback redirects automatically. Client setup is
+covered in :ref:`getting_started_mcp`.
 
 Operate OIDC Proxy Safely
 =========================
@@ -299,8 +291,8 @@ The public proxy surface is the protected-resource and authorization-server
 metadata documents plus everything under ``/mcp``, where FastMCP serves
 ``authorize``, ``token``, ``register``, ``consent`` and the callback. Gateway
 bypasses its own JWT and semantic authorization filters only for that prefix
-and the two metadata documents in proxy mode. FastMCP authenticates ``/mcp``; all ``/api`` calls keep
-normal Gateway validation and authorization.
+and the two metadata documents. FastMCP authenticates ``/mcp``; all ``/api``
+calls keep normal Gateway validation and authorization.
 
 .. _mcp_deployment_troubleshooting:
 
@@ -316,15 +308,14 @@ Troubleshooting
    * - Metadata returns ``404`` or unexpected values
      - Verify that ``services.mcp.enabled`` is true, DNS points to this
        release's Gateway, and ``resourceUrl`` ends with the exact path
-       ``/mcp``. Also verify the
-       authorization-server metadata route.
+       ``/mcp``. Also verify the authorization-server metadata route.
    * - MCP pod does not become ready
      - Inspect configuration and credential-file errors first. The client
        secret and optional Redis password must exist at the configured absolute
        paths.
    * - Browser reports a redirect mismatch or no reply address
-     - Register exact ``https://<osmo-host>/mcp/auth/callback`` on the confidential
-       upstream application. For Entra, use the Web platform for this
+     - Register exact ``https://<osmo-host>/mcp/auth/callback`` on the
+       confidential upstream application. For Entra, use the Web platform for this
        server-side client.
    * - Browser reports ``Approval required``
      - Grant administrator consent and assign the intended users or groups to
