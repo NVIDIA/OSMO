@@ -88,10 +88,6 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-Existing automation may continue passing
-`deployments/charts/osmo/profiles/quickstart.yaml`; it is retained as a
-compatibility overlay equivalent to the defaults.
-
 The first installation uses the MEK bootstrap lifecycle Job to create the
 retained `osmo-master-encryption-key` Secret without putting key material in
 Helm state. After that installation succeeds, remove the temporary Secret
@@ -390,8 +386,8 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 25m
 ```
 
-The split-plane control profile restores production-oriented settings that
-create three PostgreSQL 16 instances with one 20 Gi
+The split-plane control profile uses production-oriented settings that create
+three PostgreSQL 16 instances with one 20 Gi
 `ReadWriteOnce` PVC per instance, required hostname anti-affinity, a
 PodDisruptionBudget, and synchronous replication to one standby. A generated
 application Secret is wired into every OSMO PostgreSQL client automatically.
@@ -533,8 +529,8 @@ secrets:
 ```
 
 The generated Secret and configured `ReadWriteOnce` PVC are retained on
-uninstall. The quickstart uses 512 MiB; the split-plane control profile restores
-the previous 8 GiB default when embedded Valkey is enabled there.
+uninstall. The quickstart uses 512 MiB; the split-plane control profile uses
+8 GiB when embedded Valkey is enabled there.
 Back up both resources and restore the original Secret before reinstalling or
 recovering the PVC. To supply an existing Secret instead, disable
 `secrets.valkey.generate` and set both `secrets.valkey.existingSecret` and

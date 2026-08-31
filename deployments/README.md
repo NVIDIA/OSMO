@@ -42,6 +42,10 @@ For a development evaluation, use the unified chart defaults. Kind is the
 recommended local cluster; KAI Scheduler, CloudNativePG, and a default dynamic
 StorageClass must already be available:
 
+Before installing OSMO, generate the shared service-auth identity and create
+the required `osmo-service-auth` Secret by following the
+[`osmo` chart installation steps](charts/osmo/README.md#install-osmo).
+
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
 helm repo update cnpg

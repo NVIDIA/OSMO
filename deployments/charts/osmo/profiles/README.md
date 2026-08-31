@@ -11,7 +11,6 @@ values after a base overlay so that the environment values take precedence.
 
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
-| `quickstart.yaml` | Compatibility overlay; equivalent to chart defaults | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `osmo-service-auth` generated and created as documented |
 | `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, an `osmo-service-auth` Secret generated as documented, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
@@ -22,12 +21,10 @@ through gateway NodePort `30080` while omitting optional production behavior.
 It intentionally uses `latest` OSMO images, one replica per component,
 development authentication, explicitly generated service auth, and small
 single-node stateful dependencies.
-The quick-start installation path uses the chart's default image settings and
-does not require application Secrets or an image-pull Secret to be created
-beforehand. Configure top-level `imagePullSecrets` only when using a registry
-that requires credentials. `quickstart.yaml` retains the former explicit values
-as a compatibility overlay for existing automation; new installations can omit
-it.
+The quick-start installation path requires the documented pre-created
+`osmo-service-auth` Secret. It generates its other application credentials and
+does not require an image-pull Secret beforehand. Configure top-level
+`imagePullSecrets` only when using a registry that requires credentials.
 
 The self-contained profile is the production-converged path for environments
 that host OSMO and its stateful dependencies in Kubernetes. It uses chart-version

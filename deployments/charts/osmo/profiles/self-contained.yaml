@@ -68,8 +68,7 @@ secrets:
       name: osmo-service-auth
       key: authentication-config.json
 
-# Restore the production service sizing and placement defaults that predate the
-# chart's development quickstart defaults.
+# Production service sizing and placement.
 services:
   ui:
     resources:

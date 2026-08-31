@@ -30,6 +30,10 @@ For an existing development cluster with KAI Scheduler, the CloudNativePG
 operator, and a default dynamic StorageClass, install the complete browser,
 CLI, API, and CPU workflow experience with the chart defaults:
 
+Before running Helm, generate the shared service-auth identity and create the
+required `osmo-service-auth` Secret by following the
+[`osmo` installation steps](osmo/README.md#install-osmo).
+
 ```bash
 helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
