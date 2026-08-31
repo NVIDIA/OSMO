@@ -18,6 +18,9 @@ planes:
 # This profile intentionally supports one OSMO installation per namespace.
 fullnameOverride: osmo
 
+# Pin production installs to the chart application version.
+imageTag: ''
+
 embeddedDependencies:
   postgresql:
     enabled: true
