@@ -4391,6 +4391,106 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
         "mountPath: /etc/oauth2-proxy/cookie-secret"
 
+    helm_template configuration-secret-ref "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.secretRefs[0].secretName=osmo-alerts \
+        >"$TEST_DIRECTORY/osmo-configuration-secret-ref.yaml"
+    local configuration_consumer
+    for configuration_consumer in api worker logger agent; do
+        resource_document \
+            "$TEST_DIRECTORY/osmo-configuration-secret-ref.yaml" Deployment \
+            "configuration-secret-ref-osmo-$configuration_consumer" \
+            >"$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml" \
+            "mountPath: /etc/osmo/secrets/osmo-alerts"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml" \
+            'secretName: "osmo-alerts"'
+        require_occurrences \
+            "$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml" \
+            "name: config-secret-0" 2
+    done
+
+    if helm_template duplicate-configuration-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.secretRefs[0].secretName=osmo-alerts \
+        --set-string configuration.secretRefs[1].secretName=osmo-alerts \
+        >"$TEST_DIRECTORY/duplicate-configuration-secret.out" 2>&1; then
+        fail "expected duplicate configuration Secrets to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/duplicate-configuration-secret.out" \
+        'configuration.secretRefs contains duplicate Secret "osmo-alerts"'
+
+    helm_template repeated-object-storage-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string \
+        configuration.secretRefs[0].secretName=external-object-storage-secret \
+        --set-string \
+        configuration.workflow.workflow_alerts.secretName=external-object-storage-secret \
+        --set-string \
+        configuration.workflow.workflow_alerts.secretKey=alerts.yaml \
+        >"$TEST_DIRECTORY/repeated-object-storage-secret.yaml"
+    resource_document \
+        "$TEST_DIRECTORY/repeated-object-storage-secret.yaml" ConfigMap \
+        repeated-object-storage-secret-osmo-api-config \
+        >"$TEST_DIRECTORY/repeated-object-storage-secret-config.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-config.yaml" \
+        "secretKey: alerts.yaml"
+    resource_document \
+        "$TEST_DIRECTORY/repeated-object-storage-secret.yaml" Deployment \
+        repeated-object-storage-secret-osmo-api \
+        >"$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml" \
+        "name: object-storage-credentials"
+    require_not_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml" \
+        "name: config-secret-0"
+    require_not_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml" \
+        'path: "object-storage.yaml"'
+
+    helm_template adoption-snapshot "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/adoption-snapshot-values.yaml" \
+        >"$TEST_DIRECTORY/adoption-snapshot.yaml"
+    resource_document "$TEST_DIRECTORY/adoption-snapshot.yaml" ConfigMap \
+        adoption-snapshot-osmo-api-config \
+        >"$TEST_DIRECTORY/adoption-snapshot-config.yaml"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "secretName: independent-data-storage"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "secretName: independent-log-storage"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "secretName: independent-app-storage"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "endpoint: swift://independent/workflows"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "endpoint: swift://independent/logs"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "endpoint: swift://independent/apps"
+    require_not_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "default_ctrl"
+    require_not_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "default_cpu"
+    require_not_contains "$TEST_DIRECTORY/adoption-snapshot-config.yaml" \
+        "osmo-admin"
+    resource_document "$TEST_DIRECTORY/adoption-snapshot.yaml" Deployment \
+        adoption-snapshot-osmo-api \
+        >"$TEST_DIRECTORY/adoption-snapshot-api.yaml"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-api.yaml" \
+        "mountPath: /etc/osmo/secrets/independent-data-storage"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-api.yaml" \
+        "mountPath: /etc/osmo/secrets/independent-log-storage"
+    require_contains "$TEST_DIRECTORY/adoption-snapshot-api.yaml" \
+        "mountPath: /etc/osmo/secrets/independent-app-storage"
+
     helm_template quoted-secret-scalars "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

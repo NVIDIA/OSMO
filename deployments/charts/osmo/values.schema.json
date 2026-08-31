@@ -78,7 +78,26 @@
         "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
       }
     },
-    "configuration": { "type": "object" },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "snapshot": {
+          "type": ["object", "null"]
+        },
+        "secretRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["secretName"],
+            "properties": {
+              "secretName": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": true
+    },
     "services": {
       "type": "object",
       "properties": {

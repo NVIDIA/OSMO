@@ -247,6 +247,27 @@ class TestResolveSecretFileReferences(unittest.TestCase):
         credential = config_data['buckets']['primary']['default_credential']
         self.assertIn('secret_file', credential)
 
+    def test_malformed_secret_yaml_log_does_not_include_secret_content(self):
+        secret_canary = 'SECRET_CANARY_MUST_NOT_BE_LOGGED'
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as secret_file:
+            secret_file.write(f'access_key: [{secret_canary}')
+            secret_path = secret_file.name
+        try:
+            config_data: Dict[str, Any] = {
+                'alerts': {
+                    'secret_file': secret_path,
+                },
+            }
+            with self.assertLogs(level=logging.ERROR) as captured_logs:
+                configmap_loader._resolve_secret_file_references(config_data)
+
+            combined_logs = '\n'.join(captured_logs.output)
+            self.assertIn('invalid YAML at line', combined_logs)
+            self.assertNotIn(secret_canary, combined_logs)
+        finally:
+            os.unlink(secret_path)
+
     def test_resolve_simple_string_secret(self):
         secret_data = {'value': 'xoxb-slack-token'}
         with tempfile.NamedTemporaryFile(

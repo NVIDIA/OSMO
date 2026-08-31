@@ -386,6 +386,14 @@ data:
   mountPath: /etc/osmo/secrets/{{ . }}
   readOnly: true
 {{- end }}
+{{- $objectStorageSecretName := include "osmo.objectStorage.secretName" . }}
+{{- range $index, $secretRef := .Values.configuration.secretRefs }}
+{{- if ne $secretRef.secretName $objectStorageSecretName }}
+- name: config-secret-{{ $index }}
+  mountPath: /etc/osmo/secrets/{{ $secretRef.secretName }}
+  readOnly: true
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -394,13 +402,29 @@ data:
 - name: configs
   configMap:
     name: {{ include "osmo.api.fullname" . }}-config
-{{- with (include "osmo.objectStorage.secretName" .) }}
+{{- $objectStorageSecretName := include "osmo.objectStorage.secretName" . }}
+{{- $mountAllObjectStorageKeys := false }}
+{{- range $secretRef := .Values.configuration.secretRefs }}
+{{- if eq $secretRef.secretName $objectStorageSecretName }}
+{{- $mountAllObjectStorageKeys = true }}
+{{- end }}
+{{- end }}
+{{- with $objectStorageSecretName }}
 - name: object-storage-credentials
   secret:
     secretName: {{ . | quote }}
+{{- if not $mountAllObjectStorageKeys }}
     items:
     - key: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
       path: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
+{{- end }}
+{{- end }}
+{{- range $index, $secretRef := .Values.configuration.secretRefs }}
+{{- if ne $secretRef.secretName $objectStorageSecretName }}
+- name: config-secret-{{ $index }}
+  secret:
+    secretName: {{ $secretRef.secretName | quote }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end -}}

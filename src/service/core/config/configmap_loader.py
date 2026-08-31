@@ -1181,8 +1181,15 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
         try:
             secret_data = yaml.safe_load(content)
         except yaml.YAMLError as error:
-            logging.error('Failed to parse secret file %s for %s: %s',
-                          secret_file_path, path_label, error)
+            problem_mark = getattr(error, 'problem_mark', None)
+            location = ''
+            if problem_mark is not None:
+                location = (
+                    f' at line {problem_mark.line + 1}, '
+                    f'column {problem_mark.column + 1}')
+            logging.error(
+                'Failed to parse secret file %s for %s: invalid YAML%s',
+                secret_file_path, path_label, location)
             return
 
     if not isinstance(secret_data, dict):

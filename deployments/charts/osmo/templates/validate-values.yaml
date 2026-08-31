@@ -461,4 +461,16 @@
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
 {{- end -}}
+
+{{- $configurationSecretNames := dict -}}
+{{- range $index, $secretRef := .Values.configuration.secretRefs -}}
+{{- $secretName := required (printf "configuration.secretRefs[%d].secretName is required" $index) $secretRef.secretName -}}
+{{- if or (gt (len $secretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $secretName)) -}}
+{{- fail (printf "configuration.secretRefs[%d].secretName must be a valid Kubernetes Secret name" $index) -}}
+{{- end -}}
+{{- if hasKey $configurationSecretNames $secretName -}}
+{{- fail (printf "configuration.secretRefs contains duplicate Secret %q" $secretName) -}}
+{{- end -}}
+{{- $_ := set $configurationSecretNames $secretName true -}}
+{{- end -}}
 {{- end -}}

@@ -38,21 +38,38 @@ SPDX-License-Identifier: Apache-2.0
 
 Use the export script to dump your current configs from the running OSMO instance into Helm values format:
 
+First map each masked credential path reported by the API to an existing
+Kubernetes Secret. For example:
+
+```yaml
+# secret-mappings.yaml
+secretMappings:
+  - path: workflow.workflow_data.credential
+    secretName: osmo-workflow-data-cred
+    secretKey: cred.yaml
+  - path: workflow.workflow_log.credential
+    secretName: osmo-workflow-log-cred
+    secretKey: cred.yaml
+```
+
 ```bash
 export OSMO_URL=https://osmo.example.com
 export OSMO_TOKEN=$(osmo token set export-token --expires-at 2026-12-31 -t json | jq -r '.token')
 
 python3 deployments/upgrades/export_configs_to_helm.py \
-    --url $OSMO_URL \
-    --token $OSMO_TOKEN \
+    --chart legacy \
+    --secret-mappings secret-mappings.yaml \
     > my-configs.yaml
 ```
 
 The script:
-- Exports all config sections (service, workflow, dataset, backends, pools, templates, validations, roles)
+- Exports all nine managed config sections (service, workflow, backends,
+  pools, pod templates, resource validations, group templates, backend tests,
+  and roles)
 - Strips runtime/computed fields (`parsed_pod_template`, `parsed_resource_validations`, etc.) — the service resolves these at load time from template name references
-- Replaces masked credentials with `secretName` placeholders
-- Outputs YAML ready to paste into your Helm values under `services.configs`
+- Requires operator-provided mappings from every masked credential to an
+  existing Kubernetes Secret; it never exports masked values as credentials
+- Outputs a Helm values file containing the `services.configs` wrapper
 
 Review the output and check the `secretRefs` list printed to stderr — you'll need to create matching K8s Secrets.
 
@@ -80,7 +97,9 @@ This activates ConfigMap mode with the chart's built-in defaults. All config wri
 
 ### With exported configs
 
-Paste your exported configs under `services.configs`:
+Pass the generated file directly to Helm with `-f my-configs.yaml`, or merge
+its complete `services.configs` block into your environment values. Its shape
+is:
 
 ```yaml
 services:

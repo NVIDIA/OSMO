@@ -1658,8 +1658,20 @@ gateway:
 # OSMO domain configuration rendered into the service ConfigMap.
 configuration:
   enabled: true
+  # Existing Kubernetes Secrets referenced from service/workflow configuration.
+  # Every Secret is mounted read-only at /etc/osmo/secrets/<secretName>/.
+  # The dedicated object-storage Secret is already mounted and is de-duplicated.
+  # Listing it here mounts all of its keys so additional config references to
+  # that Secret work; do not co-locate unrelated credentials in a shared Secret.
+  # Keep secret values out of Helm values; reference them with secretName and,
+  # when needed, secretKey in the configuration below.
+  secretRefs: []
   extraConfigMaps: []
   extraAnnotations: {}
+  # Optional complete replacement for the opinionated section defaults below.
+  # The adoption exporter writes all nine managed sections here so empty maps
+  # and deleted default entries remain exact after Helm values merging.
+  snapshot: null
   service: {}
   workflow:
     max_num_tasks: 100
