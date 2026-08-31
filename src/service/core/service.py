@@ -453,37 +453,34 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
         objects.WorkflowServiceContext(config=config, database=postgres))
     backend_secret_auth.configure(config.backend_token_directory)
 
+    login_info = auth.LoginInfo(
+        device_endpoint=config.device_endpoint,
+        device_client_id=config.device_client_id,
+        browser_endpoint=config.browser_endpoint,
+        browser_client_id=config.browser_client_id,
+        token_endpoint=config.token_endpoint,
+        logout_endpoint=config.logout_endpoint,
+    )
     if not config.config_file:
-        service_configs_dict = postgres.get_service_configs()
-
-        configs_dict = {}
-        login_info = auth.LoginInfo(
-            device_endpoint=config.device_endpoint,
-            device_client_id=config.device_client_id,
-            browser_endpoint=config.browser_endpoint,
-            browser_client_id=config.browser_client_id,
-            token_endpoint=config.token_endpoint,
-            logout_endpoint=config.logout_endpoint,
-        )
-        if login_info != service_configs_dict.service_auth.login_info:
-            configs_dict['service_auth'] = {
-                'login_info': login_info.model_dump()
-            }
-
-        if configs_dict:
+        service_configs = postgres.get_service_configs()
+        if (not postgres.service_auth_is_external
+                and login_info != service_configs.service_auth.login_info):
             config_helpers.patch_configs(
                 request=config_objects.PatchConfigRequest(
-                    configs_dict=configs_dict,
+                    configs_dict={
+                        'service_auth': {'login_info': login_info.model_dump()},
+                    },
                     description='Updated service auth',
                 ),
                 config_type=connectors.ConfigType.SERVICE,
                 username='',
             )
-
         create_default_pool(postgres)
         set_default_backend_images(postgres)
         set_client_install_url(postgres, config)
         set_default_service_url(postgres)
+
+    postgres.set_runtime_service_auth_login_info(login_info)
 
     setup_default_admin(postgres, config)
 

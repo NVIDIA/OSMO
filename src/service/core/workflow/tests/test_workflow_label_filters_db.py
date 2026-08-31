@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 from types import SimpleNamespace
+from typing import IO
 import unittest
 from unittest import mock
 
@@ -37,9 +38,12 @@ class WorkflowLabelFiltersFixture(
     layering prevents sharing the class across the two test trees.
     """
 
+    service_auth_file: IO[str]
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.service_auth_file = fixtures.create_service_auth_file()
         postgres.PostgresConnector(
             postgres.PostgresConfig(
                 postgres_host=cls.postgres_container.get_container_host_ip(),
@@ -48,6 +52,7 @@ class WorkflowLabelFiltersFixture(
                 postgres_database_name=cls.postgres_container.dbname,
                 postgres_user=cls.postgres_container.username,
                 method='dev',
+                service_auth_file=cls.service_auth_file.name,
             ))
 
     @classmethod
@@ -57,6 +62,7 @@ class WorkflowLabelFiltersFixture(
                 postgres.PostgresConnector._instance.close()  # pylint: disable=protected-access
                 postgres.PostgresConnector._instance = None  # pylint: disable=protected-access
         finally:
+            cls.service_auth_file.close()
             super().tearDownClass()
 
     @property

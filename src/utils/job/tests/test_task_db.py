@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 import datetime
 import json
-from typing import Any, List
+from typing import Any, IO, List
 from unittest import mock
 
 from src.lib.utils import common, osmo_errors, priority as wf_priority
@@ -41,9 +41,12 @@ class TaskDbFixture(
 ):
     """Postgres-only fixture for testing Task/TaskGroup DB operations."""
 
+    service_auth_file: IO[str]
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.service_auth_file = fixtures.create_service_auth_file()
 
         # Initialize PostgresConnector singleton with the testcontainer
         postgres.PostgresConnector(
@@ -54,6 +57,7 @@ class TaskDbFixture(
                 postgres_database_name=cls.postgres_container.dbname,
                 postgres_user=cls.postgres_container.username,
                 method='dev',
+                service_auth_file=cls.service_auth_file.name,
             )
         )
 
@@ -64,6 +68,7 @@ class TaskDbFixture(
                 postgres.PostgresConnector._instance.close()  # pylint: disable=protected-access
                 postgres.PostgresConnector._instance = None  # pylint: disable=protected-access
         finally:
+            cls.service_auth_file.close()
             super().tearDownClass()
 
     def _get_db(self) -> postgres.PostgresConnector:

@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import copy
 from typing import Any, Tuple
 
 from src.lib.utils import config_history
@@ -115,7 +116,17 @@ def transform_config_data(postgres: connectors.PostgresConnector, config_type: s
     Transform the config data for returning to the client with obfuscated credentials
     """
     if config_type == config_history.ConfigHistoryType.SERVICE.value.lower():
-        return connectors.ServiceConfig.deserialize(data, postgres)
+        if not postgres.service_auth_is_external:
+            return connectors.ServiceConfig.deserialize(data, postgres)
+        data = copy.deepcopy(data)
+        data.pop('service_auth', None)
+        service_config = connectors.ServiceConfig.deserialize(
+            data,
+            postgres,
+            runtime_overrides={'service_auth': postgres.get_service_auth()},
+            persist_secret_updates=False,
+        )
+        return service_config.model_dump(exclude={'service_auth'})
     elif config_type == config_history.ConfigHistoryType.WORKFLOW.value.lower():
         return connectors.WorkflowConfig.deserialize(data, postgres)
     # ROLE and other types: return data as-is (already the right shape)

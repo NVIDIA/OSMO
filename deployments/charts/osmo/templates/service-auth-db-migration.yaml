@@ -1,0 +1,171 @@
+{{- if and .Values.planes.control.enabled .Values.secrets.serviceAuth.migration.enabled -}}
+{{- $serviceAuth := .Values.secrets.serviceAuth -}}
+{{- $secretName := required "secrets.serviceAuth.existingSecret.name is required during migration" $serviceAuth.existingSecret.name -}}
+{{- $secretKey := required "secrets.serviceAuth.existingSecret.key is required during migration" $serviceAuth.existingSecret.key -}}
+{{- $migrationName := include "osmo.component.fullname" (dict "root" . "suffix" "service-auth-db-migration") -}}
+{{- $rbacAnnotations := dict
+      "helm.sh/hook" "pre-upgrade"
+      "helm.sh/hook-weight" "-20"
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed"
+      "argocd.argoproj.io/hook" "PreSync"
+      "argocd.argoproj.io/sync-wave" "-20"
+      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded,HookFailed" -}}
+{{- $jobAnnotations := dict
+      "helm.sh/hook" "pre-upgrade"
+      "helm.sh/hook-weight" "-10"
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded"
+      "argocd.argoproj.io/hook" "PreSync"
+      "argocd.argoproj.io/sync-wave" "-10"
+      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded" -}}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $migrationName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $rbacAnnotations) | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $migrationName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $rbacAnnotations) | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: [{{ $secretName | quote }}]
+  verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $migrationName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $rbacAnnotations) | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $migrationName | quote }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $migrationName | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $migrationName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $jobAnnotations) | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.component.standardLabels" (dict "root" . "component" "service-auth-db-migration") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $migrationName | quote }}
+      automountServiceAccountToken: false
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with $serviceAuth.migration.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $serviceAuth.migration.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: migrate-service-auth
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.api) }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.api) }}
+        command: ["service-auth-bootstrap"]
+        args:
+        - migrate
+        - --postgres-host
+        - {{ include "osmo.postgresql.host" . | quote }}
+        - --postgres-port
+        - {{ include "osmo.postgresql.port" . | quote }}
+        - --postgres-database
+        - {{ include "osmo.postgresql.database" . | quote }}
+        - --postgres-user
+        - {{ include "osmo.postgresql.username" . | quote }}
+        - --mek-file
+        - {{ include "osmo.secrets.mekFile" . | quote }}
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --release-name
+        - {{ .Release.Name | quote }}
+        - --target-secret
+        - {{ $secretName | quote }}
+        - --target-key
+        - {{ $secretKey | quote }}
+        env:
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "osmo.postgresql.secretName" . | quote }}
+              key: {{ include "osmo.postgresql.passwordKey" . | quote }}
+        {{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
+        - name: PGSSLMODE
+          value: verify-full
+        - name: PGSSLROOTCERT
+          value: /etc/osmo/ca/postgresql/ca.crt
+        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: mek-volume
+          mountPath: {{ include "osmo.secrets.mekMountPath" . | quote }}
+          readOnly: true
+        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
+        - name: kubernetes-api
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        {{- with $serviceAuth.migration.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: mek-volume
+        secret:
+          secretName: {{ .Values.secrets.masterEncryptionKey.existingSecret.name | quote }}
+          items:
+          - key: {{ .Values.secrets.masterEncryptionKey.existingSecret.key | quote }}
+            path: mek.yaml
+      {{- include "osmo.externalDependencies.caVolumes" . | nindent 6 }}
+      - name: kubernetes-api
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}

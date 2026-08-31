@@ -30,7 +30,8 @@ It installs:
 - the compute backend listener and worker;
 - persistent CloudNativePG, Valkey, and RustFS instances;
 - generated development credentials, object-storage buckets, configuration,
-  and a CPU-only default pool.
+  and a CPU-only default pool. Service auth is generated explicitly before
+  installation so every process uses the same identity.
 
 ### Prerequisites
 
@@ -62,9 +63,22 @@ helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
 
 ### Install OSMO
 
-Install the unified chart with the single quick-start values file:
+Generate the shared development service-auth identity, create its Secret, then
+install the unified chart with the single quick-start values file:
 
 ```bash
+OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
+docker run --rm --user "$(id -u):$(id -g)" \
+  --entrypoint service-auth-bootstrap \
+  --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
+  nvcr.io/nvidia/osmo/service:latest \
+  generate --output /output/authentication-config.json
+kubectl --context kind-osmo create namespace osmo \
+  --dry-run=client --output=yaml | kubectl --context kind-osmo apply -f -
+kubectl --context kind-osmo --namespace osmo create secret generic \
+  osmo-service-auth \
+  --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+
 helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
@@ -88,6 +102,9 @@ helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
   --wait \
   --timeout 20m
+
+rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
 Inspect the release without reading generated Secret values:
@@ -233,6 +250,15 @@ kubectl create namespace osmo
 kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
   --from-literal=client_secret='<oidc-client-secret>' \
   --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
+OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
+docker run --rm --user "$(id -u):$(id -g)" \
+  --entrypoint service-auth-bootstrap \
+  --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
+  nvcr.io/nvidia/osmo/service:latest \
+  generate --output /output/authentication-config.json
+kubectl --namespace osmo create secret generic \
+  osmo-service-auth \
+  --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
 helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml
@@ -244,6 +270,9 @@ helm upgrade --install osmo deployments/charts/osmo \
   --wait \
   --wait-for-jobs \
   --timeout 30m
+
+rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
 The first installation bootstraps the retained
@@ -303,7 +332,7 @@ kubectl --namespace osmo wait \
 kubectl --namespace osmo get pods,pvc,services,jobs,poddisruptionbudgets
 kubectl --namespace osmo get secret \
   osmo-backend-token osmo-master-encryption-key osmo-valkey-credentials \
-  osmo-rustfs-credentials
+  osmo-rustfs-credentials osmo-service-auth
 ```
 
 The release creates the workflow, log, and app buckets and wires the RustFS
@@ -661,6 +690,7 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 | `secrets.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
+| `secrets.serviceAuth` | `authentication-config.json` | Stable JWT signing identity |
 | `secrets.defaultAdmin` | `password` | Optional administrator bootstrap |
 | `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
 | `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
@@ -695,6 +725,115 @@ postgresql:
       secret:
         name: osmo-postgresql-credentials
 ```
+
+### Service auth identity
+
+The OSMO JWT signing identity is installation-scoped secret material. Every
+control-plane installation requires an externally persisted Kubernetes Secret
+containing canonical `AuthenticationConfig` JSON under
+`authentication-config.json`. The chart references and mounts this Secret but
+never renders its private key into Helm values or release state. Runtime
+services do not read or write `service_auth` through PostgreSQL.
+
+For a fresh installation, generate the identity offline with the service image,
+then create the Secret before installing the chart:
+
+```bash
+OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
+docker run --rm --user "$(id -u):$(id -g)" \
+  --entrypoint service-auth-bootstrap \
+  --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
+  <service-image> \
+  generate --output /output/authentication-config.json
+kubectl create secret generic osmo-service-auth --namespace <namespace> \
+  --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
+```
+
+The generator creates the output with mode `0600`, refuses to overwrite an
+existing file, validates the keypair, and never writes private material to
+stdout. Store and back up the Secret through the installation's normal secret
+management system.
+
+For an existing PostgreSQL-backed installation, first establish a maintenance
+window that prevents the old configuration API from changing `service_auth`.
+Delete its HPA, scale the old API deployment to zero, and verify that no old API
+pod remains before starting the upgrade. Replace the example release and
+namespace if needed.
+
+```bash
+OSMO_RELEASE_NAME=osmo
+OSMO_NAMESPACE=osmo
+OSMO_API_SELECTOR="app.kubernetes.io/instance=${OSMO_RELEASE_NAME},app.kubernetes.io/component=api"
+OSMO_API_DEPLOYMENT="$(kubectl --namespace "${OSMO_NAMESPACE}" get deployment \
+  --selector "${OSMO_API_SELECTOR}" \
+  --output=jsonpath='{.items[0].metadata.name}')"
+test -n "${OSMO_API_DEPLOYMENT}"
+kubectl --namespace "${OSMO_NAMESPACE}" delete hpa \
+  --selector "${OSMO_API_SELECTOR}" --ignore-not-found
+kubectl --namespace "${OSMO_NAMESPACE}" scale deployment \
+  "${OSMO_API_DEPLOYMENT}" --replicas=0
+kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
+  "${OSMO_API_DEPLOYMENT}" --timeout=5m
+if kubectl --namespace "${OSMO_NAMESPACE}" get pods \
+  --selector "${OSMO_API_SELECTOR}" \
+  --output=name | grep -q .; then
+  echo "old API pods still exist; do not continue" >&2
+  exit 1
+fi
+```
+
+With writers stopped, pre-provision an empty Secret and authorize it for the
+exact Helm release:
+
+```bash
+kubectl create secret generic osmo-service-auth \
+  --namespace "${OSMO_NAMESPACE}"
+kubectl annotate secret osmo-service-auth \
+  --namespace "${OSMO_NAMESPACE}" \
+  "osmo.nvidia.com/service-auth-db-migration-placeholder=${OSMO_RELEASE_NAME}"
+```
+
+Upgrade with `secrets.serviceAuth.existingSecret.name=osmo-service-auth` and
+`secrets.serviceAuth.migration.enabled=true`. A Helm pre-upgrade or Argo CD
+PreSync Job reads and
+decrypts the legacy DB identity, validates every public/private keypair, and
+writes canonical plaintext JSON into the authorized placeholder. It then reads
+the DB identity again and aborts if the stable authority changed during the
+migration. An already populated Secret is preserved only when its complete
+stable identity matches. Temporary hook RBAC grants only `get` and `update` on
+that named Secret and is removed after the hook completes.
+
+This Job is transitional upgrade compatibility for installations coming from
+DB-backed releases. It remains disabled by default and should stay in the chart
+until direct upgrades from those releases are no longer supported; it does not
+create a persistent runtime component.
+
+The 6.4 workloads start only after the hook succeeds and read the copied
+identity exclusively from the mounted Secret, so existing tokens remain valid.
+Wait for the Secret-backed API deployment to become ready and confirm that Helm
+has recreated its HPA when autoscaling is enabled. After the successful upgrade,
+disable `migration.enabled`. Retain the legacy DB row and its MEK through the
+rollback window so an older binary can still use the same identity; 6.4 runtime
+services ignore that row.
+
+```bash
+kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
+  "${OSMO_API_DEPLOYMENT}" --timeout=10m
+kubectl --namespace "${OSMO_NAMESPACE}" get hpa \
+  --selector "${OSMO_API_SELECTOR}"
+```
+
+The migration uses `secrets.masterEncryptionKey` to decrypt legacy MEK/JWE
+values. Missing, malformed, changing, or mismatched identity data fails closed
+without generating a replacement key. `login_info` remains deployment-derived
+and is overlaid only in memory.
+
+Intentional key rotation requires a staged keyset rollout: add the new key,
+roll all consumers, switch `active_key`, retain the old verification key until
+all tokens it signed have expired, and remove it in a later rollout. Change
+`rolloutNonce` on each Secret update.
 
 The MEK is mounted through the typed
 `secrets.masterEncryptionKey.existingSecret.{name,key}` reference. Set

@@ -17,12 +17,14 @@ SPDX-License-Identifier: Apache-2.0
 """
 import hashlib
 import json
+import logging
 from typing import Any, Dict, List
 import uuid
 import time
 
 import pydantic
 from jwcrypto import jwk  # type: ignore
+from jwcrypto.common import JWException  # type: ignore
 import jwt  # type: ignore
 
 from src.lib.utils import common, osmo_errors
@@ -131,6 +133,58 @@ class AuthenticationConfig(pydantic.BaseModel):
     def get_current_key(self) -> AsymmetricKeyPair:
         return self.keys[self.active_key]
 
+    def validate_key_pairs(self) -> None:
+        """Validate that every stored public key matches its private key."""
+        for key_name, key_pair in self.keys.items():
+            try:
+                public_key = jwk.JWK.from_json(key_pair.public_key)
+                private_key = jwk.JWK.from_json(
+                    key_pair.private_key.get_secret_value())
+                public_values = {
+                    field: public_key.get(field) for field in ('kty', 'n', 'e')
+                }
+                private_values = {
+                    field: private_key.get(field) for field in ('kty', 'n', 'e')
+                }
+                if public_values != private_values:
+                    raise ValueError('public and private keys do not match')
+
+                test_token = key_pair.create_jwt({'sub': 'service-auth-validation'})
+                jwt.decode(
+                    test_token,
+                    key=public_key.export_to_pem(),
+                    algorithms=['RS256'],
+                    options={
+                        'verify_aud': False,
+                        'verify_exp': False,
+                    },
+                )
+            except Exception as error:
+                raise ValueError(
+                    f'Authentication key pair {key_name!r} is invalid') from error
+
+    def plaintext_dict(self, *, include_login_info: bool = True) -> Dict[str, Any]:
+        """Return an unmasked representation suitable for a Secret file."""
+        data = self.model_dump(mode='python')
+        for key_name, key_pair in self.keys.items():
+            data['keys'][key_name]['private_key'] = (
+                key_pair.private_key.get_secret_value())
+        if not include_login_info:
+            data.pop('login_info', None)
+        return data
+
+    def canonical_json(self, *, include_login_info: bool = True) -> str:
+        """Return stable plaintext JSON for persistence in a Kubernetes Secret."""
+        data = self.plaintext_dict(include_login_info=include_login_info)
+        for key_pair in data['keys'].values():
+            key_pair['public_key'] = json.dumps(
+                json.loads(key_pair['public_key']), sort_keys=True,
+                separators=(',', ':'))
+            key_pair['private_key'] = json.dumps(
+                json.loads(key_pair['private_key']), sort_keys=True,
+                separators=(',', ':'))
+        return json.dumps(data, sort_keys=True, separators=(',', ':'))
+
     def create_idtoken_jwt(self, expire_timestamp: int, username: str,
                            roles: List[str],
                            token_name: str | None = None,
@@ -166,7 +220,25 @@ class AuthenticationConfig(pydantic.BaseModel):
         return key.create_jwt(payload)
 
 
+def load_authentication_config_file(path: str) -> AuthenticationConfig:
+    """Load and validate canonical plaintext service auth from a mounted Secret."""
+    try:
+        with open(path, encoding='utf-8') as auth_file:
+            payload = json.load(auth_file)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise osmo_errors.OSMOError(
+            f'Service auth file {path} is missing or invalid.') from None
+
+    try:
+        service_auth = AuthenticationConfig.model_validate(payload)
+        service_auth.validate_key_pairs()
+        return service_auth
+    except (JWException, TypeError, ValueError, pydantic.ValidationError):
+        logging.error('Service auth file validation failed for %s', path)
+        raise osmo_errors.OSMOError(
+            f'Service auth file {path} is invalid.') from None
+
+
 def hash_access_token(access_token: str) -> bytes:
     """ Hash the access token """
     return hashlib.sha256(access_token.encode()).digest()
-

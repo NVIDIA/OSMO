@@ -31,13 +31,15 @@ import unittest
 from typing import Any, Dict
 from unittest import mock
 
+from fastapi import responses
 import yaml
 
 from src.lib.utils import osmo_errors
 from src.service.core.config import (
-    configmap_events, configmap_guard, configmap_loader, helpers,
+    config_service, configmap_events, configmap_guard, configmap_loader, helpers,
+    objects as config_objects,
 )
-from src.utils import auth, configmap_state
+from src.utils import auth, configmap_state, connectors
 
 _DEFAULT_SERVICE_AUTH_CONFIG: Dict[str, Any] | None = None
 
@@ -62,14 +64,9 @@ def _with_service_auth(config: Dict[str, Any]) -> Dict[str, Any]:
 
 def _postgres_with_service_auth(
         service_auth: Dict[str, Any] | None = None) -> mock.MagicMock:
-    persisted_service_config = mock.MagicMock()
-    persisted_service_config.plaintext_dict.return_value = {
-        'service_auth': (
-            service_auth if service_auth is not None
-            else _service_auth_config()),
-    }
     postgres = mock.MagicMock()
-    postgres.get_service_configs.return_value = persisted_service_config
+    postgres.get_service_auth.return_value = auth.AuthenticationConfig.model_validate(
+        service_auth if service_auth is not None else _service_auth_config())
     return postgres
 
 
@@ -135,6 +132,71 @@ class TestConfigmapState(unittest.TestCase):
         new_snapshot = configmap_state.get_snapshot()
         assert new_snapshot is not None
         self.assertEqual(new_snapshot['service']['version'], 2)
+
+
+class TestServiceAuthSecretManagement(unittest.TestCase):
+    """Tests for rejecting writes to Secret-managed service auth."""
+
+    def test_service_config_response_omits_external_identity(self):
+        postgres = mock.MagicMock()
+        postgres.service_auth_is_external = True
+        postgres.get_service_configs.return_value = connectors.ServiceConfig(
+            service_auth=auth.AuthenticationConfig.generate_default())
+
+        with mock.patch.object(
+            connectors.PostgresConnector, 'get_instance', return_value=postgres,
+        ):
+            response = config_service.read_service_configs()
+
+        assert isinstance(response, responses.JSONResponse)
+        self.assertNotIn('service_auth', json.loads(response.body))
+
+    def test_service_config_response_preserves_legacy_identity(self):
+        postgres = mock.MagicMock()
+        postgres.service_auth_is_external = False
+        service_configs = connectors.ServiceConfig(
+            service_auth=auth.AuthenticationConfig.generate_default())
+        postgres.get_service_configs.return_value = service_configs
+
+        with mock.patch.object(
+            connectors.PostgresConnector, 'get_instance', return_value=postgres,
+        ):
+            response = config_service.read_service_configs()
+
+        assert isinstance(response, connectors.ServiceConfig)
+        self.assertIs(response, service_configs)
+        self.assertIn('service_auth', response.model_dump())
+
+    def test_explicit_service_auth_patch_is_rejected_before_database_access(self):
+        postgres = mock.MagicMock()
+        request = config_objects.PatchConfigRequest(
+            configs_dict={'service_auth': {'issuer': 'replacement'}})
+
+        with mock.patch.object(
+            connectors.PostgresConnector, 'get_instance', return_value=postgres,
+        ):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                helpers.patch_configs(
+                    request, connectors.ConfigType.SERVICE, username='admin')
+
+        self.assertEqual(context.exception.status_code, 409)
+        postgres.get_configs.assert_not_called()
+
+    def test_explicit_service_auth_put_is_rejected_before_database_access(self):
+        postgres = mock.MagicMock()
+        request = config_objects.PutServiceRequest(
+            configs=connectors.ServiceConfig(
+                service_auth=auth.AuthenticationConfig.generate_default()))
+
+        with mock.patch.object(
+            connectors.PostgresConnector, 'get_instance', return_value=postgres,
+        ):
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                helpers.put_configs(
+                    request, connectors.ConfigType.SERVICE, username='admin')
+
+        self.assertEqual(context.exception.status_code, 409)
+        postgres.set_config.assert_not_called()
 
 
 class TestResolveSecretFileReferences(unittest.TestCase):
@@ -1001,14 +1063,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_cold_load_hydrates_service_auth_from_postgres(self):
+    def test_cold_load_hydrates_service_auth_from_configured_source(self):
         persisted_auth = _service_auth_config()
-        persisted_service_config = mock.MagicMock()
-        persisted_service_config.plaintext_dict.return_value = {
-            'service_auth': persisted_auth,
-        }
         postgres = mock.MagicMock()
-        postgres.get_service_configs.return_value = persisted_service_config
+        postgres.get_service_auth.return_value = (
+            auth.AuthenticationConfig.model_validate(persisted_auth))
         config: Dict[str, Any] = {
             'service': {
                 'max_pod_restart_limit': '30m',
@@ -1035,9 +1094,63 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_reload_carries_forward_db_service_auth(self):
+    def test_secret_backed_load_succeeds_without_database_identity_access(self):
+        stable_service_auth = auth.AuthenticationConfig.generate_default()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            service_auth_path = os.path.join(
+                temporary_directory, 'authentication-config.json')
+            with open(service_auth_path, 'w', encoding='utf-8') as service_auth_file:
+                service_auth_file.write(
+                    stable_service_auth.canonical_json(include_login_info=False))
+
+            postgres = connectors.PostgresConnector.__new__(
+                connectors.PostgresConnector)
+            untyped_postgres: Any = postgres
+            untyped_postgres.config = connectors.PostgresConfig(
+                postgres_password='unused',
+                service_auth_file=service_auth_path,
+            )
+            untyped_postgres._service_auth = (
+                auth.load_authentication_config_file(service_auth_path))
+            untyped_postgres._runtime_service_auth_login_info = None
+            untyped_postgres.execute_fetch_command = mock.Mock(
+                side_effect=AssertionError(
+                    'must not read service_auth from database'))
+            untyped_postgres.execute_commit_command = mock.Mock(
+                side_effect=AssertionError(
+                    'must not write service_auth to database'))
+
+            path = self._write_config_file({
+                'service': {
+                    'max_pod_restart_limit': '30m',
+                },
+            })
+            try:
+                with mock.patch.object(
+                    auth.AuthenticationConfig,
+                    'generate_default',
+                    side_effect=AssertionError(
+                        'must not generate a replacement identity'),
+                ) as generate_default:
+                    watcher = configmap_loader.ConfigMapWatcher(path, postgres)
+                    result = watcher._load_and_apply()
+                    service_config = postgres.get_service_configs()
+
+                self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+                self.assertEqual(
+                    service_config.service_auth.canonical_json(
+                        include_login_info=False),
+                    stable_service_auth.canonical_json(include_login_info=False),
+                )
+                generate_default.assert_not_called()
+                untyped_postgres.execute_fetch_command.assert_not_called()
+                untyped_postgres.execute_commit_command.assert_not_called()
+            finally:
+                os.unlink(path)
+
+    def test_reload_carries_forward_stable_service_auth(self):
         persisted_auth = _service_auth_config()
-        persisted_auth['issuer'] = 'postgres-issuer'
+        persisted_auth['issuer'] = 'stable-source-issuer'
         configmap_auth = _service_auth_config()
         configmap_auth['issuer'] = 'configmap-issuer'
         postgres = _postgres_with_service_auth(persisted_auth)
@@ -1068,16 +1181,16 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             self.assertEqual(service_config['service_auth'], persisted_auth)
             self.assertEqual(
                 service_config['max_pod_restart_limit'], '45m')
-            postgres.get_service_configs.assert_called_once_with()
+            postgres.get_service_auth.assert_called_once_with()
         finally:
             os.unlink(path)
 
-    def test_configmap_service_auth_cannot_override_postgres(self):
+    def test_configmap_service_auth_cannot_override_stable_source(self):
         configmap_auth = {
             'secret_file': '/configmap/service-auth-must-not-be-read',
         }
         persisted_auth = _service_auth_config()
-        persisted_auth['issuer'] = 'postgres-issuer'
+        persisted_auth['issuer'] = 'stable-source-issuer'
         postgres = _postgres_with_service_auth(persisted_auth)
         path = self._write_config_file({
             'service': {
@@ -1095,15 +1208,15 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 snapshot['service']['service_auth'], persisted_auth)
             self.assertNotEqual(
                 snapshot['service']['service_auth'], configmap_auth)
-            postgres.get_service_configs.assert_called_once_with()
+            postgres.get_service_auth.assert_called_once_with()
         finally:
             os.unlink(path)
 
-    def test_new_watcher_hydrates_service_auth_from_postgres(self):
+    def test_new_watcher_hydrates_service_auth_from_configured_source(self):
         previous_auth = _service_auth_config()
         previous_auth['issuer'] = 'previous-issuer'
         persisted_auth = _service_auth_config()
-        persisted_auth['issuer'] = 'postgres-issuer'
+        persisted_auth['issuer'] = 'stable-source-issuer'
         configmap_state.set_parsed_configs({
             'service': {'service_auth': previous_auth},
         })
@@ -1123,7 +1236,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 snapshot['service']['service_auth'], persisted_auth)
             self.assertNotEqual(
                 snapshot['service']['service_auth'], previous_auth)
-            postgres.get_service_configs.assert_called_once_with()
+            postgres.get_service_auth.assert_called_once_with()
         finally:
             os.unlink(path)
 
@@ -2540,8 +2653,8 @@ class TestStartConfigWatcher(unittest.TestCase):
         self.assertIsNone(watcher)
         self.assertFalse(configmap_state.is_configmap_mode())
 
-    def test_non_api_service_hydrates_db_auth_without_event_recorder(self):
-        """All services hydrate DB auth; non-API replicas skip K8s events."""
+    def test_non_api_service_hydrates_auth_without_event_recorder(self):
+        """All services hydrate auth; non-API replicas skip K8s events."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = os.path.join(tmp_dir, 'config.yaml')
             with open(config_path, 'w', encoding='utf-8') as f:
@@ -2557,7 +2670,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                 try:
                     self.assertIsNone(watcher._event_recorder)
                     mock_recorder.assert_not_called()
-                    postgres.get_service_configs.assert_called_once_with()
+                    postgres.get_service_auth.assert_called_once_with()
                 finally:
                     watcher.stop()
 

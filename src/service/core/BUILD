@@ -69,9 +69,32 @@ osmo_py_binary(
     main = "service.py",
     srcs = ["service.py"],
     deps = [
+        ":service_auth_bootstrap_lib",
         ":service_lib",
         "//src/utils/secret_manager:mek_lifecycle_lib",
     ],
+)
+
+osmo_py_binary(
+    name = "service_auth_bootstrap_binary",
+    main = "service_auth_bootstrap.py",
+    srcs = ["service_auth_bootstrap.py"],
+    deps = [":service_auth_bootstrap_lib"],
+)
+
+osmo_py_library(
+    name = "service_auth_bootstrap_lib",
+    srcs = ["service_auth_bootstrap.py"],
+    deps = [
+        requirement("jwcrypto"),
+        requirement("kubernetes"),
+        requirement("psycopg2-binary"),
+        requirement("pydantic"),
+        "//src/lib/utils:osmo_errors",
+        "//src/utils:auth",
+        "//src/utils/secret_manager",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 py_image_layer(
@@ -94,9 +117,17 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/core/service_binary.runfiles",
 )
 
+osmo_python_wrapper(
+    name = "service_auth_bootstrap_wrapper",
+    bin_name = "service-auth-bootstrap",
+    main = "/src/service/core/service_auth_bootstrap.py",
+    runfiles_dir = "/src/service/core/service_binary.runfiles",
+)
+
 filegroup(
     name = "service_image_layers",
     srcs = [
+        ":service_auth_bootstrap_wrapper",
         ":service_layer_default",
         ":service_layer_packages",
         ":service_wrapper",

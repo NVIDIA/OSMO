@@ -60,6 +60,10 @@ secrets:
     # rotation phase so the one-time Secret-creation permission is removed.
     bootstrap:
       enabled: true
+  serviceAuth:
+    existingSecret:
+      name: osmo-service-auth
+      key: authentication-config.json
 
 gateway:
   envoy:

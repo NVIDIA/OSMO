@@ -43,6 +43,10 @@ secrets:
       key: mek.yaml
     bootstrap:
       enabled: true
+  serviceAuth:
+    existingSecret:
+      name: osmo-service-auth
+      key: authentication-config.json
 
 services:
   ui:

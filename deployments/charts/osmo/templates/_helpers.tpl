@@ -425,6 +425,33 @@ osmo.nvidia.com/mek-rollout: {{ . | quote }}
 {{- end }}
 {{- end -}}
 
+{{- define "osmo.secrets.serviceAuthRolloutAnnotation" -}}
+osmo.nvidia.com/service-auth-rollout: {{ .Values.secrets.serviceAuth.rolloutNonce | quote }}
+{{- end -}}
+
+{{- define "osmo.secrets.serviceAuthArgs" -}}
+- --service_auth_file
+- /etc/osmo/service-auth/authentication-config.json
+{{- end -}}
+
+{{- define "osmo.secrets.serviceAuthVolumeMount" -}}
+- name: service-auth
+  mountPath: /etc/osmo/service-auth/authentication-config.json
+  subPath: authentication-config.json
+  readOnly: true
+{{- end -}}
+
+{{- define "osmo.secrets.serviceAuthVolume" -}}
+{{- $serviceAuth := .Values.secrets.serviceAuth -}}
+- name: service-auth
+  secret:
+    defaultMode: 292
+    secretName: {{ required "secrets.serviceAuth.existingSecret.name is required for the control plane" $serviceAuth.existingSecret.name | quote }}
+    items:
+    - key: {{ required "secrets.serviceAuth.existingSecret.key is required" $serviceAuth.existingSecret.key | quote }}
+      path: authentication-config.json
+{{- end -}}
+
 {{- define "osmo.valkey.fullname" -}}
 {{- $name := default "valkey" (dig "nameOverride" "" .Values.valkey) -}}
 {{- $fullnameOverride := dig "fullnameOverride" "" .Values.valkey -}}
@@ -620,6 +647,7 @@ osmo.nvidia.com/postgresql-secret-rollout: {{ .Values.secrets.postgresql.rollout
 osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
 osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.rolloutNonce | quote }}
 {{- include "osmo.secrets.mekRolloutAnnotation" . }}
+{{ include "osmo.secrets.serviceAuthRolloutAnnotation" . }}
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}

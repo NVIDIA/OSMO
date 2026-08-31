@@ -108,6 +108,7 @@ spec:
         - --log_format
         - {{ .Values.logging.logFormat | default "text" }}
         {{- end }}
+        {{- include "osmo.secrets.serviceAuthArgs" . | nindent 8 }}
         {{- with .Values.services.router.extraArgs }}
         {{- range . }}
         - {{ . }}
@@ -149,6 +150,7 @@ spec:
           name: mek-volume
           readOnly: true
         {{- end }}
+        {{- include "osmo.secrets.serviceAuthVolumeMount" . | nindent 8 }}
         {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -179,6 +181,7 @@ spec:
         - name: osmo-runtime-tmp
           emptyDir: {}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
+        {{- include "osmo.secrets.serviceAuthVolume" . | nindent 8 }}
         {{- with .Values.services.router.pod.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

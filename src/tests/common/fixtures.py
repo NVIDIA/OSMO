@@ -16,6 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import tempfile
+from typing import IO
+
 from src.tests.common.core.network import NetworkFixture
 from src.tests.common.core.reaper import ReaperFixture
 from src.tests.common.database.postgres import PostgresFixture, PostgresTestIsolationFixture
@@ -24,6 +27,7 @@ from src.tests.common.registry.registry import DockerRegistryFixture
 from src.tests.common.storage.swift import SwiftStorageFixture
 from src.tests.common.storage.s3 import S3StorageFixture
 from src.tests.common.storage.redis import RedisStorageFixture
+from src.utils import auth
 
 __all__ = [
     "DockerRegistryFixture",
@@ -35,7 +39,19 @@ __all__ = [
     "SslProxyFixture",
     "SwiftStorageFixture",
     "S3StorageFixture",
+    "create_service_auth_file",
 ]
+
+
+def create_service_auth_file() -> IO[str]:
+    """Create an explicit file-backed identity for an isolated test process."""
+    service_auth_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
+        mode="w+", encoding="utf-8")
+    service_auth_file.write(
+        auth.AuthenticationConfig.generate_default().canonical_json(
+            include_login_info=False))
+    service_auth_file.flush()
+    return service_auth_file
 
 
 class OsmoTestFixture(ReaperFixture, NetworkFixture):

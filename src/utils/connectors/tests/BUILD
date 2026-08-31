@@ -136,6 +136,7 @@ py_test(
         requirement("jwcrypto"),
         requirement("psycopg2-binary"),
         "//src/lib/utils:osmo_errors",
+        "//src/utils:auth",
         "//src/utils/connectors:connectors",
         "//src/utils/secret_manager",
         "//src/utils/secret_manager:mek_lifecycle",
@@ -143,4 +144,17 @@ py_test(
     local = True,
     size = "medium",
     tags = ["exclusive", "integration"],
+)
+
+py_test(
+    name = "test_service_auth",
+    srcs = ["test_service_auth.py"],
+    deps = [
+        requirement("jwcrypto"),
+        "//src/lib/utils:osmo_errors",
+        "//src/utils:auth",
+        "//src/utils:configmap_state",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
 )
