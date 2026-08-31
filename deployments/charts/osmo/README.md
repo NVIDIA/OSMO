@@ -591,6 +591,9 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 | `secrets.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
+| `secrets.defaultAdmin` | `password` | Optional administrator bootstrap |
+| `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
+| `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
 
 Generated backend-token and MEK Secrets are intentionally retained because
 replacing either can disconnect the compute plane or make encrypted database
@@ -710,6 +713,60 @@ use the image's system trust store. For a private CA, set `caExistingSecret` and
 `caKey` in the same block. The selected key must contain the complete trust
 bundle because clients use it through `SSL_CERT_FILE`. PostgreSQL private CAs
 are also configured in its `externalDependencies` TLS block.
+
+Secret references may share one Kubernetes Secret or use separate Secrets.
+After rotating an external Secret, change its `rolloutNonce` to restart
+consumers.
+
+### OAuth credentials
+
+OAuth client credentials are always operator-owned. The client and cookie may
+share a Secret:
+
+```yaml
+secrets:
+  oauthClientSecret:
+    existingSecret: oauth2-proxy-secrets
+    keys:
+      value: client_secret
+  oauthCookieSecret:
+    existingSecret: oauth2-proxy-secrets
+    keys:
+      value: cookie_secret
+```
+
+For direct-Helm development only, set
+`secrets.oauthCookieSecret.generate: true` and clear its `existingSecret`.
+Production and GitOps installations must use an existing Secret because
+generated values are stored in Helm release state.
+
+Cookie rotation invalidates browser sessions and must not leave replicas using
+different keys. Suspend the OAuth2 Proxy HPA, scale its Deployment to zero and
+verify no matching nonterminal pods remain; then replace the Secret, update
+`rolloutNonce`, complete the rollout, and restore autoscaling.
+
+For upgrades from legacy OAuth values, move `secretName`, `clientSecretKey`, and
+`cookieSecretKey` to the blocks above and remove `useKubernetesSecrets` and
+`secretPaths`. Also remove unsupported `mountPath` fields from typed Secret
+blocks; Helm schema errors identify any remaining legacy fields.
+
+## Internal gateway TLS
+
+`gateway.tls` protects internal Envoy-to-service traffic, not public ingress.
+
+| Mode | Configuration |
+| --- | --- |
+| Development | `gateway.tls.generated.enabled: true` |
+| Production | Set `generated.enabled: false`, `caSecret`, and every `upstreamCerts` Secret |
+
+- Rotate leaves by changing `gateway.tls.generated.leafRotationNonce`.
+- For CA rotation, freeze consumer HPAs and use one unique rotation ID through `prepare`, `activate`,
+  `retire`, then `stable`. Wait after every phase. Before `retire`, verify every live leaf and consumer uses the activated CA.
+  Unfreeze HPAs only after `stable` completes.
+- On the first upgrade from process-local TLS, set
+  `gateway.tls.generated.bootstrap.allowInitialGeneration=true` once, verify the
+  retained Secrets, then set it back to `false`. Never use this flag to replace
+  a missing retained CA; restore the original Secret instead.
 
 ## Exposure
 

@@ -46,7 +46,8 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.logger "componentName" "logger") | nindent 8 }}
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.logger) | nindent 8 }}
-        {{- include "osmo.secrets.mekRolloutAnnotation" . | nindent 8 }}
+        {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
+        {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ .Values.services.logger.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -123,7 +124,7 @@ spec:
         {{- range $arg := .Values.services.logger.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsArgs" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "logger"))) | nindent 8 }}
         env:
         {{- include "osmo.configuration.extraEnv" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.logger | nindent 8 }}
@@ -142,7 +143,7 @@ spec:
         {{- include "osmo.configuration.volumeMounts" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         {{- include "osmo.component.extraVolumeMounts" .Values.services.logger | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "logger"))) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.logger.resources | nindent 10 }}
 
@@ -184,7 +185,7 @@ spec:
         - name: osmo-progress-files
           emptyDir: {}
         {{- include "osmo.pod.extraVolumes" .Values.services.logger | nindent 8 }}
-        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
+        {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "logger"))) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
@@ -251,7 +252,7 @@ spec:
     kind: Deployment
     name: {{ $name }}
   minReplicas: {{ .Values.services.logger.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.services.logger.autoscaling.maxReplicas }}
+  maxReplicas: {{ ternary .Values.services.logger.autoscaling.minReplicas .Values.services.logger.autoscaling.maxReplicas .Values.gateway.tls.generated.caRotation.freezeHpas }}
   {{- with .Values.services.logger.autoscaling.behavior }}
   behavior:
     {{- toYaml . | nindent 4 }}

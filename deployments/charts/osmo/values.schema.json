@@ -67,11 +67,13 @@
       "type": "object",
       "properties": {
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
-        "valkey": { "$ref": "#/definitions/secretReference" },
-        "objectStorage": { "$ref": "#/definitions/secretReference" },
+        "valkey": { "$ref": "#/definitions/passwordSecretReference" },
+        "objectStorage": { "$ref": "#/definitions/objectStorageSecretReference" },
         "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
-        "defaultAdmin": { "$ref": "#/definitions/secretReference" }
+        "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
+        "oauthClientSecret": { "$ref": "#/definitions/existingValueSecretReference" },
+        "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
       }
     },
     "configuration": { "type": "object" },
@@ -429,8 +431,42 @@
     },
     "gatewayTls": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
+        "rolloutNonce": { "type": "string" },
+        "generated": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "bootstrap": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "image": { "type": "string" },
+                "imagePullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"]
+                },
+                "allowInitialGeneration": { "type": "boolean" }
+              }
+            },
+            "leafRotationNonce": { "type": "string" },
+            "caRotation": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" },
+                "freezeHpas": { "type": "boolean" },
+                "phase": {
+                  "type": "string",
+                  "enum": ["stable", "prepare", "activate", "retire"]
+                }
+              }
+            }
+          }
+        },
         "upstreamCerts": { "$ref": "#/definitions/gatewayUpstreamCerts" },
         "caSecret": { "type": "string" }
       },
@@ -717,14 +753,6 @@
         "cookie": { "$ref": "#/definitions/gatewayRouteCookie" }
       },
       "required": ["prefix", "timeout", "cookie"]
-    },
-    "oauthSecretPaths": {
-      "type": "object",
-      "properties": {
-        "clientSecret": { "type": "string", "minLength": 1 },
-        "cookieSecret": { "type": "string", "minLength": 1 }
-      },
-      "required": ["clientSecret", "cookieSecret"]
     },
     "authzPostgres": {
       "type": "object",
@@ -1050,11 +1078,6 @@
         "scope": { "type": "string" },
         "passAccessToken": { "type": "boolean" },
         "redisSessionStore": { "type": "boolean" },
-        "useKubernetesSecrets": { "type": "boolean" },
-        "secretName": { "type": "string" },
-        "clientSecretKey": { "type": "string" },
-        "cookieSecretKey": { "type": "string" },
-        "secretPaths": { "$ref": "#/definitions/oauthSecretPaths" },
         "extraArgs": { "type": "array" },
         "resources": { "type": "object" },
         "service": { "$ref": "#/definitions/serviceMetadata" },
@@ -1175,51 +1198,6 @@
         }
       }
     },
-    "secretReference": {
-      "type": "object",
-      "properties": {
-        "generate": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "keys": { "$ref": "#/definitions/stringMap" },
-        "mountPath": { "type": "string" },
-        "username": { "type": "string" }
-      },
-      "required": ["generate", "existingSecret", "keys"]
-    },
-    "backendApiTokens": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "bootstrap": {
-          "type": "object",
-          "properties": {
-            "image": { "$ref": "#/definitions/componentImage" }
-          },
-          "required": ["image"]
-        },
-        "rolloutNonce": { "type": "string" },
-        "credentials": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": { "type": "string", "minLength": 1 },
-              "existingSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
-              "managedSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" }
-            },
-            "required": ["name"]
-          }
-        }
-      },
-      "required": ["enabled", "bootstrap", "rolloutNonce", "credentials"]
-    },
-    "backendApiTokenSecretSource": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" }
-      },
-      "required": ["name"]
-    },
     "masterEncryptionKeyReference": {
       "type": "object",
       "additionalProperties": false,
@@ -1269,16 +1247,137 @@
     },
     "postgresqlSecretReference": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
         "keys": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "username": { "type": "string", "minLength": 1 },
             "password": { "type": "string", "minLength": 1 }
+          },
+          "required": ["username", "password"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "keys"]
+    },
+    "backendApiTokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": { "$ref": "#/definitions/componentImage" }
+          },
+          "required": ["image"]
+        },
+        "rolloutNonce": { "type": "string" },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "existingSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
+              "managedSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" }
+            },
+            "required": ["name"]
           }
         }
-      }
+      },
+      "required": ["enabled", "bootstrap", "rolloutNonce", "credentials"]
+    },
+    "backendApiTokenSecretSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string", "minLength": 1 } },
+      "required": ["name"]
+    },
+    "passwordSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "password": { "type": "string", "minLength": 1 } },
+          "required": ["password"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+    },
+    "existingValueSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "value": { "type": "string", "minLength": 1 } },
+          "required": ["value"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "keys"]
+    },
+    "generatedValueSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "value": { "type": "string", "minLength": 1 } },
+          "required": ["value"]
+        }
+      },
+      "required": ["existingSecret", "rolloutNonce", "keys"]
+    },
+    "objectStorageSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "credentials": { "type": "string", "minLength": 1 } },
+          "required": ["credentials"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+    },
+    "adminSecretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generate": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "rolloutNonce": { "type": "string" },
+        "username": { "type": "string", "minLength": 1 },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "password": { "type": "string", "minLength": 1 } },
+          "required": ["password"]
+        }
+      },
+      "required": ["generate", "existingSecret", "rolloutNonce", "username", "keys"]
     }
   }
 }

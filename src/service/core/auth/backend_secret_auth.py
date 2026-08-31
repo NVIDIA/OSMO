@@ -15,6 +15,7 @@ from src.utils.job import task as task_lib
 
 BACKEND_ROLE: Final = 'osmo-backend'
 _CREDENTIAL_NAME_PATTERN: Final = re.compile(r'^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$')
+_TOKEN_PATTERN: Final = re.compile(r'^[A-Za-z0-9_-]+$')
 _CURRENT_TOKEN_KEY: Final = 'token'
 _PREVIOUS_TOKEN_KEY: Final = 'previous-token'
 logger = logging.getLogger(__name__)
@@ -254,6 +255,9 @@ class BackendSecretAuthenticator:
         if len(token) not in task_lib.VALID_TOKEN_LENGTHS:
             raise BackendTokenConfigurationError(
                 f'Backend credential {credential_name} key {token_key} has invalid length')
+        if not _TOKEN_PATTERN.fullmatch(token):
+            raise BackendTokenConfigurationError(
+                f'Backend credential {credential_name} key {token_key} has invalid format')
         return token
 
 
