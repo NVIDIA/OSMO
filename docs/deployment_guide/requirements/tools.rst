@@ -40,14 +40,6 @@ Tools
 
           Required for managing and inspecting cluster resources.
 
-      .. grid-item-card:: :octicon:`database` psql
-          :link: https://www.postgresql.org/docs/current/app-psql.html
-          :class-card: tool-card
-
-          PostgreSQL client.
-
-          Required for database initialization and management tasks.
-
       .. grid-item-card:: :octicon:`file-code` OSMO Client
           :link: ../../user_guide/getting_started/install/index
           :link-type: doc

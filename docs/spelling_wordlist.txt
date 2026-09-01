@@ -347,6 +347,7 @@ validator
 validators
 verifier
 vCPUs
+Valkey
 VNet
 Volce
 volumeMounts
