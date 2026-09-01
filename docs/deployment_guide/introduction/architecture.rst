@@ -21,7 +21,13 @@
 Architecture
 ================================================
 
-OSMO is a distributed platform that separates control plane functionality (workflow management, API, UI) from compute plane functionality (where workflows actually execute). This separation allows you to manage multiple compute clusters from a single control point and scale compute resources independently.
+OSMO is a distributed platform that separates control plane functionality
+(workflow management, API, UI) from compute plane functionality (where
+workflows actually execute). The control and compute planes are logical
+planes: deploy them on separate clusters for a split-plane deployment, or run
+them together in one supported converged deployment. This separation allows
+you to manage multiple compute clusters from a single control point and scale
+compute resources independently.
 
 
 

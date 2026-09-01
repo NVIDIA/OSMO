@@ -26,9 +26,36 @@ Now that you understand the OSMO deployment architecture, you're ready to begin 
 Ready to Begin?
 ===============
 
-Select one of the deployment options below depending on your needs and deployment environment to get started.
+Select the deployment model that fits your needs and environment.
 
 .. only:: html
 
-  .. raw:: html
-     :file: ../../deployment_options.svg
+  .. grid:: 1 2 2 2
+      :gutter: 3
+
+      .. grid-item-card:: :octicon:`rocket` Quickstart
+          :link: ../appendix/deploy_local
+          :class-card: tool-card
+
+          Run the complete OSMO control plane, compute plane, and a GPU
+          workflow on a local NVIDIA GPU workstation.
+
+      .. grid-item-card:: :octicon:`package` Self-contained Deployment
+          :class-card: tool-card
+
+          Run the control and compute planes together in a self-contained
+          environment when you need a converged deployment model.
+
+      .. grid-item-card:: :octicon:`server` Single-plane Deployment
+          :link: ../appendix/deploy_minimal
+          :class-card: tool-card
+
+          Deploy the service and backend operator in the same Kubernetes
+          cluster for testing, development, or evaluation.
+
+      .. grid-item-card:: :octicon:`workflow` Split-plane Infrastructure
+          :link: ../getting_started/infrastructure_setup
+          :class-card: tool-card
+
+          Prepare infrastructure for control and compute planes deployed on
+          separate clusters.
