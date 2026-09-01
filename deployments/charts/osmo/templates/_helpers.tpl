@@ -386,11 +386,6 @@ data:
   mountPath: /etc/osmo/secrets/{{ . }}
   readOnly: true
 {{- end }}
-{{- with .Values.runtimeImage.pullSecret }}
-- name: runtime-image-pull-secret
-  mountPath: /etc/osmo/secrets/{{ . }}
-  readOnly: true
-{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -406,11 +401,6 @@ data:
     items:
     - key: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
       path: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
-{{- end }}
-{{- with .Values.runtimeImage.pullSecret }}
-- name: runtime-image-pull-secret
-  secret:
-    secretName: {{ . }}
 {{- end }}
 {{- end }}
 {{- end -}}

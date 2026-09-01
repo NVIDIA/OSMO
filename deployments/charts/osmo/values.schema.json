@@ -610,10 +610,9 @@
       "properties": {
         "registry": { "type": "string" },
         "repository": { "type": "string" },
-        "tag": { "type": "string" },
-        "pullSecret": { "type": "string" }
+        "tag": { "type": "string" }
       },
-      "required": ["registry", "repository", "tag", "pullSecret"]
+      "required": ["registry", "repository", "tag"]
     },
     "componentImage": {
       "type": "object",

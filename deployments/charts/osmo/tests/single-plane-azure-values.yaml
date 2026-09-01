@@ -7,6 +7,16 @@ compute:
   backendName: default
 
 services:
+  api:
+    extraVolumeMounts:
+    - name: runtime-image-pull-secret
+      mountPath: /etc/osmo/secrets/osmo-runtime-pull
+      readOnly: true
+    pod:
+      extraVolumes:
+      - name: runtime-image-pull-secret
+        secret:
+          secretName: osmo-runtime-pull
   worker:
     serviceAccount:
       create: true
@@ -37,6 +47,13 @@ externalDependencies:
       workflows: azure://osmoazure/osmo-workflows/workflows
       logs: azure://osmoazure/osmo-workflows/logs
       apps: azure://osmoazure/osmo-workflows/apps
+
+configuration:
+  workflow:
+    backend_images:
+      credential:
+        secretName: osmo-runtime-pull
+        secretKey: .dockerconfigjson
 
 secrets:
   objectStorage:

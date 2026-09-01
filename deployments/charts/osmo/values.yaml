@@ -161,9 +161,6 @@ runtimeImage:
   registry: ''
   repository: ''
   tag: ''
-  # Docker config Secret used to pull workflow init/client images. OSMO config
-  # consumers read it to create short-lived, workflow-scoped pull credentials.
-  pullSecret: ''
 
 # Metadata and scheduling defaults shared by OSMO-owned workloads. Labels,
 # annotations, and node selectors merge with service-specific pod values;
@@ -1320,6 +1317,9 @@ gateway:
       port: ''
     jwt:
       userHeader: x-osmo-user
+      # WARNING: Enabling this permits requests without a JWT. Use it only for
+      # trusted, non-public development access with an intentional fallback
+      # identity; never expose such a gateway to untrusted networks.
       allowMissing: false
       providers: []
       additionalProviders: []

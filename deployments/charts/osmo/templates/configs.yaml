@@ -51,9 +51,6 @@ data:
       {{- if not (index $backendImages "client") }}
       {{- $_ := set $backendImages "client" (printf "%s/client:%s" $runtimeRepository $runtimeTag) }}
       {{- end }}
-      {{- with .Values.runtimeImage.pullSecret }}
-      {{- $_ := set $backendImages "credential" (dict "secretName" . "secretKey" ".dockerconfigjson") }}
-      {{- end }}
       {{- $_ := set $workflow "backend_images" $backendImages }}
       {{- $secret := .Values.secrets.objectStorage }}
       {{- $secretName := include "osmo.objectStorage.secretName" . }}

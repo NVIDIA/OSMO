@@ -698,11 +698,8 @@ above.
   value when empty. Otherwise the chart uses `nvcr.io/nvidia/osmo` and the
   component name. The chart writes the resolved workflow images into the
   managed API configuration unless `configuration.workflow.backend_images`
-  overrides them. Set
-  `runtimeImage.pullSecret` to a Docker config Secret when those workflow
-  images are private; OSMO converts it into workflow-scoped pull credentials.
-  Configure dependency images and pull credentials in their native values
-  blocks; for example, Valkey uses `valkey.image` and
+  overrides them. Configure dependency images and pull credentials in their
+  native values blocks; for example, Valkey uses `valkey.image` and
   `valkey.imagePullSecrets`.
 - Configure replicas, autoscaling, resources, disruption budgets, scheduling,
   security contexts, probes, volumes, and ServiceAccounts under `services`,

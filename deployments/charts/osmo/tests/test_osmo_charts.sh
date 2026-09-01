@@ -975,7 +975,6 @@ test_control_umbrella() {
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/single-plane.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
-        --set-string runtimeImage.pullSecret=osmo-runtime-pull \
         >"$TEST_DIRECTORY/single-plane-azure.yaml"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-api"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
