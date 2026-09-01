@@ -372,6 +372,7 @@ class UpdateGroupNotifyBarrierTest(unittest.TestCase):
              mock.patch.object(task.Task, 'batch_fetch_latest_retry_ids',
                                return_value={'t1': 0, 't2': 0}):
             ug._notify_barrier(database, client, total_timeout=60)
+        client.pipeline.assert_called_once_with(transaction=False)
         pipe.execute.assert_called_once()
         # Two members should each lpush once.
         self.assertEqual(pipe.lpush.call_count, 2)
@@ -1923,6 +1924,7 @@ class CleanupWorkflowExecuteTest(unittest.TestCase):
                                new=mock.AsyncMock(return_value=mock.Mock())):
             result = cw.execute(ctx, progress_writer)
         self.assertIsInstance(result, jobs_base.JobResult)
+        redis_client.pipeline.assert_called_once_with(transaction=False)
         # Update logs called for both logs and events
         wf.update_log_to_db.assert_called_once()
         wf.update_events_to_db.assert_called_once()

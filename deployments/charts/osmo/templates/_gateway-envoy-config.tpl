@@ -771,7 +771,14 @@ data:
                   - match:
                       prefix: /
                     requires:
-                      {{- if eq (len $jwtProviders) 1 }}
+                      {{- if $envoy.jwt.allowMissing }}
+                      requires_any:
+                        requirements:
+                        {{- range $i, $provider := $jwtProviders }}
+                        - provider_name: provider_{{$i}}
+                        {{- end}}
+                        - allow_missing: {}
+                      {{- else if eq (len $jwtProviders) 1 }}
                       provider_name: provider_0
                       {{- else }}
                       requires_any:

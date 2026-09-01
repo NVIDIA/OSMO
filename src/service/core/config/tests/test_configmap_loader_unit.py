@@ -335,6 +335,35 @@ class TestResolveSecretFileReferences(unittest.TestCase):
         finally:
             os.unlink(secret_path)
 
+    def test_resolve_dockerconfigjson_recovers_auth_only_identity(self):
+        """Docker config auth-only entries recover username and password."""
+        secret_data = {
+            'auths': {
+                'nvcr.io': {
+                    'auth': base64.b64encode(
+                        b'$oauthtoken:auth-only-token').decode(),
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.json', delete=False) as secret_file:
+            json.dump(secret_data, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data: Dict[str, Any] = {
+                'backend_images': {
+                    'credential': {'secret_file': secret_path},
+                },
+            }
+            configmap_loader._resolve_secret_file_references(config_data)
+
+            credential = config_data['backend_images']['credential']
+            self.assertEqual(credential['registry'], 'nvcr.io')
+            self.assertEqual(credential['username'], '$oauthtoken')
+            self.assertEqual(credential['auth'], 'auth-only-token')
+        finally:
+            os.unlink(secret_path)
+
 
 class TestResolveSecretDirectory(unittest.TestCase):
     """Tests for per-field Secret mount support (--from-literal)."""

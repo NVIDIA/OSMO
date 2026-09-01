@@ -116,14 +116,21 @@ externalDependencies:
       enabled: false
       caExistingSecret: ''
       caKey: ca-bundle.crt
-  # S3-compatible storage for workflow data, logs, and application bundles.
+  # Object storage for workflow data, logs, and application bundles.
   objectStorage:
-    endpoint: ''
-    region: us-east-1
-    buckets:
+    authentication:
+      # static loads SDK credentials from secrets.objectStorage.existingSecret.
+      # sdkDefault delegates credential discovery to the provider SDK, such as
+      # Azure DefaultAzureCredential, the AWS default credential provider
+      # chain, or Google Application Default Credentials.
+      type: static
+    locations:
       workflows: ''
       logs: ''
       apps: ''
+    s3:
+      region: ''
+      overrideUrl: ''
 
 # Override the names Helm derives from the chart and release. Leave empty for
 # conventional names such as `osmo-api` and `osmo-gateway`.
@@ -154,6 +161,9 @@ runtimeImage:
   registry: ''
   repository: ''
   tag: ''
+  # Docker config Secret used to pull workflow init/client images. OSMO config
+  # consumers read it to create short-lived, workflow-scoped pull credentials.
+  pullSecret: ''
 
 # Metadata and scheduling defaults shared by OSMO-owned workloads. Labels,
 # annotations, and node selectors merge with service-specific pod values;
@@ -1310,6 +1320,7 @@ gateway:
       port: ''
     jwt:
       userHeader: x-osmo-user
+      allowMissing: false
       providers: []
       additionalProviders: []
     skipAuthPaths:

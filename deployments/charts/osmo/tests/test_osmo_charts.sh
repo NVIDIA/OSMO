@@ -51,6 +51,22 @@ require_schema_path() {
     ' "$file" || fail "expected schema path '$expected' in $file"
 }
 
+require_additional_property_error() {
+    local file=$1
+    local property=$2
+    awk -v property="$property" '
+        {
+            line = tolower($0)
+            if (index(line, "additional propert") > 0 &&
+                    index(line, tolower(property)) > 0 &&
+                    index(line, "not allowed") > 0) {
+                found = 1
+            }
+        }
+        END { exit !found }
+    ' "$file" || fail "expected additional-property error for '$property' in $file"
+}
+
 require_not_contains() {
     local file=$1
     local unexpected=$2
@@ -67,6 +83,18 @@ require_occurrences() {
     actual=$(grep -Fc -- "$expected" "$file" || true)
     [[ "$actual" -eq "$count" ]] || \
         fail "expected '$expected' $count times in $file, found $actual"
+}
+
+require_empty_dir_volume() {
+    local file=$1
+    local volume_name=$2
+    awk -v volume_name="$volume_name" '
+        $0 == "        - name: " volume_name {
+            getline
+            if ($0 == "          emptyDir: {}") found = 1
+        }
+        END { exit !found }
+    ' "$file" || fail "expected emptyDir volume '$volume_name' in $file"
 }
 
 require_line_count() {
@@ -921,6 +949,182 @@ test_control_umbrella() {
         "object-storage-bootstrap"
     require_not_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
         "imagePullSecrets:"
+
+    if helm_template single-plane-profile-only "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+            >"$TEST_DIRECTORY/single-plane-profile-only.out" 2>&1; then
+        fail "expected the single-plane profile without site values to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/single-plane-profile-only.out" \
+        "externalDependencies.postgresql.host is required for the control plane"
+
+    if helm_template single-plane-partial "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+            --set-string externalUrl= \
+            >"$TEST_DIRECTORY/single-plane-partial.out" 2>&1; then
+        fail "expected the single-plane profile with partial site values to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/single-plane-partial.out" \
+        "externalUrl is required for the control plane"
+
+    helm_template single-plane-azure "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+        --set-string runtimeImage.pullSecret=osmo-runtime-pull \
+        >"$TEST_DIRECTORY/single-plane-azure.yaml"
+    require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-api"
+    require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "osmo-backend-listener"
+    require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "osmo-backend-worker"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Service \
+        "osmo-gateway" >"$TEST_DIRECTORY/single-plane-azure-gateway.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway.yaml" \
+        "type: ClusterIP"
+    require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Cluster "osmo-pg"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-valkey"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-rustfs"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "type: LoadBalancer"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" "kind: HTTPRoute"
+    require_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "secretName: osmo-backend-token"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "OSMO_LOGIN_DEV"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ConfigMap \
+        "osmo-gateway-envoy-config" \
+        >"$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "issuer: osmo"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "uri: https://osmo-api/api/auth/keys"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "cluster: osmo-api-jwks"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "allow_missing:"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-user"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-roles"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-allowed-pools"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/single-plane-azure-config.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretName: osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretKey: .dockerconfigjson"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
+        "osmo-api" >"$TEST_DIRECTORY/single-plane-azure-api.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "memory: 1Gi"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "secretName: osmo-runtime-pull"
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
+        "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        "memory: 1Gi"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        "serviceAccountName: osmo-worker"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        'azure.workload.identity/use: "true"'
+    resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ServiceAccount \
+        "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker-service-account.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/single-plane-azure-worker-service-account.yaml" \
+        "azure.workload.identity/client-id: single-plane-test-client-id"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "cpu: '{{USER_CPU}}'"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "nvidia.com/gpu"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "azure://osmoazure/osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "azure://osmoazure/osmo-workflows/logs"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "azure://osmoazure/osmo-workflows/apps"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretName: osmo-object-storage"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "secretKey: object-storage.yaml"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "mountPath: /etc/osmo/secrets/osmo-object-storage"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "secretName: osmo-object-storage"
+    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" "s3://"
+    require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
+        "osmo-postgresql"
+    require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
+        "osmo-valkey"
+    require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
+        "osmo-object-storage"
+    require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
+        "osmo-backend-token"
+
+    helm_template single-plane-s3 "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-s3-values.yaml" \
+        >"$TEST_DIRECTORY/single-plane-s3.yaml"
+    require_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" "osmo-api"
+    require_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "osmo-backend-listener"
+    require_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "osmo-backend-worker"
+    resource_document "$TEST_DIRECTORY/single-plane-s3.yaml" Service \
+        "osmo-gateway" >"$TEST_DIRECTORY/single-plane-s3-gateway.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-gateway.yaml" \
+        "type: ClusterIP"
+    require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Cluster "osmo-pg"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" "osmo-valkey"
+    require_no_deployment "$TEST_DIRECTORY/single-plane-s3.yaml" "osmo-rustfs"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "type: LoadBalancer"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" "kind: HTTPRoute"
+    require_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "secretName: osmo-backend-token"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3.yaml" \
+        "OSMO_LOGIN_DEV"
+    resource_document "$TEST_DIRECTORY/single-plane-s3.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/single-plane-s3-config.yaml"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "cpu: '{{USER_CPU}}'"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "nvidia.com/gpu"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "s3://osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "s3://osmo-logs/logs"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "s3://osmo-apps/apps"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "region: us-east-1"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "override_url: https://s3.example.com"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "secretName: osmo-object-storage"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "secretKey: object-storage.yaml"
+    require_not_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" "azure://"
+    require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Secret \
+        "osmo-postgresql"
+    require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Secret \
+        "osmo-valkey"
+    require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Secret \
+        "osmo-object-storage"
+    require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Secret \
+        "osmo-backend-token"
+
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/quickstart-gateway-service.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-gateway-service.yaml" \
@@ -1788,11 +1992,13 @@ EOF
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
             "readOnlyRootFilesystem: true"
     done
-    for hardened_component in api router logger agent; do
+    for hardened_component in api worker router logger agent; do
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
             "mountPath: /tmp"
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
             "name: osmo-runtime-tmp"
+        require_empty_dir_volume "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
+            "osmo-runtime-tmp"
     done
     for hardened_component in worker logger agent delayed-job-monitor; do
         require_contains "$TEST_DIRECTORY/osmo-$hardened_component.yaml" \
@@ -2174,6 +2380,87 @@ EOF
         "endpoint: s3://osmo-apps/apps"
     require_contains "$TEST_DIRECTORY/osmo-external-object-storage-config.yaml" \
         "secretKey: object-storage.yaml"
+
+    helm_template azure-storage "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-azure-values.yaml" \
+        >"$TEST_DIRECTORY/osmo-external-azure-object-storage.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-external-azure-object-storage.yaml" \
+        ConfigMap azure-storage-osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "endpoint: azure://osmotest/osmo-workflows/workflows"
+    require_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "endpoint: azure://osmotest/osmo-workflows/logs"
+    require_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "endpoint: azure://osmotest/osmo-workflows/apps"
+    require_not_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "override_url"
+    require_not_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "region:"
+    require_not_contains "$TEST_DIRECTORY/osmo-external-azure-object-storage-config.yaml" \
+        "s3://"
+
+    local invalid_external_object_storage_case
+    local invalid_external_object_storage_settings
+    local invalid_external_object_storage_error
+    while IFS='|' read -r invalid_external_object_storage_case \
+            invalid_external_object_storage_settings \
+            invalid_external_object_storage_error; do
+        if helm_template "invalid-external-object-storage-$invalid_external_object_storage_case" \
+                "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                $invalid_external_object_storage_settings \
+                >"$TEST_DIRECTORY/invalid-external-object-storage-$invalid_external_object_storage_case.out" 2>&1; then
+            fail "expected invalid external object storage case $invalid_external_object_storage_case to fail"
+        fi
+        if [[ "$invalid_external_object_storage_case" == legacy-* ]]; then
+            require_additional_property_error \
+                "$TEST_DIRECTORY/invalid-external-object-storage-$invalid_external_object_storage_case.out" \
+                "${invalid_external_object_storage_case#legacy-}"
+        else
+            require_contains \
+                "$TEST_DIRECTORY/invalid-external-object-storage-$invalid_external_object_storage_case.out" \
+                "$invalid_external_object_storage_error"
+        fi
+    done <<'EOF'
+missing-location|--set-string externalDependencies.objectStorage.locations.workflows=|externalDependencies.objectStorage.locations.workflows is required
+mixed-schemes|--set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs|externalDependencies.objectStorage locations must use one storage URI scheme
+azure-s3-settings|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest/osmo-workflows/workflows --set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs --set-string externalDependencies.objectStorage.locations.apps=azure://osmotest/osmo-workflows/apps|externalDependencies.objectStorage.s3 must be empty for Azure locations
+account-only-azure|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest|match pattern
+legacy-endpoint|--set-string externalDependencies.objectStorage.endpoint=https://legacy.example.com|
+legacy-buckets|--set-string externalDependencies.objectStorage.buckets.workflows=legacy-workflows|
+EOF
+    if helm_template invalid-object-storage-authentication "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string externalDependencies.objectStorage.authentication.type=azureWorkloadIdentity \
+            >"$TEST_DIRECTORY/invalid-object-storage-authentication.out" 2>&1; then
+        fail "expected an invalid object-storage authentication type to fail"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-object-storage-authentication.out" \
+        "externalDependencies.objectStorage.authentication.type"
+
+    local invalid_sdk_default_case
+    local invalid_sdk_default_settings
+    while IFS='|' read -r invalid_sdk_default_case invalid_sdk_default_settings; do
+        if helm_template "invalid-sdk-default-$invalid_sdk_default_case" \
+                "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                --set-string externalDependencies.objectStorage.authentication.type=sdkDefault \
+                $invalid_sdk_default_settings \
+                >"$TEST_DIRECTORY/invalid-sdk-default-$invalid_sdk_default_case.out" 2>&1; then
+            fail "expected sdkDefault with $invalid_sdk_default_case credentials to fail"
+        fi
+        require_contains \
+            "$TEST_DIRECTORY/invalid-sdk-default-$invalid_sdk_default_case.out" \
+            "sdkDefault authentication must not configure an object-storage Secret"
+    done <<'EOF'
+existing-secret|--set-string secrets.objectStorage.existingSecret=unexpected
+generated-secret|--set secrets.objectStorage.generate=true --set-string secrets.objectStorage.existingSecret=
+EOF
     require_contains "$rendered" "nvcr.io/nvidia/osmo/service:latest"
     resource_document "$rendered" ConfigMap osmo-api-config \
         >"$TEST_DIRECTORY/osmo-external-runtime-config.yaml"
@@ -2575,10 +2862,11 @@ EOF
 
     local embedded_object_storage_settings=(
         --set embeddedDependencies.objectStorage.enabled=true
-        --set-string externalDependencies.objectStorage.endpoint=
-        --set-string externalDependencies.objectStorage.buckets.workflows=
-        --set-string externalDependencies.objectStorage.buckets.logs=
-        --set-string externalDependencies.objectStorage.buckets.apps=
+        --set-string externalDependencies.objectStorage.locations.workflows=
+        --set-string externalDependencies.objectStorage.locations.logs=
+        --set-string externalDependencies.objectStorage.locations.apps=
+        --set-string externalDependencies.objectStorage.s3.region=
+        --set-string externalDependencies.objectStorage.s3.overrideUrl=
         --set secrets.objectStorage.generate=true
         --set-string secrets.objectStorage.existingSecret=
     )
@@ -2966,10 +3254,11 @@ EOF
         require_contains "$TEST_DIRECTORY/conflicting-object-storage.out" \
             "$conflicting_external_object_storage_message"
     done <<'EOF'
-externalDependencies.objectStorage.endpoint=https://unexpected.example.com|externalDependencies.objectStorage.endpoint must be empty
-externalDependencies.objectStorage.buckets.workflows=unexpected-workflows|externalDependencies.objectStorage.buckets.workflows must be empty
-externalDependencies.objectStorage.buckets.logs=unexpected-logs|externalDependencies.objectStorage.buckets.logs must be empty
-externalDependencies.objectStorage.buckets.apps=unexpected-apps|externalDependencies.objectStorage.buckets.apps must be empty
+externalDependencies.objectStorage.locations.workflows=s3://unexpected-workflows/workflows|externalDependencies.objectStorage.locations.workflows must be empty
+externalDependencies.objectStorage.locations.logs=s3://unexpected-logs/logs|externalDependencies.objectStorage.locations.logs must be empty
+externalDependencies.objectStorage.locations.apps=s3://unexpected-apps/apps|externalDependencies.objectStorage.locations.apps must be empty
+externalDependencies.objectStorage.s3.region=us-west-2|externalDependencies.objectStorage.s3.region must be empty
+externalDependencies.objectStorage.s3.overrideUrl=https://unexpected.example.com|externalDependencies.objectStorage.s3.overrideUrl must be empty
 EOF
 
     if helm_template duplicate-object-storage-credentials "$charts_copy/osmo" \
@@ -2996,6 +3285,17 @@ EOF
     require_schema_path \
         "$TEST_DIRECTORY/invalid-empty-object-storage-credentials-key.out" \
         "secrets.objectStorage.keys.credentials"
+
+    if helm_template embedded-sdk-default "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            "${embedded_object_storage_settings[@]}" \
+            --set-string externalDependencies.objectStorage.authentication.type=sdkDefault \
+            >"$TEST_DIRECTORY/embedded-sdk-default.out" 2>&1; then
+        fail "expected embedded object storage with sdkDefault authentication to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-sdk-default.out" \
+        "embedded object storage requires static authentication"
 
     local invalid_object_storage_credentials_key
     local invalid_object_storage_credentials_key_message
@@ -4874,9 +5174,9 @@ EOF
         require_contains "$TEST_DIRECTORY/missing-required.out" "$expected_message"
     done <<'EOF'
 externalUrl|externalUrl is required
-externalDependencies.objectStorage.buckets.workflows|buckets.workflows is required
-externalDependencies.objectStorage.buckets.logs|buckets.logs is required
-externalDependencies.objectStorage.buckets.apps|buckets.apps is required
+externalDependencies.objectStorage.locations.workflows|externalDependencies.objectStorage.locations.workflows is required
+externalDependencies.objectStorage.locations.logs|externalDependencies.objectStorage.locations.logs is required
+externalDependencies.objectStorage.locations.apps|externalDependencies.objectStorage.locations.apps is required
 EOF
 
     cat >"$charts_copy/osmo/templates/test-notes.yaml" <<'EOF'

@@ -18,6 +18,8 @@
 Unit tests for the storage backends module.
 """
 
+import pathlib
+import tempfile
 import unittest
 from typing import cast
 from unittest import mock
@@ -239,6 +241,58 @@ class TestBackends(unittest.TestCase):
 
                     self.assertIn('Data credential not found', str(context.exception))
                     self.assertIn(expected_profile, str(context.exception))
+
+    def test_endpoint_only_config_uses_environment_auth(self):
+        """An SDK-default config entry must not be parsed as static credentials."""
+        with tempfile.TemporaryDirectory() as config_directory:
+            pathlib.Path(config_directory, 'config.yaml').write_text(
+                'auth:\n'
+                '  data:\n'
+                '    azure://testaccount:\n'
+                '      endpoint: azure://testaccount\n',
+                encoding='utf-8',
+            )
+            with mock.patch(
+                'src.lib.data.storage.credentials.credentials.client_configs.'
+                'get_client_config_dir',
+                return_value=config_directory,
+            ):
+                backend = backends.construct_storage_backend(
+                    uri='azure://testaccount/testcontainer/testpath',
+                )
+
+                data_cred = backend.resolved_data_credential
+
+        self.assertIsInstance(data_cred, credentials.DefaultDataCredential)
+        self.assertEqual(data_cred.endpoint, 'azure://testaccount')
+
+    def test_partial_static_credentials_raise_user_error(self):
+        """Static credentials require both the access key ID and secret."""
+        partial_credentials = [
+            '      access_key_id: only-an-id\n',
+            '      access_key: only-a-secret\n',
+        ]
+
+        for partial_credential in partial_credentials:
+            with self.subTest(partial_credential=partial_credential.strip()), \
+                    tempfile.TemporaryDirectory() as config_directory:
+                config_file = pathlib.Path(config_directory, 'config.yaml')
+                config_file.write_text(
+                    'auth:\n'
+                    '  data:\n'
+                    '    s3://test-bucket:\n'
+                    f'{partial_credential}',
+                    encoding='utf-8',
+                )
+
+                with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                    credentials.get_static_data_credential_from_config(
+                        's3://test-bucket', str(config_file))
+
+                self.assertIn(
+                    'access_key_id and access_key must be provided together',
+                    str(context.exception),
+                )
 
 
 class AzureDefaultDataCredentialTest(unittest.TestCase):
