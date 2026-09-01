@@ -53,6 +53,45 @@ def _authentication_config() -> auth.AuthenticationConfig:
     )
 
 
+def _bootstrap_secret(
+    service_auth: auth.AuthenticationConfig,
+    installation: str = 'osmo/prod',
+) -> client.V1Secret:
+    return client.V1Secret(
+        metadata=client.V1ObjectMeta(
+            name='osmo-service-auth',
+            namespace='osmo',
+            labels={
+                'app.kubernetes.io/managed-by': 'osmo-service-auth-bootstrap',
+            },
+            annotations={
+                'osmo.nvidia.com/service-auth-bootstrap-installation': installation,
+                'osmo.nvidia.com/service-auth-bootstrap-digest': (
+                    service_auth_bootstrap._stable_authority_digest(service_auth)),
+            },
+        ),
+        data={
+            'authentication-config.json': base64.b64encode(
+                service_auth.canonical_json(
+                    include_login_info=False).encode('utf-8')).decode('ascii'),
+        },
+    )
+
+
+def _bootstrap_arguments() -> argparse.Namespace:
+    return argparse.Namespace(
+        postgres_host='postgres',
+        postgres_port=5432,
+        postgres_database='osmo',
+        postgres_user='osmo',
+        namespace='osmo',
+        release_name='prod',
+        target_secret='osmo-service-auth',
+        target_key='authentication-config.json',
+        active_deadline_seconds=900,
+    )
+
+
 def _write_mek_file(path: str, current_key: jwk.JWK, keys: list[jwk.JWK]) -> None:
     with open(path, 'w', encoding='utf-8') as mek_file:
         yaml.safe_dump({
@@ -71,6 +110,172 @@ def _secret_manager(path: str) -> SecretManager:
 
 
 class ServiceAuthBootstrapTest(unittest.TestCase):
+
+    def test_fresh_database_bootstrap_creates_owned_canonical_secret(self):
+        service_auth = _authentication_config()
+        core_api = mock.MagicMock()
+        core_api.read_namespaced_secret.side_effect = [
+            ApiException(status=404), ApiException(status=404),
+        ]
+        connection = mock.MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.side_effect = [(None,), (None,), (None,)]
+
+        with mock.patch.dict(
+            os.environ, {'OSMO_POSTGRES_PASSWORD': 'password'}, clear=False,
+        ), mock.patch.object(
+            service_auth_bootstrap.kube_config, 'load_incluster_config',
+        ), mock.patch.object(
+            service_auth_bootstrap.client, 'CoreV1Api', return_value=core_api,
+        ), mock.patch.object(
+            service_auth_bootstrap.psycopg2, 'connect', return_value=connection,
+        ), mock.patch.object(
+            service_auth_bootstrap.auth.AuthenticationConfig, 'generate_default',
+            return_value=service_auth,
+        ):
+            service_auth_bootstrap._bootstrap_service_auth(_bootstrap_arguments())
+
+        created = core_api.create_namespaced_secret.call_args.args[1]
+        payload = created.string_data['authentication-config.json']
+        self.assertEqual(
+            payload, service_auth.canonical_json(include_login_info=False))
+        self.assertEqual(
+            created.metadata.annotations[
+                'osmo.nvidia.com/service-auth-bootstrap-installation'],
+            'osmo/prod',
+        )
+        self.assertEqual(
+            created.metadata.annotations['osmo.nvidia.com/credential-source'],
+            'osmo-chart-bootstrap',
+        )
+        self.assertEqual(
+            created.metadata.labels['app.kubernetes.io/managed-by'],
+            'osmo-service-auth-bootstrap',
+        )
+        connection.close.assert_called_once()
+
+    def test_bootstrap_retry_accepts_only_exact_owned_secret(self):
+        service_auth = _authentication_config()
+        core_api = mock.MagicMock()
+        core_api.read_namespaced_secret.return_value = _bootstrap_secret(service_auth)
+
+        with mock.patch.object(
+            service_auth_bootstrap.kube_config, 'load_incluster_config',
+        ), mock.patch.object(
+            service_auth_bootstrap.client, 'CoreV1Api', return_value=core_api,
+        ), mock.patch.object(
+            service_auth_bootstrap.psycopg2, 'connect',
+        ) as connect:
+            service_auth_bootstrap._bootstrap_service_auth(_bootstrap_arguments())
+
+        connect.assert_not_called()
+        core_api.create_namespaced_secret.assert_not_called()
+
+    def test_bootstrap_accepts_exact_secret_that_appears_after_lock(self):
+        service_auth = _authentication_config()
+        core_api = mock.MagicMock()
+        core_api.read_namespaced_secret.side_effect = [
+            ApiException(status=404), _bootstrap_secret(service_auth),
+        ]
+        connection = mock.MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.side_effect = [(None,), (None,), (None,)]
+
+        with mock.patch.dict(
+            os.environ, {'OSMO_POSTGRES_PASSWORD': 'password'}, clear=False,
+        ), mock.patch.object(
+            service_auth_bootstrap.kube_config, 'load_incluster_config',
+        ), mock.patch.object(
+            service_auth_bootstrap.client, 'CoreV1Api', return_value=core_api,
+        ), mock.patch.object(
+            service_auth_bootstrap.psycopg2, 'connect', return_value=connection,
+        ):
+            service_auth_bootstrap._bootstrap_service_auth(_bootstrap_arguments())
+
+        core_api.create_namespaced_secret.assert_not_called()
+        connection.close.assert_called_once()
+
+    def test_bootstrap_accepts_exact_secret_after_create_conflict(self):
+        service_auth = _authentication_config()
+        core_api = mock.MagicMock()
+        core_api.read_namespaced_secret.side_effect = [
+            ApiException(status=404), ApiException(status=404),
+            _bootstrap_secret(service_auth),
+        ]
+        core_api.create_namespaced_secret.side_effect = ApiException(status=409)
+        connection = mock.MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.side_effect = [(None,), (None,), (None,)]
+
+        with mock.patch.dict(
+            os.environ, {'OSMO_POSTGRES_PASSWORD': 'password'}, clear=False,
+        ), mock.patch.object(
+            service_auth_bootstrap.kube_config, 'load_incluster_config',
+        ), mock.patch.object(
+            service_auth_bootstrap.client, 'CoreV1Api', return_value=core_api,
+        ), mock.patch.object(
+            service_auth_bootstrap.psycopg2, 'connect', return_value=connection,
+        ), mock.patch.object(
+            service_auth_bootstrap.auth.AuthenticationConfig, 'generate_default',
+            return_value=service_auth,
+        ):
+            service_auth_bootstrap._bootstrap_service_auth(_bootstrap_arguments())
+
+        core_api.create_namespaced_secret.assert_called_once()
+        connection.close.assert_called_once()
+
+    def test_bootstrap_rejects_unowned_existing_secret(self):
+        service_auth = _authentication_config()
+        core_api = mock.MagicMock()
+        core_api.read_namespaced_secret.return_value = _bootstrap_secret(
+            service_auth, installation='other/release')
+
+        with mock.patch.object(
+            service_auth_bootstrap.kube_config, 'load_incluster_config',
+        ), mock.patch.object(
+            service_auth_bootstrap.client, 'CoreV1Api', return_value=core_api,
+        ), self.assertRaisesRegex(osmo_errors.OSMOError, 'exact bootstrap retry'):
+            service_auth_bootstrap._bootstrap_service_auth(_bootstrap_arguments())
+
+        core_api.create_namespaced_secret.assert_not_called()
+
+    def test_bootstrap_rejects_owned_secret_with_mismatched_digest(self):
+        service_auth = _authentication_config()
+        existing = _bootstrap_secret(service_auth)
+        existing.metadata.annotations[
+            'osmo.nvidia.com/service-auth-bootstrap-digest'] = '0' * 64
+        core_api = mock.MagicMock()
+        core_api.read_namespaced_secret.return_value = existing
+
+        with mock.patch.object(
+            service_auth_bootstrap.kube_config, 'load_incluster_config',
+        ), mock.patch.object(
+            service_auth_bootstrap.client, 'CoreV1Api', return_value=core_api,
+        ), self.assertRaisesRegex(osmo_errors.OSMOError, 'does not match its data'):
+            service_auth_bootstrap._bootstrap_service_auth(_bootstrap_arguments())
+
+        core_api.create_namespaced_secret.assert_not_called()
+
+    def test_bootstrap_rejects_database_with_existing_state(self):
+        core_api = mock.MagicMock()
+        core_api.read_namespaced_secret.side_effect = ApiException(status=404)
+        connection = mock.MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.side_effect = [('users',), (1,)]
+
+        with mock.patch.dict(
+            os.environ, {'OSMO_POSTGRES_PASSWORD': 'password'}, clear=False,
+        ), mock.patch.object(
+            service_auth_bootstrap.kube_config, 'load_incluster_config',
+        ), mock.patch.object(
+            service_auth_bootstrap.client, 'CoreV1Api', return_value=core_api,
+        ), mock.patch.object(
+            service_auth_bootstrap.psycopg2, 'connect', return_value=connection,
+        ), self.assertRaisesRegex(osmo_errors.OSMOError, 'only for a fresh'):
+            service_auth_bootstrap._bootstrap_service_auth(_bootstrap_arguments())
+
+        core_api.create_namespaced_secret.assert_not_called()
+        connection.close.assert_called_once()
 
     def test_legacy_database_read_uses_read_only_session(self):
         arguments = argparse.Namespace(

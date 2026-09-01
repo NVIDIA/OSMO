@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# One-time overlay for a new OSMO installation backed by a fresh database.
+# Never apply this overlay to an upgrade, recovery, or retained database.
+secrets:
+  serviceAuth:
+    managementMode: osmo
+    bootstrap:
+      enabled: true

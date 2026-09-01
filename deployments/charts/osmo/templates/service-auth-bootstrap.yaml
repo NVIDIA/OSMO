@@ -1,0 +1,182 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{{- $serviceAuth := .Values.secrets.serviceAuth -}}
+{{- if and $serviceAuth.bootstrap.enabled (ne $serviceAuth.managementMode "osmo") -}}
+{{- fail "secrets.serviceAuth.bootstrap.enabled requires managementMode=osmo" -}}
+{{- end -}}
+{{- if and $serviceAuth.bootstrap.enabled $serviceAuth.migration.enabled -}}
+{{- fail "secrets.serviceAuth.bootstrap.enabled and migration.enabled are mutually exclusive" -}}
+{{- end -}}
+{{- if and $serviceAuth.bootstrap.enabled (not .Values.planes.control.enabled) -}}
+{{- fail "secrets.serviceAuth.bootstrap.enabled requires planes.control.enabled=true" -}}
+{{- end -}}
+
+{{- if $serviceAuth.bootstrap.enabled }}
+{{- $secretName := required "secrets.serviceAuth.existingSecret.name is required during bootstrap" $serviceAuth.existingSecret.name -}}
+{{- $secretKey := required "secrets.serviceAuth.existingSecret.key is required during bootstrap" $serviceAuth.existingSecret.key -}}
+{{- $bootstrapInputs := dict
+      "chartVersion" .Chart.Version
+      "chartAppVersion" .Chart.AppVersion
+      "releaseName" .Release.Name
+      "releaseNamespace" .Release.Namespace
+      "releaseRevision" .Release.Revision
+      "attempt" $serviceAuth.bootstrap.attempt
+      "commonLabels" .Values.commonLabels
+      "image" (include "osmo.component.image" (dict "root" . "component" .Values.services.api))
+      "imagePullPolicy" $serviceAuth.bootstrap.imagePullPolicy
+      "imagePullSecrets" (include "osmo.component.imagePullSecrets" .)
+      "activeDeadlineSeconds" $serviceAuth.bootstrap.activeDeadlineSeconds
+      "nodeSelector" $serviceAuth.bootstrap.nodeSelector
+      "tolerations" $serviceAuth.bootstrap.tolerations
+      "resources" $serviceAuth.bootstrap.resources
+      "secretName" $secretName
+      "secretKey" $secretKey
+      "postgresHost" (include "osmo.postgresql.host" .)
+      "postgresPort" (include "osmo.postgresql.port" .)
+      "postgresDatabase" (include "osmo.postgresql.database" .)
+      "postgresUsername" (include "osmo.postgresql.username" .)
+      "postgresSecretName" (include "osmo.postgresql.secretName" .)
+      "postgresPasswordKey" (include "osmo.postgresql.passwordKey" .)
+      "postgresCaName" (include "osmo.postgresql.caSecretName" .)
+      "postgresCaKey" (include "osmo.postgresql.caKey" .) -}}
+{{- $hash := toJson $bootstrapInputs | sha256sum | trunc 10 -}}
+{{- $namePrefix := include "osmo.fullname" . | trunc 29 | trimSuffix "-" -}}
+{{- $name := printf "%s-service-auth-bootstrap-%s" $namePrefix $hash -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: [{{ $secretName | quote }}]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ $serviceAuth.bootstrap.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.component.standardLabels" (dict "root" . "component" "service-auth-bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: false
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with $serviceAuth.bootstrap.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $serviceAuth.bootstrap.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: bootstrap-service-auth
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.api) }}
+        imagePullPolicy: {{ $serviceAuth.bootstrap.imagePullPolicy | quote }}
+        command: ["service-auth-bootstrap"]
+        args:
+        - bootstrap
+        - --postgres-host
+        - {{ include "osmo.postgresql.host" . | quote }}
+        - --postgres-port
+        - {{ include "osmo.postgresql.port" . | quote }}
+        - --postgres-database
+        - {{ include "osmo.postgresql.database" . | quote }}
+        - --postgres-user
+        - {{ include "osmo.postgresql.username" . | quote }}
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --release-name
+        - {{ .Release.Name | quote }}
+        - --target-secret
+        - {{ $secretName | quote }}
+        - --target-key
+        - {{ $secretKey | quote }}
+        - --active-deadline-seconds
+        - {{ $serviceAuth.bootstrap.activeDeadlineSeconds | quote }}
+        env:
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "osmo.postgresql.secretName" . | quote }}
+              key: {{ include "osmo.postgresql.passwordKey" . | quote }}
+        {{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
+        - name: PGSSLMODE
+          value: verify-full
+        - name: PGSSLROOTCERT
+          value: /etc/osmo/ca/postgresql/ca.crt
+        {{- end }}
+        volumeMounts:
+        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
+        - name: kubernetes-api
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          seccompProfile:
+            type: RuntimeDefault
+        {{- with $serviceAuth.bootstrap.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      {{- include "osmo.externalDependencies.caVolumes" . | nindent 6 }}
+      - name: kubernetes-api
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}

@@ -30,8 +30,7 @@ install:
 - the compute backend listener and worker;
 - persistent CloudNativePG, Valkey, and RustFS instances;
 - generated development credentials, object-storage buckets, configuration,
-  and a CPU-only default pool. Service auth is generated explicitly before
-  installation so every process uses the same identity.
+  service auth, and a CPU-only default pool.
 
 ### Prerequisites
 
@@ -63,46 +62,34 @@ helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
 
 ### Install OSMO
 
-Generate the shared development service-auth identity, create its Secret, then
-install the unified chart without a values file or required `--set` values:
+Install the chart defaults with the one-time service-auth overlay. The chart's
+bootstrap Job creates the shared development identity after the new PostgreSQL
+database becomes ready:
 
 ```bash
-OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
-docker run --rm --user "$(id -u):$(id -g)" \
-  --entrypoint service-auth-bootstrap \
-  --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
-  nvcr.io/nvidia/osmo/service:latest \
-  generate --output /output/authentication-config.json
-kubectl --context kind-osmo create namespace osmo \
-  --dry-run=client --output=yaml | kubectl --context kind-osmo apply -f -
-kubectl --context kind-osmo --namespace osmo create secret generic \
-  osmo-service-auth \
-  --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
-
 helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
+  --values deployments/charts/osmo/profiles/fresh-install-service-auth.yaml \
   --wait \
   --wait-for-jobs \
   --timeout 20m
 ```
 
-The first installation uses the MEK bootstrap lifecycle Job to create the
-retained `osmo-master-encryption-key` Secret without putting key material in
-Helm state. After that installation succeeds, remove the temporary Secret
-creation permission and retain the remaining release values:
+The first installation uses bootstrap Jobs to create the retained
+`osmo-master-encryption-key` and `osmo-service-auth` Secrets without putting key
+material in Helm state. After that installation succeeds, remove both temporary
+Secret-creation permissions and retain the remaining release values:
 
 ```bash
 helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
   --namespace osmo \
   --reuse-values \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --set secrets.serviceAuth.bootstrap.enabled=false \
   --wait \
   --timeout 20m
-
-rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
-rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
 Inspect the release without reading generated Secret values:
@@ -323,15 +310,6 @@ kubectl create namespace osmo
 kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
   --from-literal=client_secret='<oidc-client-secret>' \
   --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
-OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
-docker run --rm --user "$(id -u):$(id -g)" \
-  --entrypoint service-auth-bootstrap \
-  --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
-  nvcr.io/nvidia/osmo/service:latest \
-  generate --output /output/authentication-config.json
-kubectl --namespace osmo create secret generic \
-  osmo-service-auth \
-  --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
 helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml
@@ -339,24 +317,25 @@ cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
+  --values deployments/charts/osmo/profiles/fresh-install-service-auth.yaml \
   --values self-contained-environment-values.yaml \
   --wait \
   --wait-for-jobs \
   --timeout 30m
-
-rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
-rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
-The first installation bootstraps the retained
-`osmo-master-encryption-key` Secret without rendering key material. As soon as
-it succeeds, persist `secrets.masterEncryptionKey.bootstrap.enabled: false` in
+The first installation bootstraps the retained `osmo-master-encryption-key` and
+`osmo-service-auth` Secrets without rendering key material. As soon as it
+succeeds, disable both bootstrap Jobs in
 `self-contained-environment-values.yaml` and apply the mandatory cleanup
 transaction:
 
 ```yaml
 secrets:
   masterEncryptionKey:
+    bootstrap:
+      enabled: false
+  serviceAuth:
     bootstrap:
       enabled: false
 ```
@@ -779,9 +758,10 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
 | `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
 
-Generated backend-token and MEK Secrets are intentionally retained because
-replacing either can disconnect the compute plane or make encrypted database
-fields unreadable. A release-owned, non-secret ConfigMap records the managed
+Generated backend-token, MEK, and service-auth Secrets are intentionally
+retained because replacing them can disconnect the compute plane, make
+encrypted database fields unreadable, or invalidate the installation's signing
+identity. A release-owned, non-secret ConfigMap records the managed
 backend-token Secret names so upgrades can create newly added credentials while
 still failing when a retained credential disappears. Restore the original
 Secret under the same name; do not generate a replacement against a retained
@@ -813,14 +793,15 @@ postgresql:
 ### Service auth identity
 
 The OSMO JWT signing identity is installation-scoped secret material. Every
-control-plane installation requires an externally persisted Kubernetes Secret
-containing canonical `AuthenticationConfig` JSON under
-`authentication-config.json`. The chart references and mounts this Secret but
-never renders its private key into Helm values or release state. Runtime
-services do not read or write `service_auth` through PostgreSQL.
+control-plane installation requires a persistent Kubernetes Secret containing
+canonical `AuthenticationConfig` JSON under `authentication-config.json`. The
+chart references and mounts this Secret but never renders its private key into
+Helm values or release state. Runtime services do not read or write
+`service_auth` through PostgreSQL.
 
-For a fresh installation, generate the identity offline with the service image,
-then create the Secret before installing the chart:
+Set `secrets.serviceAuth.managementMode: external` (the default) when an
+external secret manager owns the referenced Secret. For a fresh installation,
+generate the identity offline before installing the chart:
 
 ```bash
 OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
@@ -839,6 +820,31 @@ The generator creates the output with mode `0600`, refuses to overwrite an
 existing file, validates the keypair, and never writes private material to
 stdout. Store and back up the Secret through the installation's normal secret
 management system.
+
+Set `managementMode: osmo` and `bootstrap.enabled: true` when the chart should
+create the referenced Secret during a fresh installation. The ordinary,
+GitOps-compatible bootstrap Job waits for PostgreSQL, takes a database advisory
+lock, and verifies that the `users`, `ueks`, and `configs` tables are absent or
+empty before generating and atomically creating the Secret. It has only `get`
+permission on the named target Secret plus namespace-scoped `create`; it cannot
+update, overwrite, or delete Secrets. A retry accepts only a valid Secret whose
+ownership annotation and identity digest match the same release. The Job never
+logs or renders private material.
+
+Fresh bootstrap is not a recovery or adoption path. It fails against an
+existing OSMO database; use the migration procedure below for an older
+DB-backed identity, or restore the matching externally managed Secret. After a
+successful bootstrap, set `bootstrap.enabled: false` to remove the Job and its
+temporary Secret-creation RBAC. If a failed GitOps attempt must be retried after
+correcting configuration, increment the non-secret `bootstrap.attempt` value to
+produce a new immutable Job name.
+
+The packaged `profiles/fresh-install-service-auth.yaml` overlay enables those
+two values explicitly. Layer it only into the first install of a new database;
+do not carry it into upgrades, recovery, or an installation that already has a
+service-auth Secret. The established quickstart, self-contained, and split
+profiles remain external/bootstrap-off so upgrading an existing installation
+cannot accidentally opt into Secret adoption.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
 window that prevents the old configuration API from changing `service_auth`.
