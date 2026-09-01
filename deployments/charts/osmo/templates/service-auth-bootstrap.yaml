@@ -31,15 +31,7 @@
       "tolerations" $serviceAuth.bootstrap.tolerations
       "resources" $serviceAuth.bootstrap.resources
       "secretName" $secretName
-      "secretKey" $secretKey
-      "postgresHost" (include "osmo.postgresql.host" .)
-      "postgresPort" (include "osmo.postgresql.port" .)
-      "postgresDatabase" (include "osmo.postgresql.database" .)
-      "postgresUsername" (include "osmo.postgresql.username" .)
-      "postgresSecretName" (include "osmo.postgresql.secretName" .)
-      "postgresPasswordKey" (include "osmo.postgresql.passwordKey" .)
-      "postgresCaName" (include "osmo.postgresql.caSecretName" .)
-      "postgresCaKey" (include "osmo.postgresql.caKey" .) -}}
+      "secretKey" $secretKey -}}
 {{- $hash := toJson $bootstrapInputs | sha256sum | trunc 10 -}}
 {{- $namePrefix := include "osmo.fullname" . | trunc 29 | trimSuffix "-" -}}
 {{- $name := printf "%s-service-auth-bootstrap-%s" $namePrefix $hash -}}
@@ -50,6 +42,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -59,6 +55,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
@@ -75,6 +75,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 subjects:
 - kind: ServiceAccount
   name: {{ $name }}
@@ -91,6 +95,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: {{ $serviceAuth.bootstrap.activeDeadlineSeconds }}
@@ -118,14 +126,6 @@ spec:
         command: ["service-auth-bootstrap"]
         args:
         - bootstrap
-        - --postgres-host
-        - {{ include "osmo.postgresql.host" . | quote }}
-        - --postgres-port
-        - {{ include "osmo.postgresql.port" . | quote }}
-        - --postgres-database
-        - {{ include "osmo.postgresql.database" . | quote }}
-        - --postgres-user
-        - {{ include "osmo.postgresql.username" . | quote }}
         - --namespace
         - {{ .Release.Namespace | quote }}
         - --release-name
@@ -134,22 +134,7 @@ spec:
         - {{ $secretName | quote }}
         - --target-key
         - {{ $secretKey | quote }}
-        - --active-deadline-seconds
-        - {{ $serviceAuth.bootstrap.activeDeadlineSeconds | quote }}
-        env:
-        - name: OSMO_POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "osmo.postgresql.secretName" . | quote }}
-              key: {{ include "osmo.postgresql.passwordKey" . | quote }}
-        {{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
-        - name: PGSSLMODE
-          value: verify-full
-        - name: PGSSLROOTCERT
-          value: /etc/osmo/ca/postgresql/ca.crt
-        {{- end }}
         volumeMounts:
-        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
         - name: kubernetes-api
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
           readOnly: true
@@ -167,7 +152,6 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
       volumes:
-      {{- include "osmo.externalDependencies.caVolumes" . | nindent 6 }}
       - name: kubernetes-api
         projected:
           sources:

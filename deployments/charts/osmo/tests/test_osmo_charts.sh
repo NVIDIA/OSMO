@@ -547,6 +547,8 @@ test_control_umbrella() {
         "split-compute-osmo-backend-worker"
     require_no_deployment "$TEST_DIRECTORY/split-compute.yaml" \
         "split-compute-osmo-api"
+    require_no_resource_with_hash_suffix "$TEST_DIRECTORY/split-compute.yaml" Job \
+        "service-auth-bootstrap"
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
@@ -815,7 +817,7 @@ test_control_umbrella() {
         "osmo-backend-token-bootstrap"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         'name: "osmo-mek-bootstrap-'
-    require_no_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
+    require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
         "service-auth-bootstrap"
     require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
         "object-storage-bootstrap"
@@ -905,7 +907,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
         "name: osmo-nvcr-pull"
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
-        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 3
 
     helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
@@ -947,17 +949,9 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
         'name: "osmo-mek-bootstrap-'
     require_contains "$TEST_DIRECTORY/quickstart.yaml" '- "bootstrap"'
-    require_no_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
+    require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
         "service-auth-bootstrap"
-    helm_template_with_backend quick-start-bootstrap "$charts_copy/osmo" \
-        --namespace osmo \
-        --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
-        -f "$charts_copy/osmo/profiles/fresh-install-service-auth.yaml" \
-        >"$TEST_DIRECTORY/quickstart-bootstrap.yaml"
-    require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart-bootstrap.yaml" Job \
-        "service-auth-bootstrap"
-    require_contains "$TEST_DIRECTORY/quickstart-bootstrap.yaml" \
+    require_contains "$TEST_DIRECTORY/quickstart.yaml" \
         'command: ["service-auth-bootstrap"]'
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
         "object-storage-bootstrap"
@@ -995,6 +989,9 @@ test_control_umbrella() {
         "osmo-backend-listener"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
         "osmo-backend-worker"
+    require_no_resource_with_hash_suffix \
+        "$TEST_DIRECTORY/single-plane-azure.yaml" Job \
+        "service-auth-bootstrap"
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/single-plane-azure-gateway.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-azure-gateway.yaml" \
@@ -1574,8 +1571,6 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/profiles/self-contained.yaml"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
-        "osmo/profiles/fresh-install-service-auth.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/examples/self-contained-environment-values.yaml"
     if ! grep -Fq "osmo/charts/valkey/Chart.yaml" \
         "$TEST_DIRECTORY/osmo-package.txt" && \
@@ -1605,6 +1600,8 @@ test_control_umbrella() {
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$rendered"
+    require_no_resource_with_hash_suffix "$rendered" Job \
+        "service-auth-bootstrap"
 
     resource_document "$rendered" List osmo-internal-tls-bootstrap \
         >"$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml"
@@ -2309,6 +2306,10 @@ EOF
     require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
         "--service_auth_file" 6
     require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
+        'mountPath: /etc/osmo/service-auth/authentication-config.json' 6
+    require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
+        'subPath: authentication-config.json' 6
+    require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
         'secretName: "osmo-service-auth"' 6
     require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
         'osmo.nvidia.com/service-auth-rollout: "auth-v1"' 6
@@ -2352,8 +2353,16 @@ EOF
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
         'command: ["service-auth-bootstrap"]'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" '- bootstrap'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
-        '--active-deadline-seconds'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'activeDeadlineSeconds: 900'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        '--postgres-'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'OSMO_POSTGRES_PASSWORD'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'PGSSL'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'postgresql-ca'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
         'expirationSeconds: 600'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
@@ -4658,7 +4667,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 11
+        "type: RuntimeDefault" 12
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \

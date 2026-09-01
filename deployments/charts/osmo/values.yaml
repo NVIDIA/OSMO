@@ -332,18 +332,18 @@ secrets:
       activeDeadlineSeconds: 900
   # Stable JWT signing identity. External ownership provisions the referenced
   # Secret before installation. OSMO ownership can bootstrap it for a fresh
-  # database without putting private key material in Helm release state.
+  # installation without putting private key material in Helm release state.
   serviceAuth:
-    managementMode: external
+    managementMode: osmo
     existingSecret:
       name: osmo-service-auth
       key: authentication-config.json
     # Change after intentionally updating the externally managed Secret.
     rolloutNonce: ''
     bootstrap:
-      # Fresh installations only. Disable after successful bootstrap to remove
-      # the one-time Secret-creation RBAC and Job from desired state.
-      enabled: false
+      # Quickstart is install-only. Disable after successful bootstrap to
+      # remove the one-time Secret-creation RBAC and Job from desired state.
+      enabled: true
       # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
       imagePullPolicy: IfNotPresent

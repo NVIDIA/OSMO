@@ -23,7 +23,6 @@ import hashlib
 import json
 import logging
 import os
-import time
 from typing import Any, NoReturn
 
 from jwcrypto import jwe  # type: ignore
@@ -44,7 +43,6 @@ _BOOTSTRAP_INSTALLATION_ANNOTATION = (
     'osmo.nvidia.com/service-auth-bootstrap-installation')
 _BOOTSTRAP_DIGEST_ANNOTATION = 'osmo.nvidia.com/service-auth-bootstrap-digest'
 _BOOTSTRAP_MANAGED_BY = 'osmo-service-auth-bootstrap'
-_BOOTSTRAP_ADVISORY_LOCK = 0x4F534D4F41555448
 
 
 def _unexpected_user_key_access(*_args: Any) -> NoReturn:
@@ -279,40 +277,6 @@ def _verify_bootstrap_retry(
                  arguments.target_secret)
 
 
-def _connect_database_ready(arguments: argparse.Namespace, deadline: float):
-    password = os.environ.get('OSMO_POSTGRES_PASSWORD')
-    if password is None:
-        raise osmo_errors.OSMOError('OSMO_POSTGRES_PASSWORD is required.')
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise osmo_errors.OSMOError(
-                'Timed out waiting for PostgreSQL during service auth bootstrap.')
-        try:
-            return psycopg2.connect(
-                host=arguments.postgres_host,
-                port=arguments.postgres_port,
-                dbname=arguments.postgres_database,
-                user=arguments.postgres_user,
-                password=password,
-                connect_timeout=max(1, min(5, int(remaining))),
-            )
-        except psycopg2.OperationalError:
-            time.sleep(min(2, max(0.1, deadline - time.monotonic())))
-
-
-def _database_is_fresh(connection) -> bool:
-    with connection.cursor() as cursor:
-        for table in ('users', 'ueks', 'configs'):
-            cursor.execute('SELECT to_regclass(%s);', (f'public.{table}',))
-            if cursor.fetchone()[0] is None:
-                continue
-            cursor.execute(f'SELECT 1 FROM public.{table} LIMIT 1;')
-            if cursor.fetchone() is not None:
-                return False
-    return True
-
-
 def _create_bootstrap_secret(
     core_api: client.CoreV1Api,
     arguments: argparse.Namespace,
@@ -355,7 +319,7 @@ def _create_bootstrap_secret(
 
 
 def _bootstrap_service_auth(arguments: argparse.Namespace) -> None:
-    """Create an installation identity only while the OSMO database is fresh."""
+    """Create a Kubernetes-only identity without overwriting existing state."""
     kube_config.load_incluster_config()
     core_api = client.CoreV1Api()
     existing = _read_secret(core_api, arguments.namespace, arguments.target_secret)
@@ -363,35 +327,9 @@ def _bootstrap_service_auth(arguments: argparse.Namespace) -> None:
         _verify_bootstrap_retry(arguments, existing)
         return
 
-    deadline = time.monotonic() + arguments.active_deadline_seconds
-    logging.info('Service auth bootstrap is waiting for PostgreSQL readiness')
-    connection = _connect_database_ready(arguments, deadline)
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute('SELECT pg_advisory_lock(%s);',
-                           (_BOOTSTRAP_ADVISORY_LOCK,))
-        if not _database_is_fresh(connection):
-            raise osmo_errors.OSMOError(
-                'Automatic service auth generation is allowed only for a fresh '
-                'OSMO database.')
-        appeared = _read_secret(
-            core_api, arguments.namespace, arguments.target_secret)
-        if appeared is not None:
-            _verify_bootstrap_retry(arguments, appeared)
-            return
-        service_auth = auth.AuthenticationConfig.generate_default()
-        service_auth.validate_key_pairs()
-        _create_bootstrap_secret(core_api, arguments, service_auth)
-    except psycopg2.Error:
-        raise osmo_errors.OSMOError(
-            'Unable to verify the OSMO database during service auth bootstrap.') from None
-    finally:
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute('SELECT pg_advisory_unlock(%s);',
-                               (_BOOTSTRAP_ADVISORY_LOCK,))
-        finally:
-            connection.close()
+    service_auth = auth.AuthenticationConfig.generate_default()
+    service_auth.validate_key_pairs()
+    _create_bootstrap_secret(core_api, arguments, service_auth)
     logging.info('Initialized Kubernetes service auth Secret %s',
                  arguments.target_secret)
 
@@ -428,16 +366,11 @@ def _parse_arguments() -> argparse.Namespace:
     migrate.add_argument('--target-key', required=True)
 
     bootstrap = commands.add_parser(
-        'bootstrap', description='Create service auth for a fresh OSMO database.')
-    bootstrap.add_argument('--postgres-host', required=True)
-    bootstrap.add_argument('--postgres-port', type=int, required=True)
-    bootstrap.add_argument('--postgres-database', required=True)
-    bootstrap.add_argument('--postgres-user', required=True)
+        'bootstrap', description='Create service auth for a fresh installation.')
     bootstrap.add_argument('--namespace', required=True)
     bootstrap.add_argument('--release-name', required=True)
     bootstrap.add_argument('--target-secret', required=True)
     bootstrap.add_argument('--target-key', required=True)
-    bootstrap.add_argument('--active-deadline-seconds', type=int, required=True)
     return parser.parse_args()
 
 

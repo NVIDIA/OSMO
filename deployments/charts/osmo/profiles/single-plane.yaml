@@ -45,6 +45,10 @@ secrets:
       key: mek.yaml
     bootstrap:
       enabled: false
+  serviceAuth:
+    managementMode: external
+    bootstrap:
+      enabled: false
 
 services:
   ui:

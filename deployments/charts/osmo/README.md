@@ -62,16 +62,14 @@ helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
 
 ### Install OSMO
 
-Install the chart defaults with the one-time service-auth overlay. The chart's
-bootstrap Job creates the shared development identity after the new PostgreSQL
-database becomes ready:
+Install the chart defaults. Its bootstrap Job creates the shared development
+identity directly in Kubernetes:
 
 ```bash
 helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --values deployments/charts/osmo/profiles/fresh-install-service-auth.yaml \
   --wait \
   --wait-for-jobs \
   --timeout 20m
@@ -317,7 +315,6 @@ cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
-  --values deployments/charts/osmo/profiles/fresh-install-service-auth.yaml \
   --values self-contained-environment-values.yaml \
   --wait \
   --wait-for-jobs \
@@ -792,16 +789,13 @@ postgresql:
 
 ### Service auth identity
 
-The OSMO JWT signing identity is installation-scoped secret material. Every
-control-plane installation requires a persistent Kubernetes Secret containing
-canonical `AuthenticationConfig` JSON under `authentication-config.json`. The
-chart references and mounts this Secret but never renders its private key into
-Helm values or release state. Runtime services do not read or write
-`service_auth` through PostgreSQL.
+Service auth contains the installation's JWT private key. The chart mounts the
+Secret referenced by `secrets.serviceAuth.existingSecret` into every consumer.
+Quickstart defaults and `self-contained.yaml` create it automatically with a
+Kubernetes-only bootstrap Job.
 
-Set `secrets.serviceAuth.managementMode: external` (the default) when an
-external secret manager owns the referenced Secret. For a fresh installation,
-generate the identity offline before installing the chart:
+Single-plane, split-plane, and existing installations use
+`managementMode: external`. Create their Secret before install:
 
 ```bash
 OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
@@ -816,35 +810,9 @@ rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
 rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
-The generator creates the output with mode `0600`, refuses to overwrite an
-existing file, validates the keypair, and never writes private material to
-stdout. Store and back up the Secret through the installation's normal secret
-management system.
-
-Set `managementMode: osmo` and `bootstrap.enabled: true` when the chart should
-create the referenced Secret during a fresh installation. The ordinary,
-GitOps-compatible bootstrap Job waits for PostgreSQL, takes a database advisory
-lock, and verifies that the `users`, `ueks`, and `configs` tables are absent or
-empty before generating and atomically creating the Secret. It has only `get`
-permission on the named target Secret plus namespace-scoped `create`; it cannot
-update, overwrite, or delete Secrets. A retry accepts only a valid Secret whose
-ownership annotation and identity digest match the same release. The Job never
-logs or renders private material.
-
-Fresh bootstrap is not a recovery or adoption path. It fails against an
-existing OSMO database; use the migration procedure below for an older
-DB-backed identity, or restore the matching externally managed Secret. After a
-successful bootstrap, set `bootstrap.enabled: false` to remove the Job and its
-temporary Secret-creation RBAC. If a failed GitOps attempt must be retried after
-correcting configuration, increment the non-secret `bootstrap.attempt` value to
-produce a new immutable Job name.
-
-The packaged `profiles/fresh-install-service-auth.yaml` overlay enables those
-two values explicitly. Layer it only into the first install of a new database;
-do not carry it into upgrades, recovery, or an installation that already has a
-service-auth Secret. The established quickstart, self-contained, and split
-profiles remain external/bootstrap-off so upgrading an existing installation
-cannot accidentally opt into Secret adoption.
+Quickstart and self-contained are install-only profiles. After bootstrap,
+disable `bootstrap.enabled` to remove its Job and RBAC. Use the migration below
+for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
 window that prevents the old configuration API from changing `service_auth`.
