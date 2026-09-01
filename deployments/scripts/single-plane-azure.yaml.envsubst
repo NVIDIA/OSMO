@@ -9,7 +9,6 @@ imagePullSecrets: ${IMAGE_PULL_SECRETS}
 runtimeImage:
   repository: "${OSMO_IMAGE_REPOSITORY}"
   tag: "${OSMO_IMAGE_TAG}"
-  pullSecret: "${OSMO_IMAGE_PULL_SECRET}"
 # This example reaches the ClusterIP gateway only through a local port-forward,
 # so it permits the development identity. Do not reuse this setting for an
 # externally reachable gateway.
@@ -30,12 +29,14 @@ services:
   api:
     image:
       repository: "${OSMO_IMAGE_REPOSITORY}/service"
+    extraVolumeMounts: ${API_IMAGE_PULL_VOLUME_MOUNTS}
     serviceAccount:
       annotations:
         azure.workload.identity/client-id: "${WORKLOAD_IDENTITY_CLIENT_ID}"
     pod:
       labels:
         azure.workload.identity/use: "true"
+      extraVolumes: ${API_IMAGE_PULL_VOLUMES}
   worker:
     image:
       repository: "${OSMO_IMAGE_REPOSITORY}/worker"
@@ -92,6 +93,8 @@ secrets:
   objectStorage:
     existingSecret: ''
 configuration:
+  workflow:
+    backend_images: ${BACKEND_IMAGES}
   podTemplates:
     azure_workload_identity:
       metadata:

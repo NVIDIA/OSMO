@@ -226,7 +226,11 @@ for image in agent backend-listener backend-worker delayed-job-monitor logger ro
     assert_contains "$values_file" "repository: \"nvstaging/osmo/$image\""
 done
 assert_contains "$values_file" 'tag: "123"'
-assert_contains "$values_file" 'pullSecret: "456"'
+assert_not_contains "$values_file" 'pullSecret:'
+assert_contains "$values_file" 'backend_images:'
+assert_contains "$values_file" '"secretName":"456"'
+assert_contains "$values_file" '"secretKey":".dockerconfigjson"'
+assert_contains "$values_file" '"mountPath":"/etc/osmo/secrets/456"'
 assert_contains "$values_file" 'name":"456"'
 assert_not_contains "$values_file" postgres-secret-sentinel
 assert_not_contains "$values_file" redis-secret-sentinel
@@ -303,6 +307,17 @@ export BACKEND_TOKEN_STATE=existing
 assert_contains "$command_log" 'kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output name'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
 assert_not_contains "$command_log" 'openssl rand -base64 32'
+
+: >"$command_log"
+rm -f "$PORT_FORWARD_READY"
+unset OSMO_IMAGE_PULL_SECRET OSMO_IMAGE_PULL_CONFIG
+export BACKEND_TOKEN_STATE=existing
+"$script" >"$test_directory/no-pull-secret-output.log" 2>&1
+assert_contains "$values_file" 'imagePullSecrets: []'
+assert_contains "$values_file" 'extraVolumeMounts: []'
+assert_contains "$values_file" 'extraVolumes: []'
+assert_contains "$values_file" 'backend_images: {}'
+assert_not_contains "$command_log" 'kubectl create secret generic 456'
 
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"

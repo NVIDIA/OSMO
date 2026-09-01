@@ -112,14 +112,24 @@ SECRETS_DIR=
 
 # Prepare the site values file.
 IMAGE_PULL_SECRETS='[]'
+API_IMAGE_PULL_VOLUME_MOUNTS='[]'
+API_IMAGE_PULL_VOLUMES='[]'
+BACKEND_IMAGES='{}'
 if [[ -n "$OSMO_IMAGE_PULL_SECRET" ]]; then
     IMAGE_PULL_SECRETS="$(jq --compact-output --null-input --arg name "$OSMO_IMAGE_PULL_SECRET" '[{name:$name}]')"
+    API_IMAGE_PULL_VOLUME_MOUNTS="$(jq --compact-output --null-input --arg name "$OSMO_IMAGE_PULL_SECRET" \
+        '[{name:"runtime-image-pull-secret",mountPath:("/etc/osmo/secrets/"+$name),readOnly:true}]')"
+    API_IMAGE_PULL_VOLUMES="$(jq --compact-output --null-input --arg name "$OSMO_IMAGE_PULL_SECRET" \
+        '[{name:"runtime-image-pull-secret",secret:{secretName:$name}}]')"
+    BACKEND_IMAGES="$(jq --compact-output --null-input --arg name "$OSMO_IMAGE_PULL_SECRET" \
+        '{credential:{secretName:$name,secretKey:".dockerconfigjson"}}')"
 fi
 export POSTGRES_HOST POSTGRES_DATABASE POSTGRES_USERNAME REDIS_HOST REDIS_PORT
 export STORAGE_ACCOUNT STORAGE_CONTAINER WORKLOAD_IDENTITY_CLIENT_ID
-export OSMO_IMAGE_REPOSITORY OSMO_IMAGE_TAG OSMO_IMAGE_PULL_SECRET IMAGE_PULL_SECRETS
+export OSMO_IMAGE_REPOSITORY OSMO_IMAGE_TAG IMAGE_PULL_SECRETS
+export API_IMAGE_PULL_VOLUME_MOUNTS API_IMAGE_PULL_VOLUMES BACKEND_IMAGES
 # shellcheck disable=SC2016 # envsubst requires literal variable names in its allowlist.
-envsubst '${POSTGRES_HOST} ${POSTGRES_DATABASE} ${POSTGRES_USERNAME} ${REDIS_HOST} ${REDIS_PORT} ${STORAGE_ACCOUNT} ${STORAGE_CONTAINER} ${WORKLOAD_IDENTITY_CLIENT_ID} ${OSMO_IMAGE_REPOSITORY} ${OSMO_IMAGE_TAG} ${OSMO_IMAGE_PULL_SECRET} ${IMAGE_PULL_SECRETS}' \
+envsubst '${POSTGRES_HOST} ${POSTGRES_DATABASE} ${POSTGRES_USERNAME} ${REDIS_HOST} ${REDIS_PORT} ${STORAGE_ACCOUNT} ${STORAGE_CONTAINER} ${WORKLOAD_IDENTITY_CLIENT_ID} ${OSMO_IMAGE_REPOSITORY} ${OSMO_IMAGE_TAG} ${IMAGE_PULL_SECRETS} ${API_IMAGE_PULL_VOLUME_MOUNTS} ${API_IMAGE_PULL_VOLUMES} ${BACKEND_IMAGES}' \
     <"$AZURE_VALUES_TEMPLATE" >"$AZURE_VALUES"
 
 # Install OSMO.
