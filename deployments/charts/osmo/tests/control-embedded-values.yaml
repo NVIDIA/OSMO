@@ -1,9 +1,21 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: false
+
+fullnameOverride: ''
+
 embeddedDependencies:
   postgresql:
     enabled: true
+  valkey:
+    enabled: false
+  objectStorage:
+    enabled: false
 
 externalUrl: http://osmo-gateway
 
@@ -22,17 +34,56 @@ externalDependencies:
       logs: osmo-logs
       apps: osmo-apps
 
+postgresql:
+  fullnameOverride: null
+  cluster:
+    instances: 3
+    storage:
+      size: 20Gi
+    affinity:
+      podAntiAffinityType: required
+    enablePDB: true
+    postgresql:
+      synchronous:
+        method: any
+        number: 1
+        dataDurability: required
+
 secrets:
   postgresql:
     existingSecret: ''
   valkey:
+    generate: false
     existingSecret: external-control-secrets
   objectStorage:
+    generate: false
     existingSecret: external-control-secrets
+  backendApiTokens:
+    enabled: false
+    credentials: []
   masterEncryptionKey:
+    managementMode: external
     existingSecret:
       name: external-control-secrets
       key: mek.yaml
+    bootstrap:
+      enabled: false
+
+configuration:
+  enabled: false
+
+gateway:
+  envoy:
+    defaultIdentity:
+      user: ''
+      roles: ''
+      allowedPools: ''
+  oauth2Proxy:
+    enabled: true
+  authz:
+    enabled: true
+  tls:
+    enabled: true
 
 services:
   api:

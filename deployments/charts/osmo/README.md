@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 
 The `osmo` chart is the unified OSMO deployment entry point.
 
-See the [profile matrix](profiles/README.md) for which values files are directly
-installable profiles and which are base overlays requiring environment input.
+The chart defaults are the development quickstart. See the
+[profile matrix](profiles/README.md) for production and split-plane overlays.
 
 The chart supports control-only, compute-only, and converged releases. It can
 render backend listener and worker resources directly with the control services,
@@ -21,9 +21,9 @@ installations, but it is not a dependency of this chart.
 
 ## Quick start
 
-The `quickstart.yaml` profile is a development-only path to trying the complete
-OSMO browser, CLI, API, and CPU workflow experience in one converged release.
-It installs:
+The default values are a development-only path to trying the complete OSMO
+browser, CLI, API, and CPU workflow experience in one converged release. They
+install:
 
 - the Envoy gateway and browser UI;
 - the API, worker, router, logger, agent, and delayed-job monitor;
@@ -64,7 +64,7 @@ helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
 ### Install OSMO
 
 Generate the shared development service-auth identity, create its Secret, then
-install the unified chart with the single quick-start values file:
+install the unified chart without a values file or required `--set` values:
 
 ```bash
 OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
@@ -83,8 +83,6 @@ helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --values deployments/charts/osmo/profiles/quickstart.yaml \
-  --set-string compute.backendName=default \
   --wait \
   --wait-for-jobs \
   --timeout 20m
@@ -186,13 +184,14 @@ kubectl --context kind-osmo delete namespace osmo \
 
 ### Capacity and limitations
 
-The profile runs one replica of every required OSMO service, including the UI
-and delayed-job monitor, and uses persistent volumes for PostgreSQL (1 GiB),
-Valkey (512 MiB), and RustFS (1 GiB). PostgreSQL requests 1 CPU and 2 GiB, while
-Valkey and RustFS each request 500 millicores and 1 GiB. The nine OSMO services
-request 100 millicores and 256 MiB each, and the gateway requests 50 millicores
-and 64 MiB. Those long-running pods reserve approximately 2.95 CPU and 6.4 GiB
-before Kubernetes, KAI, and CloudNativePG operator overhead.
+The default quickstart runs one replica of every required OSMO service,
+including the UI and delayed-job monitor, and uses persistent volumes for
+PostgreSQL (1 GiB), Valkey (512 MiB), and RustFS (1 GiB).
+PostgreSQL requests 1 CPU and 2 GiB, while Valkey and RustFS each request 500
+millicores and 1 GiB. The nine OSMO services request 100 millicores and 256 MiB
+each, and the gateway requests 50 millicores and 64 MiB. Those long-running pods
+reserve approximately 2.95 CPU and 6.4 GiB before Kubernetes, KAI, and
+CloudNativePG operator overhead.
 
 The canonical hello-world pod additionally requests 1 CPU, 1 GiB of memory, and
 1 GiB of ephemeral storage for both its user container and its `osmo-ctrl`
@@ -387,7 +386,8 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 25m
 ```
 
-The defaults create three PostgreSQL 16 instances with one 20 Gi
+The split-plane control profile uses production-oriented settings that create
+three PostgreSQL 16 instances with one 20 Gi
 `ReadWriteOnce` PVC per instance, required hostname anti-affinity, a
 PodDisruptionBudget, and synchronous replication to one standby. A generated
 application Secret is wired into every OSMO PostgreSQL client automatically.
@@ -451,7 +451,8 @@ secrets:
       key: mek.yaml
 ```
 
-Keep `embeddedDependencies.postgresql.enabled: false` (the default), then
+Keep `embeddedDependencies.postgresql.enabled: false` as set by the
+split-plane control profile, then
 install the chart by layering the environment values after the profile:
 
 ```bash
@@ -509,8 +510,8 @@ used by clients and control-plane configuration.
 
 ## Embedded Valkey
 
-Embedded Valkey is disabled by default. Enable it with retained generated
-credentials as follows:
+The quickstart defaults enable a small embedded Valkey. A profile that disables
+it can enable it with retained generated credentials as follows:
 
 ```yaml
 embeddedDependencies:
@@ -527,7 +528,9 @@ secrets:
     existingSecret: ''
 ```
 
-The generated Secret and 8 GiB `ReadWriteOnce` PVC are retained on uninstall.
+The generated Secret and configured `ReadWriteOnce` PVC are retained on
+uninstall. The quickstart uses 512 MiB; the split-plane control profile uses
+8 GiB when embedded Valkey is enabled there.
 Back up both resources and restore the original Secret before reinstalling or
 recovering the PVC. To supply an existing Secret instead, disable
 `secrets.valkey.generate` and set both `secrets.valkey.existingSecret` and
@@ -579,12 +582,12 @@ rustfs:
     existingSecret: osmo-rustfs-credentials
 ```
 
-The chart deploys a standalone RustFS instance with a retained 10 GiB
-`ReadWriteOnce` PVC. A regular Job waits for RustFS and creates the configured
-workflow, log, and app buckets when they are absent. Use `--wait-for-jobs` with
-Helm so an install or upgrade does not return before bucket bootstrap succeeds.
-OSMO is configured with the RustFS endpoint, buckets, and generated credentials
-automatically.
+The split-plane control profile deploys a standalone RustFS instance with a
+retained 10 GiB `ReadWriteOnce` PVC when embedded object storage is enabled.
+A regular Job waits for RustFS and creates the configured workflow, log, and
+app buckets when they are absent. Use `--wait-for-jobs` with Helm so an install
+or upgrade does not return before bucket bootstrap succeeds. OSMO is configured
+with the RustFS endpoint, buckets, and generated credentials automatically.
 
 The generated `osmo-rustfs-credentials` Secret is retained on uninstall and
 reused on upgrades. To provide an existing Secret, disable

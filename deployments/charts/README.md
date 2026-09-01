@@ -28,15 +28,17 @@ the unified chart.
 
 For an existing development cluster with KAI Scheduler, the CloudNativePG
 operator, and a default dynamic StorageClass, install the complete browser,
-CLI, API, and CPU workflow experience with one unified OSMO release:
+CLI, API, and CPU workflow experience with the chart defaults:
+
+Before running Helm, generate the shared service-auth identity and create the
+required `osmo-service-auth` Secret by following the
+[`osmo` installation steps](osmo/README.md#install-osmo).
 
 ```bash
 helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --values deployments/charts/osmo/profiles/quickstart.yaml \
-  --set-string compute.backendName=default \
   --wait \
   --wait-for-jobs \
   --timeout 20m
@@ -54,15 +56,16 @@ helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-The profile deploys the UI, gateway, control and compute planes, a CloudNativePG
-Cluster, persistent Valkey, and persistent RustFS. It generates development
-credentials, creates the workflow/log/app buckets, and connects the backend
-without a manual Secret copy. The UI and API are exposed through gateway
-NodePort `30080`.
+The default values deploy the UI, gateway, control and compute planes, a
+CloudNativePG Cluster, persistent Valkey, and persistent RustFS. They generate
+development credentials, create the workflow/log/app buckets, and connect the
+backend without a manual Secret copy. The UI and API are exposed through
+gateway NodePort `30080`.
 
 See the [`osmo` quick-start guide](osmo/README.md#quick-start) for prerequisite
 installation, browser and CLI access, a hello-world workflow, capacity,
-troubleshooting, cleanup, and the profile's non-production limitations.
+troubleshooting, cleanup, and the default quickstart's non-production
+limitations.
 
 ## Self-contained production
 

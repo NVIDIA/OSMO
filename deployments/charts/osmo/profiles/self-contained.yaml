@@ -21,6 +21,9 @@ fullnameOverride: osmo
 # Pin production installs to the chart application version.
 imageTag: ''
 
+# Production installations must supply their public URL explicitly.
+externalUrl: ''
+
 embeddedDependencies:
   postgresql:
     enabled: true
@@ -65,8 +68,117 @@ secrets:
       name: osmo-service-auth
       key: authentication-config.json
 
+# Production service sizing and placement.
+services:
+  ui:
+    resources:
+      requests:
+        cpu: null
+        memory: null
+      limits:
+        memory: null
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+  api:
+    replicas: 3
+    resources:
+      requests:
+        cpu: null
+        memory: null
+      limits:
+        memory: null
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+  worker:
+    replicas: 2
+    resources:
+      requests:
+        cpu: null
+        memory: null
+      limits:
+        memory: null
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+  router:
+    replicas: 3
+    resources:
+      requests:
+        cpu: null
+        memory: null
+      limits:
+        memory: null
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+  logger:
+    replicas: 3
+    resources:
+      requests:
+        cpu: '1'
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+  agent:
+    resources:
+      requests:
+        cpu: 500m
+        memory: 500Mi
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+  delayedJobMonitor:
+    resources:
+      requests:
+        cpu: null
+        memory: null
+      limits:
+        memory: null
+  backendListener:
+    resources:
+      requests:
+        cpu: '1'
+        memory: 2Gi
+      limits:
+        memory: 2Gi
+    pod:
+      topologySpreadConstraints: null
+  backendWorker:
+    resources:
+      requests:
+        cpu: '1'
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints: null
+
 gateway:
   envoy:
+    replicas: 2
+    defaultIdentity:
+      user: ''
+      roles: ''
+      allowedPools: ''
     jwt:
       providers:
       # Keep OSMO-issued access tokens valid for in-cluster compute services.
@@ -79,12 +191,20 @@ gateway:
     service:
       # Put the in-cluster gateway behind an operator-managed TLS edge.
       type: ClusterIP
+    resources:
+      requests:
+        cpu: 200m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
   oauth2Proxy:
     enabled: true
   authz:
     enabled: true
   rateLimit:
     enabled: false
+  tls:
+    enabled: true
   # Prevent in-cluster clients from bypassing Envoy to reach an upstream
   # service. Envoy strips client-supplied identity headers and applies OAuth2
   # authentication plus OSMO semantic authorization.
@@ -109,8 +229,45 @@ gateway:
 
 configuration:
   enabled: true
+  podTemplates:
+    default_user:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              nvidia.com/gpu: '{{USER_GPU}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+            requests:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              nvidia.com/gpu: '{{USER_GPU}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+  pools:
+    default:
+      common_pod_template:
+      - default_ctrl
+      - default_user
+
+postgresql:
+  fullnameOverride: null
+  cluster:
+    instances: 3
+    storage:
+      size: 20Gi
+    affinity:
+      podAntiAffinityType: required
+    enablePDB: true
+    postgresql:
+      synchronous:
+        method: any
+        number: 1
+        dataDurability: required
 
 valkey:
+  fullnameOverride: null
   replica:
     enabled: true
     replicas: 2
@@ -119,6 +276,7 @@ valkey:
     enabled: true
 
 rustfs:
+  fullnameOverride: null
   replicaCount: 4
   drivesPerNode: 1
   localEndpointHost:

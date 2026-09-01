@@ -7,6 +7,9 @@ planes:
   compute:
     enabled: false
 
+fullnameOverride: ''
+externalUrl: ''
+
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -20,12 +23,47 @@ configuration:
   workflow:
     # Omit an optional workflow label policy in this minimal external profile.
     labels_config: null
+  podTemplates:
+    default_user:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              nvidia.com/gpu: '{{USER_GPU}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+            requests:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
+              nvidia.com/gpu: '{{USER_GPU}}'
+              ephemeral-storage: '{{USER_STORAGE}}'
+  pools:
+    default:
+      common_pod_template:
+      - default_ctrl
+      - default_user
 
 services:
   mcp:
     enabled: false
   ui:
     enabled: true
+    resources:
+      requests:
+        cpu: null
+        memory: null
+      limits:
+        memory: null
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
   worker:
     autoscaling:
       enabled: true
@@ -33,12 +71,22 @@ services:
       requests:
         cpu: 500m
         memory: 512Mi
+      limits:
+        memory: null
     podDisruptionBudget:
       enabled: true
       labels: {}
       annotations: {}
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
   api:
     autoscaling:
       enabled: true
@@ -46,12 +94,19 @@ services:
       requests:
         cpu: 500m
         memory: 512Mi
+      limits:
+        memory: null
     podDisruptionBudget:
       enabled: true
       labels: {}
       annotations: {}
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
   router:
     autoscaling:
       enabled: true
@@ -59,12 +114,19 @@ services:
       requests:
         cpu: 200m
         memory: 256Mi
+      limits:
+        memory: null
     podDisruptionBudget:
       enabled: true
       labels: {}
       annotations: {}
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
   logger:
     autoscaling:
       enabled: true
@@ -74,9 +136,34 @@ services:
       annotations: {}
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
+    resources:
+      requests:
+        cpu: '1'
+        memory: 1Gi
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
   agent:
     autoscaling:
       enabled: true
+    resources:
+      requests:
+        cpu: 500m
+        memory: 500Mi
+    pod:
+      topologySpreadConstraints:
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+  delayedJobMonitor:
+    resources:
+      requests:
+        cpu: null
+        memory: null
+      limits:
+        memory: null
 
 gateway:
   envoy:
@@ -93,12 +180,24 @@ gateway:
       # Keep the unauthenticated in-cluster gateway behind an operator-managed,
       # authenticating edge rather than provisioning a public load balancer.
       type: ClusterIP
+    defaultIdentity:
+      user: ''
+      roles: ''
+      allowedPools: ''
+    resources:
+      requests:
+        cpu: 200m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
   oauth2Proxy:
     enabled: false
   authz:
     enabled: false
   rateLimit:
     enabled: false
+  tls:
+    enabled: true
 
 monitoring:
   podMonitor:
@@ -107,14 +206,55 @@ monitoring:
     compute:
       enabled: false
 
+postgresql:
+  fullnameOverride: null
+  cluster:
+    instances: 3
+    storage:
+      size: 20Gi
+    affinity:
+      podAntiAffinityType: required
+    enablePDB: true
+    postgresql:
+      synchronous:
+        method: any
+        number: 1
+        dataDurability: required
+
+valkey:
+  fullnameOverride: null
+  dataStorage:
+    requestedSize: 8Gi
+  replica:
+    enabled: null
+    minReplicasToWrite: 1
+  podDisruptionBudget:
+    enabled: true
+
+rustfs:
+  fullnameOverride: null
+  affinity:
+    podAntiAffinity:
+      enabled: null
+  storageclass:
+    dataStorageSize: 10Gi
+
 secrets:
   postgresql:
     existingSecret: osmo-postgresql
   valkey:
+    generate: false
     existingSecret: osmo-valkey
   objectStorage:
+    generate: false
     existingSecret: osmo-object-storage
+  backendApiTokens:
+    enabled: false
+    credentials: []
   masterEncryptionKey:
+    managementMode: external
     existingSecret:
       name: osmo-master-encryption-key
       key: mek.yaml
+    bootstrap:
+      enabled: false

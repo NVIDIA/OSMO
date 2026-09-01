@@ -496,18 +496,19 @@ test_control_umbrella() {
         fail "expected a split compute release without a backend name to fail"
     fi
     require_contains "$TEST_DIRECTORY/missing-split-backend-name.out" \
-        "compute.backendName is required when planes.compute.enabled=true"
+        "compute.backendName is required for compute-only installations"
 
-    if helm_template missing-converged-backend-name "$charts_copy/osmo" \
-            --api-versions postgresql.cnpg.io/v1 \
-            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
-            --set externalUrl=https://osmo.example.com \
-            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
-            >"$TEST_DIRECTORY/missing-converged-backend-name.out" 2>&1; then
-        fail "expected a converged release without a backend name to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/missing-converged-backend-name.out" \
-        "compute.backendName is required when planes.compute.enabled=true"
+    helm_template converged-default-backend "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        --set externalUrl=https://osmo.example.com \
+        --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+        >"$TEST_DIRECTORY/converged-default-backend.yaml"
+    resource_document "$TEST_DIRECTORY/converged-default-backend.yaml" Deployment \
+        osmo-backend-listener \
+        >"$TEST_DIRECTORY/converged-default-backend-listener.yaml"
+    require_contains "$TEST_DIRECTORY/converged-default-backend-listener.yaml" \
+        '- "default"'
 
     helm_template_with_backend split-compute "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -849,10 +850,9 @@ test_control_umbrella() {
         "scheme: HTTPS"
 
     local quickstart_runtime_tag=quickstart-test
-    helm_template_with_backend quick-start-runtime "$charts_copy/osmo" \
+    helm_template quick-start-runtime "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
         --set-string imageRegistry=nvcr.io \
         --set-string imageRepository=nvstaging/osmo \
         --set-string imageTag="$quickstart_runtime_tag" \
@@ -877,10 +877,9 @@ test_control_umbrella() {
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
         "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
 
-    helm_template_with_backend quick-start "$charts_copy/osmo" \
+    helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
-        -f "$charts_copy/osmo/profiles/quickstart.yaml" \
         >"$TEST_DIRECTORY/quickstart.yaml"
     local quickstart_deployment
     for quickstart_deployment in \
@@ -949,7 +948,7 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: Ingress"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: HTTPRoute"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind: Namespace"
-    require_contains "$TEST_DIRECTORY/quickstart.yaml" "OSMO_LOGIN_DEV"
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "OSMO_LOGIN_DEV"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" "http://osmo-gateway"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
         "secretName: osmo-backend-token"
@@ -970,9 +969,6 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "kind-osmo"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "/home/"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "currentMek:"
-    require_contains "$charts_copy/osmo/profiles/README.md" "quickstart.yaml"
-    require_contains "$charts_copy/osmo/README.md" \
-        "deployments/charts/osmo/profiles/quickstart.yaml"
     require_contains "$charts_copy/osmo/README.md" \
         "helm --kube-context kind-osmo upgrade --install osmo"
     require_occurrences "$charts_copy/osmo/README.md" \
@@ -4331,6 +4327,9 @@ EOF
 
     helm_template image-defaults "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set gateway.tls.enabled=true \
         --set secrets.oauthClientSecret.existingSecret=oauth-client \
         --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-image-defaults.yaml"
@@ -4357,6 +4356,9 @@ EOF
 
     helm_template image-mirror "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set gateway.tls.enabled=true \
         --set secrets.oauthClientSecret.existingSecret=oauth-client \
         --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         --set imageRegistry=mirror.example.com \
@@ -4526,6 +4528,7 @@ EOF
 
     helm_template_with_backend compute-only "$charts_copy/osmo" \
         --namespace compute-system \
+        -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
         --set planes.control.enabled=false \
         --set planes.compute.enabled=true \
         --set externalUrl=https://osmo.example.com \
