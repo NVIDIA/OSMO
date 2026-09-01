@@ -18,7 +18,7 @@ fail() {
     exit 1
 }
 
-for required_command in awk base64 grep helm tar; do
+for required_command in awk base64 envsubst grep helm tar; do
     command -v "$required_command" >/dev/null || \
         fail "required command not found: $required_command"
 done
@@ -1082,6 +1082,63 @@ test_control_umbrella() {
         "osmo-object-storage"
     require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
         "osmo-backend-token"
+
+    local generated_azure_values="$TEST_DIRECTORY/generated-single-plane-azure-values.yaml"
+    env \
+        POSTGRES_HOST=azure-postgresql.internal \
+        POSTGRES_DATABASE=osmo \
+        POSTGRES_USERNAME=postgres \
+        REDIS_HOST=azure-redis.internal \
+        REDIS_PORT=10000 \
+        STORAGE_ACCOUNT=osmoazure \
+        STORAGE_CONTAINER=osmo-workflows \
+        WORKLOAD_IDENTITY_CLIENT_ID=single-plane-test-client-id \
+        OSMO_IMAGE_REPOSITORY=nvstaging/osmo \
+        OSMO_IMAGE_TAG=test-tag \
+        OSMO_IMAGE_PULL_SECRET= \
+        IMAGE_PULL_SECRETS='[]' \
+        envsubst \
+        <"$CHARTS_ROOT/../scripts/single-plane-azure.yaml.envsubst" \
+        >"$generated_azure_values"
+    helm_template generated-single-plane-azure "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$generated_azure_values" \
+        >"$TEST_DIRECTORY/generated-single-plane-azure.yaml"
+    resource_document "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        ConfigMap "osmo-gateway-envoy-config" \
+        >"$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "allow_missing:"
+    require_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-user"
+    require_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        'value: "testuser"'
+    require_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-roles"
+    require_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        'value: "osmo-admin"'
+    require_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-allowed-pools"
+    require_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        'value: "default"'
+    resource_document "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        Service "osmo-gateway" \
+        >"$TEST_DIRECTORY/generated-single-plane-azure-gateway.yaml"
+    require_contains "$TEST_DIRECTORY/generated-single-plane-azure-gateway.yaml" \
+        "type: ClusterIP"
+    require_not_contains "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        "kind: HTTPRoute"
 
     helm_template single-plane-s3 "$charts_copy/osmo" \
         --namespace osmo \

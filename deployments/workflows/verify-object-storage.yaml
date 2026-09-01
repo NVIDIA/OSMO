@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Storage smoke test. Succeeds iff two dependent tasks can round-trip their
+# intermediate data through the configured object-storage backend.
+workflow:
+  name: verify-object-storage
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 5m
+  resources:
+    tiny:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: produce
+    image: alpine:3.20
+    resource: tiny
+    command: ["sh", "-c"]
+    args:
+    - |
+      set -e
+      mkdir -p {{output}}
+      echo "OSMO object storage round trip" > {{output}}/marker.txt
+      echo "Object-storage marker uploaded"
+  - name: consume
+    image: alpine:3.20
+    resource: tiny
+    command: ["sh", "-c"]
+    args:
+    - |
+      set -e
+      test "$(cat {{input:0}}/marker.txt)" = "OSMO object storage round trip"
+      mkdir -p {{output}}
+      cp {{input:0}}/marker.txt {{output}}/verified.txt
+      echo "Object storage round trip verified"
+    inputs:
+    - task: produce

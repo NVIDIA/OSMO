@@ -43,3 +43,29 @@ sh_test(
         "//deployments:values/service.yaml",
     ],
 )
+
+sh_test(
+    name = "test_deploy_osmo_umbrella_single_plane",
+    size = "small",
+    srcs = ["test_deploy_osmo_umbrella_single_plane.sh"],
+    data = [
+        "//deployments/charts:osmo",
+        "//deployments:scripts/deploy-osmo-umbrella-single-plane.sh",
+        "//deployments:scripts/single-plane-azure.tfvars",
+        "//deployments:scripts/single-plane-azure.yaml.envsubst",
+        "//deployments:scripts/verify.sh",
+        "//deployments:terraform/azure/example/example.tf",
+    ],
+)
+
+sh_test(
+    name = "test_verify",
+    size = "small",
+    srcs = ["test_verify.sh"],
+    data = [
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/verify.sh",
+        "//deployments:workflows/verify-hello.yaml",
+        "//deployments:workflows/verify-object-storage.yaml",
+    ],
+)

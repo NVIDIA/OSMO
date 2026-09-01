@@ -53,7 +53,9 @@ The script orchestrates these phases:
 3. **Storage configuration**: K8s Secrets + Helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`
 4. **Idempotent backend bootstrap Secret provisioning** without an OSMO API login
 5. **OSMO Helm install**: single `service` release (the 6.3 chart bundles router + UI) + `backend-operator` release. Static base values come from [values/service.yaml](../../deployments/values/service.yaml) and [values/backend-operator.yaml](../../deployments/values/backend-operator.yaml); per-cluster overrides ride on `--set`; auto-detected fragments (`pod-monitor-on.yaml` when prometheus-operator CRDs exist, `gpu-pool.yaml` when GPU nodes exist) and the storage fragment are layered with additional `-f` flags.
-6. **Smoke tests**: `verify-hello.yaml` (CPU) + `verify-gpu.yaml` (GPU; skipped under `--no-gpu`)
+6. **Smoke tests**: `verify-hello.yaml` (CPU scheduling) +
+   `verify-object-storage.yaml` (object-storage round trip) +
+   `verify-gpu.yaml` (GPU; skipped under `--no-gpu`)
 7. **Persistent port-forward watchdogs**: `osmo-gateway:9000` (gateway-aware target — falls back to `osmo-service` when the gateway is disabled) and `osmo-ui:3000`
 
 ## Picking a provider
@@ -262,5 +264,5 @@ error and stops. Reconcile both Secret copies to the same token before retrying.
   `configure-storage.sh` (+ `storage/{minio,azure-blob,s3,byo}.sh`),
   `port-forward.sh`, `verify.sh`, `microk8s/install.sh`
 - Workflows under [workflows/](../../deployments/workflows/):
-  `verify-hello.yaml`, `verify-gpu.yaml`
+  `verify-hello.yaml`, `verify-object-storage.yaml`, `verify-gpu.yaml`
 - Documentation: https://nvidia.github.io/OSMO/main/deployment_guide/

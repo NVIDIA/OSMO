@@ -132,6 +132,12 @@ output "postgres_admin_username" {
   sensitive   = true
 }
 
+output "postgres_password" {
+  description = "Generated PostgreSQL administrator password; omitted when postgres_password is supplied"
+  value       = var.postgres_password_generation_enabled ? local.postgres_password : null
+  sensitive   = true
+}
+
 # Azure Managed Redis Outputs (single resource with nested default_database
 # block; access keys + port surface as default_database[0] computed attrs).
 # `redis_cache_*` names preserved for backwards-compat with consumer scripts.
@@ -238,6 +244,21 @@ output "storage_account_key" {
 output "storage_container_name" {
   description = "Name of the OSMO workflow Blob container"
   value       = var.storage_account_enabled ? azurerm_storage_container.osmo_workflows[0].name : ""
+}
+
+output "single_plane_storage_account" {
+  description = "Name of the keyless single-plane workflow Storage Account (empty when disabled)"
+  value       = var.single_plane_workload_identity_enabled ? azapi_resource.single_plane_storage_account[0].name : ""
+}
+
+output "single_plane_storage_container_name" {
+  description = "Name of the single-plane workflow Blob container (empty when disabled)"
+  value       = var.single_plane_workload_identity_enabled ? "osmo-workflows" : ""
+}
+
+output "single_plane_blob_identity_client_id" {
+  description = "Client ID of the single-plane Blob managed identity (empty when disabled)"
+  value       = var.single_plane_workload_identity_enabled ? azurerm_user_assigned_identity.single_plane_blob[0].client_id : ""
 }
 
 # Optional NFS Premium FileStorage account for downstream RWX workload

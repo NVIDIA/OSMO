@@ -18,10 +18,11 @@
 ###############################################################################
 # Post-install smoke tests for OSMO
 #
-# Submits two workflows via `osmo workflow submit` and polls until each reaches
+# Submits three workflows via `osmo workflow submit` and polls until each reaches
 # a terminal state:
-#   - verify-hello.yaml — alpine task, proves scheduling + backend round-trip
-#   - verify-gpu.yaml   — nvidia-smi task, proves the pool has GPU capacity
+#   - verify-hello.yaml          — one alpine task, proves basic scheduling
+#   - verify-object-storage.yaml — two tasks, proves an object-storage round trip
+#   - verify-gpu.yaml            — nvidia-smi task, proves GPU capacity
 #
 # Skips the GPU test if SKIP_GPU=1 (use on CPU-only clusters).
 #
@@ -47,6 +48,7 @@ OSMO_REACHABILITY_TIMEOUT_SECONDS="${OSMO_REACHABILITY_TIMEOUT_SECONDS:-5}"
 # Per-workflow poll timeouts (seconds). Should comfortably exceed each spec's
 # queue_timeout + exec_timeout. Override via env if your cluster needs longer.
 HELLO_POLL_TIMEOUT="${HELLO_POLL_TIMEOUT:-600}"
+OBJECT_STORAGE_POLL_TIMEOUT="${OBJECT_STORAGE_POLL_TIMEOUT:-600}"
 GPU_POLL_TIMEOUT="${GPU_POLL_TIMEOUT:-1500}"
 POLL_INTERVAL="${POLL_INTERVAL:-10}"
 # How long to wait for the backend to report its nodes into $POOL.
@@ -140,6 +142,14 @@ run_workflow() {
             | jq -r '.status // .state // "UNKNOWN"')
         case "$status" in
             COMPLETED)
+                if ! osmo workflow spec "$wf_id" >/dev/null; then
+                    log_error "Failed to fetch completed workflow spec for $wf_id"
+                    return 1
+                fi
+                if ! osmo workflow logs "$wf_id"; then
+                    log_error "Failed to fetch completed workflow logs for $wf_id"
+                    return 1
+                fi
                 log_success "$label: COMPLETED"
                 return 0
                 ;;
@@ -161,6 +171,8 @@ run_workflow() {
 }
 
 run_workflow "$WORKFLOWS_DIR/verify-hello.yaml" "verify-hello" "$HELLO_POLL_TIMEOUT"
+run_workflow "$WORKFLOWS_DIR/verify-object-storage.yaml" "verify-object-storage" \
+    "$OBJECT_STORAGE_POLL_TIMEOUT"
 
 if [[ "${SKIP_GPU:-0}" == "1" ]]; then
     log_warning "SKIP_GPU=1 — skipping GPU smoke test"

@@ -40,6 +40,76 @@ export POSTGRES_DB_NAME=... REDIS_HOST=... REDIS_PORT=... REDIS_PASSWORD=...
 
 Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--destroy`.
 
+## Azure single-plane umbrella deployment
+
+`deploy-osmo-umbrella-single-plane.sh` is a separate, linear Azure example for
+an isolated sandbox. Run it only inside a newly created `azure-sandbox assume`
+subshell. The only required input is `TF_VAR_resource_group_name`, naming the
+existing sandbox resource group. Terraform generates a stable cluster name and
+PostgreSQL password in its state. The script explicitly applies the non-secret
+Terraform settings in `single-plane-azure.tfvars`; `TF_VAR_cluster_name` remains
+an optional override. Install GNU gettext for the script's `envsubst` command
+before running it.
+
+```bash
+~/workspace/azure-sandbox create
+~/workspace/azure-sandbox/azure-sandbox assume <new-sandbox-name>
+export TF_VAR_resource_group_name=<new-sandbox-resource-group>
+./deploy-osmo-umbrella-single-plane.sh
+```
+
+To validate unpublished images, set an OSMO repository prefix and shared tag.
+If that registry requires authentication, provide a pull Secret name and a
+Docker config file. The script creates the Secret after provisioning AKS:
+
+```bash
+export OSMO_IMAGE_REPOSITORY=nvstaging/osmo
+export OSMO_IMAGE_TAG=pr-1345-2232c1e7-amd64
+export OSMO_IMAGE_PULL_SECRET=nvcr-pull
+export OSMO_IMAGE_PULL_CONFIG="$HOME/.docker/config.json"
+export OSMO_IMAGE_PULL_REGISTRY=nvcr.io
+./deploy-osmo-umbrella-single-plane.sh
+```
+
+The repository defaults to `nvidia/osmo`, the tag defaults to `latest`, and
+pull authentication is optional. Setting only `OSMO_IMAGE_PULL_SECRET`
+continues to reference an externally managed Secret. The repository prefix
+applies to every OSMO-owned component and to workflow runtime images;
+third-party prerequisite images keep their chart defaults.
+`OSMO_IMAGE_PULL_REGISTRY` defaults to `nvcr.io` and selects only that entry
+from a Docker config containing credentials for multiple registries.
+
+The script defaults `TF_VAR_node_instance_type` to `Standard_D8s_v3`, leaving
+enough allocatable CPU for the control plane and the representative workflow on
+the same AKS pool. Set that Terraform variable explicitly to choose another VM
+size with equivalent capacity.
+
+The script provisions its AKS, PostgreSQL, Valkey, Azure Storage Account, and
+Blob managed identity with Terraform, then installs KAI Scheduler. Shared Key
+authorization and public Blob access are disabled on the Storage Account. AKS
+Workload Identity authenticates the API, worker, and workflow pods, so the
+script creates no object-storage credential Secret; PostgreSQL, Valkey, and
+backend bootstrap credentials retain their existing Secret flow.
+
+The checked-in `single-plane-azure.yaml.envsubst` template renders to the
+non-secret `${TMPDIR:-/tmp}/single-plane-azure.yaml`. It contains connection
+data, exact `azure://` locations, image selections, and workload-identity
+metadata. The chart base remains
+provider-neutral `deployments/charts/osmo/profiles/single-plane.yaml`, which is
+always layered before the generated overlay. The overlay uses the in-cluster
+`http://osmo-gateway` URL so workflow runtime containers can reach the control
+plane; local operators continue to use the port-forward URL below.
+
+The Helm release runs two MEK transactions: the first installation enables the
+MEK bootstrap hook, and the second upgrade disables it after the generated MEK
+has been retained. The gateway remains `ClusterIP`; the script starts a local
+port-forward at `http://127.0.0.1:9000` instead of configuring ingress. Finally,
+it calls `verify.sh` with `SKIP_GPU=1`, which submits the basic
+`deployments/workflows/verify-hello.yaml` workflow followed by
+`deployments/workflows/verify-object-storage.yaml`. The latter uploads and
+downloads a marker through the configured object store; verification also reads
+each stored workflow specification and successful logs before returning.
+
 ## Deployment Combinations
 
 Three orthogonal axes:
@@ -89,7 +159,7 @@ scripts/
 ├── configure-storage.sh      # 6.3 storage wiring: K8s Secrets + values fragment
 ├── storage/                  # Per-backend storage logic (minio, azure-blob, s3, byo)
 ├── port-forward.sh           # One-shot or watchdog kubectl port-forward
-├── verify.sh                 # End-to-end smoke tests (hello + GPU workflows)
+├── verify.sh                 # End-to-end smoke tests (hello + object storage + GPU)
 ├── azure/terraform.sh        # Azure Terraform driver
 ├── aws/terraform.sh          # AWS Terraform driver
 ├── microk8s/install.sh       # Single-node MicroK8s bootstrap
@@ -99,7 +169,7 @@ scripts/
 Sibling directories under `deployments/`:
 
 ```
-../workflows/        # verify-hello.yaml, verify-gpu.yaml (smoke tests)
+../workflows/        # hello, object-storage, and GPU smoke-test workflows
 ../values/           # static, hand-editable Helm values (see ../values/README.md)
 ../terraform/        # Terraform modules for azure/ + aws/
 ./values/            # auto-generated runtime values; .storage-values.yaml from configure-storage.sh
@@ -124,7 +194,7 @@ When invoked, the entry-point runs these phases in order. Each is idempotent and
    - Optional user values files and simple `--set` overrides are layered last
    - Idempotent Secret-backed backend credential provisioning
    - Waits for pods Running 1/1
-5. **Smoke test** (`verify.sh`) — submits `verify-hello.yaml`, polls until COMPLETED, dumps logs on failure. With GPU nodes, also runs `verify-gpu.yaml`.
+5. **Smoke test** (`verify.sh`) — submits `verify-hello.yaml` and `verify-object-storage.yaml`, polls until COMPLETED, and dumps logs on failure. With GPU nodes, it also runs `verify-gpu.yaml`.
 6. **Watchdog port-forwards** (optional, default on for non-CI invocations) — `port-forward.sh --watchdog` for `osmo-service` (:9000) and `osmo-ui` (:3000).
 
 ## Scripts Overview
@@ -209,7 +279,7 @@ Each is idempotent — safe to invoke on a cluster where the target component al
 | `install-minio.sh` | Bitnami MinIO chart | microk8s `minio` addon or existing `minio` service in `minio-operator` ns |
 | `configure-storage.sh` | 6.3 storage wiring: K8s Secrets + helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`. Dispatcher → `storage/{minio,azure-blob,s3,byo}.sh`. | n/a — backend chosen via `--backend` |
 | `port-forward.sh` | One-shot or `--watchdog` PF, tagged `osmo-pf-watchdog:<svc>` for cleanup with `pkill -f 'osmo-pf-watchdog:'`. Watchdog readiness waits up to `OSMO_PF_HEALTH_TIMEOUT_SECONDS` (default 300). | Reuses live PF if context+namespace match |
-| `verify.sh` | Submits `workflows/verify-hello.yaml` + `verify-gpu.yaml`; polls until terminal state, dumps logs on failure. `SKIP_GPU=1` to skip GPU test. | n/a |
+| `verify.sh` | Submits the hello and object-storage workflows plus `verify-gpu.yaml`; polls until terminal state and dumps logs on failure. `SKIP_GPU=1` skips only the GPU test. | n/a |
 
 ### `microk8s/install.sh`
 
