@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 set -eu
-set -o pipefail
+if (set -o pipefail) 2>/dev/null; then
+    set -o pipefail
+fi
 umask 077
 
 namespace=""
