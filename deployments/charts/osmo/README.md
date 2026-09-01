@@ -792,7 +792,9 @@ postgresql:
 Service auth contains the installation's JWT private key. The chart mounts the
 Secret referenced by `secrets.serviceAuth.existingSecret` into every consumer.
 Quickstart defaults and `self-contained.yaml` create it automatically with a
-Kubernetes-only bootstrap Job.
+Kubernetes-only bootstrap Job. The Job uses the pinned Smallstep CLI image to
+generate the signing key and has create-only access to Secrets; retries only
+preserve an existing Secret after validating its ownership, digest, and key pair.
 
 Single-plane, split-plane, and existing installations use
 `managementMode: external`. Create their Secret before install:

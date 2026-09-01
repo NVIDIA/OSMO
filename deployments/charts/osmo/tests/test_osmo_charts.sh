@@ -907,7 +907,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
         "name: osmo-nvcr-pull"
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
-        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 3
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
 
     helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
@@ -952,7 +952,7 @@ test_control_umbrella() {
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
         "service-auth-bootstrap"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
-        'command: ["service-auth-bootstrap"]'
+        'docker.io/smallstep/step-cli@sha256:474768dd54700088e9480210eaf2c25e3041ed1e8302c7cf211725381cec9f5e'
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
         "object-storage-bootstrap"
     require_not_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
@@ -2332,6 +2332,8 @@ EOF
         "service-auth-bootstrap")
     require_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
         ServiceAccount "$service_auth_bootstrap_name"
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
+        'Apache-2.0apiVersion'
     require_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
         Role "$service_auth_bootstrap_name"
     require_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
@@ -2350,9 +2352,22 @@ EOF
         'verbs: ["create"]'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
         '"update"'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
-        'command: ["service-auth-bootstrap"]'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" '- bootstrap'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'image: "docker.io/smallstep/step-cli@sha256:474768dd54700088e9480210eaf2c25e3041ed1e8302c7cf211725381cec9f5e"'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'imagePullPolicy: "IfNotPresent"'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        '- /bin/sh'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'step crypto jwk create'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'KUBERNETES_API_URL'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        '- --work-directory'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'mountPath: /work'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'medium: Memory'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
         'activeDeadlineSeconds: 900'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
@@ -2363,6 +2378,10 @@ EOF
         'PGSSL'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
         'postgresql-ca'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'service-auth-bootstrap bootstrap'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'nvcr.io/nvidia/osmo/service'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
         'expirationSeconds: 600'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
@@ -2449,12 +2468,12 @@ EOF
     if helm_template invalid-service-auth-bootstrap-policy "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
             -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set-string secrets.serviceAuth.bootstrap.imagePullPolicy=Sometimes \
+            --set-string secrets.serviceAuth.bootstrap.image.pullPolicy=Sometimes \
             >"$TEST_DIRECTORY/invalid-service-auth-bootstrap-policy.out" 2>&1; then
         fail "expected invalid service auth bootstrap imagePullPolicy to fail"
     fi
     require_schema_path "$TEST_DIRECTORY/invalid-service-auth-bootstrap-policy.out" \
-        "secrets.serviceAuth.bootstrap.imagePullPolicy"
+        "secrets.serviceAuth.bootstrap.image.pullPolicy"
 
     helm_template service-auth-migration "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

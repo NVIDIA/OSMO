@@ -23,9 +23,10 @@
       "releaseRevision" .Release.Revision
       "attempt" $serviceAuth.bootstrap.attempt
       "commonLabels" .Values.commonLabels
-      "image" (include "osmo.component.image" (dict "root" . "component" .Values.services.api))
-      "imagePullPolicy" $serviceAuth.bootstrap.imagePullPolicy
+      "image" (include "osmo.image" (dict "root" . "image" $serviceAuth.bootstrap.image "useSharedRegistry" false "useSharedTag" false))
+      "imagePullPolicy" $serviceAuth.bootstrap.image.pullPolicy
       "imagePullSecrets" (include "osmo.component.imagePullSecrets" .)
+      "scriptDigest" (.Files.Get "files/service-auth-bootstrap.sh" | sha256sum)
       "activeDeadlineSeconds" $serviceAuth.bootstrap.activeDeadlineSeconds
       "nodeSelector" $serviceAuth.bootstrap.nodeSelector
       "tolerations" $serviceAuth.bootstrap.tolerations
@@ -34,7 +35,7 @@
       "secretKey" $secretKey -}}
 {{- $hash := toJson $bootstrapInputs | sha256sum | trunc 10 -}}
 {{- $namePrefix := include "osmo.fullname" . | trunc 29 | trimSuffix "-" -}}
-{{- $name := printf "%s-service-auth-bootstrap-%s" $namePrefix $hash -}}
+{{- $name := printf "%s-service-auth-bootstrap-%s" $namePrefix $hash }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -110,6 +111,14 @@ spec:
       restartPolicy: Never
       serviceAccountName: {{ $name }}
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
       {{- with $serviceAuth.bootstrap.nodeSelector }}
       nodeSelector:
@@ -121,11 +130,15 @@ spec:
       {{- end }}
       containers:
       - name: bootstrap-service-auth
-        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.api) }}
-        imagePullPolicy: {{ $serviceAuth.bootstrap.imagePullPolicy | quote }}
-        command: ["service-auth-bootstrap"]
+        image: {{ include "osmo.image" (dict "root" . "image" $serviceAuth.bootstrap.image "useSharedRegistry" false "useSharedTag" false) | quote }}
+        imagePullPolicy: {{ $serviceAuth.bootstrap.image.pullPolicy | quote }}
+        command:
+        - /bin/sh
         args:
-        - bootstrap
+        - -c
+        - |
+{{ .Files.Get "files/service-auth-bootstrap.sh" | nindent 10 }}
+        - service-auth-bootstrap
         - --namespace
         - {{ .Release.Namespace | quote }}
         - --release-name
@@ -134,7 +147,16 @@ spec:
         - {{ $secretName | quote }}
         - --target-key
         - {{ $secretKey | quote }}
+        - --work-directory
+        - /work
+        env:
+        - name: HOME
+          value: /work
+        - name: STEPPATH
+          value: /work/.step
         volumeMounts:
+        - name: work
+          mountPath: /work
         - name: kubernetes-api
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
           readOnly: true
@@ -144,7 +166,8 @@ spec:
             drop: ["ALL"]
           readOnlyRootFilesystem: true
           runAsNonRoot: true
-          runAsUser: 1001
+          runAsUser: 1000
+          runAsGroup: 1000
           seccompProfile:
             type: RuntimeDefault
         {{- with $serviceAuth.bootstrap.resources }}
@@ -152,6 +175,9 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
       volumes:
+      - name: work
+        emptyDir:
+          medium: Memory
       - name: kubernetes-api
         projected:
           sources:

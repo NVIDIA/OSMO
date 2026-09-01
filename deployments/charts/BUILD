@@ -46,6 +46,12 @@ sh_test(
 )
 
 sh_test(
+    name = "osmo_service_auth_bootstrap_test",
+    srcs = ["osmo/tests/test_service_auth_bootstrap.sh"],
+    data = ["osmo/files/service-auth-bootstrap.sh"],
+)
+
+sh_test(
     name = "osmo_object_storage_bootstrap_test",
     srcs = ["osmo/tests/test_object_storage_bootstrap.sh"],
     data = ["osmo/files/object-storage-bootstrap.sh"],

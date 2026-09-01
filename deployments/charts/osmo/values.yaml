@@ -346,7 +346,14 @@ secrets:
       enabled: true
       # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
-      imagePullPolicy: IfNotPresent
+      # Smallstep supplies the JWK generator, jq, curl, and shell needed by the
+      # one-time Job without pulling the OSMO service runtime.
+      image:
+        registry: docker.io
+        repository: smallstep/step-cli
+        tag: 0.30.6
+        digest: sha256:474768dd54700088e9480210eaf2c25e3041ed1e8302c7cf211725381cec9f5e
+        pullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
       nodeSelector: {}
       tolerations: []
