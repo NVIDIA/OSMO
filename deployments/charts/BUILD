@@ -48,7 +48,10 @@ sh_test(
 sh_test(
     name = "osmo_service_auth_bootstrap_test",
     srcs = ["osmo/tests/test_service_auth_bootstrap.sh"],
-    data = ["osmo/files/service-auth-bootstrap.sh"],
+    data = [
+        "osmo/files/service-auth-bootstrap.sh",
+        "@@aspect_bazel_lib++toolchains+jq_toolchains//:resolved_toolchain",
+    ],
 )
 
 sh_test(

@@ -7,6 +7,12 @@ set -euo pipefail
 CHART_DIRECTORY=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 if [[ -n "${TEST_SRCDIR:-}" && -n "${TEST_WORKSPACE:-}" ]]; then
     BOOTSTRAP_SCRIPT="$TEST_SRCDIR/$TEST_WORKSPACE/deployments/charts/osmo/files/service-auth-bootstrap.sh"
+    JQ_BINARY=$(find -L "$TEST_SRCDIR" -type f -path '*jq_*/jq' -print -quit)
+    [[ -n "$JQ_BINARY" ]] || {
+        echo 'Hermetic jq binary was not found in test runfiles' >&2
+        exit 1
+    }
+    PATH="$(dirname "$JQ_BINARY"):$PATH"
 else
     BOOTSTRAP_SCRIPT="$CHART_DIRECTORY/files/service-auth-bootstrap.sh"
 fi
