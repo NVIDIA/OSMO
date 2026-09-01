@@ -47,10 +47,11 @@ instructions before continuing.
 
 Install Docker, ``kind``, ``nvkind``, ``kubectl``, Helm, `Bazelisk
 <https://github.com/bazelbuild/bazelisk>`_, and the OSMO CLI installer
-dependencies. Bazelisk uses the repository's ``.bazelversion`` to select the
-supported Bazel release. The cluster requires Kubernetes 1.30 or newer and a
-default dynamic ``StorageClass``. If Docker reports permission errors, ensure
-that your user can access the Docker daemon. On Linux, also raise the
+dependencies. Install Bazelisk with its ``bazel`` shim on ``PATH``; it uses the
+repository's ``.bazelversion`` to select the supported Bazel release. The
+cluster requires Kubernetes 1.30 or newer and a default dynamic
+``StorageClass``. If Docker reports permission errors, ensure that your user
+can access the Docker daemon. On Linux, also raise the
 `inotify limits <https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files>`_
 when creating many containers.
 
