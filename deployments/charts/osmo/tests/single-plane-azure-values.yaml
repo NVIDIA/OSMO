@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+externalUrl: http://osmo-gateway
+
+compute:
+  backendName: default
+
+services:
+  api:
+    extraVolumeMounts:
+    - name: runtime-image-pull-secret
+      mountPath: /etc/osmo/secrets/osmo-runtime-pull
+      readOnly: true
+    pod:
+      extraVolumes:
+      - name: runtime-image-pull-secret
+        secret:
+          secretName: osmo-runtime-pull
+  worker:
+    serviceAccount:
+      create: true
+      annotations:
+        azure.workload.identity/client-id: single-plane-test-client-id
+    pod:
+      labels:
+        azure.workload.identity/use: "true"
+
+externalDependencies:
+  postgresql:
+    host: azure-postgresql.internal
+    port: 5432
+    database: osmo
+    username: postgres
+    tls:
+      enabled: false
+  valkey:
+    host: azure-redis.internal
+    port: 10000
+    database: 0
+    tls:
+      enabled: true
+  objectStorage:
+    authentication:
+      type: sdkDefault
+    locations:
+      workflows: azure://osmoazure/osmo-workflows/workflows
+      logs: azure://osmoazure/osmo-workflows/logs
+      apps: azure://osmoazure/osmo-workflows/apps
+
+configuration:
+  workflow:
+    backend_images:
+      credential:
+        secretName: osmo-runtime-pull
+        secretKey: .dockerconfigjson
+
+secrets:
+  objectStorage:
+    existingSecret: ''

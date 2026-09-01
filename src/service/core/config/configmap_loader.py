@@ -1075,29 +1075,32 @@ def _resolve_platform_fields(
 SECRETS_ROOT = '/etc/osmo/secrets'
 
 
-def _decode_dockerconfig_auth(auth_b64: str, username: str) -> str:
-    """Recover the raw password from a `.dockerconfigjson` `auth` field.
+def _decode_dockerconfig_identity(
+    auth_b64: str, username: str,
+) -> tuple[str, str]:
+    """Recover the username and raw password from a Docker `auth` field.
 
-    The `auth` field is base64(`username:password`); strip the username
-    prefix and a single ':' to get the password back. Returns '' on any
-    decode failure — caller logs and proceeds with empty credentials.
+    The `auth` field is base64(`username:password`). Docker config files may
+    omit the redundant `username` field, so preserve an explicit username or
+    recover it from the decoded composite. Returns the supplied username and
+    an empty password on decode failure.
     """
     if not auth_b64:
-        return ''
+        return username, ''
     try:
         decoded = base64.b64decode(auth_b64).decode('utf-8')
     except (ValueError, UnicodeDecodeError):
         logging.warning(
             'Could not base64-decode dockerconfigjson auth field; '
             'returning empty password')
-        return ''
+        return username, ''
     prefix = f'{username}:'
     if username and decoded.startswith(prefix):
-        return decoded[len(prefix):]
-    # No username, or auth doesn't start with username: — just split on
-    # first ':' as a best effort.
-    _, sep, password = decoded.partition(':')
-    return password if sep else ''
+        return username, decoded[len(prefix):]
+    decoded_username, separator, password = decoded.partition(':')
+    if not separator:
+        return username, ''
+    return username or decoded_username, password
 
 
 def _resolve_secret_file_references(config_data: Dict[str, Any],
@@ -1204,14 +1207,14 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
             # base64(username:password)). Prefer password; fall back to
             # decoding auth and stripping the username prefix so we always
             # land in the model with a raw token.
-            password = registry_data.get('password')
-            if not password:
-                password = _decode_dockerconfig_auth(
-                    registry_data.get('auth', ''),
-                    registry_data.get('username', ''))
+            username = registry_data.get('username', '')
+            decoded_username, decoded_password = _decode_dockerconfig_identity(
+                registry_data.get('auth', ''), username)
+            username = username or decoded_username
+            password = registry_data.get('password') or decoded_password
             extracted = {
                 'registry': registry_url,
-                'username': registry_data.get('username', ''),
+                'username': username,
                 'auth': password,
             }
             current_value.pop('secret_file', None)

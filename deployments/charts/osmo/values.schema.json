@@ -859,6 +859,7 @@
       "type": "object",
       "properties": {
         "userHeader": { "type": "string" },
+        "allowMissing": { "type": "boolean" },
         "providers": { "type": "array" },
         "additionalProviders": { "type": "array" }
       }
@@ -1202,15 +1203,40 @@
     },
     "objectStorageConnection": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "endpoint": { "type": "string" },
-        "region": { "type": "string" },
-        "buckets": {
+        "authentication": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "workflows": { "type": "string" },
-            "logs": { "type": "string" },
-            "apps": { "type": "string" }
+            "type": { "type": "string", "enum": ["static", "sdkDefault"] }
+          },
+          "required": ["type"]
+        },
+        "locations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workflows": {
+              "type": "string",
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+            },
+            "logs": {
+              "type": "string",
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+            },
+            "apps": {
+              "type": "string",
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "region": { "type": "string" },
+            "overrideUrl": { "type": "string" }
           }
         }
       }

@@ -13,6 +13,7 @@ values after a base overlay so that the environment values take precedence.
 | --- | --- | --- |
 | Chart defaults (`values.yaml`) | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `osmo-service-auth` generated and created as documented |
 | `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, an `osmo-service-auth` Secret generated as documented, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
+| `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; required Kubernetes Secrets for static authentication; `externalUrl`; and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
 
@@ -40,6 +41,25 @@ role before exposing the service. The split profiles contain example names and
 endpoints; copy them into an environment values file before installation.
 Production operators must also provide and test backup and restore for the
 stateful volumes.
+
+`single-plane.yaml` enables both planes with externally managed dependencies.
+It is provider-neutral and is not directly installable: layer it before a
+site-specific values file that supplies the required dependency locations and
+connection details. Object storage defaults to static Secret authentication;
+sites using a cloud SDK identity can set
+`externalDependencies.objectStorage.authentication.type: sdkDefault` instead.
+The profile requires JWT authentication and configures the OSMO service's local
+JWKS endpoint as its provider. Its gateway is a ClusterIP and it creates no
+Ingress or HTTPRoute. Sites can replace or extend the local provider and enable
+authorization and TLS through their environment-specific authentication
+overlay before exposing the gateway.
+For example:
+
+```bash
+helm upgrade --install osmo deployments/charts/osmo \
+  --values deployments/charts/osmo/profiles/single-plane.yaml \
+  --values single-plane-azure.yaml
+```
 
 KAI Scheduler is a prerequisite for every profile that enables the compute
 plane. The unified chart does not install or manage KAI. CloudNativePG must also

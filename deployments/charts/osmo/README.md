@@ -158,6 +158,8 @@ osmo workflow query <workflow-id> --format-type json
 ```
 
 Repeat the query until the workflow status is `COMPLETED`.
+The workflow passes a marker between its two tasks through the configured
+object store, so completion validates both upload and download access.
 
 ### Troubleshooting and cleanup
 
@@ -205,6 +207,78 @@ identity through a NodePort. It is not a production security or availability
 configuration. Use a production profile with managed credentials, TLS,
 authorization, backups, suitable resource sizing, and HA dependencies for
 long-lived environments.
+
+## Single-plane external dependencies
+
+`profiles/single-plane.yaml` is a provider-neutral, converged base overlay for
+one cluster that runs both the control and compute planes. It disables embedded
+PostgreSQL, Valkey, and object storage, while retaining the gateway as a
+`ClusterIP` Service. Layer a site-specific values file after it for the public
+URL, external dependency connections, and backend name. Ingress is deliberately
+an external, later step; enable and configure it only when the site has its
+ingress controller and public DNS ready.
+
+The profile configures Envoy to validate supplied OSMO access tokens against the
+API service's in-cluster `https://osmo-api/api/auth/keys` endpoint. It requires
+JWTs and leaves all default identity headers empty, so site values must provide
+any deliberately permissive development identity. External identity providers
+remain site-specific gateway configuration.
+
+Object storage uses exact `locations` for workflow data, logs, and apps. All
+three locations must use the same URI scheme. The URI scheme selects the storage
+backend: Azure locations use `azure://<account>/<container>/<prefix>`, while S3
+locations use `s3://<bucket>/<prefix>`. Azure locations forbid the S3-only
+settings in `externalDependencies.objectStorage.s3`; set that block only for S3
+locations. Authentication is independent of the URI scheme:
+
+- `authentication.type: static` is the default. Store credentials for all
+  three locations in one pre-provisioned Kubernetes Secret selected by
+  `secrets.objectStorage.existingSecret`.
+- `authentication.type: sdkDefault` omits static credential mounts and lets the
+  provider SDK discover credentials, such as Azure DefaultAzureCredential, the
+  AWS default credential provider chain, or Google Application Default
+  Credentials. Leave `secrets.objectStorage.existingSecret` empty.
+
+Do not place credential material in values files or Helm command lines.
+
+For example, an Azure site overlay contains only its connection values and
+locations:
+
+```yaml
+externalDependencies:
+  objectStorage:
+    authentication:
+      type: sdkDefault
+    locations:
+      workflows: azure://osmoazure/osmo-workflows/workflows
+      logs: azure://osmoazure/osmo-workflows/logs
+      apps: azure://osmoazure/osmo-workflows/apps
+```
+
+An S3 site uses the S3 URI scheme and its S3-specific settings instead:
+
+```yaml
+externalDependencies:
+  objectStorage:
+    authentication:
+      type: static
+    locations:
+      workflows: s3://osmo-workflows/workflows
+      logs: s3://osmo-logs/logs
+      apps: s3://osmo-apps/apps
+    s3:
+      region: us-east-1
+      overrideUrl: https://s3.example.com
+```
+
+Install the generic profile first and the site overlay second:
+
+```bash
+helm upgrade --install osmo deployments/charts/osmo \
+  --namespace osmo \
+  --values deployments/charts/osmo/profiles/single-plane.yaml \
+  --values single-plane-azure.yaml
+```
 
 ## Self-contained production
 
@@ -430,12 +504,13 @@ externalDependencies:
     port: 6379
     database: 0
   objectStorage:
-    endpoint: https://s3.example.com
-    region: us-east-1
-    buckets:
-      workflows: osmo-workflows
-      logs: osmo-logs
-      apps: osmo-apps
+    locations:
+      workflows: s3://osmo-workflows/workflows
+      logs: s3://osmo-logs/logs
+      apps: s3://osmo-apps/apps
+    s3:
+      region: us-east-1
+      overrideUrl: https://s3.example.com
 
 secrets:
   postgresql:
@@ -566,11 +641,13 @@ embeddedDependencies:
 
 externalDependencies:
   objectStorage:
-    endpoint: ''
-    buckets:
+    locations:
       workflows: ''
       logs: ''
       apps: ''
+    s3:
+      region: ''
+      overrideUrl: ''
 
 secrets:
   objectStorage:

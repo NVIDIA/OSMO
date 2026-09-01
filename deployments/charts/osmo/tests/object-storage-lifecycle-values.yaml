@@ -38,11 +38,13 @@ embeddedDependencies:
 
 externalDependencies:
   objectStorage:
-    endpoint: ''
-    buckets:
+    locations:
       workflows: ''
       logs: ''
       apps: ''
+    s3:
+      region: ''
+      overrideUrl: ''
 
 secrets:
   objectStorage:

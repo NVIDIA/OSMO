@@ -195,6 +195,14 @@ def get_static_data_credential_from_config(
 
         if 'auth' in configs and 'data' in configs['auth'] and url in configs['auth']['data']:
             data_cred_dict = configs['auth']['data'][url]
+            has_access_key_id = 'access_key_id' in data_cred_dict
+            has_access_key = 'access_key' in data_cred_dict
+            if not has_access_key_id and not has_access_key:
+                return None
+            if has_access_key_id != has_access_key:
+                raise osmo_errors.OSMOUserError(
+                    'Static data credential access_key_id and access_key must be '
+                    'provided together.')
             data_cred = StaticDataCredential(
                 access_key_id=data_cred_dict['access_key_id'],
                 access_key=pydantic.SecretStr(data_cred_dict['access_key']),

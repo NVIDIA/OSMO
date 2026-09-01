@@ -116,14 +116,21 @@ externalDependencies:
       enabled: false
       caExistingSecret: ''
       caKey: ca-bundle.crt
-  # S3-compatible storage for workflow data, logs, and application bundles.
+  # Object storage for workflow data, logs, and application bundles.
   objectStorage:
-    endpoint: ''
-    region: us-east-1
-    buckets:
+    authentication:
+      # static loads SDK credentials from secrets.objectStorage.existingSecret.
+      # sdkDefault delegates credential discovery to the provider SDK, such as
+      # Azure DefaultAzureCredential, the AWS default credential provider
+      # chain, or Google Application Default Credentials.
+      type: static
+    locations:
       workflows: ''
       logs: ''
       apps: ''
+    s3:
+      region: ''
+      overrideUrl: ''
 
 # Override the names Helm derives from the chart and release. Leave empty for
 # conventional names such as `osmo-api` and `osmo-gateway`.
@@ -1310,6 +1317,10 @@ gateway:
       port: ''
     jwt:
       userHeader: x-osmo-user
+      # WARNING: Enabling this permits requests without a JWT. Use it only for
+      # trusted, non-public development access with an intentional fallback
+      # identity; never expose such a gateway to untrusted networks.
+      allowMissing: false
       providers: []
       additionalProviders: []
     skipAuthPaths:
