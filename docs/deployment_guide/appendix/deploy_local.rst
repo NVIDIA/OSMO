@@ -22,10 +22,11 @@
 Quickstart
 ==========
 
-Use this development-only quickstart to run the complete OSMO control plane,
-compute plane, and a GPU workflow on a workstation with an NVIDIA GPU. It
-creates a multi-node Kubernetes-in-Docker cluster with ``nvkind``, installs the
-required NVIDIA operators, and deploys the unified ``osmo`` Helm chart.
+This development-only Quickstart is the fastest way to try the complete OSMO
+control plane, compute plane, and a GPU workflow on a workstation with an
+NVIDIA GPU. It creates a multi-node Kubernetes-in-Docker cluster with
+``nvkind``, installs the required NVIDIA operators, and deploys the unified
+``osmo`` Helm chart.
 
 .. warning::
 
@@ -44,10 +45,12 @@ Container Toolkit installed and working with Docker. Follow the ``nvkind``
 `installation <https://github.com/NVIDIA/nvkind?tab=readme-ov-file#install-nvkind>`_
 instructions before continuing.
 
-Install Docker, ``nvkind``, ``kubectl``, Helm, and the OSMO CLI installer
-dependencies. The cluster requires Kubernetes 1.30 or newer and a default
-dynamic ``StorageClass``. If Docker reports permission errors, ensure that your
-user can access the Docker daemon. On Linux, also raise the
+Install Docker, ``kind``, ``nvkind``, ``kubectl``, Helm, `Bazelisk
+<https://github.com/bazelbuild/bazelisk>`_, and the OSMO CLI installer
+dependencies. Bazelisk uses the repository's ``.bazelversion`` to select the
+supported Bazel release. The cluster requires Kubernetes 1.30 or newer and a
+default dynamic ``StorageClass``. If Docker reports permission errors, ensure
+that your user can access the Docker daemon. On Linux, also raise the
 `inotify limits <https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files>`_
 when creating many containers.
 
@@ -202,6 +205,11 @@ user-container requests and limits. Helm replaces lists instead of merging
 them, so the override repeats the complete container resource configuration,
 including CPU, memory, GPU, and ephemeral-storage requests and limits.
 
+The unified chart on ``main`` also requires the API image from the same source
+revision for master-encryption-key lifecycle operations. The overlay selects
+the repository-built image for both the API and its bootstrap Job instead of a
+mutable registry image.
+
 .. dropdown:: ``osmo-gpu-pod-template.yaml``
   :color: info
   :icon: file
@@ -225,11 +233,22 @@ including CPU, memory, GPU, and ephemeral-storage requests and limits.
                   memory: '{{USER_MEMORY}}'
                   nvidia.com/gpu: '{{USER_GPU}}'
                   ephemeral-storage: '{{USER_STORAGE}}'
+    services:
+      api:
+        image:
+          registry: osmo.local
+          repository: service
+          tag: latest-x86_64
 
-Save the overlay, build the chart dependencies, and install the unified chart:
+Save the overlay, build and load the current API image, build the chart
+dependencies, and install the unified chart. ``kind load`` copies the image to
+every cluster node, and the Quickstart's ``IfNotPresent`` pull policy uses that
+local image without contacting a registry:
 
 .. code-block:: bash
 
+   bazel run //src/service/core:service_image_load_x86_64
+   kind load docker-image --name osmo osmo.local/service:latest-x86_64
    helm dependency build deployments/charts/osmo
    helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
