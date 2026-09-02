@@ -36,6 +36,10 @@ secrets:
       name: ''
     bootstrap:
       enabled: false
+  serviceAuth:
+    managementMode: external
+    bootstrap:
+      enabled: false
 
 compute:
   workloadNamespace:

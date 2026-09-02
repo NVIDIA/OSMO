@@ -1292,6 +1292,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "managementMode": { "type": "string", "enum": ["external", "osmo"] },
         "existingSecret": {
           "type": "object",
           "additionalProperties": false,
@@ -1302,6 +1303,19 @@
           "required": ["name", "key"]
         },
         "rolloutNonce": { "type": "string" },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "attempt": { "type": "string", "minLength": 1, "maxLength": 32 },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+            "nodeSelector": { "$ref": "#/definitions/stringMap" },
+            "tolerations": { "type": "array" },
+            "resources": { "type": "object" }
+          },
+          "required": ["enabled", "attempt", "activeDeadlineSeconds", "nodeSelector", "tolerations", "resources"]
+        },
         "migration": {
           "type": "object",
           "additionalProperties": false,
@@ -1314,7 +1328,7 @@
           "required": ["enabled", "nodeSelector", "tolerations", "resources"]
         }
       },
-      "required": ["existingSecret", "rolloutNonce", "migration"]
+      "required": ["managementMode", "existingSecret", "rolloutNonce", "bootstrap", "migration"]
     },
     "postgresqlSecretReference": {
       "type": "object",

@@ -40,11 +40,8 @@ cd scripts
 
 For a development evaluation, use the unified chart defaults. Kind is the
 recommended local cluster; KAI Scheduler, CloudNativePG, and a default dynamic
-StorageClass must already be available:
-
-Before installing OSMO, generate the shared service-auth identity and create
-the required `osmo-service-auth` Secret by following the
-[`osmo` chart installation steps](charts/osmo/README.md#install-osmo).
+StorageClass must already be available. The chart bootstraps service auth
+in-cluster:
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -65,14 +62,15 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-After the first installation creates the retained master-encryption-key Secret,
-remove the one-time bootstrap Job and Secret-creation permission:
+After the first installation creates the retained master-encryption-key and
+service-auth Secrets, remove both bootstrap Jobs and their Secret-creation RBAC:
 
 ```bash
 helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
   --namespace osmo \
   --reuse-values \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --set secrets.serviceAuth.bootstrap.enabled=false \
   --wait \
   --timeout 20m
 ```

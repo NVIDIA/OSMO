@@ -547,6 +547,8 @@ test_control_umbrella() {
         "split-compute-osmo-backend-worker"
     require_no_deployment "$TEST_DIRECTORY/split-compute.yaml" \
         "split-compute-osmo-api"
+    require_no_resource_with_hash_suffix "$TEST_DIRECTORY/split-compute.yaml" Job \
+        "service-auth-bootstrap"
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
@@ -816,6 +818,8 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         'name: "osmo-mek-bootstrap-'
     require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
+        "service-auth-bootstrap"
+    require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
         "object-storage-bootstrap"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "secretName: osmo-backend-token"
@@ -903,7 +907,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
         "name: osmo-nvcr-pull"
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
-        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 3
 
     helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
@@ -946,6 +950,10 @@ test_control_umbrella() {
         'name: "osmo-mek-bootstrap-'
     require_contains "$TEST_DIRECTORY/quickstart.yaml" '- "bootstrap"'
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
+        "service-auth-bootstrap"
+    require_contains "$TEST_DIRECTORY/quickstart.yaml" \
+        'command: ["service-auth-bootstrap"]'
+    require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
         "object-storage-bootstrap"
     require_not_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
         "imagePullSecrets:"
@@ -981,6 +989,9 @@ test_control_umbrella() {
         "osmo-backend-listener"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
         "osmo-backend-worker"
+    require_no_resource_with_hash_suffix \
+        "$TEST_DIRECTORY/single-plane-azure.yaml" Job \
+        "service-auth-bootstrap"
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/single-plane-azure-gateway.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-azure-gateway.yaml" \
@@ -1605,6 +1616,8 @@ test_control_umbrella() {
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$rendered"
+    require_no_resource_with_hash_suffix "$rendered" Job \
+        "service-auth-bootstrap"
 
     resource_document "$rendered" List osmo-internal-tls-bootstrap \
         >"$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml"
@@ -2309,6 +2322,10 @@ EOF
     require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
         "--service_auth_file" 6
     require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
+        'mountPath: /etc/osmo/service-auth/authentication-config.json' 6
+    require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
+        'subPath: authentication-config.json' 6
+    require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
         'secretName: "osmo-service-auth"' 6
     require_occurrences "$TEST_DIRECTORY/service-auth.yaml" \
         'osmo.nvidia.com/service-auth-rollout: "auth-v1"' 6
@@ -2318,6 +2335,137 @@ EOF
         "service_auth_database_write_lock"
     require_not_contains "$TEST_DIRECTORY/service-auth.yaml" \
         "service-auth-osmo-service-auth-db-migration"
+
+    helm_template service-auth-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.managementMode=osmo \
+        --set secrets.serviceAuth.bootstrap.enabled=true \
+        >"$TEST_DIRECTORY/service-auth-bootstrap.yaml"
+    local service_auth_bootstrap_name
+    service_auth_bootstrap_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Job \
+        "service-auth-bootstrap")
+    require_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
+        ServiceAccount "$service_auth_bootstrap_name"
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
+        'Apache-2.0apiVersion'
+    require_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
+        Role "$service_auth_bootstrap_name"
+    require_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
+        RoleBinding "$service_auth_bootstrap_name"
+    resource_document "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Role \
+        "$service_auth_bootstrap_name" \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-role.yaml"
+    resource_document "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Job \
+        "$service_auth_bootstrap_name" \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-job.yaml"
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
+        'resourceNames: ["osmo-service-auth"]'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
+        'verbs: ["get"]'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
+        'verbs: ["create"]'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
+        '"update"'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'command: ["service-auth-bootstrap"]'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        '- bootstrap'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'activeDeadlineSeconds: 900'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        '--postgres-'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'OSMO_POSTGRES_PASSWORD'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'PGSSL'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'postgresql-ca'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'smallstep/step-cli'
+    require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
+        'expirationSeconds: 600'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'helm.sh/hook:'
+    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
+        'argocd.argoproj.io/hook:'
+    require_no_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Secret \
+        "osmo-service-auth"
+
+    helm_template service-auth-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.managementMode=osmo \
+        --set secrets.serviceAuth.bootstrap.enabled=true \
+        --set secrets.serviceAuth.bootstrap.activeDeadlineSeconds=899 \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-changed.yaml"
+    local service_auth_bootstrap_changed_name
+    service_auth_bootstrap_changed_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-bootstrap-changed.yaml" Job \
+        "service-auth-bootstrap")
+    [[ "$service_auth_bootstrap_name" != "$service_auth_bootstrap_changed_name" ]] || \
+        fail "service auth bootstrap immutable input did not change the Job name"
+
+    helm_template service-auth-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.managementMode=osmo \
+        --set secrets.serviceAuth.bootstrap.enabled=true \
+        --set-string secrets.serviceAuth.bootstrap.attempt=2 \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-retry.yaml"
+    local service_auth_bootstrap_retry_name
+    service_auth_bootstrap_retry_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-bootstrap-retry.yaml" Job \
+        "service-auth-bootstrap")
+    [[ "$service_auth_bootstrap_name" != "$service_auth_bootstrap_retry_name" ]] || \
+        fail "service auth bootstrap attempt did not change the Job name"
+
+    helm_template service-auth-bootstrap-name-boundary-release "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.managementMode=osmo \
+        --set secrets.serviceAuth.bootstrap.enabled=true \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-name-boundary.yaml"
+    local service_auth_bootstrap_boundary_name
+    service_auth_bootstrap_boundary_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-bootstrap-name-boundary.yaml" Job \
+        "service-auth-bootstrap")
+    [[ ${#service_auth_bootstrap_boundary_name} -le 63 ]] || \
+        fail "service auth bootstrap Job name exceeds the Kubernetes limit"
+
+    if helm_template invalid-external-service-auth-bootstrap "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.serviceAuth.bootstrap.enabled=true \
+            >"$TEST_DIRECTORY/invalid-external-service-auth-bootstrap.out" 2>&1; then
+        fail "expected external service auth bootstrap to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-external-service-auth-bootstrap.out" \
+        "secrets.serviceAuth.bootstrap.enabled requires managementMode=osmo"
+
+    if helm_template invalid-compute-service-auth-bootstrap "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+            --set-string compute.backendName=test-backend \
+            --set secrets.serviceAuth.managementMode=osmo \
+            --set secrets.serviceAuth.bootstrap.enabled=true \
+            >"$TEST_DIRECTORY/invalid-compute-service-auth-bootstrap.out" 2>&1; then
+        fail "expected service auth bootstrap without a control plane to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-compute-service-auth-bootstrap.out" \
+        "secrets.serviceAuth.bootstrap.enabled requires planes.control.enabled=true"
+
+    if helm_template invalid-service-auth-bootstrap-migration "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.serviceAuth.managementMode=osmo \
+            --set secrets.serviceAuth.bootstrap.enabled=true \
+            --set secrets.serviceAuth.migration.enabled=true \
+            >"$TEST_DIRECTORY/invalid-service-auth-bootstrap-migration.out" 2>&1; then
+        fail "expected simultaneous service auth bootstrap and migration to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-service-auth-bootstrap-migration.out" \
+        "bootstrap.enabled and migration.enabled are mutually exclusive"
 
     helm_template service-auth-migration "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -4530,7 +4678,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 11
+        "type: RuntimeDefault" 12
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \

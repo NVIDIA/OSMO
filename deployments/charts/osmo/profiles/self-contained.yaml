@@ -63,9 +63,12 @@ secrets:
     bootstrap:
       enabled: true
   serviceAuth:
+    managementMode: osmo
     existingSecret:
       name: osmo-service-auth
       key: authentication-config.json
+    bootstrap:
+      enabled: true
 
 # Production service sizing and placement.
 services:

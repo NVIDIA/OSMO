@@ -11,8 +11,8 @@ values after a base overlay so that the environment values take precedence.
 
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
-| Chart defaults (`values.yaml`) | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately; `osmo-service-auth` generated and created as documented |
-| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, an `osmo-service-auth` Secret generated as documented, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
+| Chart defaults (`values.yaml`) | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately |
+| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
 | `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; required Kubernetes Secrets for static authentication; `externalUrl`; and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
@@ -21,11 +21,13 @@ The default values are the smallest complete control-and-compute deployment
 for browser, CLI, and CPU hello-world verification. It exposes the UI and API
 through gateway NodePort `30080` while omitting optional production behavior.
 It intentionally uses `latest` OSMO images, one replica per component,
-development authentication, explicitly generated service auth, and small
+development authentication, bootstrapped service auth, and small
 single-node stateful dependencies.
-The quick-start installation path requires the documented pre-created
-`osmo-service-auth` Secret. It generates its other application credentials and
-does not require an image-pull Secret beforehand. Configure top-level
+Chart defaults and `self-contained.yaml` are install-only profiles; both
+bootstrap service auth in-cluster and must not be reused as upgrade values.
+The single-plane and split profiles keep service auth external and bootstrap
+disabled. The quickstart generates its other application credentials and does
+not require an image-pull Secret to be created beforehand. Configure top-level
 `imagePullSecrets` only when using a registry that requires credentials.
 
 The self-contained profile is the production-converged path for environments

@@ -330,15 +330,26 @@ secrets:
       rolloutRevision: ''
       imagePullPolicy: IfNotPresent
       activeDeadlineSeconds: 900
-  # Stable JWT signing identity. Production installations should provision
-  # this Secret outside Helm so private key material is not stored in Helm
-  # values or release state.
+  # Stable JWT signing identity. External ownership provisions the referenced
+  # Secret before installation. OSMO ownership can bootstrap it for a fresh
+  # installation without putting private key material in Helm release state.
   serviceAuth:
+    managementMode: osmo
     existingSecret:
       name: osmo-service-auth
       key: authentication-config.json
     # Change after intentionally updating the externally managed Secret.
     rolloutNonce: ''
+    bootstrap:
+      # Quickstart is install-only. Disable after successful bootstrap to
+      # remove the one-time Secret-creation RBAC and Job from desired state.
+      enabled: true
+      # Increment after a failed GitOps attempt or credential correction.
+      attempt: "1"
+      activeDeadlineSeconds: 900
+      nodeSelector: {}
+      tolerations: []
+      resources: {}
     migration:
       # Transitional compatibility hook for upgrades from DB-backed releases.
       # It performs a one-time pre-upgrade export from the legacy configs row
