@@ -11,7 +11,7 @@ TERRAFORM_SOURCE_DIR="$REPOSITORY_ROOT/deployments/terraform/azure/example"
 TERRAFORM_VARS="$SCRIPT_DIR/azure/single-plane.tfvars"
 CHART="$REPOSITORY_ROOT/deployments/charts/osmo"
 AZURE_VALUES="$SCRIPT_DIR/single-plane-azure.yaml"
-DYNAMIC_VALUES_FILTER="$SCRIPT_DIR/azure/single-plane-values.jq"
+DYNAMIC_VALUES_FILTER="$SCRIPT_DIR/single-plane-values.jq"
 
 TF_RESOURCE_GROUP="${TF_RESOURCE_GROUP:-${TF_VAR_resource_group_name:-}}"
 TF_SUBSCRIPTION_ID="${TF_SUBSCRIPTION_ID:-${TF_VAR_subscription_id:-}}"

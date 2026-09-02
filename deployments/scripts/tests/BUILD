@@ -65,7 +65,7 @@ sh_test(
         "//deployments:scripts/deploy-osmo-single-plane.sh",
         "//deployments:scripts/install-kai-scheduler.sh",
         "//deployments:scripts/single-plane-azure.yaml",
-        "//deployments:scripts/azure/single-plane-values.jq",
+        "//deployments:scripts/single-plane-values.jq",
         "//deployments:scripts/azure/single-plane.tfvars",
         "//deployments:scripts/verify.sh",
         "//deployments:terraform/azure/example/example.tf",

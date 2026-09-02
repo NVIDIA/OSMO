@@ -92,7 +92,7 @@ script creates no object-storage credential Secret; PostgreSQL, Valkey, and
 backend bootstrap credentials retain their existing Secret flow.
 
 The checked-in `single-plane-azure.yaml` contains the fixed Azure overlay. The
-script evaluates `azure/single-plane-values.jq` to generate a temporary JSON
+script evaluates `single-plane-values.jq` to generate a temporary JSON
 values file containing connection data, exact `azure://` locations, image
 selections, and workload-identity metadata. JSON is valid Helm values input and
 safely quotes dynamic strings without requiring a second template language.

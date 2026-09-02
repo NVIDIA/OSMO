@@ -21,7 +21,7 @@ exports_files([
     "scripts/deploy-osmo-single-plane.sh",
     "scripts/install-kai-scheduler.sh",
     "scripts/single-plane-azure.yaml",
-    "scripts/azure/single-plane-values.jq",
+    "scripts/single-plane-values.jq",
     "scripts/azure/single-plane.tfvars",
     "scripts/deploy-k8s.sh",
     "scripts/verify.sh",
