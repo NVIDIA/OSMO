@@ -316,6 +316,7 @@ only to a permission-restricted temporary file and never prints it:
    kubectl --namespace osmo create secret generic \
      osmo-service-auth \
      --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+   rm -r "${OSMO_SERVICE_AUTH_DIRECTORY}"
 
 The chart defaults are the development Quickstart. Build its dependencies and
 install it without a profile or values overlay:
@@ -330,12 +331,6 @@ install it without a profile or values overlay:
      --wait-for-jobs \
      --timeout 20m
 
-Remove the temporary service-auth directory:
-
-.. code-block:: bash
-
-   rm -r "${OSMO_SERVICE_AUTH_DIRECTORY}"
-
 Log in and run a workflow
 =========================
 
@@ -348,10 +343,8 @@ pool, and submit the canonical CPU verification workflow:
    curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
    osmo login http://127.0.0.1 --method=dev --username=testuser
    osmo profile set pool default
-   osmo workflow submit deployments/workflows/verify-hello.yaml \
-     --pool default \
-     --format-type json
-   osmo workflow query <workflow-id> --format-type json
+   osmo workflow submit deployments/workflows/verify-hello.yaml
+   osmo workflow query <workflow-id>
 
 Query the returned workflow ID until its status is ``COMPLETED``. The workflow
 uses the default ``cpu`` platform.
@@ -365,10 +358,8 @@ If you used Option A, submit the GPU verification workflow too:
 
 .. code-block:: bash
 
-   osmo workflow submit deployments/workflows/verify-gpu.yaml \
-     --pool default \
-     --format-type json
-   osmo workflow query <workflow-id> --format-type json
+   osmo workflow submit deployments/workflows/verify-gpu.yaml
+   osmo workflow query <workflow-id>
 
 The GPU workflow explicitly uses the ``gpu`` platform and runs ``nvidia-smi``
 in a CUDA container, proving that OSMO and KAI scheduled it onto the GPU node
