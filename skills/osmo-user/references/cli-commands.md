@@ -38,11 +38,11 @@ or tokens into chat.
 ```bash
 osmo profile list [--format-type json|text]
 osmo profile set pool <pool_name>
-osmo profile set bucket <bucket_name>
+osmo profile set notifications <email|slack> [true|false]
 ```
 
-Use `profile list` to discover default pool/bucket. Change settings only when
-the user explicitly asks.
+Use `profile list` to discover the default pool and notification preferences.
+Change settings only when the user explicitly asks.
 
 ## Pools and Resources
 
