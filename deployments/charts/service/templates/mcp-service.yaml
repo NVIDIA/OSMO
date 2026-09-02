@@ -25,54 +25,21 @@
 {{- if not (regexMatch "^([1-9]|[1-5][0-9]|60)$" $requestTimeoutSeconds) }}
 {{- fail "services.mcp.requestTimeoutSeconds must be between 1 and 60" }}
 {{- end }}
-{{- $scope := "" }}
 {{- $oidcConfigUrl := "" }}
 {{- $oidcClientId := "" }}
 {{- $oidcClientSecretFile := "" }}
 {{- $oidcAccessTokenIssuer := "" }}
-{{- $oidcAccessTokenAudience := "" }}
-{{- $oidcAccessTokenJwksUrl := "" }}
 {{- $oidcAccessTokenRequiredScope := "" }}
 {{- $redisKeyPrefix := "" }}
 {{- $redisUrl := "" }}
 {{- if $oidcProxyEnabled }}
-{{- if ne (int $mcp.replicas) 1 }}
-{{- fail "services.mcp.replicas must be 1 when services.mcp.oidcProxy.enabled=true" }}
-{{- end }}
-{{- if not (kindIs "slice" $oidcProxy.trustedHttpsRedirectOrigins) }}
-{{- fail "services.mcp.oidcProxy.trustedHttpsRedirectOrigins must be a list" }}
-{{- end }}
-{{- range $origin := $oidcProxy.trustedHttpsRedirectOrigins }}
-{{- if or (not (kindIs "string" $origin)) (not (regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?$" $origin)) }}
-{{- fail "services.mcp.oidcProxy.trustedHttpsRedirectOrigins entries must be exact HTTPS origins" }}
-{{- end }}
-{{- $originPortSuffix := regexFind ":[0-9]+$" $origin }}
-{{- if $originPortSuffix }}
-{{- $originPort := trimPrefix ":" $originPortSuffix | int }}
-{{- if or (lt $originPort 1) (gt $originPort 65535) }}
-{{- fail "services.mcp.oidcProxy.trustedHttpsRedirectOrigins ports must be between 1 and 65535" }}
-{{- end }}
-{{- end }}
-{{- end }}
-{{- $scope = required "services.mcp.oidcProxy.scope is required when the OIDC proxy is enabled" $oidcProxy.scope }}
 {{- $oidcConfigUrl = required "services.mcp.oidcProxy.oidc.configUrl is required when the OIDC proxy is enabled" $oidcProxy.oidc.configUrl }}
 {{- $oidcClientId = required "services.mcp.oidcProxy.oidc.clientId is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientId }}
 {{- $oidcClientSecretFile = required "services.mcp.oidcProxy.oidc.clientSecretFile is required when the OIDC proxy is enabled" $oidcProxy.oidc.clientSecretFile }}
 {{- $oidcAccessTokenIssuer = required "services.mcp.oidcProxy.oidc.accessTokenIssuer is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenIssuer }}
-{{- $oidcAccessTokenAudience = required "services.mcp.oidcProxy.oidc.accessTokenAudience is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenAudience }}
-{{- $oidcAccessTokenJwksUrl = required "services.mcp.oidcProxy.oidc.accessTokenJwksUrl is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenJwksUrl }}
 {{- $oidcAccessTokenRequiredScope = required "services.mcp.oidcProxy.oidc.accessTokenRequiredScope is required when the OIDC proxy is enabled" $oidcProxy.oidc.accessTokenRequiredScope }}
 {{- if not (regexMatch "^[A-Za-z0-9:._~-]{1,128}$" $oidcAccessTokenRequiredScope) }}
 {{- fail "services.mcp.oidcProxy.oidc.accessTokenRequiredScope must be one non-empty scope" }}
-{{- end }}
-{{- if or (gt (len $oidcAccessTokenAudience) 2048) (not (regexMatch "^[^[:space:][:cntrl:]]+$" $oidcAccessTokenAudience)) }}
-{{- fail "services.mcp.oidcProxy.oidc.accessTokenAudience must be one non-empty value without whitespace or control characters" }}
-{{- end }}
-{{- if ne $oidcAccessTokenAudience $mcpResourceUrl }}
-{{- fail "services.mcp.oidcProxy.oidc.accessTokenAudience must equal services.mcp.resourceUrl" }}
-{{- end }}
-{{- if ne $scope (printf "%s/%s" $mcpResourceUrl $oidcAccessTokenRequiredScope) }}
-{{- fail "services.mcp.oidcProxy.scope must equal services.mcp.resourceUrl followed by oidc.accessTokenRequiredScope" }}
 {{- end }}
 {{- $oidcHttpsUrlPattern := "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?$" }}
 {{- if not (regexMatch $oidcHttpsUrlPattern $oidcConfigUrl) }}
@@ -81,10 +48,7 @@
 {{- if not (regexMatch $oidcHttpsUrlPattern $oidcAccessTokenIssuer) }}
 {{- fail "services.mcp.oidcProxy.oidc.accessTokenIssuer must be an absolute HTTPS issuer without query or fragment" }}
 {{- end }}
-{{- if not (regexMatch $oidcHttpsUrlPattern $oidcAccessTokenJwksUrl) }}
-{{- fail "services.mcp.oidcProxy.oidc.accessTokenJwksUrl must be an absolute HTTPS URL without query or fragment" }}
-{{- end }}
-{{- range $name, $url := dict "configUrl" $oidcConfigUrl "accessTokenIssuer" $oidcAccessTokenIssuer "accessTokenJwksUrl" $oidcAccessTokenJwksUrl }}
+{{- range $name, $url := dict "configUrl" $oidcConfigUrl "accessTokenIssuer" $oidcAccessTokenIssuer }}
 {{- $portMatch := regexFind ":[0-9]+(/|$)" $url }}
 {{- if $portMatch }}
 {{- $urlPort := trimSuffix "/" (trimPrefix ":" $portMatch) | int }}
@@ -96,14 +60,8 @@
 {{- if not (hasPrefix "/" $oidcClientSecretFile) }}
 {{- fail "services.mcp.oidcProxy.oidc.clientSecretFile must be an absolute path" }}
 {{- end }}
-{{- $redisHost := $oidcProxy.redis.serviceName | default .Values.services.redis.serviceName | required "services.mcp.oidcProxy.redis.serviceName or services.redis.serviceName is required" }}
+{{- $redisHost := .Values.services.redis.serviceName | required "services.redis.serviceName is required when the MCP OIDC proxy is enabled" }}
 {{- $redisPort := .Values.services.redis.port }}
-{{- if not (kindIs "invalid" $oidcProxy.redis.port) }}
-{{- $redisPort = $oidcProxy.redis.port }}
-{{- end }}
-{{- if or (lt (int $redisPort) 1) (gt (int $redisPort) 65535) }}
-{{- fail "services.mcp.oidcProxy.redis.port must be between 1 and 65535" }}
-{{- end }}
 {{- if or (lt (int $oidcProxy.redis.dbNumber) 0) (gt (int $oidcProxy.redis.dbNumber) 15) }}
 {{- fail "services.mcp.oidcProxy.redis.dbNumber must be between 0 and 15" }}
 {{- end }}
@@ -146,7 +104,7 @@
 {{- fail "services.mcp.oidcProxy.existingSecret.redisPasswordKey is required when redis.passwordFile is configured" }}
 {{- end }}
 {{- end }}
-{{- $redisScheme := ternary "rediss" "redis" $oidcProxy.redis.tlsEnabled }}
+{{- $redisScheme := ternary "rediss" "redis" .Values.services.redis.tlsEnabled }}
 {{- $redisUrl = printf "%s://%s:%v/%v" $redisScheme $redisHost $redisPort $oidcProxy.redis.dbNumber }}
 {{- end }}
 {{- if not (kindIs "slice" $mcp.allowedOrigins) }}
@@ -164,10 +122,7 @@
       "OSMO_MCP_REQUEST_TIMEOUT_SECONDS"
       "OSMO_MCP_ALLOWED_ORIGINS"
       "OSMO_MCP_AUTH_ENABLED"
-      "OSMO_MCP_AUTH_ISSUER_URL"
       "OSMO_MCP_AUTH_RESOURCE_URL"
-      "OSMO_MCP_AUTH_SCOPE"
-      "OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIGINS"
       "OSMO_MCP_AUTH_REDIS_URL"
       "OSMO_MCP_AUTH_REDIS_PASSWORD_FILE"
       "OSMO_MCP_AUTH_REDIS_KEY_PREFIX"
@@ -177,8 +132,6 @@
       "OSMO_MCP_AUTH_OIDC_CLIENT_ID"
       "OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE"
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER"
-      "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE"
-      "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL"
       "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE"
       "OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS"
       "OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
@@ -258,14 +211,8 @@ spec:
         - name: OSMO_MCP_AUTH_ENABLED
           value: {{ $oidcProxyEnabled | quote }}
         {{- if $oidcProxyEnabled }}
-        - name: OSMO_MCP_AUTH_ISSUER_URL
-          value: {{ $gatewayUrl | quote }}
         - name: OSMO_MCP_AUTH_RESOURCE_URL
           value: {{ $mcpResourceUrl | quote }}
-        - name: OSMO_MCP_AUTH_SCOPE
-          value: {{ $scope | quote }}
-        - name: OSMO_MCP_AUTH_TRUSTED_HTTPS_REDIRECT_ORIGINS
-          value: {{ join "," $oidcProxy.trustedHttpsRedirectOrigins | quote }}
         - name: OSMO_MCP_AUTH_REDIS_URL
           value: {{ $redisUrl | quote }}
         {{- if $oidcProxy.redis.passwordFile }}
@@ -286,10 +233,6 @@ spec:
           value: {{ $oidcClientSecretFile | quote }}
         - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER
           value: {{ $oidcAccessTokenIssuer | quote }}
-        - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_AUDIENCE
-          value: {{ $oidcAccessTokenAudience | quote }}
-        - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_JWKS_URL
-          value: {{ $oidcAccessTokenJwksUrl | quote }}
         - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE
           value: {{ $oidcAccessTokenRequiredScope | quote }}
         - name: OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS

@@ -86,6 +86,7 @@ Register the Upstream Application
 
 Configure one confidential application in the identity provider with:
 
+* An Application ID URI of exactly ``https://<osmo-host>/mcp``.
 * The exact redirect URL ``https://<osmo-host>/mcp/auth/callback``.
 * Authorization code flow and the ``client_secret_post`` token authentication
   method.
@@ -93,6 +94,19 @@ Configure one confidential application in the identity provider with:
   ``https://<osmo-host>/mcp/access_as_user``.
 * User or group assignments and administrator consent appropriate for the
   deployment.
+
+.. important::
+
+   The application is per host, not per deployment fleet. OSMO derives the
+   audience it validates from ``services.mcp.resourceUrl``, and that audience
+   must exist as an Application ID URI on the registered application, so
+   enabling MCP on a second host requires either a second application or an
+   additional Application ID URI on the existing one.
+
+   Prefer a separate application for a new environment. Editing
+   ``identifierUris`` or ``redirectUris`` on an application that other
+   environments already depend on can break sign-in for those environments;
+   check every consumer before changing a shared registration.
 
 ``access_as_user`` permits delegated MCP access as the signed-in user. It does
 not grant workflow, application, credential, or pool permissions; each tool's
@@ -112,8 +126,7 @@ compatibility before using another provider.
 
    Do not confuse the fixed upstream ``/mcp/auth/callback`` URL with a native MCP
    client's temporary localhost callback. FastMCP accepts native loopback
-   callbacks automatically. Browser-hosted clients require separately
-   configured HTTPS redirect origins.
+   callbacks automatically; only loopback client redirects are accepted.
 
 Provide Redis and Secrets
 -------------------------
@@ -167,14 +180,11 @@ to the deployment:
        resourceUrl: https://osmo.example.com/mcp
        oidcProxy:
          enabled: true
-         scope: https://osmo.example.com/mcp/access_as_user
          oidc:
            configUrl: https://idp.example.com/.well-known/openid-configuration
            clientId: <confidential-oidc-client-id>
            clientSecretFile: /etc/osmo/mcp-auth/client-secret
            accessTokenIssuer: https://issuer.example.com/
-           accessTokenAudience: https://osmo.example.com/mcp
-           accessTokenJwksUrl: https://idp.example.com/jwks
            accessTokenRequiredScope: access_as_user
          redis:
            dbNumber: 0
@@ -192,13 +202,9 @@ while the proxy is enabled. Keep ``services.mcp.replicas`` at ``1`` because
 the current refresh lock is process-local and does not serialize refreshes
 across replicas.
 
-Native clients normally omit ``Origin`` and need neither of the following
-settings. For a browser-hosted MCP client, configure both concepts separately:
-
-* ``services.mcp.allowedOrigins`` controls which browser origins can call
-  ``/mcp`` through CORS.
-* ``services.mcp.oidcProxy.trustedHttpsRedirectOrigins`` controls which exact
-  HTTPS origins can receive OAuth callbacks for browser-hosted clients.
+Native clients normally omit ``Origin`` and need no extra configuration. For a
+browser-hosted MCP client, ``services.mcp.allowedOrigins`` controls which
+browser origins may call ``/mcp``.
 
 How the Proxy Flow Works
 ------------------------
