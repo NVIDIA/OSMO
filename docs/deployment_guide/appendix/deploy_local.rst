@@ -169,7 +169,6 @@ host GPU through:
    nvkind cluster create --config-template=kind-osmo-cluster-config.yaml
    nvkind cluster print-gpus
    kubectl config use-context kind-osmo
-   kubectl get storageclass
 
 .. note::
 
@@ -196,20 +195,6 @@ fix required by this quickstart.
      --set nfd.enabled=true \
      --wait \
      --timeout 10m
-
-Wait for the GPU Operator pods to become Ready and verify that the compute node
-advertises one or more allocatable GPUs before installing OSMO:
-
-.. code-block:: bash
-
-   kubectl --namespace gpu-operator wait \
-     --for=condition=Ready pod --all --timeout=10m
-   kubectl get nodes -l node_group=compute \
-     -o custom-columns=NAME:.metadata.name,ALLOCATABLE_GPUS:.status.allocatable.nvidia\.com/gpu
-
-The ``compute`` node must show a positive ``ALLOCATABLE_GPUS`` value. If it
-does not, resolve the NVIDIA driver, Container Toolkit, or GPU Operator problem
-before proceeding.
 
 Option B: CPU Workstations (with KIND)
 ---------------------------------------
@@ -278,23 +263,24 @@ If your workstation does not have a GPU, create a standard CPU-only cluster.
 
    kind create cluster --config kind-osmo-cluster-config.yaml
    kubectl config use-context kind-osmo
-   kubectl get storageclass
 
 Install cluster dependencies
 ============================
 
-Install KAI Scheduler v0.14.0 for OSMO workflow scheduling, then install the
+Install KAI Scheduler v0.12.10 for OSMO workflow scheduling, then install the
 CloudNativePG operator chart version 0.29.0 for the embedded PostgreSQL
 cluster:
 
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
-     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
-     --namespace kai-scheduler \
-     --create-namespace \
-     --wait \
-     --timeout 10m
+     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     --version v0.12.10 \
+     --create-namespace -n kai-scheduler \
+     --set global.nodeSelector.node_group=kai-scheduler \
+     --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
+     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
+     --wait
 
    helm repo add cnpg https://cloudnative-pg.github.io/charts
    helm repo update cnpg
@@ -344,21 +330,11 @@ install it without a profile or values overlay:
      --wait-for-jobs \
      --timeout 20m
 
-Remove the temporary service-auth file:
+Remove the temporary service-auth directory:
 
 .. code-block:: bash
 
-   rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
-   rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
-
-Confirm that the release, embedded dependencies, and gateway are Ready:
-
-.. code-block:: bash
-
-   kubectl --namespace osmo wait \
-     --for=condition=Ready cluster/osmo-pg --timeout=10m
-   kubectl --namespace osmo get pods,pvc,services,jobs
-   kubectl --namespace osmo get service osmo-gateway
+   rm -r "${OSMO_SERVICE_AUTH_DIRECTORY}"
 
 Log in and run a workflow
 =========================
@@ -379,6 +355,11 @@ pool, and submit the canonical CPU verification workflow:
 
 Query the returned workflow ID until its status is ``COMPLETED``. The workflow
 uses the default ``cpu`` platform.
+
+.. admonition:: Success!
+   :class: tip
+
+   You now have OSMO configured and running on your workstation. You're ready to start running robotics workflows!
 
 If you used Option A, submit the GPU verification workflow too:
 
