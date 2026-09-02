@@ -116,6 +116,56 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'default_admin_password',
             'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
         })
+    token_oidc_provider_enabled: bool = pydantic.Field(
+        default=False,
+        description='Enable the first-party PAT-backed OIDC provider.',
+        json_schema_extra={
+            'command_line': 'token_oidc_provider_enabled',
+            'env': 'OSMO_TOKEN_OIDC_PROVIDER_ENABLED',
+        })
+    token_oidc_issuer: str = pydantic.Field(
+        default='',
+        description='Canonical public issuer URL for the PAT-backed OIDC provider.',
+        json_schema_extra={
+            'command_line': 'token_oidc_issuer',
+            'env': 'OSMO_TOKEN_OIDC_ISSUER',
+        })
+    token_oidc_client_id: str = pydantic.Field(
+        default='osmo-ui',
+        description='Static OAuth client identifier accepted by the OIDC provider.',
+        json_schema_extra={
+            'command_line': 'token_oidc_client_id',
+            'env': 'OSMO_TOKEN_OIDC_CLIENT_ID',
+        })
+    token_oidc_client_secret_file: str = pydantic.Field(
+        default='',
+        description='Path to the OAuth client secret mounted from a Kubernetes Secret.',
+        json_schema_extra={
+            'command_line': 'token_oidc_client_secret_file',
+            'env': 'OSMO_TOKEN_OIDC_CLIENT_SECRET_FILE',
+        })
+    token_oidc_redirect_uri: str = pydantic.Field(
+        default='',
+        description='Exact oauth2-proxy callback URI accepted by the OIDC provider.',
+        json_schema_extra={
+            'command_line': 'token_oidc_redirect_uri',
+            'env': 'OSMO_TOKEN_OIDC_REDIRECT_URI',
+        })
+    token_oidc_login_page_url: str = pydantic.Field(
+        default='/auth/token-login',
+        description='Same-origin UI URL used to collect a PAT.',
+        json_schema_extra={
+            'command_line': 'token_oidc_login_page_url',
+            'env': 'OSMO_TOKEN_OIDC_LOGIN_PAGE_URL',
+        })
+    token_oidc_cookie_secure: bool = pydantic.Field(
+        default=True,
+        description='Mark the browser-binding OIDC cookie Secure.',
+        json_schema_extra={
+            'command_line': 'token_oidc_cookie_secure',
+            'env': 'OSMO_TOKEN_OIDC_COOKIE_SECURE',
+        })
+
     @pydantic.model_validator(mode='before')
     @classmethod
     def validate_default_admin(cls, values):
@@ -130,6 +180,28 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             raise ValueError(
                 'default_admin_password must be set when default_admin_username is specified')
         return values
+
+    @pydantic.model_validator(mode='after')
+    def validate_token_oidc_provider(self) -> 'WorkflowServiceConfig':
+        if not self.token_oidc_provider_enabled:
+            return self
+        required = {
+            'token_oidc_issuer': self.token_oidc_issuer,
+            'token_oidc_client_secret_file': self.token_oidc_client_secret_file,
+            'token_oidc_redirect_uri': self.token_oidc_redirect_uri,
+        }
+        missing = [name for name, value in required.items() if not value]
+        if missing:
+            raise ValueError(
+                'PAT-backed OIDC provider requires ' + ', '.join(missing))
+        if not self.token_oidc_issuer.startswith(('https://', 'http://')):
+            raise ValueError('token_oidc_issuer must be an absolute HTTP(S) URL')
+        if not self.token_oidc_redirect_uri.startswith(('https://', 'http://')):
+            raise ValueError('token_oidc_redirect_uri must be an absolute HTTP(S) URL')
+        if (not self.token_oidc_login_page_url.startswith('/')
+                or self.token_oidc_login_page_url.startswith('//')):
+            raise ValueError('token_oidc_login_page_url must be a same-origin absolute path')
+        return self
 
 
 class WorkflowServiceContext(pydantic.BaseModel):

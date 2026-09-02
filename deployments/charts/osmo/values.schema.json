@@ -895,6 +895,7 @@
         "clientInstallUrl": { "type": "string" },
         "disableTaskMetrics": { "type": "boolean" },
         "auth": { "$ref": "#/definitions/apiAuth" },
+        "tokenOidcProvider": { "$ref": "#/definitions/tokenOidcProvider" },
         "service": { "$ref": "#/definitions/serviceMetadata" },
         "livenessProbe": { "$ref": "#/definitions/probe" },
         "readinessProbe": { "$ref": "#/definitions/probe" },
@@ -908,6 +909,16 @@
         "pod": { "$ref": "#/definitions/podSettings" },
         "deploymentStrategy": { "type": "object" }
       }
+    },
+    "tokenOidcProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "clientId": { "type": "string", "minLength": 1 },
+        "loginPagePath": { "type": "string", "pattern": "^/[^/]" }
+      },
+      "required": ["enabled", "clientId", "loginPagePath"]
     },
     "uiComponent": {
       "type": "object",

@@ -931,6 +931,12 @@ services:
       browserClientId: ''
       tokenEndpoint: ''
       logoutEndpoint: ''
+    # First-party OIDC provider that authenticates the browser with an OSMO PAT.
+    # The login form is served by services.ui; the API owns the POST and OAuth state.
+    tokenOidcProvider:
+      enabled: false
+      clientId: osmo-ui
+      loginPagePath: /auth/token-login
     service:
       labels: {}
       annotations: {}

@@ -17,6 +17,9 @@
 
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway.fullname" . }}
+{{- $tokenOidc := .Values.services.api.tokenOidcProvider }}
+{{- $apiHost := $gw.upstreams.api.host | default (include "osmo.api.fullname" .) }}
+{{- $apiScheme := ternary "https" "http" $gw.tls.enabled }}
 
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
@@ -331,16 +334,16 @@ spec:
           - --metrics-address=0.0.0.0:{{ $gw.oauth2Proxy.metricsPort }}
           - --reverse-proxy=true
           - --provider={{ $gw.oauth2Proxy.provider }}
-          - --oidc-issuer-url={{ $gw.oauth2Proxy.oidcIssuerUrl }}
-          - --client-id={{ $gw.oauth2Proxy.clientId }}
+          - --oidc-issuer-url={{ if $tokenOidc.enabled }}{{ trimSuffix "/" $.Values.externalUrl }}/api/auth/oidc{{ else }}{{ $gw.oauth2Proxy.oidcIssuerUrl }}{{ end }}
+          - --client-id={{ if $tokenOidc.enabled }}{{ $tokenOidc.clientId }}{{ else }}{{ $gw.oauth2Proxy.clientId }}{{ end }}
           - --cookie-secure={{ $gw.oauth2Proxy.cookieSecure }}
           - --cookie-name={{ $gw.oauth2Proxy.cookieName }}
           {{- if $gw.oauth2Proxy.cookieDomain }}
           - --cookie-domain={{ $gw.oauth2Proxy.cookieDomain }}
           {{- end }}
-          - --cookie-expire={{ $gw.oauth2Proxy.cookieExpire }}
-          - --cookie-refresh={{ $gw.oauth2Proxy.cookieRefresh }}
-          - --scope={{ $gw.oauth2Proxy.scope }}
+          - --cookie-expire={{ if $tokenOidc.enabled }}8h{{ else }}{{ $gw.oauth2Proxy.cookieExpire }}{{ end }}
+          - --cookie-refresh={{ if $tokenOidc.enabled }}4m{{ else }}{{ $gw.oauth2Proxy.cookieRefresh }}{{ end }}
+          - --scope={{ if $tokenOidc.enabled }}openid profile roles offline_access{{ else }}{{ $gw.oauth2Proxy.scope }}{{ end }}
           - --email-domain=*
           - --set-xauthrequest=true
           - --set-authorization-header=true
@@ -355,6 +358,19 @@ spec:
           - --silence-ping-logging=true
           - --skip-provider-button=true
           - --api-route=/api/.+
+          {{- if $tokenOidc.enabled }}
+          - --code-challenge-method=S256
+          - --skip-oidc-discovery=true
+          - --login-url={{ trimSuffix "/" $.Values.externalUrl }}/api/auth/oidc/authorize
+          - --redeem-url={{ $apiScheme }}://{{ $apiHost }}:{{ $gw.upstreams.api.port }}/api/auth/oidc/token
+          - --oidc-jwks-url={{ $apiScheme }}://{{ $apiHost }}:{{ $gw.upstreams.api.port }}/api/auth/keys
+          - --profile-url={{ $apiScheme }}://{{ $apiHost }}:{{ $gw.upstreams.api.port }}/api/auth/oidc/userinfo
+          - --oidc-email-claim=preferred_username
+          - --oidc-groups-claim=roles
+          - --insecure-oidc-allow-unverified-email=true
+          - --insecure-oidc-skip-nonce=false
+          - --cookie-csrf-per-request=true
+          {{- end }}
           {{- range $gw.oauth2Proxy.extraArgs }}
           - {{ . | quote }}
           {{- end }}
@@ -909,6 +925,7 @@ spec:
 {{/* ================================================================ */}}
 {{- if $gw.networkPolicies.enabled }}
 {{- $envoyLabels := (include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | fromYaml) }}
+{{- $oauth2ProxyLabels := (include "osmo.component.selectorLabels" (dict "root" . "component" "gateway-oauth2-proxy") | fromYaml) }}
 {{- range $gw.networkPolicies.upstreams }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -932,6 +949,11 @@ spec:
     - podSelector:
         matchLabels:
           {{- toYaml $envoyLabels | nindent 10 }}
+    {{- if and $tokenOidc.enabled (eq .component "api") }}
+    - podSelector:
+        matchLabels:
+          {{- toYaml $oauth2ProxyLabels | nindent 10 }}
+    {{- end }}
     ports:
     - port: {{ .port | default 8000 }}
       protocol: TCP

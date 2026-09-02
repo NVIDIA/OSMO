@@ -43,8 +43,20 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpResourceUrl := "" }}
 {{- $mcpMetadataUrl := "" }}
 {{- $mcpServiceName := include "osmo.component.fullname" (dict "root" . "suffix" "mcp") }}
+{{- $tokenOidc := .Values.services.api.tokenOidcProvider }}
 {{- $jwtProviders := concat (default (list) $envoy.jwt.providers) (default (list) $envoy.jwt.additionalProviders) }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
+{{- if $tokenOidc.enabled }}
+{{- $jwksScheme := ternary "https" "http" $gw.tls.enabled }}
+{{- $jwksHost := $envoy.internalJwks.host | default $serviceHost }}
+{{- $jwtProviders = append $jwtProviders (dict
+      "issuer" (printf "%s/api/auth/oidc" (trimSuffix "/" .Values.externalUrl))
+      "audience" $tokenOidc.clientId
+      "jwks_uri" (printf "%s://%s:%v/api/auth/keys" $jwksScheme $jwksHost ($envoy.internalJwks.port | default $gw.upstreams.api.port))
+      "cluster" $envoy.internalJwks.cluster
+      "user_claim" "preferred_username") }}
+{{- $skipAuthPaths = uniq (concat $skipAuthPaths (list "/api/auth/oidc/" $tokenOidc.loginPagePath "/_next/static/")) }}
+{{- end }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
 {{- $authnSkipPaths = uniq (concat $authnSkipPaths (list "/oauth2/" "/signout")) }}

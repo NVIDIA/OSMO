@@ -59,7 +59,7 @@ const PRODUCTION_CSP = [
   "object-src 'none'",
 ].join("; ");
 
-export function proxy(_request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const response = NextResponse.next();
 
   if (process.env.NODE_ENV === "production") {
@@ -70,6 +70,11 @@ export function proxy(_request: NextRequest): NextResponse {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", PERMISSIONS_POLICY);
+
+  if (request.nextUrl.pathname === "/auth/token-login") {
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+  }
 
   return response;
 }

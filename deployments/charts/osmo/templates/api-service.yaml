@@ -50,6 +50,9 @@ spec:
         {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
         {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
         osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
+        {{- if .Values.services.api.tokenOidcProvider.enabled }}
+        osmo.nvidia.com/oauth-client-secret-rollout: {{ .Values.secrets.oauthClientSecret.rolloutNonce | quote }}
+        {{- end }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -127,6 +130,22 @@ spec:
         - --logout_endpoint
         - {{ .Values.services.api.auth.logoutEndpoint }}
         {{- end }}
+        {{- if .Values.services.api.tokenOidcProvider.enabled }}
+        - --token_oidc_provider_enabled
+        - "true"
+        - --token_oidc_issuer
+        - {{ printf "%s/api/auth/oidc" (trimSuffix "/" .Values.externalUrl) | quote }}
+        - --token_oidc_client_id
+        - {{ .Values.services.api.tokenOidcProvider.clientId | quote }}
+        - --token_oidc_client_secret_file
+        - /etc/osmo/oauth/client-secret
+        - --token_oidc_redirect_uri
+        - {{ printf "%s/oauth2/callback" (trimSuffix "/" .Values.externalUrl) | quote }}
+        - --token_oidc_login_page_url
+        - {{ .Values.services.api.tokenOidcProvider.loginPagePath | quote }}
+        - --token_oidc_cookie_secure
+        - {{ .Values.gateway.oauth2Proxy.cookieSecure | quote }}
+        {{- end }}
         {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.hostname" .) }}
         {{- if $serviceHostname }}
         - --service_hostname
@@ -190,6 +209,12 @@ spec:
           readOnly: true
         {{- end }}
         {{- include "osmo.secrets.serviceAuthVolumeMount" . | nindent 8 }}
+        {{- if .Values.services.api.tokenOidcProvider.enabled }}
+        - name: oauth-client-secret
+          mountPath: /etc/osmo/oauth/client-secret
+          subPath: client-secret
+          readOnly: true
+        {{- end }}
         {{- if .Values.secrets.backendApiTokens.enabled }}
         {{- range .Values.secrets.backendApiTokens.credentials }}
         - name: backend-token-{{ .name }}
@@ -225,6 +250,14 @@ spec:
         {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "api"))) | nindent 8 }}
         {{- include "osmo.secrets.mekVolume" . | nindent 8 }}
         {{- include "osmo.secrets.serviceAuthVolume" . | nindent 8 }}
+        {{- if .Values.services.api.tokenOidcProvider.enabled }}
+        - name: oauth-client-secret
+          secret:
+            secretName: {{ .Values.secrets.oauthClientSecret.existingSecret | quote }}
+            items:
+            - key: {{ .Values.secrets.oauthClientSecret.keys.value | quote }}
+              path: client-secret
+        {{- end }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
         {{- if .Values.secrets.backendApiTokens.enabled }}

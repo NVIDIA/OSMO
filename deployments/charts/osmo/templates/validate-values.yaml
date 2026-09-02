@@ -458,6 +458,29 @@
 {{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthCookieSecret.generate) (not .Values.secrets.oauthCookieSecret.existingSecret) -}}
 {{- fail "secrets.oauthCookieSecret requires generate=true or existingSecret when the OAuth2 proxy is enabled" -}}
 {{- end -}}
+{{- if .Values.services.api.tokenOidcProvider.enabled -}}
+{{- if not .Values.gateway.oauth2Proxy.enabled -}}
+{{- fail "services.api.tokenOidcProvider.enabled requires gateway.oauth2Proxy.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.services.ui.enabled -}}
+{{- fail "services.api.tokenOidcProvider.enabled requires services.ui.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.externalUrl -}}
+{{- fail "services.api.tokenOidcProvider.enabled requires externalUrl" -}}
+{{- end -}}
+{{- if hasPrefix "//" .Values.services.api.tokenOidcProvider.loginPagePath -}}
+{{- fail "services.api.tokenOidcProvider.loginPagePath must be a same-origin absolute path" -}}
+{{- end -}}
+{{- if not .Values.gateway.oauth2Proxy.redisSessionStore -}}
+{{- fail "services.api.tokenOidcProvider.enabled requires gateway.oauth2Proxy.redisSessionStore=true" -}}
+{{- end -}}
+{{- if .Values.gateway.oauth2Proxy.passAccessToken -}}
+{{- fail "services.api.tokenOidcProvider.enabled requires gateway.oauth2Proxy.passAccessToken=false" -}}
+{{- end -}}
+{{- if not .Values.gateway.envoy.internalJwks.enabled -}}
+{{- fail "services.api.tokenOidcProvider.enabled requires gateway.envoy.internalJwks.enabled=true" -}}
+{{- end -}}
+{{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
 {{- end -}}
