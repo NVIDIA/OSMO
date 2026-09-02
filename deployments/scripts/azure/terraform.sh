@@ -567,8 +567,11 @@ azure_terraform_init() {
 
 azure_terraform_apply() {
     local terraform_dir="$1"
-    local dry_run="${2:-false}"
-    shift 2
+    shift
+    local dry_run="${1:-false}"
+    if (($#)); then
+        shift
+    fi
 
     log_info "Applying Terraform configuration..."
     cd "$terraform_dir"

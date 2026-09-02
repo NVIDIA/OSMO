@@ -40,9 +40,14 @@ TF_SUBSCRIPTION_ID="${TF_SUBSCRIPTION_ID:-$(azure_get_current_subscription)}"
 
 # Use a persistent, resource-group-specific working directory so this example
 # cannot read or update terraform.tfvars or terraform.tfstate used by the
-# legacy deploy-osmo-minimal.sh entry point.
-resource_group_key="$(printf '%s' "$TF_RESOURCE_GROUP" | tr -c '[:alnum:]_-' '-')"
-TERRAFORM_DIR="${SINGLE_PLANE_TERRAFORM_WORK_DIR:-$TERRAFORM_SOURCE_DIR/.single-plane/$resource_group_key}"
+# legacy deploy-osmo-minimal.sh entry point. The hash prevents distinct Azure
+# names that share the same filesystem-safe slug from sharing Terraform state.
+normalized_resource_group="${TF_RESOURCE_GROUP,,}"
+resource_group_key="$(printf '%s' "$normalized_resource_group" | tr -c '[:alnum:]_-' '-')"
+resource_group_hash="$(printf '%s' "$normalized_resource_group" | openssl dgst -sha256 -r)"
+resource_group_hash="${resource_group_hash%% *}"
+terraform_state_key="${resource_group_key}-${resource_group_hash:0:12}"
+TERRAFORM_DIR="${SINGLE_PLANE_TERRAFORM_WORK_DIR:-$TERRAFORM_SOURCE_DIR/.single-plane/$terraform_state_key}"
 mkdir -p "$TERRAFORM_DIR"
 cp "$TERRAFORM_SOURCE_DIR"/*.tf "$TERRAFORM_DIR/"
 if [[ -f "$TERRAFORM_SOURCE_DIR/.terraform.lock.hcl" ]]; then

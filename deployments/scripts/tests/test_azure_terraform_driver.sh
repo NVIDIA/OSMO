@@ -35,14 +35,20 @@ terraform() {
 }
 
 mkdir -p "$test_directory/terraform"
-azure_terraform_apply "$test_directory/terraform" false
+azure_terraform_apply "$test_directory/terraform"
 [[ "$(sed -n '1p' "$command_log")" == "apply -auto-approve" ]] || {
-    echo "legacy apply command changed" >&2
+    echo "default apply command changed" >&2
+    exit 1
+}
+
+azure_terraform_apply "$test_directory/terraform" false -var-file=single-plane.tfvars
+[[ "$(sed -n '2p' "$command_log")" == "apply -auto-approve -var-file=single-plane.tfvars" ]] || {
+    echo "apply arguments were not forwarded" >&2
     exit 1
 }
 
 azure_terraform_apply "$test_directory/terraform" true -var-file=single-plane.tfvars
-[[ "$(sed -n '2p' "$command_log")" == "plan -var-file=single-plane.tfvars" ]] || {
+[[ "$(sed -n '3p' "$command_log")" == "plan -var-file=single-plane.tfvars" ]] || {
     echo "dry-run arguments were not forwarded" >&2
     exit 1
 }

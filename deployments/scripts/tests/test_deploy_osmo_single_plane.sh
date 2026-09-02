@@ -187,8 +187,10 @@ jq -e '
   .imagePullSecrets == [{"name":"456"}] and
   .services.api.serviceAccount.annotations["azure.workload.identity/client-id"] == "11111111-2222-3333-4444-555555555555" and
   .services.worker.serviceAccount.annotations["azure.workload.identity/client-id"] == "11111111-2222-3333-4444-555555555555" and
-  .services.api.extraVolumeMounts[0].mountPath == "/etc/osmo/secrets/456" and
-  .services.api.pod.extraVolumes[0].secret.secretName == "456" and
+  .services as $services |
+  (["api", "worker", "agent", "logger"] | all(.[];
+    $services[.].extraVolumeMounts[0].mountPath == "/etc/osmo/secrets/456" and
+    $services[.].pod.extraVolumes[0].secret.secretName == "456")) and
   .configuration.workflow.backend_images.credential.secretName == "456" and
   .externalDependencies.postgresql.host == "test.postgres.database.azure.com" and
   .externalDependencies.valkey.port == 10000 and
@@ -239,6 +241,7 @@ assert_ordered \
 
 assert_contains "$command_log" "bash ${TEST_SRCDIR}/_main/deployments/scripts/install-kai-scheduler.sh"
 assert_contains "$command_log" "bash ${TEST_SRCDIR}/_main/deployments/scripts/verify.sh"
+assert_contains "$command_log" "openssl dgst -sha256 -r"
 [[ "$(grep -c '^helm upgrade .*osmo ' "$command_log")" == 1 ]] || fail "expected one OSMO Helm transaction"
 assert_contains "$command_log" '--set secrets.masterEncryptionKey.bootstrap.enabled=true'
 

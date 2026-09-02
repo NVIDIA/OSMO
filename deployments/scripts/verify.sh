@@ -51,6 +51,8 @@ HELLO_POLL_TIMEOUT="${HELLO_POLL_TIMEOUT:-600}"
 OBJECT_STORAGE_POLL_TIMEOUT="${OBJECT_STORAGE_POLL_TIMEOUT:-600}"
 GPU_POLL_TIMEOUT="${GPU_POLL_TIMEOUT:-1500}"
 POLL_INTERVAL="${POLL_INTERVAL:-10}"
+# Completed workflows can briefly precede their persisted log objects.
+WORKFLOW_LOG_TIMEOUT="${WORKFLOW_LOG_TIMEOUT:-60}"
 # How long to wait for the backend to report its nodes into $POOL.
 POOL_RESOURCE_TIMEOUT="${POOL_RESOURCE_TIMEOUT:-300}"
 
@@ -129,7 +131,7 @@ run_workflow() {
 
     local status=""
     local iterations=$(( timeout / POLL_INTERVAL ))
-    local query_out
+    local log_deadline query_out
     for _ in $(seq 1 "$iterations"); do
         # Tolerate transient query failures — server may be momentarily 5xx
         # mid-deploy. Log a warning, sleep, retry — don't abort the verify.
@@ -146,10 +148,15 @@ run_workflow() {
                     log_error "Failed to fetch completed workflow spec for $wf_id"
                     return 1
                 fi
-                if ! osmo workflow logs "$wf_id"; then
-                    log_error "Failed to fetch completed workflow logs for $wf_id"
-                    return 1
-                fi
+                log_deadline=$(( $(date +%s) + WORKFLOW_LOG_TIMEOUT ))
+                until osmo workflow logs "$wf_id"; do
+                    if [[ "$(date +%s)" -ge "$log_deadline" ]]; then
+                        log_error "Failed to fetch completed workflow logs for $wf_id"
+                        return 1
+                    fi
+                    log_warning "Log retrieval failed for $wf_id; retrying"
+                    sleep "$POLL_INTERVAL"
+                done
                 log_success "$label: COMPLETED"
                 return 0
                 ;;

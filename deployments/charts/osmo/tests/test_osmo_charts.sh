@@ -1038,6 +1038,8 @@ test_control_umbrella() {
         "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "secretName: osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        'azure.workload.identity/use: "true"'
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
         "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
@@ -1045,7 +1047,19 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
         "serviceAccountName: osmo-worker"
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        "secretName: osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
         'azure.workload.identity/use: "true"'
+    for service in agent logger; do
+        resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
+            "osmo-$service" >"$TEST_DIRECTORY/single-plane-azure-$service.yaml"
+        require_contains "$TEST_DIRECTORY/single-plane-azure-$service.yaml" \
+            "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
+        require_contains "$TEST_DIRECTORY/single-plane-azure-$service.yaml" \
+            "secretName: osmo-runtime-pull"
+    done
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ServiceAccount \
         "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker-service-account.yaml"
     require_contains \

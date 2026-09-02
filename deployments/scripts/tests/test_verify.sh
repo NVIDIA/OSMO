@@ -25,6 +25,8 @@ write_mock() {
 # shellcheck disable=SC2016 # Mock bodies intentionally defer expansion to execution.
 write_mock curl '#!/bin/bash' 'set -euo pipefail' 'echo "curl $*" >>"$COMMAND_LOG"'
 # shellcheck disable=SC2016 # Mock bodies intentionally defer expansion to execution.
+write_mock sleep '#!/bin/bash' 'exit 0'
+# shellcheck disable=SC2016 # Mock bodies intentionally defer expansion to execution.
 write_mock osmo '#!/bin/bash' 'set -euo pipefail' 'echo "osmo $*" >>"$COMMAND_LOG"' \
     'case "$1 $2" in' \
     '  "resource list") echo '\''{"resources":[{"name":"cpu"}]}'\'' ;;' \
@@ -37,7 +39,14 @@ write_mock osmo '#!/bin/bash' 'set -euo pipefail' 'echo "osmo $*" >>"$COMMAND_LO
     '    ;;' \
     '  "workflow query") echo '\''{"status":"COMPLETED"}'\'' ;;' \
     '  "workflow spec") echo "workflow: {}" ;;' \
-    '  "workflow logs") echo "Object storage round trip verified" ;;' \
+    '  "workflow logs")' \
+    '    [[ "${FAIL_WORKFLOW_LOGS:-false}" != true ]] || exit 3' \
+    '    if [[ "$3" == wf-object-storage && -f "${LOG_FAILURES_FILE:-}" ]]; then' \
+    '      remaining="$(<"$LOG_FAILURES_FILE")"' \
+    '      if ((remaining > 0)); then echo "$((remaining - 1))" >"$LOG_FAILURES_FILE"; exit 4; fi' \
+    '    fi' \
+    '    echo "Object storage round trip verified"' \
+    '    ;;' \
     'esac'
 
 export COMMAND_LOG="$command_log"
@@ -47,7 +56,10 @@ export POLL_INTERVAL=1
 export POOL_RESOURCE_TIMEOUT=2
 export HELLO_POLL_TIMEOUT=2
 export OBJECT_STORAGE_POLL_TIMEOUT=2
+export WORKFLOW_LOG_TIMEOUT=2
 export WORKFLOWS_DIR="${TEST_SRCDIR}/_main/deployments/workflows"
+export LOG_FAILURES_FILE="$test_directory/log-failures-remaining"
+printf '1\n' >"$LOG_FAILURES_FILE"
 
 verify_script="${TEST_SRCDIR}/_main/deployments/scripts/verify.sh"
 "$verify_script" >"$test_directory/output.log" 2>&1
@@ -64,3 +76,15 @@ for workflow_id in wf-hello wf-object-storage; do
     grep -Fq "osmo workflow logs $workflow_id" "$command_log" || \
         fail "$workflow_id logs were not fetched"
 done
+[[ "$(grep -Fc 'osmo workflow logs wf-object-storage' "$command_log")" == 2 ]] || \
+    fail "object-storage logs were not retried"
+
+: >"$command_log"
+export FAIL_WORKFLOW_LOGS=true WORKFLOW_LOG_TIMEOUT=0
+if "$verify_script" >"$test_directory/log-timeout-output.log" 2>&1; then
+    fail "permanent workflow-log failure unexpectedly succeeded"
+fi
+grep -Fq "Failed to fetch completed workflow logs for wf-hello" \
+    "$test_directory/log-timeout-output.log" || fail "workflow-log timeout was not reported"
+[[ "$(grep -Fc 'osmo workflow logs wf-hello' "$command_log")" == 1 ]] || \
+    fail "zero-second workflow-log timeout was not bounded"

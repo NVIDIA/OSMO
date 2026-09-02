@@ -15,10 +15,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 locals {
-  single_plane_storage_account_name = substr(
-    lower(replace("st${local.name}${random_string.suffix.result}", "/[^0-9a-z]/", "")),
-    0,
-    24,
+  single_plane_storage_account_name = format(
+    "%s%s",
+    substr(lower(replace("st${local.name}", "/[^0-9a-z]/", "")), 0, 19),
+    random_string.suffix.result,
   )
   single_plane_service_accounts = toset([
     "osmo-api",
