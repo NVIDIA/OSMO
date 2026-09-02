@@ -1309,13 +1309,12 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "attempt": { "type": "string", "minLength": 1, "maxLength": 32 },
-            "image": { "$ref": "#/definitions/componentImage" },
             "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
             "nodeSelector": { "$ref": "#/definitions/stringMap" },
             "tolerations": { "type": "array" },
             "resources": { "type": "object" }
           },
-          "required": ["enabled", "attempt", "image", "activeDeadlineSeconds", "nodeSelector", "tolerations", "resources"]
+          "required": ["enabled", "attempt", "activeDeadlineSeconds", "nodeSelector", "tolerations", "resources"]
         },
         "migration": {
           "type": "object",

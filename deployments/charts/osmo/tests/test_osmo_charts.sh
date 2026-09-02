@@ -907,7 +907,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
         "name: osmo-nvcr-pull"
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
-        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 2
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 3
 
     helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
@@ -952,7 +952,7 @@ test_control_umbrella() {
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
         "service-auth-bootstrap"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
-        'docker.io/smallstep/step-cli@sha256:474768dd54700088e9480210eaf2c25e3041ed1e8302c7cf211725381cec9f5e'
+        'command: ["service-auth-bootstrap"]'
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
         "object-storage-bootstrap"
     require_not_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
@@ -2353,21 +2353,9 @@ EOF
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
         '"update"'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'image: "docker.io/smallstep/step-cli@sha256:474768dd54700088e9480210eaf2c25e3041ed1e8302c7cf211725381cec9f5e"'
+        'command: ["service-auth-bootstrap"]'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'imagePullPolicy: "IfNotPresent"'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        '- /bin/sh'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'step crypto jwk create'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'KUBERNETES_API_URL'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        '- --work-directory'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'mountPath: /work'
-    require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'medium: Memory'
+        '- bootstrap'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
         'activeDeadlineSeconds: 900'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
@@ -2379,9 +2367,7 @@ EOF
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
         'postgresql-ca'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'service-auth-bootstrap bootstrap'
-    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'nvcr.io/nvidia/osmo/service'
+        'smallstep/step-cli'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
         'expirationSeconds: 600'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
@@ -2464,16 +2450,6 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/invalid-service-auth-bootstrap-migration.out" \
         "bootstrap.enabled and migration.enabled are mutually exclusive"
-
-    if helm_template invalid-service-auth-bootstrap-policy "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set-string secrets.serviceAuth.bootstrap.image.pullPolicy=Sometimes \
-            >"$TEST_DIRECTORY/invalid-service-auth-bootstrap-policy.out" 2>&1; then
-        fail "expected invalid service auth bootstrap imagePullPolicy to fail"
-    fi
-    require_schema_path "$TEST_DIRECTORY/invalid-service-auth-bootstrap-policy.out" \
-        "secrets.serviceAuth.bootstrap.image.pullPolicy"
 
     helm_template service-auth-migration "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -4686,7 +4662,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 13
+        "type: RuntimeDefault" 12
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \
