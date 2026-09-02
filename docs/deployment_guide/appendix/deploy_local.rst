@@ -200,16 +200,17 @@ before proceeding.
 Install OSMO
 ============
 
-The ``quickstart.yaml`` profile is CPU-only by default. Override its
-``default_user`` pod template so OSMO requests the GPU resource in both the
-user-container requests and limits. Helm replaces lists instead of merging
-them, so the override repeats the complete container resource configuration,
-including CPU, memory, GPU, and ephemeral-storage requests and limits.
+The chart's Quickstart defaults are CPU-only. Override the ``default_user`` pod
+template so OSMO requests the GPU resource in both the user-container requests
+and limits. Helm replaces lists instead of merging them, so the override
+repeats the complete container resource configuration, including CPU, memory,
+GPU, and ephemeral-storage requests and limits.
 
-The unified chart on ``main`` also requires the API image from the same source
-revision for master-encryption-key lifecycle operations. The overlay selects
-the repository-built image for both the API and its bootstrap Job instead of a
-mutable registry image.
+The unified chart on ``main`` also requires control-plane images from the same
+source revision for service authentication. The overlay selects the
+repository-built images instead of mutable registry images. The API image is
+also used for service-auth generation and the master-encryption-key bootstrap
+Job.
 
 .. dropdown:: ``osmo-gpu-pod-template.yaml``
   :color: info
@@ -240,25 +241,102 @@ mutable registry image.
           registry: osmo.local
           repository: service
           tag: latest-x86_64
+      worker:
+        image:
+          registry: osmo.local
+          repository: worker
+          tag: latest-x86_64
+      agent:
+        image:
+          registry: osmo.local
+          repository: agent
+          tag: latest-x86_64
+      router:
+        image:
+          registry: osmo.local
+          repository: router
+          tag: latest-x86_64
+      logger:
+        image:
+          registry: osmo.local
+          repository: logger
+          tag: latest-x86_64
+      delayedJobMonitor:
+        image:
+          registry: osmo.local
+          repository: delayed-job-monitor
+          tag: latest-x86_64
 
-Save the overlay, build and load the current API image, build the chart
-dependencies, and install the unified chart. ``kind load`` copies the image to
-every cluster node, and the Quickstart's ``IfNotPresent`` pull policy uses that
-local image without contacting a registry:
+Save the overlay, then build the current control-plane images and load them
+into the cluster. ``kind load`` copies the images to every cluster node, and
+the Quickstart's ``IfNotPresent`` pull policy uses them without contacting a
+registry:
 
 .. code-block:: bash
 
    bazel run //src/service/core:service_image_load_x86_64
-   kind load docker-image --name osmo osmo.local/service:latest-x86_64
+   bazel run //src/service/worker:worker_image_load_x86_64
+   bazel run //src/service/agent:agent_service_image_load_x86_64
+   bazel run //src/service/router:router_image_load_x86_64
+   bazel run //src/service/logger:logger_image_load_x86_64
+   bazel run //src/service/delayed_job_monitor:delayed_job_monitor_image_load_x86_64
+
+   kind load docker-image --name osmo \
+     osmo.local/service:latest-x86_64 \
+     osmo.local/worker:latest-x86_64 \
+     osmo.local/agent:latest-x86_64 \
+     osmo.local/router:latest-x86_64 \
+     osmo.local/logger:latest-x86_64 \
+     osmo.local/delayed-job-monitor:latest-x86_64
+
+Generate the shared development service-auth identity with that image and
+create its Secret. The generator writes the private identity only to a
+permission-restricted temporary file and never prints it:
+
+.. code-block:: bash
+
+   OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
+   docker run --rm --user "$(id -u):$(id -g)" \
+     --entrypoint service-auth-bootstrap \
+     --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
+     osmo.local/service:latest-x86_64 \
+     generate --output /output/authentication-config.json
+   kubectl --context kind-osmo create namespace osmo \
+     --dry-run=client --output=yaml | kubectl --context kind-osmo apply -f -
+   kubectl --context kind-osmo --namespace osmo create secret generic \
+     osmo-service-auth \
+     --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+
+The chart defaults are the development Quickstart. Build its dependencies and
+install it with only the GPU and local control-plane image overlay:
+
+.. code-block:: bash
+
    helm dependency build deployments/charts/osmo
    helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --create-namespace \
-     --values deployments/charts/osmo/profiles/quickstart.yaml \
      --values osmo-gpu-pod-template.yaml \
-     --set-string compute.backendName=default \
      --wait \
+     --wait-for-jobs \
      --timeout 20m
+
+After the first install creates the retained master-encryption-key Secret,
+remove the one-time bootstrap permission while preserving the remaining
+release values. Then remove the temporary service-auth file:
+
+.. code-block:: bash
+
+   helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
+     --namespace osmo \
+     --reuse-values \
+     --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+     --wait \
+     --wait-for-jobs \
+     --timeout 20m
+
+   rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+   rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 
 Confirm that the release, embedded dependencies, and gateway are Ready:
 
