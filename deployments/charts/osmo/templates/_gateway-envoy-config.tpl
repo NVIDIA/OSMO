@@ -41,6 +41,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
 {{- $mcpResourceUrl := "" }}
+{{- $mcpTokenIssuer := "" }}
 {{- $mcpMetadataUrl := "" }}
 {{- $mcpServiceName := include "osmo.component.fullname" (dict "root" . "suffix" "mcp") }}
 {{- $jwtProviders := concat (default (list) $envoy.jwt.providers) (default (list) $envoy.jwt.additionalProviders) }}
@@ -60,25 +61,29 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.enabled requires at least one gateway Envoy JWT provider" }}
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp.resourceUrl" . }}
-{{- if not (kindIs "slice" $mcp.authorizationServers) }}
-{{- fail "services.mcp.authorizationServers must be a list" }}
+{{- /*
+FastMCP publishes its own protected-resource and authorization-server metadata,
+so the gateway no longer needs the issuer and scope lists it used to synthesise
+those documents from. The relayed token's audience is the MCP resource URL, and
+it comes from the identity provider already configured for this deployment's own
+clients, so that audience is appended to the provider whose issuer matches
+rather than requiring a second, near-identical entry.
+
+The issuer is derivable: OpenID Connect Discovery defines the configuration URL
+as the issuer plus /.well-known/openid-configuration. accessTokenIssuer
+overrides it for a provider that issues access tokens elsewhere, as an
+application configured for v1-format tokens does.
+*/ -}}
+{{- $mcpTokenIssuer = $mcp.oidcProxy.oidc.accessTokenIssuer | default (trimSuffix "/.well-known/openid-configuration" (required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $mcp.oidcProxy.oidc.configUrl)) }}
+{{- $mcpTokenIssuer = trimSuffix "/" $mcpTokenIssuer }}
+{{- $mcpIssuerProviders := 0 }}
+{{- range $provider := $jwtProviders }}
+{{- if eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer }}
+{{- $mcpIssuerProviders = add1 $mcpIssuerProviders }}
 {{- end }}
-{{- if eq (len $mcp.authorizationServers) 0 }}
-{{- fail "services.mcp.authorizationServers must contain at least one issuer when MCP is enabled" }}
 {{- end }}
-{{- if not (kindIs "slice" $mcp.scopes) }}
-{{- fail "services.mcp.scopes must be a list" }}
-{{- end }}
-{{- if eq (len $mcp.scopes) 0 }}
-{{- fail "services.mcp.scopes must contain at least one scope when MCP is enabled" }}
-{{- end }}
-{{- range $scope := $mcp.scopes }}
-{{- if not (kindIs "string" $scope) }}
-{{- fail "services.mcp.scopes entries must be strings" }}
-{{- end }}
-{{- if eq (trim $scope) "" }}
-{{- fail "services.mcp.scopes entries must not be empty" }}
-{{- end }}
+{{- if eq $mcpIssuerProviders 0 }}
+{{- fail (printf "services.mcp.enabled requires a gateway Envoy JWT provider with issuer %s, which is where MCP's relayed tokens come from" $mcpTokenIssuer) }}
 {{- end }}
 {{- if and (not $mcp.image.repository) (not $mcp.image.name) }}
 {{- fail "services.mcp.image.repository or image.name is required when MCP is enabled" }}
@@ -302,9 +307,8 @@ data:
                 {{- end }}
 
                 {{- if $mcpEnabled }}
-                # RFC 9728 metadata is the only public MCP route. Keep the
-                # method and path exact so no neighboring path or write method
-                # inherits the authentication bypass.
+                # FastMCP serves its own RFC 9728 document, so the gateway
+                # forwards this path instead of synthesising it.
                 - name: mcp-protected-resource-metadata
                   match:
                     path: {{ $mcpMetadataPath }}
@@ -312,21 +316,9 @@ data:
                     - name: ":method"
                       string_match:
                         exact: GET
-                  direct_response:
-                    status: 200
-                    body:
-                      inline_string: {{ dict "resource" $mcpResourceUrl "authorization_servers" $mcp.authorizationServers "bearer_methods_supported" (list "header") "scopes_supported" $mcp.scopes | toJson | quote }}
-                  response_headers_to_add:
-                  - header:
-                      key: content-type
-                      value: application/json
-                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
-                  # Inspector completes OAuth in its browser UI and fetches
-                  # this public, non-secret discovery document from localhost.
-                  - header:
-                      key: access-control-allow-origin
-                      value: "*"
-                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  route:
+                    cluster: osmo-mcp
+                    timeout: 15s
                   typed_per_filter_config:
                     envoy.filters.http.jwt_authn:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
@@ -335,15 +327,77 @@ data:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
 
-                # Streamable HTTP uses the same exact endpoint for its
-                # supported methods. Authentication and semantic authorization
-                # remain enabled on this route.
+                # RFC 8414 path-aware authorization-server metadata. FastMCP
+                # registers it at the root, so the prefix is rewritten off.
+                - name: mcp-authorization-server-metadata
+                  match:
+                    path: /.well-known/oauth-authorization-server/mcp
+                    headers:
+                    - name: ":method"
+                      string_match:
+                        exact: GET
+                  route:
+                    cluster: osmo-mcp
+                    prefix_rewrite: /.well-known/oauth-authorization-server
+                    timeout: 15s
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+
+                # The /mcp/ prefix below publishes the container's whole root
+                # namespace, so any new non-OAuth root route must be carved out
+                # here too. Auth filters are off so the 404 is this route's own
+                # answer, not jwt_authn's 401 that a later change could move.
+                - name: mcp-health-not-public
+                  match:
+                    prefix: /mcp/health
+                  direct_response:
+                    status: 404
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+
+                # The MCP SDK registers OAuth at fixed root paths, so the
+                # gateway publishes them under /mcp -- matching what FastMCP
+                # advertises -- and rewrites the prefix off before forwarding.
+                - name: mcp-oauth
+                  match:
+                    prefix: /mcp/
+                  route:
+                    cluster: osmo-mcp
+                    prefix_rewrite: /
+                    timeout: 15s
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+
+                # FastMCP validates its own token and relays the verified
+                # upstream token to protected /api.
                 - name: osmo-mcp
                   match:
                     path: {{ $mcpPath }}
                   route:
                     cluster: osmo-mcp
                     timeout: 0s
+                  typed_per_filter_config:
+                    envoy.filters.http.jwt_authn:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                      disabled: true
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
                 {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}
@@ -505,38 +559,6 @@ data:
                         return
                       end
                     end
-            {{- if $mcpEnabled }}
-            - name: envoy.filters.http.lua.mcp-origin
-              typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-                default_source_code:
-                  inline_string: |
-                    function envoy_on_request(request_handle)
-                      local raw_path = request_handle:headers():get(":path") or ""
-                      local request_path = string.match(raw_path, "^[^?]*") or raw_path
-                      if request_path ~= {{ $mcpPath | quote }} then
-                        return
-                      end
-
-                      -- Native MCP clients omit Origin. A present Origin must
-                      -- exactly match the deployment's explicit allowlist.
-                      local origin = request_handle:headers():get("origin")
-                      if origin == nil then
-                        return
-                      end
-
-                      local allowed_origins = {}
-                      {{ range $origin := $mcp.allowedOrigins }}
-                      allowed_origins[{{ $origin | quote }}] = true
-                      {{ end }}
-                      if not allowed_origins[origin] then
-                        request_handle:respond(
-                          {[":status"] = "403", ["content-type"] = "text/plain"},
-                          "Origin is not allowed"
-                        )
-                      end
-                    end
-            {{- end }}
             {{- if $authnSkipPaths }}
             {{- /* Authn skip paths bypass both authn and authz. */}}
             # set_metadata has no path matcher of its own, so wrap it and
@@ -727,6 +749,9 @@ data:
                     issuer: {{ $provider.issuer }}
                     audiences:
                     - {{ $provider.audience }}
+                    {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) (ne $provider.audience $mcpResourceUrl) }}
+                    - {{ $mcpResourceUrl }}
+                    {{- end }}
                     forward: true
                     payload_in_metadata: verified_jwt
                     from_headers:

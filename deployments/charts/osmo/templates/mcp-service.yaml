@@ -21,7 +21,28 @@
 {{- $mcpResourceUrl := include "osmo.mcp.resourceUrl" . }}
 {{- $gatewayUrl := trimSuffix "/mcp" $mcpResourceUrl }}
 {{- $requestTimeoutSeconds := toString $mcp.requestTimeoutSeconds }}
-{{- $reservedEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_GATEWAY_URL" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" }}
+{{- $oidcProxy := $mcp.oidcProxy }}
+{{- $oidcConfigUrl := required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $oidcProxy.oidc.configUrl }}
+{{- $oidcClientId := required "services.mcp.oidcProxy.oidc.clientId is required when MCP is enabled" $oidcProxy.oidc.clientId }}
+{{- $secretName := $oidcProxy.existingSecret.name }}
+{{- $secretMountPath := trimSuffix "/" $oidcProxy.existingSecret.mountPath }}
+{{- $oidcClientSecretFile := $oidcProxy.oidc.clientSecretFile }}
+{{- $redisPasswordFile := "" }}
+{{- if $secretName }}
+{{- $oidcClientSecretFile = printf "%s/%s" $secretMountPath (required "services.mcp.oidcProxy.existingSecret.clientSecretKey is required" $oidcProxy.existingSecret.clientSecretKey) }}
+{{- if $oidcProxy.existingSecret.redisPasswordKey }}
+{{- $redisPasswordFile = printf "%s/%s" $secretMountPath $oidcProxy.existingSecret.redisPasswordKey }}
+{{- end }}
+{{- end }}
+{{- if not $oidcClientSecretFile }}
+{{- fail "services.mcp.oidcProxy needs existingSecret.name, or oidc.clientSecretFile when the secret arrives another way" }}
+{{- end }}
+{{- /* Redis host, port and TLS come from the same valkey the rest of the chart
+uses; only the logical database is chosen here, to isolate proxy state. */ -}}
+{{- $redisHost := required "a valkey host is required when MCP is enabled" (include "osmo.valkey.host" .) }}
+{{- $redisScheme := ternary "rediss" "redis" (eq (include "osmo.valkey.tlsEnabled" .) "true") }}
+{{- $redisUrl := printf "%s://%s:%v/%v" $redisScheme $redisHost (include "osmo.valkey.port" .) $oidcProxy.redis.dbNumber }}
+{{- $reservedEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_GATEWAY_URL" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" "OSMO_MCP_ALLOWED_ORIGINS" "OSMO_MCP_AUTH_RESOURCE_URL" "OSMO_MCP_AUTH_REDIS_URL" "OSMO_MCP_AUTH_REDIS_PASSWORD_FILE" "OSMO_MCP_AUTH_REDIS_KEY_PREFIX" "OSMO_MCP_AUTH_OIDC_CONFIG_URL" "OSMO_MCP_AUTH_OIDC_CLIENT_ID" "OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE" "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER" "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE" "OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS" "OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS" "OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS" "OSMO_MCP_AUTH_REDIS_CONNECT_TIMEOUT_SECONDS" "OSMO_MCP_AUTH_REDIS_OPERATION_TIMEOUT_SECONDS" }}
 {{- range $env := $mcp.extraEnv }}
 {{- if has (toString (default "" $env.name)) $reservedEnvNames }}
 {{- fail (printf "services.mcp.extraEnv must not override managed variable %s" $env.name) }}
@@ -99,14 +120,57 @@ spec:
           value: {{ $gatewayUrl | quote }}
         - name: OSMO_MCP_REQUEST_TIMEOUT_SECONDS
           value: {{ $requestTimeoutSeconds | quote }}
+        {{- with $mcp.allowedOrigins }}
+        - name: OSMO_MCP_ALLOWED_ORIGINS
+          value: {{ join "," . | quote }}
+        {{- end }}
+        - name: OSMO_MCP_AUTH_RESOURCE_URL
+          value: {{ $mcpResourceUrl | quote }}
+        - name: OSMO_MCP_AUTH_REDIS_URL
+          value: {{ $redisUrl | quote }}
+        {{- if $redisPasswordFile }}
+        - name: OSMO_MCP_AUTH_REDIS_PASSWORD_FILE
+          value: {{ $redisPasswordFile | quote }}
+        {{- end }}
+        - name: OSMO_MCP_AUTH_REDIS_KEY_PREFIX
+          value: {{ $oidcProxy.redis.keyPrefix | quote }}
+        - name: OSMO_MCP_AUTH_OIDC_CONFIG_URL
+          value: {{ $oidcConfigUrl | quote }}
+        - name: OSMO_MCP_AUTH_OIDC_CLIENT_ID
+          value: {{ $oidcClientId | quote }}
+        - name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE
+          value: {{ $oidcClientSecretFile | quote }}
+        {{- with $oidcProxy.oidc.accessTokenIssuer }}
+        - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER
+          value: {{ . | quote }}
+        {{- end }}
+        - name: OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE
+          value: {{ $oidcProxy.oidc.accessTokenRequiredScope | quote }}
+        - name: OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS
+          value: {{ $oidcProxy.accessTokenTtlSeconds | int | quote }}
+        - name: OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS
+          value: {{ $oidcProxy.refreshTokenTtlSeconds | int | quote }}
+        - name: OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS
+          value: {{ $oidcProxy.upstreamTimeoutSeconds | int | quote }}
+        - name: OSMO_MCP_AUTH_REDIS_CONNECT_TIMEOUT_SECONDS
+          value: {{ $oidcProxy.redis.connectTimeoutSeconds | int | quote }}
+        - name: OSMO_MCP_AUTH_REDIS_OPERATION_TIMEOUT_SECONDS
+          value: {{ $oidcProxy.redis.operationTimeoutSeconds | int | quote }}
         {{- with $mcp.extraEnv }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
-        {{- if .Values.gateway.tls.enabled }}
+        {{- if or .Values.gateway.tls.enabled $secretName }}
         volumeMounts:
+        {{- if .Values.gateway.tls.enabled }}
         {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 8 }}
+        {{- end }}
+        {{- if $secretName }}
+        - name: mcp-oidc-proxy
+          mountPath: {{ $secretMountPath }}
+          readOnly: true
+        {{- end }}
         {{- end }}
         {{- with (include "osmo.gateway.upstreamProbeYaml" (dict "probe" $mcp.livenessProbe "context" .)) }}
         livenessProbe:
@@ -121,9 +185,21 @@ spec:
           {{- . | nindent 10 }}
         {{- end }}
       {{- include "osmo.pod.extraContainers" $mcp | nindent 6 }}
-      {{- if or .Values.gateway.tls.enabled $mcp.pod.extraVolumes }}
+      {{- if or .Values.gateway.tls.enabled $mcp.pod.extraVolumes $secretName }}
       volumes:
       {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 6 }}
+      {{- if $secretName }}
+      - name: mcp-oidc-proxy
+        secret:
+          secretName: {{ $secretName }}
+          items:
+          - key: {{ $oidcProxy.existingSecret.clientSecretKey }}
+            path: {{ $oidcProxy.existingSecret.clientSecretKey }}
+          {{- with $oidcProxy.existingSecret.redisPasswordKey }}
+          - key: {{ . }}
+            path: {{ . }}
+          {{- end }}
+      {{- end }}
       {{- include "osmo.pod.extraVolumes" $mcp | nindent 6 }}
       {{- end }}
 

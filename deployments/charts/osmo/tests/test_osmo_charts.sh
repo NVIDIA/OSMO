@@ -37,6 +37,12 @@ require_contains() {
     grep -Fq -- "$expected" "$file" || fail "expected '$expected' in $file"
 }
 
+require_matches() {
+    local file=$1
+    local pattern=$2
+    grep -Eq -- "$pattern" "$file" || fail "expected /$pattern/ in $file"
+}
+
 require_schema_path() {
     local file=$1
     local expected=$2
@@ -1674,8 +1680,9 @@ test_control_umbrella() {
         --set services.mcp.enabled=true \
         --set gateway.authz.enabled=true \
         --set-string services.mcp.resourceUrl=https://osmo.example.com/mcp \
-        --set-string 'services.mcp.authorizationServers[0]=https://login.example.com' \
-        --set-string 'services.mcp.scopes[0]=mcp.read' \
+        --set-string 'services.mcp.oidcProxy.oidc.configUrl=https://login.example.com/.well-known/openid-configuration' \
+        --set-string 'services.mcp.oidcProxy.oidc.clientId=example-client' \
+        --set-string 'services.mcp.oidcProxy.existingSecret.name=mcp-oidc' \
         --set-string 'gateway.envoy.jwt.providers[0].issuer=https://login.example.com' \
         --set-string 'gateway.envoy.jwt.providers[0].audience=https://osmo.example.com/mcp' \
         --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://login.example.com/keys' \
@@ -4538,10 +4545,28 @@ EOF
     require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-mcp"
     require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-gateway-authz"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "path: /mcp"
+    # FastMCP serves its own metadata now, so the gateway forwards these
+    # paths instead of synthesising a document, and publishes the OAuth
+    # endpoints under /mcp with the prefix rewritten off before forwarding.
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: mcp-oauth"
+    # Anchored: a fixed-string check for "prefix_rewrite: /" also matches the
+    # authorization-server rewrite below it, and would pass with this one gone.
+    require_matches "$TEST_DIRECTORY/osmo-mcp.yaml" "prefix_rewrite: /$"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        '\"resource\":\"https://osmo.example.com/mcp\"'
+        "name: mcp-authorization-server-metadata"
+    # The /mcp/ prefix would otherwise publish the container's health routes.
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: mcp-health-not-public"
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "status: 404"
+    # The runtime cannot start without these.
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_RESOURCE_URL"
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE"
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
+        "value: \"/etc/osmo/mcp-auth/client-secret\""
+    # The MCP audience joins the provider whose issuer it authenticates against.
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "issuer: https://issuer.example.com"
+    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
+        "- https://osmo.example.com/mcp"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
