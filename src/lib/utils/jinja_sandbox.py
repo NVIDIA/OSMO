@@ -79,16 +79,22 @@ class SandboxedWorker:
         self._wait_for_child_ready()
 
     def _wait_for_child_ready(self):
-        """Wait for the child process to signal it's ready to receive work"""
+        """Wait for the child process to signal it's ready to receive work
+
+        The child is already running by the time the handshake is attempted, so a failed handshake
+        must tear it down; otherwise the caller has no handle to clean up with.
+        """
         try:
             # Wait for the "ready" signal from child process
             ready_signal = self._parent_conn.recv()
-            if ready_signal != 'ready':
-                raise osmo_errors.OSMOServerError(
-                    'Child process did not send expected ready signal')
         except EOFError as e:
+            self.shutdown()
             raise osmo_errors.OSMOServerError(
                 'Child process failed to start or exited unexpectedly') from e
+
+        if ready_signal != 'ready':
+            self.shutdown()
+            raise osmo_errors.OSMOServerError('Child process did not send expected ready signal')
 
     def _set_memory_limit(self):
         if platform.system() == 'Darwin':
@@ -174,9 +180,18 @@ class SandboxedWorker:
         try:
             result = self._parent_conn.recv()
         except EOFError as exc:
+            # The child closed the pipe without sending a result. It only leaves its work loop
+            # cleanly when serializing the result ran out of memory, and SIGKILL means the OS
+            # reclaimed it. Any other exit status is an unexpected death, not memory exhaustion.
+            self._process.join(timeout=self._max_time)
+            exit_code = self._process.exitcode
             self._restart()
-            raise MemoryError(
-                f'Sandboxed process exceeded memory limit of {self._jinja_memory} bytes') from exc
+            if exit_code in (0, -signal.SIGKILL):
+                raise MemoryError(
+                    f'Sandboxed process exceeded memory limit of {self._jinja_memory} bytes') \
+                    from exc
+            raise osmo_errors.OSMOServerError(
+                f'Process died unexpectedly exit code {exit_code}') from exc
 
         # If the process has died, then restart it and throw an exception
         if not self._process.is_alive():

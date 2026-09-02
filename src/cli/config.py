@@ -495,8 +495,9 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
         # POST is used for backend updates only, and should update the entire field for any field
         # that changed in the backend config
         diff = deep_diff(current_config, updated_config)
-        for key in diff.keys():
-            diff[key] = updated_config[key]
+        if diff is not None:
+            for key in diff:
+                diff[key] = updated_config[key]
     elif api_mapping['method'] == client.RequestMethod.PUT:
         # If anything changed in the config, PUT the entire config
         diff = (

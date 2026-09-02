@@ -15,9 +15,17 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import multiprocessing.connection
+import multiprocessing.process
 import platform
+import queue
+import sys
 import time
 import unittest
+from unittest import mock
+
+import jinja2
+from jinja2 import exceptions as jinja2_exceptions
 
 from src.lib.utils import jinja_sandbox, osmo_errors
 
@@ -27,6 +35,13 @@ from src.lib.utils import jinja_sandbox, osmo_errors
 
 def triple(x):
     return x*3
+
+
+def triple_or_exit_on_odd(x):
+    if x % 2 == 0:
+        return x*3
+    else:
+        sys.exit(7)
 
 
 def triple_hang_on_odd(x):
@@ -169,6 +184,133 @@ class TestJinjaSandbox(unittest.TestCase):
     def test_big_template_multiple_times(self):
         for _ in range(5):
             jinja_sandbox.sandboxed_jinja_substitute(BIG_TEMPLATE, {'name': 'my-workflow'})
+
+
+class TestRenderTemplate(unittest.TestCase):
+    """Test the sandbox boundary enforced by the template rendering function itself"""
+
+    def test_render_template_substitutes_value_from_data(self):
+        result = jinja_sandbox.SandboxedJinjaRenderer.render_template(
+            GOOD_TEMPLATE, {'name': 'World'})
+
+        self.assertEqual(result, 'Hello, World!')
+
+    def test_render_template_missing_variable_raises_undefined_error(self):
+        with self.assertRaises(jinja2_exceptions.UndefinedError):
+            jinja_sandbox.SandboxedJinjaRenderer.render_template(GOOD_TEMPLATE, {})
+
+    def test_render_template_attribute_access_raises_security_error(self):
+        with self.assertRaises(jinja2.exceptions.SecurityError):
+            jinja_sandbox.SandboxedJinjaRenderer.render_template(
+                UNSAFE_TEMPLATE, {'name': 'World'})
+
+
+class TestSandboxedWorkerRecovery(unittest.TestCase):
+    """Test the parent-side failure and worker-recycling paths of SandboxedWorker"""
+
+    def test_worker_run_send_always_broken_raises_server_error(self):
+        worker = jinja_sandbox.SandboxedWorker(triple, max_time=5)
+        self.addCleanup(worker.shutdown)
+
+        with mock.patch.object(multiprocessing.connection.Connection, 'send',
+                               side_effect=BrokenPipeError('pipe is closed')):
+            with self.assertRaisesRegex(osmo_errors.OSMOServerError,
+                                        'failed to start after 3 retries'):
+                worker.run(3)
+
+    def test_worker_run_child_exits_before_result_raises_server_error(self):
+        worker = jinja_sandbox.SandboxedWorker(triple_or_exit_on_odd, max_time=5)
+        self.addCleanup(worker.shutdown)
+
+        with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'died unexpectedly exit code 7'):
+            worker.run(1)
+
+    def test_worker_run_dead_process_with_result_raises_server_error(self):
+        worker = jinja_sandbox.SandboxedWorker(triple, max_time=5)
+        self.addCleanup(worker.shutdown)
+
+        # The first recv stands in for a result arriving from a process that has already died;
+        # the second satisfies the ready handshake of the restart that follows.
+        with mock.patch.object(multiprocessing.connection.Connection, 'recv',
+                               side_effect=[jinja_sandbox.WorkResult('stale result'), 'ready']):
+            with mock.patch.object(multiprocessing.process.BaseProcess, 'is_alive',
+                                   return_value=False):
+                with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'died unexpectedly'):
+                    worker.run(3)
+
+    def test_worker_init_unexpected_ready_signal_raises_server_error(self):
+        with mock.patch.object(multiprocessing.connection.Connection, 'recv',
+                               return_value='not-the-ready-signal'):
+            with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'ready signal'):
+                jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+    def test_worker_init_child_pipe_at_eof_raises_server_error(self):
+        with mock.patch.object(multiprocessing.connection.Connection, 'recv',
+                               side_effect=EOFError):
+            with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'failed to start'):
+                jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+    def test_worker_init_unexpected_ready_signal_leaves_no_live_child(self):
+        children_before_init = set(multiprocessing.active_children())
+
+        with mock.patch.object(multiprocessing.connection.Connection, 'recv',
+                               return_value='not-the-ready-signal'):
+            with self.assertRaises(osmo_errors.OSMOServerError):
+                jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+        self.assertEqual(set(multiprocessing.active_children()) - children_before_init, set())
+
+    def test_worker_init_child_pipe_at_eof_leaves_no_live_child(self):
+        children_before_init = set(multiprocessing.active_children())
+
+        with mock.patch.object(multiprocessing.connection.Connection, 'recv',
+                               side_effect=EOFError):
+            with self.assertRaises(osmo_errors.OSMOServerError):
+                jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+        self.assertEqual(set(multiprocessing.active_children()) - children_before_init, set())
+
+    def test_worker_shutdown_connection_close_failure_is_swallowed(self):
+        worker = jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+        with mock.patch.object(multiprocessing.connection.Connection, 'close',
+                               side_effect=OSError('handle is closed')) as mock_close:
+            worker.shutdown()
+
+        self.assertTrue(mock_close.called)
+
+    def test_worker_shutdown_process_surviving_terminate_is_killed(self):
+        worker = jinja_sandbox.SandboxedWorker(triple, max_time=5)
+
+        with mock.patch.object(multiprocessing.process.BaseProcess, 'is_alive',
+                               return_value=True):
+            with mock.patch.object(multiprocessing.process.BaseProcess, 'kill') as mock_kill:
+                worker.shutdown()
+
+        self.assertTrue(mock_kill.called)
+
+
+class TestSandboxedWorkerPoolRecovery(unittest.TestCase):
+    """Test that the pool keeps handing out usable workers after a child dies"""
+
+    def test_pool_run_after_child_death_returns_fresh_result(self):
+        pool = jinja_sandbox.SandboxedWorkerPool(triple_or_exit_on_odd, num_workers=1, max_time=5)
+        self.addCleanup(pool.shutdown)
+
+        with self.assertRaises(osmo_errors.OSMOServerError):
+            pool.run(1)
+
+        self.assertEqual(pool.run(2), 6)
+
+    def test_pool_shutdown_empty_queue_race_stops_cleanly(self):
+        pool = jinja_sandbox.SandboxedWorkerPool(triple, num_workers=1, max_time=5)
+        self.addCleanup(pool.shutdown)
+
+        with mock.patch.object(queue.Queue, 'get_nowait',
+                               side_effect=queue.Empty) as mock_get_nowait:
+            pool.shutdown()
+
+        self.assertTrue(mock_get_nowait.called)
 
 
 if __name__ == '__main__':
