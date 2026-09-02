@@ -313,7 +313,7 @@ secrets:
       name: osmo-master-encryption-key
       key: mek.yaml
     bootstrap:
-      # Must be set back to false immediately after a successful bootstrap.
+      # Disable before starting a master-encryption-key rotation.
       enabled: true
       # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
@@ -1683,6 +1683,15 @@ configuration:
               cpu: '{{USER_CPU}}'
               memory: '{{USER_MEMORY}}'
               ephemeral-storage: '{{USER_STORAGE}}'
+    default_gpu_user:
+      spec:
+        containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              nvidia.com/gpu: '{{USER_GPU}}'
+            requests:
+              nvidia.com/gpu: '{{USER_GPU}}'
   resourceValidations:
     default_cpu:
     - operator: LE
@@ -1803,7 +1812,7 @@ configuration:
     default:
       description: Default pool
       backend: default
-      default_platform: default
+      default_platform: cpu
       common_pod_template:
       - default_ctrl
       - default_user
@@ -1818,7 +1827,14 @@ configuration:
         USER_MEMORY: 1Gi
         USER_STORAGE: 1Gi
       platforms:
-        default: {}
+        cpu:
+          description: CPU workloads
+        gpu:
+          description: GPU workloads
+          default_variables:
+            USER_GPU: 1
+          override_pod_template:
+          - default_gpu_user
   backendTests: {}
   groupTemplates: {}
 

@@ -28,8 +28,6 @@ autoscaling
 aws
 backend
 backends
-Bazel
-Bazelisk
 balancer
 balancers
 basename

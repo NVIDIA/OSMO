@@ -59,8 +59,7 @@ secrets:
     existingSecret:
       name: osmo-master-encryption-key
       key: mek.yaml
-    # Disable bootstrap after the first successful installation and before any
-    # rotation phase so the one-time Secret-creation permission is removed.
+    # Disable bootstrap before starting a master-encryption-key rotation.
     bootstrap:
       enabled: true
   serviceAuth:
@@ -229,22 +228,6 @@ gateway:
 
 configuration:
   enabled: true
-  podTemplates:
-    default_user:
-      spec:
-        containers:
-        - name: '{{USER_CONTAINER_NAME}}'
-          resources:
-            limits:
-              cpu: '{{USER_CPU}}'
-              memory: '{{USER_MEMORY}}'
-              nvidia.com/gpu: '{{USER_GPU}}'
-              ephemeral-storage: '{{USER_STORAGE}}'
-            requests:
-              cpu: '{{USER_CPU}}'
-              memory: '{{USER_MEMORY}}'
-              nvidia.com/gpu: '{{USER_GPU}}'
-              ephemeral-storage: '{{USER_STORAGE}}'
   pools:
     default:
       common_pod_template:

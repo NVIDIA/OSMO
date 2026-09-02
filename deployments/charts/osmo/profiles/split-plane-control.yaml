@@ -23,22 +23,6 @@ configuration:
   workflow:
     # Omit an optional workflow label policy in this minimal external profile.
     labels_config: null
-  podTemplates:
-    default_user:
-      spec:
-        containers:
-        - name: '{{USER_CONTAINER_NAME}}'
-          resources:
-            limits:
-              cpu: '{{USER_CPU}}'
-              memory: '{{USER_MEMORY}}'
-              nvidia.com/gpu: '{{USER_GPU}}'
-              ephemeral-storage: '{{USER_STORAGE}}'
-            requests:
-              cpu: '{{USER_CPU}}'
-              memory: '{{USER_MEMORY}}'
-              nvidia.com/gpu: '{{USER_GPU}}'
-              ephemeral-storage: '{{USER_STORAGE}}'
   pools:
     default:
       common_pod_template:
