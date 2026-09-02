@@ -323,14 +323,15 @@ resource "azurerm_kubernetes_cluster_node_pool" "gpu" {
 ################################################################################
 
 resource "azurerm_storage_account" "osmo" {
-  count                    = var.storage_account_enabled ? 1 : 0
-  name                     = replace("${local.name}osmo", "-", "")
-  resource_group_name      = data.azurerm_resource_group.main.name
-  location                 = data.azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  min_tls_version          = "TLS1_2"
-  tags                     = local.tags
+  count                           = var.storage_account_enabled ? 1 : 0
+  name                            = replace("${local.name}osmo", "-", "")
+  resource_group_name             = data.azurerm_resource_group.main.name
+  location                        = data.azurerm_resource_group.main.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  min_tls_version                 = "TLS1_2"
+  allow_nested_items_to_be_public = false
+  tags                            = local.tags
 }
 
 resource "azurerm_storage_container" "osmo_workflows" {
@@ -585,9 +586,10 @@ resource "azurerm_storage_account" "nfs" {
   # below to restrict access. Consumers wanting fully-private access can layer
   # an azurerm_private_endpoint + privatelink.file.core.windows.net DNS zone
   # in their own skill and flip PNA to false there.
-  public_network_access_enabled = true
-  https_traffic_only_enabled    = false # NFS does not use HTTPS; enabling blocks NFS mounts
-  tags                          = local.tags
+  public_network_access_enabled   = true
+  https_traffic_only_enabled      = false # NFS does not use HTTPS; enabling blocks NFS mounts
+  allow_nested_items_to_be_public = false
+  tags                            = local.tags
 
   network_rules {
     default_action             = "Deny"

@@ -42,20 +42,20 @@ Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--
 
 ## Azure single-plane umbrella deployment
 
-`deploy-osmo-umbrella-single-plane.sh` is a separate, linear Azure example for
+`deploy-osmo-single-plane.sh` is a separate, linear Azure example for
 an isolated sandbox. Run it only inside a newly created `azure-sandbox assume`
-subshell. The only required input is `TF_VAR_resource_group_name`, naming the
-existing sandbox resource group. Terraform generates a stable cluster name and
-PostgreSQL password in its state. The script explicitly applies the non-secret
-Terraform settings in `single-plane-azure.tfvars`; `TF_VAR_cluster_name` remains
-an optional override. Install GNU gettext for the script's `envsubst` command
-before running it.
+subshell. The only required input is `TF_RESOURCE_GROUP` (the Terraform-style
+alias `TF_VAR_resource_group_name` is also accepted), naming the existing
+sandbox resource group. Terraform generates a stable cluster name and
+PostgreSQL password in isolated, resource-group-specific local state. The
+script explicitly applies the non-secret Terraform settings in
+`single-plane-azure.tfvars`; `TF_CLUSTER_NAME` remains an optional override.
 
 ```bash
 ~/workspace/azure-sandbox create
 ~/workspace/azure-sandbox/azure-sandbox assume <new-sandbox-name>
-export TF_VAR_resource_group_name=<new-sandbox-resource-group>
-./deploy-osmo-umbrella-single-plane.sh
+export TF_RESOURCE_GROUP=<new-sandbox-resource-group>
+./deploy-osmo-single-plane.sh
 ```
 
 To validate unpublished images, set an OSMO repository prefix and shared tag.
@@ -68,7 +68,7 @@ export OSMO_IMAGE_TAG=pr-1345-2232c1e7-amd64
 export OSMO_IMAGE_PULL_SECRET=nvcr-pull
 export OSMO_IMAGE_PULL_CONFIG="$HOME/.docker/config.json"
 export OSMO_IMAGE_PULL_REGISTRY=nvcr.io
-./deploy-osmo-umbrella-single-plane.sh
+./deploy-osmo-single-plane.sh
 ```
 
 The repository defaults to `nvidia/osmo`, the tag defaults to `latest`, and
@@ -79,7 +79,7 @@ third-party prerequisite images keep their chart defaults.
 `OSMO_IMAGE_PULL_REGISTRY` defaults to `nvcr.io` and selects only that entry
 from a Docker config containing credentials for multiple registries.
 
-The script defaults `TF_VAR_node_instance_type` to `Standard_D8s_v3`, leaving
+The script defaults `TF_NODE_INSTANCE_TYPE` to `Standard_D8s_v3`, leaving
 enough allocatable CPU for the control plane and the representative workflow on
 the same AKS pool. Set that Terraform variable explicitly to choose another VM
 size with equivalent capacity.
@@ -91,14 +91,16 @@ Workload Identity authenticates the API, worker, and workflow pods, so the
 script creates no object-storage credential Secret; PostgreSQL, Valkey, and
 backend bootstrap credentials retain their existing Secret flow.
 
-The checked-in `single-plane-azure.yaml.envsubst` template renders to the
-non-secret `${TMPDIR:-/tmp}/single-plane-azure.yaml`. It contains connection
+The checked-in `single-plane-azure.yaml` contains the fixed Azure overlay. The
+script uses `jq` to generate a temporary JSON values file containing connection
 data, exact `azure://` locations, image selections, and workload-identity
-metadata. The chart base remains
+metadata. JSON is valid Helm values input and safely quotes dynamic strings
+without requiring a second template language. The chart base remains
 provider-neutral `deployments/charts/osmo/profiles/single-plane.yaml`, which is
-always layered before the generated overlay. The overlay uses the in-cluster
-`http://osmo-gateway` URL so workflow runtime containers can reach the control
-plane; local operators continue to use the port-forward URL below.
+always layered before the static and generated overlays. The static overlay
+uses the in-cluster `http://osmo-gateway` URL so workflow runtime containers can
+reach the control plane; local operators continue to use the port-forward URL
+below.
 
 The Helm release runs two MEK transactions: the first installation enables the
 MEK bootstrap hook, and the second upgrade disables it after the generated MEK
@@ -151,6 +153,7 @@ Notes:
 ```
 scripts/
 ├── deploy-osmo-minimal.sh    # Main entry point — orchestrates all phases
+├── deploy-osmo-single-plane.sh # Linear Azure single-plane sandbox example
 ├── deploy-k8s.sh             # K8s/Helm install logic (called by main)
 ├── common.sh                 # Shared logging, OSMO CLI install, helm helpers
 ├── install-kai-scheduler.sh  # KAI Scheduler (idempotent, CRD-detected)

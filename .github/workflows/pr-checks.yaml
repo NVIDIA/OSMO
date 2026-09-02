@@ -166,7 +166,7 @@ jobs:
       - name: Install Node.js, Docker CLI, kubectl, and dependencies
         run: |
           apt-get update
-          apt-get install -y ca-certificates curl gettext-base gnupg git-lfs jq
+          apt-get install -y ca-certificates curl gnupg git-lfs jq
 
           # Add Docker's official GPG key and repository
           install -m 0755 -d /etc/apt/keyrings

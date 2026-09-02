@@ -18,7 +18,7 @@ fail() {
     exit 1
 }
 
-for required_command in awk base64 envsubst grep helm tar; do
+for required_command in awk base64 grep helm tar; do
     command -v "$required_command" >/dev/null || \
         fail "required command not found: $required_command"
 done
@@ -1083,28 +1083,14 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
         "osmo-backend-token"
 
-    local generated_azure_values="$TEST_DIRECTORY/generated-single-plane-azure-values.yaml"
-    env \
-        POSTGRES_HOST=azure-postgresql.internal \
-        POSTGRES_DATABASE=osmo \
-        POSTGRES_USERNAME=postgres \
-        REDIS_HOST=azure-redis.internal \
-        REDIS_PORT=10000 \
-        STORAGE_ACCOUNT=osmoazure \
-        STORAGE_CONTAINER=osmo-workflows \
-        WORKLOAD_IDENTITY_CLIENT_ID=single-plane-test-client-id \
-        OSMO_IMAGE_REPOSITORY=nvstaging/osmo \
-        OSMO_IMAGE_TAG=test-tag \
-        OSMO_IMAGE_PULL_SECRET= \
-        IMAGE_PULL_SECRETS='[]' \
-        envsubst \
-        <"$CHARTS_ROOT/../scripts/single-plane-azure.yaml.envsubst" \
-        >"$generated_azure_values"
     helm_template generated-single-plane-azure "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/single-plane.yaml" \
-        -f "$generated_azure_values" \
+        -f "$CHARTS_ROOT/../scripts/single-plane-azure.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+        --set-string imageRepository=nvstaging/osmo \
+        --set-string imageTag=test-tag \
         >"$TEST_DIRECTORY/generated-single-plane-azure.yaml"
     resource_document "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
         ConfigMap "osmo-gateway-envoy-config" \

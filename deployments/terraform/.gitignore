@@ -3,6 +3,7 @@
 
 # Provider plugin cache
 .terraform/
+.single-plane/
 
 # Local state — for example/dev only. Real environments use a remote backend.
 *.tfstate

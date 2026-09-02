@@ -4,6 +4,16 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 sh_test(
+    name = "test_azure_terraform_driver",
+    size = "small",
+    srcs = ["test_azure_terraform_driver.sh"],
+    data = [
+        "//deployments:scripts/azure/terraform.sh",
+        "//deployments:scripts/common.sh",
+    ],
+)
+
+sh_test(
     name = "test_backend_token_generation",
     srcs = ["test_backend_token_generation.sh"],
     data = [
@@ -45,16 +55,22 @@ sh_test(
 )
 
 sh_test(
-    name = "test_deploy_osmo_umbrella_single_plane",
+    name = "test_deploy_osmo_single_plane",
     size = "small",
-    srcs = ["test_deploy_osmo_umbrella_single_plane.sh"],
+    srcs = ["test_deploy_osmo_single_plane.sh"],
     data = [
         "//deployments/charts:osmo",
-        "//deployments:scripts/deploy-osmo-umbrella-single-plane.sh",
+        "//deployments:scripts/azure/terraform.sh",
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-osmo-single-plane.sh",
+        "//deployments:scripts/install-kai-scheduler.sh",
         "//deployments:scripts/single-plane-azure.tfvars",
-        "//deployments:scripts/single-plane-azure.yaml.envsubst",
+        "//deployments:scripts/single-plane-azure.yaml",
         "//deployments:scripts/verify.sh",
         "//deployments:terraform/azure/example/example.tf",
+        "//deployments:terraform/azure/example/outputs.tf",
+        "//deployments:terraform/azure/example/single-plane-object-storage.tf",
+        "//deployments:terraform/azure/example/variables.tf",
     ],
 )
 

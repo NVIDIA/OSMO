@@ -8,6 +8,9 @@ compute:
 
 services:
   api:
+    serviceAccount:
+      annotations:
+        azure.workload.identity/client-id: single-plane-test-client-id
     extraVolumeMounts:
     - name: runtime-image-pull-secret
       mountPath: /etc/osmo/secrets/osmo-runtime-pull

@@ -94,7 +94,7 @@ jobs:
       - name: Install Docker CLI and dependencies
         run: |
           apt-get update
-          apt-get install -y ca-certificates curl gettext-base gnupg git-lfs jq
+          apt-get install -y ca-certificates curl gnupg git-lfs jq
 
           install -m 0755 -d /etc/apt/keyrings
           curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc

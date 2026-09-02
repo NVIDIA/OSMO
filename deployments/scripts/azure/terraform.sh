@@ -568,17 +568,18 @@ azure_terraform_init() {
 azure_terraform_apply() {
     local terraform_dir="$1"
     local dry_run="${2:-false}"
+    shift 2
 
     log_info "Applying Terraform configuration..."
     cd "$terraform_dir"
 
     if [[ "$dry_run" == true ]]; then
         log_info "[DRY-RUN] Would run: terraform plan"
-        terraform plan
+        terraform plan "$@"
         return
     fi
 
-    terraform apply -auto-approve
+    terraform apply -auto-approve "$@"
     log_success "Terraform apply completed"
 }
 
@@ -616,6 +617,12 @@ azure_terraform_destroy() {
 azure_get_terraform_outputs() {
     local terraform_dir="$1"
     local outputs_file="$2"
+    local output_mode="${3:-legacy}"
+
+    if [[ "$output_mode" != "legacy" && "$output_mode" != "single-plane" ]]; then
+        log_error "Unknown Azure Terraform output mode: $output_mode"
+        return 1
+    fi
 
     log_info "Retrieving Terraform outputs..."
     cd "$terraform_dir"
@@ -634,6 +641,16 @@ export REDIS_PORT="$(terraform output -raw redis_cache_ssl_port)"
 export REDIS_PASSWORD="$(terraform output -raw redis_cache_primary_access_key)"
 export IS_PRIVATE_CLUSTER="$IS_PRIVATE_CLUSTER"
 EOF
+
+    if [[ "$output_mode" == "single-plane" ]]; then
+        cat >> "$outputs_file" <<EOF
+export POSTGRES_PASSWORD="$(terraform output -raw postgres_password)"
+export STORAGE_ACCOUNT="$(terraform output -raw single_plane_storage_account)"
+export STORAGE_ACCOUNT_ID="$(terraform output -raw single_plane_storage_account_id)"
+export STORAGE_CONTAINER="$(terraform output -raw single_plane_storage_container_name)"
+export WORKLOAD_IDENTITY_CLIENT_ID="$(terraform output -raw single_plane_blob_identity_client_id)"
+EOF
+    fi
 
     # Also export to current shell
     source "$outputs_file"
@@ -726,4 +743,3 @@ export -f azure_run_helm_with_values
 export -f azure_check_cluster_type
 export -f azure_configure_kubectl
 export -f azure_verify_postgres_config
-

@@ -251,6 +251,11 @@ output "single_plane_storage_account" {
   value       = var.single_plane_workload_identity_enabled ? azapi_resource.single_plane_storage_account[0].name : ""
 }
 
+output "single_plane_storage_account_id" {
+  description = "Resource ID of the keyless single-plane workflow Storage Account (empty when disabled)"
+  value       = var.single_plane_workload_identity_enabled ? azapi_resource.single_plane_storage_account[0].id : ""
+}
+
 output "single_plane_storage_container_name" {
   description = "Name of the single-plane workflow Blob container (empty when disabled)"
   value       = var.single_plane_workload_identity_enabled ? "osmo-workflows" : ""
