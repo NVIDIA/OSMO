@@ -20,46 +20,30 @@
 
 The self-hosted MCP service is a thin adapter over predefined OSMO REST APIs.
 Every MCP request and every resulting API request enters through the same
-deployment's Gateway. Authentication can remain at the Gateway or run inside
-the existing MCP process through FastMCP's built-in `OIDCProxy`.
+deployment's Gateway. Authentication runs inside the MCP process through
+FastMCP's built-in `OIDCProxy`.
 
-OSMO can expose MCP authentication in either of two deployment modes:
+MCP authenticates every caller through FastMCP's `OIDCProxy`, passed as the
+FastMCP server's `auth` argument. A client configures only `/mcp`, discovers
+FastMCP's OAuth endpoints, and completes the deployment identity-provider login
+in a browser. FastMCP supports Client ID Metadata Documents (CIMD) and retains
+Dynamic Client Registration (DCR) for older clients. It authenticates MCP
+access but does not replace OSMO's API-specific authorization.
 
-- **Direct identity-provider mode** retains the existing behavior. The Gateway
-  advertises the configured identity provider, and clients may need an OAuth
-  client ID, scopes, and callback configuration supplied by the deployment
-  administrator.
-- **OIDC proxy mode** passes an `OIDCProxy` as the existing FastMCP server's
-  `auth` argument. A client configures only `/mcp`, discovers FastMCP's OAuth
-  endpoints, and completes the deployment identity-provider login in a browser.
-  FastMCP supports Client ID Metadata Documents (CIMD) and retains Dynamic
-  Client Registration (DCR) for older clients. It authenticates MCP access but
-  does not replace OSMO's API-specific authorization.
-
-OIDC proxy mode is feature-gated by `services.mcp.oidcProxy.enabled` and
-disabled by default. No second executable, process, Service, or Deployment is
-created.
+No second executable, process, Service, or Deployment is created.
 
 ## Request flow and trust boundary
 
 ```text
-Direct mode:
-  MCP client -> Gateway JWT + mcp:Access -> MCP
-             -> same Gateway JWT + API action -> OSMO API
-
-OIDC proxy mode:
   MCP client -> Gateway routing -> FastMCP OIDCProxy -> MCP
              -> same Gateway with verified upstream token + API action
              -> OSMO API
 ```
 
-In direct mode, Gateway supplies the validated bearer and trusted user identity;
-the request-context middleware strips those headers from the downstream ASGI
-scope and retains one request-local credential. In OIDC proxy mode, FastMCP
-validates its resource token and `get_access_token()` exposes the verified
-upstream identity-provider bearer to the active tool request. A tool passes the
-selected credential explicitly to `GatewayClient`; the shared HTTP client
-contains no caller credentials.
+FastMCP validates its resource token and `get_access_token()` exposes the
+verified upstream identity-provider bearer to the active tool request. A tool
+passes the selected credential explicitly to `GatewayClient`; the shared HTTP
+client contains no caller credentials.
 
 The relay boundary has these invariants:
 
@@ -70,10 +54,10 @@ The relay boundary has these invariants:
   by each tool and values are encoded from bounded typed inputs. Unknown tool
   arguments, alternate URLs, embedded queries or fragments, redirects, and
   path traversal fail closed.
-- The direct-mode bearer or OIDC proxy's verified upstream bearer, plus an
-  optional request ID, are the only caller-derived values forwarded on the
-  second Gateway pass. MCP does not
-  copy `x-osmo-*`, cookies, proxy headers, or other inbound request headers.
+- The OIDC proxy's verified upstream bearer, plus an optional request ID, are
+  the only caller-derived values forwarded on the second Gateway pass. MCP
+  does not copy `x-osmo-*`, cookies, proxy headers, or other inbound request
+  headers.
   Request IDs that reuse a meaningful bearer-token substring are rejected
   before forwarding or telemetry.
 - The tool adapter does not independently exchange, refresh, modify, cache,
@@ -214,15 +198,12 @@ credentials remain file-mounted secrets:
 services:
   mcp:
     resourceUrl: https://<osmo-host>/mcp
-    replicas: 1
     oidcProxy:
-      enabled: true
       oidc:
         configUrl: https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration
         clientId: <oidc-application-client-id>
-        clientSecretFile: /etc/osmo/mcp-auth/client-secret
+        # Only an application issuing v1-format access tokens needs this.
         accessTokenIssuer: https://sts.windows.net/<tenant-id>/
-        accessTokenRequiredScope: access_as_user
       redis:
         dbNumber: <dedicated-database-number>
         keyPrefix: osmo:mcp-fastmcp
@@ -255,20 +236,18 @@ it first on a dev instance and run discovery, DCR fallback, CIMD, login,
 access-token expiry, refresh, restart recovery, and key-rotation tests from
 clean client profiles. Confirm CIMD through
 `client_id_metadata_document_supported: true` in authorization-server metadata
-and DCR fallback through `registration_endpoint`. Keep `services.mcp.replicas`
-at `1` while using FastMCP 3.4.7 because refresh serialization is process-local.
+and DCR fallback through `registration_endpoint`. The proxy keeps its state in
+Redis, so `services.mcp.replicas` may exceed `1`.
 
 After changing an Entra app-role assignment, users should log out and
 authenticate again so the next token definitely contains the updated role set.
 
-To roll back, disable `services.mcp.oidcProxy.enabled`, restore the direct-mode
-`authorizationServers` and `scopes` values, and redeploy. Existing proxy tokens
-will no longer authenticate, so clients must log in again through the direct
-provider. The MCP tool catalog and API-specific authorization do not change.
+To roll back, disable `services.mcp.enabled` and redeploy. Clients lose the MCP
+endpoint; no other OSMO route is affected.
 
 ## Available tools
 
-The external catalog contains 25 tools: 14 read-only tools for caller-bound
+The external catalog contains 26 tools: 15 read-only tools for caller-bound
 health, profile, pool, resource, workflow, application, and
 credential-metadata inspection, plus four workflow actions, one
 profile-setting action, one credential action, four app lifecycle actions,
@@ -417,25 +396,24 @@ bazel build \
   --platforms=//bzl/platforms:linux_x86_64 \
   //src/service/mcp:mcp_image_x86_64
 bazel test //test/smoke:mcp-checks-pylint
-bash deployments/charts/service/ci/validate-mcp-chart.sh
+bash deployments/charts/service/tests/render-tests.sh
 ```
 
-The chart validation covers MCP-disabled, direct-provider, and in-process OIDC
-proxy renders; the derived Gateway origin; exact OAuth routing; the `/mcp`
-filter boundary; secret mounts; ingress isolation; and expected configuration
-failures.
+The chart validation covers MCP-disabled and MCP-enabled renders; the derived
+Gateway origin; exact OAuth routing; the `/mcp` filter boundary; secret
+mounts; ingress isolation; and expected configuration failures.
 
 ## Deployment validation
 
 The MCP smoke target requires an MCP-enabled deployment with JWT
-authentication. Its token needs `mcp:Access`, `profile:Read`, and
-`workflow:Create` for `OETF_POOL`.
+authentication. Its token needs `profile:Read` and `workflow:Create`
+for `OETF_POOL`.
 
 ```bash
 bazel run //test/oetf:run -- --env <mcp-enabled-env> --tags mcp
 ```
 
-The smoke test rejects unauthenticated access, verifies the exact 25-tool
+The smoke test rejects unauthenticated access, verifies the exact 26-tool
 catalog, compares the profile projection with Core, checks caller-bound
 health, and validates a small workflow through Gateway → MCP → Gateway → Core.
 A successful validation does not enqueue compute or create a workflow row.

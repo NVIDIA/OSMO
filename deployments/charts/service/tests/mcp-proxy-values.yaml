@@ -22,7 +22,6 @@ services:
     allowedOrigins:
     - http://localhost:6274
     oidcProxy:
-      enabled: true
       oidc:
         configUrl: https://login.example.com/example-tenant/v2.0/.well-known/openid-configuration
         clientId: example-mcp-proxy-client
@@ -30,10 +29,10 @@ services:
         accessTokenRequiredScope: access_as_user
       redis:
         dbNumber: 14
-        passwordFile: /etc/osmo/mcp-auth/redis-password
         keyPrefix: test:mcp-auth
       existingSecret:
         name: mcp-oidc-proxy-secrets
+        redisPasswordKey: redis-password
 
 gateway:
   networkPolicies:

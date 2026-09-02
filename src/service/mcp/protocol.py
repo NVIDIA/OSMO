@@ -68,9 +68,8 @@ class OSMOFastMCP(FastMCP):
         request_id: str | None = None
         outcome = 'unexpected_error'
         try:
-            request_id = (
-                request_context.get_request_credentials().request_id
-            )
+            credentials = request_context.get_request_credentials()
+            request_id = credentials.request_id
             arguments = arguments or {}
             tools_by_name = {
                 tool.name: tool
@@ -92,7 +91,7 @@ class OSMOFastMCP(FastMCP):
                 )
 
             with (
-                request_context.track_request_task() as credentials,
+                request_context.bind_credentials(credentials),
                 request_context.track_tool(telemetry_tool_name),
             ):
                 if _contains_relayed_credentials(arguments, credentials):

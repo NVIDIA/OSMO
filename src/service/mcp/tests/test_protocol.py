@@ -26,8 +26,8 @@ import httpx
 from fastmcp.exceptions import ToolError
 import pydantic
 
-from src.lib.utils import login
-from src.service.mcp import protocol, tool_errors, request_context
+from src.service.mcp.tests import protocol_harness
+from src.service.mcp import protocol, server, tool_errors, request_context
 
 
 def _failing_tool(message: str) -> Callable[[], object]:
@@ -35,6 +35,9 @@ def _failing_tool(message: str) -> Callable[[], object]:
         raise tool_errors.PublicToolError(message)
 
     return failure
+
+
+_BEARER_SECRET = 'boundary-test-secret'
 
 
 class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
@@ -49,18 +52,10 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
     ) -> httpx.Response:
         mcp_server = protocol.OSMOFastMCP(
             name='OSMO public exception boundary test',
+            auth=protocol_harness.any_token_verifier(),
         )
         mcp_server.tool(function, name='boundary_test_tool')
-        application = mcp_server.http_app(
-            path='/mcp',
-            transport='streamable-http',
-            stateless_http=True,
-            json_response=True,
-        )
-        application.add_middleware(
-            request_context.RequestContextMiddleware,
-            path='/mcp',
-        )
+        application = server.create_application(mcp_server)
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=application),
@@ -71,8 +66,7 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
                     headers={
                         'Accept': 'application/json, text/event-stream',
                         'Content-Type': 'application/json',
-                        login.OSMO_AUTH_HEADER: 'Bearer boundary-test-secret',
-                        login.OSMO_USER_HEADER: 'boundary-user@example.com',
+                        'Authorization': f'Bearer {_BEARER_SECRET}',
                         request_context.REQUEST_ID_HEADER: 'boundary-request-123',
                     },
                     json={

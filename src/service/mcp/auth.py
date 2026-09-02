@@ -16,12 +16,13 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import dataclasses
-from typing import cast
 from urllib import parse
 
 from cryptography.fernet import Fernet
-from fastmcp.server.auth.jwt_issuer import derive_jwt_key
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from key_value.aio.protocols import AsyncKeyValue
@@ -62,47 +63,36 @@ class _OSMOOIDCProxy(OIDCProxy):
         required_scopes: list[str] | None = None,
         timeout_seconds: int | None = None,
     ) -> JWTVerifier:
-        """Build the verifier, keeping the base signature FastMCP calls with.
-
-        ``audience`` and ``timeout_seconds`` are accepted to match the hook
-        FastMCP invokes but are not used: the audience comes from OSMO's own
-        configuration for the reason below, and JWTVerifier has no timeout.
-        """
+        """Build the verifier, keeping the base signature FastMCP calls with."""
         # audience is deliberately not taken from the caller: OIDCProxy's own
         # audience argument is forwarded to the provider's authorize and token
         # endpoints (oidc_proxy.py:432-434), which Entra does not accept.
         return JWTVerifier(
             jwks_uri=str(self.oidc_config.jwks_uri),
-            issuer=self._access_token_issuer,
+            issuer=self._access_token_issuer or str(self.oidc_config.issuer),
             algorithm=algorithm,
             audience=self._access_token_audience,
             required_scopes=required_scopes,
         )
-_REQUIRED_WHEN_AUTH_ENABLED = (
-    'resource_url',
-    'redis_url',
-    'oidc_config_url',
-    'oidc_client_id',
-    'oidc_client_secret_file',
-    'oidc_access_token_issuer',
+# Rejects a hand-written placeholder; identity providers issue well above this.
+_MIN_CLIENT_SECRET_LENGTH = 32
+# Native MCP clients redirect to a dynamically allocated loopback port.
+LOOPBACK_REDIRECT_URIS = (
+    'http://localhost:*',
+    'http://127.0.0.1:*',
+    'http://[::1]:*',
 )
 
 
 class MCPAuthConfig(pydantic.BaseModel):
-    """Optional OIDC settings loaded by the existing MCP process."""
+    """OIDC settings the MCP process needs to authenticate every caller."""
 
     model_config = pydantic.ConfigDict(hide_input_in_errors=True)
 
-    auth_enabled: bool = pydantic.Field(
-        default=False,
-        json_schema_extra={'env': 'OSMO_MCP_AUTH_ENABLED'},
-    )
-    resource_url: str | None = pydantic.Field(
-        default=None,
+    resource_url: str = pydantic.Field(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
     )
-    redis_url: str | None = pydantic.Field(
-        default=None,
+    redis_url: str = pydantic.Field(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_REDIS_URL'},
     )
     redis_password_file: str | None = pydantic.Field(
@@ -114,16 +104,13 @@ class MCPAuthConfig(pydantic.BaseModel):
         pattern=r'^[A-Za-z0-9:._~-]{1,128}$',
         json_schema_extra={'env': 'OSMO_MCP_AUTH_REDIS_KEY_PREFIX'},
     )
-    oidc_config_url: str | None = pydantic.Field(
-        default=None,
+    oidc_config_url: str = pydantic.Field(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CONFIG_URL'},
     )
-    oidc_client_id: str | None = pydantic.Field(
-        default=None,
+    oidc_client_id: str = pydantic.Field(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CLIENT_ID'},
     )
-    oidc_client_secret_file: str | None = pydantic.Field(
-        default=None,
+    oidc_client_secret_file: str = pydantic.Field(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE'},
     )
     oidc_access_token_issuer: str | None = pydantic.Field(
@@ -170,27 +157,17 @@ class MCPAuthConfig(pydantic.BaseModel):
 
     @pydantic.model_validator(mode='after')
     def _validate_auth_config(self) -> 'MCPAuthConfig':
-        if not self.auth_enabled:
-            return self
-        missing = sorted(
-            name for name in _REQUIRED_WHEN_AUTH_ENABLED
-            if not getattr(self, name)
-        )
-        if missing:
-            raise ValueError(
-                'Enabled MCP auth is missing: ' + ', '.join(missing)
-            )
-
-        resource = _https_url(cast(str, self.resource_url))
+        resource = _https_url(self.resource_url)
         if not resource.endswith('/mcp'):
             raise ValueError('resource_url must end with /mcp')
         self.resource_url = resource
-        self.oidc_config_url = _https_url(cast(str, self.oidc_config_url))
-        self.oidc_access_token_issuer = _https_url(
-            cast(str, self.oidc_access_token_issuer),
-            preserve_trailing_slash=True,
-        )
-        redis_url = parse.urlsplit(cast(str, self.redis_url))
+        self.oidc_config_url = _https_url(self.oidc_config_url)
+        if self.oidc_access_token_issuer:
+            self.oidc_access_token_issuer = _https_url(
+                self.oidc_access_token_issuer,
+                preserve_trailing_slash=True,
+            )
+        redis_url = parse.urlsplit(self.redis_url)
         if redis_url.scheme not in {'redis', 'rediss'} or not redis_url.hostname:
             raise ValueError('redis_url must be an absolute Redis URL')
         if redis_url.password is not None:
@@ -201,15 +178,6 @@ class MCPAuthConfig(pydantic.BaseModel):
     def auth_scope(self) -> str:
         """The delegated scope clients request for this resource."""
         return f'{self.resource_url}/{self.oidc_access_token_required_scope}'
-
-    @property
-    def allowed_client_redirect_uris(self) -> list[str]:
-        """Native MCP clients redirect to a dynamically allocated loopback port."""
-        return [
-            'http://localhost:*',
-            'http://127.0.0.1:*',
-            'http://[::1]:*',
-        ]
 
 
 @dataclasses.dataclass(slots=True)
@@ -225,15 +193,18 @@ class MCPAuthRuntime:
 
 def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     """Configure FastMCP's OIDCProxy; no OSMO OAuth endpoints are implemented."""
-    if not config.auth_enabled:
-        raise ValueError('MCP auth is disabled')
-
     client_secret = _read_required_secret(
-        cast(str, config.oidc_client_secret_file),
+        config.oidc_client_secret_file,
         'OIDC client secret',
     )
+    if len(client_secret) < _MIN_CLIENT_SECRET_LENGTH:
+        raise ValueError(
+            'OIDC client secret must be at least '
+            f'{_MIN_CLIENT_SECRET_LENGTH} characters: the proxy token signing '
+            'key and the Redis storage key are derived from it'
+        )
     redis_client = redis_asyncio.Redis.from_url(
-        cast(str, config.redis_url),
+        config.redis_url,
         password=_read_optional_secret(config.redis_password_file),
         socket_connect_timeout=config.redis_connect_timeout_seconds,
         socket_timeout=config.redis_operation_timeout_seconds,
@@ -248,31 +219,26 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
         fernet=Fernet(_storage_encryption_key(client_secret)),
         raise_on_decryption_error=False,
     )
-    mcp_url = cast(str, config.resource_url)
+    mcp_url = config.resource_url
     requested_scope = config.auth_scope
     upstream_scope = ' '.join((requested_scope, *_UPSTREAM_OIDC_SCOPES))
     provider = _OSMOOIDCProxy(
-        config_url=cast(str, config.oidc_config_url),
-        client_id=cast(str, config.oidc_client_id),
+        config_url=config.oidc_config_url,
+        client_id=config.oidc_client_id,
         client_secret=client_secret,
-        access_token_issuer=cast(str, config.oidc_access_token_issuer),
+        access_token_issuer=config.oidc_access_token_issuer or '',
         access_token_audience=mcp_url,
         required_scopes=[config.oidc_access_token_required_scope],
-        # FastMCP builds its operational OAuth endpoints from base_url and its
-        # RFC 9728 resource identity from resource_base_url plus the MCP path.
-        # Publishing base_url at the MCP URL therefore keeps authorize, token,
-        # register, consent and the callback under /mcp instead of on the
-        # shared gateway root, while the origin keeps the resource named /mcp
-        # rather than /mcp/mcp. The path-scoped issuer is what the
-        # protected-resource document advertises in authorization_servers,
-        # which is what points clients at RFC 8414 path-aware discovery; the
-        # gateway serves that path, since FastMCP registers the document at
-        # the root.
+        # base_url publishes authorize, token, register, consent and the
+        # callback under /mcp instead of on the shared gateway root;
+        # resource_base_url keeps the RFC 9728 resource named /mcp, not
+        # /mcp/mcp. The path-scoped issuer is what the protected-resource
+        # document points clients at for RFC 8414 discovery.
         base_url=mcp_url,
         resource_base_url=mcp_url.removesuffix('/mcp'),
         issuer_url=mcp_url,
         redirect_path='/auth/callback',
-        allowed_client_redirect_uris=config.allowed_client_redirect_uris,
+        allowed_client_redirect_uris=list(LOOPBACK_REDIRECT_URIS),
         client_storage=encrypted_store,
         token_endpoint_auth_method='client_secret_post',
         require_authorization_consent=True,
@@ -290,14 +256,32 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     return MCPAuthRuntime(provider, redis_client)
 
 
+def _derive_fernet_key(material: str, *, salt: str) -> bytes:
+    """Derive a Fernet key from high-entropy material.
+
+    Pins the HKDF parameters locally rather than calling
+    ``fastmcp.server.auth.jwt_issuer.derive_jwt_key``: an upstream change to
+    that derivation would silently make every stored registration and token
+    undecryptable. The bytes are identical today, and ``test_auth`` asserts
+    that equivalence against FastMCP so a divergence fails the build.
+    """
+    derived = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt.encode(),
+        info=b'Fernet',
+    ).derive(material.encode())
+    return base64.urlsafe_b64encode(derived)
+
+
 def _storage_encryption_key(client_secret: str) -> bytes:
     """Mirror FastMCP's default signing and storage key derivation."""
-    signing_key = derive_jwt_key(
-        high_entropy_material=client_secret,
+    signing_key = _derive_fernet_key(
+        client_secret,
         salt='fastmcp-jwt-signing-key',
     )
-    return derive_jwt_key(
-        high_entropy_material=signing_key.decode('ascii'),
+    return _derive_fernet_key(
+        signing_key.decode('ascii'),
         salt='fastmcp-storage-encryption-key',
     )
 

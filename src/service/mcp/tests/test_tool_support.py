@@ -346,7 +346,6 @@ class TruncatedTextRequestTest(unittest.IsolatedAsyncioTestCase):
         )
         credentials = request_context.RequestCredentials(
             authorization_header='Bearer test-token-value',
-            user_name='test-user',
             request_id='request-1',
         )
         maximum_bytes = 256
@@ -392,7 +391,6 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
     def _credentials() -> request_context.RequestCredentials:
         return request_context.RequestCredentials(
             authorization_header='Bearer write-test-token-value',
-            user_name='test-user',
             request_id='write-request-1',
         )
 
