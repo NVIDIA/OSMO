@@ -16,14 +16,17 @@
   SPDX-License-Identifier: Apache-2.0
 
 .. _deploy_local:
+.. _quickstart:
 
-============================
-Local Deployment
-============================
+==========
+Quickstart
+==========
 
 Try OSMO on your local workstation — no cloud account, no infrastructure costs, no enterprise approval needed.
 
-This guide walks you through deploying the complete OSMO platform locally using KIND (Kubernetes in Docker) in about 10 minutes.
+This Quickstart is the fastest way to try the complete OSMO platform locally.
+It creates a multi-node Kubernetes-in-Docker cluster with KIND or ``nvkind``
+and deploys the unified ``osmo`` Helm chart.
 
 .. tip::
    **Perfect for evaluation** – Test your workflows, explore the platform, and assess fit for your robotics development needs before cloud deployment of OSMO.
@@ -61,28 +64,43 @@ Install the following tools on your workstation:
 * `kubectl <https://kubernetes.io/docs/tasks/tools/>`_ - Kubernetes command-line tool (>=1.32.2)
 * `helm <https://helm.sh/docs/intro/install/>`_ - Helm package manager (>=3.16.2)
 
+The resulting cluster requires Kubernetes 1.30 or newer and a default dynamic
+``StorageClass``.
+
 .. important::
 
    **System Configuration**:
 
-   1. `Raise inotify limits <https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files>`_ to prevent "too many open files" errors
-   2. `Ensure your user has Docker permissions <https://kind.sigs.k8s.io/docs/user/known-issues/#docker-permission-denied>`_
+   1. `Raise inotify limits <https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files>`_ to prevent "too many open files" errors.
+   2. `Ensure your user has Docker permissions <https://kind.sigs.k8s.io/docs/user/known-issues/#docker-permission-denied>`_.
+
+Clone the repository and run the remaining commands from its root:
+
+.. code-block:: bash
+
+   git clone https://github.com/NVIDIA/OSMO.git
+   cd OSMO
 
 Step 1: Create KIND Cluster
-============================
+===========================
 
 Choose the appropriate setup based on whether your workstation has a GPU.
 
 Option A: GPU Workstations (with nvkind)
 -----------------------------------------
 
-If your workstation has a GPU, follow these steps to create a cluster with GPU support.
-
-**Prerequisites**
-
-Install `nvkind <https://github.com/NVIDIA/nvkind>`_ by following the `prerequisites <https://github.com/NVIDIA/nvkind?tab=readme-ov-file#prerequisites>`_, `setup <https://github.com/NVIDIA/nvkind?tab=readme-ov-file#setup>`_, and `installation <https://github.com/NVIDIA/nvkind?tab=readme-ov-file#install-nvkind>`_ guides.
+If your workstation has a supported NVIDIA GPU, install the NVIDIA driver and
+NVIDIA Container Toolkit and confirm that they work with Docker. Install
+``nvkind`` by following its `prerequisites
+<https://github.com/NVIDIA/nvkind?tab=readme-ov-file#prerequisites>`_, `setup
+<https://github.com/NVIDIA/nvkind?tab=readme-ov-file#setup>`_, and `installation
+<https://github.com/NVIDIA/nvkind?tab=readme-ov-file#install-nvkind>`_ guides.
 
 **Create Cluster Configuration**
+
+Create the following multi-node configuration. The compute worker receives the
+GPU from ``nvkind``. The other workers disable GPU Operator operands, and the
+service worker maps gateway NodePort ``30080`` to host port ``80``.
 
 .. dropdown:: ``kind-osmo-cluster-config.yaml`` (GPU version)
   :color: info
@@ -143,32 +161,45 @@ Install `nvkind <https://github.com/NVIDIA/nvkind>`_ by following the `prerequis
 
 **Create the Cluster**
 
+Create the cluster, select its context, and confirm that ``nvkind`` passes the
+host GPU through:
+
 .. code-block:: bash
 
-   $ nvkind cluster create --config-template=kind-osmo-cluster-config.yaml
+   nvkind cluster create --config-template=kind-osmo-cluster-config.yaml
+   nvkind cluster print-gpus
+   kubectl config use-context kind-osmo
 
 .. note::
-   You can safely ignore any ``umount`` errors as long as ``nvkind cluster print-gpus`` shows your GPUs.
+
+   You can ignore ``umount`` errors from ``nvkind`` if ``nvkind cluster
+   print-gpus`` lists the workstation GPUs.
 
 **Install GPU Operator**
 
-After creating the cluster, install the GPU Operator to manage GPU resources:
+Install GPU Operator v25.10.1. The host driver and NVIDIA Container Toolkit
+are already managed by the ``nvkind`` prerequisites, so disable their in-cluster
+management. Version v25.10.1 includes the Kubernetes 1.33 schema-validation
+fix required by this quickstart.
 
 .. code-block:: bash
 
-   $ helm fetch https://helm.ngc.nvidia.com/nvidia/charts/gpu-operator-v25.10.0.tgz
-   $ helm upgrade --install gpu-operator gpu-operator-v25.10.0.tgz \
+   helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+   helm repo update nvidia
+   helm upgrade --install gpu-operator nvidia/gpu-operator \
+     --version v25.10.1 \
      --namespace gpu-operator \
      --create-namespace \
      --set driver.enabled=false \
      --set toolkit.enabled=false \
      --set nfd.enabled=true \
-     --wait
+     --wait \
+     --timeout 10m
 
 Option B: CPU Workstations (with KIND)
---------------------------------------------
+---------------------------------------
 
-If your workstation does not have a GPU, follow these steps for a standard CPU-only cluster.
+If your workstation does not have a GPU, create a standard CPU-only cluster.
 
 **Create Cluster Configuration**
 
@@ -230,34 +261,19 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
 
 .. code-block:: bash
 
-   $ kind create cluster --config kind-osmo-cluster-config.yaml
+   kind create cluster --config kind-osmo-cluster-config.yaml
+   kubectl config use-context kind-osmo
 
-Cluster Architecture
---------------------
+Install cluster dependencies
+============================
 
-Both commands create a Kubernetes cluster on your workstation with a control plane node and several worker nodes. The core OSMO components will be installed on those worker nodes:
-
-**Control Plane**
-
-* 2 worker nodes labeled ``node_group=service`` for API server, workflow engine, and gateway (Envoy)
-* 1 worker node labeled ``node_group=kai-scheduler`` for KAI scheduler
-
-**Compute Layer**
-
-* 1 worker node labeled ``node_group=compute``
-
-**Data Layer**
-
-* 1 worker node labeled ``node_group=data`` for PostgreSQL, Redis, LocalStack S3
-
-Step 2: Install KAI Scheduler
-==============================
-
-KAI scheduler provides co-scheduling, priority, and preemption for workflows:
+Install KAI Scheduler v0.12.10 for OSMO workflow scheduling, then install the
+CloudNativePG operator chart version 0.29.0 for the embedded PostgreSQL
+cluster:
 
 .. code-block:: bash
 
-   $ helm upgrade --install kai-scheduler \
+   helm upgrade --install kai-scheduler \
      oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
      --version v0.12.10 \
      --create-namespace -n kai-scheduler \
@@ -266,173 +282,142 @@ KAI scheduler provides co-scheduling, priority, and preemption for workflows:
      --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
      --wait
 
-Step 3: Install OSMO
-====================
-
-Deploy the OSMO service chart first, then the backend operator chart. The
-values files below preserve the former local quick-start settings while keeping
-the charts independently managed.
-
-.. code-block:: bash
-
-   mkdir -p osmo-values
-   curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/service/quick-start-values.yaml \
-     -o osmo-values/service.yaml
-   curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/backend-operator/quick-start-values.yaml \
-     -o osmo-values/backend-operator.yaml
-
-   kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
-   kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
-   LOCAL_ADMIN_PASSWORD=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n=' | head -c 43)
-   kubectl create secret generic local-admin-password \
-     --namespace osmo \
-     --from-literal=password="$LOCAL_ADMIN_PASSWORD" \
-     --dry-run=client -o yaml | kubectl apply -f -
-
-   helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-   helm repo update osmo
-   helm upgrade --install osmo osmo/service \
-     --namespace osmo \
-     -f osmo-values/service.yaml \
-     --wait \
-     --timeout 25m
-
-The quick-start values enable the install-only MEK bootstrap hook. It creates
-the ``osmo-mek`` Secret for this disposable local installation without placing
-key material in Helm values or release state. Existing Secrets are preserved,
-and upgrades fail if the Secret is missing rather than generating a new key.
-
-   helm upgrade --install osmo-backend-operator osmo/backend-operator \
-     --namespace osmo \
-     -f osmo-values/backend-operator.yaml \
+   helm repo add cnpg https://cloudnative-pg.github.io/charts
+   helm repo update cnpg
+   helm upgrade --install cnpg cnpg/cloudnative-pg \
+     --version 0.29.0 \
+     --namespace cnpg-system \
+     --create-namespace \
      --wait \
      --timeout 10m
 
-The service quick-start values generate ``backend-operator-token`` during the
-first Helm install. The backend operator consumes it directly from the same
-namespace.
+Install OSMO
+============
 
-.. tip::
-   Installation takes about 5 minutes. Monitor progress with:
+The chart defaults define a ``cpu`` platform and a ``gpu`` platform in the
+default pool. CPU workflows use a pod template without a GPU resource key.
+GPU workflows select the GPU platform, which requests ``nvidia.com/gpu`` in
+both the user-container requests and limits. No values overlay is required.
 
-   .. code-block:: bash
+Generate the shared development service-auth identity with the published OSMO
+service image and create its Secret. The generator writes the private identity
+only to a permission-restricted temporary file and never prints it:
 
-      $ kubectl get pods --namespace osmo
+.. code-block:: bash
 
-.. note::
-   The quick-start values use chart-managed LocalStack storage, so you do not
-   need to run ``deployments/scripts/configure-storage.sh`` for this local
-   flow. If your image registry requires credentials, create a Kubernetes image
-   pull Secret and pass ``--set global.imagePullSecret=<secret-name>`` to both
-   chart installs.
+   OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
+   docker run --rm --user "$(id -u):$(id -g)" \
+     --entrypoint service-auth-bootstrap \
+     --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
+     nvcr.io/nvidia/osmo/service:latest \
+     generate --output /output/authentication-config.json
+   kubectl create namespace osmo \
+     --dry-run=client --output=yaml | kubectl apply -f -
+   kubectl --namespace osmo create secret generic \
+     osmo-service-auth \
+     --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
+   rm -r "${OSMO_SERVICE_AUTH_DIRECTORY}"
 
-Step 4: Configure Access
+The chart defaults are the development Quickstart. Build its dependencies and
+install it without a profile or values overlay:
+
+.. code-block:: bash
+
+   helm dependency build deployments/charts/osmo
+   helm upgrade --install osmo deployments/charts/osmo \
+     --namespace osmo \
+     --create-namespace \
+     --wait \
+     --wait-for-jobs \
+     --timeout 20m
+
+Log in and run a workflow
 =========================
 
-Add an entry to /etc/hosts so your browser and CLI can reach OSMO by hostname:
+The cluster configuration maps the gateway to ``http://127.0.0.1``. Install the
+CLI if necessary, log in as the development administrator, select the default
+pool, and submit the canonical CPU verification workflow:
 
 .. code-block:: bash
 
-   $ echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
-   $ echo "127.0.0.1 localstack-s3.osmo" | sudo tee -a /etc/hosts
+   curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
+   osmo login http://127.0.0.1 --method=dev --username=testuser
+   osmo profile set pool default
+   osmo workflow submit deployments/workflows/verify-hello.yaml
+   osmo workflow query <workflow-id>
 
-The KIND cluster maps host port 80 to the gateway's NodePort, so OSMO is accessible at ``http://quick-start.osmo`` with no port-forward needed.
-
-Step 5: Install OSMO CLI
-=========================
-
-Download and install the OSMO command-line interface:
-
-.. code-block:: bash
-
-   $ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-
-Step 6: Log In and Configure Local Credentials
-==============================================
-
-Authenticate with your local OSMO instance, set the default pool, and register
-the LocalStack data credential used by the CLI for storage upload and download:
-
-.. code-block:: bash
-
-   $ osmo login http://quick-start.osmo --method=dev --username=testuser
-   $ osmo profile set pool default
-   $ osmo credential set osmo --type DATA --payload \
-     access_key_id=test \
-     access_key=test \
-     endpoint=s3://osmo \
-     override_url=http://localstack-s3.osmo:4566 \
-     region=us-east-1
+Query the returned workflow ID until its status is ``COMPLETED``. The workflow
+uses the default ``cpu`` platform.
 
 .. admonition:: Success!
    :class: tip
 
    You now have OSMO configured and running on your workstation. You're ready to start running robotics workflows!
 
-Next Steps
-==========
-
-Now that you have OSMO running locally, explore the platform:
-
-1. **Run Your First Workflow**: Visit the :ref:`User Guide <getting_started_next_steps>` for tutorials on submitting workflows, interactive development, distributed training, and more.
-
-2. **Explore the Web UI**: Visit ``http://quick-start.osmo`` to access the OSMO dashboard.
-
-3. **Test Your Own Workflows**: Use your own Docker images and storage locations to validate OSMO for your use case.
-
-.. tip::
-   **Ready to Scale?**
-
-   Once you have validated OSMO locally, you can scale to cloud environments (EKS, AKS, GKE) or on-premise clusters without rewriting your workflows. Contact your cloud administrator to discuss production deployment options—see the :ref:`deploy_service` guide for full production deployment.
-
-Cleanup
-=======
-
-Delete the local cluster and all associated resources:
+If you used Option A, submit the GPU verification workflow too:
 
 .. code-block:: bash
 
-   $ kind delete cluster --name osmo
+   osmo workflow submit deployments/workflows/verify-gpu.yaml
+   osmo workflow query <workflow-id>
 
-This removes the entire Kubernetes cluster, including all persistent volumes and the PostgreSQL database.
+The GPU workflow explicitly uses the ``gpu`` platform and runs ``nvidia-smi``
+in a CUDA container, proving that OSMO and KAI scheduled it onto the GPU node
+and that the NVIDIA driver and Container Toolkit are usable.
 
 Troubleshooting
 ===============
 
-Too Many Files Open
--------------------
-
-If you encounter "too many files open" errors or pods fail to start, increase the inotify limits:
+If the GPU workflow remains pending or fails, first verify GPU capacity and
+the GPU Operator:
 
 .. code-block:: bash
 
-   $ echo "fs.inotify.max_user_watches=1048576" | sudo tee -a /etc/sysctl.conf
-   $ echo "fs.inotify.max_user_instances=512" | sudo tee -a /etc/sysctl.conf
-   $ sudo sysctl -p
+   kubectl get nodes \
+     -o custom-columns=NAME:.metadata.name,ALLOCATABLE_GPUS:.status.allocatable.nvidia\.com/gpu
+   kubectl --namespace gpu-operator get pods
+   kubectl --namespace osmo get events --sort-by=.lastTimestamp
+   kubectl --namespace osmo get pods
 
-For more details, see: `Pod errors due to "too many open files" <https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files>`_
+An allocatable GPU count of zero means the host NVIDIA driver, Container
+Toolkit, ``nvkind`` pass-through, or GPU Operator is not ready. Do not run
+other GPU workloads until ``verify-gpu.yaml`` completes. For OSMO deployment
+problems, inspect the listed pods and events; a pending PostgreSQL, Valkey, or
+RustFS PVC usually means the cluster lacks a working default ``StorageClass``.
 
-Docker Permission Denied
-------------------------
+.. _quickstart_limits:
 
-If you see "permission denied" errors when running Docker or KIND commands, add your user to the docker group:
+Capacity and limitations
+========================
+
+This Quickstart runs one replica of each required OSMO service and uses generated
+development credentials, including the ``testuser`` identity with the
+``osmo-admin`` role. It disables TLS, authorization, rate limiting, backups,
+monitoring, PodDisruptionBudgets, and autoscaling. It also has no high
+availability guarantees. The exposed development administrator identity and
+NodePort are suitable only for a disposable local environment.
+
+CloudNativePG, Valkey, and RustFS use persistent volumes supplied by the
+cluster's default StorageClass. Those local volumes, generated
+credentials, workflow state, and all other quickstart data disappear when the
+cluster is deleted. Do not use this quickstart for production data or any
+long-lived environment.
+
+Clean up resources
+==================
+
+Remove the OSMO release, then delete the disposable cluster using the command
+for the option you selected:
 
 .. code-block:: bash
 
-   $ sudo usermod -aG docker $USER && newgrp docker
+   helm uninstall osmo --namespace osmo --wait
 
-.. note::
-   If permission errors persist, log out and log back in for the group membership changes to take effect.
+   # Option A
+   nvkind cluster delete --name osmo
 
-For more details, see: `Docker permission denied <https://kind.sigs.k8s.io/docs/user/known-issues/#docker-permission-denied>`_
+   # Option B
+   kind delete cluster --name osmo
 
-Pods Not Starting
-------------------
-
-Check resource availability and logs:
-
-.. code-block:: bash
-
-   $ kubectl get pods --namespace osmo
-   $ kubectl describe pod <pod-name> --namespace osmo
-   $ kubectl logs <pod-name> --namespace osmo
+Deleting the cluster removes all quickstart data, including its local
+persistent volumes and generated credentials.

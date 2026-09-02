@@ -15,6 +15,7 @@ workflow:
     queue_timeout: 10m
   resources:
     one_gpu:
+      platform: gpu
       cpu: 2
       gpu: 1
       memory: 4Gi
