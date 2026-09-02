@@ -8,9 +8,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TERRAFORM_SOURCE_DIR="$REPOSITORY_ROOT/deployments/terraform/azure/example"
-TERRAFORM_VARS="$SCRIPT_DIR/single-plane-azure.tfvars"
+TERRAFORM_VARS="$SCRIPT_DIR/azure/single-plane.tfvars"
 CHART="$REPOSITORY_ROOT/deployments/charts/osmo"
 AZURE_VALUES="$SCRIPT_DIR/single-plane-azure.yaml"
+DYNAMIC_VALUES_FILTER="$SCRIPT_DIR/azure/single-plane-values.jq"
 
 TF_RESOURCE_GROUP="${TF_RESOURCE_GROUP:-${TF_VAR_resource_group_name:-}}"
 TF_SUBSCRIPTION_ID="${TF_SUBSCRIPTION_ID:-${TF_VAR_subscription_id:-}}"
@@ -70,7 +71,13 @@ if [[ -n "$SINGLE_PLANE_CLUSTER_NAME" ]]; then
     terraform_arguments+=("-var=cluster_name=$SINGLE_PLANE_CLUSTER_NAME")
 fi
 azure_terraform_apply "$TERRAFORM_DIR" false "${terraform_arguments[@]}"
-azure_get_terraform_outputs "$TERRAFORM_DIR" "$TERRAFORM_OUTPUTS" single-plane
+azure_get_terraform_outputs "$TERRAFORM_DIR" "$TERRAFORM_OUTPUTS"
+POSTGRES_PASSWORD="$(azure_get_terraform_output "$TERRAFORM_DIR" postgres_password)"
+STORAGE_ACCOUNT="$(azure_get_terraform_output "$TERRAFORM_DIR" single_plane_storage_account)"
+STORAGE_ACCOUNT_ID="$(azure_get_terraform_output "$TERRAFORM_DIR" single_plane_storage_account_id)"
+STORAGE_CONTAINER="$(azure_get_terraform_output "$TERRAFORM_DIR" single_plane_storage_container_name)"
+WORKLOAD_IDENTITY_CLIENT_ID="$(azure_get_terraform_output \
+    "$TERRAFORM_DIR" single_plane_blob_identity_client_id)"
 
 for required_value in RESOURCE_GROUP_NAME AKS_CLUSTER_NAME POSTGRES_HOST POSTGRES_DB_NAME POSTGRES_USERNAME \
         POSTGRES_PASSWORD REDIS_HOST REDIS_PORT REDIS_PASSWORD STORAGE_ACCOUNT STORAGE_ACCOUNT_ID \
@@ -144,8 +151,6 @@ if [[ -z "$BACKEND_TOKEN_SECRET" ]]; then
 fi
 rm -rf -- "$SECRETS_DIR"
 
-# Generate a structured values file. JSON is valid Helm values input and lets
-# jq quote every dynamic value without another template language.
 jq --null-input \
     --arg image_repository "$OSMO_IMAGE_REPOSITORY" \
     --arg image_tag "$OSMO_IMAGE_TAG" \
@@ -157,58 +162,18 @@ jq --null-input \
     --arg redis_port "$REDIS_PORT" \
     --arg storage_account "$STORAGE_ACCOUNT" \
     --arg storage_container "$STORAGE_CONTAINER" \
-    --arg workload_identity_client_id "$WORKLOAD_IDENTITY_CLIENT_ID" '
-{
-  imageRepository: $image_repository,
-  imageTag: $image_tag,
-  imagePullSecrets: (if $image_pull_secret == "" then [] else [{name: $image_pull_secret}] end),
-  services: {
-    api: {
-      extraVolumeMounts: (if $image_pull_secret == "" then [] else [{
-        name: "runtime-image-pull-secret",
-        mountPath: ("/etc/osmo/secrets/" + $image_pull_secret),
-        readOnly: true
-      }] end),
-      serviceAccount: {annotations: {"azure.workload.identity/client-id": $workload_identity_client_id}},
-      pod: {extraVolumes: (if $image_pull_secret == "" then [] else [{
-        name: "runtime-image-pull-secret",
-        secret: {secretName: $image_pull_secret}
-      }] end)}
-    },
-    worker: {serviceAccount: {annotations: {
-      "azure.workload.identity/client-id": $workload_identity_client_id
-    }}}
-  },
-  externalDependencies: {
-    postgresql: {host: $postgres_host, database: $postgres_database, username: $postgres_username},
-    valkey: {host: $redis_host, port: ($redis_port | tonumber)},
-    objectStorage: {locations: {
-      workflows: ("azure://" + $storage_account + "/" + $storage_container + "/workflows"),
-      logs: ("azure://" + $storage_account + "/" + $storage_container + "/logs"),
-      apps: ("azure://" + $storage_account + "/" + $storage_container + "/apps")
-    }}
-  },
-  configuration: {workflow: {backend_images:
-    (if $image_pull_secret == "" then {} else {credential: {
-      secretName: $image_pull_secret,
-      secretKey: ".dockerconfigjson"
-    }} end)
-  }}
-}' >"$DYNAMIC_VALUES"
+    --arg workload_identity_client_id "$WORKLOAD_IDENTITY_CLIENT_ID" \
+    --from-file "$DYNAMIC_VALUES_FILTER" >"$DYNAMIC_VALUES"
 
 # Install OSMO.
 helm dependency build "$CHART"
-helm_values=(
-    --namespace osmo
-    --values "$CHART/profiles/single-plane.yaml"
-    --values "$AZURE_VALUES"
-    --values "$DYNAMIC_VALUES"
+helm upgrade --install osmo "$CHART" \
+    --namespace osmo \
+    --values "$CHART/profiles/single-plane.yaml" \
+    --values "$AZURE_VALUES" \
+    --values "$DYNAMIC_VALUES" \
+    --set secrets.masterEncryptionKey.bootstrap.enabled=true \
     --wait --wait-for-jobs --timeout 25m
-)
-helm upgrade --install osmo "$CHART" "${helm_values[@]}" \
-    --set secrets.masterEncryptionKey.bootstrap.enabled=true
-helm upgrade osmo "$CHART" "${helm_values[@]}" \
-    --set secrets.masterEncryptionKey.bootstrap.enabled=false
 
 # Verify the deployment and representative workflow.
 kubectl --namespace osmo port-forward service/osmo-gateway 9000:80 &

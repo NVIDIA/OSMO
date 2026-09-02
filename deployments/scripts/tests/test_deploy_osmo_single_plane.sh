@@ -166,7 +166,7 @@ printf '%s\n' '{"auths":{"artifactory.build.nvda.ai":{"auth":"wrong-auth"},"nvcr
 
 script="${TEST_SRCDIR}/_main/deployments/scripts/deploy-osmo-single-plane.sh"
 static_values="${TEST_SRCDIR}/_main/deployments/scripts/single-plane-azure.yaml"
-terraform_vars="${TEST_SRCDIR}/_main/deployments/scripts/single-plane-azure.tfvars"
+terraform_vars="${TEST_SRCDIR}/_main/deployments/scripts/azure/single-plane.tfvars"
 [[ -x "$script" ]] || fail "deployment script is absent"
 
 export BACKEND_TOKEN_STATE=absent
@@ -234,13 +234,13 @@ assert_ordered \
     'kubectl create secret generic osmo-backend-token' \
     'helm dependency build' \
     'helm upgrade --install osmo' \
-    'helm upgrade osmo' \
     'kubectl --namespace osmo port-forward service/osmo-gateway 9000:80' \
     'curl --fail --silent --connect-timeout 2 --max-time 5 http://127.0.0.1:9000/api/version'
 
 assert_contains "$command_log" "bash ${TEST_SRCDIR}/_main/deployments/scripts/install-kai-scheduler.sh"
 assert_contains "$command_log" "bash ${TEST_SRCDIR}/_main/deployments/scripts/verify.sh"
-[[ "$(grep -c '^helm upgrade .*osmo ' "$command_log")" == 2 ]] || fail "expected two OSMO Helm transactions"
+[[ "$(grep -c '^helm upgrade .*osmo ' "$command_log")" == 1 ]] || fail "expected one OSMO Helm transaction"
+assert_contains "$command_log" '--set secrets.masterEncryptionKey.bootstrap.enabled=true'
 
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"

@@ -14,7 +14,7 @@ source "${TEST_SRCDIR}/_main/deployments/scripts/azure/terraform.sh"
 
 terraform() {
     printf '%s\n' "$*" >>"$command_log"
-    if [[ "$*" == output\ -raw* ]]; then
+    if [[ "$*" == *output\ -raw* ]]; then
         case "${!#}" in
             resource_group_name) echo test-resource-group ;;
             aks_cluster_name) echo test-aks ;;
@@ -57,16 +57,12 @@ if grep -Fq 'single_plane_' "$command_log"; then exit 1; fi
 if grep -Fq 'postgres_password' "$command_log"; then exit 1; fi
 
 : >"$command_log"
-single_plane_outputs="$test_directory/single-plane.env"
-IS_PRIVATE_CLUSTER=false azure_get_terraform_outputs \
-    "$test_directory/terraform" "$single_plane_outputs" single-plane
-grep -Fq 'export POSTGRES_PASSWORD="postgres-secret"' "$single_plane_outputs"
-grep -Fq 'export STORAGE_ACCOUNT="teststorage"' "$single_plane_outputs"
-grep -Fq 'export STORAGE_ACCOUNT_ID="/subscriptions/test/storageAccounts/teststorage"' "$single_plane_outputs"
-grep -Fq 'export STORAGE_CONTAINER="osmo-workflows"' "$single_plane_outputs"
-grep -Fq 'export WORKLOAD_IDENTITY_CLIENT_ID="test-client-id"' "$single_plane_outputs"
-
-if azure_get_terraform_outputs "$test_directory/terraform" "$test_directory/invalid.env" invalid; then
-    echo "invalid output mode unexpectedly succeeded" >&2
-    exit 1
-fi
+[[ "$(azure_get_terraform_output "$test_directory/terraform" postgres_password)" == "postgres-secret" ]]
+[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_storage_account)" == "teststorage" ]]
+[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_storage_account_id)" == \
+    "/subscriptions/test/storageAccounts/teststorage" ]]
+[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_storage_container_name)" == \
+    "osmo-workflows" ]]
+[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_blob_identity_client_id)" == \
+    "test-client-id" ]]
+grep -Fq -- "-chdir=$test_directory/terraform output -raw postgres_password" "$command_log"

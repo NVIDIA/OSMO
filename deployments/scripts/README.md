@@ -49,7 +49,7 @@ alias `TF_VAR_resource_group_name` is also accepted), naming the existing
 sandbox resource group. Terraform generates a stable cluster name and
 PostgreSQL password in isolated, resource-group-specific local state. The
 script explicitly applies the non-secret Terraform settings in
-`single-plane-azure.tfvars`; `TF_CLUSTER_NAME` remains an optional override.
+`azure/single-plane.tfvars`; `TF_CLUSTER_NAME` remains an optional override.
 
 ```bash
 ~/workspace/azure-sandbox create
@@ -92,19 +92,19 @@ script creates no object-storage credential Secret; PostgreSQL, Valkey, and
 backend bootstrap credentials retain their existing Secret flow.
 
 The checked-in `single-plane-azure.yaml` contains the fixed Azure overlay. The
-script uses `jq` to generate a temporary JSON values file containing connection
-data, exact `azure://` locations, image selections, and workload-identity
-metadata. JSON is valid Helm values input and safely quotes dynamic strings
-without requiring a second template language. The chart base remains
+script evaluates `azure/single-plane-values.jq` to generate a temporary JSON
+values file containing connection data, exact `azure://` locations, image
+selections, and workload-identity metadata. JSON is valid Helm values input and
+safely quotes dynamic strings without requiring a second template language.
+The chart base remains
 provider-neutral `deployments/charts/osmo/profiles/single-plane.yaml`, which is
 always layered before the static and generated overlays. The static overlay
 uses the in-cluster `http://osmo-gateway` URL so workflow runtime containers can
 reach the control plane; local operators continue to use the port-forward URL
 below.
 
-The Helm release runs two MEK transactions: the first installation enables the
-MEK bootstrap hook, and the second upgrade disables it after the generated MEK
-has been retained. The gateway remains `ClusterIP`; the script starts a local
+The Helm install enables the MEK bootstrap hook so the generated MEK is
+retained. The gateway remains `ClusterIP`; the script starts a local
 port-forward at `http://127.0.0.1:9000` instead of configuring ingress. Finally,
 it calls `verify.sh` with `SKIP_GPU=1`, which submits the basic
 `deployments/workflows/verify-hello.yaml` workflow followed by
