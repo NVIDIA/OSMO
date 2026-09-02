@@ -144,6 +144,10 @@ spec:
       serviceAccountName: {{ $name | quote }}
       automountServiceAccountToken: false
       {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.podDefaults.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: mek-lifecycle
         image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.api) }}
