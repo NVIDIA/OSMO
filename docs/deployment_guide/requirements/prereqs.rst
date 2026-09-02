@@ -33,7 +33,7 @@ Before deploying OSMO, ensure you have the following cloud components:
       .. grid-item-card:: :octicon:`stack` Kubernetes Cluster
           :class-card: tool-card
 
-          **Version**: 1.27 or higher
+          **Version**: 1.30 or higher
 
           Container orchestration platform for deploying and managing OSMO services.
 
@@ -44,17 +44,24 @@ Before deploying OSMO, ensure you have the following cloud components:
 
           Primary database for storing OSMO application data and metadata.
 
-      .. grid-item-card:: :octicon:`zap` Redis Instance
+      .. grid-item-card:: :octicon:`zap` Redis or Valkey Instance
           :class-card: tool-card
 
           **Version**: 7.0 or higher
 
           In-memory data store for caching and session management.
 
-      .. grid-item-card:: :octicon:`lock` Virtual Private Network (VPC)
+      .. grid-item-card:: :octicon:`database` Object Storage
           :class-card: tool-card
 
-          Network with subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
+          **Type**: S3-compatible or Azure Blob Storage
+
+          Object storage for workflow inputs, outputs, logs, and applications.
+
+      .. grid-item-card:: :octicon:`lock` Virtual Network
+          :class-card: tool-card
+
+          Network with subnets for the Kubernetes cluster, PostgreSQL database, and Redis or Valkey instance.
 
           **Required for**: Secure communication between components
 

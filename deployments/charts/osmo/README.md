@@ -22,28 +22,30 @@ installations, but it is not a dependency of this chart.
 ## Quick start
 
 The default values are a development-only path to trying the complete OSMO
-browser, CLI, API, and CPU workflow experience in one converged release. They
-install:
+browser, CLI, API, CPU workflow, and GPU workflow experience in one converged
+release. They install:
 
 - the Envoy gateway and browser UI;
 - the API, worker, router, logger, agent, and delayed-job monitor;
 - the compute backend listener and worker;
 - persistent CloudNativePG, Valkey, and RustFS instances;
 - generated development credentials, object-storage buckets, configuration,
-  service auth, and a CPU-only default pool.
+  service auth, and CPU and GPU platforms in the default pool.
 
 ### Prerequisites
 
 Use Kubernetes 1.30 or newer with enough capacity for the resources described
 below. The cluster must have a default dynamic StorageClass. Install Helm,
-`kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO. The
-examples use the `kind-osmo` context; replace it if your development cluster has
-a different context.
+`kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO. Select the
+development cluster context once; replace `kind-osmo` if your cluster has a
+different context. A GPU workflow also requires GPU-capable nodes and the
+NVIDIA GPU Operator.
 
 ```bash
-kubectl --context kind-osmo get storageclass
+kubectl config use-context kind-osmo
+kubectl get storageclass
 
-helm --kube-context kind-osmo upgrade --install kai-scheduler \
+helm upgrade --install kai-scheduler \
   https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
   --namespace kai-scheduler \
   --create-namespace \
@@ -52,7 +54,7 @@ helm --kube-context kind-osmo upgrade --install kai-scheduler \
 
 helm repo add cnpg https://cloudnative-pg.github.io/charts
 helm repo update cnpg
-helm --kube-context kind-osmo upgrade --install cnpg cnpg/cloudnative-pg \
+helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
   --create-namespace \
@@ -67,7 +69,7 @@ identity directly in Kubernetes:
 
 ```bash
 helm dependency build deployments/charts/osmo
-helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
+helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
   --wait \
@@ -81,7 +83,7 @@ material in Helm state. After that installation succeeds, remove both temporary
 Secret-creation permissions and retain the remaining release values:
 
 ```bash
-helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
+helm upgrade osmo deployments/charts/osmo \
   --namespace osmo \
   --reuse-values \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
@@ -93,8 +95,8 @@ helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
 Inspect the release without reading generated Secret values:
 
 ```bash
-kubectl --context kind-osmo --namespace osmo get pods,pvc,services,jobs
-kubectl --context kind-osmo --namespace osmo get service osmo-gateway
+kubectl --namespace osmo get pods,pvc,services,jobs
+kubectl --namespace osmo get service osmo-gateway
 ```
 
 ### Open the UI and use the CLI
@@ -103,7 +105,7 @@ The gateway exposes the UI and API on NodePort `30080`. Set `OSMO_URL` from a
 reachable node address, then open the same URL in a browser:
 
 ```bash
-export OSMO_NODE_ADDRESS="$(kubectl --context kind-osmo get nodes \
+export OSMO_NODE_ADDRESS="$(kubectl get nodes \
   --output jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')"
 export OSMO_URL="http://${OSMO_NODE_ADDRESS}:30080"
 curl --fail "$OSMO_URL/api/version"
@@ -120,7 +122,7 @@ If the NodePort is not reachable from the workstation, run a port-forward in
 one terminal:
 
 ```bash
-kubectl --context kind-osmo --namespace osmo \
+kubectl --namespace osmo \
   port-forward service/osmo-gateway 8080:80
 ```
 
@@ -154,17 +156,17 @@ working default StorageClass. A `Pending` workflow commonly means KAI is not
 healthy or the cluster lacks the workflow capacity described below.
 
 ```bash
-kubectl --context kind-osmo --namespace osmo get pods,pvc,jobs
-kubectl --context kind-osmo --namespace osmo get events \
+kubectl --namespace osmo get pods,pvc,jobs
+kubectl --namespace osmo get events \
   --sort-by=.lastTimestamp
-kubectl --context kind-osmo --namespace osmo logs deployment/osmo-ui
+kubectl --namespace osmo logs deployment/osmo-ui
 ```
 
 Clean up only the quick-start release and namespace:
 
 ```bash
-helm --kube-context kind-osmo uninstall osmo --namespace osmo --wait
-kubectl --context kind-osmo delete namespace osmo \
+helm uninstall osmo --namespace osmo --wait
+kubectl delete namespace osmo \
   --wait=true \
   --timeout=10m
 ```
@@ -183,11 +185,11 @@ CloudNativePG operator overhead.
 The canonical hello-world pod additionally requests 1 CPU, 1 GiB of memory, and
 1 GiB of ephemeral storage for both its user container and its `osmo-ctrl`
 container. Ensure an eligible worker has at least 2 CPU, 2 GiB of memory, and
-2 GiB of ephemeral storage available for that workflow. The profile disables
+2 GiB of ephemeral storage available for that workflow. The Quickstart disables
 MCP, optional gateway authentication and rate limiting, TLS, ingress,
 monitoring, autoscaling, disruption budgets, backups, and HA behavior.
 
-This profile uses development authentication and exposes an administrator
+The Quickstart uses development authentication and exposes an administrator
 identity through a NodePort. It is not a production security or availability
 configuration. Use a production profile with managed credentials, TLS,
 authorization, backups, suitable resource sizing, and HA dependencies for
@@ -914,10 +916,20 @@ by this installation and authenticates the retained database before succeeding;
 it never overwrites or deletes a Secret. Non-chart database writers must be
 stopped for initial bootstrap.
 
-After the bootstrap Job succeeds, commit and sync
-`secrets.masterEncryptionKey.bootstrap.enabled: false`. This mandatory second
-Helm/GitOps transaction removes bootstrap Secret-creation RBAC from desired
-state. The chart rejects a rotation phase while bootstrap remains enabled.
+Before rotating the MEK, commit and sync
+`secrets.masterEncryptionKey.bootstrap.enabled: false`. The chart rejects a
+rotation phase while bootstrap remains enabled. For Helm, disable bootstrap in
+a separate upgrade before setting `rotation.phase`:
+
+```bash
+helm upgrade osmo deployments/charts/osmo \
+  --namespace "${OSMO_NAMESPACE}" \
+  --reuse-values \
+  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --wait \
+  --timeout 20m
+```
+
 If bootstrap fails or its database credentials are corrected under Argo CD or
 Flux, increment the non-secret `bootstrap.attempt` before syncing again; this
 creates a new immutable retry Job without deriving public names from credential

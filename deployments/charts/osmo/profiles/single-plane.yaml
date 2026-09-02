@@ -253,7 +253,8 @@ configuration:
   enabled: true
   podTemplates:
     # KAI treats even a zero-valued nvidia.com/gpu resource key as a GPU pod
-    # and injects the NVIDIA RuntimeClass. This CPU-only profile omits the key.
+    # and injects the NVIDIA RuntimeClass. The default CPU platform omits the
+    # key; the built-in GPU platform adds it through default_gpu_user.
     default_user:
       spec:
         containers:

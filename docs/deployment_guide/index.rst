@@ -123,7 +123,7 @@ An OSMO deployment consists of two main components:
   :hidden:
   :caption: Getting Started
 
-  getting_started/infrastructure_setup
+  Split-plane Infrastructure <getting_started/infrastructure_setup>
   getting_started/create_storage/index
   getting_started/deploy_service
 
@@ -164,8 +164,8 @@ An OSMO deployment consists of two main components:
   :hidden:
   :caption: Additional Resources
 
-  appendix/deploy_local
-  appendix/deploy_minimal
+  Quickstart <appendix/deploy_local>
+  Single-plane Deployment <appendix/deploy_minimal>
   appendix/workflow_execution
   appendix/keycloak_setup
   appendix/authentication/index

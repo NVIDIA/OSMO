@@ -1053,7 +1053,11 @@ test_control_umbrella() {
         "azure.workload.identity/client-id: single-plane-test-client-id"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "cpu: '{{USER_CPU}}'"
-    require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "default_platform: cpu"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "- default_gpu_user"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "nvidia.com/gpu"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "azure://osmoazure/osmo-workflows/workflows"
@@ -1109,7 +1113,11 @@ test_control_umbrella() {
         "osmo-api-config" >"$TEST_DIRECTORY/single-plane-s3-config.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
         "cpu: '{{USER_CPU}}'"
-    require_not_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "default_platform: cpu"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
+        "- default_gpu_user"
+    require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
         "nvidia.com/gpu"
     require_contains "$TEST_DIRECTORY/single-plane-s3-config.yaml" \
         "s3://osmo-workflows/workflows"
@@ -1170,7 +1178,15 @@ test_control_umbrella() {
         "osmo-api-config" >"$TEST_DIRECTORY/quickstart-config.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
         "cpu: '{{USER_CPU}}'"
-    require_not_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
+    require_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
+        "default_platform: cpu"
+    require_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
+        "description: CPU workloads"
+    require_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
+        "description: GPU workloads"
+    require_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
+        "- default_gpu_user"
+    require_contains "$TEST_DIRECTORY/quickstart-config.yaml" \
         "nvidia.com/gpu"
     local quickstart_osmo_image
     for quickstart_osmo_image in \
@@ -1184,11 +1200,11 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "/home/"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "currentMek:"
     require_contains "$charts_copy/osmo/README.md" \
-        "helm --kube-context kind-osmo upgrade --install osmo"
+        "helm upgrade --install osmo deployments/charts/osmo"
     require_occurrences "$charts_copy/osmo/README.md" \
         "--wait-for-jobs" 3
     require_contains "$charts_copy/osmo/README.md" \
-        "kubectl --context kind-osmo"
+        "kubectl config use-context kind-osmo"
     require_contains "$charts_copy/osmo/README.md" \
         "deployments/workflows/verify-hello.yaml"
     require_contains "$charts_copy/osmo/README.md" \

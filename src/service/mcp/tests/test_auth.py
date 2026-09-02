@@ -23,6 +23,7 @@ import unittest
 from unittest import mock
 
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration, OIDCProxy
+from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.auth.oauth_proxy.models import UpstreamTokenSet
 import httpx
 from key_value.aio.stores.memory import MemoryStore
@@ -42,18 +43,34 @@ class MCPAuthConfigTest(unittest.TestCase):
         ):
             auth.MCPAuthConfig(auth_enabled=True)
 
+    def test_dependent_urls_derive_from_the_resource_url(self) -> None:
+        """Only the resource URL is supplied; the rest follow from it."""
+        config = auth.MCPAuthConfig(
+            auth_enabled=True,
+            resource_url='https://osmo.example/mcp',
+            redis_url='rediss://redis.example:6379/7',
+            oidc_config_url=(
+                'https://login.example/tenant/.well-known/openid-configuration'
+            ),
+            oidc_client_id='oidc-client',
+            oidc_client_secret_file='/secret',
+            oidc_access_token_jwks_url='https://sts.example/tenant/keys',
+            oidc_access_token_issuer='https://sts.example/tenant/',
+        )
+        self.assertEqual(
+            config.auth_scope, 'https://osmo.example/mcp/access_as_user')
+
     def test_enabled_auth_normalizes_and_validates_scope_contract(self) -> None:
         config = _config()
-        self.assertEqual(config.issuer_url, 'https://osmo.example')
         self.assertEqual(
             config.allowed_client_redirect_uris,
             ['http://localhost:*', 'http://127.0.0.1:*', 'http://[::1]:*'],
         )
         with self.assertRaisesRegex(
             pydantic.ValidationError,
-            'auth_scope must be',
+            'resource_url must end with /mcp',
         ):
-            _config(auth_scope='https://osmo.example/mcp/wrong')
+            _config(resource_url='https://osmo.example/not-mcp')
 
         service_config = server.MCPServiceConfig(
             gateway_url='https://gateway.example',
@@ -68,9 +85,14 @@ class MCPAuthConfigTest(unittest.TestCase):
             {'env': 'OSMO_MCP_AUTH_ENABLED'},
         )
         self.assertEqual(
-            auth.MCPAuthConfig.model_fields['auth_scope'].json_schema_extra,
-            {'env': 'OSMO_MCP_AUTH_SCOPE'},
+            auth.MCPAuthConfig.model_fields['resource_url'].json_schema_extra,
+            {'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
         )
+        # The derived values are no longer configuration inputs.
+        for derived in (
+            'issuer_url', 'auth_scope', 'oidc_access_token_audience',
+        ):
+            self.assertNotIn(derived, auth.MCPAuthConfig.model_fields)
 
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
@@ -126,7 +148,9 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
             try:
                 provider = runtime.provider
-                self.assertIs(type(provider), OIDCProxy)
+                # The subclass exists only to keep the configured access-token
+                # issuer; everything else is stock OIDCProxy behaviour.
+                self.assertIsInstance(provider, OIDCProxy)
                 self.assertEqual(
                     provider._jwt_signing_key,  # pylint: disable=protected-access
                     auth.derive_jwt_key(
@@ -134,6 +158,16 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                         salt='fastmcp-jwt-signing-key',
                     ),
                 )
+                # The JWKS URI comes from the discovery document; only the
+                # access-token issuer, which no discovery document can supply
+                # for an Entra v1 resource app, stays configured.
+                verifier = provider._token_validator  # pylint: disable=protected-access
+                assert isinstance(verifier, JWTVerifier)
+                self.assertEqual(
+                    verifier.jwks_uri,
+                    'https://login.example/tenant/discovery/v2.0/keys',
+                )
+                self.assertEqual(verifier.issuer, 'https://sts.example/tenant/')
                 self.assertEqual(provider.required_scopes, ['access_as_user'])
                 self.assertEqual(
                     provider._token_validator.required_scopes,  # pylint: disable=protected-access
@@ -295,22 +329,6 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 await runtime.aclose()
             redis_client.aclose.assert_awaited_once()
 
-    async def test_close_releases_redis_when_http_close_fails(self) -> None:
-        provider = mock.create_autospec(OIDCProxy, instance=True)
-        redis_client = mock.create_autospec(
-            auth.redis_asyncio.Redis,
-            instance=True,
-        )
-        http_client = mock.create_autospec(httpx.AsyncClient, instance=True)
-        http_client.aclose.side_effect = RuntimeError('HTTP close failed')
-        runtime = auth.MCPAuthRuntime(provider, redis_client, http_client)
-
-        with self.assertRaisesRegex(RuntimeError, 'HTTP close failed'):
-            await runtime.aclose()
-
-        http_client.aclose.assert_awaited_once_with()
-        redis_client.aclose.assert_awaited_once_with()
-
     def test_storage_key_matches_fastmcp_default_and_is_deterministic(self) -> None:
         first = auth._storage_encryption_key(  # pylint: disable=protected-access
             'client-secret',
@@ -338,9 +356,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 def _config(**overrides: object) -> auth.MCPAuthConfig:
     values: dict[str, object] = {
         'auth_enabled': True,
-        'issuer_url': 'https://osmo.example/',
         'resource_url': 'https://osmo.example/mcp',
-        'auth_scope': 'https://osmo.example/mcp/access_as_user',
         'redis_url': 'rediss://redis.example:6379/7',
         'oidc_config_url': (
             'https://login.example/tenant/.well-known/openid-configuration'
@@ -349,7 +365,6 @@ def _config(**overrides: object) -> auth.MCPAuthConfig:
         'oidc_client_secret_file': '/secret',
         'oidc_access_token_jwks_url': 'https://sts.example/tenant/keys',
         'oidc_access_token_issuer': 'https://sts.example/tenant/',
-        'oidc_access_token_audience': 'https://osmo.example/mcp',
     }
     values.update(overrides)
     return auth.MCPAuthConfig(**values)

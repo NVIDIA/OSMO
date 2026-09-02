@@ -48,7 +48,7 @@ Minimum system instance requirements to deploy OSMO and its related cloud compon
           - **Memory**: 4 GB
           - **Storage**: 32 GB
 
-      .. grid-item-card:: :octicon:`cache` Redis
+      .. grid-item-card:: :octicon:`cache` Redis or Valkey
           :class-card: requirement-card
 
           **Cache Configuration:**
