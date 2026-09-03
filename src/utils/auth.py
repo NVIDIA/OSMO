@@ -61,8 +61,13 @@ class AsymmetricKeyPair(pydantic.BaseModel):
             self.__dict__['_pem_key_cache'] = cached
         return cached
 
-    def create_jwt(self, claims: Dict[str, Any]) -> str:
-        return jwt.encode(claims, key=self._get_cached_pem_key(), algorithm='RS256')
+    def create_jwt(self, claims: Dict[str, Any], headers: Dict[str, Any] | None = None) -> str:
+        return jwt.encode(
+            claims,
+            key=self._get_cached_pem_key(),
+            algorithm='RS256',
+            headers=headers,
+        )
 
 
 class LoginInfo(pydantic.BaseModel):
@@ -218,6 +223,45 @@ class AuthenticationConfig(pydantic.BaseModel):
         payload.update(template_payload)
         key = self.get_current_key()
         return key.create_jwt(payload)
+
+    def create_oidc_id_token(
+        self,
+        *,
+        issuer: str,
+        audience: str,
+        expire_timestamp: int,
+        username: str,
+        roles: List[str],
+        token_name: str,
+        nonce: str | None,
+        auth_time: int,
+        session_id: str,
+    ) -> str:
+        """Create an OIDC ID token without changing the existing CLI token contract."""
+        current_time = int(time.time())
+        payload: Dict[str, Any] = {
+            'iss': issuer,
+            'sub': username,
+            'aud': audience,
+            'iat': current_time,
+            'nbf': current_time,
+            'exp': expire_timestamp,
+            'auth_time': auth_time,
+            'jti': str(uuid.uuid4()),
+            'sid': session_id,
+            'preferred_username': username,
+            'unique_name': username,
+            'name': username,
+            'roles': roles,
+            'osmo_token_name': token_name,
+            'amr': ['osmo_pat'],
+        }
+        if nonce:
+            payload['nonce'] = nonce
+        return self.get_current_key().create_jwt(
+            payload,
+            headers={'kid': self.active_key, 'typ': 'JWT'},
+        )
 
 
 def load_authentication_config_file(path: str) -> AuthenticationConfig:

@@ -518,6 +518,70 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-values.yaml" "imageRepository: nvidia/osmo"
     require_contains "$TEST_DIRECTORY/osmo-values.yaml" "imageTag: latest"
 
+    helm_template token-oidc "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-token-oidc-values.yaml" \
+        >"$TEST_DIRECTORY/token-oidc.yaml"
+    resource_document "$TEST_DIRECTORY/token-oidc.yaml" Deployment \
+        token-oidc-osmo-api >"$TEST_DIRECTORY/token-oidc-api.yaml"
+    resource_document "$TEST_DIRECTORY/token-oidc.yaml" Deployment \
+        token-oidc-osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml"
+    resource_document "$TEST_DIRECTORY/token-oidc.yaml" ConfigMap \
+        token-oidc-osmo-gateway-envoy-config \
+        >"$TEST_DIRECTORY/token-oidc-envoy.yaml"
+    require_contains "$TEST_DIRECTORY/token-oidc-api.yaml" \
+        "--token_oidc_provider_enabled"
+    require_contains "$TEST_DIRECTORY/token-oidc-api.yaml" \
+        '"http://127.0.0.1:18080/api/auth/oidc"'
+    require_contains "$TEST_DIRECTORY/token-oidc-api.yaml" \
+        'secretName: "token-oidc-oauth"'
+    require_contains "$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml" \
+        "--code-challenge-method=S256"
+    require_contains "$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml" \
+        "--login-url=http://127.0.0.1:18080/api/auth/oidc/authorize"
+    require_contains "$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml" \
+        "--redeem-url=http://token-oidc-osmo-api:80/api/auth/oidc/token"
+    require_contains "$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml" \
+        "--oidc-email-claim=preferred_username"
+    require_contains "$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml" \
+        "--cookie-csrf-per-request-limit=10"
+    require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        "issuer: http://127.0.0.1:18080/api/auth/oidc"
+    require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'prefix: "/auth/token-login"'
+    require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'prefix: "/_next/static/"'
+    require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'regex: "^/favicon[.]ico([?].*)?$"'
+    require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'regex: "^/[.]well-known/appspecific/com[.]chrome[.]devtools[.]json([?].*)?$"'
+    require_not_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'prefix: "/favicon.ico"'
+
+    if helm_template invalid-token-oidc "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-token-oidc-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=false \
+        >"$TEST_DIRECTORY/invalid-token-oidc.out" 2>&1; then
+        fail "expected token OIDC without oauth2-proxy to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-token-oidc.out" \
+        "services.api.tokenOidcProvider.enabled requires gateway.oauth2Proxy.enabled=true"
+
+    if helm_template invalid-token-oidc-login-path "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-token-oidc-values.yaml" \
+        --set-string services.api.tokenOidcProvider.loginPagePath=//evil.example \
+        >"$TEST_DIRECTORY/invalid-token-oidc-login-path.out" 2>&1; then
+        fail "expected scheme-relative token OIDC login path to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-token-oidc-login-path.out" \
+        "loginPagePath"
+
     if helm_template missing-split-backend-name "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
             >"$TEST_DIRECTORY/missing-split-backend-name.out" 2>&1; then
@@ -1815,13 +1879,13 @@ test_control_umbrella() {
         gsub(/\"/, "", $2); print $2
     }' "$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml")
     mounted_cookie=$(printf '%s' "$generated_cookie_data" | base64 -d)
-    if [[ ! "$mounted_cookie" =~ ^[A-Za-z0-9_-]{43}=$ ]]; then
+    if [[ ! "$mounted_cookie" =~ ^[A-Za-z0-9_-]{32}$ ]]; then
         fail 'generated OAuth cookie is not canonical URL-safe base64'
     fi
     raw_cookie_length=$(printf '%s' "$mounted_cookie" | tr '_-' '/+' \
         | base64 -d | wc -c | tr -d ' ')
-    if [[ "$raw_cookie_length" -ne 32 ]]; then
-        fail 'generated OAuth cookie does not contain 32 random bytes'
+    if [[ "$raw_cookie_length" -ne 24 ]]; then
+        fail 'generated OAuth cookie does not contain 24 random bytes'
     fi
 
     if helm_template mixed-oauth-cookie "$charts_copy/osmo" \

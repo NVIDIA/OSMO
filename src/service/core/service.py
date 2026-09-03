@@ -38,7 +38,7 @@ from src.utils.metrics import metrics
 from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
 from src.service.core.auth import (
-    auth_service, backend_secret_auth, objects as auth_objects,
+    auth_service, backend_secret_auth, objects as auth_objects, oidc_provider,
 )
 from src.service.core.config import (
     config_service, configmap_loader,
@@ -155,6 +155,7 @@ async def _check_client_version(request: fastapi.Request, call_next):
 
 app.include_router(config_service.router)
 app.include_router(auth_service.router)
+app.include_router(oidc_provider.router)
 app.include_router(app_service.router)
 app.include_router(workflow_service.router)
 app.include_router(workflow_service.router_credentials)

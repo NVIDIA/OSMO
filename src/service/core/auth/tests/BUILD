@@ -17,6 +17,22 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("//bzl:py.bzl", "osmo_py_test")
+load("@osmo_python_deps//:requirements.bzl", "requirement")
+
+osmo_py_test(
+    name = "test_oidc_provider",
+    srcs = ["test_oidc_provider.py"],
+    deps = [
+        requirement("fastapi"),
+        requirement("httpx"),
+        requirement("pyjwt"),
+        "//src/service/core/auth:auth",
+        "//src/service/core/workflow",
+        "//src/utils:auth",
+        "//src/utils/connectors",
+    ],
+    visibility = ["//visibility:public"],
+)
 
 osmo_py_test(
     name = "test_backend_secret_auth",

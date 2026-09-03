@@ -1008,6 +1008,69 @@ Secret references may share one Kubernetes Secret or use separate Secrets.
 After rotating an external Secret, change its `rolloutNonce` to restart
 consumers.
 
+### PAT-backed browser login
+
+The first-party token OIDC provider is disabled by default. When enabled, the
+OSMO API acts as the OAuth2/OIDC provider for this chart's oauth2-proxy, while
+`osmo-ui` serves the public, styled, JavaScript login page at
+`/auth/token-login`. The page obtains a browser-bound login context and sends an
+existing OSMO personal access token only in the JSON body of a same-origin POST
+to the API. Core validates the PAT and owns every authorization transaction,
+code, access token, refresh token, and ID token. oauth2-proxy receives the
+one-time authorization code and OIDC tokens, never the PAT.
+
+Enable the path in an environment overlay:
+
+```yaml
+externalUrl: https://osmo.example.com
+
+services:
+  api:
+    tokenOidcProvider:
+      enabled: true
+      clientId: osmo-ui
+      loginPagePath: /auth/token-login
+
+gateway:
+  oauth2Proxy:
+    enabled: true
+
+secrets:
+  oauthClientSecret:
+    existingSecret: osmo-oauth2-proxy
+  oauthCookieSecret:
+    generate: false
+    existingSecret: osmo-oauth2-proxy
+```
+
+The feature requires the UI, oauth2-proxy Redis session storage, and Envoy's
+internal JWKS cluster; the chart validates these dependencies. `externalUrl`
+becomes the canonical issuer origin and must exactly match the browser-visible
+scheme and authority. Production installations must use HTTPS and keep
+`gateway.oauth2Proxy.cookieSecure: true`.
+
+The OAuth Secret's `client_secret` is shared only by core and oauth2-proxy. Its
+`cookie_secret` file must contain exactly 16, 24, or 32 bytes; do not store a
+base64 representation as the literal value because Kubernetes already encodes
+Secret data. Change the corresponding Secret `rolloutNonce` values after
+rotation so both consumers restart together.
+
+Authorization codes are random, single-use, valid for 60 seconds, and require
+S256 PKCE. ID and opaque access tokens last five minutes. Refresh tokens are
+opaque, rotate on every use, and last eight hours; oauth2-proxy refreshes its
+Redis-backed browser session before the five-minute ID token expires. ID tokens
+use the stable `secrets.serviceAuth` signing identity and publish its `kid`
+through `/api/auth/keys`. They include the username, current PAT-scoped `roles`,
+and PAT name. Revoking or expiring the PAT immediately prevents code exchange,
+userinfo, and refresh; an already issued ID token remains valid only for its
+remaining five-minute lifetime.
+
+The raw PAT is never placed in a URL, cookie, browser storage, OAuth token, or
+oauth2-proxy request. Browser binding, an HttpOnly SameSite transaction cookie,
+rotating CSRF value, exact Origin validation, exact redirect URI matching, and
+one-time Redis records protect the public flow. Existing external-IdP behavior
+is unchanged while `services.api.tokenOidcProvider.enabled` remains `false`.
+
 ### OAuth credentials
 
 OAuth client credentials are always operator-owned. The client and cookie may

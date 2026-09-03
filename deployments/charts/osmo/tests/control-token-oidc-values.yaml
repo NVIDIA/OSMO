@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+externalUrl: http://127.0.0.1:18080
+
+secrets:
+  oauthClientSecret:
+    existingSecret: token-oidc-oauth
+    rolloutNonce: test-client-secret
+  oauthCookieSecret:
+    generate: false
+    existingSecret: token-oidc-oauth
+    rolloutNonce: test-cookie-secret
+
+services:
+  api:
+    tokenOidcProvider:
+      enabled: true
+
+gateway:
+  oauth2Proxy:
+    enabled: true
+    cookieSecure: false
+  envoy:
+    internalJwks:
+      enabled: true
+  networkPolicies:
+    enabled: true
+  tls:
+    enabled: false
