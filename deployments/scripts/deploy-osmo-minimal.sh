@@ -986,7 +986,10 @@ main() {
 
         local skip_gpu=0
         [[ "$NO_GPU" == "1" ]] && skip_gpu=1
-        if ! SKIP_GPU="$skip_gpu" OSMO_NAMESPACE="$osmo_ns" bash "$SCRIPT_DIR/verify.sh"; then
+        local skip_object_storage=0
+        [[ "$STORAGE_BACKEND" == "none" ]] && skip_object_storage=1
+        if ! SKIP_GPU="$skip_gpu" SKIP_OBJECT_STORAGE="$skip_object_storage" \
+                OSMO_NAMESPACE="$osmo_ns" bash "$SCRIPT_DIR/verify.sh"; then
             if [[ "${OSMO_TOLERATE_VERIFY_FAILURE:-0}" == "1" ]]; then
                 log_warning "Smoke tests failed but OSMO_TOLERATE_VERIFY_FAILURE=1 — continuing"
             else

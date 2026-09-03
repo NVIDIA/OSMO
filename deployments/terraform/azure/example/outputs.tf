@@ -246,24 +246,24 @@ output "storage_container_name" {
   value       = var.storage_account_enabled ? azurerm_storage_container.osmo_workflows[0].name : ""
 }
 
-output "single_plane_storage_account" {
-  description = "Name of the keyless single-plane workflow Storage Account (empty when disabled)"
-  value       = var.single_plane_workload_identity_enabled ? azapi_resource.single_plane_storage_account[0].name : ""
+output "workload_identity_storage_account" {
+  description = "Name of the workload-identity-enabled workflow Storage Account (empty when disabled)"
+  value       = var.object_storage_workload_identity_enabled ? azapi_resource.workload_identity_storage_account[0].name : ""
 }
 
-output "single_plane_storage_account_id" {
-  description = "Resource ID of the keyless single-plane workflow Storage Account (empty when disabled)"
-  value       = var.single_plane_workload_identity_enabled ? azapi_resource.single_plane_storage_account[0].id : ""
+output "workload_identity_storage_account_id" {
+  description = "Resource ID of the workload-identity-enabled workflow Storage Account (empty when disabled)"
+  value       = var.object_storage_workload_identity_enabled ? azapi_resource.workload_identity_storage_account[0].id : ""
 }
 
-output "single_plane_storage_container_name" {
-  description = "Name of the single-plane workflow Blob container (empty when disabled)"
-  value       = var.single_plane_workload_identity_enabled ? "osmo-workflows" : ""
+output "workload_identity_storage_container_name" {
+  description = "Name of the workload-identity-enabled workflow Blob container (empty when disabled)"
+  value       = var.object_storage_workload_identity_enabled ? "osmo-workflows" : ""
 }
 
-output "single_plane_blob_identity_client_id" {
-  description = "Client ID of the single-plane Blob managed identity (empty when disabled)"
-  value       = var.single_plane_workload_identity_enabled ? azurerm_user_assigned_identity.single_plane_blob[0].client_id : ""
+output "blob_workload_identity_client_id" {
+  description = "Client ID of the Blob managed identity (empty when disabled)"
+  value       = var.object_storage_workload_identity_enabled ? azurerm_user_assigned_identity.blob_workload_identity[0].client_id : ""
 }
 
 # Optional NFS Premium FileStorage account for downstream RWX workload

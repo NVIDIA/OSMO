@@ -11,6 +11,7 @@
   secret: {secretName: $image_pull_secret}
 }] end) as $image_pull_secret_volumes |
 {
+  imageRegistry: $image_registry,
   imageRepository: $image_repository,
   imageTag: $image_tag,
   imagePullSecrets: (if $image_pull_secret == "" then [] else [{name: $image_pull_secret}] end),

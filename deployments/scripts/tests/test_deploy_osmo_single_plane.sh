@@ -63,7 +63,7 @@ write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform pwd=$PWD
     '  [[ -f "$tfvars_path" ]] || exit 19' \
     '  grep -Eq "^cluster_name *= *\"osmo-cluster\"$" "$tfvars_path" || exit 20' \
     '  grep -Eq "^postgres_password *= *null$" "$tfvars_path" || exit 21' \
-    '  grep -Eq "^single_plane_workload_identity_enabled *= *true$" "$tfvars_path" || exit 22' \
+    '  grep -Eq "^object_storage_workload_identity_enabled *= *true$" "$tfvars_path" || exit 22' \
     '  grep -Eq "^postgres_password_generation_enabled *= *true$" "$tfvars_path" || exit 23' \
     '  grep -Eq "^storage_account_enabled *= *false$" "$tfvars_path" || exit 24' \
     '  grep -Eq "^nfs_storage_account_enabled *= *false$" "$tfvars_path" || exit 25' \
@@ -71,7 +71,7 @@ write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform pwd=$PWD
     '  [[ "$*" == *"-var=subscription_id=test-subscription"* ]] || exit 27' \
     '  [[ "$*" == *"-var=resource_group_name=test-resource-group"* ]] || exit 28' \
     '  [[ "$*" == *"-var=node_instance_type=Standard_D8s_v3"* ]] || exit 29' \
-    '  [[ -f "$PWD/example.tf" && -f "$PWD/single-plane-object-storage.tf" ]] || exit 30' \
+    '  [[ -f "$PWD/example.tf" && -f "$PWD/workload-identity-object-storage.tf" ]] || exit 30' \
     'fi' \
     'if [[ "$*" == *"output -raw"* ]]; then' \
     '  case "${!#}" in' \
@@ -84,10 +84,10 @@ write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform pwd=$PWD
     '    redis_cache_hostname) echo test.redis.cache.windows.net ;;' \
     '    redis_cache_ssl_port) echo 10000 ;;' \
     '    redis_cache_primary_access_key) echo redis-secret-sentinel ;;' \
-    '    single_plane_storage_account) echo teststorage ;;' \
-    '    single_plane_storage_account_id) echo /subscriptions/test-subscription/resourceGroups/test-resource-group/providers/Microsoft.Storage/storageAccounts/teststorage ;;' \
-    '    single_plane_storage_container_name) echo osmo-workflows ;;' \
-    '    single_plane_blob_identity_client_id) echo 11111111-2222-3333-4444-555555555555 ;;' \
+    '    workload_identity_storage_account) echo teststorage ;;' \
+    '    workload_identity_storage_account_id) echo /subscriptions/test-subscription/resourceGroups/test-resource-group/providers/Microsoft.Storage/storageAccounts/teststorage ;;' \
+    '    workload_identity_storage_container_name) echo osmo-workflows ;;' \
+    '    blob_workload_identity_client_id) echo 11111111-2222-3333-4444-555555555555 ;;' \
     '    *) exit 1 ;;' \
     '  esac' \
     'fi'
@@ -100,7 +100,14 @@ write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     'done' \
     'echo "kubectl $*" >>"$COMMAND_LOG"' \
     'if [[ "$1 $2" == "get secret" ]]; then' \
-    '  case "$BACKEND_TOKEN_STATE" in absent) exit 0 ;; existing) echo secret/osmo-backend-token ;; error) exit 17 ;; esac' \
+    '  case "$3" in' \
+    '    osmo-backend-token) case "$BACKEND_TOKEN_STATE" in absent) exit 0 ;; existing) echo secret/osmo-backend-token ;; error) exit 17 ;; esac ;;' \
+    '    osmo-default-admin) case "$DEFAULT_ADMIN_SECRET_STATE" in' \
+    '      absent) exit 0 ;;' \
+    '      existing) if [[ "$*" == *"jsonpath="* ]]; then echo YWRtaW4tcGFzc3dvcmQtc2VudGluZWwtMTIzNDU2Nzg5MDEyMzQ1Njc4OQ==; else echo secret/osmo-default-admin; fi ;;' \
+    '      error) exit 17 ;;' \
+    '    esac ;;' \
+    '  esac' \
     'fi' \
     'if [[ "$*" == *"--from-file=.dockerconfigjson=/dev/stdin"* ]]; then cat >"$PULL_SECRET_INPUT"; fi' \
     'if [[ "$*" == *"apply -f -"* ]]; then cat >/dev/null; fi' \
@@ -118,6 +125,11 @@ write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     '  [[ "$(<"$password_file")" == redis-secret-sentinel ]] || exit 35' \
     '  printf "%s\n" "$password_file" >>"$SECRET_PATHS_LOG"' \
     'fi' \
+    'if [[ "$*" == *"create secret generic osmo-default-admin"* ]]; then' \
+    '  for argument in "$@"; do [[ "$argument" == --from-file=password=* ]] && password_file="${argument#--from-file=password=}"; done' \
+    '  [[ "$(<"$password_file")" == "$ADMIN_PASSWORD_SENTINEL" ]] || exit 37' \
+    '  printf "%s\n" "$password_file" >>"$SECRET_PATHS_LOG"' \
+    'fi' \
     'if [[ "$*" == *"create secret generic osmo-backend-token"* ]]; then' \
     '  for argument in "$@"; do [[ "$argument" == --from-file=token=* ]] && token_file="${argument#--from-file=token=}"; done' \
     '  [[ "$(<"$token_file")" == backend-token-sentinel ]] || exit 36' \
@@ -132,9 +144,14 @@ write_mock helm '#!/bin/bash' 'set -euo pipefail' 'echo "helm $*" >>"$COMMAND_LO
     '  if [[ "$previous" == --values && "$argument" == *single-plane-values.json ]]; then cp "$argument" "$CAPTURED_VALUES"; fi' \
     '  previous="$argument"' \
     'done'
-write_mock openssl '#!/bin/bash' 'set -euo pipefail' 'echo "openssl $*" >>"$COMMAND_LOG"' 'echo backend-token-sentinel'
+write_mock openssl '#!/bin/bash' 'set -euo pipefail' 'echo "openssl $*" >>"$COMMAND_LOG"' \
+    'if [[ "$*" == "rand -base64 48" ]]; then printf "%s\n" "$ADMIN_PASSWORD_SENTINEL"; else echo backend-token-sentinel; fi'
 write_mock curl '#!/bin/bash' 'set -euo pipefail' '[[ -f "$PORT_FORWARD_READY" ]] || exit 1' 'echo "curl $*" >>"$COMMAND_LOG"'
-write_mock bash '#!/bin/bash' 'set -euo pipefail' 'echo "bash $*" >>"$COMMAND_LOG"'
+write_mock bash '#!/bin/bash' 'set -euo pipefail' 'echo "bash $*" >>"$COMMAND_LOG"' \
+    'if [[ "$*" == *"/verify.sh"* ]]; then' \
+    '  [[ "${OSMO_LOGIN_METHOD:-}" == password && "${OSMO_USERNAME:-}" == admin ]] || exit 38' \
+    '  [[ -f "${OSMO_PASSWORD_FILE:-}" && "$(<"$OSMO_PASSWORD_FILE")" == "$ADMIN_PASSWORD_SENTINEL" ]] || exit 39' \
+    'fi'
 write_mock osmo '#!/bin/bash' 'exit 0'
 
 export COMMAND_LOG="$command_log"
@@ -142,17 +159,17 @@ export PORT_FORWARD_READY="$test_directory/port-forward-ready"
 export PULL_SECRET_INPUT="$test_directory/pull-secret-input.json"
 export SECRET_PATHS_LOG="$test_directory/secret-paths.log"
 export CAPTURED_VALUES="$test_directory/captured-values.json"
+export ADMIN_PASSWORD_SENTINEL=admin-password-sentinel-1234567890123456789
 export PATH="$mock_directory:$PATH"
 export TF_VAR_resource_group_name=test-resource-group
 export TF_VAR_postgres_password=provided-postgres-secret-sentinel
-export SINGLE_PLANE_TERRAFORM_WORK_DIR="$test_directory/terraform-work"
+export OSMO_TERRAFORM_WORK_DIR="$test_directory/terraform-work"
 export TMPDIR="$test_directory/tmp"
-export OSMO_IMAGE_REPOSITORY=nvstaging/osmo
+export OSMO_IMAGE_REGISTRY=registry.example.org/some/path
 export OSMO_IMAGE_TAG=123
 export OSMO_IMAGE_PULL_SECRET=456
 export OSMO_IMAGE_PULL_CONFIG="$test_directory/docker-config.json"
-export OSMO_IMAGE_PULL_REGISTRY=nvcr.io
-printf '%s\n' '{"auths":{"artifactory.build.nvda.ai":{"auth":"wrong-auth"},"nvcr.io":{"auth":"docker-auth-sentinel"}}}' \
+printf '%s\n' '{"auths":{"unrelated.example.org":{"auth":"wrong-auth"},"registry.example.org":{"auth":"docker-auth-sentinel"}}}' \
     >"$OSMO_IMAGE_PULL_CONFIG"
 
 script="${TEST_SRCDIR}/_main/deployments/scripts/deploy-osmo-single-plane.sh"
@@ -160,7 +177,7 @@ static_values="${TEST_SRCDIR}/_main/deployments/scripts/single-plane-azure.yaml"
 terraform_vars="${TEST_SRCDIR}/_main/deployments/scripts/azure/single-plane.tfvars"
 [[ -x "$script" ]] || fail "deployment script is absent"
 
-export BACKEND_TOKEN_STATE=absent
+export BACKEND_TOKEN_STATE=absent DEFAULT_ADMIN_SECRET_STATE=absent
 if ! "$script" >"$test_directory/output.log" 2>&1; then
     cat "$test_directory/output.log" >&2
     fail "initial deployment-script run failed"
@@ -169,11 +186,12 @@ fi
 while read -r secret_path; do
     [[ ! -e "$secret_path" ]] || fail "temporary secret file was not removed: $secret_path"
 done <"$SECRET_PATHS_LOG"
-[[ -f "$SINGLE_PLANE_TERRAFORM_WORK_DIR/example.tf" ]] || fail "Terraform configuration was not isolated"
+[[ -f "$OSMO_TERRAFORM_WORK_DIR/example.tf" ]] || fail "Terraform configuration was not isolated"
 [[ -f "$CAPTURED_VALUES" ]] || fail "dynamic values were not passed to Helm"
 
 jq -e '
-  .imageRepository == "nvstaging/osmo" and
+  .imageRegistry == "registry.example.org" and
+  .imageRepository == "some/path" and
   .imageTag == "123" and
   .imagePullSecrets == [{"name":"456"}] and
   .services.api.serviceAccount.annotations["azure.workload.identity/client-id"] == "11111111-2222-3333-4444-555555555555" and
@@ -197,10 +215,13 @@ assert_contains "$static_values" 'serviceAuth:'
 assert_contains "$static_values" 'managementMode: osmo'
 assert_contains "$static_values" 'bootstrap:'
 assert_contains "$static_values" '      enabled: true'
+assert_contains "$static_values" 'existingSecret: osmo-default-admin'
+assert_not_contains "$static_values" 'allowMissing: true'
+assert_not_contains "$static_values" 'roles: osmo-admin'
 assert_not_contains "$static_values" '${'
 
 for secret in postgres-secret-sentinel redis-secret-sentinel storage-key-sentinel \
-        backend-token-sentinel docker-auth-sentinel \
+        backend-token-sentinel docker-auth-sentinel "$ADMIN_PASSWORD_SENTINEL" \
         provided-postgres-secret-sentinel; do
     assert_not_contains "$test_directory/output.log" "$secret"
     assert_not_contains "$command_log" "$secret"
@@ -210,8 +231,8 @@ assert_not_contains "$command_log" 'storage_account_key'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-object-storage'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-service-auth'
 
-jq -e '.auths | keys == ["nvcr.io"]' "$PULL_SECRET_INPUT" >/dev/null || fail "pull Secret included another registry"
-jq -e '.auths["nvcr.io"].auth == "docker-auth-sentinel"' "$PULL_SECRET_INPUT" >/dev/null || fail "registry credentials changed"
+jq -e '.auths | keys == ["registry.example.org"]' "$PULL_SECRET_INPUT" >/dev/null || fail "pull Secret included another registry"
+jq -e '.auths["registry.example.org"].auth == "docker-auth-sentinel"' "$PULL_SECRET_INPUT" >/dev/null || fail "registry credentials changed"
 
 assert_ordered \
     'az account show' \
@@ -225,6 +246,7 @@ assert_ordered \
     'kubectl create secret generic 456' \
     'kubectl create secret generic osmo-postgresql' \
     'kubectl create secret generic osmo-valkey' \
+    'kubectl create secret generic osmo-default-admin' \
     'kubectl create serviceaccount osmo-workflow' \
     'kubectl annotate serviceaccount osmo-workflow' \
     'kubectl create secret generic osmo-backend-token' \
@@ -242,12 +264,14 @@ assert_contains "$command_log" '--set secrets.masterEncryptionKey.bootstrap.enab
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"
 export BACKEND_TOKEN_STATE=existing
+export DEFAULT_ADMIN_SECRET_STATE=existing
 if ! "$script" >"$test_directory/existing-token-output.log" 2>&1; then
     cat "$test_directory/existing-token-output.log" >&2
     fail "existing-token deployment-script run failed"
 fi
 assert_contains "$command_log" 'kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output name'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
+assert_not_contains "$command_log" 'kubectl create secret generic osmo-default-admin'
 assert_not_contains "$command_log" 'openssl rand -base64 32'
 
 : >"$command_log"

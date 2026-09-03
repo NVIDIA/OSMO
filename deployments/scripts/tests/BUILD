@@ -70,7 +70,7 @@ sh_test(
         "//deployments:scripts/verify.sh",
         "//deployments:terraform/azure/example/example.tf",
         "//deployments:terraform/azure/example/outputs.tf",
-        "//deployments:terraform/azure/example/single-plane-object-storage.tf",
+        "//deployments:terraform/azure/example/workload-identity-object-storage.tf",
         "//deployments:terraform/azure/example/variables.tf",
     ],
 )
@@ -81,6 +81,7 @@ sh_test(
     srcs = ["test_verify.sh"],
     data = [
         "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-osmo-minimal.sh",
         "//deployments:scripts/verify.sh",
         "//deployments:workflows/verify-hello.yaml",
         "//deployments:workflows/verify-object-storage.yaml",

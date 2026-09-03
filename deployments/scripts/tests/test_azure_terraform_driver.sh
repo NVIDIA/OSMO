@@ -25,10 +25,10 @@ terraform() {
             redis_cache_ssl_port) echo 10000 ;;
             redis_cache_primary_access_key) echo redis-secret ;;
             postgres_password) echo postgres-secret ;;
-            single_plane_storage_account) echo teststorage ;;
-            single_plane_storage_account_id) echo /subscriptions/test/storageAccounts/teststorage ;;
-            single_plane_storage_container_name) echo osmo-workflows ;;
-            single_plane_blob_identity_client_id) echo test-client-id ;;
+            workload_identity_storage_account) echo teststorage ;;
+            workload_identity_storage_account_id) echo /subscriptions/test/storageAccounts/teststorage ;;
+            workload_identity_storage_container_name) echo osmo-workflows ;;
+            blob_workload_identity_client_id) echo test-client-id ;;
             *) return 1 ;;
         esac
     fi
@@ -59,16 +59,16 @@ IS_PRIVATE_CLUSTER=false azure_get_terraform_outputs "$test_directory/terraform"
 grep -Fq 'export PROVIDER="azure"' "$legacy_outputs"
 grep -Fq 'export REDIS_PASSWORD="redis-secret"' "$legacy_outputs"
 if grep -Fq 'export POSTGRES_PASSWORD=' "$legacy_outputs"; then exit 1; fi
-if grep -Fq 'single_plane_' "$command_log"; then exit 1; fi
+if grep -Fq 'workload_identity_' "$command_log"; then exit 1; fi
 if grep -Fq 'postgres_password' "$command_log"; then exit 1; fi
 
 : >"$command_log"
 [[ "$(azure_get_terraform_output "$test_directory/terraform" postgres_password)" == "postgres-secret" ]]
-[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_storage_account)" == "teststorage" ]]
-[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_storage_account_id)" == \
+[[ "$(azure_get_terraform_output "$test_directory/terraform" workload_identity_storage_account)" == "teststorage" ]]
+[[ "$(azure_get_terraform_output "$test_directory/terraform" workload_identity_storage_account_id)" == \
     "/subscriptions/test/storageAccounts/teststorage" ]]
-[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_storage_container_name)" == \
+[[ "$(azure_get_terraform_output "$test_directory/terraform" workload_identity_storage_container_name)" == \
     "osmo-workflows" ]]
-[[ "$(azure_get_terraform_output "$test_directory/terraform" single_plane_blob_identity_client_id)" == \
+[[ "$(azure_get_terraform_output "$test_directory/terraform" blob_workload_identity_client_id)" == \
     "test-client-id" ]]
 grep -Fq -- "-chdir=$test_directory/terraform output -raw postgres_password" "$command_log"

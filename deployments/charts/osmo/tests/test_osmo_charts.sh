@@ -1040,6 +1040,10 @@ test_control_umbrella() {
         "secretName: osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         'azure.workload.identity/use: "true"'
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "name: OSMO_DEFAULT_ADMIN_PASSWORD"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "name: osmo-default-admin"
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
         "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
@@ -1103,33 +1107,25 @@ test_control_umbrella() {
         -f "$charts_copy/osmo/profiles/single-plane.yaml" \
         -f "$CHARTS_ROOT/../scripts/single-plane-azure.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
-        --set-string imageRepository=nvstaging/osmo \
+        --set-string imageRegistry=registry.example.org \
+        --set-string imageRepository=some/path \
         --set-string imageTag=test-tag \
         >"$TEST_DIRECTORY/generated-single-plane-azure.yaml"
     resource_document "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
         ConfigMap "osmo-gateway-envoy-config" \
         >"$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml"
-    require_contains \
+    require_not_contains \
         "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
         "allow_missing:"
-    require_contains \
+    require_not_contains \
         "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
         "key: x-osmo-user"
-    require_contains \
-        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
-        'value: "testuser"'
-    require_contains \
+    require_not_contains \
         "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
         "key: x-osmo-roles"
-    require_contains \
-        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
-        'value: "osmo-admin"'
-    require_contains \
+    require_not_contains \
         "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
         "key: x-osmo-allowed-pools"
-    require_contains \
-        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
-        'value: "default"'
     resource_document "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
         Service "osmo-gateway" \
         >"$TEST_DIRECTORY/generated-single-plane-azure-gateway.yaml"

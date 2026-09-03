@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 exports_files([
     "scripts/common.sh",
     "scripts/deploy-osmo-single-plane.sh",
+    "scripts/deploy-osmo-minimal.sh",
     "scripts/install-kai-scheduler.sh",
     "scripts/single-plane-azure.yaml",
     "scripts/single-plane-values.jq",
@@ -28,7 +29,7 @@ exports_files([
     "scripts/azure/terraform.sh",
     "terraform/azure/example/example.tf",
     "terraform/azure/example/outputs.tf",
-    "terraform/azure/example/single-plane-object-storage.tf",
+    "terraform/azure/example/workload-identity-object-storage.tf",
     "terraform/azure/example/variables.tf",
     "values/backend-operator.yaml",
     "values/service.yaml",

@@ -208,8 +208,8 @@ resource "azurerm_kubernetes_cluster" "main" {
   dns_prefix          = local.name
   kubernetes_version  = var.kubernetes_version
 
-  oidc_issuer_enabled       = var.single_plane_workload_identity_enabled
-  workload_identity_enabled = var.single_plane_workload_identity_enabled
+  oidc_issuer_enabled       = var.object_storage_workload_identity_enabled
+  workload_identity_enabled = var.object_storage_workload_identity_enabled
 
   private_cluster_enabled = var.aks_private_cluster_enabled
 

@@ -335,8 +335,8 @@ variable "storage_account_enabled" {
   default     = false
 }
 
-variable "single_plane_workload_identity_enabled" {
-  description = "Provision the keyless Blob storage and managed identity used by the single-plane umbrella example"
+variable "object_storage_workload_identity_enabled" {
+  description = "Provision Blob storage with a workload identity and enable workload identity on AKS"
   type        = bool
   default     = false
 }

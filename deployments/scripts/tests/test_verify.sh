@@ -62,6 +62,11 @@ export LOG_FAILURES_FILE="$test_directory/log-failures-remaining"
 printf '1\n' >"$LOG_FAILURES_FILE"
 
 verify_script="${TEST_SRCDIR}/_main/deployments/scripts/verify.sh"
+minimal_script="${TEST_SRCDIR}/_main/deployments/scripts/deploy-osmo-minimal.sh"
+grep -Fq '[[ "$STORAGE_BACKEND" == "none" ]] && skip_object_storage=1' "$minimal_script" || \
+    fail "minimal deployment does not skip object-storage verification when storage is disabled"
+grep -Fq 'SKIP_OBJECT_STORAGE="$skip_object_storage"' "$minimal_script" || \
+    fail "minimal deployment does not pass the object-storage verification setting"
 "$verify_script" >"$test_directory/output.log" 2>&1
 
 grep -Fq "osmo workflow submit $WORKFLOWS_DIR/verify-hello.yaml" "$command_log" || \
@@ -88,3 +93,21 @@ grep -Fq "Failed to fetch completed workflow logs for wf-hello" \
     "$test_directory/log-timeout-output.log" || fail "workflow-log timeout was not reported"
 [[ "$(grep -Fc 'osmo workflow logs wf-hello' "$command_log")" == 1 ]] || \
     fail "zero-second workflow-log timeout was not bounded"
+
+: >"$command_log"
+unset FAIL_WORKFLOW_LOGS
+export SKIP_OBJECT_STORAGE=1 WORKFLOW_LOG_TIMEOUT=2
+"$verify_script" >"$test_directory/skip-object-storage-output.log" 2>&1
+grep -Fq "osmo workflow submit $WORKFLOWS_DIR/verify-hello.yaml" "$command_log" || \
+    fail "hello workflow was not submitted when object-storage verification was skipped"
+if grep -Fq 'verify-object-storage.yaml' "$command_log"; then
+    fail "object-storage workflow was submitted despite SKIP_OBJECT_STORAGE=1"
+fi
+
+: >"$command_log"
+password_file="$test_directory/admin-password"
+printf '%s' 'admin-password' >"$password_file"
+export OSMO_LOGIN_METHOD=password OSMO_PASSWORD_FILE="$password_file"
+"$verify_script" >"$test_directory/password-login-output.log" 2>&1
+grep -Fq "osmo login http://localhost:9000 --method=password --username=admin --password-file=$password_file" \
+    "$command_log" || fail "password-file login was not passed to the OSMO CLI"

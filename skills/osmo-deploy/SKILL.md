@@ -235,7 +235,7 @@ Per-cluster values (PG/Redis hosts, image registry/tag, NGC pull secret name, na
 # Single-node MicroK8s on a fresh Ubuntu box (with GPU)
 ./scripts/deploy-osmo-minimal.sh --provider microk8s --gpu --storage-backend minio
 
-# Existing cluster (orion-cluster-azure, etc.) — caller exports DB/Redis env vars first
+# Existing cluster — caller exports DB/Redis environment variables first
 export POSTGRES_HOST=... REDIS_HOST=...   # (full list above)
 ./scripts/deploy-osmo-minimal.sh --provider byo --storage-backend azure-blob
 

@@ -4,17 +4,6 @@
 # Static Azure overlay for deploy-osmo-single-plane.sh. The generic single-plane
 # profile is applied first; dynamic, non-secret values are generated as JSON.
 externalUrl: http://osmo-gateway
-# This example reaches the ClusterIP gateway only through a local port-forward,
-# so it permits the development identity. Do not reuse this setting for an
-# externally reachable gateway.
-gateway:
-  envoy:
-    defaultIdentity:
-      user: testuser
-      roles: osmo-admin
-      allowedPools: default
-    jwt:
-      allowMissing: true
 compute:
   backendName: default
 services:
@@ -40,6 +29,9 @@ externalDependencies:
     authentication:
       type: sdkDefault
 secrets:
+  defaultAdmin:
+    existingSecret: osmo-default-admin
+    username: admin
   serviceAuth:
     managementMode: osmo
     bootstrap:

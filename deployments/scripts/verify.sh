@@ -25,6 +25,7 @@
 #   - verify-gpu.yaml            — nvidia-smi task, proves GPU capacity
 #
 # Skips the GPU test if SKIP_GPU=1 (use on CPU-only clusters).
+# Skips the object-storage test if SKIP_OBJECT_STORAGE=1.
 #
 # Assumes:
 #   - osmo CLI is installed
@@ -41,6 +42,7 @@ OSMO_URL="${OSMO_URL:-http://localhost:9000}"
 POOL="${POOL:-default}"
 OSMO_USERNAME="${OSMO_USERNAME:-admin}"
 OSMO_LOGIN_METHOD="${OSMO_LOGIN_METHOD:-dev}"
+OSMO_PASSWORD_FILE="${OSMO_PASSWORD_FILE:-}"
 WORKFLOWS_DIR="${WORKFLOWS_DIR:-$SCRIPT_DIR/../workflows}"
 OSMO_REACHABILITY_PATH="${OSMO_REACHABILITY_PATH:-/api/version}"
 OSMO_REACHABILITY_TIMEOUT_SECONDS="${OSMO_REACHABILITY_TIMEOUT_SECONDS:-5}"
@@ -76,7 +78,11 @@ if ! curl -fsS -o /dev/null --max-time "$OSMO_REACHABILITY_TIMEOUT_SECONDS" "$re
     exit 1
 fi
 
-osmo login "$OSMO_URL" --method="$OSMO_LOGIN_METHOD" --username="$OSMO_USERNAME"
+login_arguments=("$OSMO_URL" "--method=$OSMO_LOGIN_METHOD" "--username=$OSMO_USERNAME")
+if [[ -n "$OSMO_PASSWORD_FILE" ]]; then
+    login_arguments+=("--password-file=$OSMO_PASSWORD_FILE")
+fi
+osmo login "${login_arguments[@]}"
 
 # Pods being Ready doesn't mean the backend has finished reporting its nodes to
 # the control plane, and a submit before then fails outright with "There are no
@@ -178,8 +184,12 @@ run_workflow() {
 }
 
 run_workflow "$WORKFLOWS_DIR/verify-hello.yaml" "verify-hello" "$HELLO_POLL_TIMEOUT"
-run_workflow "$WORKFLOWS_DIR/verify-object-storage.yaml" "verify-object-storage" \
-    "$OBJECT_STORAGE_POLL_TIMEOUT"
+if [[ "${SKIP_OBJECT_STORAGE:-0}" == "1" ]]; then
+    log_warning "SKIP_OBJECT_STORAGE=1 — skipping object-storage smoke test"
+else
+    run_workflow "$WORKFLOWS_DIR/verify-object-storage.yaml" "verify-object-storage" \
+        "$OBJECT_STORAGE_POLL_TIMEOUT"
+fi
 
 if [[ "${SKIP_GPU:-0}" == "1" ]]; then
     log_warning "SKIP_GPU=1 — skipping GPU smoke test"

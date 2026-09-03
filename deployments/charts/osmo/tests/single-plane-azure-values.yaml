@@ -89,5 +89,8 @@ configuration:
         secretKey: .dockerconfigjson
 
 secrets:
+  defaultAdmin:
+    existingSecret: osmo-default-admin
+    username: admin
   objectStorage:
     existingSecret: ''

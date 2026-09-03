@@ -80,13 +80,16 @@ All resources are deployed in the same VNet and properly networked together.
 | `aks_dns_service_ip` | Kubernetes DNS service IP | `192.168.0.10` | Must be within service CIDR |
 | `node_instance_type` | AKS node VM size | `Standard_D2s_v3` | `Standard_D4s_v3+` |
 | `postgres_sku_name` | PostgreSQL SKU | `GP_Standard_D2s_v3` | `GP_Standard_D4s_v3+` |
+| `postgres_password_generation_enabled` | Generate the PostgreSQL password in Terraform state | `false` | Enable or provide `postgres_password` through an approved secret workflow |
+| `object_storage_workload_identity_enabled` | Provision private Blob storage and a workload identity for OSMO | `false` | Enable when OSMO will use Azure Blob storage without Shared Key credentials |
 | `redis_high_availability_enabled` | Redis replica + zone-redundant placement | `true` | `true`; disable only for ephemeral stacks or where HA creates hit capacity limits |
 | `redis_location` | Region override for Redis | `""` (co-located with the RG) | Leave empty — a split stack pays cross-region latency on every Redis call |
 | `redis_sku_name` | Azure Managed Redis SKU | `ComputeOptimized_X3` | `Balanced_B*` / `ComputeOptimized_X*` / `MemoryOptimized_M*` / `FlashOptimized_A*` (X3 is the validated default; `Balanced_B0/B1/B3` have hit AllocationFailed in busy regions) |
 
 ### Security Considerations
 
-- **PostgreSQL Password**: Change the default password in `terraform.tfvars`
+- **PostgreSQL Password**: Provide `postgres_password` securely or enable password generation; Terraform state contains the resulting secret value
+- **Blob Storage**: Workload-identity storage disables Shared Key authorization and anonymous Blob access; verify the live account reports `allowBlobPublicAccess=false`
 - **Network Security Groups**: Configured to allow access only from AKS subnets
 - **Private Subnets**: Database resources are isolated in private subnets
 - **AKS Cluster Access**:
