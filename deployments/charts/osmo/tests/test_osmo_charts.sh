@@ -545,12 +545,20 @@ test_control_umbrella() {
         "--redeem-url=http://token-oidc-osmo-api:80/api/auth/oidc/token"
     require_contains "$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml" \
         "--oidc-email-claim=preferred_username"
+    require_contains "$TEST_DIRECTORY/token-oidc-oauth2-proxy.yaml" \
+        "--cookie-csrf-per-request-limit=10"
     require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
         "issuer: http://127.0.0.1:18080/api/auth/oidc"
     require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
         'prefix: "/auth/token-login"'
     require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
         'prefix: "/_next/static/"'
+    require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'regex: "^/favicon[.]ico([?].*)?$"'
+    require_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'regex: "^/[.]well-known/appspecific/com[.]chrome[.]devtools[.]json([?].*)?$"'
+    require_not_contains "$TEST_DIRECTORY/token-oidc-envoy.yaml" \
+        'prefix: "/favicon.ico"'
 
     if helm_template invalid-token-oidc "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

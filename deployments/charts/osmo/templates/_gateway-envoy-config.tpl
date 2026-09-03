@@ -46,6 +46,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $tokenOidc := .Values.services.api.tokenOidcProvider }}
 {{- $jwtProviders := concat (default (list) $envoy.jwt.providers) (default (list) $envoy.jwt.additionalProviders) }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
+{{- $skipAuthRegexPaths := list }}
 {{- if $tokenOidc.enabled }}
 {{- $jwksScheme := ternary "https" "http" $gw.tls.enabled }}
 {{- $jwksHost := $envoy.internalJwks.host | default $serviceHost }}
@@ -56,8 +57,12 @@ setting detects this rotation and triggers Envoy to reload.
       "cluster" $envoy.internalJwks.cluster
       "user_claim" "preferred_username") }}
 {{- $skipAuthPaths = uniq (concat $skipAuthPaths (list "/api/auth/oidc/" $tokenOidc.loginPagePath "/_next/static/")) }}
+{{- $skipAuthRegexPaths = list
+      "^/favicon[.]ico([?].*)?$"
+      "^/[.]well-known/appspecific/com[.]chrome[.]devtools[.]json([?].*)?$" }}
 {{- end }}
 {{- $authnSkipPaths := $skipAuthPaths }}
+{{- $authnSkipRegexPaths := $skipAuthRegexPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
 {{- $authnSkipPaths = uniq (concat $authnSkipPaths (list "/oauth2/" "/signout")) }}
 {{- end }}
@@ -549,7 +554,7 @@ data:
                       end
                     end
             {{- end }}
-            {{- if $authnSkipPaths }}
+            {{- if or $authnSkipPaths $authnSkipRegexPaths }}
             {{- /* Authn skip paths bypass both authn and authz. */}}
             # set_metadata has no path matcher of its own, so wrap it and
             # skip the metadata filter on non-skip paths. Matching skip paths
@@ -569,7 +574,7 @@ data:
                           {{- /* Envoy validates or_matcher as requiring at
                                  least two predicates. A single skipAuthPath
                                  must be emitted as a bare single_predicate. */}}
-                          {{- if gt (len $authnSkipPaths) 1 }}
+                          {{- if gt (add (len $authnSkipPaths) (len $authnSkipRegexPaths)) 1 }}
                           or_matcher:
                             predicate:
                             {{- range $authnSkipPaths }}
@@ -582,6 +587,18 @@ data:
                                 value_match:
                                   prefix: {{ . | quote }}
                             {{- end }}
+                            {{- range $authnSkipRegexPaths }}
+                            - single_predicate:
+                                input:
+                                  name: request-headers
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                    header_name: ":path"
+                                value_match:
+                                  safe_regex:
+                                    google_re2: {}
+                                    regex: {{ . | quote }}
+                            {{- end }}
                           {{- else }}
                           single_predicate:
                             input:
@@ -590,7 +607,13 @@ data:
                                 "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
                                 header_name: ":path"
                             value_match:
+                              {{- if $authnSkipPaths }}
                               prefix: {{ (index $authnSkipPaths 0) | quote }}
+                              {{- else }}
+                              safe_regex:
+                                google_re2: {}
+                                regex: {{ (index $authnSkipRegexPaths 0) | quote }}
+                              {{- end }}
                           {{- end }}
                       on_match:
                         action:
@@ -681,7 +704,7 @@ data:
                                   value_match:
                                     exact: "GET"
                           {{- end }}
-                          {{- if $authnSkipPaths }}
+                          {{- if or $authnSkipPaths $authnSkipRegexPaths }}
                           - single_predicate:
                               input:
                                 name: envoy.matching.inputs.dynamic_metadata
@@ -764,12 +787,18 @@ data:
                       header_name: {{$envoy.jwt.userHeader}}
                   {{- end }}
                 rules:
-                  {{- if $skipAuthPaths }}
+                  {{- if or $skipAuthPaths $skipAuthRegexPaths }}
                   # A jwt_authn rule with no "requires" allows the matching
                   # path through without JWT validation.
                   {{- range $skipAuthPaths }}
                   - match:
                       prefix: {{ . | quote }}
+                  {{- end }}
+                  {{- range $skipAuthRegexPaths }}
+                  - match:
+                      safe_regex:
+                        google_re2: {}
+                        regex: {{ . | quote }}
                   {{- end }}
                   {{- end }}
                   {{- if $gw.oauth2Proxy.enabled }}

@@ -370,6 +370,7 @@ spec:
           - --insecure-oidc-allow-unverified-email=true
           - --insecure-oidc-skip-nonce=false
           - --cookie-csrf-per-request=true
+          - --cookie-csrf-per-request-limit=10
           {{- end }}
           {{- range $gw.oauth2Proxy.extraArgs }}
           - {{ . | quote }}
