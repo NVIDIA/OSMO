@@ -40,6 +40,56 @@ export POSTGRES_DB_NAME=... REDIS_HOST=... REDIS_PORT=... REDIS_PASSWORD=...
 
 Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--destroy`.
 
+## Azure single-plane umbrella deployment
+
+`deploy-osmo-single-plane.sh` is a separate, linear Azure example for
+installing the control and compute planes together on AKS. Before running it,
+authenticate the Azure CLI and create the target resource group. Set
+`TF_RESOURCE_GROUP` to that resource group's name:
+
+```bash
+export TF_RESOURCE_GROUP=<resource-group>
+./deploy-osmo-single-plane.sh
+```
+
+To deploy private images, provide the full registry and repository prefix plus
+the shared image tag. If authentication is required, also provide the pull
+Secret name and a Docker config containing credentials for that registry:
+
+```bash
+export OSMO_IMAGE_REGISTRY=registry.example.org/some/path
+export OSMO_IMAGE_TAG=<tag>
+export OSMO_IMAGE_PULL_SECRET=private-registry-pull
+export OSMO_IMAGE_PULL_CONFIG="$HOME/.docker/config.json"
+./deploy-osmo-single-plane.sh
+```
+
+`OSMO_IMAGE_REGISTRY` defaults to `nvcr.io/nvidia/osmo`, the tag defaults to
+`latest`, and pull authentication is optional. The image prefix applies to all
+OSMO components and workflow runtime images; prerequisite charts retain their
+own image settings. When a Docker config contains multiple registries, the
+script copies only the credentials matching the registry host in
+`OSMO_IMAGE_REGISTRY`.
+
+The script defaults `TF_NODE_INSTANCE_TYPE` to `Standard_D8s_v3`, leaving
+enough allocatable CPU for the control plane and the representative workflow on
+the same AKS pool. Set that Terraform variable explicitly to choose another VM
+size with equivalent capacity.
+
+The script provisions AKS, PostgreSQL, Valkey, Blob storage, and a managed
+identity, then installs KAI Scheduler and OSMO. Shared Key authorization and
+public Blob access are disabled. AKS Workload Identity authenticates the API,
+worker, and workflow pods to Blob storage. The script also creates the required
+PostgreSQL, Valkey, backend, and administrator Secrets without printing their
+contents.
+
+The provider-neutral single-plane profile is layered with Azure connection and
+workload-identity values. The gateway remains a `ClusterIP` and requires OSMO
+access tokens; the script uses the retained administrator Secret to validate it
+through a temporary local port-forward. Validation submits a basic workflow and
+an object-storage round-trip workflow and confirms their specifications and
+logs can be retrieved.
+
 ## Deployment Combinations
 
 Three orthogonal axes:
@@ -81,6 +131,7 @@ Notes:
 ```
 scripts/
 ├── deploy-osmo-minimal.sh    # Main entry point — orchestrates all phases
+├── deploy-osmo-single-plane.sh # Azure single-plane deployment example
 ├── deploy-k8s.sh             # K8s/Helm install logic (called by main)
 ├── common.sh                 # Shared logging, OSMO CLI install, helm helpers
 ├── install-kai-scheduler.sh  # KAI Scheduler (idempotent, CRD-detected)
@@ -89,7 +140,7 @@ scripts/
 ├── configure-storage.sh      # 6.3 storage wiring: K8s Secrets + values fragment
 ├── storage/                  # Per-backend storage logic (minio, azure-blob, s3, byo)
 ├── port-forward.sh           # One-shot or watchdog kubectl port-forward
-├── verify.sh                 # End-to-end smoke tests (hello + GPU workflows)
+├── verify.sh                 # End-to-end smoke tests (hello + object storage + GPU)
 ├── azure/terraform.sh        # Azure Terraform driver
 ├── aws/terraform.sh          # AWS Terraform driver
 ├── microk8s/install.sh       # Single-node MicroK8s bootstrap
@@ -99,7 +150,7 @@ scripts/
 Sibling directories under `deployments/`:
 
 ```
-../workflows/        # verify-hello.yaml, verify-gpu.yaml (smoke tests)
+../workflows/        # hello, object-storage, and GPU smoke-test workflows
 ../values/           # static, hand-editable Helm values (see ../values/README.md)
 ../terraform/        # Terraform modules for azure/ + aws/
 ./values/            # auto-generated runtime values; .storage-values.yaml from configure-storage.sh
@@ -124,7 +175,7 @@ When invoked, the entry-point runs these phases in order. Each is idempotent and
    - Optional user values files and simple `--set` overrides are layered last
    - Idempotent Secret-backed backend credential provisioning
    - Waits for pods Running 1/1
-5. **Smoke test** (`verify.sh`) — submits `verify-hello.yaml`, polls until COMPLETED, dumps logs on failure. With GPU nodes, also runs `verify-gpu.yaml`.
+5. **Smoke test** (`verify.sh`) — submits `verify-hello.yaml` and `verify-object-storage.yaml`, polls until COMPLETED, and dumps logs on failure. With GPU nodes, it also runs `verify-gpu.yaml`.
 6. **Watchdog port-forwards** (optional, default on for non-CI invocations) — `port-forward.sh --watchdog` for `osmo-service` (:9000) and `osmo-ui` (:3000).
 
 ## Scripts Overview
@@ -200,7 +251,7 @@ the OSMO token API. Can also run standalone:
 
 ### Cluster-agnostic install helpers
 
-Each is idempotent — safe to invoke on a cluster where the target component already exists (e.g. when `orion-cluster-azure` pre-installed KAI + GPU Operator).
+Each is idempotent and safe to invoke on a cluster where the target component already exists.
 
 | Script | Purpose | Auto-skip detection |
 |--------|---------|---------------------|
@@ -209,7 +260,7 @@ Each is idempotent — safe to invoke on a cluster where the target component al
 | `install-minio.sh` | Bitnami MinIO chart | microk8s `minio` addon or existing `minio` service in `minio-operator` ns |
 | `configure-storage.sh` | 6.3 storage wiring: K8s Secrets + helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`. Dispatcher → `storage/{minio,azure-blob,s3,byo}.sh`. | n/a — backend chosen via `--backend` |
 | `port-forward.sh` | One-shot or `--watchdog` PF, tagged `osmo-pf-watchdog:<svc>` for cleanup with `pkill -f 'osmo-pf-watchdog:'`. Watchdog readiness waits up to `OSMO_PF_HEALTH_TIMEOUT_SECONDS` (default 300). | Reuses live PF if context+namespace match |
-| `verify.sh` | Submits `workflows/verify-hello.yaml` + `verify-gpu.yaml`; polls until terminal state, dumps logs on failure. `SKIP_GPU=1` to skip GPU test. | n/a |
+| `verify.sh` | Submits the hello and object-storage workflows plus `verify-gpu.yaml`; polls until terminal state and dumps logs on failure. `SKIP_GPU=1` skips the GPU test and `SKIP_OBJECT_STORAGE=1` skips the object-storage test. | n/a |
 
 ### `microk8s/install.sh`
 
@@ -321,7 +372,7 @@ Pre-create the IAM role with the OSMO service-account trust, then:
 | `OSMO_IMAGE_REGISTRY` | OSMO Docker image registry | `nvcr.io/nvidia/osmo` |
 | `OSMO_IMAGE_TAG` | OSMO Docker image tag | `latest` |
 | `OSMO_CHART_VERSION` | Pin OSMO Helm chart version. **Required** for prerelease channels (chart RCs aren't tagged `latest`). | _(latest in repo)_ |
-| `OSMO_HELM_REPO_URL` | OSMO Helm chart repo URL. Override to `https://helm.ngc.nvidia.com/nvstaging/osmo` for prerelease testing. | `https://helm.ngc.nvidia.com/nvidia/osmo` |
+| `OSMO_HELM_REPO_URL` | OSMO Helm chart repository URL. Override to use another chart repository. | `https://helm.ngc.nvidia.com/nvidia/osmo` |
 | `OSMO_HELM_REPO_NAME` | Local helm repo alias | `osmo` |
 | `BACKEND_TOKEN_SECRET_NAME` | Shared backend bootstrap Secret name | `osmo-operator-token` |
 | `OSMO_REACHABILITY_PATH` | Lightweight unauthenticated path used by `verify.sh` for the pre-login reachability probe | `/api/version` |

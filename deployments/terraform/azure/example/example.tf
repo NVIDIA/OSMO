@@ -42,6 +42,13 @@ resource "random_string" "suffix" {
   upper   = false
 }
 
+resource "random_password" "postgres" {
+  count            = var.postgres_password_generation_enabled ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#%"
+}
+
 provider "azurerm" {
   features {}
   subscription_id = var.subscription_id
@@ -49,7 +56,8 @@ provider "azurerm" {
 
 # Local variables for common tags and naming
 locals {
-  name = var.cluster_name
+  name              = var.cluster_name
+  postgres_password = var.postgres_password_generation_enabled ? random_password.postgres[0].result : var.postgres_password
   tags = {
     Environment = var.environment
     Project     = var.project_name
@@ -200,6 +208,9 @@ resource "azurerm_kubernetes_cluster" "main" {
   dns_prefix          = local.name
   kubernetes_version  = var.kubernetes_version
 
+  oidc_issuer_enabled       = var.object_storage_workload_identity_enabled
+  workload_identity_enabled = var.object_storage_workload_identity_enabled
+
   private_cluster_enabled = var.aks_private_cluster_enabled
 
   # Only configure authorized IP ranges for public clusters
@@ -211,16 +222,17 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   default_node_pool {
-    name                 = "system"
-    min_count            = var.node_group_min_size
-    max_count            = var.node_group_max_size
-    vm_size              = var.node_instance_type
-    type                 = "VirtualMachineScaleSets"
-    zones                = var.availability_zones
-    auto_scaling_enabled = true
-    vnet_subnet_id       = azurerm_subnet.private[0].id
-    max_pods             = 30
-    os_disk_size_gb      = 50
+    name                        = "system"
+    temporary_name_for_rotation = "systemtemp"
+    min_count                   = var.node_group_min_size
+    max_count                   = var.node_group_max_size
+    vm_size                     = var.node_instance_type
+    type                        = "VirtualMachineScaleSets"
+    zones                       = var.availability_zones
+    auto_scaling_enabled        = true
+    vnet_subnet_id              = azurerm_subnet.private[0].id
+    max_pods                    = 30
+    os_disk_size_gb             = 50
   }
 
   # Ignore changes to node count since auto-scaling manages this
@@ -309,14 +321,15 @@ resource "azurerm_kubernetes_cluster_node_pool" "gpu" {
 ################################################################################
 
 resource "azurerm_storage_account" "osmo" {
-  count                    = var.storage_account_enabled ? 1 : 0
-  name                     = replace("${local.name}osmo", "-", "")
-  resource_group_name      = data.azurerm_resource_group.main.name
-  location                 = data.azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  min_tls_version          = "TLS1_2"
-  tags                     = local.tags
+  count                           = var.storage_account_enabled ? 1 : 0
+  name                            = replace("${local.name}osmo", "-", "")
+  resource_group_name             = data.azurerm_resource_group.main.name
+  location                        = data.azurerm_resource_group.main.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  min_tls_version                 = "TLS1_2"
+  allow_nested_items_to_be_public = false
+  tags                            = local.tags
 }
 
 resource "azurerm_storage_container" "osmo_workflows" {
@@ -345,14 +358,14 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
 }
 
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                          = "${local.name}-postgres"
+  name                          = "${local.name}-postgres-${random_string.suffix.result}"
   resource_group_name           = data.azurerm_resource_group.main.name
   location                      = data.azurerm_resource_group.main.location
   version                       = var.postgres_version
   delegated_subnet_id           = azurerm_subnet.database[0].id
   private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
   administrator_login           = var.postgres_username
-  administrator_password        = var.postgres_password
+  administrator_password        = local.postgres_password
   zone                          = "1"
   public_network_access_enabled = false
 
@@ -364,6 +377,15 @@ resource "azurerm_postgresql_flexible_server" "main" {
   geo_redundant_backup_enabled = var.postgres_geo_redundant_backup_enabled
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
+
+  lifecycle {
+    precondition {
+      condition = (
+        var.postgres_password_generation_enabled != (var.postgres_password != null)
+      )
+      error_message = "Set exactly one of postgres_password or postgres_password_generation_enabled=true."
+    }
+  }
 
   tags = local.tags
 }
@@ -550,21 +572,22 @@ resource "azurerm_storage_account" "nfs" {
   # clamping to a 19-char prefix budget so the trailing 5-char random suffix
   # keeps the total at <=24. environment intentionally omitted from the name
   # (still carried in tags) so overrides can't blow the budget.
-  name                          = "${substr(lower(replace("stnfs${var.cluster_name}", "/[^0-9a-z]/", "")), 0, 19)}${random_string.suffix.result}"
-  location                      = data.azurerm_resource_group.main.location
-  resource_group_name           = data.azurerm_resource_group.main.name
-  account_tier                  = "Premium"     # FileStorage requires Premium
-  account_kind                  = "FileStorage" # NFS shares require FileStorage kind
-  account_replication_type      = "LRS"
+  name                     = "${substr(lower(replace("stnfs${local.name}", "/[^0-9a-z]/", "")), 0, 19)}${random_string.suffix.result}"
+  location                 = data.azurerm_resource_group.main.location
+  resource_group_name      = data.azurerm_resource_group.main.name
+  account_tier             = "Premium"     # FileStorage requires Premium
+  account_kind             = "FileStorage" # NFS shares require FileStorage kind
+  account_replication_type = "LRS"
   # Azure Files NFS over service endpoints requires the SA's public endpoint to
   # remain reachable; with PNA=false the public endpoint is blocked and NFS
   # mounts fail. Keep PNA enabled and rely on the VNet-scoped network_rules
   # below to restrict access. Consumers wanting fully-private access can layer
   # an azurerm_private_endpoint + privatelink.file.core.windows.net DNS zone
   # in their own skill and flip PNA to false there.
-  public_network_access_enabled = true
-  https_traffic_only_enabled    = false # NFS does not use HTTPS; enabling blocks NFS mounts
-  tags                          = local.tags
+  public_network_access_enabled   = true
+  https_traffic_only_enabled      = false # NFS does not use HTTPS; enabling blocks NFS mounts
+  allow_nested_items_to_be_public = false
+  tags                            = local.tags
 
   network_rules {
     default_action             = "Deny"

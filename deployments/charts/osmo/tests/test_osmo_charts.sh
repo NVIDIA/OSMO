@@ -1044,6 +1044,12 @@ test_control_umbrella() {
         "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "secretName: osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        'azure.workload.identity/use: "true"'
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "name: OSMO_DEFAULT_ADMIN_PASSWORD"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "name: osmo-default-admin"
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
         "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
@@ -1051,7 +1057,19 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
         "serviceAccountName: osmo-worker"
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
+        "secretName: osmo-runtime-pull"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
         'azure.workload.identity/use: "true"'
+    for service in agent logger; do
+        resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
+            "osmo-$service" >"$TEST_DIRECTORY/single-plane-azure-$service.yaml"
+        require_contains "$TEST_DIRECTORY/single-plane-azure-$service.yaml" \
+            "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
+        require_contains "$TEST_DIRECTORY/single-plane-azure-$service.yaml" \
+            "secretName: osmo-runtime-pull"
+    done
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" ServiceAccount \
         "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker-service-account.yaml"
     require_contains \
@@ -1088,6 +1106,41 @@ test_control_umbrella() {
         "osmo-object-storage"
     require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
         "osmo-backend-token"
+
+    helm_template generated-single-plane-azure "$charts_copy/osmo" \
+        --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/../scripts/single-plane-azure.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+        --set-string imageRegistry=registry.example.org \
+        --set-string imageRepository=some/path \
+        --set-string imageTag=test-tag \
+        >"$TEST_DIRECTORY/generated-single-plane-azure.yaml"
+    resource_document "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        ConfigMap "osmo-gateway-envoy-config" \
+        >"$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml"
+    require_not_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "allow_missing:"
+    require_not_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-user"
+    require_not_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-roles"
+    require_not_contains \
+        "$TEST_DIRECTORY/generated-single-plane-azure-gateway-config.yaml" \
+        "key: x-osmo-allowed-pools"
+    resource_document "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        Service "osmo-gateway" \
+        >"$TEST_DIRECTORY/generated-single-plane-azure-gateway.yaml"
+    require_contains "$TEST_DIRECTORY/generated-single-plane-azure-gateway.yaml" \
+        "type: ClusterIP"
+    require_not_contains "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        "kind: Ingress"
+    require_not_contains "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
+        "kind: HTTPRoute"
 
     helm_template single-plane-s3 "$charts_copy/osmo" \
         --namespace osmo \

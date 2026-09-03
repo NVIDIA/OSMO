@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Static Azure overlay for deploy-osmo-single-plane.sh. The generic single-plane
+# profile is applied first; dynamic, non-secret values are generated as JSON.
+externalUrl: http://osmo-gateway
+compute:
+  backendName: default
+services:
+  api:
+    pod:
+      labels:
+        azure.workload.identity/use: "true"
+  worker:
+    serviceAccount:
+      create: true
+    pod:
+      labels:
+        azure.workload.identity/use: "true"
+externalDependencies:
+  postgresql:
+    port: 5432
+    tls:
+      enabled: false
+  valkey:
+    tls:
+      enabled: true
+  objectStorage:
+    authentication:
+      type: sdkDefault
+secrets:
+  defaultAdmin:
+    existingSecret: osmo-default-admin
+    username: admin
+  serviceAuth:
+    managementMode: osmo
+    bootstrap:
+      enabled: true
+  postgresql:
+    existingSecret: osmo-postgresql
+  valkey:
+    existingSecret: osmo-valkey
+  objectStorage:
+    existingSecret: ''
+configuration:
+  podTemplates:
+    azure_workload_identity:
+      metadata:
+        labels:
+          azure.workload.identity/use: "true"
+      spec:
+        serviceAccountName: osmo-workflow
+  pools:
+    default:
+      common_pod_template:
+      - default_ctrl
+      - default_user
+      - azure_workload_identity

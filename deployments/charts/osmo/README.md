@@ -141,6 +141,9 @@ osmo login "$OSMO_URL" --method=dev --username=testuser
 osmo workflow submit deployments/workflows/verify-hello.yaml \
   --pool default \
   --format-type json
+osmo workflow submit deployments/workflows/verify-object-storage.yaml \
+  --pool default \
+  --format-type json
 osmo workflow query <workflow-id> --format-type json
 ```
 
@@ -207,8 +210,7 @@ ingress controller and public DNS ready.
 
 The profile configures Envoy to validate supplied OSMO access tokens against the
 API service's in-cluster `https://osmo-api/api/auth/keys` endpoint. It requires
-JWTs and leaves all default identity headers empty, so site values must provide
-any deliberately permissive development identity. External identity providers
+JWTs and leaves all default identity headers empty. External identity providers
 remain site-specific gateway configuration.
 
 Object storage uses exact `locations` for workflow data, logs, and apps. All
@@ -258,13 +260,13 @@ externalDependencies:
       overrideUrl: https://s3.example.com
 ```
 
-Install the generic profile first and the site overlay second:
+Install the generic profile first and a site-specific overlay second:
 
 ```bash
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
-  --values single-plane-azure.yaml
+  --values <site-values.yaml>
 ```
 
 ## Self-contained production

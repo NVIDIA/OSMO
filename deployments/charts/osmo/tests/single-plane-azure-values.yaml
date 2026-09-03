@@ -8,6 +8,37 @@ compute:
 
 services:
   api:
+    serviceAccount:
+      annotations:
+        azure.workload.identity/client-id: single-plane-test-client-id
+    extraVolumeMounts:
+    - name: runtime-image-pull-secret
+      mountPath: /etc/osmo/secrets/osmo-runtime-pull
+      readOnly: true
+    pod:
+      labels:
+        azure.workload.identity/use: "true"
+      extraVolumes:
+      - name: runtime-image-pull-secret
+        secret:
+          secretName: osmo-runtime-pull
+  worker:
+    extraVolumeMounts:
+    - name: runtime-image-pull-secret
+      mountPath: /etc/osmo/secrets/osmo-runtime-pull
+      readOnly: true
+    serviceAccount:
+      create: true
+      annotations:
+        azure.workload.identity/client-id: single-plane-test-client-id
+    pod:
+      labels:
+        azure.workload.identity/use: "true"
+      extraVolumes:
+      - name: runtime-image-pull-secret
+        secret:
+          secretName: osmo-runtime-pull
+  agent:
     extraVolumeMounts:
     - name: runtime-image-pull-secret
       mountPath: /etc/osmo/secrets/osmo-runtime-pull
@@ -17,14 +48,16 @@ services:
       - name: runtime-image-pull-secret
         secret:
           secretName: osmo-runtime-pull
-  worker:
-    serviceAccount:
-      create: true
-      annotations:
-        azure.workload.identity/client-id: single-plane-test-client-id
+  logger:
+    extraVolumeMounts:
+    - name: runtime-image-pull-secret
+      mountPath: /etc/osmo/secrets/osmo-runtime-pull
+      readOnly: true
     pod:
-      labels:
-        azure.workload.identity/use: "true"
+      extraVolumes:
+      - name: runtime-image-pull-secret
+        secret:
+          secretName: osmo-runtime-pull
 
 externalDependencies:
   postgresql:
@@ -56,5 +89,8 @@ configuration:
         secretKey: .dockerconfigjson
 
 secrets:
+  defaultAdmin:
+    existingSecret: osmo-default-admin
+    username: admin
   objectStorage:
     existingSecret: ''

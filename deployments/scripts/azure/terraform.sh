@@ -567,18 +567,22 @@ azure_terraform_init() {
 
 azure_terraform_apply() {
     local terraform_dir="$1"
-    local dry_run="${2:-false}"
+    shift
+    local dry_run="${1:-false}"
+    if (($#)); then
+        shift
+    fi
 
     log_info "Applying Terraform configuration..."
     cd "$terraform_dir"
 
     if [[ "$dry_run" == true ]]; then
         log_info "[DRY-RUN] Would run: terraform plan"
-        terraform plan
+        terraform plan "$@"
         return
     fi
 
-    terraform apply -auto-approve
+    terraform apply -auto-approve "$@"
     log_success "Terraform apply completed"
 }
 
@@ -643,6 +647,13 @@ EOF
     log_info "  AKS Cluster: $AKS_CLUSTER_NAME"
     log_info "  PostgreSQL Host: $POSTGRES_HOST"
     log_info "  Redis Host: $REDIS_HOST"
+}
+
+azure_get_terraform_output() {
+    local terraform_dir="$1"
+    local output_name="$2"
+
+    terraform -chdir="$terraform_dir" output -raw "$output_name"
 }
 
 azure_verify_postgres_config() {
@@ -726,4 +737,4 @@ export -f azure_run_helm_with_values
 export -f azure_check_cluster_type
 export -f azure_configure_kubectl
 export -f azure_verify_postgres_config
-
+export -f azure_get_terraform_output
