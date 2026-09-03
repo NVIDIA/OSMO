@@ -56,9 +56,7 @@ provider "azurerm" {
 
 # Local variables for common tags and naming
 locals {
-  name = var.cluster_name != null ? var.cluster_name : (
-    var.single_plane_workload_identity_enabled ? "osmo-${random_string.suffix.result}" : "osmo-cluster"
-  )
+  name              = var.cluster_name
   postgres_password = var.postgres_password_generation_enabled ? random_password.postgres[0].result : var.postgres_password
   tags = {
     Environment = var.environment

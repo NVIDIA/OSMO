@@ -61,7 +61,7 @@ write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform pwd=$PWD
     '  tfvars_path=' \
     '  for argument in "$@"; do [[ "$argument" == -var-file=* ]] && tfvars_path="${argument#-var-file=}"; done' \
     '  [[ -f "$tfvars_path" ]] || exit 19' \
-    '  grep -Eq "^cluster_name *= *null$" "$tfvars_path" || exit 20' \
+    '  grep -Eq "^cluster_name *= *\"osmo-cluster\"$" "$tfvars_path" || exit 20' \
     '  grep -Eq "^postgres_password *= *null$" "$tfvars_path" || exit 21' \
     '  grep -Eq "^single_plane_workload_identity_enabled *= *true$" "$tfvars_path" || exit 22' \
     '  grep -Eq "^postgres_password_generation_enabled *= *true$" "$tfvars_path" || exit 23' \
@@ -92,15 +92,11 @@ write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform pwd=$PWD
     '  esac' \
     'fi'
 
-write_mock docker '#!/bin/bash' 'set -euo pipefail' 'echo "docker $*" >>"$COMMAND_LOG"' \
-    'output_directory=' 'previous=' \
-    'for argument in "$@"; do [[ "$previous" == --volume ]] && output_directory="${argument%:/output}"; previous="$argument"; done' \
-    '[[ -n "$output_directory" ]] || exit 31' \
-    'printf service-auth-private-key-sentinel >"$output_directory/authentication-config.json"'
+write_mock docker '#!/bin/bash' 'exit 31'
 
 write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     'for argument in "$@"; do' \
-    '  case "$argument" in *postgres-secret-sentinel*|*redis-secret-sentinel*|*backend-token-sentinel*|*service-auth-private-key-sentinel*) exit 32 ;; esac' \
+    '  case "$argument" in *postgres-secret-sentinel*|*redis-secret-sentinel*|*backend-token-sentinel*) exit 32 ;; esac' \
     'done' \
     'echo "kubectl $*" >>"$COMMAND_LOG"' \
     'if [[ "$1 $2" == "get secret" ]]; then' \
@@ -126,11 +122,6 @@ write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     '  for argument in "$@"; do [[ "$argument" == --from-file=token=* ]] && token_file="${argument#--from-file=token=}"; done' \
     '  [[ "$(<"$token_file")" == backend-token-sentinel ]] || exit 36' \
     '  printf "%s\n" "$token_file" >>"$SECRET_PATHS_LOG"' \
-    'fi' \
-    'if [[ "$*" == *"create secret generic osmo-service-auth"* ]]; then' \
-    '  for argument in "$@"; do [[ "$argument" == --from-file=authentication-config.json=* ]] && auth_file="${argument#--from-file=authentication-config.json=}"; done' \
-    '  [[ "$(<"$auth_file")" == service-auth-private-key-sentinel ]] || exit 37' \
-    '  printf "%s\n" "$auth_file" >>"$SECRET_PATHS_LOG"' \
     'fi' \
     'if [[ "$*" == *"create secret generic"* ]]; then printf "apiVersion: v1\nkind: Secret\nmetadata:\n  name: mock\n"; fi' \
     'if [[ "$*" == *"port-forward"* ]]; then touch "$PORT_FORWARD_READY"; while true; do sleep 1; done; fi'
@@ -202,10 +193,14 @@ jq -e '
 assert_contains "$static_values" 'externalUrl: http://osmo-gateway'
 assert_contains "$static_values" 'type: sdkDefault'
 assert_contains "$static_values" 'serviceAccountName: osmo-workflow'
+assert_contains "$static_values" 'serviceAuth:'
+assert_contains "$static_values" 'managementMode: osmo'
+assert_contains "$static_values" 'bootstrap:'
+assert_contains "$static_values" '      enabled: true'
 assert_not_contains "$static_values" '${'
 
 for secret in postgres-secret-sentinel redis-secret-sentinel storage-key-sentinel \
-        backend-token-sentinel service-auth-private-key-sentinel docker-auth-sentinel \
+        backend-token-sentinel docker-auth-sentinel \
         provided-postgres-secret-sentinel; do
     assert_not_contains "$test_directory/output.log" "$secret"
     assert_not_contains "$command_log" "$secret"
@@ -213,6 +208,7 @@ for secret in postgres-secret-sentinel redis-secret-sentinel storage-key-sentine
 done
 assert_not_contains "$command_log" 'storage_account_key'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-object-storage'
+assert_not_contains "$command_log" 'kubectl create secret generic osmo-service-auth'
 
 jq -e '.auths | keys == ["nvcr.io"]' "$PULL_SECRET_INPUT" >/dev/null || fail "pull Secret included another registry"
 jq -e '.auths["nvcr.io"].auth == "docker-auth-sentinel"' "$PULL_SECRET_INPUT" >/dev/null || fail "registry credentials changed"
@@ -226,8 +222,6 @@ assert_ordered \
     'az aks get-credentials' \
     'bash ' \
     'kubectl create namespace osmo' \
-    'docker run --rm --user' \
-    'kubectl create secret generic osmo-service-auth' \
     'kubectl create secret generic 456' \
     'kubectl create secret generic osmo-postgresql' \
     'kubectl create secret generic osmo-valkey' \

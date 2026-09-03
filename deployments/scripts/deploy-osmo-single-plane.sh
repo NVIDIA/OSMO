@@ -31,7 +31,7 @@ trap cleanup EXIT
 
 umask 077
 : "${TF_RESOURCE_GROUP:?set TF_RESOURCE_GROUP or TF_VAR_resource_group_name to the isolated sandbox resource group}"
-for command in az terraform kubectl helm docker openssl curl jq osmo; do
+for command in az terraform kubectl helm openssl curl jq osmo; do
     check_command "$command"
 done
 
@@ -121,14 +121,6 @@ printf '%s' "$POSTGRES_USERNAME" >"$SECRETS_DIR/postgres-username"
 printf '%s' "$POSTGRES_PASSWORD" >"$SECRETS_DIR/postgres-password"
 printf '%s' "$REDIS_PASSWORD" >"$SECRETS_DIR/redis-password"
 kubectl create namespace osmo --dry-run=client --output yaml | kubectl apply -f -
-docker run --rm --user "$(id -u):$(id -g)" \
-    --entrypoint service-auth-bootstrap \
-    --volume "$SECRETS_DIR:/output" \
-    "nvcr.io/$OSMO_IMAGE_REPOSITORY/service:$OSMO_IMAGE_TAG" \
-    generate --output /output/authentication-config.json
-kubectl create secret generic osmo-service-auth --namespace osmo \
-    --from-file=authentication-config.json="$SECRETS_DIR/authentication-config.json" \
-    --dry-run=client --output yaml | kubectl apply -f -
 if [[ -n "$OSMO_IMAGE_PULL_SECRET" && -n "$OSMO_IMAGE_PULL_CONFIG" ]]; then
     jq --exit-status --arg registry "$OSMO_IMAGE_PULL_REGISTRY" \
         '.auths[$registry] as $auth | if $auth then {auths:{($registry):$auth}} else error("registry credentials not found") end' \

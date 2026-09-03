@@ -46,9 +46,9 @@ variable "owner" {
 }
 
 variable "cluster_name" {
-  description = "Optional AKS cluster name. The single-plane example generates one when omitted; other callers retain osmo-cluster."
+  description = "Name of the AKS cluster"
   type        = string
-  default     = null
+  default     = "osmo-cluster"
 }
 
 variable "resource_group_name" {

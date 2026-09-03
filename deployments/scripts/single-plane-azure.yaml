@@ -40,6 +40,10 @@ externalDependencies:
     authentication:
       type: sdkDefault
 secrets:
+  serviceAuth:
+    managementMode: osmo
+    bootstrap:
+      enabled: true
   postgresql:
     existingSecret: osmo-postgresql
   valkey:

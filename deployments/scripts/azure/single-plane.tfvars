@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Non-secret Terraform inputs for the Azure single-plane deployment example.
-cluster_name                           = null
+cluster_name                           = "osmo-cluster"
 postgres_password                      = null
 single_plane_workload_identity_enabled = true
 postgres_password_generation_enabled   = true

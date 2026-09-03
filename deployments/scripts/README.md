@@ -46,10 +46,10 @@ Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--
 an isolated sandbox. Run it only inside a newly created `azure-sandbox assume`
 subshell. The only required input is `TF_RESOURCE_GROUP` (the Terraform-style
 alias `TF_VAR_resource_group_name` is also accepted), naming the existing
-sandbox resource group. Terraform generates a stable cluster name and
-PostgreSQL password in isolated, resource-group-specific local state. The
-script explicitly applies the non-secret Terraform settings in
-`azure/single-plane.tfvars`; `TF_CLUSTER_NAME` remains an optional override.
+sandbox resource group. The checked-in `azure/single-plane.tfvars` sets the
+AKS cluster name to `osmo-cluster`, and Terraform generates the PostgreSQL
+password in isolated, resource-group-specific local state. `TF_CLUSTER_NAME`
+remains an optional override.
 
 ```bash
 ~/workspace/azure-sandbox create
