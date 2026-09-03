@@ -145,8 +145,8 @@ osmo workflow query <workflow-id> --format-type json
 ```
 
 Repeat the query until the workflow status is `COMPLETED`.
-The workflow passes a marker between its two tasks through the configured
-object store, so completion validates both upload and download access.
+The workflow runs a small Alpine container, so completion validates CPU
+scheduling and backend status reporting.
 
 ### Troubleshooting and cleanup
 

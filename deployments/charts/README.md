@@ -30,9 +30,9 @@ For an existing development cluster with KAI Scheduler, the CloudNativePG
 operator, and a default dynamic StorageClass, install the complete browser,
 CLI, API, and CPU workflow experience with the chart defaults:
 
-Before running Helm, generate the shared service-auth identity and create the
-required `osmo-service-auth` Secret by following the
-[`osmo` installation steps](osmo/README.md#install-osmo).
+No service-auth Secret needs to be created before installation. The chart's
+enabled-by-default bootstrap Job generates the shared development identity and
+creates the retained `osmo-service-auth` Secret directly in Kubernetes.
 
 ```bash
 helm dependency build deployments/charts/osmo
@@ -44,14 +44,16 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-After the first installation bootstraps the retained master-encryption-key
-Secret, disable its one-time bootstrap Job and Secret-creation permission:
+After the first installation bootstraps the retained master-encryption-key and
+service-auth Secrets, disable both one-time bootstrap Jobs and their
+Secret-creation permissions:
 
 ```bash
 helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
   --namespace osmo \
   --reuse-values \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+  --set secrets.serviceAuth.bootstrap.enabled=false \
   --wait \
   --timeout 20m
 ```
