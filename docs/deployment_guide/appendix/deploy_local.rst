@@ -62,7 +62,7 @@ Install the following tools on your workstation:
 * `Docker <https://docs.docker.com/get-started/get-docker/>`_ - Container runtime (>=28.3.2)
 * `KIND <https://kind.sigs.k8s.io/docs/user/quick-start/#installation>`_ - Kubernetes in Docker (>=0.29.0)
 * `kubectl <https://kubernetes.io/docs/tasks/tools/>`_ - Kubernetes command-line tool (>=1.32.2)
-* `helm <https://helm.sh/docs/intro/install/>`_ - Helm 3 package manager (>=3.16.2)
+* `helm <https://helm.sh/docs/intro/install/>`_ - Helm package manager (>=3.16.2)
 
 The resulting cluster requires Kubernetes 1.30 or newer and a default dynamic
 ``StorageClass``.
@@ -127,6 +127,9 @@ service worker maps gateway NodePort ``30080`` to host port ``80``.
           nodeRegistration:
             kubeletExtraArgs:
               node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
+        extraMounts:
+          - hostPath: /tmp/localstack-s3
+            containerPath: /var/lib/localstack
       - role: worker
         kubeadmConfigPatches:
         - |
@@ -225,6 +228,9 @@ If your workstation does not have a GPU, create a standard CPU-only cluster.
           nodeRegistration:
             kubeletExtraArgs:
               node-labels: "node_group=data"
+        extraMounts:
+          - hostPath: /tmp/localstack-s3
+            containerPath: /var/lib/localstack
       - role: worker
         kubeadmConfigPatches:
         - |
@@ -263,8 +269,7 @@ Install cluster dependencies
 
 Install KAI Scheduler v0.12.10 for OSMO workflow scheduling, then install the
 CloudNativePG operator chart version 0.29.0 for the embedded PostgreSQL
-cluster. Wait for KAI's pods directly because its ``SchedulingShard`` custom
-resource can remain in a reconciling state after the scheduler is ready:
+cluster:
 
 .. code-block:: bash
 
@@ -274,9 +279,8 @@ resource can remain in a reconciling state after the scheduler is ready:
      --create-namespace -n kai-scheduler \
      --set global.nodeSelector.node_group=kai-scheduler \
      --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
-     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true"
-   kubectl --namespace kai-scheduler wait \
-     --for=condition=Ready pods --all --timeout=10m
+     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
+     --wait
 
    helm repo add cnpg https://cloudnative-pg.github.io/charts
    helm repo update cnpg
@@ -306,26 +310,6 @@ install it without a profile or values overlay:
      --create-namespace \
      --wait \
      --wait-for-jobs \
-     --timeout 20m
-
-The enabled-by-default service-auth bootstrap Job generates the shared
-development identity directly in Kubernetes and creates the retained
-``osmo-service-auth`` Secret without putting private key material in Helm
-values, rendered manifests, or release state. The ``--wait-for-jobs`` option
-waits for that initialization to succeed.
-
-After the first installation creates the retained master-encryption-key and
-service-auth Secrets, disable both one-time bootstrap Jobs and their temporary
-Secret-creation permissions while retaining the other release values:
-
-.. code-block:: bash
-
-   helm upgrade osmo deployments/charts/osmo \
-     --namespace osmo \
-     --reuse-values \
-     --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-     --set secrets.serviceAuth.bootstrap.enabled=false \
-     --wait \
      --timeout 20m
 
 Log in and run a workflow
