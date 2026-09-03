@@ -315,10 +315,11 @@ def registry_auth(url: str, username: Optional[str] = None,
     try:
         response = requests.head(url, timeout=TIMEOUT)
 
-        # Step 2: If the registry requires authorization it will return a 401 Unauthorized HTTP
-        # response with information on how to authenticate. Any other non-200 response is returned
-        # unchanged so the caller can classify it (missing manifest, rate limit, server error).
-        if response.status_code != 401:
+        # Step 2: A registry says how to authenticate with a WWW-Authenticate challenge, normally
+        # on a 401. Registries that conceal private repositories answer 404 with the same
+        # challenge, so run the token exchange whenever one is present and return anything else
+        # unchanged for the caller to classify (missing manifest, rate limit, server error).
+        if response.status_code == 200 or 'www-authenticate' not in response.headers:
             return response
 
         # Step 3: The registry client makes a request to the authorization service

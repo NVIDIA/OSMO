@@ -1202,9 +1202,10 @@ class TestStorageConvert(unittest.TestCase):
 class FakeRegistryResponse:
     """Minimal stand-in for a registry manifest response."""
 
-    def __init__(self, status_code: int, payload=None):
+    def __init__(self, status_code: int, payload=None, headers=None):
         self.status_code = status_code
         self._payload = payload
+        self.headers = headers if headers is not None else {}
 
     def json(self):
         if self._payload is None:
@@ -1300,7 +1301,7 @@ class TestRegistryAuthFailures(unittest.TestCase):
             with self.assertRaises(osmo_errors.OSMORegistryUnavailableError):
                 common.registry_auth('https://registry-1.docker.io:443/v2/a/b/manifests/1')
 
-    def test_unauthenticated_404_is_returned_for_the_caller_to_classify(self):
+    def test_404_without_an_auth_challenge_is_returned_for_the_caller_to_classify(self):
         not_found = FakeRegistryResponse(404, _manifest_unknown_body())
 
         with mock.patch.object(common.requests, 'head', return_value=not_found):
@@ -1308,6 +1309,26 @@ class TestRegistryAuthFailures(unittest.TestCase):
                 'https://registry-1.docker.io:443/v2/a/b/manifests/1')
 
         self.assertIs(response, not_found)
+
+    def test_concealed_private_repository_404_authenticates_with_credentials(self):
+        """A registry that hides private repositories answers 404 with an auth challenge."""
+        concealed = FakeRegistryResponse(404, _manifest_unknown_body(), headers={
+            'www-authenticate':
+                'Bearer realm="https://auth.example.com/token",service="registry"'})
+        token_response = FakeRegistryResponse(200, {'token': 'secret-token'})
+        manifest = FakeRegistryResponse(200)
+
+        with mock.patch.object(common.requests, 'head', return_value=concealed), \
+             mock.patch.object(common.requests, 'get',
+                               side_effect=[token_response, manifest]) as registry_get:
+            response = common.registry_auth(
+                'https://registry.example.com:443/v2/team/app/manifests/1',
+                'user', 'password')
+
+        self.assertIs(response, manifest)
+        self.assertEqual(registry_get.call_count, 2)
+        self.assertEqual(
+            registry_get.call_args.kwargs['headers']['Authorization'], 'Bearer secret-token')
 
 
 if __name__ == '__main__':
