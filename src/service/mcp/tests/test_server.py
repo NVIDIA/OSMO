@@ -35,7 +35,7 @@ from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from src.lib.utils import login
+from src.service.mcp.tests import protocol_harness
 from src.service.mcp import (
     gateway,
     request_body,
@@ -47,10 +47,9 @@ from src.service.mcp import (
 
 class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
-    def test_create_application_direct_mode_uses_header_middleware(self) -> None:
+    def test_create_application_installs_the_body_limit_middleware(self) -> None:
         application = mock.Mock()
         protocol_server = mock.Mock()
-        protocol_server.auth = None
         protocol_server.http_app.return_value = application
 
         self.assertIs(server.create_application(protocol_server), application)
@@ -62,31 +61,6 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             host_origin_protection='auto',
             allowed_origins=None,
         )
-        self.assertEqual(application.add_middleware.call_args_list, [
-            mock.call(
-                request_body.RequestBodyLimitMiddleware,
-                path='/mcp',
-                max_body_bytes=request_body.MAX_MCP_REQUEST_BODY_BYTES,
-                max_concurrent_requests=(
-                    request_body.MAX_CONCURRENT_MCP_REQUESTS
-                ),
-                body_timeout_seconds=(
-                    request_body.MCP_REQUEST_BODY_TIMEOUT_SECONDS
-                ),
-            ),
-            mock.call(
-                request_context.RequestContextMiddleware,
-                path='/mcp',
-            ),
-        ])
-
-    def test_create_application_oidc_mode_skips_header_middleware(self) -> None:
-        application = mock.Mock()
-        protocol_server = mock.Mock()
-        protocol_server.auth = mock.sentinel.auth_provider
-        protocol_server.http_app.return_value = application
-
-        self.assertIs(server.create_application(protocol_server), application)
         self.assertEqual(application.add_middleware.call_args_list, [
             mock.call(
                 request_body.RequestBodyLimitMiddleware,
@@ -125,7 +99,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
     @staticmethod
     def _body_limit_application() -> Starlette:
-        mcp_server = server.create_mcp_server()
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def accept_request_body(padding: str) -> dict[str, int]:
@@ -207,8 +181,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         headers = {
             'Accept': 'application/json, text/event-stream',
             'Content-Type': 'application/json',
-            login.OSMO_AUTH_HEADER: 'Bearer body-limit-secret',
-            login.OSMO_USER_HEADER: 'body-limit-user',
+            'Authorization': 'Bearer body-limit-secret',
         }
         if declared_size is not None:
             headers['Content-Length'] = str(declared_size)
@@ -356,7 +329,11 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn((b'retry-after', b'1'), response_start['headers'])
 
-    async def test_invalid_context_is_rejected_before_body_is_read(self) -> None:
+    async def test_unauthenticated_request_is_rejected_after_body_buffering(
+        self,
+    ) -> None:
+        """FastMCP's auth runs inside the route, so the outermost
+        RequestBodyLimitMiddleware buffers the bounded body first."""
         body_reads = 0
 
         async def receive() -> Message:
@@ -368,11 +345,12 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                 'more_body': False,
             }
 
-        application = server.create_application(server.create_mcp_server())
+        application = server.create_application(
+            server.create_mcp_server(protocol_harness.any_token_verifier()))
         messages = await self._invoke_asgi(application, receive)
 
-        self.assertEqual(self._asgi_status(messages), 400)
-        self.assertEqual(body_reads, 0)
+        self.assertEqual(self._asgi_status(messages), 401)
+        self.assertEqual(body_reads, 1)
 
     async def test_non_post_mcp_requests_do_not_open_streams(self) -> None:
         body_reads = 0
@@ -382,7 +360,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
             body_reads += 1
             return {'type': 'http.request', 'body': b'', 'more_body': False}
 
-        application = server.create_application(server.create_mcp_server())
+        application = server.create_application(
+            server.create_mcp_server(protocol_harness.any_token_verifier()))
         messages = await self._invoke_asgi(
             application,
             receive,
@@ -405,7 +384,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn((b'allow', b'POST'), response_start['headers'])
 
     async def test_health_endpoints(self) -> None:
-        application = server.create_application(server.create_mcp_server())
+        application = server.create_application(
+            server.create_mcp_server(protocol_harness.any_token_verifier()))
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=application),
@@ -422,16 +402,15 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ready_response.json(), {'status': 'ok'})
 
     async def test_initialize_and_tool_catalog(self) -> None:
-        mcp_server = server.create_mcp_server()
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
         self.assertFalse(mcp_server.strict_input_validation)
-        self.assertIsNone(mcp_server.auth)
+        self.assertIsNotNone(mcp_server.auth)
 
         application = server.create_application(mcp_server)
         headers = {
             'Accept': 'application/json, text/event-stream',
             'Content-Type': 'application/json',
-            login.OSMO_AUTH_HEADER: 'Bearer test-token-value',
-            login.OSMO_USER_HEADER: 'test-user',
+            'Authorization': 'Bearer test-token-value',
         }
         initialize_request = {
             'jsonrpc': '2.0',
@@ -486,13 +465,12 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_request_context_reaches_fastmcp_tool(self) -> None:
-        mcp_server = server.create_mcp_server()
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def inspect_request_context() -> dict[str, str | bool | None]:
             credentials = request_context.get_request_credentials()
             return {
-                'user_name': credentials.user_name,
                 'request_id': credentials.request_id,
                 'has_bearer': credentials.authorization_header.lower().startswith(
                     'bearer '
@@ -503,8 +481,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         headers = {
             'Accept': 'application/json, text/event-stream',
             'Content-Type': 'application/json',
-            login.OSMO_AUTH_HEADER: 'Bearer tool-test-secret',
-            login.OSMO_USER_HEADER: 'tool-user@example.com',
+            'Authorization': 'Bearer tool-test-secret',
             'x-request-id': 'tool-request-123',
         }
         request = {
@@ -525,13 +502,12 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         response_text = response.text
-        self.assertIn('tool-user@example.com', response_text)
         self.assertIn('tool-request-123', response_text)
         self.assertNotIn('tool-test-secret', response_text)
         self.assertFalse(response.json()['result']['isError'])
 
     async def test_tool_error_cannot_reflect_request_credentials(self) -> None:
-        mcp_server = server.create_mcp_server()
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def reflect_tool_error() -> None:
@@ -551,8 +527,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                     headers={
                         'Accept': 'application/json, text/event-stream',
                         'Content-Type': 'application/json',
-                        login.OSMO_AUTH_HEADER: f'Bearer {bearer_secret}',
-                        login.OSMO_USER_HEADER: 'tool-user@example.com',
+                        'Authorization': f'Bearer {bearer_secret}',
                     },
                     json={
                         'jsonrpc': '2.0',
@@ -571,7 +546,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(bearer_secret, response.text)
 
     async def test_oversized_final_tool_result_is_rejected(self) -> None:
-        mcp_server = server.create_mcp_server()
+        mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
 
         @mcp_server.tool()
         async def oversized_result() -> dict[str, str]:
@@ -588,8 +563,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                     headers={
                         'Accept': 'application/json, text/event-stream',
                         'Content-Type': 'application/json',
-                        login.OSMO_AUTH_HEADER: 'Bearer result-size-secret',
-                        login.OSMO_USER_HEADER: 'tool-user@example.com',
+                        'Authorization': 'Bearer result-size-secret',
                     },
                     json={
                         'jsonrpc': '2.0',
@@ -609,7 +583,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('result-size-secret', response.text)
 
     def test_runtime_config_requires_https_gateway_origin(self) -> None:
-        config = server.MCPServiceConfig(
+        config = protocol_harness.service_config(
             gateway_url='https://gateway.test:8443',
         )
         self.assertEqual(str(config.gateway_url), 'https://gateway.test:8443/')
@@ -627,13 +601,12 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         for invalid_url in invalid_urls:
             with self.subTest(url=invalid_url):
                 with self.assertRaises(pydantic.ValidationError):
-                    server.MCPServiceConfig(gateway_url=invalid_url)
+                    protocol_harness.service_config(gateway_url=invalid_url)
 
         for invalid_timeout in (0, -1, 61):
             with self.subTest(timeout=invalid_timeout):
                 with self.assertRaises(pydantic.ValidationError):
-                    server.MCPServiceConfig(
-                        gateway_url='https://gateway.test',
+                    protocol_harness.service_config(
                         request_timeout_seconds=invalid_timeout,
                     )
 
@@ -660,10 +633,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('user:', output.getvalue())
 
     async def test_runtime_application_owns_gateway_context(self) -> None:
-        config = server.MCPServiceConfig(
-            gateway_url='https://gateway.test',
-            request_timeout_seconds=7,
-        )
+        config = protocol_harness.service_config(request_timeout_seconds=7)
         app_context = gateway.AppContext(gateway=mock.Mock())
         lifecycle_events: list[str] = []
 
@@ -684,7 +654,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
 
         with mock.patch.object(
                 gateway, 'create_app_context', new=create_app_context):
-            application = server.create_runtime_application(config)
+            application = server.create_runtime_application(
+                config, auth_provider=protocol_harness.any_token_verifier())
             async with application.router.lifespan_context(application):
                 self.assertIs(application.state.mcp_app_context, app_context)
                 self.assertEqual(lifecycle_events, ['entered'])
@@ -698,12 +669,12 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         Supplying any explicit allowlist disables FastMCP's same-origin
         fallback for non-loopback hosts, which would otherwise reject consent.
         """
-        config = server.MCPServiceConfig(
-            gateway_url='https://gateway.test',
+        config = protocol_harness.service_config(
             allowed_origins=['http://localhost:6274'],
         )
         with mock.patch.object(server, 'create_application') as create:
-            server.create_runtime_application(config)
+            server.create_runtime_application(
+                config, auth_provider=protocol_harness.any_token_verifier())
         self.assertEqual(
             create.call_args.args[1],
             ['https://gateway.test', 'http://localhost:6274'],
@@ -712,22 +683,20 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
     def test_allowed_origins_drops_blank_entries(self) -> None:
         """An unset comma-separated variable must not become one blank origin."""
         self.assertEqual(
-            server.MCPServiceConfig(
-                gateway_url='https://gateway.test',
+            protocol_harness.service_config(
                 allowed_origins=[''],
             ).allowed_origins,
             [],
         )
         self.assertEqual(
-            server.MCPServiceConfig(
-                gateway_url='https://gateway.test',
+            protocol_harness.service_config(
                 allowed_origins=[' http://localhost:6274 ', 'http://[::1]:6274'],
             ).allowed_origins,
             ['http://localhost:6274', 'http://[::1]:6274'],
         )
 
     async def test_runtime_application_cleans_up_in_dependency_order(self) -> None:
-        config = server.MCPServiceConfig(gateway_url='https://gateway.test')
+        config = protocol_harness.service_config()
         app_context = gateway.AppContext(gateway=mock.Mock())
         lifecycle_events: list[str] = []
 
@@ -768,7 +737,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                 new=create_app_context,
             ),
         ):
-            application = server.create_runtime_application(config)
+            application = server.create_runtime_application(
+                config, auth_provider=protocol_harness.any_token_verifier())
             with self.assertRaisesRegex(RuntimeError, 'lifespan failure'):
                 async with application.router.lifespan_context(application):
                     raise RuntimeError('lifespan failure')

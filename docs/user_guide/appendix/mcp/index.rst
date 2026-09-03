@@ -45,19 +45,16 @@ MCP uses the signed-in user's existing OSMO access. Users have the same roles,
 accessible pools, and API permissions as when they use OSMO through the CLI.
 MCP does not grant additional access or elevate permissions.
 
-Authentication depends on the deployment mode:
+Authentication works as follows:
 
-* In the recommended OIDC proxy mode, the user configures only the MCP URL.
-  FastMCP handles OAuth discovery, client identification with Client ID
-  Metadata Documents (CIMD) or registration with Dynamic Client Registration
-  (DCR), Proof Key for Code Exchange (PKCE), browser sign-in, token exchange,
-  and refresh inside the existing MCP process.
-* In direct identity-provider mode, the administrator can also require a public
-  client ID, scopes, and callback configuration. Gateway requires
-  ``mcp:Access`` before forwarding MCP protocol requests in this mode.
+* The user configures only the MCP URL. FastMCP handles OAuth discovery,
+  client identification with Client ID Metadata Documents (CIMD) or
+  registration with Dynamic Client Registration (DCR), Proof Key for Code
+  Exchange (PKCE), browser sign-in, token exchange, and refresh inside the
+  existing MCP process.
 
-In either mode, successful login does not authorize every tool. Each tool's
-OSMO API request is checked separately. Workflow operations are authorized
+Successful login does not authorize every tool. Each tool's OSMO API request
+is checked separately. Workflow operations are authorized
 against the owning or target pool, so a user can connect to MCP and inspect a
 profile while still being unable to submit to a restricted pool.
 

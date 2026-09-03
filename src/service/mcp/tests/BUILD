@@ -38,7 +38,6 @@ osmo_py_library(
     deps = [
         requirement("httpx"),
         requirement("starlette"),
-        "//src/lib/utils:login",
         "//src/service/mcp:gateway",
         "//src/service/mcp:mcp_service_lib",
         "//src/service/mcp:protocol",
@@ -164,11 +163,12 @@ osmo_py_test(
     name = "test_protocol",
     srcs = ["test_protocol.py"],
     deps = [
+        ":protocol_harness",
         "//src/service/mcp:fastmcp_runtime",
         requirement("httpx"),
         requirement("mcp"),
         requirement("pydantic"),
-        "//src/lib/utils:login",
+        "//src/service/mcp:mcp_service_lib",
         "//src/service/mcp:protocol",
         "//src/service/mcp:request_context",
         "//src/service/mcp:tool_errors",
@@ -179,6 +179,7 @@ osmo_py_test(
     name = "test_profile",
     srcs = ["test_profile.py"],
     deps = [
+        ":protocol_harness",
         requirement("httpx"),
         "//src/lib/utils:login",
         "//src/service/mcp:mcp_service_lib",
@@ -214,12 +215,12 @@ osmo_py_test(
     name = "test_server",
     srcs = ["test_server.py"],
     deps = [
+        ":protocol_harness",
         "//src/service/mcp:fastmcp_runtime",
         requirement("httpx"),
         requirement("mcp"),
         requirement("pydantic"),
         requirement("starlette"),
-        "//src/lib/utils:login",
         "//src/service/mcp:gateway",
         "//src/service/mcp:request_body",
         "//src/service/mcp:request_context",

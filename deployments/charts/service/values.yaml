@@ -177,18 +177,6 @@ services:
     ##
     requestTimeoutSeconds: 10
 
-    ## OAuth authorization-server issuer identifiers advertised by the public
-    ## protected-resource metadata document. Configure the issuer for the
-    ## separately registered public/native MCP OAuth client.
-    ##
-    authorizationServers: []
-
-    ## OAuth scopes requested by MCP clients. These values are advertised as
-    ## scopes_supported in RFC 9728 protected-resource metadata and should
-    ## include the delegated scope required to access this MCP resource.
-    ##
-    scopes: []
-
     ## Browser Origins permitted to call /mcp. Native MCP clients normally omit
     ## Origin and remain allowed. When this list is empty, any present Origin is
     ## rejected with 403.
@@ -202,10 +190,16 @@ services:
     ## identity-provider access token to the OSMO Gateway for normal RBAC.
     ##
     oidcProxy:
-      enabled: false
-
       ## Upstream OpenID Connect provider. Register the fixed redirect URL
       ## <resourceUrl origin>/mcp/auth/callback on this confidential application.
+      ##
+      ## clientSecretFile is derived from existingSecret.mountPath when an
+      ## existing Secret supplies the credential. State it only when the secret
+      ## arrives another way, such as Vault injection.
+      ##
+      ## accessTokenIssuer is optional. Leave it empty unless the provider
+      ## issues access tokens from an issuer its discovery document does not
+      ## advertise, as an Entra application configured for v1 tokens does.
       ##
       oidc:
         configUrl: ""
@@ -237,7 +231,10 @@ services:
         name: ""
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
-        redisPasswordKey: redis-password
+        ## Set only when the Redis in services.redis requires a password. The
+        ## file path is derived from mountPath; naming the key is what opts in.
+        ##
+        redisPasswordKey: ""
 
     ## Additional pod labels and annotations.
     ##
@@ -800,7 +797,6 @@ services:
           - "app:*"
           - "auth:Token"
           - "credentials:*"
-          - "mcp:Access"
           - "pool:List"
           - "profile:Read"
           - "profile:Update"

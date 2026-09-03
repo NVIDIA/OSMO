@@ -19,12 +19,13 @@ oetf_smoke_test(
     tags = ["api", "kind"],
 )
 
-# Public KIND has no JWT issuer and keeps MCP disabled. Run this target against
-# an MCP-enabled deployment with token authentication.
+# Tagged by what it needs deployed, not by how it authenticates. The previous
+# `auth` tag meant the kind environment's exclude_tags dropped this suite
+# everywhere it ran, so it never executed and its expectations went stale.
 oetf_smoke_test(
     name = "mcp-checks",
     src = "mcp_checks.py",
-    tags = ["api", "auth", "mcp"],
+    tags = ["api", "mcp"],
 )
 
 # auth-checks stays internal — public quick-start chart ships no JWT issuer

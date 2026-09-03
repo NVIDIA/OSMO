@@ -43,7 +43,6 @@ const (
 	resourceTypeConfig      = "config"
 	resourceTypeProfile     = "profile"
 	resourceTypeWorkflow    = "workflow"
-	resourceTypeMCP         = "mcp"
 	resourceTypeInternal    = "internal"
 )
 
@@ -60,7 +59,6 @@ const (
 	ResourceTypeConfig      ResourceType = resourceTypeConfig
 	ResourceTypeProfile     ResourceType = resourceTypeProfile
 	ResourceTypeWorkflow    ResourceType = resourceTypeWorkflow
-	ResourceTypeMCP         ResourceType = resourceTypeMCP
 	ResourceTypeInternal    ResourceType = resourceTypeInternal
 )
 
@@ -110,9 +108,6 @@ const (
 	ActionAuthLogin   = resourceTypeAuth + ":Login"
 	ActionAuthRefresh = resourceTypeAuth + ":Refresh"
 	ActionAuthToken   = resourceTypeAuth + ":Token"
-
-	// MCP actions
-	ActionMCPAccess = resourceTypeMCP + ":Access"
 
 	// System actions (public)
 	ActionSystemHealth  = resourceTypeSystem + ":Health"
@@ -286,11 +281,6 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/auth/access_token/*", Methods: []string{"*"}},
 		{Path: "/api/auth/user/*/access_token", Methods: []string{"*"}},
 		{Path: "/api/auth/user/*/access_token/*", Methods: []string{"*"}},
-	},
-
-	// ==================== MCP ====================
-	ActionMCPAccess: {
-		{Path: "/mcp", Methods: []string{"GET", "POST", "DELETE"}},
 	},
 
 	// ==================== SYSTEM (PUBLIC) ====================
