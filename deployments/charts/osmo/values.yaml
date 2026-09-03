@@ -636,9 +636,37 @@ services:
     port: 8000
     resourceUrl: ''
     requestTimeoutSeconds: 10
-    authorizationServers: []
-    scopes: []
     allowedOrigins: []
+    ## Built-in FastMCP OIDC proxy. MCP authenticates every caller itself and
+    ## relays the verified upstream token to the Gateway for normal RBAC.
+    ##
+    ## Only four values have no default: services.mcp.resourceUrl, oidc.configUrl,
+    ## oidc.clientId, and a Secret holding the client secret. Secret file paths
+    ## follow existingSecret.mountPath; Redis host, port and TLS come from
+    ## services.redis; accessTokenIssuer is needed only for a provider whose
+    ## access tokens are issued from somewhere its discovery document does not
+    ## advertise, as an application configured for v1-format tokens is.
+    ##
+    oidcProxy:
+      oidc:
+        configUrl: ''
+        clientId: ''
+        clientSecretFile: ''
+        accessTokenIssuer: ''
+        accessTokenRequiredScope: access_as_user
+      accessTokenTtlSeconds: 600
+      refreshTokenTtlSeconds: 28800
+      upstreamTimeoutSeconds: 10
+      redis:
+        dbNumber: 1
+        keyPrefix: osmo:mcp-fastmcp
+        connectTimeoutSeconds: 3
+        operationTimeoutSeconds: 5
+      existingSecret:
+        name: ''
+        mountPath: /etc/osmo/mcp-auth
+        clientSecretKey: client-secret
+        redisPasswordKey: ''
     service:
       labels: {}
       annotations: {}

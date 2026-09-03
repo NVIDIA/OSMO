@@ -5,10 +5,12 @@ services:
   mcp:
     enabled: true
     resourceUrl: https://osmo.example.com/mcp
-    authorizationServers:
-      - https://issuer.example.com
-    scopes:
-      - mcp:Access
+    oidcProxy:
+      oidc:
+        configUrl: https://issuer.example.com/.well-known/openid-configuration
+        clientId: example-mcp-client
+      existingSecret:
+        name: mcp-oidc-proxy-secrets
 
 gateway:
   authz:
