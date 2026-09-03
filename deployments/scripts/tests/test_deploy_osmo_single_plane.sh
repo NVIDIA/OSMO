@@ -175,6 +175,7 @@ printf '%s\n' '{"auths":{"unrelated.example.org":{"auth":"wrong-auth"},"registry
 script="${TEST_SRCDIR}/_main/deployments/scripts/deploy-osmo-single-plane.sh"
 static_values="${TEST_SRCDIR}/_main/deployments/scripts/single-plane-azure.yaml"
 terraform_vars="${TEST_SRCDIR}/_main/deployments/scripts/azure/single-plane.tfvars"
+terraform_example="${TEST_SRCDIR}/_main/deployments/terraform/azure/example/example.tf"
 [[ -x "$script" ]] || fail "deployment script is absent"
 
 export BACKEND_TOKEN_STATE=absent DEFAULT_ADMIN_SECRET_STATE=absent
@@ -219,6 +220,7 @@ assert_contains "$static_values" 'existingSecret: osmo-default-admin'
 assert_not_contains "$static_values" 'allowMissing: true'
 assert_not_contains "$static_values" 'roles: osmo-admin'
 assert_not_contains "$static_values" '${'
+assert_contains "$terraform_example" 'name                          = "${local.name}-postgres-${random_string.suffix.result}"'
 
 for secret in postgres-secret-sentinel redis-secret-sentinel storage-key-sentinel \
         backend-token-sentinel docker-auth-sentinel "$ADMIN_PASSWORD_SENTINEL" \

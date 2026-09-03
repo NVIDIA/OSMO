@@ -358,7 +358,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
 }
 
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                          = "${local.name}-postgres"
+  name                          = "${local.name}-postgres-${random_string.suffix.result}"
   resource_group_name           = data.azurerm_resource_group.main.name
   location                      = data.azurerm_resource_group.main.location
   version                       = var.postgres_version
