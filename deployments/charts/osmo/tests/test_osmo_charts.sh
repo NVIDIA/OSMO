@@ -1230,6 +1230,49 @@ test_control_umbrella() {
         "mountPath: /etc/osmo/secrets/workflow-log-credential"
     require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
         "mountPath: /etc/osmo/secrets/workflow-app-credential"
+
+    helm_template keyed-swift-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string secrets.objectStorage.credentialSecretRefs.workflows.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.workflows.key=workflows.yaml \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.key=logs.yaml \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.key=workflows.yaml \
+        >"$TEST_DIRECTORY/keyed-swift-secret.yaml"
+    resource_document "$TEST_DIRECTORY/keyed-swift-secret.yaml" Deployment \
+        "keyed-swift-secret-osmo-api" \
+        >"$TEST_DIRECTORY/keyed-swift-secret-api.yaml"
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'secretName: "shared-storage-credentials"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'key: "workflows.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'path: "workflows.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'key: "logs.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'path: "logs.yaml"' 1
+
+    helm_template mixed-key-swift-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string secrets.objectStorage.credentialSecretRefs.workflows.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.key=logs.yaml \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.key=apps.yaml \
+        >"$TEST_DIRECTORY/mixed-key-swift-secret.yaml"
+    resource_document "$TEST_DIRECTORY/mixed-key-swift-secret.yaml" Deployment \
+        "mixed-key-swift-secret-osmo-api" \
+        >"$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml"
+    require_occurrences "$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml" \
+        'secretName: "shared-storage-credentials"' 1
+    require_not_contains "$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml" \
+        'key: "logs.yaml"'
+    require_not_contains "$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml" \
+        'key: "apps.yaml"'
     resource_document "$TEST_DIRECTORY/external-swift.yaml" Deployment \
         "external-swift-osmo-gateway-oauth2-proxy" \
         >"$TEST_DIRECTORY/external-swift-oauth.yaml"

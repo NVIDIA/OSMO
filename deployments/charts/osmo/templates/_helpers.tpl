@@ -429,15 +429,30 @@ data:
     - key: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
       path: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
 {{- else }}
-{{- $secretNames := dict }}
+{{- $secretReferences := dict }}
 {{- range $locationName := list "workflows" "logs" "apps" }}
 {{- $reference := include "osmo.objectStorage.credentialSecretRef" (dict "root" $ "name" $locationName) | fromYaml }}
-{{- if $reference.name }}{{- $_ := set $secretNames $reference.name true }}{{- end }}
+{{- if $reference.name }}
+{{- $secretReference := get $secretReferences $reference.name | default (dict "allKeys" false "keys" (dict)) }}
+{{- if $reference.key }}
+{{- $_ := set $secretReference.keys $reference.key true }}
+{{- else }}
+{{- $_ := set $secretReference "allKeys" true }}
 {{- end }}
-{{- range $secretName, $_ := $secretNames }}
+{{- $_ := set $secretReferences $reference.name $secretReference }}
+{{- end }}
+{{- end }}
+{{- range $secretName, $secretReference := $secretReferences }}
 - name: object-storage-credentials-{{ $secretName | sha256sum | trunc 8 }}
   secret:
     secretName: {{ $secretName | quote }}
+{{- if not $secretReference.allKeys }}
+    items:
+{{- range $key, $_ := $secretReference.keys }}
+    - key: {{ $key | quote }}
+      path: {{ $key | quote }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
