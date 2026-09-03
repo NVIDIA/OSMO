@@ -634,7 +634,13 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             seen_registries[image_info.manifest_url] = response
             return response
 
-        # Authenticate with matching user credentials
+        # Rate limits and registry outages are not credential problems, and retrying with every
+        # credential only adds load to a registry that is already failing.
+        if response.status_code == 429 or response.status_code >= 500:
+            raise common.registry_manifest_error(image_info, response, workflow_id=self.name)
+
+        # A 404 still goes through the credential loop: registries that hide private
+        # repositories answer 404 until a credential authenticates.
         for _, registry_cred in connectors.PostgresConnector.get_instance()\
                 .get_matching_registry_creds(user, image_info):
             response = common.registry_auth(image_info.manifest_url,
@@ -644,11 +650,9 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
                 seen_registries[image_info.manifest_url] = response
                 return response
 
-        image_scope = common.image_registry_scope(image_info)
-        error_msgs = f'Unable to authenticate for pulling image {group_task.image}. ' +\
-            f'Please create a credential matching {image_scope} ' +\
-            'or check if the image exists.'
-        raise osmo_errors.OSMOCredentialError(error_msgs)
+        # Classify the most authenticated attempt so a missing tag is not reported as an
+        # authentication failure.
+        raise common.registry_manifest_error(image_info, response, workflow_id=self.name)
 
     def validate_data(self, user: str, group_task: task.TaskSpec, seen_uri_input: Set[str],
                       seen_uri_output: Set[str], disabled_data: List[str],

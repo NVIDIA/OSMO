@@ -49,13 +49,16 @@ class DockerRegistryContainer(network.NetworkAwareContainer,
     def start(self):
         return super(network.NetworkAwareContainer, self).start()
 
-    def create_image(self, image_name: str, tag: str = 'latest'):
+    def create_image(self, image_name: str, tag: str = 'latest') -> str:
         """
         Create an empty image in the registry for testing purposes.
 
         Args:
             image_name: The name of the image to create
             tag: The tag of the image to create (default: "latest")
+
+        Returns:
+            The manifest digest the registry assigned to the image.
         """
         registry_url = f'http://{self.get_registry()}'
 
@@ -142,6 +145,7 @@ class DockerRegistryContainer(network.NetworkAwareContainer,
             timeout=REGISTRY_TIMEOUT,
         )
         response.raise_for_status()
+        return response.headers['Docker-Content-Digest']
 
 
 class DockerRegistryFixture(network.NetworkFixture):
