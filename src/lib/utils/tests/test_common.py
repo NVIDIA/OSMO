@@ -25,6 +25,7 @@ from unittest import mock
 import uuid
 
 import pydantic
+import requests  # type: ignore
 
 from src.lib.utils import common, osmo_errors
 
@@ -1196,6 +1197,138 @@ class TestStorageConvert(unittest.TestCase):
         # Values above PiB still render in TiB since that's the max unit.
         result = common.storage_convert(5 * 1024 ** 5)
         self.assertTrue(result.endswith('TiB'))
+
+
+class FakeRegistryResponse:
+    """Minimal stand-in for a registry manifest response."""
+
+    def __init__(self, status_code: int, payload=None, headers=None):
+        self.status_code = status_code
+        self._payload = payload
+        self.headers = headers if headers is not None else {}
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError('no json body')
+        return self._payload
+
+
+def _manifest_unknown_body():
+    return {'errors': [{'code': 'MANIFEST_UNKNOWN', 'message': 'manifest unknown'}]}
+
+
+class TestRegistryManifestError(unittest.TestCase):
+    """ Tests that manifest responses are classified into specific error types. """
+
+    def _error(self, image: str, status_code: int, payload=None):
+        return common.registry_manifest_error(
+            common.docker_parse(image),
+            FakeRegistryResponse(status_code, payload),
+            workflow_id='wf-1')
+
+    def test_tag_404_is_an_image_not_found_error(self):
+        error = self._error('hijkzzz/molt:0.1', 404, _manifest_unknown_body())
+
+        self.assertIsInstance(error, osmo_errors.OSMOImageNotFoundError)
+        self.assertIn('Could not resolve image tag hijkzzz/molt:0.1', error.message)
+        self.assertIn('registry-1.docker.io', error.message)
+        self.assertIn('404 MANIFEST_UNKNOWN', error.message)
+        self.assertIn('immutable digest', error.message)
+        self.assertEqual(error.workflow_id, 'wf-1')
+
+    def test_tag_404_without_registry_error_body_still_classifies_as_not_found(self):
+        error = self._error('hijkzzz/molt:0.1', 404)
+
+        self.assertIsInstance(error, osmo_errors.OSMOImageNotFoundError)
+        self.assertIn('404', error.message)
+
+    def test_digest_404_reports_the_digest_rather_than_a_tag(self):
+        digest = 'sha256:' + 'f' * 64
+        error = self._error(f'hijkzzz/molt@{digest}', 404, _manifest_unknown_body())
+
+        self.assertIsInstance(error, osmo_errors.OSMOImageNotFoundError)
+        self.assertIn('digest', error.message)
+        self.assertNotIn('Could not resolve image tag', error.message)
+
+    def test_401_remains_an_authentication_error(self):
+        error = self._error('hijkzzz/molt:0.1', 401)
+
+        self.assertIsInstance(error, osmo_errors.OSMOCredentialError)
+        self.assertNotIsInstance(error, osmo_errors.OSMORegistryError)
+        self.assertIn('Unable to authenticate for pulling image', error.message)
+        self.assertIn('registry-1.docker.io/hijkzzz/molt', error.message)
+
+    def test_403_is_an_authorization_error(self):
+        error = self._error('hijkzzz/molt:0.1', 403)
+
+        self.assertIsInstance(error, osmo_errors.OSMOCredentialError)
+        self.assertIn('Not authorized to pull image hijkzzz/molt:0.1', error.message)
+
+    def test_429_is_a_registry_rate_limit_error(self):
+        error = self._error('hijkzzz/molt:0.1', 429)
+
+        self.assertIsInstance(error, osmo_errors.OSMORegistryRateLimitError)
+        self.assertIn('rate limited', error.message)
+
+    def test_500_is_a_registry_availability_error(self):
+        error = self._error('hijkzzz/molt:0.1', 503)
+
+        self.assertIsInstance(error, osmo_errors.OSMORegistryUnavailableError)
+        self.assertIn('registry-1.docker.io', error.message)
+        self.assertIn('503', error.message)
+
+    def test_unexpected_status_is_a_generic_registry_error(self):
+        error = self._error('hijkzzz/molt:0.1', 418)
+
+        self.assertIsInstance(error, osmo_errors.OSMORegistryError)
+        self.assertIn('418', error.message)
+
+
+class TestRegistryAuthFailures(unittest.TestCase):
+    """ Tests for transport failures and non-auth responses in registry_auth. """
+
+    def test_connection_error_is_a_registry_availability_error(self):
+        with mock.patch.object(
+                common.requests, 'head',
+                side_effect=requests.exceptions.ConnectionError('boom')):
+            with self.assertRaises(osmo_errors.OSMORegistryUnavailableError):
+                common.registry_auth('https://registry-1.docker.io:443/v2/a/b/manifests/1')
+
+    def test_timeout_is_a_registry_availability_error(self):
+        with mock.patch.object(
+                common.requests, 'head',
+                side_effect=requests.exceptions.ReadTimeout('slow')):
+            with self.assertRaises(osmo_errors.OSMORegistryUnavailableError):
+                common.registry_auth('https://registry-1.docker.io:443/v2/a/b/manifests/1')
+
+    def test_404_without_an_auth_challenge_is_returned_for_the_caller_to_classify(self):
+        not_found = FakeRegistryResponse(404, _manifest_unknown_body())
+
+        with mock.patch.object(common.requests, 'head', return_value=not_found):
+            response = common.registry_auth(
+                'https://registry-1.docker.io:443/v2/a/b/manifests/1')
+
+        self.assertIs(response, not_found)
+
+    def test_concealed_private_repository_404_authenticates_with_credentials(self):
+        """A registry that hides private repositories answers 404 with an auth challenge."""
+        concealed = FakeRegistryResponse(404, _manifest_unknown_body(), headers={
+            'www-authenticate':
+                'Bearer realm="https://auth.example.com/token",service="registry"'})
+        token_response = FakeRegistryResponse(200, {'token': 'secret-token'})
+        manifest = FakeRegistryResponse(200)
+
+        with mock.patch.object(common.requests, 'head', return_value=concealed), \
+             mock.patch.object(common.requests, 'get',
+                               side_effect=[token_response, manifest]) as registry_get:
+            response = common.registry_auth(
+                'https://registry.example.com:443/v2/team/app/manifests/1',
+                'user', 'password')
+
+        self.assertIs(response, manifest)
+        self.assertEqual(registry_get.call_count, 2)
+        self.assertEqual(
+            registry_get.call_args.kwargs['headers']['Authorization'], 'Bearer secret-token')
 
 
 if __name__ == '__main__':
