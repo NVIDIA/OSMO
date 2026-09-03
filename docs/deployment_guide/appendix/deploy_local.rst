@@ -299,25 +299,6 @@ default pool. CPU workflows use a pod template without a GPU resource key.
 GPU workflows select the GPU platform, which requests ``nvidia.com/gpu`` in
 both the user-container requests and limits. No values overlay is required.
 
-Generate the shared development service-auth identity with the published OSMO
-service image and create its Secret. The generator writes the private identity
-only to a permission-restricted temporary file and never prints it:
-
-.. code-block:: bash
-
-   OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
-   docker run --rm --user "$(id -u):$(id -g)" \
-     --entrypoint service-auth-bootstrap \
-     --volume "${OSMO_SERVICE_AUTH_DIRECTORY}:/output" \
-     nvcr.io/nvidia/osmo/service:latest \
-     generate --output /output/authentication-config.json
-   kubectl create namespace osmo \
-     --dry-run=client --output=yaml | kubectl apply -f -
-   kubectl --namespace osmo create secret generic \
-     osmo-service-auth \
-     --from-file="authentication-config.json=${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
-   rm -r "${OSMO_SERVICE_AUTH_DIRECTORY}"
-
 The chart defaults are the development Quickstart. Build its dependencies and
 install it without a profile or values overlay:
 

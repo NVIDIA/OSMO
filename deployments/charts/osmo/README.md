@@ -147,10 +147,9 @@ osmo workflow submit deployments/workflows/verify-object-storage.yaml \
 osmo workflow query <workflow-id> --format-type json
 ```
 
-Repeat the query for each identifier until both workflows are `COMPLETED`.
-The object-storage workflow passes a marker between its two tasks through the
-configured object store, so its completion validates both upload and download
-access.
+Repeat the query until the workflow status is `COMPLETED`.
+The workflow runs a small Alpine container, so completion validates CPU
+scheduling and backend status reporting.
 
 ### Troubleshooting and cleanup
 
