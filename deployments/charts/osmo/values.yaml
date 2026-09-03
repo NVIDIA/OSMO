@@ -277,6 +277,21 @@ secrets:
     rolloutNonce: ''
     keys:
       credentials: object-storage.yaml
+    # Use one per-location Secret reference only when existing credentials are
+    # already stored as separate Kubernetes Secrets. Empty key values load the
+    # Secret's individual data keys; a non-empty key loads one YAML document.
+    # Leave every reference empty when existingSecret supplies one shared
+    # credentials document.
+    credentialSecretRefs:
+      workflows:
+        name: ''
+        key: ''
+      logs:
+        name: ''
+        key: ''
+      apps:
+        name: ''
+        key: ''
   # Backend compute-plane authentication. Each credential selects exactly one
   # Kubernetes Secret source. Managed Secrets are generated and retained by a
   # short-lived Helm hook without placing token material in rendered manifests
@@ -1306,6 +1321,9 @@ gateway:
       type: NodePort
       port: 80
       nodePort: 30080
+      # Additional Service ports that target the existing Envoy listener.
+      # Useful for retaining a legacy 443 alias behind edge TLS termination.
+      extraPorts: []
       labels: {}
       annotations: {}
       loadBalancerClass: ''
@@ -1458,6 +1476,10 @@ gateway:
     scope: openid email profile
     passAccessToken: false
     redisSessionStore: true
+    # Null shares externalDependencies.valkey.database. Set an integer only
+    # when OAuth sessions intentionally use another database on the same
+    # Valkey endpoint.
+    redisDatabase: null
     extraArgs: []
     resources:
       requests:

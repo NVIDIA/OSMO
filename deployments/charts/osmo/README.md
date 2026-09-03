@@ -759,6 +759,14 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
 | `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
 
+External object-storage locations may use `s3://`, `azure://`, or `swift://`
+URIs, but all three locations must use the same scheme. The usual static
+credential form stores one YAML document in `secrets.objectStorage.existingSecret`.
+To reuse separate per-location Secrets, leave `existingSecret` empty and set
+all three `secrets.objectStorage.credentialSecretRefs`. An empty reference
+`key` loads the Secret's individual data keys; a non-empty key selects one YAML
+credential document. Do not configure both forms.
+
 Generated backend-token, MEK, and service-auth Secrets are intentionally
 retained because replacing them can disconnect the compute plane, make
 encrypted database fields unreadable, or invalidate the installation's signing
@@ -1031,6 +1039,15 @@ For direct-Helm development only, set
 `secrets.oauthCookieSecret.generate: true` and clear its `existingSecret`.
 Production and GitOps installations must use an existing Secret because
 generated values are stored in Helm release state.
+
+By default, OAuth sessions use `externalDependencies.valkey.database`. Set
+`gateway.oauth2Proxy.redisDatabase` only when the proxy intentionally uses a
+different database on the same Valkey endpoint and credential.
+
+Use `gateway.envoy.service.extraPorts` to retain additional in-cluster Service
+ports that target Envoy's existing listener. In particular, older service-chart
+releases expose port 443 as a plaintext alias behind edge TLS termination; an
+`extraPorts` entry can preserve that endpoint without enabling Envoy edge TLS.
 
 Cookie rotation invalidates browser sessions and must not leave replicas using
 different keys. Suspend the OAuth2 Proxy HPA, scale its Deployment to zero and

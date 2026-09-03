@@ -1202,6 +1202,69 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Secret \
         "osmo-backend-token"
 
+    helm_template external-swift "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        >"$TEST_DIRECTORY/external-swift.yaml"
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" ConfigMap \
+        "external-swift-osmo-api-config" \
+        >"$TEST_DIRECTORY/external-swift-config.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "swift://swift.example.com/AUTH_osmo/workflows/data"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "base_url: https://swift.example.com/v1/AUTH_osmo/workflows"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretName: workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretName: workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretName: workflow-app-credential"
+    require_not_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretKey: object-storage.yaml"
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" Deployment \
+        "external-swift-osmo-api" \
+        >"$TEST_DIRECTORY/external-swift-api.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-app-credential"
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" Deployment \
+        "external-swift-osmo-gateway-oauth2-proxy" \
+        >"$TEST_DIRECTORY/external-swift-oauth.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-oauth.yaml" \
+        "--redis-connection-url=rediss://external-valkey:6379/3"
+    require_not_contains "$TEST_DIRECTORY/external-swift-oauth.yaml" \
+        "SSL_CERT_FILE"
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" Service \
+        "external-swift-osmo-gateway" \
+        >"$TEST_DIRECTORY/external-swift-gateway-service.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-gateway-service.yaml" \
+        "name: https"
+    require_contains "$TEST_DIRECTORY/external-swift-gateway-service.yaml" \
+        "port: 443"
+
+    if helm_template partial-swift-secrets "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+            --set-string secrets.objectStorage.credentialSecretRefs.apps.name= \
+            >"$TEST_DIRECTORY/partial-swift-secrets.out" 2>&1; then
+        fail "expected partial per-location object-storage Secrets to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/partial-swift-secrets.out" \
+        "credentialSecretRefs must configure workflows, logs, and apps together"
+
+    if helm_template mixed-swift-secrets "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+            --set-string secrets.objectStorage.existingSecret=shared-object-storage \
+            >"$TEST_DIRECTORY/mixed-swift-secrets.out" 2>&1; then
+        fail "expected shared and per-location object-storage Secrets to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/mixed-swift-secrets.out" \
+        "configure either secrets.objectStorage.existingSecret or credentialSecretRefs"
+
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/quickstart-gateway-service.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-gateway-service.yaml" \
@@ -2650,7 +2713,7 @@ EOF
     done <<'EOF'
 missing-location|--set-string externalDependencies.objectStorage.locations.workflows=|externalDependencies.objectStorage.locations.workflows is required
 mixed-schemes|--set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs|externalDependencies.objectStorage locations must use one storage URI scheme
-azure-s3-settings|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest/osmo-workflows/workflows --set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs --set-string externalDependencies.objectStorage.locations.apps=azure://osmotest/osmo-workflows/apps|externalDependencies.objectStorage.s3 must be empty for Azure locations
+azure-s3-settings|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest/osmo-workflows/workflows --set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs --set-string externalDependencies.objectStorage.locations.apps=azure://osmotest/osmo-workflows/apps|externalDependencies.objectStorage.s3 must be empty for non-S3 locations
 account-only-azure|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest|match pattern
 legacy-endpoint|--set-string externalDependencies.objectStorage.endpoint=https://legacy.example.com|
 legacy-buckets|--set-string externalDependencies.objectStorage.buckets.workflows=legacy-workflows|
