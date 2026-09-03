@@ -17,8 +17,8 @@
 {{- if .Values.services.api.enabled }}
 {{- $name := include "osmo.api.fullname" . }}
 {{- $protectedPodAnnotations := dict }}
-{{- if .Values.secrets.backendApiTokens.enabled }}
-{{- $_ := set $protectedPodAnnotations "osmo.nvidia.com/backend-token-rollout" .Values.secrets.backendApiTokens.rolloutNonce }}
+{{- if .Values.secrets.serviceAccountTokens.enabled }}
+{{- $_ := set $protectedPodAnnotations "osmo.nvidia.com/service-account-token-rollout" .Values.secrets.serviceAccountTokens.rolloutNonce }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -49,7 +49,6 @@ spec:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api "protectedAnnotations" $protectedPodAnnotations) | nindent 8 }}
         {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
         {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
-        osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
         {{- if .Values.services.api.tokenOidcProvider.enabled }}
         osmo.nvidia.com/oauth-client-secret-rollout: {{ .Values.secrets.oauthClientSecret.rolloutNonce | quote }}
         {{- end }}
@@ -167,13 +166,9 @@ spec:
         - --log_format
         - {{ .Values.logging.logFormat | default "text" }}
         {{- end }}
-        {{- if .Values.secrets.defaultAdmin.existingSecret }}
-        - --default_admin_username
-        - {{ .Values.secrets.defaultAdmin.username | quote }}
-        {{- end }}
-        {{- if .Values.secrets.backendApiTokens.enabled }}
-        - --backend_token_directory
-        - /etc/osmo/backend-tokens
+        {{- if .Values.secrets.serviceAccountTokens.enabled }}
+        - --service_account_token_directory
+        - /etc/osmo/service-account-tokens
         {{- end }}
         {{- include "osmo.configuration.args" . | nindent 8 }}
         {{- include "osmo.secrets.serviceAuthArgs" . | nindent 8 }}
@@ -187,13 +182,6 @@ spec:
         {{- include "osmo.configuration.extraEnv" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.api | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
-        {{- if .Values.secrets.defaultAdmin.existingSecret }}
-        - name: OSMO_DEFAULT_ADMIN_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.secrets.defaultAdmin.existingSecret }}
-              key: {{ .Values.secrets.defaultAdmin.keys.password }}
-        {{- end }}
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.api) }}
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" .Values.services.api) | nindent 10 }}
@@ -215,10 +203,10 @@ spec:
           subPath: client-secret
           readOnly: true
         {{- end }}
-        {{- if .Values.secrets.backendApiTokens.enabled }}
-        {{- range .Values.secrets.backendApiTokens.credentials }}
-        - name: backend-token-{{ .name }}
-          mountPath: /etc/osmo/backend-tokens/{{ .name }}
+        {{- if .Values.secrets.serviceAccountTokens.enabled }}
+        {{- range .Values.secrets.serviceAccountTokens.credentials }}
+        - name: service-account-token-{{ .name }}
+          mountPath: /etc/osmo/service-account-tokens/{{ .name }}
           readOnly: true
         {{- end }}
         {{- end }}
@@ -260,11 +248,11 @@ spec:
         {{- end }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
-        {{- if .Values.secrets.backendApiTokens.enabled }}
-        {{- range .Values.secrets.backendApiTokens.credentials }}
-        - name: backend-token-{{ .name }}
+        {{- if .Values.secrets.serviceAccountTokens.enabled }}
+        {{- range .Values.secrets.serviceAccountTokens.credentials }}
+        - name: service-account-token-{{ .name }}
           secret:
-            secretName: {{ include "osmo.backendApiTokenSecretName" . }}
+            secretName: {{ include "osmo.serviceAccountTokenSecretName" . }}
         {{- end }}
         {{- end }}
 ---

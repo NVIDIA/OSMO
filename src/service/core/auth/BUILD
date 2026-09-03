@@ -24,6 +24,7 @@ osmo_py_library(
     srcs = [
         "auth_service.py",
         "backend_secret_auth.py",
+        "service_account_secret_auth.py",
         "objects.py",
         "oidc_provider.py",
     ],

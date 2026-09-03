@@ -94,15 +94,17 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 
 **Error types**: Defined in `lib/utils/` — see the `OSMOError` hierarchy for the full list.
 
-Backend bootstrap authentication is implemented by
-`auth/backend_secret_auth.py`, which maps mounted Kubernetes Secret tokens to
-the fixed `osmo-backend` identity. The service Helm chart creates managed
-development credentials with a short-lived kubectl hook without rendering token
-material in Helm output. Changes to this authentication path must run:
+Service-account token authentication is implemented by
+`auth/service_account_secret_auth.py`, which maps mounted Kubernetes Secret
+tokens to the username and roles stored with each credential. The OSMO Helm
+chart creates managed credentials with a short-lived kubectl hook without
+rendering token material in Helm output. Changes to this authentication path
+must run:
 
 ```bash
-bazel test //src/service/core/auth/tests:test_backend_secret_auth
-bash deployments/charts/service/tests/render-tests.sh
+bazel test //src/service/core/auth/tests:test_service_account_secret_auth
+bazel test //deployments/charts:osmo_service_account_token_bootstrap_test
+bash deployments/charts/osmo/tests/test_osmo_charts.sh
 ```
 
 ### Supporting Services

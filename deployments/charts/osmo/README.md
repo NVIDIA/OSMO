@@ -410,10 +410,10 @@ kubectl --namespace osmo get secret \
 
 The release creates the workflow, log, and app buckets and wires the RustFS
 endpoint and credential Secret into the control plane. It creates the retained
-backend-token Secret through its bootstrap hook and the retained
+service-account token Secret through its bootstrap hook and the retained
 master-encryption-key Secret through the explicit lifecycle Job. The generated
 values never appear in Helm values, rendered manifests, logs, or Helm release
-state. The backend-token hook and object-storage bootstrap Job retain a `50m`
+state. The service-account-token hook and object-storage bootstrap Job retain a `50m`
 CPU request but intentionally have no CPU limit so their short-lived CLI
 processes can use otherwise-idle CPU and finish quickly.
 
@@ -547,7 +547,7 @@ The `split-plane-compute.yaml` profile installs only the backend listener,
 worker, and their Kubernetes access. It does not render control services,
 PostgreSQL, Valkey, RustFS, or credentials. Before installing, provision the
 referenced Secret in the compute release namespace. Its `token` key must contain
-the current 43- or 64-character URL-safe backend token; `previous-token` may
+the current 43- or 64-character URL-safe service account token; `previous-token` may
 contain a distinct old token during rotation.
 
 Copy the profile and replace its example `externalUrl` and
@@ -725,7 +725,7 @@ above.
   chart-protected identity labels and annotations take final precedence.
   Configure dependency metadata in the dependency's native values block.
 - Configure hook and init-container images with their image objects under
-  `secrets.backendApiTokens.bootstrap.image`,
+  `secrets.serviceAccountTokens.bootstrap.image`,
   `secrets.masterEncryptionKey.bootstrap.image`,
   `embeddedDependencies.objectStorage.bootstrap.image`, and
   `services.backendTestRunner.initContainer.image`. Digest references take
@@ -773,20 +773,60 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.valkey` | `redis-password` | Valkey clients |
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
-| `secrets.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
+| `secrets.serviceAccountTokens.credentials[]` | `token`, `username`, `roles`, optional `previous-token` | Service-account authentication |
 | `secrets.serviceAuth` | `authentication-config.json` | Stable JWT signing identity |
-| `secrets.defaultAdmin` | `password` | Optional administrator bootstrap |
 | `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
 | `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
 
-Generated backend-token and MEK Secrets are intentionally retained because
+Managed service-account-token and MEK Secrets are intentionally retained because
 replacing either can disconnect the compute plane or make encrypted database
 fields unreadable. A release-owned, non-secret ConfigMap records the managed
-backend-token Secret names so upgrades can create newly added credentials while
+service-account-token Secret names so upgrades can create newly added credentials while
 still failing when a retained credential disappears. Restore the original
 Secret under the same name; do not generate a replacement against a retained
 database. Back up the generated Valkey and RustFS Secrets with their PVCs for
 the same reason.
+
+Each control-plane service-account Secret contains a URL-safe `token`, a
+`username`, and newline-delimited `roles`. The optional `previous-token` permits
+credential rotation without changing the identity. Managed credentials declare
+the identity in values; the hook creates one retained Secret per entry and
+reconciles username or role changes without rotating its token:
+
+```yaml
+secrets:
+  serviceAccountTokens:
+    enabled: true
+    credentials:
+    - name: backend-default
+      username: backend-operator-default
+      roles:
+      - osmo-backend
+      managedSecret:
+        name: osmo-backend-token
+    - name: initial-admin
+      username: admin
+      roles:
+      - osmo-admin
+      managedSecret:
+        name: osmo-admin-token
+```
+
+Existing Secrets are externally managed and must supply all required fields
+themselves. Anyone allowed to update one of these Secrets can change both its
+token and effective authorization roles; grant that permission as carefully as
+administrator access. Custom roles must already exist in OSMO's role
+configuration. The API reads projected Secret updates and fails malformed or
+duplicate credentials closed.
+
+Upgrading from the backend-only bootstrap requires renaming
+`secrets.backendApiTokens` to `secrets.serviceAccountTokens`. For managed
+credentials, add `username` and `roles`; the first upgraded hook invocation adds
+those identity fields to the retained Secret without changing `token`. For an
+externally managed control-plane Secret, add `username` and `roles` before the
+API rollout. The compute-plane copy of the Secret continues to require only
+`token` (and optional `previous-token`) because it presents the credential but
+does not authenticate users.
 
 `helm uninstall osmo --namespace osmo` removes release-owned workloads but does
 not make retained credentials or data safe to discard. Inspect and back up

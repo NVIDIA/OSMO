@@ -277,12 +277,14 @@ secrets:
     rolloutNonce: ''
     keys:
       credentials: object-storage.yaml
-  # Backend compute-plane authentication. Each credential selects exactly one
-  # Kubernetes Secret source. Managed Secrets are generated and retained by a
-  # short-lived Helm hook without placing token material in rendered manifests
-  # or Helm release state; existing Secrets remain externally managed.
-  # Every Secret contains `token` and may contain `previous-token` for rotation.
-  backendApiTokens:
+  # Service-account authentication, including compute-plane backends and
+  # optional human bootstrap users. Each credential selects exactly one Secret
+  # source. Managed Secrets are generated and retained by a short-lived Helm
+  # hook without placing token material in rendered manifests or Helm release
+  # state; existing Secrets remain externally managed. Every Secret contains
+  # `token`, `username`, and newline-delimited `roles`, and may contain
+  # `previous-token` for rotation.
+  serviceAccountTokens:
     enabled: true
     bootstrap:
       image:
@@ -296,14 +298,20 @@ secrets:
     rolloutNonce: ''
     credentials:
     - name: default
+      username: backend-operator-default
+      roles:
+      - osmo-backend
       managedSecret:
         name: osmo-backend-token
     # - name: default
     #   existingSecret:
     #     name: osmo-backend-token
-    # - name: local
+    # - name: admin
+    #   username: admin
+    #   roles:
+    #   - osmo-admin
     #   managedSecret:
-    #     name: osmo-backend-token-local
+    #     name: osmo-admin-token
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
     # OSMO-managed lifecycle Jobs create and rotate the referenced Secret.
@@ -349,14 +357,6 @@ secrets:
       nodeSelector: {}
       tolerations: []
       resources: {}
-  # Optional password used to bootstrap the named administrator account.
-  defaultAdmin:
-    generate: false
-    existingSecret: ''
-    rolloutNonce: ''
-    username: admin
-    keys:
-      password: password
   # OAuth client Secret consumed only when the OAuth2 proxy is enabled.
   oauthClientSecret:
     existingSecret: oauth2-proxy-secrets

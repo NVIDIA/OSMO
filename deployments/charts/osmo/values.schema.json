@@ -70,10 +70,9 @@
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
         "valkey": { "$ref": "#/definitions/passwordSecretReference" },
         "objectStorage": { "$ref": "#/definitions/objectStorageSecretReference" },
-        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
+        "serviceAccountTokens": { "$ref": "#/definitions/serviceAccountTokens" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
         "serviceAuth": { "$ref": "#/definitions/serviceAuthReference" },
-        "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
         "oauthClientSecret": { "$ref": "#/definitions/existingValueSecretReference" },
         "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
       }
@@ -1345,7 +1344,7 @@
       },
       "required": ["existingSecret", "rolloutNonce", "keys"]
     },
-    "backendApiTokens": {
+    "serviceAccountTokens": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -1366,8 +1365,25 @@
             "additionalProperties": false,
             "properties": {
               "name": { "type": "string", "minLength": 1 },
-              "existingSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
-              "managedSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" }
+              "username": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[A-Za-z0-9]([A-Za-z0-9_.@-]*[A-Za-z0-9])?$"
+              },
+              "roles": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255,
+                  "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.:@/]*[A-Za-z0-9])?$"
+                }
+              },
+              "existingSecret": { "$ref": "#/definitions/serviceAccountTokenSecretSource" },
+              "managedSecret": { "$ref": "#/definitions/serviceAccountTokenSecretSource" }
             },
             "required": ["name"]
           }
@@ -1375,7 +1391,7 @@
       },
       "required": ["enabled", "bootstrap", "rolloutNonce", "credentials"]
     },
-    "backendApiTokenSecretSource": {
+    "serviceAccountTokenSecretSource": {
       "type": "object",
       "additionalProperties": false,
       "properties": { "name": { "type": "string", "minLength": 1 } },
@@ -1443,23 +1459,6 @@
         }
       },
       "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
-    },
-    "adminSecretReference": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "generate": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "rolloutNonce": { "type": "string" },
-        "username": { "type": "string", "minLength": 1 },
-        "keys": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": { "password": { "type": "string", "minLength": 1 } },
-          "required": ["password"]
-        }
-      },
-      "required": ["generate", "existingSecret", "rolloutNonce", "username", "keys"]
     }
   }
 }

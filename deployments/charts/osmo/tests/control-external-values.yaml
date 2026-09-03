@@ -49,7 +49,7 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: external-object-storage-secret
-  backendApiTokens:
+  serviceAccountTokens:
     enabled: false
     credentials: []
   masterEncryptionKey:

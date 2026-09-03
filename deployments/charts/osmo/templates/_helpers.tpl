@@ -341,20 +341,20 @@ data:
 {{- include "osmo.component.fullname" (dict "root" . "suffix" "api") -}}
 {{- end -}}
 
-{{/* Resolve the Secret selected by one backend API token credential. */}}
-{{- define "osmo.backendApiTokenSecretName" -}}
+{{/* Resolve the Secret selected by one service account token credential. */}}
+{{- define "osmo.serviceAccountTokenSecretName" -}}
 {{- $hasExistingSecret := hasKey . "existingSecret" -}}
 {{- $hasManagedSecret := hasKey . "managedSecret" -}}
 {{- $sourceCount := add
       (ternary 1 0 $hasExistingSecret)
       (ternary 1 0 $hasManagedSecret) -}}
 {{- if ne $sourceCount 1 -}}
-{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret or managedSecret" (.name | default "")) -}}
+{{- fail (printf "service account token credential %q must configure exactly one of existingSecret or managedSecret" (.name | default "")) -}}
 {{- end -}}
 {{- if $hasExistingSecret -}}
-{{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
+{{- required "service account token existingSecret.name is required" .existingSecret.name -}}
 {{- else -}}
-{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
+{{- required "service account token managedSecret.name is required" .managedSecret.name -}}
 {{- end -}}
 {{- end -}}
 

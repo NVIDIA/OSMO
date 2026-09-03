@@ -38,16 +38,19 @@ embeddedDependencies:
         pullPolicy: Always
 
 secrets:
-  backendApiTokens:
+  serviceAccountTokens:
     bootstrap:
       image:
         registry: registry.example.com
-        repository: conventions/backend-token-bootstrap
+        repository: conventions/service-account-token-bootstrap
         tag: ignored
         digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         pullPolicy: Always
     credentials:
     - name: convention
+      username: backend-operator-convention
+      roles:
+      - osmo-backend
       managedSecret:
         name: convention-backend-token
 services:

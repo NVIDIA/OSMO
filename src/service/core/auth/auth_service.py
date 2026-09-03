@@ -26,7 +26,7 @@ import fastapi
 
 from src.lib.utils import common, osmo_errors
 from src.utils.job import task as task_lib
-from src.service.core.auth import backend_secret_auth, objects
+from src.service.core.auth import service_account_secret_auth, objects
 from src.utils import auth, configmap_state, connectors
 
 
@@ -163,22 +163,22 @@ def _create_jwt_from_access_token(access_token: str):
 
     postgres = connectors.PostgresConnector.get_instance()
     try:
-        backend_identity = backend_secret_auth.authenticate(access_token)
-    except backend_secret_auth.BackendTokenConfigurationError as error:
+        service_account_identity = service_account_secret_auth.authenticate(access_token)
+    except service_account_secret_auth.ServiceAccountTokenConfigurationError as error:
         # Configuration is validated during service startup. If a projected
         # Secret is briefly unavailable during rotation, preserve ordinary
         # database-backed access-token authentication while failing the
-        # backend credential closed.
-        logger.warning('Backend token projection unavailable: %s', error)
-        backend_identity = None
-    if backend_identity is not None:
+        # service-account credential closed.
+        logger.warning('Service account token projection unavailable: %s', error)
+        service_account_identity = None
+    if service_account_identity is not None:
         service_config = postgres.get_service_configs()
         end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
         jwt_token = service_config.service_auth.create_idtoken_jwt(
             end_timeout,
-            backend_identity.username,
-            roles=list(backend_identity.roles),
-            token_name=backend_identity.token_name)
+            service_account_identity.username,
+            roles=list(service_account_identity.roles),
+            token_name=service_account_identity.token_name)
         return {'token': jwt_token,
                 'expires_at': end_timeout,
                 'error': None}

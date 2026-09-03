@@ -45,13 +45,16 @@ secrets:
     existingSecret: osmo-oauth2-proxy
   oauthCookieSecret:
     existingSecret: osmo-oauth2-proxy
-  backendApiTokens:
+  serviceAccountTokens:
     enabled: true
     bootstrap:
       image:
         digest: sha256:3c6d1e613d94f03d63a6213b8687c7d4e5b9154903327aa8f0b5d628d7ab010b
     credentials:
     - name: default
+      username: backend-operator-default
+      roles:
+      - osmo-backend
       managedSecret:
         name: osmo-backend-token
   masterEncryptionKey:

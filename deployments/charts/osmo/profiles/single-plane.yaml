@@ -32,7 +32,7 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: osmo-object-storage
-  backendApiTokens:
+  serviceAccountTokens:
     enabled: true
     credentials:
     - name: default

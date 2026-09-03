@@ -248,7 +248,7 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: osmo-object-storage
-  backendApiTokens:
+  serviceAccountTokens:
     enabled: false
     credentials: []
   masterEncryptionKey:

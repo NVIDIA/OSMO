@@ -92,10 +92,17 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'progress_iter_frequency',
             'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
         })
-    backend_token_directory: str | None = pydantic.Field(
+    service_account_token_directory: str | None = pydantic.Field(
         default=None,
         description='Directory containing Kubernetes Secret projections used to authenticate '
-                    'backend operators.',
+                    'service accounts.',
+        json_schema_extra={
+            'command_line': 'service_account_token_directory',
+            'env': 'OSMO_SERVICE_ACCOUNT_TOKEN_DIRECTORY'
+        })
+    backend_token_directory: str | None = pydantic.Field(
+        default=None,
+        description='Deprecated backend-only alias for service_account_token_directory.',
         json_schema_extra={
             'command_line': 'backend_token_directory',
             'env': 'OSMO_BACKEND_TOKEN_DIRECTORY'

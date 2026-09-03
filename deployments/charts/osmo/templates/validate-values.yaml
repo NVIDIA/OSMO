@@ -57,41 +57,47 @@
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
 {{- if .Values.planes.control.enabled -}}
-{{- if and .Values.planes.compute.enabled (not .Values.secrets.backendApiTokens.enabled) -}}
-{{- fail "secrets.backendApiTokens.enabled must be true when both planes are enabled" -}}
+{{- if and .Values.planes.compute.enabled (not .Values.secrets.serviceAccountTokens.enabled) -}}
+{{- fail "secrets.serviceAccountTokens.enabled must be true when both planes are enabled" -}}
 {{- end -}}
-{{- if .Values.secrets.backendApiTokens.enabled -}}
-{{- if not .Values.secrets.backendApiTokens.credentials -}}
-{{- fail "secrets.backendApiTokens.credentials must not be empty when backend API tokens are enabled" -}}
+{{- if .Values.secrets.serviceAccountTokens.enabled -}}
+{{- if not .Values.secrets.serviceAccountTokens.credentials -}}
+{{- fail "secrets.serviceAccountTokens.credentials must not be empty when service account tokens are enabled" -}}
 {{- end -}}
-{{- $backendTokenCredentialNames := dict -}}
-{{- $backendTokenSecretNames := dict -}}
-{{- range .Values.secrets.backendApiTokens.credentials -}}
-{{- $credentialName := required "backend API token credential name is required" .name -}}
+{{- $serviceAccountCredentialNames := dict -}}
+{{- $serviceAccountSecretNames := dict -}}
+{{- range .Values.secrets.serviceAccountTokens.credentials -}}
+{{- $credentialName := required "service account token credential name is required" .name -}}
 {{- if or
   (gt (len $credentialName) 49)
   (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) -}}
-{{- fail (printf "invalid backend API token credential name %q" $credentialName) -}}
+{{- fail (printf "invalid service account token credential name %q" $credentialName) -}}
 {{- end -}}
-{{- if hasKey $backendTokenCredentialNames $credentialName -}}
-{{- fail (printf "duplicate backend API token credential name %q" $credentialName) -}}
+{{- if hasKey $serviceAccountCredentialNames $credentialName -}}
+{{- fail (printf "duplicate service account token credential name %q" $credentialName) -}}
 {{- end -}}
-{{- $_ := set $backendTokenCredentialNames $credentialName true -}}
-{{- $secretName := include "osmo.backendApiTokenSecretName" . -}}
+{{- $_ := set $serviceAccountCredentialNames $credentialName true -}}
+{{- if hasKey . "managedSecret" -}}
+{{- $username := required (printf "managed service account token credential %q requires username" $credentialName) .username -}}
+{{- if not .roles -}}
+{{- fail (printf "managed service account token credential %q requires at least one role" $credentialName) -}}
+{{- end -}}
+{{- end -}}
+{{- $secretName := include "osmo.serviceAccountTokenSecretName" . -}}
 {{- if or
   (gt (len $secretName) 253)
   (not (regexMatch "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$" $secretName)) -}}
-{{- fail (printf "invalid backend API token Secret name %q" $secretName) -}}
+{{- fail (printf "invalid service account token Secret name %q" $secretName) -}}
 {{- end -}}
-{{- if hasKey $backendTokenSecretNames $secretName -}}
-{{- fail (printf "duplicate backend API token Secret name %q" $secretName) -}}
+{{- if hasKey $serviceAccountSecretNames $secretName -}}
+{{- fail (printf "duplicate service account token Secret name %q" $secretName) -}}
 {{- end -}}
-{{- $_ := set $backendTokenSecretNames $secretName true -}}
+{{- $_ := set $serviceAccountSecretNames $secretName true -}}
 {{- end -}}
 {{- if and
   .Values.planes.compute.enabled
-  (not (hasKey $backendTokenSecretNames .Values.compute.authentication.existingSecret)) -}}
-{{- fail "compute.authentication.existingSecret must match a configured backend API token Secret in a converged release" -}}
+  (not (hasKey $serviceAccountSecretNames .Values.compute.authentication.existingSecret)) -}}
+{{- fail "compute.authentication.existingSecret must match a configured service account token Secret in a converged release" -}}
 {{- end -}}
 {{- end -}}
 {{- $objectStorageCredentialsKey := .Values.secrets.objectStorage.keys.credentials -}}
@@ -339,9 +345,6 @@
 {{- if and (ne .Values.gateway.tls.generated.caRotation.phase "stable") (not .Values.gateway.tls.generated.caRotation.freezeHpas) -}}
 {{- fail "gateway.tls.generated.caRotation.freezeHpas must be true during CA rotation" -}}
 {{- end -}}
-{{- end -}}
-{{- if .Values.secrets.defaultAdmin.generate -}}
-{{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- if and .Values.secrets.oauthCookieSecret.generate .Values.secrets.oauthCookieSecret.existingSecret -}}
 {{- fail "secrets.oauthCookieSecret.generate and existingSecret are mutually exclusive" -}}

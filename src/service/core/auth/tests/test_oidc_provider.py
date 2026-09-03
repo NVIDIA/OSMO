@@ -25,12 +25,13 @@ from types import SimpleNamespace
 import secrets
 import tempfile
 import unittest
+from unittest import mock
 
 import fastapi
 from fastapi.testclient import TestClient
 import jwt  # type: ignore
 
-from src.service.core.auth import oidc_provider
+from src.service.core.auth import oidc_provider, service_account_secret_auth
 from src.service.core.workflow import objects as workflow_objects
 from src.utils import auth, connectors
 
@@ -111,6 +112,7 @@ class OidcProviderTest(unittest.TestCase):
         self.client = TestClient(app, base_url='https://osmo.example')
 
     def tearDown(self) -> None:
+        service_account_secret_auth.configure(None)
         connectors.RedisConnector._instance = self.previous_redis  # pylint: disable=protected-access
         workflow_objects.WorkflowServiceContext._instance = None  # pylint: disable=protected-access
         os.unlink(self.client_secret_file.name)
@@ -202,6 +204,44 @@ class OidcProviderTest(unittest.TestCase):
             key: value.decode() for key, value in self.redis.values.items()
         })
         self.assertNotIn(self.pat, serialized_redis)
+
+    def test_service_account_token_uses_secret_identity_and_roles(self) -> None:
+        identity = service_account_secret_auth.ServiceAccountTokenIdentity(
+            username='admin',
+            roles=('osmo-admin', 'team-bootstrap'),
+            token_name='service-account-initial-admin',
+        )
+        verifier = 's' * 43
+        basic = base64.b64encode(b'osmo-ui:test-client-secret').decode()
+        with mock.patch.object(
+                oidc_provider.service_account_secret_auth, 'authenticate',
+                return_value=identity), mock.patch.object(
+                    oidc_provider.service_account_secret_auth, 'resolve_identity',
+                    return_value=identity) as resolve_identity:
+            code = self._login_and_complete(self._authorize(verifier))
+            exchange = self.client.post('/api/auth/oidc/token', data={
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': 'https://osmo.example/oauth2/callback',
+                'code_verifier': verifier,
+            }, headers={'Authorization': f'Basic {basic}'})
+
+        self.assertEqual(exchange.status_code, 200)
+        claims = jwt.decode(
+            exchange.json()['id_token'],
+            key=jwt.PyJWK.from_json(self.service_auth.get_current_key().public_key).key,
+            algorithms=['RS256'],
+            audience='osmo-ui',
+            issuer='https://osmo.example/api/auth/oidc',
+        )
+        self.assertEqual(claims['preferred_username'], 'admin')
+        self.assertEqual(claims['roles'], ['osmo-admin', 'team-bootstrap'])
+        self.assertEqual(claims['osmo_token_name'], 'service-account-initial-admin')
+        resolve_identity.assert_called_once_with(
+            auth.hash_access_token(self.pat).hex(),
+            'admin',
+            'service-account-initial-admin',
+        )
 
     def test_code_is_single_use_and_pat_errors_are_generic(self) -> None:
         verifier = 'x' * 43

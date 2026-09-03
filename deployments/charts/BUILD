@@ -34,9 +34,15 @@ filegroup(
 )
 
 sh_test(
+    name = "osmo_service_account_token_bootstrap_test",
+    srcs = ["osmo/tests/test_service_account_token_bootstrap.sh"],
+    data = ["osmo/files/service-account-token-bootstrap.sh"],
+)
+
+sh_test(
     name = "osmo_backend_token_bootstrap_test",
-    srcs = ["osmo/tests/test_backend_token_bootstrap.sh"],
-    data = ["osmo/files/backend-token-bootstrap.sh"],
+    srcs = ["osmo/tests/test_service_account_token_bootstrap.sh"],
+    data = ["osmo/files/service-account-token-bootstrap.sh"],
 )
 
 sh_test(

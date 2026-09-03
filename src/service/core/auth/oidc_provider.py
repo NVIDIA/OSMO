@@ -33,7 +33,7 @@ import fastapi
 import pydantic
 from starlette import status
 
-from src.service.core.auth import objects
+from src.service.core.auth import objects, service_account_secret_auth
 from src.service.core.workflow import objects as workflow_objects
 from src.utils import auth, connectors
 from src.utils.job import task as task_lib
@@ -61,12 +61,13 @@ class LoginRequest(pydantic.BaseModel, extra='forbid'):
 
 
 class PersonalAccessTokenIdentity(pydantic.BaseModel, extra='forbid'):
-    """Validated database PAT identity retained without plaintext token material."""
+    """Validated token identity retained without plaintext token material."""
     username: str
     token_name: str
     roles: list[str]
     expires_at: datetime.datetime
     token_digest: str
+    source: str
 
 
 def _context() -> workflow_objects.WorkflowServiceContext:
@@ -155,6 +156,20 @@ def _origin(config: workflow_objects.WorkflowServiceConfig) -> str:
 def _validate_pat(plaintext_token: str) -> PersonalAccessTokenIdentity | None:
     if len(plaintext_token) not in task_lib.VALID_TOKEN_LENGTHS:
         return None
+    try:
+        service_account_identity = service_account_secret_auth.authenticate(plaintext_token)
+    except service_account_secret_auth.ServiceAccountTokenConfigurationError as error:
+        logger.warning('Service account token projection unavailable: %s', error)
+        service_account_identity = None
+    if service_account_identity is not None:
+        return PersonalAccessTokenIdentity(
+            username=service_account_identity.username,
+            token_name=service_account_identity.token_name,
+            roles=list(service_account_identity.roles),
+            expires_at=datetime.datetime.max.replace(tzinfo=datetime.timezone.utc),
+            token_digest=auth.hash_access_token(plaintext_token).hex(),
+            source='service_account',
+        )
     database = _context().database
     token = objects.AccessToken.validate_access_token(database, plaintext_token)
     if token is None or token.expires_at.date() <= datetime.datetime.now(
@@ -169,10 +184,30 @@ def _validate_pat(plaintext_token: str) -> PersonalAccessTokenIdentity | None:
         roles=roles,
         expires_at=token.expires_at,
         token_digest=auth.hash_access_token(plaintext_token).hex(),
+        source='database',
     )
 
 
 def _resolve_pat(record: dict[str, Any]) -> PersonalAccessTokenIdentity | None:
+    if record.get('source') == 'service_account':
+        try:
+            identity = service_account_secret_auth.resolve_identity(
+                record['token_digest'], record['username'], record['token_name'])
+        except service_account_secret_auth.ServiceAccountTokenConfigurationError as error:
+            logger.warning('Service account token projection unavailable: %s', error)
+            return None
+        if identity is None:
+            return None
+        return PersonalAccessTokenIdentity(
+            username=identity.username,
+            token_name=identity.token_name,
+            roles=list(identity.roles),
+            expires_at=datetime.datetime.max.replace(tzinfo=datetime.timezone.utc),
+            token_digest=record['token_digest'],
+            source='service_account',
+        )
+    if record.get('source') != 'database':
+        return None
     database = _context().database
     digest = bytes.fromhex(record['token_digest'])
     fetch_command = '''
@@ -199,6 +234,7 @@ def _resolve_pat(record: dict[str, Any]) -> PersonalAccessTokenIdentity | None:
         roles=roles,
         expires_at=token.expires_at,
         token_digest=record['token_digest'],
+        source='database',
     )
 
 
@@ -243,6 +279,7 @@ def _issue_tokens(
         'username': identity.username,
         'token_name': identity.token_name,
         'token_digest': identity.token_digest,
+        'source': identity.source,
         'roles': identity.roles,
         'auth_time': auth_time,
         'nonce': nonce,
@@ -423,6 +460,7 @@ def login(
         'username': identity.username,
         'token_name': identity.token_name,
         'token_digest': identity.token_digest,
+        'source': identity.source,
         'roles': identity.roles,
         'auth_time': int(time.time()),
         'session_id': _random_value(),

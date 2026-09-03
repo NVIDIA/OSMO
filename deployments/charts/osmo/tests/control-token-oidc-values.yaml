@@ -4,6 +4,15 @@
 externalUrl: http://127.0.0.1:18080
 
 secrets:
+  serviceAccountTokens:
+    enabled: true
+    credentials:
+    - name: admin
+      username: admin
+      roles:
+      - osmo-admin
+      managedSecret:
+        name: token-oidc-admin
   oauthClientSecret:
     existingSecret: token-oidc-oauth
     rolloutNonce: test-client-secret

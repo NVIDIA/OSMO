@@ -27,7 +27,7 @@ secrets:
     generate: false
   objectStorage:
     generate: false
-  backendApiTokens:
+  serviceAccountTokens:
     enabled: false
     credentials: []
   masterEncryptionKey:
