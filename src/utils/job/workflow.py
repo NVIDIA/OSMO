@@ -640,7 +640,8 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             raise common.registry_manifest_error(image_info, response, workflow_id=self.name)
 
         # A 404 still goes through the credential loop: registries that hide private
-        # repositories answer 404 until a credential authenticates.
+        # repositories answer 404 with an auth challenge, which registry_auth resolves once a
+        # credential is supplied.
         for _, registry_cred in connectors.PostgresConnector.get_instance()\
                 .get_matching_registry_creds(user, image_info):
             response = common.registry_auth(image_info.manifest_url,
