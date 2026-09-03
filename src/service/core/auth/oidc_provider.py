@@ -49,6 +49,7 @@ REFRESH_TTL = 8 * 60 * 60
 COOKIE_NAME_SECURE = '__Host-osmo_oidc_transaction'
 COOKIE_NAME_INSECURE = 'osmo_oidc_transaction'
 OPAQUE_VALUE_BYTES = 32
+OPAQUE_VALUE_PATTERN = re.compile(r'^[A-Za-z0-9_-]{43}$')
 PKCE_PATTERN = re.compile(r'^[A-Za-z0-9._~-]{43,128}$')
 
 
@@ -336,7 +337,9 @@ def authorize(request: fastapi.Request) -> fastapi.Response:
             f'{config.token_oidc_redirect_uri}?{redirect_query}', status_code=303)
 
     transaction_id = _random_value()
-    binding = _random_value()
+    binding = _browser_binding(request, config)
+    if binding is None or not OPAQUE_VALUE_PATTERN.fullmatch(binding):
+        binding = _random_value()
     csrf_token = _random_value()
     _save_record('authorization', transaction_id, {
         'status': 'pending',
@@ -450,13 +453,6 @@ def complete_authorization(request: fastapi.Request, transaction_id: str) -> fas
         f"{consumed['redirect_uri']}?{urlencode({'code': code, 'state': consumed['state']})}",
         status_code=303,
         headers={'Cache-Control': 'no-store'},
-    )
-    response.delete_cookie(
-        _cookie_name(config),
-        secure=config.token_oidc_cookie_secure,
-        httponly=True,
-        samesite='lax',
-        path='/',
     )
     return response
 

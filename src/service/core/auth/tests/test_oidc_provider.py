@@ -280,6 +280,23 @@ class OidcProviderTest(unittest.TestCase):
             '/api/auth/oidc/token', data=exchange_payload,
             headers={'Authorization': f'Basic {basic}'}).status_code, 400)
 
+    def test_concurrent_authorizations_share_browser_binding(self) -> None:
+        first_transaction = self._authorize('a' * 43)
+        second_transaction = self._authorize('b' * 43)
+        self.assertNotEqual(first_transaction, second_transaction)
+
+        self._login_and_complete(first_transaction)
+
+        second_context = self.client.get(
+            '/api/auth/oidc/login-context', params={'transaction_id': second_transaction})
+        self.assertEqual(second_context.status_code, 200)
+        second_login = self.client.post('/api/auth/oidc/login', json={
+            'transaction_id': second_transaction,
+            'csrf_token': second_context.json()['csrf_token'],
+            'token': self.pat,
+        }, headers={'Origin': 'https://osmo.example'})
+        self.assertEqual(second_login.status_code, 200)
+
     def test_config_rejects_scheme_relative_login_page(self) -> None:
         with self.assertRaisesRegex(ValueError, 'same-origin absolute path'):
             workflow_objects.WorkflowServiceConfig(
