@@ -316,12 +316,10 @@ def registry_auth(url: str, username: Optional[str] = None,
         response = requests.head(url, timeout=TIMEOUT)
 
         # Step 2: If the registry requires authorization it will return a 401 Unauthorized HTTP
-        # response with information on how to authenticate.
-        if response.status_code == 200:
-            return response
+        # response with information on how to authenticate. Any other non-200 response is returned
+        # unchanged so the caller can classify it (missing manifest, rate limit, server error).
         if response.status_code != 401:
-            raise osmo_errors.OSMOCredentialError(
-                f'Registry authorization error for {url}:\n {response}')
+            return response
 
         # Step 3: The registry client makes a request to the authorization service
         # for a Bearer token.
@@ -365,8 +363,67 @@ def registry_auth(url: str, username: Optional[str] = None,
         # Step 6: The Registry authorizes the client by validating the Bearer token and the claim
         # set embedded within it.
         return response
-    except requests.exceptions.ConnectionError as err:
-        raise osmo_errors.OSMOCredentialError(f'Registry connection error for {url}:\n {err}')
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as err:
+        raise osmo_errors.OSMORegistryUnavailableError(
+            f'Registry connection error for {url}:\n {err}')
+
+
+def registry_error_code(response) -> str:
+    """ Returns the OCI error code from a registry error body, or an empty string. """
+    try:
+        errors = response.json().get('errors')
+    except (AttributeError, ValueError):
+        return ''
+    if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+        return str(errors[0].get('code', ''))
+    return ''
+
+
+def registry_manifest_error(image_info: DockerImageInfo, response,
+                            workflow_id: Optional[str] = None) -> osmo_errors.OSMOError:
+    """ Classifies a non-200 manifest response into a specific, actionable error. """
+    status_code = response.status_code
+    registry = image_info.host
+    code = registry_error_code(response)
+    status = f'{status_code} {code}' if code else str(status_code)
+
+    if status_code == 404:
+        if image_info.digest:
+            message = (f'Could not resolve image digest {image_info.original}: '
+                       f'{registry} returned {status}. '
+                       'Verify that the digest exists in this repository.')
+        else:
+            message = (f'Could not resolve image tag {image_info.original}: '
+                       f'{registry} returned {status}. '
+                       'Verify that the tag exists or submit an immutable digest.')
+        return osmo_errors.OSMOImageNotFoundError(message, workflow_id=workflow_id)
+
+    if status_code == 429:
+        return osmo_errors.OSMORegistryRateLimitError(
+            f'Registry {registry} rate limited the manifest request for '
+            f'{image_info.original} (HTTP {status}). Retry the submission later.',
+            workflow_id=workflow_id)
+
+    if status_code >= 500:
+        return osmo_errors.OSMORegistryUnavailableError(
+            f'Registry {registry} is unavailable for image {image_info.original} '
+            f'(HTTP {status}).', workflow_id=workflow_id)
+
+    if status_code == 403:
+        return osmo_errors.OSMOCredentialError(
+            f'Not authorized to pull image {image_info.original}. The credential matching '
+            f'{image_registry_scope(image_info)} does not grant pull access (HTTP {status}).',
+            workflow_id=workflow_id)
+
+    if status_code == 401:
+        return osmo_errors.OSMOCredentialError(
+            f'Unable to authenticate for pulling image {image_info.original}. '
+            f'Please create a credential matching {image_registry_scope(image_info)} '
+            'or check if the image exists.', workflow_id=workflow_id)
+
+    return osmo_errors.OSMORegistryError(
+        f'Registry {registry} returned HTTP {status} for image {image_info.original}.',
+        workflow_id=workflow_id)
 
 
 def registry_parse(name: str) -> str:
